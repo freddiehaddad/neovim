@@ -331,7 +331,7 @@ pub fn error_set(e: &Error) -> bool {
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub fn try_enter(tstate: &mut TryState) {
-    let saved_msg_list = g_st().msg_list.replace(Vec::new());
+    let saved_msg_list = g_st().msg_list.replace(Some(Vec::new()));
     let saved_excp = g_st().current_exception.take();
 
     *tstate = TryState {
@@ -365,6 +365,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         g_st().got_int.set(false);
     } else if g_st()
         .msg_list
+        .borrow()
         .as_ref()
         .is_some_and(|msgs| !msgs.is_empty())
     {
@@ -401,7 +402,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         discard_current_exception();
     }
 
-    g_st().msg_list = tstate.msg_list.clone();
+    *g_st().msg_list.borrow_mut() = tstate.msg_list.clone();
     g_st()
         .current_exception
         .set(tstate.current_exception.clone());
@@ -565,6 +566,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
     }
     let rv = g_st()
         .buffer_handles
+        .borrow()
         .get(&buffer)
         .copied()
         .unwrap_or_default();
@@ -588,6 +590,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinP
     }
     let rv = g_st()
         .window_handles
+        .borrow()
         .get(&window)
         .copied()
         .unwrap_or_default();
@@ -609,6 +612,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
     }
     let rv = g_st()
         .tabpage_handles
+        .borrow()
         .get(&tabpage)
         .cloned()
         .unwrap_or_default();

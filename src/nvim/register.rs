@@ -788,7 +788,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
             CTRL_V_CONST as u8,
             false,
         );
-        if g_st().visual_global.active && p.as_bytes().starts_with(b"'<,'>") {
+        if g_st().visual_global.borrow().active && p.as_bytes().starts_with(b"'<,'>") {
             retval = put_in_typebuf(
                 crate::memory::CStrSubslice::advance(p.as_c_str(), 5),
                 true,
@@ -1253,7 +1253,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
         }
     }
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start = oap.start;
         curbuf_mut().b_op_end = oap.end;
         if yank_type == MotionType::MtLineWise {
@@ -1386,8 +1386,8 @@ fn put_do_autocmd(
     let list = tv_list_alloc(reg.map_or(1, |r| r.with(|reg| reg.y_array.len() as isize)));
 
     if regname == i32::from(b'.') {
-        if !g_st().last_insert_ga.is_empty() {
-            crate::eval::typval::tv_list_append_bytes(&list, &g_st().last_insert_ga);
+        if !g_st().last_insert_ga.borrow().is_empty() {
+            crate::eval::typval::tv_list_append_bytes(&list, &g_st().last_insert_ga.borrow());
         }
     } else if let Some(insert) = insert {
         crate::eval::typval::tv_list_append_bytes(&list, insert.as_bytes());
@@ -1417,7 +1417,7 @@ fn put_do_autocmd(
     tv_dict_add_bool(
         &v_event,
         c"visual",
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             K_BOOL_VAR_TRUE_CONST
         } else {
             K_BOOL_VAR_FALSE_CONST
@@ -1479,8 +1479,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     curbuf_mut().b_op_end = curwin_mut().w_cursor;
 
     if regname == i32::from(b'.') && reg.is_none() {
-        let non_linewise_vis =
-            g_st().visual_global.active && g_st().visual_global.mode != i32::from(b'V');
+        let non_linewise_vis = g_st().visual_global.borrow().active
+            && g_st().visual_global.borrow().mode != i32::from(b'V');
 
         let command_start_char = if non_linewise_vis {
             i32::from(b'c')
@@ -1538,7 +1538,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 .add_last_insert
                 .set(g_st().add_last_insert.get() - (1));
             if g_st().add_last_insert.get() == 0 {
-                g_st().last_insert_ga = Vec::new();
+                *g_st().last_insert_ga.borrow_mut() = Vec::new();
             }
         }
 
@@ -2031,7 +2031,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let start_lnum = lnum;
                 let mut first_byte_off: i32 = 0;
 
-                if g_st().visual_global.active {
+                if g_st().visual_global.borrow().active {
                     end_lnum = curbuf_mut()
                         .b_visual
                         .vi_end
@@ -2069,9 +2069,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                                 col = MAXCOL;
                             }
                         }
-                        if g_st().visual_global.active && col > oldlen {
+                        if g_st().visual_global.borrow().active && col > oldlen {
                             lnum += 1;
-                            if !(g_st().visual_global.active && lnum <= end_lnum) {
+                            if !(g_st().visual_global.borrow().active && lnum <= end_lnum) {
                                 break;
                             }
                             continue;
@@ -2110,10 +2110,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                             totlen as i32,
                             K_EXTMARK_UNDO,
                         );
-                        if g_st().visual_global.active {
+                        if g_st().visual_global.borrow().active {
                             lnum += 1;
                         }
-                        if !(g_st().visual_global.active && lnum <= end_lnum) {
+                        if !(g_st().visual_global.borrow().active && lnum <= end_lnum) {
                             break;
                         }
                     }
@@ -2350,7 +2350,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         }
     }
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0 {
         curbuf_mut().b_op_start = orig_start;
         curbuf_mut().b_op_end = orig_end;
     }
@@ -2366,7 +2366,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     drop(insert_string_owned);
 
     if curbuf_mut().terminal.get().is_null() {
-        g_st().visual_global.active = false;
+        g_st().visual_global.borrow_mut().active = false;
     }
 
     adjust_cursor_eol();

@@ -241,13 +241,20 @@ macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::format_to_buf_fmt(
-                $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            );
+            match (
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+            ) {
+                (ref fmt_val, ref args_val) => {
+                    $crate::strings::format_to_buf_fmt(
+                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
+                        fmt_val.as_cstr(),
+                        args_val,
+                    );
+                }
+            }
             $crate::message::msg(
-                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
+                $crate::globals::g_st().iobuff_cstr(),
                 hl,
             )
         }
@@ -260,13 +267,20 @@ macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::format_to_buf_fmt(
-                $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            );
+            match (
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+            ) {
+                (ref fmt_val, ref args_val) => {
+                    $crate::strings::format_to_buf_fmt(
+                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
+                        fmt_val.as_cstr(),
+                        args_val,
+                    );
+                }
+            }
             $crate::message::msg_keep(
-                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
+                $crate::globals::g_st().iobuff_cstr(),
                 hl,
                 true,
                 false,
@@ -335,13 +349,20 @@ pub use siemsg;
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::format_to_buf_fmt(
-                $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            );
+            match (
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+            ) {
+                (ref fmt_val, ref args_val) => {
+                    $crate::strings::format_to_buf_fmt(
+                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
+                        fmt_val.as_cstr(),
+                        args_val,
+                    );
+                }
+            }
             $crate::message::msg_schedule_semsg_cstr(
-                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
+                $crate::globals::g_st().iobuff_cstr(),
             );
         }
     }};
@@ -352,13 +373,20 @@ pub use msg_schedule_semsg;
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::format_to_buf_fmt(
-                $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            );
+            match (
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+            ) {
+                (ref fmt_val, ref args_val) => {
+                    $crate::strings::format_to_buf_fmt(
+                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
+                        fmt_val.as_cstr(),
+                        args_val,
+                    );
+                }
+            }
             $crate::message::msg_schedule_semsg_multiline_cstr(
-                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
+                $crate::globals::g_st().iobuff_cstr(),
             );
         }
     }};
@@ -370,13 +398,20 @@ macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
         {
-            $crate::strings::format_to_buf_fmt(
-                $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            );
+            match (
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+            ) {
+                (ref fmt_val, ref args_val) => {
+                    $crate::strings::format_to_buf_fmt(
+                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
+                        fmt_val.as_cstr(),
+                        args_val,
+                    );
+                }
+            }
             $crate::message::give_warning(
-                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
+                $crate::globals::g_st().iobuff_cstr(),
                 hl_val,
                 true,
             );
@@ -437,7 +472,7 @@ pub fn msg_use_grid() -> bool {
 }
 
 pub fn msg_grid_validate() {
-    grid_assign_handle(&mut g_st().msg_grid);
+    grid_assign_handle(&g_st().msg_grid);
     let should_alloc = msg_use_grid();
     let max_rows = g_st().rows_global.get() - opt_vars().p_ch.get() as i32;
     let msg_grid_empty = !crate::grid::grid_allocated(&g_st().msg_grid);
@@ -466,7 +501,7 @@ pub fn msg_grid_validate() {
         g_st().msg_grid.throttled.set(false); // don't throttle in 'cmdheight' area
         msg_grid_set_pos(pos, g_st().msg_scrolled.get() != 0);
         ui_comp_put_grid(
-            &mut g_st().msg_grid,
+            &g_st().msg_grid,
             pos,
             0,
             g_st().msg_grid.rows.get(),
@@ -484,7 +519,7 @@ pub fn msg_grid_validate() {
         g_st().msg_grid.mouse_enabled.set(false);
         g_st().msg_grid_adj.target.set(crate::grid::GridTarget::Msg);
     } else if !should_alloc && !msg_grid_empty {
-        ui_comp_remove_grid(&mut g_st().msg_grid);
+        ui_comp_remove_grid(&g_st().msg_grid);
         grid_free(&g_st().msg_grid);
         *g_st().msg_grid.dirty_col.borrow_mut() = Vec::new();
         ui_call_grid_destroy(g_st().msg_grid.handle.get() as Integer);
@@ -503,7 +538,7 @@ pub fn msg_grid_validate() {
         msg_grid_set_pos(max_rows, false);
         if diff > 0 {
             grid_clear(
-                &mut g_st().msg_grid_adj,
+                &g_st().msg_grid_adj,
                 g_st().rows_global.get() - diff,
                 g_st().rows_global.get(),
                 0,
@@ -1871,7 +1906,7 @@ pub fn wait_return(redraw: i32) {
                 g_st().no_mapping.set(g_st().no_mapping.get() - (1));
                 g_st().allow_keys.set(g_st().allow_keys.get() - (1));
                 g_st().reg_recording.set(save_reg_recording);
-                g_st().scriptout = save_scriptout;
+                *g_st().scriptout.borrow_mut() = save_scriptout;
 
                 if g_st().key_typed.get() && opt_vars().p_more.get() {
                     if c == b'b' as i32
@@ -2052,24 +2087,24 @@ pub fn msgmore(n: i32) {
     if i64::from(pn) > opt_vars().p_report.get() {
         if n > 0 {
             format_to_buf!(
-                &mut g_st().msg_buf,
+                &mut *g_st().msg_buf.borrow_mut(),
                 ngettext(c"%d more line", c"%d more lines", pn as u64),
                 pn,
             );
         } else {
             format_to_buf!(
-                &mut g_st().msg_buf,
+                &mut *g_st().msg_buf.borrow_mut(),
                 ngettext(c"%d line less", c"%d fewer lines", pn as u64),
                 pn,
             );
         }
         if g_st().got_int.get() {
             crate::memory::append_bytes_to_c_buf(
-                g_st().msg_buf_bytes_mut(),
+                &mut *g_st().msg_buf_bytes_mut(),
                 gettext(c" (Interrupted)").to_bytes(),
             );
         }
-        let msg_cstr = crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
+        let msg_cstr = g_st().msg_buf_cstr();
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
             MSG_STATE.with(|s| s.keep_msg_more.set(true));
@@ -2934,7 +2969,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
                 }
-                grid_line_start(&mut g_st().msg_grid_adj, g_st().msg_row.get());
+                grid_line_start(&g_st().msg_grid_adj, g_st().msg_row.get());
                 msg_row_pending = g_st().msg_row.get();
             }
 
@@ -3017,19 +3052,27 @@ pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
     if g_st().cmdmsg_rl.get() {
         col = g_st().columns_global.get() - 1 - col;
     }
-    let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
+    let grid = grid_adjust(&g_st().msg_grid_adj, &mut row, &mut col);
     ui_grid_cursor_goto(grid.handle.get(), row, col);
 }
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
 ///          "pattern".
 pub fn message_filtered(msg: &std::ffi::CStr) -> bool {
-    if g_st().cmdmod.cmod_filter_regmatch.regprog.is_null() {
+    if g_st()
+        .cmdmod
+        .borrow()
+        .cmod_filter_regmatch
+        .regprog
+        .is_null()
+    {
         return false;
     }
 
-    let match_ = vim_regexec(&mut g_st().cmdmod.cmod_filter_regmatch, msg, 0);
-    if g_st().cmdmod.cmod_filter_force {
+    let mut rm = std::mem::take(&mut g_st().cmdmod.borrow_mut().cmod_filter_regmatch);
+    let match_ = vim_regexec(&mut rm, msg, 0);
+    g_st().cmdmod.borrow_mut().cmod_filter_regmatch = rm;
+    if g_st().cmdmod.borrow().cmod_filter_force {
         match_
     } else {
         !match_
@@ -3075,7 +3118,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
         );
         {
             let rows = g_st().msg_grid.rows.get();
-            let mut dc = g_st().borrow().msg_grid.dirty_col.borrow_mut();
+            let mut dc = g_st().msg_grid.dirty_col.borrow_mut();
             for i in 0..(rows - 1) as usize {
                 dc[i] = dc[i + 1];
             }
@@ -3084,7 +3127,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     }
 
     grid_clear(
-        &mut g_st().msg_grid_adj,
+        &g_st().msg_grid_adj,
         g_st().rows_global.get() - 1,
         g_st().rows_global.get(),
         0,
@@ -3610,7 +3653,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
                     if toscroll == -1 && !to_redraw {
                         grid_ins_lines(
-                            &mut g_st().msg_grid,
+                            &g_st().msg_grid,
                             0,
                             1,
                             g_st().rows_global.get(),
@@ -3618,7 +3661,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                             g_st().columns_global.get(),
                         );
                         grid_clear(
-                            &mut g_st().msg_grid_adj,
+                            &g_st().msg_grid_adj,
                             0,
                             1,
                             0,
@@ -3630,7 +3673,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                         }
                     } else {
                         grid_clear(
-                            &mut g_st().msg_grid_adj,
+                            &g_st().msg_grid_adj,
                             0,
                             g_st().rows_global.get(),
                             0,
@@ -3668,7 +3711,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     msg_scroll_up(true, false);
                     inc_msg_scrolled();
                     grid_clear(
-                        &mut g_st().msg_grid_adj,
+                        &g_st().msg_grid_adj,
                         g_st().rows_global.get() - 2,
                         g_st().rows_global.get() - 1,
                         0,
@@ -3682,7 +3725,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
             if toscroll <= 0 {
                 grid_clear(
-                    &mut g_st().msg_grid_adj,
+                    &g_st().msg_grid_adj,
                     g_st().rows_global.get() - 1,
                     g_st().rows_global.get(),
                     0,
@@ -3701,7 +3744,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
     // clear the --more-- message
     grid_clear(
-        &mut g_st().msg_grid_adj,
+        &g_st().msg_grid_adj,
         g_st().rows_global.get() - 1,
         g_st().rows_global.get(),
         0,
@@ -3725,7 +3768,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
 fn msg_moremsg(full: bool) {
     let attr = hl_combine_attr(hl_attr(HLF_MSG), hl_attr(HLF_M));
-    grid_line_start(&mut g_st().msg_grid_adj, g_st().rows_global.get() - 1);
+    grid_line_start(&g_st().msg_grid_adj, g_st().rows_global.get() - 1);
     let mut len = grid_line_puts(0, gettext(c"-- More --"), -1, attr);
     if full {
         len += grid_line_puts(
@@ -3801,7 +3844,7 @@ pub fn msg_clr_eos_force() {
     }
 
     grid_clear(
-        &mut g_st().msg_grid_adj,
+        &g_st().msg_grid_adj,
         g_st().msg_row.get(),
         g_st().msg_row.get() + 1,
         msg_startcol,
@@ -3809,7 +3852,7 @@ pub fn msg_clr_eos_force() {
         hl_attr(HLF_MSG),
     );
     grid_clear(
-        &mut g_st().msg_grid_adj,
+        &g_st().msg_grid_adj,
         g_st().msg_row.get() + 1,
         g_st().rows_global.get(),
         0,
@@ -3976,14 +4019,14 @@ fn redir_write(str_: &[u8], maxlen: isize) {
         if redirecting() != 0 {
             if !matches!(slice[0], b'\n' | b'\r') {
                 while MSG_STATE.with(|s| s.redir_col.get()) < g_st().msg_col.get() {
-                    if let Some(ref mut cap) = g_st().capture_ga {
+                    if let Some(ref mut cap) = *g_st().capture_ga.borrow_mut() {
                         cap.push(b' ');
                     }
                     if g_st().redir_reg.get() != 0 {
                         write_reg_contents(g_st().redir_reg.get(), b" ", 1, true);
                     } else if g_st().redir_vname.get() {
                         var_redir_str(b" ");
-                    } else if let Some(ref rf) = g_st().redir_fd {
+                    } else if let Some(ref rf) = *g_st().redir_fd.borrow() {
                         rf.puts(c" ");
                     }
                     with_msg_ext(|ext| {
@@ -3997,7 +4040,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
 
             let len = slice.len();
             if len > 0
-                && let Some(ref mut cap) = g_st().capture_ga
+                && let Some(ref mut cap) = *g_st().capture_ga.borrow_mut()
             {
                 cap.extend_from_slice(slice);
             }
@@ -4011,8 +4054,8 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             for &b in slice {
                 if g_st().redir_reg.get() == 0
                     && !g_st().redir_vname.get()
-                    && g_st().capture_ga.is_none()
-                    && let Some(ref rf) = g_st().redir_fd
+                    && g_st().capture_ga.borrow().is_none()
+                    && let Some(ref rf) = *g_st().redir_fd.borrow()
                 {
                     rf.putc(i32::from(b));
                 }
@@ -4044,7 +4087,7 @@ pub fn redirecting() -> i32 {
             || !opt_vars().p_vfile.is_empty()
             || g_st().redir_reg.get() != 0
             || g_st().redir_vname.get()
-            || g_st().capture_ga.is_some(),
+            || g_st().capture_ga.borrow().is_some(),
     )
 }
 

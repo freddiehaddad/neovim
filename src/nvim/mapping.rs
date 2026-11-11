@@ -170,29 +170,62 @@ impl Drop for Mapblock {
 
 #[derive(Clone)]
 pub struct Typebuf {
-    pub tb_buf: Vec<u8>,
-    pub tb_noremap: Vec<u8>,
-    pub tb_buflen: i32,
-    pub tb_off: i32,
-    pub tb_len: i32,
-    pub tb_maplen: i32,
-    pub tb_silent: i32,
-    pub tb_no_abbr_cnt: i32,
-    pub tb_change_cnt: i32,
+    pub tb_buf: std::cell::RefCell<Vec<u8>>,
+    pub tb_noremap: std::cell::RefCell<Vec<u8>>,
+    pub tb_buflen: std::cell::Cell<i32>,
+    pub tb_off: std::cell::Cell<i32>,
+    pub tb_len: std::cell::Cell<i32>,
+    pub tb_maplen: std::cell::Cell<i32>,
+    pub tb_silent: std::cell::Cell<i32>,
+    pub tb_no_abbr_cnt: std::cell::Cell<i32>,
+    pub tb_change_cnt: std::cell::Cell<i32>,
 }
 
 impl Typebuf {
+    #[allow(clippy::declare_interior_mutable_const)]
     pub const ZERO: Self = Self {
-        tb_buf: Vec::new(),
-        tb_noremap: Vec::new(),
-        tb_buflen: 0,
-        tb_off: 0,
-        tb_len: 0,
-        tb_maplen: 0,
-        tb_silent: 0,
-        tb_no_abbr_cnt: 0,
-        tb_change_cnt: 0,
+        tb_buf: std::cell::RefCell::new(Vec::new()),
+        tb_noremap: std::cell::RefCell::new(Vec::new()),
+        tb_buflen: std::cell::Cell::new(0),
+        tb_off: std::cell::Cell::new(0),
+        tb_len: std::cell::Cell::new(0),
+        tb_maplen: std::cell::Cell::new(0),
+        tb_silent: std::cell::Cell::new(0),
+        tb_no_abbr_cnt: std::cell::Cell::new(0),
+        tb_change_cnt: std::cell::Cell::new(0),
     };
+
+    pub fn replace(&self, other: Self) -> Self {
+        Self {
+            tb_buf: std::cell::RefCell::new(self.tb_buf.replace(other.tb_buf.into_inner())),
+            tb_noremap: std::cell::RefCell::new(
+                self.tb_noremap.replace(other.tb_noremap.into_inner()),
+            ),
+            tb_buflen: std::cell::Cell::new(self.tb_buflen.replace(other.tb_buflen.get())),
+            tb_off: std::cell::Cell::new(self.tb_off.replace(other.tb_off.get())),
+            tb_len: std::cell::Cell::new(self.tb_len.replace(other.tb_len.get())),
+            tb_maplen: std::cell::Cell::new(self.tb_maplen.replace(other.tb_maplen.get())),
+            tb_silent: std::cell::Cell::new(self.tb_silent.replace(other.tb_silent.get())),
+            tb_no_abbr_cnt: std::cell::Cell::new(
+                self.tb_no_abbr_cnt.replace(other.tb_no_abbr_cnt.get()),
+            ),
+            tb_change_cnt: std::cell::Cell::new(
+                self.tb_change_cnt.replace(other.tb_change_cnt.get()),
+            ),
+        }
+    }
+
+    pub fn set_from(&self, other: Self) {
+        *self.tb_buf.borrow_mut() = other.tb_buf.into_inner();
+        *self.tb_noremap.borrow_mut() = other.tb_noremap.into_inner();
+        self.tb_buflen.set(other.tb_buflen.get());
+        self.tb_off.set(other.tb_off.get());
+        self.tb_len.set(other.tb_len.get());
+        self.tb_maplen.set(other.tb_maplen.get());
+        self.tb_silent.set(other.tb_silent.get());
+        self.tb_no_abbr_cnt.set(other.tb_no_abbr_cnt.get());
+        self.tb_change_cnt.set(other.tb_change_cnt.get());
+    }
 }
 
 use crate::autocmd::HLF_8;
@@ -1557,7 +1590,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     let line_bytes = line_cstr.to_bytes();
     let mut tb = [0u8; MB_MAXBYTES + 4];
 
-    if g_st().typebuf.tb_no_abbr_cnt != 0 {
+    if g_st().typebuf.tb_no_abbr_cnt.get() != 0 {
         return false;
     }
 
@@ -1684,7 +1717,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             };
             if let Some(ref cs) = owned_s {
                 ins_typebuf(cs, noremap, 0, true, silent);
-                g_st().typebuf.tb_no_abbr_cnt += (cs.to_bytes().len() + j + 1) as i32;
+                g_st().typebuf.tb_no_abbr_cnt.set(
+                    g_st().typebuf.tb_no_abbr_cnt.get() + ((cs.to_bytes().len() + j + 1) as i32),
+                );
             }
 
             tb[0] = CTRL_H_CONST;

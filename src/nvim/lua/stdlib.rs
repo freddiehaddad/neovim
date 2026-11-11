@@ -618,9 +618,11 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     if log_level >= 0 {
         set_min_log_level(log_level);
     }
-    let save_cmdmod = std::mem::take(&mut g_st().cmdmod);
-    g_st().cmdmod.cmod_flags = flags;
-    apply_cmdmod(&mut g_st().cmdmod);
+    let save_cmdmod = g_st().cmdmod.take();
+    let mut cur_cmod = crate::ex_docmd::Cmdmod::new();
+    cur_cmod.cmod_flags = flags;
+    apply_cmdmod(&mut cur_cmod);
+    *g_st().cmdmod.borrow_mut() = cur_cmod;
 
     let mut err = Error::new();
     let mut tstate = TryState::new();
@@ -664,8 +666,9 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     }
     try_leave(&tstate, &mut err);
 
-    undo_cmdmod(&mut g_st().cmdmod);
-    g_st().cmdmod = save_cmdmod;
+    let mut cur_cmod = g_st().cmdmod.take();
+    undo_cmdmod(&mut cur_cmod);
+    *g_st().cmdmod.borrow_mut() = save_cmdmod;
     if log_level >= 0 {
         set_min_log_level(save_min_log_level);
     }

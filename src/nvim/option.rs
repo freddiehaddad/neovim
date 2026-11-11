@@ -2031,22 +2031,24 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                 }
 
                 if let Some(errmsg) = errmsg {
-                    let iobuf = g_st().borrow_mut().iobuff_bytes_mut();
-                    let msg_bytes = tr(errmsg).to_bytes();
-                    let mut pos = msg_bytes.len().min(IOSIZE - 1);
-                    iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
-                    let arg_len = startarg.len() - arg.len();
-                    if pos + 2 + arg_len < IOSIZE {
-                        iobuf[pos..pos + 2].copy_from_slice(b": ");
-                        pos += 2;
-                        iobuf[pos..pos + arg_len].copy_from_slice(&startarg[..arg_len]);
-                        pos += arg_len;
+                    {
+                        let iobuf = &mut *g_st().iobuff_bytes_mut();
+                        let msg_bytes = tr(errmsg).to_bytes();
+                        let mut pos = msg_bytes.len().min(IOSIZE - 1);
+                        iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
+                        let arg_len = startarg.len() - arg.len();
+                        if pos + 2 + arg_len < IOSIZE {
+                            iobuf[pos..pos + 2].copy_from_slice(b": ");
+                            pos += 2;
+                            iobuf[pos..pos + arg_len].copy_from_slice(&startarg[..arg_len]);
+                            pos += arg_len;
+                        }
+                        iobuf[pos] = 0;
+                        trans_characters(iobuf);
                     }
-                    iobuf[pos] = 0;
-                    trans_characters(iobuf);
 
                     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-                    emsg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
+                    emsg(g_st().iobuff_cstr());
                     g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 
                     return false;
@@ -2186,7 +2188,7 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
     let esc = var.ptr_eq(&opt_vars().p_tags) || var.ptr_eq(&opt_vars().p_path);
     expand_env_esc(
         val_cstr,
-        g_st().name_buff_bytes_mut(),
+        &mut *g_st().name_buff_bytes_mut(),
         esc.then_some(c" \t"),
         false,
         var.ptr_eq(&opt_vars().p_sps).then_some(c"file:"),
@@ -6083,7 +6085,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 } else {
                     optval_fmt(opt_idx, opt_flags);
                     (opt.fullname.to_bytes().len() as i32)
-                        + vim_strsize(crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()))
+                        + vim_strsize(g_st().name_buff_cstr())
                         + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -7223,7 +7225,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_ml_nobin.set(OPT_STATE.with(|s| s.p_ml_nobin.get()));
             buf.b_p_inf.set(opt_vars().p_inf.get());
             copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
-            if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
+            if (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) != 0 {
                 buf.b_p_swf.set(false);
             } else {
                 buf.b_p_swf.set(opt_vars().p_swf.get());
@@ -7812,7 +7814,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
             OPT_STATE.with(|s| s.expand_option_idx.get()),
             OPT_STATE.with(|s| s.expand_option_flags.get()),
         );
-        crate::memory::bytes_until_nul(g_st().borrow_mut().name_buff_bytes_mut())
+        g_st().name_buff_cstr().to_bytes()
     } else {
         b""
     };
@@ -7842,7 +7844,7 @@ pub fn expand_string_setting(
         OPT_STATE.with(|s| s.expand_option_idx.get()),
         OPT_STATE.with(|s| s.expand_option_flags.get()),
     );
-    let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
+    let buf = escape_option_str_cmdline(&*g_st().name_buff_bytes_mut());
     let mut args = Optexpand {
         oe_idx: OPT_STATE.with(|s| s.expand_option_idx.get()),
         oe_opt_value: buf.as_c_str(),
@@ -7953,14 +7955,14 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let mut wc: OptInt = 0;
     if wc_use_keyname(vp, &mut wc) != 0 {
         crate::memory::copy_bytes_to_c_buf(
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
             get_special_key_name(wc as i32, 0).to_bytes(),
         );
         return;
     }
     if wc != 0 {
         crate::memory::copy_bytes_to_c_buf(
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
             transchar(wc as i32).to_bytes(),
         );
         return;
@@ -7972,7 +7974,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
         home_replace(
             None,
             Some(vp.as_cstr()),
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
             false,
         );
         return;
@@ -7980,7 +7982,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
 
     let o = opt_from_varp(opt_idx, vp);
     let s = optval_to_cstr(o.clone(), false);
-    crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), s.as_bytes());
+    crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
 }
 

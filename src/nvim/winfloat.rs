@@ -289,7 +289,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         if let Some(parent) = parent.opt_mut() {
             row += parent.w_winrow.get();
             col += parent.w_wincol.get();
-            let _ = crate::grid::grid_adjust_opt(&mut parent.w_grid, &mut row, &mut col);
+            let _ = crate::grid::grid_adjust_opt(&parent.w_grid, &mut row, &mut col);
             if wp.w_config.bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
                     lnum: (wp.w_config.bufpos.lnum + 1)

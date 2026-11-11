@@ -337,8 +337,12 @@ pub fn os_icon_init() {
     }
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-        let namebuff = g_st().name_buff.as_ptr();
-        format_to_buf!(&mut g_st().name_buff, c"%s/neovim.ico", &vimruntime);
+        let namebuff = g_st().name_buff.borrow().as_ptr();
+        format_to_buf!(
+            &mut *g_st().name_buff.borrow_mut(),
+            c"%s/neovim.ico",
+            &vimruntime
+        );
         let namebuff_cstr = g_st().name_buff_cstr();
         if !os_path_exists(namebuff_cstr) {
             logmsg!(

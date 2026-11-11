@@ -410,7 +410,9 @@ pub fn search_regcomp(
         };
         with_srch_mut(|s| s.mr_pattern = mr);
 
-        if (options & SEARCH_KEEP) == 0 && (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) == 0 {
+        if (options & SEARCH_KEEP) == 0
+            && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) == 0
+        {
             if (pat_save == RE_SEARCH || pat_save == RE_BOTH)
                 && pat_from_spat != Some(RE_SEARCH as usize)
             {
@@ -1714,7 +1716,8 @@ pub fn do_search(
         curwin_mut().w_set_curswant.set(true);
     }
 
-    if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
+    if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0
+    {
         with_srch_mut(|s| s.spats[0].off = old_off);
     }
 
@@ -2613,22 +2616,22 @@ pub fn showmatch(c: i32) {
 
 pub fn current_search(count: i32, forward: bool) -> bool {
     let old_p_ws = opt_vars().p_ws.get();
-    let save_visual = g_st().visual_global.start;
+    let save_visual = g_st().visual_global.borrow().start;
 
-    if g_st().visual_global.active
+    if g_st().visual_global.borrow().active
         && opt_vars().p_sel.first_byte() == b'e'
-        && lt(g_st().visual_global.start, curwin_mut().w_cursor)
+        && lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
     {
         dec_cursor();
     }
 
     let skip_first_backward = forward
-        && g_st().visual_global.active
-        && lt(curwin_mut().w_cursor, g_st().visual_global.start);
+        && g_st().visual_global.borrow().active
+        && lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start);
 
     let mut pos = curwin_mut().w_cursor;
     let orig_pos = curwin_mut().w_cursor;
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if forward {
             incl(&mut pos);
         } else {
@@ -2693,8 +2696,8 @@ pub fn current_search(count: i32, forward: bool) -> bool {
 
         if i == 1 && result == 0 {
             curwin_mut().w_cursor = orig_pos;
-            if g_st().visual_global.active {
-                g_st().visual_global.start = save_visual;
+            if g_st().visual_global.borrow().active {
+                g_st().visual_global.borrow_mut().start = save_visual;
             }
             return false;
         } else if i == 0 && result == 0 {
@@ -2709,31 +2712,31 @@ pub fn current_search(count: i32, forward: bool) -> bool {
 
     let start_pos = pos;
 
-    if !g_st().visual_global.active {
-        g_st().visual_global.start = start_pos;
+    if !g_st().visual_global.borrow().active {
+        g_st().visual_global.borrow_mut().start = start_pos;
     }
 
     curwin_mut().w_cursor = end_pos;
-    if lt(g_st().visual_global.start, end_pos) && forward {
+    if lt(g_st().visual_global.borrow().start, end_pos) && forward {
         if skip_first_backward {
             curwin_mut().w_cursor = pos;
         } else {
             dec_cursor();
         }
-    } else if g_st().visual_global.active
-        && lt(curwin_mut().w_cursor, g_st().visual_global.start)
+    } else if g_st().visual_global.borrow().active
+        && lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
         && forward
     {
         curwin_mut().w_cursor = pos;
     }
-    g_st().visual_global.active = true;
-    g_st().visual_global.mode = b'v' as i32;
+    g_st().visual_global.borrow_mut().active = true;
+    g_st().visual_global.borrow_mut().mode = b'v' as i32;
 
     if opt_vars().p_sel.first_byte() == b'e' {
-        if forward && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
+        if forward && ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor) {
             inc_cursor();
-        } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
-            inc(&mut g_st().visual_global.start);
+        } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
+            inc(&mut g_st().visual_global.borrow_mut().start);
         }
     }
 
@@ -3505,11 +3508,11 @@ pub fn find_pattern_in_path(
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
                             g_st().msg_hist_off.set(true);
                             format_to_buf!(
-                                g_st().iobuff_bytes_mut(),
+                                &mut *g_st().iobuff_bytes_mut(),
                                 tr(c"Scanning included file: %s"),
                                 curr_fname.as_deref().unwrap_or(c""),
                             );
-                            msg_trunc(g_st().iobuff_bytes_mut(), true, HLF_R);
+                            msg_trunc(&mut *g_st().iobuff_bytes_mut(), true, HLF_R);
                         } else if opt_vars().p_verbose.get() >= 5 {
                             verbose_enter();
                             smsg!(
@@ -3644,9 +3647,9 @@ pub fn find_pattern_in_path(
 
                                 if compl_status_adding() && i == ins_compl_len() {
                                     let i_u = i as usize;
-                                    g_st().iobuff[..i_u]
+                                    g_st().iobuff.borrow_mut()[..i_u]
                                         .copy_from_slice(&file_line_vec[aux_idx..aux_idx + i_u]);
-                                    g_st().iobuff[i_u] = 0;
+                                    g_st().iobuff.borrow_mut()[i_u] = 0;
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3673,19 +3676,20 @@ pub fn find_pattern_in_path(
                                         p_idx = next_bytes.len() - rem2.len();
                                         if p_idx > aux_idx {
                                             if file_line_vec[aux_idx] != b')'
-                                                && g_st().iobuff[(i - 1) as usize] != TAB
+                                                && g_st().iobuff.borrow()[(i - 1) as usize] != TAB
                                             {
-                                                if g_st().iobuff[(i - 1) as usize] != b' ' {
-                                                    g_st().iobuff[i as usize] = b' ';
+                                                if g_st().iobuff.borrow()[(i - 1) as usize] != b' '
+                                                {
+                                                    g_st().iobuff.borrow_mut()[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                                 if opt_vars().p_js.get()
                                                     && matches!(
-                                                        g_st().iobuff[(i - 2) as usize],
+                                                        g_st().iobuff.borrow()[(i - 2) as usize],
                                                         b'.' | b'?' | b'!'
                                                     )
                                                 {
-                                                    g_st().iobuff[i as usize] = b' ';
+                                                    g_st().iobuff.borrow_mut()[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                             }
@@ -3694,14 +3698,15 @@ pub fn find_pattern_in_path(
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
                                             let dst_start = i as usize;
-                                            g_st().iobuff[dst_start..dst_start + copy_len]
+                                            g_st().iobuff.borrow_mut()
+                                                [dst_start..dst_start + copy_len]
                                                 .copy_from_slice(
                                                     &file_line_vec[aux_idx..aux_idx + copy_len],
                                                 );
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }
-                                        g_st().iobuff[i as usize] = 0;
+                                        g_st().iobuff.borrow_mut()[i as usize] = 0;
                                         use_iobuff = true;
 
                                         if i == ins_compl_len() {
@@ -3719,7 +3724,7 @@ pub fn find_pattern_in_path(
                                             path_try_shorten_fname(curr_fname.as_deref())
                                         };
                                     let add_r = if use_iobuff {
-                                        let word = g_st().iobuff[..len_u].to_vec();
+                                        let word = g_st().iobuff.borrow()[..len_u].to_vec();
                                         ins_compl_add_infercase(
                                             &word,
                                             i,
@@ -4021,14 +4026,10 @@ fn show_pat_in_path(
         };
         let has_trailing_bsl = cur_bytes.last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
-            format_to_buf!(g_st().iobuff_bytes_mut(), c"%3d: ", count);
-            msg_puts(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
-            format_to_buf!(g_st().iobuff_bytes_mut(), c"%4d", *lnum);
-            msg_puts_hl(
-                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-                HLF_N,
-                false,
-            );
+            format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%3d: ", count);
+            msg_puts(g_st().iobuff_cstr());
+            format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%4d", *lnum);
+            msg_puts_hl(g_st().iobuff_cstr(), HLF_N, false);
             msg_puts(c" ");
         }
         if use_line_buf {

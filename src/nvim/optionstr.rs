@@ -2118,7 +2118,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     )?;
 
     format_to_buf!(
-        &mut g_st().iobuff,
+        &mut *g_st().iobuff.borrow_mut(),
         c"%s%s",
         if subtract { c"-" } else { c"" },
         name,
@@ -2245,7 +2245,7 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if let Some(errmsg) = parse_shape_opt(SHAPE_CURSOR) {
         return Some(errmsg);
     }
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
     }
     None
@@ -2479,7 +2479,7 @@ pub fn did_set_rulerformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'selection' option is changed.
 pub fn did_set_selection<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         redraw_curbuf_later(UPD_INVERTED);
     }
     None

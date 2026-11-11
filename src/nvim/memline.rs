@@ -612,7 +612,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_chunksize.clear();
     buf.b_ml.ml_usedchunks.set(0);
 
-    if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) != 0 {
         buf.b_p_swf.set(false);
     }
 
@@ -717,7 +717,8 @@ pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
     let mfp_addr = buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize);
     if buf.b_ml.mfp_mut().mf_fd < 0 {
-        if opt_vars().p_uc.get() != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
+        if opt_vars().p_uc.get() != 0 && (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) == 0
+        {
             ml_open_file(buf);
         }
         return;
@@ -787,7 +788,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
     };
     if mfp_fd >= 0
         || !buf.b_p_swf.get()
-        || (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0
+        || (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) != 0
         || !buf.terminal.get().is_null()
     {
         return;
@@ -1214,7 +1215,7 @@ pub fn ml_recover(checkext: bool) {
 
         expand_env(
             crate::memory::bytes_as_cstr(&b0p.b0_fname),
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
         );
 
         let namebuff_cstr = g_st().name_buff_cstr().to_owned();
@@ -1234,18 +1235,18 @@ pub fn ml_recover(checkext: bool) {
     home_replace(
         None,
         Some(mf_fname_cstr),
-        g_st().name_buff_bytes_mut(),
+        &mut *g_st().name_buff_bytes_mut(),
         true,
     );
     smsg!(0, tr(c"Using swap file \"%s\""), g_st().name_buff_cstr());
 
     if let Some(sp) = buf_spname(curbuf_mut()) {
-        crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
+        crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
         home_replace(
             None,
             curbuf_mut().ffname_opt(),
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
             true,
         );
     }
@@ -2296,12 +2297,12 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
                 r == 0
             }) {
                 get_trans_bufname(buf);
-                shorten_dir(g_st().name_buff_bytes_mut());
+                shorten_dir(&mut *g_st().name_buff_bytes_mut());
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
                     buf.b_fnum.get(),
-                    &g_st().name_buff,
+                    &*g_st().name_buff.borrow(),
                 );
                 ml_st(|st| st.ml_get_recursive.set(st.ml_get_recursive.get() - 1));
             }
@@ -3845,7 +3846,7 @@ fn findswapname(
                             K_PATH_CMP_LITERAL,
                         ) || !same_directory(Some(fname_cstr), buf_ffname_opt)
                         {
-                            expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
+                            expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(
                                 buf_ffname_opt,
                                 Some(g_st().name_buff_cstr()),
@@ -3855,7 +3856,7 @@ fn findswapname(
                             }
                         }
                     } else {
-                        expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
+                        expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                         if fnamecmp_ino(
                             buf_ffname_opt,
                             Some(g_st().name_buff_cstr()),

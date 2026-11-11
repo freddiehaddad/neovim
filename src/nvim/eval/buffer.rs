@@ -109,8 +109,8 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
     let buf_ptr = crate::globals::BufPtr::from(&*buf);
     *cob = Cob::new();
 
-    cob.cob_save_visual_active = g_st().visual_global.active;
-    g_st().visual_global.active = false;
+    cob.cob_save_visual_active = g_st().visual_global.borrow().active;
+    g_st().visual_global.borrow_mut().active = false;
     cob.cob_curwin_save = crate::globals::curwin_ptr();
     g_st().curbuf.set(buf_ptr);
     find_win_for_curbuf();
@@ -129,7 +129,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
         set_curwin(cob.cob_curwin_save);
         g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
-    g_st().visual_global.active = cob.cob_save_visual_active;
+    g_st().visual_global.borrow_mut().active = cob.cob_save_visual_active;
 }
 
 /// Set line or list of lines in buffer `buf` to `lines` (`set_buffer_lines`).

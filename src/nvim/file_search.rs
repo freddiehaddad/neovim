@@ -1088,7 +1088,7 @@ pub fn find_file_in_path_option(
             let ptr_cstr = std::ffi::CString::new(ptr_slice).unwrap_or_default();
             ff_opt.file_to_findlen = expand_env_esc(
                 ptr_cstr.as_c_str(),
-                g_st().name_buff_bytes_mut(),
+                &mut *g_st().name_buff_bytes_mut(),
                 None,
                 true,
                 None,
@@ -1147,14 +1147,17 @@ pub fn find_file_in_path_option(
                             - rel_fname.as_ptr() as usize)
                             as i32;
                         l = format_to_buf!(
-                            &mut g_st().name_buff,
+                            &mut *g_st().name_buff.borrow_mut(),
                             c"%.*s%s",
                             tail_off,
                             rel_fname,
                             ftf_cstr,
                         ) as usize;
                     } else {
-                        crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), ftf_bytes);
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut *g_st().name_buff_bytes_mut(),
+                            ftf_bytes,
+                        );
                         run = 2;
                     }
 
@@ -1165,9 +1168,9 @@ pub fn find_file_in_path_option(
                             && (find_what == FindFileWhat::Both
                                 || ((find_what == FindFileWhat::Dir) == os_isdir(nb_cstr)))
                         {
-                            let slen = simplify_filename(g_st().name_buff_bytes_mut());
+                            let slen = simplify_filename(&mut *g_st().name_buff_bytes_mut());
                             let res = Some(
-                                std::ffi::CString::new(&g_st().name_buff_bytes_mut()[..slen])
+                                std::ffi::CString::new(&g_st().name_buff.borrow()[..slen])
                                     .unwrap_or_default(),
                             );
                             FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
@@ -1255,7 +1258,7 @@ pub fn find_file_in_path_option(
 /// Get the file name at the cursor.
 pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CString> {
     let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
-    let fname = if g_st().visual_global.active {
+    let fname = if g_st().visual_global.borrow().active {
         let (vis_cstr, len) = get_visual_text(None)?;
         let vis_bytes = vis_cstr.to_bytes();
         if vis_bytes.get(len) == Some(&b':')
@@ -1598,8 +1601,8 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         let tail_off = path_tail_with_sep(dir_cstr).as_ptr() as usize - dir_cstr.as_ptr() as usize;
         dir[tail_off] = NUL as u8;
 
-        if !os_dirname(g_st().name_buff_bytes_mut()) {
-            g_st().name_buff[0] = 0;
+        if !os_dirname(&mut *g_st().name_buff_bytes_mut()) {
+            g_st().name_buff.borrow_mut()[0] = 0;
         }
 
         if path_equal(

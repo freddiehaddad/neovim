@@ -1333,7 +1333,11 @@ extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     time_push(&mut rel_time, &mut start_time);
     let status = lua_pcall_safe(lstate, 1, 1, 0);
     if status == 0 {
-        format_to_buf!(&mut g_st().iobuff, c"require('%s')", name_cstr);
+        format_to_buf!(
+            &mut *g_st().iobuff.borrow_mut(),
+            c"require('%s')",
+            name_cstr
+        );
         time_msg(g_st().iobuff_cstr(), Some(&start_time));
     }
     time_pop(rel_time);
@@ -1365,7 +1369,7 @@ extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
 
         if ui_has(K_UICMDLINE) {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 c"lua_debug> %s",
                 input.vval.v_string_cstr_or_empty(),
             );
@@ -1412,7 +1416,7 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
         let length = name_len.min(100) + 22;
         format_to_buf!(
-            &mut g_st().iobuff[..length],
+            &mut g_st().iobuff.borrow_mut()[..length],
             c"Vimscript function \"%s\"",
             name_cstr,
         );
@@ -2378,7 +2382,7 @@ pub fn nlua_do_ucmd(
     nlua_pushref(lstate, luaref);
 
     lua_newtable(lstate);
-    nlua_push_eap(lstate, &*eap, &g_st().cmdmod);
+    nlua_push_eap(lstate, &*eap, &g_st().cmdmod.borrow());
 
     lua_pushstring(lstate, uc_name);
     lua_setfield(lstate, -2, c"name");

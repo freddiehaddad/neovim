@@ -4023,9 +4023,9 @@ pub fn tv_dict_get_callback(
     d: Option<&TvDict>,
     key: &std::ffi::CStr,
     key_len: isize,
-    result: &mut Callback,
+    result: &Callback,
 ) -> bool {
-    *result = Callback::NONE;
+    result.data.set(CallbackData::NONE);
 
     let Some(di) = tv_dict_find_opt(d, key, key_len) else {
         return true;

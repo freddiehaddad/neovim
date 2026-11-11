@@ -1527,7 +1527,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             op_extra: get_extra_op_char(oap.op_type),
             ..CmdSpec::default()
         };
-        if prep_exempt && (!g_st().visual_global.active || oap.motion_force != 0) {
+        if prep_exempt && (!g_st().visual_global.borrow().active || oap.motion_force != 0) {
             if atom_capturable(atom_buf_has_consumers(), g_st().key_typed.get()) {
                 let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
                 spec.motion_force = oap.motion_force;
@@ -1538,7 +1538,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
                 op_atom.origin = with_cur_frame(|f| f.origin);
                 atom_stage_set(&mut op_atom);
             }
-        } else if !g_st().visual_global.active || oap.motion_force != 0 {
+        } else if !g_st().visual_global.borrow().active || oap.motion_force != 0 {
             // Prepped: atom_cmd_end() derives the atom from redobuff.
         } else if oap.op_type == OP_REPLACE && cap.nchar <= 0 {
             let suffix: [u8; 3] = [
@@ -1567,7 +1567,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
 
     if redoable
         && cap.cmdchar != b'D' as i32
-        && ((!g_st().visual_global.active || oap.motion_force != 0)
+        && ((!g_st().visual_global.borrow().active || oap.motion_force != 0)
             || excmd
             || cap.cmdchar == K_LUA)
     {
@@ -1608,7 +1608,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             redo_append_str(&lua_id[..n.max(0) as usize]);
             redo_append_str(b"\n");
         }
-    } else if g_st().visual_global.active && redoable && oap.motion_force == NUL {
+    } else if g_st().visual_global.borrow().active && redoable && oap.motion_force == NUL {
         if op_self_select(cap) {
             prep_redo(
                 true,
@@ -1758,7 +1758,7 @@ pub fn atom_cmd_start(cmdchar: i32) {
         st.cmd_frames.borrow_mut().push(CmdFrame {
             origin,
             staged: CmdAtom::default(),
-            visual: g_st().visual_global,
+            visual: *g_st().visual_global.borrow(),
             keytyped: g_st().key_typed.get(),
             keyclass,
             ex_normal: g_st().ex_normal_busy.get(),
@@ -1853,10 +1853,10 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
         && old_origin.win == curwin_ptr()
         && !atom_origin_moved(old_origin)
         && !atom_origin_changed(old_origin)
-        && g_st().visual_global.active == old_visual.active
-        && (!g_st().visual_global.active
-            || (equalpos(old_visual.start, g_st().visual_global.start)
-                && old_visual.mode == g_st().visual_global.mode));
+        && g_st().visual_global.borrow().active == old_visual.active
+        && (!g_st().visual_global.borrow().active
+            || (equalpos(old_visual.start, g_st().visual_global.borrow().start)
+                && old_visual.mode == g_st().visual_global.borrow().mode));
     if opaque
         && unchanged
         && !(atom_visual_pending() && with_atom(|st| st.frame_id.get() > old_id))
@@ -1876,7 +1876,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
 
     let child = is_child_frame();
     let mut vis = false;
-    if g_st().visual_global.active && !child {
+    if g_st().visual_global.borrow().active && !child {
         if !old_visual.active && with_atom(|st| st.vatom.frame.get() <= old_id) {
             atom_visual_reset();
             with_atom(|st| {
@@ -1894,7 +1894,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
         }
         vis = atom_visual_pending() && ca.cmdchar != b'Q' as i32 && ca.cmdchar != b'q' as i32;
         if vis
-            && (g_st().visual_global.select
+            && (g_st().visual_global.borrow().select
                 || ((keycls & (K_KEY_SCROLL_MOVE | K_KEY_SCROLL_VIEW | K_KEY_MOUSE)) != 0
                     && !unchanged))
         {
@@ -1922,7 +1922,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     if (vis
         && with_atom(|st| st.vatom.frame.get() <= old_id && st.atom_captures.get() == old_captures)
         && ca.oap.op_type == OP_NOP)
-        || (!g_st().visual_global.active
+        || (!g_st().visual_global.borrow().active
             && !old_visual.active
             && atom_capturable(old_consumers, old_keytyped)
             && with_atom(|st| st.atom_captures.get() == old_captures)
@@ -2019,7 +2019,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     }
     atom_visual_span_flush();
 
-    g_st().visual_global.active && user && is_root
+    g_st().visual_global.borrow().active && user && is_root
 }
 
 pub fn atom_cmd_end(ca: &mut Cmdarg) {
@@ -2062,7 +2062,7 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
 
         with_atom(|st| st.map_edit.set(false));
         if ca.oap.op_type == OP_NOP
-            && !g_st().visual_global.active
+            && !g_st().visual_global.borrow().active
             && g_st().restart_edit.get() == 0
         {
             atom_composite_end();

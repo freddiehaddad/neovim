@@ -481,7 +481,7 @@ fn buf_write_do_autocmds(
         || aborting()
     {
         if let Some(b) = buf.opt_mut()
-            && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0
+            && (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0
         {
             b.b_op_start = orig_start;
             b.b_op_end = orig_end;
@@ -655,12 +655,18 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
                 &mut errmsg,
                 c"%s: %s%s: %s",
                 num,
-                &g_st().iobuff,
+                &*g_st().iobuff.borrow(),
                 msg_cstr,
                 uv_strerror(e.arg),
             );
         } else {
-            let _ = format_to_buf!(&mut errmsg, c"%s: %s%s", num, &g_st().iobuff, msg_cstr);
+            let _ = format_to_buf!(
+                &mut errmsg,
+                c"%s: %s%s",
+                num,
+                &*g_st().iobuff.borrow(),
+                msg_cstr
+            );
         }
     } else if e.arg != 0 {
         let _ = format_to_buf!(&mut errmsg, msg_cstr, uv_strerror(e.arg));
@@ -814,7 +820,7 @@ pub fn buf_get_backup_name(
     let mut backup: Option<std::ffi::CString> = None;
     let mut dirp_bytes = dirp.to_bytes();
     let old_len = dirp_bytes.len();
-    let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
+    let dir_len = copy_option_part(&mut dirp_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
     *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
     if dirp.to_bytes().is_empty() && !os_isdir(g_st().iobuff_cstr()) {
         let mut failed_dir: Option<std::ffi::CString> = None;
@@ -828,10 +834,9 @@ pub fn buf_get_backup_name(
         }
     }
     if dir_len > 1
-        && after_pathsep(&g_st().iobuff_bytes_mut()[..dir_len]) != 0
-        && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
-        && let Some(swname) =
-            make_percent_swname(&g_st().iobuff_bytes_mut()[..dir_len - 1], fname_opt)
+        && after_pathsep(&g_st().iobuff.borrow()[..dir_len]) != 0
+        && g_st().iobuff.borrow()[dir_len - 1] == g_st().iobuff.borrow()[dir_len - 2]
+        && let Some(swname) = make_percent_swname(&g_st().iobuff.borrow()[..dir_len - 1], fname_opt)
     {
         backup = modname(Some(&swname), backup_ext, no_prepend_dot);
     }
@@ -1210,7 +1215,7 @@ pub fn buf_write(
     let sfname = sfname_copy.as_deref();
     let ffname = ffname_copy.as_deref();
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0 {
         buf.b_op_start = orig_start;
         buf.b_op_end = orig_end;
     }
@@ -1642,12 +1647,12 @@ pub fn buf_write(
                             {
                                 progress = percent;
                                 add_quoted_fname(
-                                    g_st().iobuff_bytes_mut(),
+                                    &mut *g_st().iobuff_bytes_mut(),
                                     Some(&*buf),
                                     msgname_opt,
                                 );
                                 let _ = msg_progress(
-                                    Some(g_st().iobuff_bytes_mut()),
+                                    Some(&mut *g_st().iobuff_bytes_mut()),
                                     crate::memory::bytes_as_cstr(&msg_id),
                                     c"running",
                                     progress,
@@ -1816,18 +1821,18 @@ pub fn buf_write(
                 if !filtering {
                     let iobuf_append = |src: &std::ffi::CStr| {
                         crate::memory::append_bytes_to_c_buf(
-                            g_st().iobuff_bytes_mut(),
+                            &mut *g_st().iobuff_bytes_mut(),
                             src.to_bytes(),
                         );
                     };
-                    add_quoted_fname(g_st().iobuff_bytes_mut(), Some(&*buf), fname);
+                    add_quoted_fname(&mut *g_st().iobuff_bytes_mut(), Some(&*buf), fname);
                     let mut insert_space = false;
                     if write_info.bw_conv_error != 0 {
                         iobuf_append(gettext(c" CONVERSION ERROR"));
                         insert_space = true;
                         if write_info.bw_conv_error_lnum != 0 {
                             let _ = format_to_buf_add!(
-                                &mut g_st().iobuff,
+                                &mut *g_st().iobuff.borrow_mut(),
                                 gettext(c" in line %lld;"),
                                 i64::from(write_info.bw_conv_error_lnum),
                             );
@@ -1869,9 +1874,10 @@ pub fn buf_write(
                             });
                         }
                     }
+                    let mut iob = *g_st().iobuff.borrow();
                     let keep = if progress >= 0 {
                         msg_progress(
-                            Some(g_st().borrow_mut().iobuff_bytes_mut()),
+                            Some(&mut iob),
                             crate::memory::bytes_as_cstr(&msg_id),
                             c"success",
                             -1,
@@ -1882,7 +1888,7 @@ pub fn buf_write(
                         )
                     } else {
                         msg_with_id(
-                            Some(g_st().borrow_mut().iobuff_bytes_mut()),
+                            Some(&mut iob),
                             crate::memory::bytes_as_cstr(&msg_id),
                             c"bufwrite",
                             None,
@@ -1893,6 +1899,7 @@ pub fn buf_write(
                         )
                     };
                     set_keep_msg(keep, 0);
+                    *g_st().iobuff.borrow_mut() = iob;
                 }
 
                 if reset_changed

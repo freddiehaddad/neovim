@@ -273,7 +273,7 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
 
     add_quoted_fname(&mut g_st().iobuff_bytes_mut()[..IOSIZE - 100], buf, name);
 
-    crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.to_bytes());
+    crate::memory::append_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.to_bytes());
 
     let msg_scroll_save = g_st().msg_scroll.get();
     if shortmess(K_SHM_OVERALL)
@@ -294,7 +294,7 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
     g_st().msg_scrolled_ign.set(true);
     if let Some(msg_id) = msg_id {
         msg_with_id(
-            Some(g_st().iobuff_bytes_mut()),
+            Some(&mut *g_st().iobuff_bytes_mut()),
             msg_id,
             c"bufwrite",
             None,
@@ -304,8 +304,10 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
             false,
         );
     } else {
-        let trunc = msg_may_trunc(false, g_st().borrow_mut().iobuff_bytes_mut());
+        let mut iob = *g_st().iobuff.borrow();
+        let trunc = msg_may_trunc(false, &mut iob);
         msg_outtrans(trunc, 0, false);
+        *g_st().iobuff.borrow_mut() = iob;
     }
     msg_clr_eos();
     g_st().msg_scrolled_ign.set(false);
@@ -1900,12 +1902,12 @@ pub fn readfile(
                             progress = true;
                             percent = pct;
                             add_quoted_fname(
-                                g_st().iobuff_bytes_mut(),
+                                &mut *g_st().iobuff_bytes_mut(),
                                 g_st().curbuf.get().opt(),
                                 sfname,
                             );
                             let _ = readfile_progress(
-                                Some(g_st().iobuff_bytes_mut()),
+                                Some(&mut *g_st().iobuff_bytes_mut()),
                                 crate::memory::bytes_as_cstr(&msg_id),
                                 c"running",
                                 percent,
@@ -2043,7 +2045,11 @@ pub fn readfile(
                 }
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
-                    add_quoted_fname(g_st().iobuff_bytes_mut(), g_st().curbuf.get().opt(), sfname);
+                    add_quoted_fname(
+                        &mut *g_st().iobuff_bytes_mut(),
+                        g_st().curbuf.get().opt(),
+                        sfname,
+                    );
                     let mut c = false;
 
                     let mut buflen = g_st().iobuff_cstr().to_bytes().len() as i32;
@@ -2051,7 +2057,7 @@ pub fn readfile(
                     {
                         if s_isfifo(perm as u64) {
                             buflen += format_to_buf!(
-                                &mut g_st().iobuff[buflen as usize..],
+                                &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                                 c"%s",
                                 tr(c"[fifo]"),
                             );
@@ -2059,7 +2065,7 @@ pub fn readfile(
                         }
                         if s_issock(perm as u64) {
                             buflen += format_to_buf!(
-                                &mut g_st().iobuff[buflen as usize..],
+                                &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                                 c"%s",
                                 tr(c"[socket]"),
                             );
@@ -2074,7 +2080,7 @@ pub fn readfile(
                         ))]
                         if s_ischr(perm as u64) {
                             buflen += format_to_buf!(
-                                &mut g_st().iobuff[buflen as usize..],
+                                &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                                 c"%s",
                                 tr(c"[character special]"),
                             );
@@ -2083,7 +2089,7 @@ pub fn readfile(
                     }
                     if curbuf_mut().b_p_ro.get() {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             if shortmess(K_SHM_RO) {
                                 tr(c"[RO]")
@@ -2095,7 +2101,7 @@ pub fn readfile(
                     }
                     if read_no_eol_lnum != 0 {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[noeol]"),
                         );
@@ -2103,7 +2109,7 @@ pub fn readfile(
                     }
                     if ff_error == EOL_DOS {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[CR missing]"),
                         );
@@ -2111,7 +2117,7 @@ pub fn readfile(
                     }
                     if split != 0 {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[long lines split]"),
                         );
@@ -2119,14 +2125,14 @@ pub fn readfile(
                     }
                     if notconverted {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[NOT converted]"),
                         );
                         c = true;
                     } else if converted {
                         buflen += format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[converted]"),
                         );
@@ -2134,21 +2140,21 @@ pub fn readfile(
                     }
                     if conv_error != 0 {
                         format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
                         );
                         c = true;
                     } else if illegal_byte > 0 {
                         format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
                         );
                         c = true;
                     } else if error {
                         format_to_buf!(
-                            &mut g_st().iobuff[buflen as usize..],
+                            &mut g_st().iobuff.borrow_mut()[buflen as usize..],
                             c"%s",
                             tr(c"[READ ERRORS]"),
                         );
@@ -2168,17 +2174,21 @@ pub fn readfile(
                         if g_st().msg_col.get() > 0 {
                             msg_putchar(b'\r' as i32);
                         }
-                        keep_cstr = if progress {
+                        let mut iob = *g_st().iobuff.borrow();
+                        let keep_owned = if progress {
                             readfile_progress(
-                                Some(g_st().borrow_mut().iobuff_bytes_mut()),
+                                Some(&mut iob),
                                 crate::memory::bytes_as_cstr(&msg_id),
                                 if error { c"failed" } else { c"success" },
                                 -1,
                                 true,
                             )
                         } else {
-                            msg_trunc(g_st().borrow_mut().iobuff_bytes_mut(), false, 0)
-                        };
+                            msg_trunc(&mut iob, false, 0)
+                        }
+                        .map(crate::option_vars::intern_opt_cstr);
+                        *g_st().iobuff.borrow_mut() = iob;
+                        keep_cstr = keep_owned;
                     }
 
                     if read_stdin
@@ -2213,7 +2223,7 @@ pub fn readfile(
                 check_cursor_lnum(curwin_mut());
                 beginline(BL_WHITE | BL_FIX);
 
-                if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+                if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
                     curbuf_mut().b_op_start.lnum = from + 1;
                     curbuf_mut().b_op_start.col = 0;
                     curbuf_mut().b_op_end.lnum = from + linecnt;
@@ -2540,16 +2550,25 @@ pub fn fname_msg_id(
 pub fn msg_add_fileformat(eol_type: i32) -> bool {
     #[cfg(not(windows))]
     if eol_type == EOL_DOS {
-        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[dos]").to_bytes());
+        crate::memory::append_bytes_to_c_buf(
+            (&mut *g_st().iobuff_bytes_mut()),
+            tr(c"[dos]").to_bytes(),
+        );
         return true;
     }
     if eol_type == EOL_MAC {
-        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[mac]").to_bytes());
+        crate::memory::append_bytes_to_c_buf(
+            &mut *g_st().iobuff_bytes_mut(),
+            tr(c"[mac]").to_bytes(),
+        );
         return true;
     }
     #[cfg(windows)]
     if eol_type == EOL_UNIX {
-        crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), tr(c"[unix]").to_bytes());
+        crate::memory::append_bytes_to_c_buf(
+            &mut *g_st().iobuff_bytes_mut(),
+            tr(c"[unix]").to_bytes(),
+        );
         return true;
     }
     false
@@ -2562,7 +2581,7 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
 
     if shortmess(K_SHM_LINES) {
         format_to_buf!(
-            &mut g_st().iobuff[len..],
+            &mut g_st().iobuff.borrow_mut()[len..],
             tr(c"%s%lldL, %lldB"),
             space,
             i64::from(lnum),
@@ -2570,13 +2589,13 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
         );
     } else {
         len += format_to_buf!(
-            &mut g_st().iobuff[len..],
+            &mut g_st().iobuff.borrow_mut()[len..],
             ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize),
             space,
             i64::from(lnum),
         ) as usize;
         format_to_buf!(
-            &mut g_st().iobuff[len..],
+            &mut g_st().iobuff.borrow_mut()[len..],
             ngettext(c"%lld byte", c"%lld bytes", nchars as usize),
             nchars,
         );
@@ -3718,10 +3737,10 @@ pub fn delete_recursive(name: &CStr) -> i32 {
         let exp = name.to_owned();
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         if readdir_core(&mut entries, &exp, None) {
-            let len = format_to_buf!(&mut g_st().name_buff, c"%s/", &exp) as usize;
+            let len = format_to_buf!(&mut *g_st().name_buff.borrow_mut(), c"%s/", &exp) as usize;
 
             for entry in &entries {
-                format_to_buf!(&mut g_st().name_buff[len..], c"%s", entry);
+                format_to_buf!(&mut g_st().name_buff.borrow_mut()[len..], c"%s", entry);
                 let sub_cstr = g_st().name_buff_cstr();
                 if delete_recursive(sub_cstr) != 0 {
                     result = -1;

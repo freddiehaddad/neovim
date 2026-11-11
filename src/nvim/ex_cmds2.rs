@@ -163,7 +163,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
         && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows.get() <= 1)
         && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
     {
-        if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
             && opt_vars().p_write.get()
         {
             let mut count: i32 = 0;
@@ -347,7 +347,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let buf_ref = buf.borrow();
         ret = true;
         g_st().exiting.set(false);
-        if !opt_vars().p_confirm.get() && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
+        if !opt_vars().p_confirm.get() && (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) == 0 {
             if g_st().vgetc_busy.get() > 0 {
                 g_st().msg_row.set(g_st().cmdline_row.get());
                 g_st().msg_col.set(0);
@@ -835,9 +835,9 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    if g_st().cmdmod.cmod_tab != 0 {
+    if g_st().cmdmod.borrow().cmod_tab != 0 {
         ex_all(eap);
-        g_st().cmdmod.cmod_tab = 0;
+        g_st().cmdmod.borrow_mut().cmod_tab = 0;
         ex_rewind(eap);
         return;
     }

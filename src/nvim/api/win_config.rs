@@ -996,7 +996,7 @@ fn win_config_float_tp(
                 win_tp.tp_curwin.set(altwin);
             }
 
-            ui_comp_remove_grid(&mut win.w_grid_alloc);
+            ui_comp_remove_grid(&win.w_grid_alloc);
 
             redraw_later(Some(&mut *win), UPD_NOT_VALID);
             set_must_redraw(UPD_NOT_VALID);

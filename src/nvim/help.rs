@@ -156,8 +156,8 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if !bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0 {
-        if g_st().cmdmod.cmod_tab != 0 {
+    if !bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.borrow().cmod_tab != 0 {
+        if g_st().cmdmod.borrow().cmod_tab != 0 {
             wp = None;
         } else {
             wp = None;
@@ -177,7 +177,7 @@ pub fn ex_help(eap: &mut Exarg) {
             early_ret = true;
         } else {
             let mut n = WSP_HELP;
-            if g_st().cmdmod.cmod_split == 0
+            if g_st().cmdmod.borrow().cmod_split == 0
                 && curwin_mut().w_width.get() != g_st().columns_global.get()
                 && curwin_mut().w_width.get() < 80
             {
@@ -205,7 +205,7 @@ pub fn ex_help(eap: &mut Exarg) {
                     None,
                 );
 
-                if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
+                if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0 {
                     curwin_mut().w_alt_fnum.set(alt_fnum);
                 }
                 empty_fnum = curbuf_mut().b_fnum.get();
@@ -229,7 +229,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
         if alt_fnum != 0
             && curwin_mut().w_alt_fnum.get() == empty_fnum
-            && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+            && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
         {
             curwin_mut().w_alt_fnum.set(alt_fnum);
         }
@@ -336,7 +336,10 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         tv_clear(&mut rettv);
         return false;
     }
-    crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), rettv.vval.v_string_bytes());
+    crate::memory::copy_bytes_to_c_buf(
+        &mut *g_st().iobuff_bytes_mut(),
+        rettv.vval.v_string_bytes(),
+    );
     tv_clear(&mut rettv);
 
     matches.clear();

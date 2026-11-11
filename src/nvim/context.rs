@@ -243,6 +243,7 @@ std::thread_local! {
 pub fn handle_get_buffer(h: ObjHandle) -> Option<&'static mut FileBuf> {
     g_st()
         .buffer_handles
+        .borrow()
         .get(&h)
         .copied()
         .and_then(|p| p.opt_mut())
@@ -257,6 +258,7 @@ pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<&'static mut FileBuf> {
 pub fn handle_get_window(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
     g_st()
         .window_handles
+        .borrow()
         .get(&h)
         .copied()
         .and_then(|p| p.opt_mut())
@@ -697,30 +699,35 @@ pub fn ctx_did_chdir() {
 pub fn is_ctx_win(win: &WinInfoInfo) -> bool {
     g_st()
         .ctx_win_vec
+        .borrow()
         .iter()
         .any(|item| item.cw_used && item.cw_win == ptr::from_ref(win))
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoInfo {
     let mut need_append = true;
-    let idx = g_st()
+    let pos = g_st()
         .ctx_win_vec
+        .borrow()
         .iter()
-        .position(|item| !item.cw_used)
-        .unwrap_or_else(|| {
-            let idx = g_st().ctx_win_vec.len();
-            g_st().ctx_win_vec.push(CtxWin {
-                cw_win: crate::globals::WinPtr::NULL,
-                cw_used: false,
-            });
-            idx
+        .position(|item| !item.cw_used);
+    let idx = pos.unwrap_or_else(|| {
+        let mut vec = g_st().ctx_win_vec.borrow_mut();
+        let idx = vec.len();
+        vec.push(CtxWin {
+            cw_win: crate::globals::WinPtr::NULL,
+            cw_used: false,
         });
-    if g_st().ctx_win_vec.as_slice()[idx].cw_win.is_null() {
+        idx
+    });
+    if g_st().ctx_win_vec.borrow().as_slice()[idx].cw_win.is_null() {
         win_alloc_ctx_win(idx as i32);
         need_append = false;
     }
-    let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win.borrow_mut();
-    g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
+    let cw_win = g_st().ctx_win_vec.borrow_mut().as_slice()[idx]
+        .cw_win
+        .borrow_mut();
+    g_st().ctx_win_vec.borrow_mut().as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
     cw_win.w_buffer.set((&raw mut *buf).into());
@@ -731,7 +738,10 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
 
     if need_append {
         win_append(g_st().lastwin.get().opt_mut(), &mut *cw_win, None);
-        g_st().window_handles.insert(cw_win.handle, cw_win.into());
+        g_st()
+            .window_handles
+            .borrow_mut()
+            .insert(cw_win.handle, cw_win.into());
         let cfg = cw_win.w_config.clone();
         win_config_float(cw_win, cfg);
     }
@@ -740,7 +750,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
 }
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
-    let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
+    let cwp = g_st().ctx_win_vec.borrow().as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
     block_autocmds();
     if curwin_ptr() != cwp {
@@ -763,9 +773,12 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
         .b_nwindows
         .set(curbuf_mut().b_nwindows.get() - (1));
     win_remove(curwin_mut(), None);
-    g_st().window_handles.remove(&curwin_mut().handle);
+    g_st()
+        .window_handles
+        .borrow_mut()
+        .remove(&curwin_mut().handle);
 
-    g_st().ctx_win_vec.as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
+    g_st().ctx_win_vec.borrow_mut().as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
 
     if valid_tabpage_win(&curtab_mut()) == 0 {
         close_tabpage(&curtab_mut());
@@ -845,8 +858,8 @@ pub fn ctx_switch(
         cs.cs_prompt_insert = curbuf_mut().b_prompt_insert.get();
     }
     if !cs.cs_same_win {
-        cs.cs_visual_active = g_st().visual_global.active;
-        g_st().visual_global.active = false;
+        cs.cs_visual_active = g_st().visual_global.borrow().active;
+        g_st().visual_global.borrow_mut().active = false;
     }
 
     if (flags & K_CTX_NO_EVENTS) != 0 {
@@ -974,12 +987,12 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     }
 
     if !cs.cs_same_win {
-        g_st().visual_global.active = cs.cs_visual_active;
+        g_st().visual_global.borrow_mut().active = cs.cs_visual_active;
     }
     if cs.cs_mode == K_CTX_SWITCH_BUF {
         check_cursor(curwin_mut());
-        if g_st().visual_global.active {
-            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
+        if g_st().visual_global.borrow().active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.borrow_mut().start);
         }
     }
 
@@ -1001,8 +1014,8 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             wp.w_redr_status.set(true);
         }
         check_cursor(curwin_mut());
-        if g_st().visual_global.active {
-            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
+        if g_st().visual_global.borrow().active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.borrow_mut().start);
         }
     }
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {

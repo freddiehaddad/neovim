@@ -410,9 +410,9 @@ pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> b
     CLS_BIGWORD.set(bigword);
 
     if opt_vars().p_sel.first_byte() == b'e'
-        && g_st().visual_global.active
-        && g_st().visual_global.mode == b'v' as i32
-        && g_st().visual_global.select_exclu_adj
+        && g_st().visual_global.borrow().active
+        && g_st().visual_global.borrow().mode == b'v' as i32
+        && g_st().visual_global.borrow().select_exclu_adj
     {
         unadjust_for_sel();
     }
@@ -571,14 +571,16 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
     CLS_BIGWORD.set(bigword);
     clearpos(&mut start_pos);
 
-    if g_st().visual_global.active
+    if g_st().visual_global.borrow().active
         && opt_vars().p_sel.first_byte() == b'e'
-        && lt(g_st().visual_global.start, curwin_mut().w_cursor)
+        && lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
     {
         dec_cursor();
     }
 
-    if !g_st().visual_global.active || equalpos(curwin_mut().w_cursor, g_st().visual_global.start) {
+    if !g_st().visual_global.borrow().active
+        || equalpos(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+    {
         back_in_line();
         start_pos = curwin_mut().w_cursor;
 
@@ -599,8 +601,8 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
             }
         }
 
-        if g_st().visual_global.active {
-            g_st().visual_global.start = start_pos;
+        if g_st().visual_global.borrow().active {
+            g_st().visual_global.borrow_mut().start = start_pos;
             redraw_curbuf_later(UPD_INVERTED);
         } else {
             oap.start = start_pos;
@@ -611,7 +613,9 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
 
     while count > 0 {
         inclusive = true;
-        if g_st().visual_global.active && lt(curwin_mut().w_cursor, g_st().visual_global.start) {
+        if g_st().visual_global.borrow().active
+            && lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+        {
             if decl(&mut curwin_mut().w_cursor) == -1 {
                 return false;
             }
@@ -649,8 +653,8 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
         if oneleft() {
             back_in_line();
             if cls() == 0 && curwin_mut().w_cursor.col > 0 {
-                if g_st().visual_global.active {
-                    g_st().visual_global.start = curwin_mut().w_cursor;
+                if g_st().visual_global.borrow().active {
+                    g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
                 } else {
                     oap.start = curwin_mut().w_cursor;
                 }
@@ -659,15 +663,15 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
         curwin_mut().w_cursor = pos;
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if opt_vars().p_sel.first_byte() == b'e'
             && inclusive
-            && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor)
+            && ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
         {
             inc_cursor();
         }
-        if g_st().visual_global.mode == b'V' as i32 {
-            g_st().visual_global.mode = b'v' as i32;
+        if g_st().visual_global.borrow().mode == b'V' as i32 {
+            g_st().visual_global.borrow_mut().mode = b'v' as i32;
             g_st().redraw_cmdline.set(true);
         }
     } else {
@@ -680,11 +684,11 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
 /// Find the current line ("il") or all lines ("al") (`current_line`).
 pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     if include {
-        if g_st().visual_global.active {
-            g_st().visual_global.start.lnum = 1;
-            g_st().visual_global.start.col = 0;
-            g_st().visual_global.start.coladd = 0;
-            g_st().visual_global.mode = b'V' as i32;
+        if g_st().visual_global.borrow().active {
+            g_st().visual_global.borrow_mut().start.lnum = 1;
+            g_st().visual_global.borrow_mut().start.col = 0;
+            g_st().visual_global.borrow_mut().start.coladd = 0;
+            g_st().visual_global.borrow_mut().mode = b'V' as i32;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -729,15 +733,15 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     end_pos.col = end_prev_idx as Colnr;
     end_pos.coladd = 0;
 
-    if g_st().visual_global.active {
-        g_st().visual_global.start = start_pos;
+    if g_st().visual_global.borrow().active {
+        g_st().visual_global.borrow_mut().start = start_pos;
         curwin_mut().w_cursor = end_pos;
         if opt_vars().p_sel.first_byte() == b'e'
-            && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor)
+            && ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
         {
             inc_cursor();
         }
-        g_st().visual_global.mode = b'v' as i32;
+        g_st().visual_global.borrow_mut().mode = b'v' as i32;
         redraw_curbuf_later(UPD_INVERTED);
         showmode();
     } else {
@@ -756,7 +760,8 @@ pub fn current_sent(oap: &mut Oparg, mut count: i32, include: bool) -> bool {
     let mut pos = start_pos;
     findsent(FORWARD, 1);
 
-    let do_extend = g_st().visual_global.active && !equalpos(start_pos, g_st().visual_global.start);
+    let do_extend = g_st().visual_global.borrow().active
+        && !equalpos(start_pos, g_st().visual_global.borrow().start);
     if !do_extend {
         while ascii_iswhite(gchar_pos(&mut pos)) {
             incl(&mut pos);
@@ -797,13 +802,13 @@ pub fn current_sent(oap: &mut Oparg, mut count: i32, include: bool) -> bool {
             }
         }
 
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             if !equalpos(start_pos, curwin_mut().w_cursor) {
                 if opt_vars().p_sel.first_byte() == b'e' {
                     curwin_mut().w_cursor.col += 1;
                 }
-                g_st().visual_global.start = start_pos;
-                g_st().visual_global.mode = b'v' as i32;
+                g_st().visual_global.borrow_mut().start = start_pos;
+                g_st().visual_global.borrow_mut().mode = b'v' as i32;
                 g_st().redraw_cmdline.set(true);
                 redraw_curbuf_later(UPD_INVERTED);
                 return true;
@@ -818,7 +823,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: i32, include: bool) -> bool {
     }
 
     // extend:
-    if lt(start_pos, g_st().visual_global.start) {
+    if lt(start_pos, g_st().visual_global.borrow().start) {
         let mut at_start_sent = true;
         decl(&mut pos);
         while lt(pos, curwin_mut().w_cursor) {
@@ -906,7 +911,9 @@ pub fn current_block(
     let mut old_end = curwin_mut().w_cursor;
     let mut old_start = old_end;
 
-    if !g_st().visual_global.active || equalpos(g_st().visual_global.start, curwin_mut().w_cursor) {
+    if !g_st().visual_global.borrow().active
+        || equalpos(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
+    {
         setpcmark();
         if what == b'{' as i32 {
             while inindent(1) {
@@ -918,11 +925,11 @@ pub fn current_block(
         if gchar_cursor() == what {
             curwin_mut().w_cursor.col += 1;
         }
-    } else if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-        old_start = g_st().visual_global.start;
-        curwin_mut().w_cursor = g_st().visual_global.start;
+    } else if lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor) {
+        old_start = g_st().visual_global.borrow().start;
+        curwin_mut().w_cursor = g_st().visual_global.borrow().start;
     } else {
-        old_end = g_st().visual_global.start;
+        old_end = g_st().visual_global.borrow().start;
     }
 
     let new_cpo = if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_MATCHBSL) {
@@ -982,7 +989,7 @@ pub fn current_block(
                 }
             }
 
-            if equalpos(start_pos, end_pos.unwrap()) && g_st().visual_global.active {
+            if equalpos(start_pos, end_pos.unwrap()) && g_st().visual_global.borrow().active {
                 curwin_mut().w_cursor = old_pos;
                 return false;
             }
@@ -990,7 +997,7 @@ pub fn current_block(
             if !lt(start_pos, old_start)
                 && !lt(old_end, curwin_mut().w_cursor)
                 && !equalpos(start_pos, curwin_mut().w_cursor)
-                && g_st().visual_global.active
+                && g_st().visual_global.borrow().active
             {
                 curwin_mut().w_cursor = old_start;
                 decl(&mut curwin_mut().w_cursor);
@@ -1012,15 +1019,15 @@ pub fn current_block(
         }
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if opt_vars().p_sel.first_byte() == b'e' {
             inc(&mut curwin_mut().w_cursor);
         }
         if sol && gchar_cursor() != i32::from(NUL) {
             inc(&mut curwin_mut().w_cursor);
         }
-        g_st().visual_global.start = start_pos;
-        g_st().visual_global.mode = b'v' as i32;
+        g_st().visual_global.borrow_mut().start = start_pos;
+        g_st().visual_global.borrow_mut().mode = b'v' as i32;
         redraw_curbuf_later(UPD_INVERTED);
         showmode();
     } else {
@@ -1101,11 +1108,13 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
     let old_pos = curwin_mut().w_cursor;
     let mut old_end = curwin_mut().w_cursor;
     let mut old_start = old_end;
-    if !g_st().visual_global.active || opt_vars().p_sel.first_byte() == b'e' {
+    if !g_st().visual_global.borrow().active || opt_vars().p_sel.first_byte() == b'e' {
         decl(&mut old_end);
     }
 
-    if !g_st().visual_global.active || equalpos(g_st().visual_global.start, curwin_mut().w_cursor) {
+    if !g_st().visual_global.borrow().active
+        || equalpos(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
+    {
         setpcmark();
 
         while inindent(1) {
@@ -1129,11 +1138,11 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             dec_cursor();
             old_end = curwin_mut().w_cursor;
         }
-    } else if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-        old_start = g_st().visual_global.start;
-        curwin_mut().w_cursor = g_st().visual_global.start;
+    } else if lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor) {
+        old_start = g_st().visual_global.borrow().start;
+        curwin_mut().w_cursor = g_st().visual_global.borrow().start;
     } else {
-        old_end = g_st().visual_global.start;
+        old_end = g_st().visual_global.borrow().start;
     }
 
     'again: loop {
@@ -1210,7 +1219,10 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
                 .first()
                 .copied()
                 .unwrap_or(0);
-            if c_b == b'<' && !g_st().visual_global.active && curwin_mut().w_cursor.col == 0 {
+            if c_b == b'<'
+                && !g_st().visual_global.borrow().active
+                && curwin_mut().w_cursor.col == 0
+            {
                 is_inclusive = false;
             } else if c_b == b'<' {
                 dec_cursor();
@@ -1236,7 +1248,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             }
             curwin_mut().w_cursor = end_pos;
 
-            if g_st().visual_global.active
+            if g_st().visual_global.borrow().active
                 && equalpos(start_pos, old_start)
                 && equalpos(end_pos, old_end)
             {
@@ -1247,14 +1259,14 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             }
         }
 
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             if lt(end_pos, start_pos) {
                 curwin_mut().w_cursor = start_pos;
             } else if opt_vars().p_sel.first_byte() == b'e' {
                 inc_cursor();
             }
-            g_st().visual_global.start = start_pos;
-            g_st().visual_global.mode = b'v' as i32;
+            g_st().visual_global.borrow_mut().start = start_pos;
+            g_st().visual_global.borrow_mut().mode = b'v' as i32;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -1286,7 +1298,8 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
 
     let mut start_lnum = curwin_mut().w_cursor.lnum;
 
-    let do_extend = g_st().visual_global.active && start_lnum != g_st().visual_global.start.lnum;
+    let do_extend = g_st().visual_global.borrow().active
+        && start_lnum != g_st().visual_global.borrow().start.lnum;
     if !do_extend {
         let white_in_front = linewhite(start_lnum);
         while start_lnum > 1 {
@@ -1350,15 +1363,15 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
             }
         }
 
-        if g_st().visual_global.active {
-            if !(g_st().visual_global.mode == b'V' as i32
+        if g_st().visual_global.borrow().active {
+            if !(g_st().visual_global.borrow().mode == b'V' as i32
                 && start_lnum == curwin_mut().w_cursor.lnum)
             {
-                if g_st().visual_global.start.lnum != start_lnum {
-                    g_st().visual_global.start.lnum = start_lnum;
-                    g_st().visual_global.start.col = 0;
+                if g_st().visual_global.borrow().start.lnum != start_lnum {
+                    g_st().visual_global.borrow_mut().start.lnum = start_lnum;
+                    g_st().visual_global.borrow_mut().start.col = 0;
                 }
-                g_st().visual_global.mode = b'V' as i32;
+                g_st().visual_global.borrow_mut().mode = b'V' as i32;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
                 curwin_mut().w_cursor.lnum = end_lnum;
@@ -1376,7 +1389,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
     }
 
     // extend:
-    let dir = if start_lnum < g_st().visual_global.start.lnum {
+    let dir = if start_lnum < g_st().visual_global.borrow().start.lnum {
         BACKWARD
     } else {
         FORWARD
@@ -1510,35 +1523,41 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     let mut restore_vis_bef = false;
 
     let abort_search = |did_exclusive_adj: bool, restore_vis_bef: bool| -> bool {
-        if g_st().visual_global.active && opt_vars().p_sel.first_byte() == b'e' {
+        if g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() == b'e' {
             if did_exclusive_adj {
                 inc_cursor();
             }
             if restore_vis_bef {
-                std::mem::swap(&mut curwin_mut().w_cursor, &mut g_st().visual_global.start);
+                std::mem::swap(
+                    &mut curwin_mut().w_cursor,
+                    &mut g_st().visual_global.borrow_mut().start,
+                );
             }
         }
         false
     };
 
-    if g_st().visual_global.active {
-        if g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum {
+    if g_st().visual_global.borrow().active {
+        if g_st().visual_global.borrow().start.lnum != curwin_mut().w_cursor.lnum {
             return false;
         }
 
-        vis_bef_curs = lt(g_st().visual_global.start, curwin_mut().w_cursor);
-        vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
+        vis_bef_curs = lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
+        vis_empty = equalpos(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
         if opt_vars().p_sel.first_byte() == b'e' {
             if vis_bef_curs {
                 dec_cursor();
                 did_exclusive_adj = true;
             } else if !vis_empty {
-                dec(&mut g_st().visual_global.start);
+                dec(&mut g_st().visual_global.borrow_mut().start);
                 did_exclusive_adj = true;
             }
-            vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
+            vis_empty = equalpos(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
             if !vis_bef_curs && !vis_empty {
-                std::mem::swap(&mut curwin_mut().w_cursor, &mut g_st().visual_global.start);
+                std::mem::swap(
+                    &mut curwin_mut().w_cursor,
+                    &mut g_st().visual_global.borrow_mut().start,
+                );
                 vis_bef_curs = true;
                 restore_vis_bef = true;
             }
@@ -1548,7 +1567,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     if !vis_empty {
         let mut i: i32;
         if vis_bef_curs {
-            let vcol = g_st().visual_global.start.col;
+            let vcol = g_st().visual_global.borrow().start.col;
             let ccol = curwin_mut().w_cursor.col;
             inside_quotes = vcol > 0
                 && byte_at(vcol - 1) == quotechar
@@ -1557,7 +1576,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             i = vcol;
             col_end = ccol;
         } else {
-            let vcol = g_st().visual_global.start.col;
+            let vcol = g_st().visual_global.borrow().start.col;
             let ccol = curwin_mut().w_cursor.col;
             inside_quotes = ccol > 0
                 && byte_at(ccol - 1) == quotechar
@@ -1659,8 +1678,8 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         col_start += 1;
     }
     curwin_mut().w_cursor.col = col_start;
-    if g_st().visual_global.active {
-        let vcol = g_st().visual_global.start.col;
+    if g_st().visual_global.borrow().active {
+        let vcol = g_st().visual_global.borrow().start.col;
         if vis_empty
             || (vis_bef_curs
                 && !selected_quote
@@ -1668,7 +1687,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                     || (byte_at(vcol) != quotechar
                         && (vcol == 0 || byte_at(vcol - 1) != quotechar))))
         {
-            g_st().visual_global.start = curwin_mut().w_cursor;
+            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
             redraw_curbuf_later(UPD_INVERTED);
         }
     } else {
@@ -1680,25 +1699,25 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     if (include || count > 1 || (!vis_empty && inside_quotes)) && inc_cursor() == 2 {
         inclusive = true;
     }
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if vis_empty || vis_bef_curs {
             if opt_vars().p_sel.first_byte() != b'e' {
                 dec_cursor();
             }
         } else {
-            let vcol = g_st().visual_global.start.col;
+            let vcol = g_st().visual_global.borrow().start.col;
             if inside_quotes
                 || (!selected_quote
                     && byte_at(vcol) != quotechar
                     && (byte_at(vcol) == 0 || byte_at(vcol + 1) != quotechar))
             {
                 dec_cursor();
-                g_st().visual_global.start = curwin_mut().w_cursor;
+                g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
             }
             curwin_mut().w_cursor.col = col_start;
         }
-        if g_st().visual_global.mode == b'V' as i32 {
-            g_st().visual_global.mode = b'v' as i32;
+        if g_st().visual_global.borrow().mode == b'V' as i32 {
+            g_st().visual_global.borrow_mut().mode = b'v' as i32;
             g_st().redraw_cmdline.set(true);
         }
     } else {

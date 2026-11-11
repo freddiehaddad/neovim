@@ -342,13 +342,13 @@ pub fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        g_st().buffer_handles = std::collections::BTreeMap::new();
-        g_st().window_handles = std::collections::BTreeMap::new();
-        g_st().tabpage_handles = std::collections::BTreeMap::new();
+        *g_st().buffer_handles.borrow_mut() = std::collections::BTreeMap::new();
+        *g_st().window_handles.borrow_mut() = std::collections::BTreeMap::new();
+        *g_st().tabpage_handles.borrow_mut() = std::collections::BTreeMap::new();
 
         grid_free_all_mem();
-        stl_clear_click_defs(&mut g_st().tab_page_click_defs);
-        g_st().tab_page_click_defs = Vec::new();
+        stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
+        *g_st().tab_page_click_defs.borrow_mut() = Vec::new();
 
         clear_hl_tables(false);
         check_quickfix_busy();

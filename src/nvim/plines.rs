@@ -1183,9 +1183,9 @@ pub fn getvcol(
             && (g_st().state_global.get() & MODE_NORMAL) != 0
             && !wp.w_onebuf_opt.wo_list.get()
             && !virtual_active(&mut *wp)
-            && !(g_st().visual_global.active
+            && !(g_st().visual_global.borrow().active
                 && (opt_vars().p_sel.first_byte() == b'e'
-                    || ltoreq(*pos, g_st().visual_global.start)))
+                    || ltoreq(*pos, g_st().visual_global.borrow().start)))
         {
             *cursor.as_deref_mut().unwrap() = vcol + incr - char_size.hidden - 1 - off;
         } else {

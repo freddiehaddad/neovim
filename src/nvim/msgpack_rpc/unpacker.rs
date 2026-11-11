@@ -731,13 +731,14 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             } else {
                 let sc = crate::grid::schar_from_bytes(cell_bytes);
                 for _ in 0..repeat {
-                    if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as i32) {
+                    if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.borrow().len() as i32)
+                    {
                         p.state = -1;
                         return false;
                     }
                     let off = p.grid_line_event.coloff as usize;
-                    g_st().grid_line_buf_char[off] = sc;
-                    g_st().grid_line_buf_attr[off] = p.grid_line_event.cur_attr;
+                    g_st().grid_line_buf_char.borrow_mut()[off] = sc;
+                    g_st().grid_line_buf_attr.borrow_mut()[off] = p.grid_line_event.cur_attr;
                     p.grid_line_event.coloff += 1;
                 }
             }

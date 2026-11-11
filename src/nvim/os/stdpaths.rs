@@ -73,13 +73,13 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> &'static CStr {
-    let name_buff = g_st().borrow_mut().name_buff_bytes_mut();
-    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff);
+    let mut name_buff = g_st().name_buff_bytes_mut();
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", &mut *name_buff);
     if env_val.is_none() {
         name_buff[..5].copy_from_slice(b"nvim\0");
     }
     #[cfg(windows)]
-    path_to_slash(name_buff);
+    path_to_slash(&mut *name_buff);
     if namelike {
         for b in name_buff.iter_mut() {
             if *b == 0 {
@@ -90,7 +90,8 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
             }
         }
     }
-    CStr::from_bytes_until_nul(name_buff).unwrap_or(c"nvim")
+    let c = CStr::from_bytes_until_nul(&*name_buff).unwrap_or(c"nvim");
+    crate::option_vars::intern_opt_cstr(c)
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).

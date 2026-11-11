@@ -208,7 +208,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 
-    if g_st().visual_global.active && wp.w_buffer.get() == g_st().curbuf.get() {
+    if g_st().visual_global.borrow().active && wp.w_buffer.get() == g_st().curbuf.get() {
         redraw_buf_later(curbuf_mut(), UPD_INVERTED);
     }
 }
@@ -2729,11 +2729,11 @@ pub fn do_check_cursorbind() {
     let set_curswant = curwin_mut().w_set_curswant.get();
     let old_curwin = curwin_ptr();
     let old_curbuf = g_st().curbuf.get();
-    let old_visual_select = g_st().visual_global.select;
-    let old_visual_active = g_st().visual_global.active;
+    let old_visual_select = g_st().visual_global.borrow().select;
+    let old_visual_active = g_st().visual_global.borrow().active;
 
-    g_st().visual_global.select = false;
-    g_st().visual_global.active = false;
+    g_st().visual_global.borrow_mut().select = false;
+    g_st().visual_global.borrow_mut().active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf.set(curwin_mut().w_buffer.get());
@@ -2769,8 +2769,8 @@ pub fn do_check_cursorbind() {
         }
     }
 
-    g_st().visual_global.select = old_visual_select;
-    g_st().visual_global.active = old_visual_active;
+    g_st().visual_global.borrow_mut().select = old_visual_select;
+    g_st().visual_global.borrow_mut().active = old_visual_active;
     set_curwin(old_curwin);
     g_st().curbuf.set(old_curbuf);
 }

@@ -96,7 +96,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 
         'getkey: loop {
             let key = loop {
-                if vpeekc() != 0 || g_st().typebuf.tb_len > 0 {
+                if vpeekc() != 0 || g_st().typebuf.tb_len.get() > 0 {
                     break safe_vgetc();
                 } else if !multiqueue_empty(main_loop_events()) {
                     ui_flush();
@@ -113,7 +113,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     input_get(
                         None,
                         -1,
-                        g_st().typebuf.tb_change_cnt,
+                        g_st().typebuf.tb_change_cnt.get(),
                         Some(main_loop_events()),
                     );
                     if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
@@ -190,14 +190,14 @@ pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
         return g_st().virtual_op.get() != 0;
     }
     (cur_ve_flags & K_OPT_VE_FLAG_BLOCK) != 0
-        && g_st().visual_global.active
-        && g_st().visual_global.mode == CTRL_V_CONST
+        && g_st().visual_global.borrow().active
+        && g_st().visual_global.borrow().mode == CTRL_V_CONST
 }
 
 pub fn get_real_state() -> i32 {
     if (g_st().state_global.get() & MODE_NORMAL) != 0 {
-        if g_st().visual_global.active {
-            if g_st().visual_global.select {
+        if g_st().visual_global.borrow().active {
+            if g_st().visual_global.borrow().select {
                 return MODE_SELECT;
             }
             return MODE_VISUAL;
@@ -263,14 +263,14 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
     } else if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         buf[i] = b't';
         i += 1;
-    } else if g_st().visual_global.active {
-        if g_st().visual_global.select {
-            buf[i] = (g_st().visual_global.mode + (b's' as i32) - (b'v' as i32)) as u8;
+    } else if g_st().visual_global.borrow().active {
+        if g_st().visual_global.borrow().select {
+            buf[i] = (g_st().visual_global.borrow().mode + (b's' as i32) - (b'v' as i32)) as u8;
             i += 1;
         } else {
-            buf[i] = g_st().visual_global.mode as u8;
+            buf[i] = g_st().visual_global.borrow().mode as u8;
             i += 1;
-            if g_st().visual_global.restart_select != 0 {
+            if g_st().visual_global.borrow().restart_select != 0 {
                 buf[i] = b's';
                 i += 1;
             }
@@ -316,12 +316,12 @@ pub fn may_trigger_modechanged() {
     let mut pattern_buf: [u8; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
 
     get_mode(&mut curr_mode);
-    if curr_mode == g_st().last_mode {
+    if curr_mode == *g_st().last_mode.borrow() {
         return;
     }
 
     let curr_cstr = CStr::from_bytes_until_nul(&curr_mode).unwrap_or(c"");
-    let old_mode = g_st().last_mode;
+    let old_mode = *g_st().last_mode.borrow();
     let old_cstr = CStr::from_bytes_until_nul(&old_mode).unwrap_or(c"");
 
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
@@ -339,7 +339,7 @@ pub fn may_trigger_modechanged() {
         false,
         curbuf_opt_mut(),
     );
-    g_st().last_mode = curr_mode;
+    *g_st().last_mode.borrow_mut() = curr_mode;
 
     restore_v_event(&v_event, &mut save_v_event);
 }
@@ -347,7 +347,7 @@ pub fn may_trigger_modechanged() {
 #[inline]
 fn is_safe_now() -> bool {
     stuff_empty()
-        && g_st().typebuf.tb_len == 0
+        && g_st().typebuf.tb_len.get() == 0
         && using_script() == 0
         && g_st().global_busy.get() == 0
         && !g_st().debug_mode.get()

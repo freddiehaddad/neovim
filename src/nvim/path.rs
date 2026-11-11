@@ -2096,11 +2096,16 @@ pub fn path_guess_exepath(argv0: &CStr, buf_slice: &mut [u8]) {
                 if dir.len() + 1 > MAXPATHL {
                     continue;
                 }
-                crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), dir);
-                crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), PATHSEPSTR);
-                crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), argv0_bytes);
-                let nb_cstr =
-                    crate::memory::bytes_as_cstr(g_st().borrow_mut().name_buff_bytes_mut());
+                crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), dir);
+                crate::memory::append_bytes_to_c_buf(
+                    &mut *g_st().name_buff_bytes_mut(),
+                    PATHSEPSTR,
+                );
+                crate::memory::append_bytes_to_c_buf(
+                    &mut *g_st().name_buff_bytes_mut(),
+                    argv0_bytes,
+                );
+                let nb_cstr = g_st().name_buff_cstr();
                 if os_can_exe(nb_cstr, None, false) {
                     crate::memory::copy_bytes_to_c_buf(buf_slice, nb_cstr.to_bytes());
                     to_slash(buf_slice);

@@ -607,7 +607,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                 return;
             }
             key_owned = key_cstr.map(CStr::to_owned);
-        } else if !tv_dict_get_callback(Some(d), c"text_cb", -1, &mut cb) {
+        } else if !tv_dict_get_callback(Some(d), c"text_cb", -1, &cb) {
             semsg!(E_INVARGVAL, c"text_cb");
             return;
         }

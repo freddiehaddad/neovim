@@ -265,8 +265,8 @@ pub fn internal_format(
 
         while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
             || (flags & INSCHAR_FORMAT) != 0
-            || curwin_mut().w_cursor.lnum != g_st().ins_global.start.lnum
-            || curwin_mut().w_cursor.col >= g_st().ins_global.start.col
+            || curwin_mut().w_cursor.lnum != g_st().ins_global.borrow().start.lnum
+            || curwin_mut().w_cursor.col >= g_st().ins_global.borrow().start.col
         {
             if curwin_mut().w_cursor.col == startcol && c != 0 {
                 cc = c;
@@ -509,10 +509,10 @@ pub fn internal_format(
 
         haveto_redraw = true;
         set_can_cindent(true);
-        g_st().ins_global.did_ai = false;
-        g_st().ins_global.did_si = false;
-        g_st().ins_global.can_si = false;
-        g_st().ins_global.can_si_back = false;
+        g_st().ins_global.borrow_mut().did_ai = false;
+        g_st().ins_global.borrow_mut().did_si = false;
+        g_st().ins_global.borrow_mut().can_si = false;
+        g_st().ins_global.borrow_mut().can_si_back = false;
         line_breakcheck();
     }
 
@@ -828,7 +828,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
         redraw_curbuf_later(UPD_INVERTED);
     }
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start = oap.start;
     }
 
@@ -845,7 +845,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     old_line_count = curbuf_mut().b_ml.ml_line_count.get() - old_line_count;
     msgmore(old_line_count);
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_end = curwin_mut().w_cursor;
     }
 

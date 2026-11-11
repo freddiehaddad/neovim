@@ -521,7 +521,7 @@ pub fn cursor_get_mode_idx() -> i32 {
         }
     } else if g_st().finish_op.get() {
         SHAPE_IDX_O as i32
-    } else if g_st().visual_global.active {
+    } else if g_st().visual_global.borrow().active {
         if opt_vars().p_sel.first_byte() == b'e' {
             SHAPE_IDX_VE as i32
         } else {

@@ -1778,14 +1778,14 @@ fn normal_need_additional_char(s: &mut NormalState) -> bool {
                 && g_st().reg_recording.get() == 0
                 && g_st().reg_executing.get() == 0)
             || ((cmdchar == b'a' as i32 || cmdchar == b'i' as i32)
-                && (pending_op || g_st().visual_global.active)))
+                && (pending_op || g_st().visual_global.borrow().active)))
 }
 
 fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
     ((opt_vars().p_smd.get()
         && g_st().msg_silent.get() == 0
         && (g_st().restart_edit.get() != 0
-            || (g_st().visual_global.active
+            || (g_st().visual_global.borrow().active
                 && s.old_pos.lnum == curwin_mut().w_cursor.lnum
                 && s.old_pos.col == curwin_mut().w_cursor.col))
         && (g_st().clear_cmdline.get() || g_st().redraw_cmdline.get())
@@ -1793,7 +1793,7 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
         && !g_st().msg_nowait.get()
         && g_st().key_typed.get())
         || (g_st().restart_edit.get() != 0
-            && !g_st().visual_global.active
+            && !g_st().visual_global.borrow().active
             && g_st().msg_scroll.get() != 0
             && g_st().emsg_on_display.get()))
         && s.ca.oap.regname == 0
@@ -2016,7 +2016,7 @@ fn normal_invert_horizontal(s: &mut NormalState) {
 }
 
 fn normal_get_command_count(s: &mut NormalState) -> bool {
-    if g_st().visual_global.active && g_st().visual_global.select {
+    if g_st().visual_global.borrow().active && g_st().visual_global.borrow().select {
         return false;
     }
     while (s.c >= b'1' as i32 && s.c <= b'9' as i32)
@@ -2089,7 +2089,7 @@ fn normal_finish_command(s: &mut NormalState) {
         }
 
         if s.ca.cmdchar != K_IGNORE && s.ca.cmdchar != K_MOUSEMOVE {
-            did_visual_op = g_st().visual_global.active
+            did_visual_op = g_st().visual_global.borrow().active
                 && s.ca.oap.op_type != OP_NOP
                 && s.ca.oap.op_type != OP_COLON;
             do_pending_operator(&mut s.ca, s.old_col, false);
@@ -2100,8 +2100,8 @@ fn normal_finish_command(s: &mut NormalState) {
         }
     }
 
-    if g_st().visual_global.need_end {
-        g_st().visual_global.need_end = false;
+    if g_st().visual_global.borrow().need_end {
+        g_st().visual_global.borrow_mut().need_end = false;
         reset_visual();
     }
 
@@ -2138,27 +2138,30 @@ fn normal_finish_command(s: &mut NormalState) {
 
     if s.ca.oap.op_type == OP_NOP
         && ((g_st().restart_edit.get() != 0
-            && !g_st().visual_global.active
+            && !g_st().visual_global.borrow().active
             && s.old_mapped_len == 0)
-            || g_st().visual_global.restart_select == 1)
+            || g_st().visual_global.borrow().restart_select == 1)
         && (s.ca.retval & CA_COMMAND_BUSY) == 0
         && stuff_empty()
         && s.ca.oap.regname == 0
     {
-        if g_st().visual_global.restart_select == 1 {
-            g_st().visual_global.select = true;
-            g_st().visual_global.select_reg = 0;
+        if g_st().visual_global.borrow().restart_select == 1 {
+            g_st().visual_global.borrow_mut().select = true;
+            g_st().visual_global.borrow_mut().select_reg = 0;
             may_trigger_modechanged();
             showmode();
-            g_st().visual_global.restart_select = 0;
+            g_st().visual_global.borrow_mut().restart_select = 0;
         }
-        if g_st().restart_edit.get() != 0 && !g_st().visual_global.active && s.old_mapped_len == 0 {
+        if g_st().restart_edit.get() != 0
+            && !g_st().visual_global.borrow().active
+            && s.old_mapped_len == 0
+        {
             edit(g_st().restart_edit.get(), false, 1);
         }
     }
 
-    if g_st().visual_global.restart_select == 2 {
-        g_st().visual_global.restart_select = 1;
+    if g_st().visual_global.borrow().restart_select == 2 {
+        g_st().visual_global.borrow_mut().restart_select = 1;
     }
 
     g_st().opcount.set(s.ca.opcount);
@@ -2186,7 +2189,7 @@ fn normal_execute(s: &mut NormalState, key: i32) -> i32 {
     if g_st().restart_edit.get() == 0 {
         s.old_mapped_len = 0;
     } else if s.old_mapped_len != 0
-        || (g_st().visual_global.active && s.mapped_len == 0 && typebuf_maplen() > 0)
+        || (g_st().visual_global.borrow().active && s.mapped_len == 0 && typebuf_maplen() > 0)
     {
         s.old_mapped_len = typebuf_maplen();
     }
@@ -2195,8 +2198,8 @@ fn normal_execute(s: &mut NormalState, key: i32) -> i32 {
         s.c = K_ZERO;
     }
 
-    if g_st().visual_global.active
-        && g_st().visual_global.select
+    if g_st().visual_global.borrow().active
+        && g_st().visual_global.borrow().select
         && (vim_isprintc(s.c) || s.c == NL || s.c == CAR || s.c == K_KENTER)
     {
         requeue_key(
@@ -2267,7 +2270,7 @@ fn normal_execute(s: &mut NormalState, key: i32) -> i32 {
             break 'finish;
         }
 
-        if g_st().visual_global.active && normal_handle_special_visual_command(s) {
+        if g_st().visual_global.borrow().active && normal_handle_special_visual_command(s) {
             s.command_finished = true;
             break 'finish;
         }
@@ -2307,7 +2310,7 @@ fn normal_execute(s: &mut NormalState, key: i32) -> i32 {
 
         s.old_pos = curwin_mut().w_cursor;
 
-        if !g_st().visual_global.active && g_st().km_startsel.get() {
+        if !g_st().visual_global.borrow().active && g_st().km_startsel.get() {
             let flags = NV_CMDS[s.idx as usize].cmd_flags;
             if (flags & NV_SS) != 0 {
                 start_selection();
@@ -2512,23 +2515,23 @@ fn set_vcount_ca(cap: &mut Cmdarg, set_prevcount: &mut bool) {
 
 pub fn visualinfo() -> Visualinfo {
     Visualinfo {
-        vi_start: g_st().visual_global.start,
+        vi_start: g_st().visual_global.borrow().start,
         vi_end: curwin_mut().w_cursor,
-        vi_mode: g_st().visual_global.mode,
+        vi_mode: g_st().visual_global.borrow().mode,
         vi_curswant: curwin_mut().w_curswant.get(),
     }
 }
 
 pub fn end_visual_mode() {
-    g_st().visual_global.select_exclu_adj = false;
-    g_st().visual_global.active = false;
+    g_st().visual_global.borrow_mut().select_exclu_adj = false;
+    g_st().visual_global.borrow_mut().active = false;
     setmouse();
     g_st().mouse_dragging.set(0);
 
     curbuf_mut().b_visual = visualinfo();
     curbuf_mut()
         .b_visual_mode_eval
-        .set(g_st().visual_global.mode);
+        .set(g_st().visual_global.borrow().mode);
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
     }
@@ -2540,18 +2543,18 @@ pub fn end_visual_mode() {
 }
 
 pub fn reset_visual_and_resel() {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         end_visual_mode();
         redraw_curbuf_later(UPD_INVERTED);
     }
-    g_st().visual_global.reselect = 0;
+    g_st().visual_global.borrow_mut().reselect = 0;
 }
 
 pub fn reset_visual() {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         end_visual_mode();
         redraw_curbuf_later(UPD_INVERTED);
-        g_st().visual_global.reselect = 0;
+        g_st().visual_global.borrow_mut().reselect = 0;
     }
 }
 
@@ -2727,7 +2730,7 @@ fn checkclearop(oap: &mut Oparg) -> bool {
 }
 
 fn checkclearopq(oap: &mut Oparg) -> bool {
-    if oap.op_type == OP_NOP && !g_st().visual_global.active {
+    if oap.op_type == OP_NOP && !g_st().visual_global.borrow().active {
         return false;
     }
     clearopbeep(&mut *oap);
@@ -2779,25 +2782,25 @@ pub fn clear_showcmd() {
         return;
     }
 
-    if g_st().visual_global.active && !char_avail() {
-        let cursor_bot = lt(g_st().visual_global.start, curwin_mut().w_cursor);
+    if g_st().visual_global.borrow().active && !char_avail() {
+        let cursor_bot = lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
         let mut leftcol: Colnr = 0;
         let mut rightcol: Colnr = 0;
         let mut top: Linenr;
         let mut bot: Linenr;
 
         if cursor_bot {
-            top = g_st().visual_global.start.lnum;
+            top = g_st().visual_global.borrow().start.lnum;
             bot = curwin_mut().w_cursor.lnum;
         } else {
             top = curwin_mut().w_cursor.lnum;
-            bot = g_st().visual_global.start.lnum;
+            bot = g_st().visual_global.borrow().start.lnum;
         }
         has_folding(curwin_mut(), top, Some(&mut top), None);
         has_folding(curwin_mut(), bot, None, Some(&mut bot));
         let lines = bot - top + 1;
 
-        if g_st().visual_global.mode == CTRL_V_CONST {
+        if g_st().visual_global.borrow().mode == CTRL_V_CONST {
             let saved_sbr = opt_vars().p_sbr.take();
             let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
@@ -2805,7 +2808,7 @@ pub fn clear_showcmd() {
             getvcols(
                 curwin_mut(),
                 &mut cursor,
-                &mut g_st().visual_global.start,
+                &mut g_st().visual_global.borrow_mut().start,
                 &mut leftcol,
                 &mut rightcol,
                 GETVCOL_END_EXCL_LBR,
@@ -2814,25 +2817,25 @@ pub fn clear_showcmd() {
             opt_vars().p_sbr.set(saved_sbr);
             curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
             format_to_buf!(
-                &mut g_st().showcmd_buf,
+                &mut *g_st().showcmd_buf.borrow_mut(),
                 c"%lldx%lld",
                 lines as i64,
                 (i64::from(rightcol) - i64::from(leftcol) + 1) as i64,
             );
-        } else if g_st().visual_global.mode == b'V' as i32
-            || g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum
+        } else if g_st().visual_global.borrow().mode == b'V' as i32
+            || g_st().visual_global.borrow().start.lnum != curwin_mut().w_cursor.lnum
         {
-            format_to_buf!(&mut g_st().showcmd_buf, c"%lld", lines as i64);
+            format_to_buf!(&mut *g_st().showcmd_buf.borrow_mut(), c"%lld", lines as i64);
         } else {
             let (s_cstr, e_cstr) = if cursor_bot {
                 (
-                    ml_get_pos(&g_st().visual_global.start),
+                    ml_get_pos(&g_st().visual_global.borrow().start),
                     get_cursor_pos_ptr(),
                 )
             } else {
                 (
                     get_cursor_pos_ptr(),
-                    ml_get_pos(&g_st().visual_global.start),
+                    ml_get_pos(&g_st().visual_global.borrow().start),
                 )
             };
             let mut bytes: i32 = 0;
@@ -2858,9 +2861,14 @@ pub fn clear_showcmd() {
                 off += l as usize;
             }
             if bytes == chars {
-                format_to_buf!(&mut g_st().showcmd_buf, c"%d", chars);
+                format_to_buf!(&mut *g_st().showcmd_buf.borrow_mut(), c"%d", chars);
             } else {
-                format_to_buf!(&mut g_st().showcmd_buf, c"%d-%d", chars, bytes);
+                format_to_buf!(
+                    &mut *g_st().showcmd_buf.borrow_mut(),
+                    c"%d-%d",
+                    chars,
+                    bytes
+                );
             }
         }
         let limit = if ui_has(K_UIMESSAGES) {
@@ -2868,10 +2876,10 @@ pub fn clear_showcmd() {
         } else {
             SHOWCMD_COLS
         };
-        g_st().showcmd_buf[limit] = 0;
+        g_st().showcmd_buf.borrow_mut()[limit] = 0;
         norm_st(|st| st.showcmd_visual.set(true));
     } else {
-        g_st().showcmd_buf[0] = 0;
+        g_st().showcmd_buf.borrow_mut()[0] = 0;
         norm_st(|st| st.showcmd_visual.set(false));
 
         if norm_st(|st| st.showcmd_is_clear.get()) {
@@ -2919,7 +2927,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
     }
 
     if norm_st(|st| st.showcmd_visual.replace(false)) {
-        g_st().showcmd_buf[0] = 0;
+        g_st().showcmd_buf.borrow_mut()[0] = 0;
     }
 
     if is_special(c) && IGNORE.contains(&c) {
@@ -2937,7 +2945,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         crate::memory::bytes_as_cstr(&mbyte_buf)
     };
 
-    let old_len = crate::memory::bytes_until_nul(&g_st().showcmd_buf).len();
+    let old_len = crate::memory::bytes_until_nul(&*g_st().showcmd_buf.borrow()).len();
     let p_bytes = p_cstr.to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
@@ -2947,12 +2955,15 @@ pub fn add_to_showcmd(c: i32) -> bool {
     };
     let dst_pos = if old_len + extra_len > limit {
         let overflow = old_len + extra_len - limit;
-        g_st().showcmd_buf.copy_within(overflow..=old_len, 0);
+        g_st()
+            .showcmd_buf
+            .borrow_mut()
+            .copy_within(overflow..=old_len, 0);
         old_len - overflow
     } else {
         old_len
     };
-    g_st().showcmd_buf[dst_pos..dst_pos + p_bytes.len()].copy_from_slice(p_bytes);
+    g_st().showcmd_buf.borrow_mut()[dst_pos..dst_pos + p_bytes.len()].copy_from_slice(p_bytes);
 
     if char_avail() {
         return false;
@@ -2971,9 +2982,9 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc.get() {
         return;
     }
-    let old_len = crate::memory::bytes_until_nul(&g_st().showcmd_buf).len() as i32;
+    let old_len = crate::memory::bytes_until_nul(&*g_st().showcmd_buf.borrow()).len() as i32;
     len = len.min(old_len);
-    g_st().showcmd_buf[(old_len - len) as usize] = 0;
+    g_st().showcmd_buf.borrow_mut()[(old_len - len) as usize] = 0;
 
     if !char_avail() {
         display_showcmd();
@@ -2982,7 +2993,7 @@ fn del_from_showcmd(mut len: i32) {
 
 pub fn push_showcmd() {
     if opt_vars().p_sc.get() {
-        let buf = g_st().showcmd_buf;
+        let buf = *g_st().showcmd_buf.borrow();
         norm_st(|st| st.old_showcmd_buf.set(buf));
     }
 }
@@ -2991,12 +3002,12 @@ pub fn pop_showcmd() {
     if !opt_vars().p_sc.get() {
         return;
     }
-    g_st().showcmd_buf = norm_st(|st| st.old_showcmd_buf.get());
+    *g_st().showcmd_buf.borrow_mut() = norm_st(|st| st.old_showcmd_buf.get());
     display_showcmd();
 }
 
 pub fn showcmd_update_clear_state() {
-    let is_clear = g_st().showcmd_buf[0] == 0;
+    let is_clear = g_st().showcmd_buf.borrow()[0] == 0;
     norm_st(|st| st.showcmd_is_clear.set(is_clear));
 }
 
@@ -3029,8 +3040,8 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = g_st().showcmd_buf;
-    let sc_cstr = crate::memory::bytes_as_cstr(&sc_buf);
+    let sc_buf = g_st().showcmd_buf.borrow();
+    let sc_cstr = crate::memory::bytes_as_cstr(&*sc_buf);
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
@@ -3060,7 +3071,7 @@ pub fn display_showcmd() {
 
     msg_grid_validate();
     let showcmd_row = g_st().rows_global.get() - 1;
-    grid_line_start(&mut g_st().msg_grid_adj, showcmd_row);
+    grid_line_start(&g_st().msg_grid_adj, showcmd_row);
 
     let mut len = if mc_len > 0 {
         grid_line_puts(
@@ -3139,8 +3150,8 @@ pub fn do_check_scrollbind(check: bool) {
 pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let old_curwin = curwin_mut();
     let old_curbuf = g_st().curbuf.get();
-    let old_visual_select = g_st().visual_global.select;
-    let old_visual_active = g_st().visual_global.active;
+    let old_visual_select = g_st().visual_global.borrow().select;
+    let old_visual_active = g_st().visual_global.borrow().active;
     let tgt_leftcol = old_curwin.w_leftcol.get();
 
     let want_ver = old_curwin.w_onebuf_opt.wo_diff.get()
@@ -3149,8 +3160,8 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32)
         && (leftcol_diff != 0 || vtopline_diff != 0);
 
-    g_st().visual_global.select = false;
-    g_st().visual_global.active = false;
+    g_st().visual_global.borrow_mut().select = false;
+    g_st().visual_global.borrow_mut().active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf.set(curwin_mut().w_buffer.get());
@@ -3191,8 +3202,8 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
         }
     }
 
-    g_st().visual_global.select = old_visual_select;
-    g_st().visual_global.active = old_visual_active;
+    g_st().visual_global.borrow_mut().select = old_visual_select;
+    g_st().visual_global.borrow_mut().active = old_visual_active;
     set_curwin(old_curwin);
     g_st().curbuf.set(old_curbuf);
 }
@@ -3216,7 +3227,7 @@ fn nv_help(cap: &mut Cmdarg) {
 fn nv_addsub(cap: &mut Cmdarg) {
     if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
         clearopbeep(&mut cap.oap);
-    } else if !g_st().visual_global.active && cap.oap.op_type == OP_NOP {
+    } else if !g_st().visual_global.borrow().active && cap.oap.op_type == OP_NOP {
         prep_redo_cmd(cap);
         cap.oap.op_type = if cap.cmdchar == CTRL_A {
             OP_NR_ADD
@@ -3225,7 +3236,7 @@ fn nv_addsub(cap: &mut Cmdarg) {
         };
         op_addsub(&mut cap.oap, cap.count1, cap.arg != 0);
         cap.oap.op_type = OP_NOP;
-    } else if g_st().visual_global.active {
+    } else if g_st().visual_global.borrow().active {
         nv_operator(cap);
     } else {
         clearop(&mut cap.oap);
@@ -3637,7 +3648,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
         return true;
     }
     let mut word_opt: Option<(&[u8], usize)> = None;
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
             return false;
         };
@@ -3697,7 +3708,8 @@ fn nv_zet(cap: &mut Cmdarg) {
 
     if cap.nchar != b'f' as i32
         && cap.nchar != b'F' as i32
-        && !(g_st().visual_global.active && crate::strings::vim_haschr(c"dcCoO", cap.nchar))
+        && !(g_st().visual_global.borrow().active
+            && crate::strings::vim_haschr(c"dcCoO", cap.nchar))
         && cap.nchar != b'j' as i32
         && cap.nchar != b'k' as i32
         && checkclearop(&mut cap.oap)
@@ -3850,7 +3862,7 @@ fn nv_zet(cap: &mut Cmdarg) {
         }
         c if c == b'd' as i32 || c == b'D' as i32 => {
             if fold_manual_allowed(false) != 0 {
-                if g_st().visual_global.active {
+                if g_st().visual_global.borrow().active {
                     nv_operator(cap);
                 } else {
                     delete_fold(
@@ -3907,21 +3919,21 @@ fn nv_zet(cap: &mut Cmdarg) {
             }
         }
         c if c == b'o' as i32 => {
-            if g_st().visual_global.active {
+            if g_st().visual_global.borrow().active {
                 nv_operator(cap);
             } else {
                 open_fold(curwin_mut().w_cursor, cap.count1);
             }
         }
         c if c == b'O' as i32 => {
-            if g_st().visual_global.active {
+            if g_st().visual_global.borrow().active {
                 nv_operator(cap);
             } else {
                 open_fold_recurse(curwin_mut().w_cursor);
             }
         }
         c if c == b'c' as i32 => {
-            if g_st().visual_global.active {
+            if g_st().visual_global.borrow().active {
                 nv_operator(cap);
             } else {
                 close_fold(curwin_mut().w_cursor, cap.count1);
@@ -3929,7 +3941,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             foldenable = 1;
         }
         c if c == b'C' as i32 => {
-            if g_st().visual_global.active {
+            if g_st().visual_global.borrow().active {
                 nv_operator(cap);
             } else {
                 close_fold_recurse(curwin_mut().w_cursor);
@@ -4034,11 +4046,11 @@ fn nv_zet(cap: &mut Cmdarg) {
 fn nv_q_fn(cap: &mut Cmdarg) {
     if g_st().reg_recording.get() != 0
         || g_st().reg_executing.get() != 0
-        || (!g_st().visual_global.active && cap.count0 > 2)
+        || (!g_st().visual_global.borrow().active && cap.count0 > 2)
     {
         vim_beep(0);
     } else if !checkclearop(&mut cap.oap) {
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             do_cmdline_cmd(c"normal! zqj");
             mc_follow_set(K_TRUE);
         } else {
@@ -4062,7 +4074,7 @@ fn nv_colon(cap: &mut Cmdarg) {
     let is_cmdkey = cap.cmdchar == K_COMMAND;
     let is_lua = cap.cmdchar == K_LUA;
 
-    if g_st().visual_global.active && !is_cmdkey && !is_lua {
+    if g_st().visual_global.borrow().active && !is_cmdkey && !is_lua {
         nv_operator(cap);
         return;
     }
@@ -4114,8 +4126,9 @@ fn nv_colon(cap: &mut Cmdarg) {
 }
 
 fn nv_ctrlg(cap: &mut Cmdarg) {
-    if g_st().visual_global.active {
-        g_st().visual_global.select = !g_st().visual_global.select;
+    if g_st().visual_global.borrow().active {
+        let sel = !g_st().visual_global.borrow().select;
+        g_st().visual_global.borrow_mut().select = sel;
         may_trigger_modechanged();
         showmode();
     } else if !checkclearop(&mut cap.oap) {
@@ -4124,7 +4137,7 @@ fn nv_ctrlg(cap: &mut Cmdarg) {
 }
 
 fn nv_ctrlh(cap: &mut Cmdarg) {
-    if g_st().visual_global.active && g_st().visual_global.select {
+    if g_st().visual_global.borrow().active && g_st().visual_global.borrow().select {
         cap.cmdchar = b'x' as i32;
         v_visop(cap);
     } else {
@@ -4145,11 +4158,11 @@ fn nv_clear(cap: &mut Cmdarg) {
 }
 
 fn nv_ctrlo(cap: &mut Cmdarg) {
-    if g_st().visual_global.active && g_st().visual_global.select {
-        g_st().visual_global.select = false;
+    if g_st().visual_global.borrow().active && g_st().visual_global.borrow().select {
+        g_st().visual_global.borrow_mut().select = false;
         may_trigger_modechanged();
         showmode();
-        g_st().visual_global.restart_select = 2;
+        g_st().visual_global.borrow_mut().restart_select = 2;
     } else {
         cap.count1 = -cap.count1;
         nv_pcmark(cap);
@@ -4270,7 +4283,7 @@ fn nv_ident(cap: &mut Cmdarg) {
 
     let mut visual_sel = false;
     if cmdchar == b']' as i32 || cmdchar == CTRL_RSB_CONST || cmdchar == b'K' as i32 {
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
                 return;
             };
@@ -4470,27 +4483,27 @@ fn nv_ident(cap: &mut Cmdarg) {
 }
 
 pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize)> {
-    if g_st().visual_global.mode != b'V' as i32 {
+    if g_st().visual_global.borrow().mode != b'V' as i32 {
         unadjust_for_sel();
     }
-    if g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum {
+    if g_st().visual_global.borrow().start.lnum != curwin_mut().w_cursor.lnum {
         if let Some(cap) = cap {
             clearopbeep(&mut cap.oap);
         }
         return None;
     }
-    let (p, len) = if g_st().visual_global.mode == b'V' as i32 {
+    let (p, len) = if g_st().visual_global.borrow().mode == b'V' as i32 {
         (get_cursor_line_ptr(), get_cursor_line_len() as usize)
     } else {
-        let (p, mut len) = if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
+        let (p, mut len) = if lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
             (
                 ml_get_pos(&curwin_mut().w_cursor),
-                (g_st().visual_global.start.col - curwin_mut().w_cursor.col + 1) as usize,
+                (g_st().visual_global.borrow().start.col - curwin_mut().w_cursor.col + 1) as usize,
             )
         } else {
             (
-                ml_get_pos(&g_st().visual_global.start),
-                (curwin_mut().w_cursor.col - g_st().visual_global.start.col + 1) as usize,
+                ml_get_pos(&g_st().visual_global.borrow().start),
+                (curwin_mut().w_cursor.col - g_st().visual_global.borrow().start.col + 1) as usize,
             )
         };
         if p.is_empty() {
@@ -4614,7 +4627,8 @@ fn nv_right(cap: &mut Cmdarg) {
 
     cap.oap.motion_type = MT_CHAR_WISE;
     cap.oap.inclusive = false;
-    let mut past_line = g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o';
+    let mut past_line =
+        g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o';
 
     if virtual_active(curwin_mut()) {
         past_line = false;
@@ -4946,9 +4960,9 @@ fn nv_csearch(cap: &mut Cmdarg) {
     let mut cursor_dec = false;
 
     if opt_vars().p_sel.first_byte() == b'e'
-        && g_st().visual_global.active
-        && g_st().visual_global.mode == b'v' as i32
-        && g_st().visual_global.select_exclu_adj
+        && g_st().visual_global.borrow().active
+        && g_st().visual_global.borrow().mode == b'v' as i32
+        && g_st().visual_global.borrow().select_exclu_adj
     {
         unadjust_for_sel();
         cursor_dec = true;
@@ -5483,7 +5497,7 @@ fn nv_findpar(cap: &mut Cmdarg) {
 }
 
 fn nv_undo(cap: &mut Cmdarg) {
-    if cap.oap.op_type == OP_LOWER || g_st().visual_global.active {
+    if cap.oap.op_type == OP_LOWER || g_st().visual_global.borrow().active {
         cap.cmdchar = b'g' as i32;
         cap.nchar = b'u' as i32;
         nv_operator(cap);
@@ -5527,7 +5541,7 @@ fn nv_replace(cap: &mut Cmdarg) {
         return;
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if g_st().got_int.get() {
             g_st().got_int.set(false);
         }
@@ -5634,25 +5648,25 @@ fn nv_replace(cap: &mut Cmdarg) {
 }
 
 fn v_swap_corners(cmdchar: i32) {
-    if cmdchar == b'O' as i32 && g_st().visual_global.mode == CTRL_V_CONST {
+    if cmdchar == b'O' as i32 && g_st().visual_global.borrow().mode == CTRL_V_CONST {
         let mut left: Colnr = 0;
         let mut right: Colnr = 0;
         let mut old_cursor = curwin_mut().w_cursor;
         getvcols(
             curwin_mut(),
             &mut old_cursor,
-            &mut g_st().visual_global.start,
+            &mut g_st().visual_global.borrow_mut().start,
             &mut left,
             &mut right,
             0,
         );
-        curwin_mut().w_cursor.lnum = g_st().visual_global.start.lnum;
+        curwin_mut().w_cursor.lnum = g_st().visual_global.borrow().start.lnum;
         coladvance(curwin_mut(), left);
-        g_st().visual_global.start = curwin_mut().w_cursor;
+        g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
 
         curwin_mut().w_cursor.lnum = old_cursor.lnum;
         curwin_mut().w_curswant.set(right);
-        if old_cursor.lnum >= g_st().visual_global.start.lnum
+        if old_cursor.lnum >= g_st().visual_global.borrow().start.lnum
             && opt_vars().p_sel.first_byte() == b'e'
         {
             curwin_mut()
@@ -5663,31 +5677,34 @@ fn v_swap_corners(cmdchar: i32) {
         if curwin_mut().w_cursor.col == old_cursor.col
             && (!virtual_active(curwin_mut()) || curwin_mut().w_cursor.coladd == old_cursor.coladd)
         {
-            curwin_mut().w_cursor.lnum = g_st().visual_global.start.lnum;
-            if old_cursor.lnum <= g_st().visual_global.start.lnum
+            curwin_mut().w_cursor.lnum = g_st().visual_global.borrow().start.lnum;
+            if old_cursor.lnum <= g_st().visual_global.borrow().start.lnum
                 && opt_vars().p_sel.first_byte() == b'e'
             {
                 right += 1;
             }
             coladvance(curwin_mut(), right);
-            g_st().visual_global.start = curwin_mut().w_cursor;
+            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
 
             curwin_mut().w_cursor.lnum = old_cursor.lnum;
             coladvance(curwin_mut(), left);
             curwin_mut().w_curswant.set(left);
         }
     } else {
-        std::mem::swap(&mut curwin_mut().w_cursor, &mut g_st().visual_global.start);
+        std::mem::swap(
+            &mut curwin_mut().w_cursor,
+            &mut g_st().visual_global.borrow_mut().start,
+        );
         curwin_mut().w_set_curswant.set(true);
     }
 }
 
 fn nv_replace_fn(cap: &mut Cmdarg) {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         cap.cmdchar = b'c' as i32;
         cap.nchar = NUL as i32;
-        norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
-        g_st().visual_global.mode = b'V' as i32;
+        norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.borrow().mode));
+        g_st().visual_global.borrow_mut().mode = b'V' as i32;
         nv_operator(cap);
         return;
     }
@@ -5716,7 +5733,7 @@ fn nv_replace_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_vreplace(cap: &mut Cmdarg) {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         cap.cmdchar = b'r' as i32;
         cap.nchar = cap.extra_char;
         nv_replace(cap);
@@ -5830,9 +5847,9 @@ fn v_visop(cap: &mut Cmdarg) {
     const TRANS: &[u8] = b"YyDdCcxdXdAAIIrr";
 
     if (cap.cmdchar as u8).is_ascii_uppercase() {
-        if g_st().visual_global.mode != CTRL_V_CONST {
-            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
-            g_st().visual_global.mode = b'V' as i32;
+        if g_st().visual_global.borrow().mode != CTRL_V_CONST {
+            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.borrow().mode));
+            g_st().visual_global.borrow_mut().mode = b'V' as i32;
         } else if cap.cmdchar == b'C' as i32 || cap.cmdchar == b'D' as i32 {
             curwin_mut().w_curswant.set(MAXCOL);
         }
@@ -5847,10 +5864,10 @@ fn nv_subst(cap: &mut Cmdarg) {
         clearopbeep(&mut cap.oap);
         return;
     }
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if cap.cmdchar == b'S' as i32 {
-            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
-            g_st().visual_global.mode = b'V' as i32;
+            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.borrow().mode));
+            g_st().visual_global.borrow_mut().mode = b'V' as i32;
         }
         cap.cmdchar = b'c' as i32;
         nv_operator(cap);
@@ -5863,7 +5880,7 @@ fn nv_abbrev(cap: &mut Cmdarg) {
     if cap.cmdchar == K_DEL || cap.cmdchar == K_KDEL {
         cap.cmdchar = b'x' as i32;
     }
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         v_visop(cap);
     } else {
         nv_optrans(cap);
@@ -6007,21 +6024,21 @@ fn nv_visual(cap: &mut Cmdarg) {
         return;
     }
 
-    g_st().visual_global.select = cap.arg != 0;
-    if g_st().visual_global.active {
-        if g_st().visual_global.mode == cap.cmdchar {
+    g_st().visual_global.borrow_mut().select = cap.arg != 0;
+    if g_st().visual_global.borrow().active {
+        if g_st().visual_global.borrow().mode == cap.cmdchar {
             end_visual_mode();
         } else {
-            g_st().visual_global.mode = cap.cmdchar;
+            g_st().visual_global.borrow_mut().mode = cap.cmdchar;
             showmode();
             may_trigger_modechanged();
         }
         redraw_curbuf_later(UPD_INVERTED);
-    } else if cap.count0 > 0 && g_st().visual_global.resel.mode != NUL as i32 {
-        g_st().visual_global.start = curwin_mut().w_cursor;
+    } else if cap.count0 > 0 && g_st().visual_global.borrow().resel.mode != NUL as i32 {
+        g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
 
-        g_st().visual_global.active = true;
-        g_st().visual_global.reselect = 1;
+        g_st().visual_global.borrow_mut().active = true;
+        g_st().visual_global.borrow_mut().reselect = 1;
         if cap.arg == 0 {
             may_start_select(b'c' as i32);
         }
@@ -6029,18 +6046,21 @@ fn nv_visual(cap: &mut Cmdarg) {
         if opt_vars().p_smd.get() && g_st().msg_silent.get() == 0 {
             g_st().redraw_cmdline.set(true);
         }
-        if g_st().visual_global.resel.mode != b'v' as i32
-            || g_st().visual_global.resel.line_count > 1
+        if g_st().visual_global.borrow().resel.mode != b'v' as i32
+            || g_st().visual_global.borrow().resel.line_count > 1
         {
-            curwin_mut().w_cursor.lnum += g_st().visual_global.resel.line_count * cap.count0 - 1;
+            curwin_mut().w_cursor.lnum +=
+                g_st().visual_global.borrow().resel.line_count * cap.count0 - 1;
             check_cursor(curwin_mut());
         }
-        g_st().visual_global.mode = g_st().visual_global.resel.mode;
-        if g_st().visual_global.mode == b'v' as i32 {
-            if g_st().visual_global.resel.line_count <= 1 {
+        let resel_mode = g_st().visual_global.borrow().resel.mode;
+        g_st().visual_global.borrow_mut().mode = resel_mode;
+        if g_st().visual_global.borrow().mode == b'v' as i32 {
+            if g_st().visual_global.borrow().resel.line_count <= 1 {
                 update_curswant_force();
                 curwin_mut().w_curswant.set(
-                    curwin_mut().w_curswant.get() + (g_st().visual_global.resel.vcol * cap.count0),
+                    curwin_mut().w_curswant.get()
+                        + (g_st().visual_global.borrow().resel.vcol * cap.count0),
                 );
                 if opt_vars().p_sel.first_byte() != b'e' {
                     curwin_mut()
@@ -6048,19 +6068,22 @@ fn nv_visual(cap: &mut Cmdarg) {
                         .set(curwin_mut().w_curswant.get() - (1));
                 }
             } else {
-                curwin_mut().w_curswant.set(g_st().visual_global.resel.vcol);
+                curwin_mut()
+                    .w_curswant
+                    .set(g_st().visual_global.borrow().resel.vcol);
             }
             coladvance(curwin_mut(), curwin_mut().w_curswant.get());
         }
-        if g_st().visual_global.resel.vcol == MAXCOL {
+        if g_st().visual_global.borrow().resel.vcol == MAXCOL {
             curwin_mut().w_curswant.set(MAXCOL);
             coladvance(curwin_mut(), MAXCOL);
-        } else if g_st().visual_global.mode == CTRL_V_CONST {
+        } else if g_st().visual_global.borrow().mode == CTRL_V_CONST {
             let tmp_cursor = curwin_mut().w_cursor;
-            curwin_mut().w_cursor = g_st().visual_global.start;
+            curwin_mut().w_cursor = g_st().visual_global.borrow().start;
             update_curswant_force();
             curwin_mut().w_curswant.set(
-                curwin_mut().w_curswant.get() + (g_st().visual_global.resel.vcol * cap.count0 - 1),
+                curwin_mut().w_curswant.get()
+                    + (g_st().visual_global.borrow().resel.vcol * cap.count0 - 1),
             );
             curwin_mut().w_cursor = tmp_cursor;
             if opt_vars().p_sel.first_byte() == b'e' {
@@ -6078,19 +6101,21 @@ fn nv_visual(cap: &mut Cmdarg) {
             may_start_select(b'c' as i32);
         }
         n_start_visual_mode(cap.cmdchar);
-        if g_st().visual_global.mode != b'V' as i32 && opt_vars().p_sel.first_byte() == b'e' {
+        if g_st().visual_global.borrow().mode != b'V' as i32
+            && opt_vars().p_sel.first_byte() == b'e'
+        {
             cap.count1 += 1;
         } else {
-            g_st().visual_global.select_exclu_adj = false;
+            g_st().visual_global.borrow_mut().select_exclu_adj = false;
         }
         if cap.count0 > 0 {
             cap.count1 -= 1;
             if cap.count1 > 0 {
-                if g_st().visual_global.mode == b'v' as i32
-                    || g_st().visual_global.mode == CTRL_V_CONST
+                if g_st().visual_global.borrow().mode == b'v' as i32
+                    || g_st().visual_global.borrow().mode == CTRL_V_CONST
                 {
                     nv_right(cap);
-                } else if g_st().visual_global.mode == b'V' as i32 {
+                } else if g_st().visual_global.borrow().mode == b'V' as i32 {
                     nv_down(cap);
                 }
             }
@@ -6104,14 +6129,15 @@ pub fn start_selection() {
 }
 
 pub fn may_start_select(c: i32) {
-    g_st().visual_global.select = (c == b'o' as i32 || (stuff_empty() && typebuf_typed() != 0))
+    let sel = (c == b'o' as i32 || (stuff_empty() && typebuf_typed() != 0))
         && crate::strings::vim_haschr(opt_vars().p_slm.as_cstr(), c);
+    g_st().visual_global.borrow_mut().select = sel;
 }
 
 fn n_start_visual_mode(c: i32) {
-    g_st().visual_global.mode = c;
-    g_st().visual_global.active = true;
-    g_st().visual_global.reselect = 1;
+    g_st().visual_global.borrow_mut().mode = c;
+    g_st().visual_global.borrow_mut().active = true;
+    g_st().visual_global.borrow_mut().reselect = 1;
     if c == CTRL_V_CONST
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0
         && gchar_cursor() == TAB
@@ -6119,7 +6145,7 @@ fn n_start_visual_mode(c: i32) {
         validate_virtcol(curwin_mut());
         coladvance(curwin_mut(), curwin_mut().w_virtcol.get());
     }
-    g_st().visual_global.start = curwin_mut().w_cursor;
+    g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
 
     fold_adjust_visual();
 
@@ -6153,7 +6179,7 @@ fn nv_window(cap: &mut Cmdarg) {
 
 fn nv_suspend(cap: &mut Cmdarg) {
     clearop(&mut cap.oap);
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         end_visual_mode();
     }
     do_cmdline_cmd(c"stop");
@@ -6169,29 +6195,29 @@ fn nv_gv_cmd(cap: &mut Cmdarg) {
     }
 
     let prev = curbuf_mut().b_visual;
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         curbuf_mut().b_visual = visualinfo();
         curbuf_mut()
             .b_visual_mode_eval
-            .set(g_st().visual_global.mode);
+            .set(g_st().visual_global.borrow().mode);
     }
-    g_st().visual_global.mode = prev.vi_mode;
+    g_st().visual_global.borrow_mut().mode = prev.vi_mode;
     curwin_mut().w_curswant.set(prev.vi_curswant);
     let tpos = prev.vi_end;
     curwin_mut().w_cursor = prev.vi_start;
 
-    g_st().visual_global.active = true;
-    g_st().visual_global.reselect = 1;
+    g_st().visual_global.borrow_mut().active = true;
+    g_st().visual_global.borrow_mut().reselect = 1;
 
     check_cursor(curwin_mut());
-    g_st().visual_global.start = curwin_mut().w_cursor;
+    g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
     curwin_mut().w_cursor = tpos;
     check_cursor(curwin_mut());
     update_topline(curwin_mut());
 
     if cap.arg != 0 {
-        g_st().visual_global.select = true;
-        g_st().visual_global.select_reg = 0;
+        g_st().visual_global.borrow_mut().select = true;
+        g_st().visual_global.borrow_mut().select_reg = 0;
     } else {
         may_start_select(b'c' as i32);
     }
@@ -6387,7 +6413,7 @@ fn nv_gi_cmd(cap: &mut Cmdarg) {
 fn nv_g_cmd(cap: &mut Cmdarg) {
     match cap.nchar {
         CTRL_A | CTRL_X_CONST => {
-            if g_st().visual_global.active {
+            if g_st().visual_global.borrow().active {
                 cap.arg = 1;
                 cap.cmdchar = cap.nchar;
                 cap.nchar = NUL as i32;
@@ -6415,7 +6441,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             nv_gv_cmd(cap);
         }
         c if c == b'V' as i32 => {
-            g_st().visual_global.reselect = 0;
+            g_st().visual_global.borrow_mut().reselect = 0;
         }
         c if c == b'Q' as i32 => {
             if g_st().reg_recording.get() != 0 || g_st().reg_executing.get() != 0 {
@@ -6678,7 +6704,7 @@ fn nv_dot(cap: &mut Cmdarg) {
 
     if !start_redo(
         cap.count0,
-        g_st().restart_edit.get() != 0 && g_st().ins_global.moved == K_INS_NONE,
+        g_st().restart_edit.get() != 0 && g_st().ins_global.borrow().moved == K_INS_NONE,
     ) {
         clearopbeep(&mut cap.oap);
         return;
@@ -6687,7 +6713,7 @@ fn nv_dot(cap: &mut Cmdarg) {
 }
 
 fn nv_redo_or_register(cap: &mut Cmdarg) {
-    if g_st().visual_global.select && g_st().visual_global.active {
+    if g_st().visual_global.borrow().select && g_st().visual_global.borrow().active {
         g_st().no_mapping.set(g_st().no_mapping.get() + (1));
         let mut reg = plain_vgetc();
         langmap_adjust(&mut reg, true);
@@ -6697,7 +6723,8 @@ fn nv_redo_or_register(cap: &mut Cmdarg) {
             reg = 0;
         }
 
-        g_st().visual_global.select_reg = if valid_yank_reg(reg, true) { reg } else { 0 };
+        g_st().visual_global.borrow_mut().select_reg =
+            if valid_yank_reg(reg, true) { reg } else { 0 };
         return;
     }
 
@@ -6710,7 +6737,7 @@ fn nv_redo_or_register(cap: &mut Cmdarg) {
 }
 
 fn nv_undo_fn(cap: &mut Cmdarg) {
-    if cap.oap.op_type == OP_UPPER || g_st().visual_global.active {
+    if cap.oap.op_type == OP_UPPER || g_st().visual_global.borrow().active {
         cap.cmdchar = b'g' as i32;
         cap.nchar = b'U' as i32;
         nv_operator(cap);
@@ -6726,7 +6753,10 @@ fn nv_undo_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_tilde(cap: &mut Cmdarg) {
-    if !opt_vars().p_to.get() && !g_st().visual_global.active && cap.oap.op_type != OP_TILDE {
+    if !opt_vars().p_to.get()
+        && !g_st().visual_global.borrow().active
+        && cap.oap.op_type != OP_TILDE
+    {
         if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(&mut cap.oap);
             return;
@@ -6871,7 +6901,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
 fn adjust_cursor(oap: &mut Oparg) {
     if curwin_mut().w_cursor.col > 0
         && gchar_cursor() == NUL as i32
-        && (!g_st().visual_global.active || opt_vars().p_sel.first_byte() == b'o')
+        && (!g_st().visual_global.borrow().active || opt_vars().p_sel.first_byte() == b'o')
         && !virtual_active(curwin_mut())
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
     {
@@ -6895,38 +6925,35 @@ fn nv_beginline(cap: &mut Cmdarg) {
 }
 
 fn adjust_for_sel(cap: &mut Cmdarg) {
-    if g_st().visual_global.active
+    if g_st().visual_global.borrow().active
         && cap.oap.inclusive
         && opt_vars().p_sel.first_byte() == b'e'
         && gchar_cursor() != NUL as i32
-        && lt(g_st().visual_global.start, curwin_mut().w_cursor)
+        && lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
     {
         inc_cursor();
         cap.oap.inclusive = false;
-        g_st().visual_global.select_exclu_adj = true;
+        g_st().visual_global.borrow_mut().select_exclu_adj = true;
     }
 }
 
 pub fn unadjust_for_sel() -> bool {
     if opt_vars().p_sel.first_byte() == b'e'
-        && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
+        && !equalpos(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
     {
-        if lt(
-            g_st().borrow_mut().visual_global.start,
-            curwin_mut().w_cursor,
-        ) {
+        if lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor) {
             let mut cursor = curwin_mut().w_cursor;
             let rc = unadjust_for_sel_inner(&mut cursor);
             curwin_mut().w_cursor = cursor;
             return rc;
         }
-        return unadjust_for_sel_inner(&mut g_st().borrow_mut().visual_global.start);
+        return unadjust_for_sel_inner(&mut g_st().visual_global.borrow_mut().start);
     }
     false
 }
 
 pub fn unadjust_for_sel_inner(pp: &mut CursorPos) -> bool {
-    g_st().visual_global.select_exclu_adj = false;
+    g_st().visual_global.borrow_mut().select_exclu_adj = false;
 
     if pp.coladd > 0 {
         pp.coladd -= 1;
@@ -6949,10 +6976,10 @@ pub fn unadjust_for_sel_inner(pp: &mut CursorPos) -> bool {
 }
 
 fn nv_select(cap: &mut Cmdarg) {
-    if g_st().visual_global.active {
-        g_st().visual_global.select = true;
-        g_st().visual_global.select_reg = 0;
-    } else if g_st().visual_global.reselect != 0 {
+    if g_st().visual_global.borrow().active {
+        g_st().visual_global.borrow_mut().select = true;
+        g_st().visual_global.borrow_mut().select_reg = 0;
+    } else if g_st().visual_global.borrow().reselect != 0 {
         cap.nchar = b'v' as i32;
         cap.arg = 1;
         nv_g_cmd(cap);
@@ -6989,7 +7016,7 @@ fn nv_normal(cap: &mut Cmdarg) {
             g_st().clear_cmdline.set(true);
         }
         g_st().restart_edit.set(0);
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             end_visual_mode();
             redraw_curbuf_later(UPD_INVERTED);
         }
@@ -7007,7 +7034,7 @@ fn nv_esc(cap: &mut Cmdarg) {
         g_st().got_int.set(false);
         cmdwin_do_action(c"cancel");
     } else if cap.arg != 0 {
-        if g_st().restart_edit.get() == 0 && !g_st().visual_global.active && no_reason {
+        if g_st().restart_edit.get() == 0 && !g_st().visual_global.borrow().active && no_reason {
             if any_buf_is_changed() {
                 msg(
                     tr(c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"),
@@ -7025,7 +7052,7 @@ fn nv_esc(cap: &mut Cmdarg) {
         g_st().restart_edit.set(0);
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         end_visual_mode();
         check_cursor_col(curwin_mut());
         curwin_mut().w_set_curswant.set(true);
@@ -7053,10 +7080,12 @@ fn nv_edit(cap: &mut Cmdarg) {
         cap.cmdchar = b'i' as i32;
     }
 
-    if g_st().visual_global.active && (cap.cmdchar == b'A' as i32 || cap.cmdchar == b'I' as i32) {
+    if g_st().visual_global.borrow().active
+        && (cap.cmdchar == b'A' as i32 || cap.cmdchar == b'I' as i32)
+    {
         v_visop(cap);
     } else if (cap.cmdchar == b'a' as i32 || cap.cmdchar == b'i' as i32)
-        && (cap.oap.op_type != OP_NOP || g_st().visual_global.active)
+        && (cap.oap.op_type != OP_NOP || g_st().visual_global.borrow().active)
     {
         nv_object(cap);
     } else if !curbuf_mut().b_p_ma.get() && curbuf_mut().terminal.get().is_null() {
@@ -7197,7 +7226,7 @@ fn nv_q(cap: &mut Cmdarg) {
             do_cmdline_cmd(c"exmode");
             return;
         }
-        let insert_range = g_st().visual_global.active && cap.nchar == b':' as i32;
+        let insert_range = g_st().visual_global.borrow().active && cap.nchar == b':' as i32;
         let fc: [u8; 2] = [cap.nchar as u8, 0];
         let mut tv_args: [TypVal; 4] = [
             TypVal {
@@ -7263,7 +7292,7 @@ fn nv_halfpage(cap: &mut Cmdarg) {
 }
 
 fn nv_join(cap: &mut Cmdarg) {
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         nv_operator(cap);
         return;
     }
@@ -7344,7 +7373,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         };
     }
     let mut vatom_prepped = false;
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         let mut spec = CmdSpec::new();
         spec.regname = cap.oap.regname;
         spec.count = i64::from(cap.count0);
@@ -7361,7 +7390,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         flags |= PUT_BLOCK_INNER;
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         was_visual = true;
         let regname = cap.oap.regname;
         let keep_registers = cap.cmdchar == b'P' as i32;
@@ -7380,8 +7409,8 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
 
         curwin_mut().w_onebuf_opt.wo_fen.set(false);
 
-        if !g_st().visual_global.active
-            || g_st().visual_global.mode == b'V' as i32
+        if !g_st().visual_global.borrow().active
+            || g_st().visual_global.borrow().mode == b'V' as i32
             || regname != b'.' as i32
         {
             cap.cmdchar = b'd' as i32;
@@ -7402,23 +7431,23 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
             cap.oap.regname = regname;
         }
 
-        if g_st().visual_global.mode == b'V' as i32 {
+        if g_st().visual_global.borrow().mode == b'V' as i32 {
             flags |= PUT_LINE;
-        } else if g_st().visual_global.mode == b'v' as i32 {
+        } else if g_st().visual_global.borrow().mode == b'v' as i32 {
             flags |= PUT_LINE_SPLIT;
         }
-        if g_st().visual_global.mode == CTRL_V_CONST && dir == FORWARD {
+        if g_st().visual_global.borrow().mode == CTRL_V_CONST && dir == FORWARD {
             flags |= PUT_LINE_FORWARD;
         }
         dir = BACKWARD;
-        if (g_st().visual_global.mode != b'V' as i32
+        if (g_st().visual_global.borrow().mode != b'V' as i32
             && curwin_mut().w_cursor.col < curbuf_mut().b_op_start.col)
-            || (g_st().visual_global.mode == b'V' as i32
+            || (g_st().visual_global.borrow().mode == b'V' as i32
                 && curwin_mut().w_cursor.lnum < curbuf_mut().b_op_start.lnum)
         {
             dir = FORWARD;
         }
-        g_st().visual_global.active = true;
+        g_st().visual_global.borrow_mut().active = true;
     }
     do_put(
         cap.oap.regname,
@@ -7458,7 +7487,7 @@ fn nv_open(cap: &mut Cmdarg) {
         clearop(&mut cap.oap);
         assert!(cap.opcount >= 0);
         nv_diffgetput(false, cap.opcount as usize);
-    } else if g_st().visual_global.active {
+    } else if g_st().visual_global.borrow().active {
         v_swap_corners(cap.cmdchar);
     } else if bt_prompt(Some(crate::globals::curbuf_mut()))
         && curwin_mut().w_cursor.lnum < curbuf_mut().b_prompt_start.mark.lnum
@@ -7475,7 +7504,8 @@ fn nv_paste(cap: &mut Cmdarg) {
 
 fn nv_event(cap: &mut Cmdarg) {
     g_st().may_garbage_collect.set(false);
-    let may_restart = g_st().restart_edit.get() != 0 || g_st().visual_global.restart_select != 0;
+    let may_restart =
+        g_st().restart_edit.get() != 0 || g_st().visual_global.borrow().restart_select != 0;
     state_handle_k_event();
     g_st().finish_op.set(false);
     if may_restart {

@@ -2298,8 +2298,8 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         }
     }
 
-    if g_st().visual_global.active {
-        check_pos(curbuf_mut(), &mut g_st().visual_global.start);
+    if g_st().visual_global.borrow().active {
+        check_pos(curbuf_mut(), &mut g_st().visual_global.borrow_mut().start);
     }
 
     smsg_keep!(
@@ -2380,14 +2380,19 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_time = uhp_ref(curbuf_mut(), uh).uh_time;
         let uh_save_nr = uhp_ref(curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
-            format_to_buf!(g_st().iobuff_bytes_mut(), c"%6d %7d  ", uh_seq, changes);
+            format_to_buf!(
+                &mut *g_st().iobuff_bytes_mut(),
+                c"%6d %7d  ",
+                uh_seq,
+                changes
+            );
             let cur_len = g_st().iobuff_cstr().to_bytes().len();
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
                 while g_st().iobuff_cstr().to_bytes().len() < 33 {
-                    crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
+                    crate::memory::append_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), b" ");
                 }
-                format_to_buf_add!(g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
+                format_to_buf_add!(&mut *g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
             }
             lines.push(g_st().iobuff_cstr().to_owned());
         }

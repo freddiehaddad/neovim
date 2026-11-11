@@ -2491,9 +2491,9 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
 
         grid_line_start(
             if g_st().wild_menu_showing.get() == WM_SCROLLED {
-                &mut g_st().borrow_mut().msg_grid_adj
+                &g_st().msg_grid_adj
             } else {
-                &mut g_st().borrow_mut().default_gridview
+                &g_st().default_gridview
             },
             row,
         );
@@ -2888,7 +2888,12 @@ fn showmatches_oneline(
             if showtail {
                 p_cstr = show_match(matches, j as usize, showtail);
             } else {
-                home_replace(None, Some(match_j), g_st().name_buff_bytes_mut(), true);
+                home_replace(
+                    None,
+                    Some(match_j),
+                    &mut *g_st().name_buff_bytes_mut(),
+                    true,
+                );
                 p_cstr = g_st().name_buff_cstr();
             }
         } else {
@@ -2992,7 +2997,7 @@ pub fn showmatches(
                 home_replace(
                     None,
                     Some(match_i.as_c_str()),
-                    g_st().name_buff_bytes_mut(),
+                    &mut *g_st().name_buff_bytes_mut(),
                     true,
                 );
                 vim_strsize(g_st().name_buff_cstr())
@@ -4540,7 +4545,12 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     }
 
     let sname = script_item_name(idx + 1);
-    home_replace(None, sname.as_deref(), g_st().name_buff_bytes_mut(), true);
+    home_replace(
+        None,
+        sname.as_deref(),
+        &mut *g_st().name_buff_bytes_mut(),
+        true,
+    );
     Some(g_st().name_buff_cstr())
 }
 
@@ -4596,7 +4606,10 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             .array();
         let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), item.data.as_bytes());
+            crate::memory::copy_bytes_to_c_buf(
+                &mut *g_st().name_buff_bytes_mut(),
+                item.data.as_bytes(),
+            );
             return Some(g_st().name_buff_cstr());
         }
     }
@@ -4655,7 +4668,10 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         let names = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array();
         let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), item.data.as_bytes());
+            crate::memory::copy_bytes_to_c_buf(
+                &mut *g_st().name_buff_bytes_mut(),
+                item.data.as_bytes(),
+            );
             return Some(g_st().name_buff_cstr());
         }
     }

@@ -643,118 +643,116 @@ fn uc_list(name_prefix: &[u8]) {
 
                 let over = (len as i64) - 22;
                 len = 0;
-                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+                {
+                    let iobuff = &mut *g_st().iobuff_bytes_mut();
 
-                match a & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
-                    0 => {
-                        iobuff[len] = b'0';
-                        len += 1;
+                    match a & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
+                        0 => {
+                            iobuff[len] = b'0';
+                            len += 1;
+                        }
+                        EX_EXTRA => {
+                            iobuff[len] = b'*';
+                            len += 1;
+                        }
+                        x if x == (EX_EXTRA | EX_NOSPC) => {
+                            iobuff[len] = b'?';
+                            len += 1;
+                        }
+                        x if x == (EX_EXTRA | EX_NEEDARG) => {
+                            iobuff[len] = b'+';
+                            len += 1;
+                        }
+                        x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => {
+                            iobuff[len] = b'1';
+                            len += 1;
+                        }
+                        x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => {
+                            iobuff[len] = b'_';
+                            len += 1;
+                        }
+                        _ => {}
                     }
-                    EX_EXTRA => {
-                        iobuff[len] = b'*';
-                        len += 1;
-                    }
-                    x if x == (EX_EXTRA | EX_NOSPC) => {
-                        iobuff[len] = b'?';
-                        len += 1;
-                    }
-                    x if x == (EX_EXTRA | EX_NEEDARG) => {
-                        iobuff[len] = b'+';
-                        len += 1;
-                    }
-                    x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => {
-                        iobuff[len] = b'1';
-                        len += 1;
-                    }
-                    x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => {
-                        iobuff[len] = b'_';
-                        len += 1;
-                    }
-                    _ => {}
-                }
 
-                loop {
-                    iobuff[len] = b' ';
-                    len += 1;
-                    if (len as i64) >= 5 - over {
-                        break;
-                    }
-                }
-
-                if (a & (EX_RANGE | EX_COUNT)) != 0 {
-                    if (a & EX_COUNT) != 0 {
-                        let s = format!("{}c", cmd.uc_def);
-                        let bytes = s.as_bytes();
-                        let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                        iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
-                        len += copy_len;
-                    } else if (a & EX_DFLALL) != 0 {
-                        iobuff[len] = b'%';
+                    loop {
+                        iobuff[len] = b' ';
                         len += 1;
-                    } else if cmd.uc_def >= 0 {
-                        let s = format!("{}", cmd.uc_def);
-                        let bytes = s.as_bytes();
-                        let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                        iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
-                        len += copy_len;
-                    } else {
-                        iobuff[len] = b'.';
-                        len += 1;
+                        if (len as i64) >= 5 - over {
+                            break;
+                        }
                     }
-                }
 
-                loop {
-                    iobuff[len] = b' ';
-                    len += 1;
-                    if (len as i64) >= 8 - over {
-                        break;
-                    }
-                }
-
-                for entry in &ADDR_TYPE_COMPLETE {
-                    if entry.expand == ADDR_NONE {
-                        break;
-                    }
-                    if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
-                        if let Some(short) = entry.shortname {
-                            let bytes = short.to_bytes();
+                    if (a & (EX_RANGE | EX_COUNT)) != 0 {
+                        if (a & EX_COUNT) != 0 {
+                            let s = format!("{}c", cmd.uc_def);
+                            let bytes = s.as_bytes();
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
                             iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
                             len += copy_len;
+                        } else if (a & EX_DFLALL) != 0 {
+                            iobuff[len] = b'%';
+                            len += 1;
+                        } else if cmd.uc_def >= 0 {
+                            let s = format!("{}", cmd.uc_def);
+                            let bytes = s.as_bytes();
+                            let copy_len = bytes.len().min(IOSIZE - 1 - len);
+                            iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
+                            len += copy_len;
+                        } else {
+                            iobuff[len] = b'.';
+                            len += 1;
                         }
-                        break;
                     }
-                }
 
-                loop {
-                    iobuff[len] = b' ';
-                    len += 1;
-                    if (len as i64) >= 13 - over {
-                        break;
+                    loop {
+                        iobuff[len] = b' ';
+                        len += 1;
+                        if (len as i64) >= 8 - over {
+                            break;
+                        }
                     }
-                }
 
-                if let Some(cmd_compl) = get_command_complete(cmd.uc_compl) {
-                    let bytes = cmd_compl.to_bytes();
-                    let copy_len = bytes.len().min(IOSIZE - 1 - len);
-                    iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
-                    len += copy_len;
-                }
-
-                loop {
-                    iobuff[len] = b' ';
-                    len += 1;
-                    if (len as i64) >= 25 - over {
-                        break;
+                    for entry in &ADDR_TYPE_COMPLETE {
+                        if entry.expand == ADDR_NONE {
+                            break;
+                        }
+                        if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
+                            if let Some(short) = entry.shortname {
+                                let bytes = short.to_bytes();
+                                let copy_len = bytes.len().min(IOSIZE - 1 - len);
+                                iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
+                                len += copy_len;
+                            }
+                            break;
+                        }
                     }
-                }
 
-                iobuff[len] = 0;
-                msg_outtrans(
-                    crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-                    0,
-                    false,
-                );
+                    loop {
+                        iobuff[len] = b' ';
+                        len += 1;
+                        if (len as i64) >= 13 - over {
+                            break;
+                        }
+                    }
+
+                    if let Some(cmd_compl) = get_command_complete(cmd.uc_compl) {
+                        let bytes = cmd_compl.to_bytes();
+                        let copy_len = bytes.len().min(IOSIZE - 1 - len);
+                        iobuff[len..(len + copy_len)].copy_from_slice(&bytes[..copy_len]);
+                        len += copy_len;
+                    }
+
+                    loop {
+                        iobuff[len] = b' ';
+                        len += 1;
+                        if (len as i64) >= 25 - over {
+                            break;
+                        }
+                    }
+
+                    iobuff[len] = 0;
+                }
+                msg_outtrans(g_st().iobuff_cstr(), 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
@@ -1615,7 +1613,7 @@ fn uc_check_code(
             }
         }
         CodeType::Mods => {
-            result = uc_mods(out, &g_st().cmdmod, quote != 0);
+            result = uc_mods(out, &g_st().cmdmod.borrow(), quote != 0);
         }
         CodeType::Register => {
             result = if eap.regname != 0 { 1 } else { 0 };

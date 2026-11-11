@@ -873,7 +873,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     g_st().current_sctx.set(ctx);
 
     let r = may_call_simple_func(p, &mut rettv)
-        .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));
+        .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut Evalarg { eval_flags: 1 })));
     if r {
         if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
@@ -1550,7 +1550,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                         &mut arg,
                         name_start,
                         &mut tv,
-                        Some(&mut g_st().evalarg_evaluate),
+                        Some(&mut Evalarg { eval_flags: 1 }),
                         true,
                     );
                     if !subsc_ok {
@@ -3579,7 +3579,7 @@ pub fn var_exists(var_in: &CStr) -> bool {
                 &mut var,
                 start_var,
                 &mut tv,
-                Some(&mut g_st().evalarg_evaluate),
+                Some(&mut Evalarg { eval_flags: 1 }),
                 false,
             );
             if n {

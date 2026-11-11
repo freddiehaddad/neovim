@@ -2828,19 +2828,24 @@ pub(super) fn reg_match_visual() -> bool {
     };
     let wp = &mut *wp;
     if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf.get()
-        || g_st().visual_global.start.lnum == 0
+        || g_st().visual_global.borrow().start.lnum == 0
         || !reg_multi()
     {
         return false;
     }
 
-    let (top, bot, mode, curswant) = if g_st().visual_global.active {
-        let (t, b) = if lt(g_st().visual_global.start, wp.w_cursor) {
-            (g_st().visual_global.start, wp.w_cursor)
+    let (top, bot, mode, curswant) = if g_st().visual_global.borrow().active {
+        let (t, b) = if lt(g_st().visual_global.borrow().start, wp.w_cursor) {
+            (g_st().visual_global.borrow().start, wp.w_cursor)
         } else {
-            (wp.w_cursor, g_st().visual_global.start)
+            (wp.w_cursor, g_st().visual_global.borrow().start)
         };
-        (t, b, g_st().visual_global.mode, wp.w_curswant.get())
+        (
+            t,
+            b,
+            g_st().visual_global.borrow().mode,
+            wp.w_curswant.get(),
+        )
     } else {
         let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
             (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)

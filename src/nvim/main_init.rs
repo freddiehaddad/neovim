@@ -356,7 +356,7 @@ fn early_init(paramp: &mut Mparm) {
 
     #[cfg(windows)]
     {
-        os_fill_windows_version(&mut g_st().windows_version);
+        os_fill_windows_version(&mut g_st().windows_version.borrow_mut());
     }
 
     time_msg_if_enabled(c"early init");
@@ -598,7 +598,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         os_exit(2);
     }
     if let Some(ref scriptout_name) = params.scriptout {
-        g_st().scriptout = CFile::open(
+        *g_st().scriptout.borrow_mut() = CFile::open(
             scriptout_name,
             if params.scriptout_append {
                 c"ab"
@@ -1600,12 +1600,12 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b's' => {
                         if parmp.scriptin.is_some() {
                             format_to_buf!(
-                                &mut g_st().iobuff,
+                                &mut *g_st().iobuff.borrow_mut(),
                                 gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                 prev_arg,
                                 cur_cstr_opt.as_deref().unwrap_or(c""),
                             );
-                            fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
+                            fprintf!(log_get_stderr(), c"%s", &*g_st().iobuff.borrow(),);
                             os_exit(2);
                         }
                         parmp.scriptin = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1633,12 +1633,12 @@ fn command_line_scan(parmp: &mut Mparm) {
                         } else {
                             if parmp.scriptout.is_some() {
                                 format_to_buf!(
-                                    &mut g_st().iobuff,
+                                    &mut *g_st().iobuff.borrow_mut(),
                                     gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                     prev_arg,
                                     cur_cstr_opt.as_deref().unwrap_or(c""),
                                 );
-                                fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
+                                fprintf!(log_get_stderr(), c"%s", &*g_st().iobuff.borrow(),);
                                 os_exit(2);
                             }
                             parmp.scriptout = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1741,7 +1741,7 @@ fn set_argf_var() {
     for i in 0..count {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
-            let _ = vim_full_name(Some(fname), g_st().name_buff_bytes_mut(), false);
+            let _ = vim_full_name(Some(fname), &mut *g_st().name_buff_bytes_mut(), false);
             tv_list_append_string(&list, Some(g_st().name_buff_cstr()), -1);
         }
     }
@@ -1832,13 +1832,17 @@ fn handle_quickfix(paramp: &mut Mparm) {
         if let Some(ref use_ef) = paramp.use_ef {
             set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(Some(use_ef)), 0, SID_CARG);
         }
-        format_to_buf!(&mut g_st().iobuff, c"cfile %s", &opt_vars().p_ef);
+        format_to_buf!(
+            &mut *g_st().iobuff.borrow_mut(),
+            c"cfile %s",
+            &opt_vars().p_ef
+        );
         if qf_init(
             None,
             Some(opt_vars().p_ef.as_cstr()),
             opt_vars().p_efm.as_cstr(),
             1,
-            Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
+            Some(g_st().iobuff_cstr()),
             Some(opt_vars().p_menc.as_cstr()),
         ) < 0
         {
@@ -1852,8 +1856,8 @@ fn handle_quickfix(paramp: &mut Mparm) {
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
         g_st().swap_exists_did_quit.set(false);
-        format_to_buf!(&mut g_st().iobuff, c"ta %s", tagname);
-        do_cmdline_cmd(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
+        format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"ta %s", tagname);
+        do_cmdline_cmd(g_st().iobuff_cstr());
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit.get() {
@@ -2527,13 +2531,15 @@ pub(crate) fn ensure_test_editor_init() {
         static THREAD_VARS_INIT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
     INIT.call_once(|| {
+        event_init();
+    });
+    if !THREAD_VARS_INIT.get() {
+        THREAD_VARS_INIT.set(true);
         g_st().headless_mode.set(true);
         g_st().silent_mode.set(true);
-        event_init();
         estack_init();
         cmdline_init();
         eval_init();
-        THREAD_VARS_INIT.set(true);
         init_path(c"nvim");
         init_normal_cmds();
         highlight_init();
@@ -2548,12 +2554,6 @@ pub(crate) fn ensure_test_editor_init() {
         qf_init_stack();
         set_init_2(true);
         crate::highlight_group::init_highlight(true, false);
-    });
-    if !THREAD_VARS_INIT.get() {
-        estack_init();
-        eval_init();
-        init_path(c"nvim");
-        THREAD_VARS_INIT.set(true);
     }
 }
 

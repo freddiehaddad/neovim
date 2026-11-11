@@ -602,7 +602,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 
     setpcmark();
 
-    if is_split_cmd || g_st().cmdmod.cmod_tab != 0 {
+    if is_split_cmd || g_st().cmdmod.borrow().cmod_tab != 0 {
         if !win_split(0, 0) {
             return;
         }
@@ -1068,7 +1068,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
         os_breakcheck();
 
         if aall.had_tab > 0 && (tabpage_index(None) as OptInt) <= opt_vars().p_tpm.get() {
-            g_st().cmdmod.cmod_tab = 9999;
+            g_st().cmdmod.borrow_mut().cmod_tab = 9999;
         }
         i += 1;
     }
@@ -1088,7 +1088,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     let mut aall = ArgAllState {
         alist: win_alist_rc(curwin_mut()),
         local_alist: curwin_mut().w_alist.get().clone(),
-        had_tab: g_st().cmdmod.cmod_tab,
+        had_tab: g_st().cmdmod.borrow().cmod_tab,
         keep_tabs,
         forceit,
         use_firstwin: false,

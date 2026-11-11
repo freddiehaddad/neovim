@@ -1121,7 +1121,7 @@ fn ins_compl_infercase_gettext<'a>(
     }
 
     // Generate encoding specific output from wide character array.
-    let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+    let iobuff = &mut *g_st().iobuff_bytes_mut();
     let mut p_idx = 0usize;
     let mut i: i32 = 0;
     let mut gap: Vec<u8> = Vec::new();
@@ -1147,7 +1147,7 @@ fn ins_compl_infercase_gettext<'a>(
     }
 
     iobuff[p_idx] = 0;
-    &iobuff[..p_idx]
+    crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(&iobuff[..=p_idx])).to_bytes()
 }
 
 /// Like `ins_compl_add()`, but infers case if `'ic'` and `'inf'` are set.
@@ -2380,12 +2380,12 @@ fn ins_compl_files(
             && !INSEXPAND.with(|s| s.compl_autocomplete.get())
         {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"Scanning dictionary: %s"),
                 file_cstr,
             );
             msg_progress(
-                Some(g_st().iobuff_bytes_mut()),
+                Some(&mut *g_st().iobuff_bytes_mut()),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -3031,7 +3031,10 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
             dec_cursor();
         }
 
-        if g_st().ins_global.moved == K_INS_NONE && !g_st().ins_global.need_undo && c != CTRL_E {
+        if g_st().ins_global.borrow().moved == K_INS_NONE
+            && !g_st().ins_global.borrow().need_undo
+            && c != CTRL_E
+        {
             insertchar(NUL as i32, 0, -1);
         }
 
@@ -4152,12 +4155,12 @@ fn process_next_cpt_value(
                 ins_buf.sfname_opt()
             };
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"Scanning: %s"),
                 name.unwrap_or(c"")
             );
             msg_progress(
-                Some(g_st().iobuff_bytes_mut()),
+                Some(&mut *g_st().iobuff_bytes_mut()),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -4204,9 +4207,13 @@ fn process_next_cpt_value(
                 if !shortmess(K_SHM_COMPLETIONSCAN)
                     && !INSEXPAND.with(|s| s.compl_autocomplete.get())
                 {
-                    format_to_buf!(&mut g_st().iobuff, c"%s", gettext(c"Scanning tags."));
+                    format_to_buf!(
+                        &mut *g_st().iobuff.borrow_mut(),
+                        c"%s",
+                        gettext(c"Scanning tags.")
+                    );
                     msg_progress(
-                        Some(g_st().iobuff_bytes_mut()),
+                        Some(&mut *g_st().iobuff_bytes_mut()),
                         c"nvim.completion",
                         c"running",
                         -1,
@@ -4222,7 +4229,7 @@ fn process_next_cpt_value(
         let cpt_cstr = st.e_cpt_cstr();
         let mut cpt_bytes = cpt_cstr.to_bytes();
         let old_len = cpt_bytes.len();
-        copy_option_part(&mut cpt_bytes, g_st().iobuff_bytes_mut(), c",");
+        copy_option_part(&mut cpt_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
         let consumed = old_len - cpt_bytes.len();
         st.e_cpt_idx += consumed;
         *advance_cpt_idx = may_advance_cpt_index(st.e_cpt_cstr());
@@ -4674,7 +4681,7 @@ fn ins_compl_get_next_word_or_line<'a>(
                 && len == INSEXPAND.with(|s| s.compl_length.get())
                 && cur_match_pos.lnum < line_count
             {
-                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+                let iobuff = &mut *g_st().iobuff_bytes_mut();
                 let len_usize = len as usize;
                 let n = len_usize.min(res_slice.len());
                 iobuff[..n].copy_from_slice(&res_slice[..n]);
@@ -4689,7 +4696,7 @@ fn ins_compl_get_next_word_or_line<'a>(
         && len == INSEXPAND.with(|s| s.compl_length.get())
     {
         if cur_match_pos.lnum < line_count {
-            let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+            let iobuff = &mut *g_st().iobuff_bytes_mut();
             let next_line = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
             let next_s = crate::charset::skipwhite_slice(next_line);
             let wstart = find_word_start(next_s);
@@ -4719,7 +4726,12 @@ fn ins_compl_get_next_word_or_line<'a>(
                 return None;
             }
             *match_len = len;
-            return Some(&iobuff[..len as usize]);
+            return Some(
+                crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(
+                    &iobuff[..=len as usize],
+                ))
+                .to_bytes(),
+            );
         }
         return None;
     }
@@ -5165,7 +5177,7 @@ fn prepare_cpt_compl_funcs() {
 
         let mut p_bytes = p_cstr.to_bytes();
         let old_len = p_bytes.len();
-        let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
+        let _ = copy_option_part(&mut p_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
         p_cstr = crate::memory::CStrSubslice::advance(p_cstr, old_len - p_bytes.len());
         idx += 1;
     }
@@ -5736,7 +5748,7 @@ fn ins_compl_show_filename() {
     if !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
         g_st().msg_hist_off.set(true);
         format_to_buf!(
-            &mut g_st().iobuff,
+            &mut *g_st().iobuff.borrow_mut(),
             c"%s %s%s",
             lead,
             if (s.as_ptr() as usize) > (fname_cstr.as_ptr() as usize) {
@@ -5746,7 +5758,7 @@ fn ins_compl_show_filename() {
             },
             s,
         );
-        msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
+        msg(g_st().iobuff_cstr(), 0);
         g_st().msg_hist_off.set(false);
         g_st().redraw_cmdline.set(false);
     }
@@ -6586,14 +6598,14 @@ fn ins_compl_continue_search(line_cstr: &CStr) {
 }
 
 fn ins_compl_start() -> bool {
-    let save_did_ai = g_st().ins_global.did_ai;
+    let save_did_ai = g_st().ins_global.borrow().did_ai;
 
-    g_st().ins_global.did_ai = false;
-    g_st().ins_global.did_si = false;
-    g_st().ins_global.can_si = false;
-    g_st().ins_global.can_si_back = false;
+    g_st().ins_global.borrow_mut().did_ai = false;
+    g_st().ins_global.borrow_mut().did_si = false;
+    g_st().ins_global.borrow_mut().can_si = false;
+    g_st().ins_global.borrow_mut().can_si_back = false;
     if !stop_arrow() {
-        g_st().ins_global.did_ai = save_did_ai;
+        g_st().ins_global.borrow_mut().did_ai = save_did_ai;
         return false;
     }
 
@@ -6637,7 +6649,7 @@ fn ins_compl_start() -> bool {
             || ctrl_x_mode_omni()
             || thesaurus_func_complete(INSEXPAND.with(|s| s.ctrl_x_mode.get()))
         {
-            g_st().ins_global.did_ai = save_did_ai;
+            g_st().ins_global.borrow_mut().did_ai = save_did_ai;
         }
         return false;
     }
@@ -6727,7 +6739,7 @@ fn ins_compl_start() -> bool {
         set_compl_pattern(None);
         clear_compl_orig_text();
         COMPL_ORIG_EXTMARKS.with(|c| c.borrow_mut().clear());
-        g_st().ins_global.did_ai = save_did_ai;
+        g_st().ins_global.borrow_mut().did_ai = save_did_ai;
         return false;
     }
 
@@ -6741,7 +6753,7 @@ fn ins_compl_start() -> bool {
         ui_flush();
     }
 
-    g_st().ins_global.did_ai = save_did_ai;
+    g_st().ins_global.borrow_mut().did_ai = save_did_ai;
     true
 }
 
@@ -7279,7 +7291,7 @@ fn cpt_compl_refresh() {
 
         let mut p_bytes = p_cstr.to_bytes();
         let old_len = p_bytes.len();
-        let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
+        let _ = copy_option_part(&mut p_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
         p_cstr = crate::memory::CStrSubslice::advance(p_cstr, old_len - p_bytes.len());
         if may_advance_cpt_index(p_cstr) {
             let _ = advance_cpt_sources_index_safe();

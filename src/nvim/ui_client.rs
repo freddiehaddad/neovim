@@ -389,9 +389,9 @@ pub fn ui_client_event_grid_resize(args: Array) {
     with_tui_mut(|tui| tui_grid_resize(tui, grid, width, height));
 
     let cols = width as usize;
-    if g_st().grid_line_buf_char.len() < cols {
-        g_st().grid_line_buf_char = vec![0; cols];
-        g_st().grid_line_buf_attr = vec![0; cols];
+    if g_st().grid_line_buf_char.borrow().len() < cols {
+        *g_st().grid_line_buf_char.borrow_mut() = vec![0; cols];
+        *g_st().grid_line_buf_attr.borrow_mut() = vec![0; cols];
     }
 }
 
@@ -417,8 +417,8 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
             clearcol,
             Integer::from(g.cur_attr),
             lineflags,
-            &g_st().grid_line_buf_char,
-            &g_st().grid_line_buf_attr,
+            &g_st().grid_line_buf_char.borrow(),
+            &g_st().grid_line_buf_attr.borrow(),
         );
     });
 }
@@ -644,8 +644,8 @@ pub fn ui_client_event_error_exit(args: Array) {
 pub fn ui_client_free_all_mem() {
     let tui = UIC_STATE.with(|s| s.tui.borrow_mut().take());
     tui_free_all_mem(tui);
-    g_st().grid_line_buf_char = Vec::new();
-    g_st().grid_line_buf_attr = Vec::new();
+    *g_st().grid_line_buf_char.borrow_mut() = Vec::new();
+    *g_st().grid_line_buf_attr.borrow_mut() = Vec::new();
 }
 
 #[repr(C)]

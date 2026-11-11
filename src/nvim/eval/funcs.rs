@@ -457,14 +457,16 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let key_cstr = fdef.name?;
     let key_bytes = key_cstr.to_bytes();
     let key_len = key_bytes.len();
-    let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
-    iobuff[..key_len].copy_from_slice(key_bytes);
-    iobuff[key_len] = b'(';
-    if fdef.max_argc == 0 {
-        iobuff[key_len + 1] = b')';
-        iobuff[key_len + 2] = 0;
-    } else {
-        iobuff[key_len + 1] = 0;
+    {
+        let iobuff = &mut *g_st().iobuff_bytes_mut();
+        iobuff[..key_len].copy_from_slice(key_bytes);
+        iobuff[key_len] = b'(';
+        if fdef.max_argc == 0 {
+            iobuff[key_len + 1] = b')';
+            iobuff[key_len + 2] = 0;
+        } else {
+            iobuff[key_len + 1] = 0;
+        }
     }
     Some(g_st().iobuff_cstr())
 }
@@ -2022,7 +2024,12 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let s_opt = s_cow.as_deref().map(crate::charset::skipwhite);
     let expr_start = s_opt;
     let mut s_cstr = s_opt.unwrap_or(c"");
-    let ok = s_opt.is_some() && eval1(&mut s_cstr, &mut *rettv, Some(&mut g_st().evalarg_evaluate));
+    let ok = s_opt.is_some()
+        && eval1(
+            &mut s_cstr,
+            &mut *rettv,
+            Some(&mut crate::eval::vars::Evalarg { eval_flags: 1 }),
+        );
     if !ok {
         if let Some(expr_start) = expr_start
             && !aborting()
@@ -2068,7 +2075,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     let mut echo_output = false;
 
     if check_secure() {
-        g_st().capture_ga = save_capture_ga;
+        *g_st().capture_ga.borrow_mut() = save_capture_ga;
         return;
     }
 
@@ -2076,7 +2083,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     if argvars[off + 1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
         let Some(s) = tv_get_string_buf_chk(&argvars[off + 1], &mut buf) else {
-            g_st().capture_ga = save_capture_ga;
+            *g_st().capture_ga.borrow_mut() = save_capture_ga;
             return;
         };
         if s.to_bytes().is_empty() {
@@ -2093,7 +2100,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     }
 
-    g_st().capture_ga = Some(Vec::new());
+    *g_st().capture_ga.borrow_mut() = Some(Vec::new());
     g_st().redir_off.set(false);
     if !echo_output {
         g_st().msg_col.set(0);
@@ -2125,8 +2132,10 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_col.set(save_msg_col);
     }
 
-    let capture_local =
-        std::mem::replace(&mut g_st().capture_ga, save_capture_ga).unwrap_or_default();
+    let capture_local = g_st()
+        .capture_ga
+        .replace(save_capture_ga)
+        .unwrap_or_default();
     crate::eval::typval::tv_set_bytes(&mut *rettv, &capture_local);
 }
 
@@ -4216,9 +4225,9 @@ pub fn create_environment(
             let name_owned: Option<std::ffi::CString> = {
                 let name_b = item_name.to_bytes();
                 if name_b.len() < MAXPATHL / MB_MAXBYTES {
-                    mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
+                    mb_strup_buf(name_b, &mut *g_st().name_buff_bytes_mut());
                     Some(crate::memory::cstring_until_nul(
-                        g_st().name_buff_bytes_mut(),
+                        &*g_st().name_buff_bytes_mut(),
                     ))
                 } else {
                     None
@@ -4269,9 +4278,9 @@ pub fn create_environment(
                     let mut namelen = key_b.len();
                     let name_owned: Option<std::ffi::CString> = if namelen < MAXPATHL / MB_MAXBYTES
                     {
-                        namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
+                        namelen = mb_strup_buf(key_b, &mut *g_st().name_buff_bytes_mut());
                         Some(crate::memory::cstring_until_nul(
-                            g_st().name_buff_bytes_mut(),
+                            &*g_st().name_buff_bytes_mut(),
                         ))
                     } else {
                         None
@@ -4524,32 +4533,32 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            vim_full_name(cwd_opt, g_st().name_buff_bytes_mut(), false);
-            let namebuff_cstr = crate::memory::cstring_until_nul(g_st().name_buff_bytes_mut());
+            vim_full_name(cwd_opt, &mut *g_st().name_buff_bytes_mut(), false);
+            let namebuff_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
             let len = home_replace(
                 None,
                 Some(namebuff_cstr.as_c_str()),
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 true,
             );
-            if len > 1 && matches!(g_st().iobuff[len - 1], b'\\' | b'/') {
-                g_st().iobuff[len - 1] = 0;
+            if len > 1 && matches!(g_st().iobuff.borrow()[len - 1], b'\\' | b'/') {
+                g_st().iobuff.borrow_mut()[len - 1] = 0;
             }
-            if len == 1 && g_st().iobuff[0] == b'/' {
-                g_st().iobuff[1] = b'.';
-                g_st().iobuff[2] = 0;
+            if len == 1 && g_st().iobuff.borrow()[0] == b'/' {
+                g_st().iobuff.borrow_mut()[1] = b'.';
+                g_st().iobuff.borrow_mut()[2] = 0;
             }
 
             let iobuff_cstr = g_st().iobuff_cstr().to_owned();
             format_to_buf!(
-                &mut g_st().name_buff,
+                &mut *g_st().name_buff.borrow_mut(),
                 c"term://%s//%d:%s",
                 &iobuff_cstr,
                 pid,
                 &cmd,
             );
 
-            let fname_cstr = crate::memory::cstring_until_nul(g_st().name_buff_bytes_mut());
+            let fname_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
             setfname(&mut *buf, Some(fname_cstr.as_c_str()), None, true);
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
@@ -5499,7 +5508,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         (argvars[0].v_type != VarType::VarUnknown).then(|| tv_get_string(&argvars[0]));
     let include = include_cow.as_deref().map(CStr::to_bytes);
 
-    if !(stuff_empty() && g_st().typebuf.tb_len == 0 && using_script() == 0) {
+    if !(stuff_empty() && g_st().typebuf.tb_len.get() == 0 && using_script() == 0) {
         may_add_state_char(&mut buf, &mut len, include, b'm');
     }
     if op_pending() {
@@ -7479,7 +7488,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             rpc = tv_dict_get_number(opts_opt, c"rpc") != 0;
             trust = tv_dict_get_bool(opts_opt, c"trust", 1) != 0;
 
-            if !tv_dict_get_callback(opts_opt, c"on_data", 7, &mut on_data.cb) {
+            if !tv_dict_get_callback(opts_opt, c"on_data", 7, &on_data.cb) {
                 break 'cleanup;
             }
             on_data.buffered = tv_dict_get_number(opts_opt, c"data_buffered") != 0;
@@ -7513,10 +7522,10 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let opts_opt = argvars[0].vval.v_dict_opt();
     let rpc = tv_dict_get_number(opts_opt, c"rpc") != 0;
 
-    if !tv_dict_get_callback(opts_opt, c"on_stdin", 8, &mut on_stdin.cb) {
+    if !tv_dict_get_callback(opts_opt, c"on_stdin", 8, &on_stdin.cb) {
         return;
     }
-    if !tv_dict_get_callback(opts_opt, c"on_print", 8, &mut g_st().on_print) {
+    if !tv_dict_get_callback(opts_opt, c"on_print", 8, &g_st().on_print) {
         return;
     }
 
@@ -8445,7 +8454,9 @@ pub fn f_wildmenumode(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_windowsversion(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     crate::eval::typval::tv_set_string(
         rettv,
-        Some(crate::memory::bytes_as_cstr(&g_st().windows_version)),
+        Some(crate::memory::bytes_as_cstr(
+            &*g_st().windows_version.borrow(),
+        )),
     );
 }
 

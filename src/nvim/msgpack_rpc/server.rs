@@ -91,7 +91,7 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
         } else {
             c"?"
         };
-        format_to_buf!(&mut g_st().iobuff, fmt, reason, listen_addr);
+        format_to_buf!(&mut *g_st().iobuff.borrow_mut(), fmt, reason, listen_addr);
         ok = false;
     }
 
@@ -144,7 +144,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     let r = {
         let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
         get_appname(true);
-        let name_buff = &g_st().name_buff;
+        let name_buff = &*g_st().name_buff.borrow();
         let app = name.unwrap_or_else(|| crate::memory::bytes_as_cstr(name_buff));
         format_to_buf!(
             &mut fmt,

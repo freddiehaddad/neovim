@@ -835,7 +835,7 @@ pub fn do_tag(
                             c""
                         };
                         format_to_buf!(
-                            g_st().iobuff_bytes_mut(),
+                            &mut *g_st().iobuff_bytes_mut(),
                             gettext(c"tag %d of %d%s"),
                             cur_match + 1,
                             do_tag_num_matches,
@@ -843,12 +843,11 @@ pub fn do_tag(
                         );
                         if ic {
                             crate::memory::append_bytes_to_c_buf(
-                                g_st().iobuff_bytes_mut(),
+                                &mut *g_st().iobuff_bytes_mut(),
                                 gettext(c"  Using tag with different case!").to_bytes(),
                             );
                         }
-                        let iobuf_cstr =
-                            crate::memory::bytes_as_cstr(g_st().borrow_mut().iobuff_bytes());
+                        let iobuf_cstr = g_st().iobuff_cstr();
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
                         {
@@ -862,11 +861,14 @@ pub fn do_tag(
                         }
                     }
 
-                    let iobufflen =
-                        format_to_buf_safelen!(g_st().iobuff_bytes_mut(), c":ta %s\r", name_cstr,);
+                    let iobufflen = format_to_buf_safelen!(
+                        &mut *g_st().iobuff_bytes_mut(),
+                        c":ta %s\r",
+                        name_cstr,
+                    );
                     set_vim_var_string(
                         VV_SWAPCOMMAND,
-                        Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
+                        Some(g_st().iobuff_cstr()),
                         iobufflen as isize,
                     );
 
@@ -986,11 +988,12 @@ fn select_tag_match(
             vval: TypvalVval::Dict(extra_d),
         };
 
+        let cmod = g_st().cmdmod.borrow().clone();
         nlua_call_excmd(
             c"vim._core.tag",
             c"select_tag",
             eap.unwrap(),
-            &g_st().cmdmod,
+            &cmod,
             Some(&mut extra_tv),
         );
 
@@ -1087,12 +1090,12 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
         }
 
-        format_to_buf!(g_st().iobuff_bytes_mut(), c"ltag %s", tag);
+        format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"ltag %s", tag);
         set_errorlist(
             Some(curwin_mut()),
             Some(&list),
             b' ' as i32,
-            Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
+            Some(g_st().iobuff_cstr()),
             None,
         );
 
@@ -1122,7 +1125,7 @@ pub fn do_tags(_eap: &mut Exarg) {
 
             msg_putchar(b'\n' as i32);
             format_to_buf!(
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 c"%c%2d %2d %-15s %5d  ",
                 if i == tagstackidx {
                     b'>' as i32
@@ -1134,11 +1137,7 @@ pub fn do_tags(_eap: &mut Exarg) {
                 tagname,
                 entry.fmark.mark.lnum,
             );
-            msg_outtrans(
-                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-                0,
-                false,
-            );
+            msg_outtrans(g_st().iobuff_cstr(), 0, false);
             msg_outtrans(
                 &name,
                 if entry.fmark.fnum == curbuf_mut().b_fnum.get() {
@@ -2696,15 +2695,15 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             getfile_result = GetFileResult::SameFile;
         }
         if getfile_result == GetFileResult::Unused
-            && (g_st().postponed_split.get() != 0 || g_st().cmdmod.cmod_tab != 0)
+            && (g_st().postponed_split.get() != 0 || g_st().cmdmod.borrow().cmod_tab != 0)
         {
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_VSPLIT) != 0 {
-                g_st().cmdmod.cmod_split |= WSP_VERT;
+                g_st().cmdmod.borrow_mut().cmod_split |= WSP_VERT;
             }
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_NEWTAB) != 0
-                && g_st().cmdmod.cmod_tab == 0
+                && g_st().cmdmod.borrow().cmod_tab == 0
             {
-                g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab.get().opt()) + 1;
+                g_st().cmdmod.borrow_mut().cmod_tab = tabpage_index(g_st().curtab.get().opt()) + 1;
             }
             if !win_split(
                 if g_st().postponed_split.get() > 0 {

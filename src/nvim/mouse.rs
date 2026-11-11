@@ -262,7 +262,8 @@ fn find_end_of_word(pos: &mut CursorPos) {
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].tabnr;
+    let tabnr =
+        g_st().tab_page_click_defs.borrow().as_slice()[g_st().mouse_col.get() as usize].tabnr;
     if tabnr <= 0 {
         tabpage_move(9999);
     } else if tabnr < tabpage_index(g_st().curtab.get().opt()) {
@@ -449,33 +450,35 @@ fn get_fpos_of_mouse(
 fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
     let mut jump_flags = 0;
     if opt_vars().p_mousem.as_bytes() == b"popup_setpos" {
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             if m_pos_flag != IN_BUFFER {
                 jump_flags = MOUSE_MAY_STOP_VIS;
-            } else if g_st().visual_global.mode == b'V' as i32 {
-                if (curwin_mut().w_cursor.lnum <= g_st().visual_global.start.lnum
+            } else if g_st().visual_global.borrow().mode == b'V' as i32 {
+                if (curwin_mut().w_cursor.lnum <= g_st().visual_global.borrow().start.lnum
                     && (m_pos.lnum < curwin_mut().w_cursor.lnum
-                        || g_st().visual_global.start.lnum < m_pos.lnum))
-                    || (g_st().visual_global.start.lnum < curwin_mut().w_cursor.lnum
-                        && (m_pos.lnum < g_st().visual_global.start.lnum
+                        || g_st().visual_global.borrow().start.lnum < m_pos.lnum))
+                    || (g_st().visual_global.borrow().start.lnum < curwin_mut().w_cursor.lnum
+                        && (m_pos.lnum < g_st().visual_global.borrow().start.lnum
                             || curwin_mut().w_cursor.lnum < m_pos.lnum))
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
                 }
-            } else if (ltoreq(curwin_mut().w_cursor, g_st().visual_global.start)
-                && (lt(m_pos, curwin_mut().w_cursor) || lt(g_st().visual_global.start, m_pos)))
-                || (lt(g_st().visual_global.start, curwin_mut().w_cursor)
-                    && (lt(m_pos, g_st().visual_global.start) || lt(curwin_mut().w_cursor, m_pos)))
+            } else if (ltoreq(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+                && (lt(m_pos, curwin_mut().w_cursor)
+                    || lt(g_st().visual_global.borrow().start, m_pos)))
+                || (lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
+                    && (lt(m_pos, g_st().visual_global.borrow().start)
+                        || lt(curwin_mut().w_cursor, m_pos)))
             {
                 jump_flags = MOUSE_MAY_STOP_VIS;
-            } else if g_st().visual_global.mode == CTRL_V_CONST {
+            } else if g_st().visual_global.borrow().mode == CTRL_V_CONST {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
                 let mut cursor = curwin_mut().w_cursor;
                 getvcols(
                     curwin_mut(),
                     &mut cursor,
-                    &mut g_st().visual_global.start,
+                    &mut g_st().visual_global.borrow_mut().start,
                     &mut leftcol,
                     &mut rightcol,
                     0,
@@ -494,7 +497,7 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
     }
     if jump_flags != 0 {
         jump_flags = jump_to_mouse(jump_flags, None, which_button);
-        redraw_curbuf_later(if g_st().visual_global.active {
+        redraw_curbuf_later(if g_st().visual_global.borrow().active {
             UPD_INVERTED
         } else {
             UPD_VALID
@@ -610,8 +613,8 @@ pub fn do_mouse(
                 return false;
             }
 
-            if g_st().visual_global.active {
-                if g_st().visual_global.select {
+            if g_st().visual_global.borrow().active {
+                if g_st().visual_global.borrow().select {
                     stuffchar_readbuff(CTRL_G);
                     stuff_readbuff(c"\"+p");
                 } else {
@@ -666,7 +669,7 @@ pub fn do_mouse(
     };
     let old_curwin = curwin_ptr();
 
-    if !g_st().tab_page_click_defs.is_empty() {
+    if !g_st().tab_page_click_defs.borrow().is_empty() {
         if g_st().mouse_grid.get() <= 1
             && g_st().mouse_row.get() == 0
             && firstwin_mut().w_winrow.get() > 0
@@ -679,11 +682,14 @@ pub fn do_mouse(
             }
 
             if is_click && g_st().mouse_col.get() < g_st().columns_global.get() {
-                let tabnr =
-                    g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].tabnr;
+                let (tabnr, click_type) = {
+                    let defs = g_st().tab_page_click_defs.borrow();
+                    let def = &defs.as_slice()[g_st().mouse_col.get() as usize];
+                    (def.tabnr, def.type_)
+                };
                 mouse_st(|st| st.in_tab_line.set(true));
 
-                match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].type_ {
+                match click_type {
                     K_STL_CLICK_DISABLED => {}
                     K_STL_CLICK_TAB_SWITCH => {
                         if which_button != MOUSE_MIDDLE {
@@ -705,8 +711,9 @@ pub fn do_mouse(
                         mouse_tab_close(tabnr);
                     }
                     K_STL_CLICK_FUNC_RUN => {
+                        let defs_clone = g_st().tab_page_click_defs.borrow().clone();
                         call_click_def_func(
-                            g_st().tab_page_click_defs.as_slice(),
+                            defs_clone.as_slice(),
                             g_st().mouse_col.get(),
                             which_button,
                         );
@@ -770,19 +777,19 @@ pub fn do_mouse(
     {
         if which_button == MOUSE_LEFT && mouse_can_visual {
             if is_click {
-                if g_st().visual_global.active {
+                if g_st().visual_global.borrow().active {
                     jump_flags |= MOUSE_MAY_STOP_VIS;
                 }
             } else {
                 jump_flags |= MOUSE_MAY_VIS;
             }
         } else if which_button == MOUSE_RIGHT && mouse_can_visual {
-            if is_click && g_st().visual_global.active {
-                if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
+            if is_click && g_st().visual_global.borrow().active {
+                if lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
                     start_visual = curwin_mut().w_cursor;
-                    end_visual = g_st().visual_global.start;
+                    end_visual = g_st().visual_global.borrow().start;
                 } else {
-                    start_visual = g_st().visual_global.start;
+                    start_visual = g_st().visual_global.borrow().start;
                     end_visual = curwin_mut().w_cursor;
                 }
             }
@@ -802,10 +809,10 @@ pub fn do_mouse(
         jump_flags |= MOUSE_RELEASED;
     }
 
-    let old_active = g_st().visual_global.active;
+    let old_active = g_st().visual_global.borrow().active;
     let save_cursor = curwin_mut().w_cursor;
 
-    if !g_st().visual_global.active || mouse_can_visual {
+    if !g_st().visual_global.borrow().active || mouse_can_visual {
         jump_flags = jump_to_mouse(
             jump_flags,
             oap.as_deref_mut().map(|o| &mut o.inclusive),
@@ -921,7 +928,7 @@ pub fn do_mouse(
         clearop(oap.as_deref_mut().unwrap());
     }
 
-    if g_st().visual_global.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
+    if g_st().visual_global.borrow().active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
         if g_st().mouse_row.get() == 0 {
             g_st().mouse_dragging.set(2);
         } else {
@@ -934,13 +941,13 @@ pub fn do_mouse(
         g_st().mouse_row.set(0);
     }
 
-    let old_mode = g_st().visual_global.mode;
+    let old_mode = g_st().visual_global.borrow().mode;
     if start_visual.lnum != 0 {
         if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-            g_st().visual_global.mode = CTRL_V_CONST;
+            g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
         }
 
-        if g_st().visual_global.mode == CTRL_V_CONST {
+        if g_st().visual_global.borrow().mode == CTRL_V_CONST {
             let mut leftcol: Colnr = 0;
             let mut rightcol: Colnr = 0;
             getvcols(
@@ -963,35 +970,36 @@ pub fn do_mouse(
             start_visual = curwin_mut().w_cursor;
             curwin_mut().w_cursor = end_visual;
             coladvance(curwin_mut(), end_visual.col);
-            g_st().visual_global.start = curwin_mut().w_cursor;
+            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
             curwin_mut().w_cursor = start_visual;
         } else if lt(curwin_mut().w_cursor, start_visual) {
-            g_st().visual_global.start = end_visual;
+            g_st().visual_global.borrow_mut().start = end_visual;
         } else if lt(end_visual, curwin_mut().w_cursor) {
-            g_st().visual_global.start = start_visual;
+            g_st().visual_global.borrow_mut().start = start_visual;
         } else if end_visual.lnum == start_visual.lnum {
             if curwin_mut().w_cursor.col - start_visual.col
                 > end_visual.col - curwin_mut().w_cursor.col
             {
-                g_st().visual_global.start = start_visual;
+                g_st().visual_global.borrow_mut().start = start_visual;
             } else {
-                g_st().visual_global.start = end_visual;
+                g_st().visual_global.borrow_mut().start = end_visual;
             }
         } else {
             let diff = (curwin_mut().w_cursor.lnum - start_visual.lnum)
                 - (end_visual.lnum - curwin_mut().w_cursor.lnum);
 
             if diff > 0 {
-                g_st().visual_global.start = start_visual;
+                g_st().visual_global.borrow_mut().start = start_visual;
             } else if diff < 0
                 || curwin_mut().w_cursor.col < (start_visual.col + end_visual.col) / 2
             {
-                g_st().visual_global.start = end_visual;
+                g_st().visual_global.borrow_mut().start = end_visual;
             } else {
-                g_st().visual_global.start = start_visual;
+                g_st().visual_global.borrow_mut().start = start_visual;
             }
         }
-    } else if (g_st().state_global.get() & MODE_INSERT) != 0 && g_st().visual_global.active {
+    } else if (g_st().state_global.get() & MODE_INSERT) != 0 && g_st().visual_global.borrow().active
+    {
         stuffchar_readbuff(CTRL_O);
     }
 
@@ -1072,7 +1080,7 @@ pub fn do_mouse(
         }
     } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
         if (g_st().state_global.get() & MODE_INSERT) != 0
-            || (g_st().visual_global.active && g_st().visual_global.select)
+            || (g_st().visual_global.borrow().active && g_st().visual_global.borrow().select)
         {
             stuffchar_readbuff(CTRL_O);
         }
@@ -1090,27 +1098,27 @@ pub fn do_mouse(
         && (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
         && mouse_can_visual
     {
-        if is_click || !g_st().visual_global.active {
-            if g_st().visual_global.active {
-                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.start));
+        if is_click || !g_st().visual_global.borrow().active {
+            if g_st().visual_global.borrow().active {
+                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
             } else {
-                g_st().visual_global.start = curwin_mut().w_cursor;
-                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.start));
-                g_st().visual_global.active = true;
-                g_st().visual_global.reselect = 1;
+                g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
+                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
+                g_st().visual_global.borrow_mut().active = true;
+                g_st().visual_global.borrow_mut().reselect = 1;
                 may_start_select(b'o' as i32);
                 setmouse();
             }
             if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
                 if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-                    g_st().visual_global.mode = CTRL_V_CONST;
+                    g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
                 } else {
-                    g_st().visual_global.mode = b'v' as i32;
+                    g_st().visual_global.borrow_mut().mode = b'v' as i32;
                 }
             } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
-                g_st().visual_global.mode = b'V' as i32;
+                g_st().visual_global.borrow_mut().mode = b'V' as i32;
             } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
-                g_st().visual_global.mode = CTRL_V_CONST;
+                g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
             }
         }
         if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
@@ -1125,19 +1133,19 @@ pub fn do_mouse(
                     oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
                 }
                 if oap.is_some()
-                    && g_st().visual_global.mode == b'v' as i32
+                    && g_st().visual_global.borrow().mode == b'v' as i32
                     && !vim_iswordc(gchar_pos(&mut end_visual))
-                    && equalpos(curwin_mut().w_cursor, g_st().visual_global.start)
+                    && equalpos(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
                 {
                     pos = findmatch(oap.as_deref_mut(), 0);
                     if let Some(p) = pos {
                         curwin_mut().w_cursor = p;
 
                         if oap.unwrap().motion_type == MT_LINE_WISE {
-                            g_st().visual_global.mode = b'V' as i32;
+                            g_st().visual_global.borrow_mut().mode = b'V' as i32;
                         } else if opt_vars().p_sel.first_byte() == b'e' {
-                            if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
-                                g_st().visual_global.start.col += 1;
+                            if lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
+                                g_st().visual_global.borrow_mut().start.col += 1;
                             } else {
                                 curwin_mut().w_cursor.col += 1;
                             }
@@ -1148,9 +1156,9 @@ pub fn do_mouse(
             if pos.is_none() && (is_click || is_drag) {
                 if lt(curwin_mut().w_cursor, mouse_st(|st| st.orig_cursor.get())) {
                     find_start_of_word(&mut curwin_mut().w_cursor);
-                    find_end_of_word(&mut g_st().visual_global.start);
+                    find_end_of_word(&mut g_st().visual_global.borrow_mut().start);
                 } else {
-                    find_start_of_word(&mut g_st().visual_global.start);
+                    find_start_of_word(&mut g_st().visual_global.borrow_mut().start);
                     let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
                     if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
                         curwin_mut().w_cursor.col +=
@@ -1164,19 +1172,19 @@ pub fn do_mouse(
         if is_click {
             redraw_curbuf_later(UPD_INVERTED);
         }
-    } else if g_st().visual_global.active && !old_active {
+    } else if g_st().visual_global.borrow().active && !old_active {
         if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-            g_st().visual_global.mode = CTRL_V_CONST;
+            g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
         } else {
-            g_st().visual_global.mode = b'v' as i32;
+            g_st().visual_global.borrow_mut().mode = b'v' as i32;
         }
     }
 
-    if (!g_st().visual_global.active && old_active && g_st().mode_displayed.get())
-        || (g_st().visual_global.active
+    if (!g_st().visual_global.borrow().active && old_active && g_st().mode_displayed.get())
+        || (g_st().visual_global.borrow().active
             && opt_vars().p_smd.get()
             && g_st().msg_silent.get() == 0
-            && (!old_active || g_st().visual_global.mode != old_mode))
+            && (!old_active || g_st().visual_global.borrow().mode != old_mode))
     {
         g_st().redraw_cmdline.set(true);
     }
@@ -1552,7 +1560,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 st.sep_line_offset.set(sep_line_offset);
             });
 
-            let stop_visual = g_st().visual_global.active
+            let stop_visual = g_st().visual_global.borrow().active
                 && (wp.w_buffer.get() != curwin_mut().w_buffer.get()
                     || (status_line_offset == 0
                         && sep_line_offset == 0
@@ -1746,10 +1754,10 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     }
     curwin_mut().w_cursor.lnum = lnum;
 
-    if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.active {
-        g_st().visual_global.start = old_cursor;
-        g_st().visual_global.active = true;
-        g_st().visual_global.reselect = 1;
+    if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.borrow().active {
+        g_st().visual_global.borrow_mut().start = old_cursor;
+        g_st().visual_global.borrow_mut().active = true;
+        g_st().visual_global.borrow_mut().reselect = 1;
         may_start_select(b'o' as i32);
         setmouse();
 
@@ -2178,8 +2186,7 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     }
     let mut start_row: i32 = 0;
     let mut start_col: i32 = 0;
-    let Some(gp) = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut start_row, &mut start_col)
-    else {
+    let Some(gp) = crate::grid::grid_adjust_opt(&wp.w_grid, &mut start_row, &mut start_col) else {
         return;
     };
     if gp.handle.get() != click_grid || gp.chars.borrow().is_empty() {

@@ -810,8 +810,8 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
     let save_ff = buf
         .b_p_ff
         .replace(crate::option_vars::OptString::from_cstr(c"unix"));
-    let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
-    g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
+    let save_cmod_flags = g_st().cmdmod.borrow().cmod_flags != 0;
+    g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_LOCKMARKS;
     if end < start {
         end = start;
         buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() | (ML_EMPTY));
@@ -828,7 +828,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         false,
         true,
     );
-    g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
+    g_st().cmdmod.borrow_mut().cmod_flags = i32::from(save_cmod_flags);
     buf.b_p_ff.set(save_ff);
     buf.b_ml
         .ml_flags
@@ -1305,7 +1305,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 newname_vec.extend_from_slice(fname_bytes);
                 newname_vec.extend_from_slice(b".new\0");
             }
-            g_st().cmdmod.cmod_tab = 0;
+            g_st().cmdmod.borrow_mut().cmod_tab = 0;
             if win_split(
                 0,
                 if (diff_flags() & DIFF_VERTICAL) != 0 {
@@ -1348,7 +1348,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     set_bufref(&mut old_curbuf, g_st().curbuf.get().opt_mut());
     validate_cursor(curwin_mut());
     set_fraction(curwin_mut());
-    g_st().cmdmod.cmod_tab = 0;
+    g_st().cmdmod.borrow_mut().cmod_tab = 0;
     if !win_split(
         0,
         if (diff_flags() & DIFF_VERTICAL) != 0 {

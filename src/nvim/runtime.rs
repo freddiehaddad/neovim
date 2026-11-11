@@ -2399,7 +2399,7 @@ pub fn ex_options(_eap: &mut Exarg) {
     let mut buf = Vec::new();
     let mut multi_mods = false;
 
-    add_win_cmd_modifiers(&mut buf, &g_st().cmdmod, &mut multi_mods);
+    add_win_cmd_modifiers(&mut buf, &g_st().cmdmod.borrow(), &mut multi_mods);
     buf.push(0);
 
     os_setenv(c"OPTWIN_CMD", crate::memory::bytes_as_cstr(&buf), 1);
@@ -2489,13 +2489,13 @@ fn do_source_buffer_init(
     } else {
         if ex_lua {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 c":{range}lua buffer=%d",
                 curbuf_mut().b_fnum.get(),
             );
         } else {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 c":source buffer=%d",
                 curbuf_mut().b_fnum.get(),
             );
@@ -2905,7 +2905,11 @@ fn do_source_ext(
         }
 
         if l_has_time_fd {
-            format_to_buf!(&mut g_st().iobuff, c"sourcing %s", fname_cstr_or_empty);
+            format_to_buf!(
+                &mut *g_st().iobuff.borrow_mut(),
+                c"sourcing %s",
+                fname_cstr_or_empty
+            );
             time_msg(g_st().iobuff_cstr(), Some(&start_time));
             time_pop(rel_time);
         }
@@ -3001,9 +3005,9 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                     script_item_name(eap.line2).as_deref(),
                 );
             } else {
-                expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
-                to_slash(g_st().name_buff_bytes_mut());
-                eap.arg = crate::strings::OwnedSlice::from_bytes(g_st().name_buff_bytes_mut());
+                expand_env(eap.arg.as_cstr(), &mut *g_st().name_buff_bytes_mut());
+                to_slash(&mut *g_st().name_buff_bytes_mut());
+                eap.arg = crate::strings::OwnedSlice::from_bytes(&*g_st().name_buff_bytes_mut());
             }
             do_exedit(eap, None);
         }
@@ -3017,19 +3021,20 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             home_replace(
                 None,
                 Some(sn.as_c_str()),
-                g_st().name_buff_bytes_mut(),
+                &mut *g_st().name_buff_bytes_mut(),
                 true,
             );
-            format_to_buf!(&mut g_st().iobuff, c"%3d: %s", i, &g_st().name_buff);
-            if !message_filtered(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())) {
+            format_to_buf!(
+                &mut *g_st().iobuff.borrow_mut(),
+                c"%3d: %s",
+                i,
+                &*g_st().name_buff.borrow()
+            );
+            if !message_filtered(g_st().iobuff_cstr()) {
                 if g_st().msg_col.get() > 0 {
                     msg_putchar(b'\n' as i32);
                 }
-                msg_outtrans(
-                    crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-                    0,
-                    false,
-                );
+                msg_outtrans(g_st().iobuff_cstr(), 0, false);
                 line_breakcheck();
             }
         }
@@ -3051,7 +3056,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             SID_LUA => gettext(c"Lua"),
             SID_API_CLIENT => {
                 format_to_buf!(
-                    &mut g_st().iobuff,
+                    &mut *g_st().iobuff.borrow_mut(),
                     gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
                 );
@@ -3067,7 +3072,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                     }
                 } else {
                     format_to_buf!(
-                        &mut g_st().iobuff,
+                        &mut *g_st().iobuff.borrow_mut(),
                         gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,
                     );

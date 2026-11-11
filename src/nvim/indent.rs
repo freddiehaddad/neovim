@@ -958,14 +958,17 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                 let bytes = msg_str.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
-                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
-                iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
-                iobuff[copy_len] = 0;
+                {
+                    let iobuff = &mut *g_st().iobuff_bytes_mut();
+                    iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
+                    iobuff[copy_len] = 0;
+                }
 
                 let save_lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum = start_lnum;
+                let mut iob = *g_st().iobuff.borrow();
                 msg_progress(
-                    Some(g_st().iobuff_bytes_mut()),
+                    Some(&mut iob),
                     c"nvim.indent",
                     c"running",
                     -1,
@@ -974,6 +977,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     false,
                     false,
                 );
+                *g_st().iobuff.borrow_mut() = iob;
                 curwin_mut().w_cursor.lnum = save_lnum;
             }
 
@@ -1023,11 +1027,14 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
         let bytes = msg_str.as_bytes();
         let copy_len = bytes.len().min(IOSIZE - 1);
-        let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
-        iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
-        iobuff[copy_len] = 0;
+        {
+            let iobuff = &mut *g_st().iobuff_bytes_mut();
+            iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
+            iobuff[copy_len] = 0;
+        }
+        let mut iob = *g_st().iobuff.borrow();
         msg_progress(
-            Some(g_st().iobuff_bytes_mut()),
+            Some(&mut iob),
             c"nvim.indent",
             c"success",
             -1,
@@ -1036,8 +1043,9 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
             false,
             false,
         );
+        *g_st().iobuff.borrow_mut() = iob;
     }
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start = oap.start;
         curbuf_mut().b_op_end = oap.end;
     }
@@ -1061,8 +1069,9 @@ pub fn may_do_si() -> bool {
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
 pub fn ins_try_si(c: i32) {
-    if ((g_st().ins_global.did_si || g_st().ins_global.can_si_back) && c == b'{' as i32)
-        || (g_st().ins_global.can_si && c == b'}' as i32 && inindent(0))
+    if ((g_st().ins_global.borrow().did_si || g_st().ins_global.borrow().can_si_back)
+        && c == b'{' as i32)
+        || (g_st().ins_global.borrow().can_si && c == b'}' as i32 && inindent(0))
     {
         let pos = if c == b'}' as i32 {
             findmatch(None, b'{' as i32)
@@ -1095,7 +1104,10 @@ pub fn ins_try_si(c: i32) {
             }
         } else if curwin_mut().w_cursor.col > 0 {
             let mut temp = true;
-            if c == b'{' as i32 && g_st().ins_global.can_si_back && curwin_mut().w_cursor.lnum > 1 {
+            if c == b'{' as i32
+                && g_st().ins_global.borrow().can_si_back
+                && curwin_mut().w_cursor.lnum > 1
+            {
                 let old_pos = curwin_mut().w_cursor;
                 let i = get_indent();
                 while curwin_mut().w_cursor.lnum > 1 {
@@ -1118,13 +1130,21 @@ pub fn ins_try_si(c: i32) {
         }
     }
 
-    if curwin_mut().w_cursor.col > 0 && g_st().ins_global.can_si && c == b'#' as i32 && inindent(0)
+    if curwin_mut().w_cursor.col > 0
+        && g_st().ins_global.borrow().can_si
+        && c == b'#' as i32
+        && inindent(0)
     {
         g_st().old_indent.set(get_indent());
         set_indent(0, SIN_CHANGED);
     }
 
-    g_st().ins_global.ai_col = g_st().ins_global.ai_col.min(curwin_mut().w_cursor.col);
+    let ai_col = g_st()
+        .ins_global
+        .borrow()
+        .ai_col
+        .min(curwin_mut().w_cursor.col);
+    g_st().ins_global.borrow_mut().ai_col = ai_col;
 }
 
 /// Insert an indent (for `<Tab>` or `CTRL-T`) or delete an indent (for `CTRL-D`) (`change_indent`).
@@ -1230,19 +1250,19 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     changed_cline_bef_curs(curwin_mut());
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 {
-        if curwin_mut().w_cursor.lnum == g_st().ins_global.start.lnum
-            && g_st().ins_global.start.col != 0
+        if curwin_mut().w_cursor.lnum == g_st().ins_global.borrow().start.lnum
+            && g_st().ins_global.borrow().start.col != 0
         {
-            if g_st().ins_global.start.col <= insstart_less {
-                g_st().ins_global.start.col = 0;
+            if g_st().ins_global.borrow().start.col <= insstart_less {
+                g_st().ins_global.borrow_mut().start.col = 0;
             } else {
-                g_st().ins_global.start.col -= insstart_less;
+                g_st().ins_global.borrow_mut().start.col -= insstart_less;
             }
         }
-        if g_st().ins_global.ai_col <= insstart_less {
-            g_st().ins_global.ai_col = 0;
+        if g_st().ins_global.borrow().ai_col <= insstart_less {
+            g_st().ins_global.borrow_mut().ai_col = 0;
         } else {
-            g_st().ins_global.ai_col -= insstart_less;
+            g_st().ins_global.borrow_mut().ai_col -= insstart_less;
         }
     }
 
@@ -1857,7 +1877,7 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
 
     change_indent(INDENT_SET, amount, 0, true);
     if linewhite(curwin_mut().w_cursor.lnum) {
-        g_st().ins_global.did_ai = true;
+        g_st().ins_global.borrow_mut().did_ai = true;
     }
 }
 

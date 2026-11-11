@@ -183,14 +183,18 @@ use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 pub fn channel_teardown() {
-    let all_chans: Vec<u64> = g_st().channels.keys().copied().collect();
+    let all_chans: Vec<u64> = crate::event::r#loop::main_loop_ptr()
+        .channels
+        .keys()
+        .copied()
+        .collect();
     for id in all_chans {
         channel_close(id, K_CHANNEL_PART_ALL, None);
     }
 }
 
 pub fn channel_free_all_mem() {
-    g_st().channels.clear();
+    crate::event::r#loop::main_loop_ptr().channels.clear();
 
     callback_free(&g_st().on_print);
 }
@@ -358,7 +362,9 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         did_close_event: false,
     });
 
-    g_st().channels.insert(id, chan);
+    crate::event::r#loop::main_loop_ptr()
+        .channels
+        .insert(id, chan);
 
     find_channel_opt(id).unwrap()
 }
@@ -389,7 +395,9 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
 }
 
 pub fn free_channel_event(chan_id: u64) {
-    let _ = g_st().channels.remove(&chan_id);
+    let _ = crate::event::r#loop::main_loop_ptr()
+        .channels
+        .remove(&chan_id);
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
@@ -402,7 +410,10 @@ fn channel_destroy_early(chan: &mut Channel) {
         std::process::abort();
     }
     let chan_id = chan.id;
-    let mut boxed = g_st().channels.remove(&chan_id).unwrap();
+    let mut boxed = crate::event::r#loop::main_loop_ptr()
+        .channels
+        .remove(&chan_id)
+        .unwrap();
     boxed.id = 0;
 
     boxed.refcount -= 1;
@@ -1261,9 +1272,9 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 }
 
 pub fn channel_all_info(arena: &mut Arena) -> Array {
-    let mut ret = arena_array(arena, g_st().channels.len());
+    let mut ret = arena_array(arena, crate::event::r#loop::main_loop_ptr().channels.len());
 
-    for &id in g_st().channels.keys() {
+    for &id in crate::event::r#loop::main_loop_ptr().channels.keys() {
         let info = channel_info(id, arena);
         add_c(
             &mut ret,

@@ -266,7 +266,7 @@ pub fn cause_errthrow(
         discard_current_exception();
     }
 
-    if let Some(ref mut list) = g_st().msg_list {
+    if let Some(ref mut list) = *g_st().msg_list.borrow_mut() {
         if concat && let Some(last) = list.last_mut() {
             let mut bytes = last.msg.as_bytes().to_vec();
             bytes.extend_from_slice(mesg.to_bytes());
@@ -303,7 +303,7 @@ pub fn cause_errthrow(
 }
 
 pub fn free_global_msglist() {
-    if let Some(ref mut list) = g_st().msg_list {
+    if let Some(ref mut list) = *g_st().msg_list.borrow_mut() {
         list.clear();
     }
 }
@@ -313,7 +313,7 @@ pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: Option<&CStr>) {
         g_st().force_abort.set(true);
     }
 
-    let Some(ref mut list) = g_st().msg_list else {
+    let Some(ref mut list) = *g_st().msg_list.borrow_mut() else {
         return;
     };
     if list.is_empty() {
@@ -518,7 +518,10 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         } else {
             verbose_leave();
         }
-        crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), saved_iobuff.as_bytes());
+        crate::memory::copy_bytes_to_c_buf(
+            &mut *g_st().iobuff_bytes_mut(),
+            saved_iobuff.as_bytes(),
+        );
     }
     drop(excp);
 }
@@ -532,23 +535,23 @@ pub fn discard_current_exception() {
 }
 
 fn catch_exception(excp: &std::rc::Rc<Except>) {
-    g_st().caught_stack.push(excp.clone());
+    g_st().caught_stack.borrow_mut().push(excp.clone());
     set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
     set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt());
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
             format_to_buf_safelen!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"%s, line %lld"),
                 &excp.throw_name,
                 i64::from(excp.throw_lnum),
             )
         } else {
-            format_to_buf_safelen!(&mut g_st().iobuff, c"%s", &excp.throw_name)
+            format_to_buf_safelen!(&mut *g_st().iobuff.borrow_mut(), c"%s", &excp.throw_name)
         };
         set_vim_var_string(
             VV_THROWPOINT,
-            Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
+            Some(g_st().iobuff_cstr()),
             iobufflen as isize,
         );
     } else {
@@ -583,30 +586,32 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
 }
 
 fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
-    if match (g_st().caught_stack.last(), excp.as_ref()) {
+    let mismatch = match (g_st().caught_stack.borrow().last(), excp.as_ref()) {
         (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
         _ => true,
-    } {
+    };
+    if mismatch {
         internal_error(c"finish_exception()");
     }
-    g_st().caught_stack.pop();
-    if let Some(top) = g_st().caught_stack.last() {
+    g_st().caught_stack.borrow_mut().pop();
+    let top = g_st().caught_stack.borrow().last().cloned();
+    if let Some(top) = top {
         set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
         set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt());
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
                 format_to_buf_safelen!(
-                    &mut g_st().iobuff,
+                    &mut *g_st().iobuff.borrow_mut(),
                     gettext(c"%s, line %lld"),
                     &top.throw_name,
                     i64::from(top.throw_lnum),
                 )
             } else {
-                format_to_buf_safelen!(&mut g_st().iobuff, c"%s", &top.throw_name)
+                format_to_buf_safelen!(&mut *g_st().iobuff.borrow_mut(), c"%s", &top.throw_name)
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
+                Some(g_st().iobuff_cstr()),
                 iobufflen as isize,
             );
         } else {
@@ -680,8 +685,12 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
                     _ => None,
                 };
                 let excp = excp_hold.as_ref().unwrap();
-                format_to_buf!(&mut g_st().iobuff, mesg, gettext(c"Exception"));
-                mesg_owned = Some(concat_str(g_st().iobuff_bytes(), b": %s"));
+                format_to_buf!(
+                    &mut *g_st().iobuff.borrow_mut(),
+                    mesg,
+                    gettext(c"Exception")
+                );
+                mesg_owned = Some(concat_str(&*g_st().iobuff_bytes(), b": %s"));
                 mesg = mesg_owned.as_deref().unwrap_or(c"");
                 excp.value.as_c_str()
             } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {
@@ -1484,7 +1493,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
             report_discard_pending(pending, PendingVal::None);
         }
 
-        if g_st().msg_list.is_some() {
+        if g_st().msg_list.borrow().is_some() {
             free_global_msglist();
         }
     } else {

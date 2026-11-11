@@ -289,7 +289,7 @@ pub fn add_to_history(histype: i32, new_entry: &[u8], in_map: bool, sep: i32) {
     }
     assert_ne!(histype, HIST_DEFAULT);
 
-    if (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
         return;
     }
 

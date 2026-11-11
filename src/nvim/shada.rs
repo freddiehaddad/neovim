@@ -1665,9 +1665,9 @@ fn shada_filename(file_arg: Option<&CStr>) -> Option<std::ffi::CString> {
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
-            let len = expand_env(file.unwrap_or(c""), g_st().name_buff_bytes_mut());
+            let len = expand_env(file.unwrap_or(c""), &mut *g_st().name_buff_bytes_mut());
             return Some(
-                std::ffi::CString::new(&g_st().name_buff_bytes_mut()[..len]).unwrap_or_default(),
+                std::ffi::CString::new(&g_st().name_buff.borrow()[..len]).unwrap_or_default(),
             );
         }
     }
@@ -2163,7 +2163,7 @@ fn shada_read_when_writing(
                         &mut wms.numbered_marks[u_idx - 26]
                     };
                     if mark.entry_type == ShadaEntryType::SDItemMissing
-                        && g_st().namedfm[u_idx].fmark.timestamp >= entry.timestamp
+                        && g_st().namedfm.borrow()[u_idx].fmark.timestamp >= entry.timestamp
                     {
                         shada_free_shada_entry(&mut entry);
                         continue;
@@ -3970,7 +3970,7 @@ fn shada_removable(name: &CStr) -> bool {
             let n = home_replace(
                 None,
                 Some(crate::memory::bytes_as_cstr(&part[1..])),
-                g_st().name_buff_bytes_mut(),
+                &mut *g_st().name_buff_bytes_mut(),
                 true,
             );
             if mb_strnicmp(g_st().name_buff_cstr().to_bytes(), new_name.as_bytes(), n) == 0 {

@@ -329,7 +329,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
             coladd: 0,
         },
     );
-    sb.visual = g_st().visual_global;
+    sb.visual = *g_st().visual_global.borrow();
     save_current_state(&mut sb.sst);
     save_search_patterns();
     save_redobuff(&mut sb.redo);
@@ -342,7 +342,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     ctx_load(&mut sb.primary, K_CTX_COUNT, 0);
     restore_redobuff(&mut sb.redo);
     restore_search_patterns();
-    g_st().visual_global = sb.visual;
+    *g_st().visual_global.borrow_mut() = sb.visual;
     restore_current_state(&mut sb.sst);
     let mut topline = INIT_POS;
     let mut topline_valid = false;
@@ -432,8 +432,8 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     }
 
     if atom_type == K_AVISUAL_SPAN {
-        g_st().visual_global.active = false;
-        g_st().visual_global.select = false;
+        g_st().visual_global.borrow_mut().active = false;
+        g_st().visual_global.borrow_mut().select = false;
     }
 
     if atom_type == K_AINSERT_SPAN {
@@ -458,15 +458,15 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         return;
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         if atom_type == K_AVISUAL_SPAN {
             curbuf_mut().b_visual = visualinfo();
             curbuf_mut()
                 .b_visual_mode_eval
-                .set(g_st().visual_global.mode);
+                .set(g_st().visual_global.borrow().mode);
         }
-        g_st().visual_global.active = false;
-        g_st().visual_global.select = false;
+        g_st().visual_global.borrow_mut().active = false;
+        g_st().visual_global.borrow_mut().select = false;
     }
 
     let wrote_regs = swap_regs && reg_max_ts(false) != regs_ts;
@@ -569,7 +569,7 @@ fn mc_cascade() {
 }
 
 pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
-    if (map_edit || (follow && map_moved && !g_st().visual_global.active))
+    if (map_edit || (follow && map_moved && !g_st().visual_global.borrow().active))
         && !atom_composite_queued()
         && with_atom(|st| st.g_atoms.borrow().is_empty())
         && atom_composite_active()
@@ -580,7 +580,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     if mc_buf_has_cursors(curbuf_mut()) && with_atom(|st| !st.g_atoms.borrow().is_empty()) {
         let has_edit =
             map_edit || with_atom(|st| st.g_atoms.borrow().iter().any(|a| a.r#type != K_AMOTION));
-        if has_edit || follow || g_st().visual_global.active {
+        if has_edit || follow || g_st().visual_global.borrow().active {
             mc_cascade();
         } else {
             with_atom(|st| st.g_atoms.borrow_mut().clear());
@@ -676,21 +676,21 @@ pub fn mc_ins_cascade_start(
 
 fn mc_ins_save_state() -> McInsSaved {
     let saved = McInsSaved {
-        ins: g_st().ins_global,
+        ins: *g_st().ins_global.borrow(),
         last_changedtick: curbuf_mut().b_last_changedtick.get(),
         last_changedtick_i: curbuf_mut().b_last_changedtick_i.get(),
     };
-    g_st().ins_global.did_ai = false;
-    g_st().ins_global.ai_col = 0;
-    g_st().ins_global.end_comment_pending = NUL;
-    g_st().ins_global.did_si = false;
-    g_st().ins_global.can_si = false;
-    g_st().ins_global.can_si_back = false;
+    g_st().ins_global.borrow_mut().did_ai = false;
+    g_st().ins_global.borrow_mut().ai_col = 0;
+    g_st().ins_global.borrow_mut().end_comment_pending = NUL;
+    g_st().ins_global.borrow_mut().did_si = false;
+    g_st().ins_global.borrow_mut().can_si = false;
+    g_st().ins_global.borrow_mut().can_si_back = false;
     saved
 }
 
 fn mc_ins_restore_state(saved: &McInsSaved) {
-    g_st().ins_global = saved.ins;
+    *g_st().ins_global.borrow_mut() = saved.ins;
     curbuf_mut().b_last_changedtick.set(saved.last_changedtick);
     curbuf_mut()
         .b_last_changedtick_i
@@ -839,8 +839,8 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     let saved = mc_ins_save_state();
     let mut primary: u32 = 0;
     mc_track_upd(curbuf_mut(), &mut primary, curwin_mut().w_cursor);
-    let save_cmod_flags = g_st().cmdmod.cmod_flags;
-    g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
+    let save_cmod_flags = g_st().cmdmod.borrow().cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_KEEPJUMPS;
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_TRUE_CONST);
     let regions = with_mc(|st| st.mc_ins_span.regions.borrow().clone());
     for region_id in regions {
@@ -852,7 +852,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
         mc_ins_preview_replace(rs, re, new_text);
     }
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_FALSE_CONST);
-    g_st().cmdmod.cmod_flags = save_cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags = save_cmod_flags;
     let mut pos = curwin_mut().w_cursor;
     if extmark_get_pos(curbuf_mut(), mc_session_ns(), primary, &mut pos) {
         curwin_mut().w_cursor = pos;
@@ -930,7 +930,7 @@ pub fn mc_ins_cascade() {
     });
 
     if first {
-        if !g_st().ins_global.did_ai && !ins.data.is_null() && ins.size > 0 {
+        if !g_st().ins_global.borrow().did_ai && !ins.data.is_null() && ins.size > 0 {
             let mut keys: Vec<u8> = Vec::new();
             let mut skip = 0;
             if let Some(vsel) = with_mc(|st| st.mc_ins_span.vsel.borrow_mut().take()) {
@@ -1176,17 +1176,17 @@ pub fn mc_vsel_refresh() {
         with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
         ctx_load(&mut ctx, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
         check_cursor(curwin_mut());
-        g_st().visual_global.active = false;
-        g_st().visual_global.select = false;
+        g_st().visual_global.borrow_mut().active = false;
+        g_st().visual_global.borrow_mut().select = false;
         nvim_feedkeys(span.clone(), cstr_as_string(Some(c"nix")), false);
-        if !g_st().visual_global.active {
+        if !g_st().visual_global.borrow().active {
             continue;
         }
-        let mut s = g_st().visual_global.start;
+        let mut s = g_st().visual_global.borrow().start;
         let mut e = curwin_mut().w_cursor;
-        let r_type: i32 = if g_st().visual_global.mode == b'V' as i32 {
+        let r_type: i32 = if g_st().visual_global.borrow().mode == b'V' as i32 {
             MT_LINE_WISE
-        } else if g_st().visual_global.mode == CTRL_V_CONST {
+        } else if g_st().visual_global.borrow().mode == CTRL_V_CONST {
             MT_BLOCK_WISE
         } else {
             MT_CHAR_WISE
@@ -1235,7 +1235,7 @@ pub fn mc_vsel_refresh() {
             true,
         );
         with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum.get()));
-        g_st().visual_global.active = false;
+        g_st().visual_global.borrow_mut().active = false;
     }
 
     g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
@@ -1370,8 +1370,8 @@ fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     curwin_mut().w_set_curswant.set(false);
     g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
-    let save_cmod_flags = g_st().cmdmod.cmod_flags;
-    g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
+    let save_cmod_flags = g_st().cmdmod.borrow().cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_KEEPJUMPS;
     atom_suppress(true);
     block_autocmds();
     block_on_key();
@@ -1384,7 +1384,7 @@ fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     unblock_on_key();
     unblock_autocmds();
     atom_suppress(false);
-    g_st().cmdmod.cmod_flags = save_cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags = save_cmod_flags;
     g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
     g_st().msg_silent.set(g_st().msg_silent.get() - (1));
     if failed {
@@ -1524,9 +1524,9 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
 }
 
 pub fn mc_zq_start(cap: &mut Cmdarg) {
-    cap.oap.from_visual = g_st().visual_global.active;
+    cap.oap.from_visual = g_st().visual_global.borrow().active;
     cap.oap.motion_type = MT_UNKNOWN;
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         atom_visual_reset();
         end_visual_mode();
         check_cursor_col(curwin_mut());

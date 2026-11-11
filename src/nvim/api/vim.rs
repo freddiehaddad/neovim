@@ -587,7 +587,11 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
         ins_typebuf(
             keys_cstr,
             if remap { REMAP_YES } else { REMAP_NONE },
-            if insert { 0 } else { g_st().typebuf.tb_len },
+            if insert {
+                0
+            } else {
+                g_st().typebuf.tb_len.get()
+            },
             !typed,
             false,
         );
@@ -1785,7 +1789,7 @@ pub fn nvim_put(
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let visual_was_active = g_st().visual_global.active;
+    let visual_was_active = g_st().visual_global.borrow().active;
     g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     do_put(
         b'_' as i32,
@@ -1795,7 +1799,7 @@ pub fn nvim_put(
         if follow { PUT_CURSEND } else { 0 },
     );
     g_st().msg_silent.set(g_st().msg_silent.get() - (1));
-    g_st().visual_global.active = visual_was_active;
+    g_st().visual_global.borrow_mut().active = visual_was_active;
     try_leave(&tstate, err);
 }
 
@@ -2627,7 +2631,7 @@ pub fn nvim_get_mark(
     let mut filename: Option<&CStr> = if mark.fmark.fnum != 0 {
         owned_filename.as_deref()
     } else {
-        (*mark).fname_cstr()
+        mark.fname_cstr()
     };
 
     let exists = filename.is_some();

@@ -1074,13 +1074,20 @@ fn decor_spell_nav_col(
     col: i32,
 ) -> TriState {
     if *decor_lnum != lnum {
-        decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+        decor_redraw_reset(&mut *wp, &mut g_st().decor_state.borrow_mut());
         decor_providers_invoke_spell(&mut *wp, lnum - 1, col, lnum - 1, -1);
-        decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state);
+        decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state.borrow_mut());
         *decor_lnum = lnum;
     }
-    decor_redraw_col(&mut *wp, col, 0, false, &mut g_st().decor_state, MAXCOL);
-    g_st().decor_state.spell
+    decor_redraw_col(
+        &mut *wp,
+        col,
+        0,
+        false,
+        &mut g_st().decor_state.borrow_mut(),
+        MAXCOL,
+    );
+    g_st().decor_state.borrow().spell
 }
 #[inline]
 fn can_syn_spell(wp: &mut WinInfoInfo, lnum: Linenr, col: i32) -> bool {
@@ -1115,7 +1122,7 @@ pub fn spell_move_to(
     let mut ret: usize = 0;
     let mut lnum = wp.w_cursor.lnum;
     let saved_decor_start = std::mem::replace(
-        &mut g_st().decor_state,
+        &mut *g_st().decor_state.borrow_mut(),
         crate::decoration::DecorState::new(),
     );
     let mut decor_lnum: Linenr = -1;
@@ -1269,7 +1276,7 @@ pub fn spell_move_to(
             line_breakcheck();
         }
     }
-    g_st().decor_state = saved_decor_start;
+    *g_st().decor_state.borrow_mut() = saved_decor_start;
     ret
 }
 pub fn spell_cat_line(buf: &mut [u8], line: &[u8]) {
@@ -2748,11 +2755,11 @@ pub fn spell_dump_compl(
         && pat.is_none()
     {
         format_to_buf!(
-            g_st().iobuff_bytes_mut(),
+            &mut *g_st().iobuff_bytes_mut(),
             c"/regions=%s",
             crate::memory::bytes_as_cstr(rn),
         );
-        let _ = ml_append(lnum, g_st().iobuff_bytes(), 0, false);
+        let _ = ml_append(lnum, &*g_st().iobuff_bytes(), 0, false);
         lnum += 1;
     } else {
         do_region = false;
@@ -2764,11 +2771,11 @@ pub fn spell_dump_compl(
         }
         if pat.is_none() {
             format_to_buf!(
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 c"# file: %s",
                 slang.sl_fname.as_deref().unwrap_or(c""),
             );
-            let _ = ml_append(lnum, g_st().iobuff_bytes(), 0, false);
+            let _ = ml_append(lnum, &*g_st().iobuff_bytes(), 0, false);
             lnum += 1;
         }
         let patlen: isize = if let Some(pat_cstr) = pat
@@ -2950,7 +2957,7 @@ fn dump_word(
             && let Some(&wc_count) = slang.sl_wordcount.borrow().get(tw_cstr.to_bytes())
         {
             format_to_buf!(
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 c"%s\t%d",
                 tw_cstr,
                 wc_count as i32,

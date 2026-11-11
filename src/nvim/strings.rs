@@ -2546,11 +2546,14 @@ pub fn format_to_buf_safelen_fmt(
 #[macro_export]
 macro_rules! format_to_buf {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::format_to_buf_fmt(
-            $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-        )
+        match (
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+            [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        ) {
+            (ref fmt_val, ref args_val) => {
+                $crate::strings::format_to_buf_fmt($str_out, fmt_val.as_cstr(), args_val)
+            }
+        }
     };
 }
 pub use format_to_buf;
@@ -2558,11 +2561,14 @@ pub use format_to_buf;
 #[macro_export]
 macro_rules! format_to_buf_add {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::format_to_buf_add_fmt(
-            $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-        )
+        match (
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+            [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        ) {
+            (ref fmt_val, ref args_val) => {
+                $crate::strings::format_to_buf_add_fmt($str_out, fmt_val.as_cstr(), args_val)
+            }
+        }
     };
 }
 pub use format_to_buf_add;
@@ -2570,11 +2576,14 @@ pub use format_to_buf_add;
 #[macro_export]
 macro_rules! format_to_buf_safelen {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::format_to_buf_safelen_fmt(
-            $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-        )
+        match (
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
+            [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        ) {
+            (ref fmt_val, ref args_val) => {
+                $crate::strings::format_to_buf_safelen_fmt($str_out, fmt_val.as_cstr(), args_val)
+            }
+        }
     };
 }
 use crate::cmdexpand::MB_MAXBYTES;

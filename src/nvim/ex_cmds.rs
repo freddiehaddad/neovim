@@ -373,7 +373,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
         if let Some(dig) = get_digraph_for_char(cval) {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s"),
                 transchar(c),
                 &buf1,
@@ -385,7 +385,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
             );
         } else {
             format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o"),
                 transchar(c),
                 &buf1,
@@ -432,14 +432,21 @@ pub fn do_ascii(_eap: &mut Exarg) {
             } else {
                 gettext(c"> %d, Hex %08x, Oct %o, Digr %s")
             };
-            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c, &dig,);
+            format_to_buf!(
+                &mut g_st().iobuff.borrow_mut()[iobuff_len..],
+                fmt,
+                c,
+                c,
+                c,
+                &dig,
+            );
         } else {
             let fmt = if c < 0x10000 {
                 gettext(c"> %d, Hex %04x, Octal %o")
             } else {
                 gettext(c"> %d, Hex %08x, Octal %o")
             };
-            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c);
+            format_to_buf!(&mut g_st().iobuff.borrow_mut()[iobuff_len..], fmt, c, c, c);
         }
 
         msg_multiline(
@@ -1240,7 +1247,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
                 }
             }
         }
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
             curbuf_mut().b_op_start.lnum = dest - num_lines + 1;
             curbuf_mut().b_op_end.lnum = dest;
         }
@@ -1255,12 +1262,12 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
                 }
             }
         }
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
             curbuf_mut().b_op_start.lnum = dest + 1;
             curbuf_mut().b_op_end.lnum = dest + num_lines;
         }
     }
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_end.col = 0;
         curbuf_mut().b_op_start.col = 0;
     }
@@ -1341,7 +1348,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 /// `":copy"`.
 pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
     let count = line2 - line1 + 1;
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start.lnum = n + 1;
         curbuf_mut().b_op_end.lnum = n + count;
         curbuf_mut().b_op_end.col = 0;
@@ -1371,8 +1378,8 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
     }
 
     appended_lines_mark(n, count);
-    if g_st().visual_global.active {
-        check_pos(curbuf_mut(), &mut g_st().visual_global.start);
+    if g_st().visual_global.borrow().active {
+        check_pos(curbuf_mut(), &mut g_st().visual_global.borrow_mut().start);
     }
 
     msgmore(count);
@@ -1521,8 +1528,8 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
         return;
     }
 
-    let save_cmod_flags = g_st().cmdmod.cmod_flags;
-    g_st().cmdmod.cmod_flags &= !CMOD_LOCKMARKS;
+    let save_cmod_flags = g_st().cmdmod.borrow().cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags &= !CMOD_LOCKMARKS;
 
     let cursor_save = curwin_mut().w_cursor;
     let mut linecount = line2 - line1 + 1;
@@ -1658,7 +1665,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                 }
 
                 if do_in {
-                    if (g_st().cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
+                    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPMARKS) != 0
                         || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REMMARK)
                     {
                         if read_linecount >= linecount {
@@ -1704,12 +1711,11 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                 if (linecount as OptInt) > opt_vars().p_report.get() {
                     if do_in {
                         format_to_buf!(
-                            &mut g_st().msg_buf,
+                            &mut *g_st().msg_buf.borrow_mut(),
                             gettext(c"%lld lines filtered"),
                             linecount as i64,
                         );
-                        let msg_cstr =
-                            crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
+                        let msg_cstr = g_st().msg_buf_cstr();
                         if msg(msg_cstr, 0) && g_st().msg_scroll.get() == 0 {
                             set_keep_msg(Some(msg_cstr), 0);
                         }
@@ -1730,13 +1736,13 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
     }
 
     // filterend:
-    g_st().cmdmod.cmod_flags = save_cmod_flags;
+    g_st().cmdmod.borrow_mut().cmod_flags = save_cmod_flags;
     if g_st().curbuf.get() != old_curbuf {
         g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
         emsg(gettext(
             c"E135: *Filter* Autocommands must not change current buffer",
         ));
-    } else if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+    } else if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0 {
         curbuf_mut().b_op_start = orig_start;
         curbuf_mut().b_op_end = orig_end;
     }
@@ -2004,7 +2010,7 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
             0,
         ));
         if let Some(b) = buf.opt()
-            && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+            && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
         {
             curwin_mut().w_alt_fnum.set(b.b_fnum.get());
         }
@@ -2148,7 +2154,9 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 && !eap.append
                 && !opt_vars().p_wa.get()
             {
-                if opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm.get()
+                    || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0
+                {
                     if vim_dialog_yesno(VIM_QUESTION, None, gettext(c"Write partial file?"), 2)
                         != VIM_YES
                     {
@@ -2256,7 +2264,8 @@ pub fn check_overwrite(
                 semsg!(gettext(E_ISADIR2), ffname_cstr);
                 return false;
             }
-            if opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+            if opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0
+            {
                 let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                 format_to_buf!(
                     &mut buff,
@@ -2288,7 +2297,9 @@ pub fn check_overwrite(
             if let Some(swapname) = makeswapname(fname_opt, crate::memory::bytes_as_cstr(&dir))
                 && os_path_exists(&swapname)
             {
-                if opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm.get()
+                    || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0
+                {
                     let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                     format_to_buf!(
                         &mut buff,
@@ -2417,7 +2428,7 @@ fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
         && (buf.b_p_ro.get()
             || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
     {
-        if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
             && buf.fname_opt().is_some()
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
@@ -2684,7 +2695,7 @@ pub fn do_ecmd(
             let prev_alt_fnum = curwin_mut().w_alt_fnum.get();
 
             if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) == 0 {
-                if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
+                if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0 {
                     curwin_mut().w_alt_fnum.set(curbuf_mut().b_fnum.get());
                 }
                 if let Some(ow) = oldwin.opt_mut() {
@@ -3304,7 +3315,7 @@ pub fn ex_append(eap: &mut Exarg) {
         curbuf_mut().b_p_ai.set(!curbuf_mut().b_p_ai.get());
     }
 
-    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start.lnum = if eap.line2 < curbuf_mut().b_ml.ml_line_count.get() {
             eap.line2 + 1
         } else {
@@ -3753,7 +3764,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let old_line_count = curbuf_mut().b_ml.ml_line_count.get();
     let mut sub_firstline: SubBuf;
     let mut endcolumn = false;
-    let keeppatterns = (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0;
+    let keeppatterns = (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0;
     let mut preview_lines = PreviewLines {
         subresults: Vec::new(),
         lines_needed: 0,
@@ -4175,7 +4186,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                             );
                             format_to_buf!(
-                                &mut g_st().iobuff,
+                                &mut *g_st().iobuff.borrow_mut(),
                                 p_fmt,
                                 sub_owned.as_deref().unwrap_or(c""),
                             );
@@ -4659,7 +4670,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     }
 
     if g_st().sub_nsubs.get() > start_nsubs {
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
             curbuf_mut().b_op_start.lnum = eap.line1;
             curbuf_mut().b_op_end.lnum = line2;
             curbuf_mut().b_op_end.col = 0;
@@ -4756,11 +4767,11 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     {
         if g_st().got_int.get() {
             crate::memory::copy_bytes_to_c_buf(
-                g_st().msg_buf_bytes_mut(),
+                &mut *g_st().msg_buf_bytes_mut(),
                 gettext(c"(Interrupted) ").to_bytes(),
             );
         } else {
-            g_st().msg_buf[0] = 0;
+            g_st().msg_buf.borrow_mut()[0] = 0;
         }
 
         let msg_single = if count_only {
@@ -4790,12 +4801,12 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             )
         };
         format_to_buf_add!(
-            &mut g_st().msg_buf,
+            &mut *g_st().msg_buf.borrow_mut(),
             ngettext(msg_single, msg_plural, g_st().sub_nlines.get() as u64),
             g_st().sub_nsubs.get() as i64,
             g_st().sub_nlines.get() as i64,
         );
-        let msg_cstr = crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
+        let msg_cstr = g_st().msg_buf_cstr();
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
         }
@@ -5275,11 +5286,6 @@ pub fn skip_vimgrep_pat<'a>(
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
 pub fn ex_oldfiles(eap: &mut Exarg) {
-    nlua_call_excmd(
-        c"vim._core.ex_cmd",
-        c"ex_oldfiles",
-        eap,
-        &g_st().cmdmod,
-        None,
-    );
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_oldfiles", eap, &cmod, None);
 }

@@ -69,6 +69,7 @@ const E_NOTSUBMENU: &CStr = c"E327: Part of menu-item path is not sub-menu";
 const E_NOMENU: &CStr = c"E329: No menu \"%s\"";
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct Vimmenu {
     pub modes: i32,
     pub enabled: i32,
@@ -194,15 +195,16 @@ thread_local! {
     };
 }
 
-fn expand_menu_slice() -> Option<&'static [Vimmenu]> {
+fn expand_menu_slice() -> Option<Vec<Vimmenu>> {
     EXPAND_MENU_PATH.with(|cell| {
         let path = cell.borrow();
         let path = path.as_ref()?;
-        let mut list: &[Vimmenu] = &g_st().borrow_mut().root_menu;
+        let root = g_st().root_menu.borrow();
+        let mut list: &[Vimmenu] = &root;
         for &idx in path {
             list = &list.get(idx)?.children;
         }
-        Some(list)
+        Some(list.to_vec())
     })
 }
 
@@ -211,10 +213,6 @@ use crate::eval::typval::tv_dict_len;
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
 fn menu_is_winbar(name: &[u8]) -> bool {
     name.starts_with(b"WinBar")
-}
-
-fn get_root_menu() -> &'static mut Vec<Vimmenu> {
-    &mut g_st().borrow_mut().root_menu
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
@@ -366,11 +364,21 @@ pub fn ex_menu(eap: &mut Exarg) {
             for idx in 0..MENU_INDEX_TIP {
                 if (modes & (1 << idx)) != 0 {
                     let p = popup_mode_name(menu_path.to_bytes(), idx as usize);
-                    menu_enable_recurse(get_root_menu(), p.as_c_str(), MENU_ALL_MODES, enable != 0);
+                    menu_enable_recurse(
+                        &mut g_st().root_menu.borrow_mut(),
+                        p.as_c_str(),
+                        MENU_ALL_MODES,
+                        enable != 0,
+                    );
                 }
             }
         }
-        menu_enable_recurse(get_root_menu(), menu_path, modes, enable != 0);
+        menu_enable_recurse(
+            &mut g_st().root_menu.borrow_mut(),
+            menu_path,
+            modes,
+            enable != 0,
+        );
     } else if unmenu {
         if is_menus_locked() {
             return;
@@ -384,12 +392,17 @@ pub fn ex_menu(eap: &mut Exarg) {
             for idx in 0..MENU_INDEX_TIP {
                 if (modes & (1 << idx)) != 0 {
                     let p = popup_mode_name(menu_path.to_bytes(), idx as usize);
-                    remove_menu(get_root_menu(), p.as_c_str(), MENU_ALL_MODES, true);
+                    remove_menu(
+                        &mut g_st().root_menu.borrow_mut(),
+                        p.as_c_str(),
+                        MENU_ALL_MODES,
+                        true,
+                    );
                 }
             }
         }
 
-        remove_menu(get_root_menu(), menu_path, modes, false);
+        remove_menu(&mut g_st().root_menu.borrow_mut(), menu_path, modes, false);
     } else {
         if is_menus_locked() {
             return;
@@ -452,7 +465,7 @@ fn add_menu_path(
 
     let cleanup_erret = |ancestor_stack: &[usize]| -> bool {
         for depth in (0..ancestor_stack.len()).rev() {
-            let mut mp_ref = &mut g_st().root_menu;
+            let mut mp_ref = &mut *g_st().root_menu.borrow_mut();
             for &idx in &ancestor_stack[..depth] {
                 mp_ref = &mut mp_ref[idx].children;
             }
@@ -485,7 +498,7 @@ fn add_menu_path(
         let next_is_empty = path_name_vec.get(next_off).is_none_or(|&b| b == 0);
         let mut lower_pri_idx: usize = 0;
         let mut found_idx: Option<usize> = None;
-        let mut menup_vec = &mut g_st().root_menu;
+        let mut menup_vec = &mut *g_st().root_menu.borrow_mut();
         for &idx in &ancestor_stack {
             menup_vec = &mut menup_vec[idx].children;
         }
@@ -568,7 +581,7 @@ fn add_menu_path(
     }
 
     if !ancestor_stack.is_empty() && modes != 0 {
-        let mut menup_vec = &mut g_st().root_menu;
+        let mut menup_vec = &mut *g_st().root_menu.borrow_mut();
         for &idx in &ancestor_stack[..ancestor_stack.len() - 1] {
             menup_vec = &mut menup_vec[idx].children;
         }
@@ -826,9 +839,9 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<crate::eval:
 
 /// Export menus matching path `path_name` (`menu_get`).
 pub fn menu_get(path_name: &CStr, modes: i32, list: &TvList) -> bool {
-    let root = get_root_menu();
+    let mut root = g_st().root_menu.borrow().clone();
     if !path_name.is_empty() {
-        let Some(menu) = find_menu(root, path_name, modes) else {
+        let Some(menu) = find_menu(&mut root, path_name, modes) else {
             return false;
         };
         if let Some(d) = menu_get_recursive(Some(menu), modes)
@@ -893,9 +906,10 @@ fn find_menu<'a>(
 
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
 fn show_menus(path_name: &CStr, modes: i32) -> bool {
+    let mut root = g_st().root_menu.borrow().clone();
     let mut menu: Option<&mut Vimmenu> = None;
     if !path_name.is_empty() {
-        let Some(m) = find_menu(get_root_menu(), path_name, modes) else {
+        let Some(m) = find_menu(&mut root, path_name, modes) else {
             return false;
         };
         menu = Some(m);
@@ -903,13 +917,24 @@ fn show_menus(path_name: &CStr, modes: i32) -> bool {
 
     MENU_STATE.with(|s| s.menus_locked.set(s.menus_locked.get() + (1)));
     msg_puts_title(gettext(c"\n--- Menus ---"));
-    show_menus_recursive(menu, modes, 0);
+    if menu.is_some() {
+        show_menus_recursive(menu, modes, 0);
+    } else {
+        for child in &mut root {
+            if g_st().got_int.get() {
+                break;
+            }
+            if !menu_is_hidden(child.dname.as_bytes()) {
+                show_menus_recursive(Some(child), modes, 0);
+            }
+        }
+    }
     MENU_STATE.with(|s| s.menus_locked.set(s.menus_locked.get() - (1)));
     true
 }
 
 /// Recursively show the mappings associated with the menus under the given one (`show_menus_recursive`).
-fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i32) {
+fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, depth: i32) {
     if menu.is_some() && (menu.as_deref_mut().unwrap().modes & modes) == 0 {
         return;
     }
@@ -972,15 +997,8 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
                 }
             }
         }
-    } else {
-        let children = if let Some(menu) = menu {
-            menu.children.as_mut_slice()
-        } else {
-            depth -= 1;
-            g_st().borrow_mut().root_menu.as_mut_slice()
-        };
-
-        for child in children {
+    } else if let Some(menu) = menu {
+        for child in &mut menu.children {
             if g_st().got_int.get() {
                 break;
             }
@@ -1057,7 +1075,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
             MENU_STATE.with(|s| s.expand_modes.set(MENU_ALL_MODES));
         }
 
-        let mut menu_list: &[Vimmenu] = &g_st().root_menu;
+        let mut menu_list: &[Vimmenu] = &g_st().root_menu.borrow();
         let mut menu_path: Vec<usize> = Vec::new();
         if after_dot_idx > arg_start_idx {
             let path_len = after_dot_idx - arg_start_idx;
@@ -1130,12 +1148,14 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let str_res = if (menu.modes & MENU_STATE.with(|s| s.expand_modes.get())) != 0 {
         if MENU_STATE.with(|s| s.get_menu_name_advance.get()) {
-            menu.en_dname.as_deref()
+            menu.en_dname
+                .as_deref()
+                .map(crate::option_vars::intern_opt_cstr)
         } else {
             if menu.en_dname.is_none() {
                 MENU_STATE.with(|s| s.get_menu_name_advance.set(true));
             }
-            Some(menu.dname.as_c_str())
+            Some(crate::option_vars::intern_opt_cstr(menu.dname.as_c_str()))
         }
     } else {
         Some(c"")
@@ -1200,12 +1220,14 @@ pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 
             Some(xp.set_item(crate::memory::bytes_as_cstr(&tbuf).to_owned()))
         } else if MENU_STATE.with(|s| s.get_menu_names_advance.get()) {
-            menu.en_dname.as_deref()
+            menu.en_dname
+                .as_deref()
+                .map(crate::option_vars::intern_opt_cstr)
         } else {
             if menu.en_dname.is_none() {
                 MENU_STATE.with(|s| s.get_menu_names_advance.set(true));
             }
-            Some(menu.dname.as_c_str())
+            Some(crate::option_vars::intern_opt_cstr(menu.dname.as_c_str()))
         }
     } else {
         Some(c"")
@@ -1450,8 +1472,8 @@ fn get_menu_mode() -> i32 {
     if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         return MENU_INDEX_TERMINAL;
     }
-    if g_st().visual_global.active {
-        if g_st().visual_global.select {
+    if g_st().visual_global.borrow().active {
+        if g_st().visual_global.borrow().select {
             return MENU_INDEX_SELECT;
         }
         return MENU_INDEX_VISUAL;
@@ -1504,7 +1526,7 @@ pub fn show_popupmenu() {
 
     let mut found_idx: Option<usize> = None;
     let mode_bytes = mode_cstr.to_bytes();
-    for (idx, m) in g_st().root_menu.iter().enumerate() {
+    for (idx, m) in g_st().root_menu.borrow().iter().enumerate() {
         if let Some(after) = m.name.as_bytes().strip_prefix(b"PopUp")
             && after.starts_with(mode_bytes)
         {
@@ -1516,15 +1538,16 @@ pub fn show_popupmenu() {
     let Some(idx) = found_idx else {
         return;
     };
-    if g_st().root_menu[idx].children.is_empty() {
+    if g_st().root_menu.borrow()[idx].children.is_empty() {
         return;
     }
 
-    pum_show_popupmenu(&mut g_st().root_menu[idx]);
+    let mut m = g_st().root_menu.borrow()[idx].clone();
+    pum_show_popupmenu(&mut m);
 }
 
 /// Execute `menu` (`execute_menu`).
-pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
+pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
     let mut idx = mode_idx;
 
     if idx < 0 {
@@ -1545,14 +1568,14 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
             if curbuf_mut().b_visual.vi_start.lnum == eap.line1
                 && curbuf_mut().b_visual.vi_end.lnum == eap.line2
             {
-                g_st().visual_global.mode = curbuf_mut().b_visual.vi_mode;
+                g_st().visual_global.borrow_mut().mode = curbuf_mut().b_visual.vi_mode;
                 tpos = curbuf_mut().b_visual.vi_end;
                 curwin_mut().w_cursor = curbuf_mut().b_visual.vi_start;
                 curwin_mut()
                     .w_curswant
                     .set(curbuf_mut().b_visual.vi_curswant);
             } else {
-                g_st().visual_global.mode = b'V' as i32;
+                g_st().visual_global.borrow_mut().mode = b'V' as i32;
                 curwin_mut().w_cursor.lnum = eap.line1;
                 curwin_mut().w_cursor.col = 1;
                 tpos = CursorPos {
@@ -1562,10 +1585,10 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
                 };
             }
 
-            g_st().visual_global.active = true;
-            g_st().visual_global.reselect = 1;
+            g_st().visual_global.borrow_mut().active = true;
+            g_st().visual_global.borrow_mut().reselect = 1;
             check_cursor(curwin_mut());
-            g_st().visual_global.start = curwin_mut().w_cursor;
+            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
             curwin_mut().w_cursor = tpos;
 
             check_cursor(curwin_mut());
@@ -1609,9 +1632,10 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
 }
 
 /// Lookup a menu by the descriptor name e.g. `"File.New"` (`menu_getbyname`).
-fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
+fn menu_getbyname(name_arg: &CStr) -> Option<Vimmenu> {
     let mut saved_name_vec: Vec<u8> = name_arg.to_bytes_with_nul().to_vec();
-    let mut menus: &'static mut [Vimmenu] = get_root_menu().as_mut_slice();
+    let root = g_st().root_menu.borrow().clone();
+    let mut menus: &[Vimmenu] = root.as_slice();
     let mut name_off = 0usize;
     let mut gave_emsg = false;
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
@@ -1620,7 +1644,7 @@ fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
         let p_is_empty = saved_name_vec.get(p_off).is_none_or(|&b| b == 0);
         let mut found_idx: Option<usize> = None;
 
-        for (idx, menu) in menus.iter_mut().enumerate() {
+        for (idx, menu) in menus.iter().enumerate() {
             if menu_name_equal(cur_bytes, menu) {
                 if p_is_empty && !menu.children.is_empty() {
                     emsg(gettext(c"E333: Menu path must lead to a menu item"));
@@ -1637,9 +1661,9 @@ fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
             break;
         };
         if p_is_empty {
-            return Some(&mut menus[idx]);
+            return Some(menus[idx].clone());
         }
-        menus = menus[idx].children.as_mut_slice();
+        menus = menus[idx].children.as_slice();
         name_off = p_off;
     }
     drop(saved_name_vec);
@@ -1678,12 +1702,13 @@ pub fn ex_emenu(eap: &mut Exarg) {
         return;
     };
 
-    execute_menu(eap, menu, mode_idx);
+    execute_menu(eap, &menu, mode_idx);
 }
 
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
-pub fn menu_find(path_name: &CStr) -> Option<&'static mut Vimmenu> {
-    let mut menus: &'static mut [Vimmenu] = get_root_menu().as_mut_slice();
+pub fn menu_find(path_name: &CStr) -> Option<Vimmenu> {
+    let root = g_st().root_menu.borrow().clone();
+    let mut menus: &[Vimmenu] = root.as_slice();
     let mut saved_name_vec: Vec<u8> = path_name.to_bytes_with_nul().to_vec();
     let mut name_off = 0usize;
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
@@ -1710,10 +1735,10 @@ pub fn menu_find(path_name: &CStr) -> Option<&'static mut Vimmenu> {
             break;
         };
         if p_is_empty {
-            return Some(&mut menus[idx]);
+            return Some(menus[idx].clone());
         }
 
-        menus = menus[idx].children.as_mut_slice();
+        menus = menus[idx].children.as_slice();
         name_off = p_off;
     }
 
@@ -1934,7 +1959,8 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     let modes = get_menu_cmd_modes(which, which.to_bytes().first() == Some(&b'!'), None, None);
 
-    let mut menus: &[Vimmenu] = get_root_menu().as_slice();
+    let root = g_st().root_menu.borrow().clone();
+    let mut menus: &[Vimmenu] = root.as_slice();
     if menu_name.is_empty() {
         if !menus.is_empty() && (menus[0].modes & modes) != 0 {
             let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);

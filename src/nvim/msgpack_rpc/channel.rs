@@ -229,7 +229,10 @@ pub fn channel_outstream_mut(chan: &mut Channel) -> &mut RStream {
 
 #[inline]
 pub fn find_channel(id: u64) -> Option<&'static mut Channel> {
-    g_st().borrow_mut().channels.get_mut(&id).map(Box::as_mut)
+    crate::event::r#loop::main_loop_ptr()
+        .channels
+        .get_mut(&id)
+        .map(Box::as_mut)
 }
 
 #[inline]
@@ -748,13 +751,17 @@ fn send_error(
 }
 
 fn broadcast_event(name: &CStr, args: Array) {
-    if g_st().channels.values().any(|ch| ch.is_rpc) {
+    if crate::event::r#loop::main_loop_ptr()
+        .channels
+        .values()
+        .any(|ch| ch.is_rpc)
+    {
         serialize_request(0, 0, name, args);
     }
 }
 
 fn has_undetached_rpc_chan() -> bool {
-    for chan in g_st().channels.values() {
+    for chan in crate::event::r#loop::main_loop_ptr().channels.values() {
         if chan.is_rpc && !chan.rpc.closed.get() && !chan.detach {
             return true;
         }
@@ -917,7 +924,7 @@ fn packer_buffer_init_channels(chan_id: u64, packer: &mut PackerBuffer) {
             remote_ui_flush_if_incomplete(ct.id);
         }
     } else {
-        let rpc_ids: Vec<u64> = g_st()
+        let rpc_ids: Vec<u64> = crate::event::r#loop::main_loop_ptr()
             .channels
             .values()
             .filter_map(|ch| ch.is_rpc.then_some(ch.id))
@@ -949,7 +956,7 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
                 let _ = channel_write(chan, buf);
             }
         } else {
-            let rpc_chan_ids: Vec<u64> = g_st()
+            let rpc_chan_ids: Vec<u64> = crate::event::r#loop::main_loop_ptr()
                 .channels
                 .values()
                 .filter(|ch| ch.is_rpc)

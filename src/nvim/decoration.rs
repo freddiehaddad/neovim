@@ -768,7 +768,7 @@ pub fn decor_free(decor: DecorInline) {
     let vt = ext.vt;
     let mut idx = ext.sh_idx;
 
-    if g_st().decor_state.running_decor_provider {
+    if g_st().decor_state.borrow().running_decor_provider {
         if !vt.is_null() {
             TO_FREE_VIRT.with(|cell| cell.borrow_mut().push(vt));
         }
@@ -810,10 +810,14 @@ fn decor_free_sh(first_idx: u32) {
 }
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
-    if let Some(win) = g_st().decor_state.win.opt()
-        && win.w_buffer.get() == buf
-    {
-        g_st().decor_state.itr_valid = false;
+    let same_buf = g_st()
+        .decor_state
+        .borrow()
+        .win
+        .opt()
+        .is_some_and(|win| win.w_buffer.get() == buf);
+    if same_buf {
+        g_st().decor_state.borrow_mut().itr_valid = false;
     }
 }
 
@@ -865,13 +869,13 @@ pub fn decor_extconceal_char(
 }
 
 pub fn decor_check_to_be_deleted() {
-    assert!(!g_st().decor_state.running_decor_provider);
+    assert!(!g_st().decor_state.borrow().running_decor_provider);
     while let Some(vt) = TO_FREE_VIRT.with(|cell| cell.borrow_mut().pop()) {
         decor_free_vt(vt);
     }
     decor_free_sh(DECOR_MOD_STATE.with(|s| s.to_free_sh.get()));
     DECOR_MOD_STATE.with(|s| s.to_free_sh.set(DECOR_ID_INVALID));
-    g_st().decor_state.win = crate::globals::WinPtr::NULL;
+    g_st().decor_state.borrow_mut().win = crate::globals::WinPtr::NULL;
 }
 
 pub fn decor_check_invalid_glyphs() {

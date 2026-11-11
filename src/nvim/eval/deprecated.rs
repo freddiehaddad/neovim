@@ -134,22 +134,22 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         g_st()
             .current_sctx
-            .set(g_st().provider_caller_scope.script_ctx);
-        let es_entry = g_st().provider_caller_scope.es_entry.clone();
+            .set(g_st().provider_caller_scope.borrow().script_ctx);
+        let es_entry = g_st().provider_caller_scope.borrow().es_entry.clone();
         crate::runtime::estack_push_entry(es_entry);
         g_st()
             .autocmd_fname
-            .set(g_st().provider_caller_scope.autocmd_fname.clone());
+            .set(g_st().provider_caller_scope.borrow().autocmd_fname.clone());
         g_st()
             .autocmd_match
-            .set(g_st().provider_caller_scope.autocmd_match.clone());
+            .set(g_st().provider_caller_scope.borrow().autocmd_match.clone());
         g_st()
             .autocmd_fname_full
-            .set(g_st().provider_caller_scope.autocmd_fname_full);
+            .set(g_st().provider_caller_scope.borrow().autocmd_fname_full);
         g_st()
             .autocmd_bufnr
-            .set(g_st().provider_caller_scope.autocmd_bufnr);
-        set_current_funccal(g_st().provider_caller_scope.funccalp);
+            .set(g_st().provider_caller_scope.borrow().autocmd_bufnr);
+        set_current_funccal(g_st().provider_caller_scope.borrow().funccalp);
     }
 
     let mut err = Error::new();

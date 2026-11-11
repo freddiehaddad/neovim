@@ -1553,7 +1553,7 @@ pub fn call_user_func(
                 if !eval1(
                     &mut default_expr,
                     &mut def_rettv,
-                    Some(&mut g_st().evalarg_evaluate),
+                    Some(&mut crate::eval::vars::Evalarg { eval_flags: 1 }),
                 ) {
                     default_arg_err = true;
                     break;
@@ -1695,11 +1695,13 @@ pub fn call_user_func(
         g_st()
             .ex_nesting_level
             .set(g_st().ex_nesting_level.get() + (1));
+        let mut fc_rv = std::mem::take(&mut *fc.fc_rettv.borrow_mut());
         eval1(
             &mut p,
-            &mut fc.fc_rettv.borrow_mut(),
-            Some(&mut g_st().evalarg_evaluate),
+            &mut fc_rv,
+            Some(&mut crate::eval::vars::Evalarg { eval_flags: 1 }),
         );
+        *fc.fc_rettv.borrow_mut() = fc_rv;
         g_st()
             .ex_nesting_level
             .set(g_st().ex_nesting_level.get() - (1));
@@ -3610,7 +3612,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             return Some(c"");
         }
 
-        let len = cat_func_name(g_st().iobuff_bytes_mut(), &fp);
+        let len = cat_func_name(&mut *g_st().iobuff_bytes_mut(), &fp);
         if xp.xp_context != EXPAND_USER_FUNC && fp.uf_namelen + 4 < IOSIZE {
             crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
             if fp.uf_varargs.get() == 0 && fp.uf_args.borrow().is_empty() {
@@ -3860,7 +3862,7 @@ fn ex_call_inner<'a>(
             arg,
             startarg,
             &mut rettv,
-            Some(&mut g_st().evalarg_evaluate),
+            Some(&mut crate::eval::vars::Evalarg { eval_flags: 1 }),
             true,
         ) {
             failed = true;
@@ -4203,7 +4205,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
     let s_bytes = tofree.as_ref().map_or(&[][..], |tf| tf.as_bytes());
     let slen = s_bytes.len();
 
-    crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
+    crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), b":return ");
     crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[8..], s_bytes);
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {

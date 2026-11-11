@@ -120,9 +120,9 @@ pub fn exec_impl(
     let save_msg_col = g_st().msg_col.get();
     let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
-        g_st().capture_ga = Some(Vec::new());
+        *g_st().capture_ga.borrow_mut() = Some(Vec::new());
     } else {
-        g_st().capture_ga = save_capture_ga.take();
+        *g_st().capture_ga.borrow_mut() = save_capture_ga.take();
     }
 
     let mut tstate = TryState::new();
@@ -136,8 +136,10 @@ pub fn exec_impl(
     let save_current_sctx = api_set_sctx(channel_id);
     do_source_str(src.as_cstr(), c"nvim_exec2()");
     if opts.output {
-        capture_local =
-            std::mem::replace(&mut g_st().capture_ga, save_capture_ga).unwrap_or_default();
+        capture_local = g_st()
+            .capture_ga
+            .replace(save_capture_ga)
+            .unwrap_or_default();
         g_st().msg_silent.set(save_msg_silent);
         g_st().redir_off.set(save_redir_off);
         g_st().msg_col.set(save_msg_col);
@@ -201,7 +203,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         },
         &mut rettv,
         None,
-        &mut g_st().evalarg_evaluate,
+        &mut crate::eval::vars::Evalarg { eval_flags: 1 },
     );
     try_leave(&tstate, err);
 
@@ -355,7 +357,7 @@ pub fn nvim_call_dict_function(
                 s_val.as_cstr(),
                 &mut rettv,
                 None,
-                &mut g_st().evalarg_evaluate,
+                &mut crate::eval::vars::Evalarg { eval_flags: 1 },
             );
             try_leave(&tstate, err);
             if error_set(err) {

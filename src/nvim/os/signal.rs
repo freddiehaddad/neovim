@@ -262,7 +262,7 @@ fn deadly_signal(signum: i32) -> ! {
     g_st().v_dying.set(1);
 
     format_to_buf!(
-        &mut g_st().iobuff,
+        &mut *g_st().iobuff.borrow_mut(),
         c"Nvim: Caught deadly signal '%s'\n",
         signal_name(signum),
     );

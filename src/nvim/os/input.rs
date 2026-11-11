@@ -214,7 +214,7 @@ pub fn input_get(
         });
         let delay_pending = ins_compl_autocomplete_pending()
             && opt_vars().p_acl.get() > 0
-            && g_st().typebuf.tb_len == 0
+            && g_st().typebuf.tb_len.get() == 0
             && !ins_compl_active()
             && (get_real_state() & MODE_INSERT) != 0;
         let mut wait_time = opt_vars().p_ut.get() - ((ch_time / 1_000_000) as i64);

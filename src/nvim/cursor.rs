@@ -162,7 +162,7 @@ fn coladvance2(
         (g_st().state_global.get() & MODE_INSERT) != 0
             || (g_st().state_global.get() & MODE_TERMINAL) != 0
             || g_st().restart_edit.get() != 0
-            || (g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o')
+            || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
             || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
     );
 
@@ -170,7 +170,7 @@ fn coladvance2(
         idx = ml_get_buf_len(wp.buf_mut(), pos.lnum) - 1 + one_more;
         col = wcol;
 
-        if (addspaces || finetune) && !g_st().visual_global.active {
+        if (addspaces || finetune) && !g_st().visual_global.borrow().active {
             let cw = linetabsize(wp, pos.lnum) + one_more;
             wp.w_curswant.set(cw);
             if wp.w_curswant.get() > 0 {
@@ -374,7 +374,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
         if (g_st().state_global.get() & MODE_INSERT) != 0
             || g_st().restart_edit.get() != 0
             || (g_st().state_global.get() & MODE_TERMINAL) != 0
-            || (g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o')
+            || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
             || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
             || virtual_active(&mut *win)
         {
@@ -416,15 +416,15 @@ pub fn check_cursor(wp: &mut WinInfoInfo) {
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
-    if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count.get() {
-        g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count.get();
-        g_st().visual_global.start.col = 0;
-        g_st().visual_global.start.coladd = 0;
+    if g_st().visual_global.borrow().start.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+        g_st().visual_global.borrow_mut().start.lnum = curbuf_mut().b_ml.ml_line_count.get();
+        g_st().visual_global.borrow_mut().start.col = 0;
+        g_st().visual_global.borrow_mut().start.coladd = 0;
     } else {
-        let len = ml_get_len(g_st().visual_global.start.lnum);
-        if g_st().visual_global.start.col > len {
-            g_st().visual_global.start.col = len;
-            g_st().visual_global.start.coladd = 0;
+        let len = ml_get_len(g_st().visual_global.borrow().start.lnum);
+        if g_st().visual_global.borrow().start.col > len {
+            g_st().visual_global.borrow_mut().start.col = len;
+            g_st().visual_global.borrow_mut().start.coladd = 0;
         }
     }
 }
@@ -432,7 +432,7 @@ pub fn check_visual_pos() {
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
 pub fn adjust_cursor_col() {
     if curwin_mut().w_cursor.col > 0
-        && (!g_st().visual_global.active || opt_vars().p_sel.first_byte() == b'o')
+        && (!g_st().visual_global.borrow().active || opt_vars().p_sel.first_byte() == b'o')
         && gchar_cursor() == 0
     {
         curwin_mut().w_cursor.col -= 1;

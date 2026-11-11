@@ -1686,7 +1686,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     };
 
     format_to_buf!(
-        g_st().iobuff_bytes_mut(),
+        &mut *g_st().iobuff_bytes_mut(),
         gettext(c"Reading affix file %s..."),
         fname,
     );
@@ -2788,7 +2788,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     };
 
     format_to_buf!(
-        g_st().iobuff_bytes_mut(),
+        &mut *g_st().iobuff_bytes_mut(),
         gettext(c"Reading dictionary file %s..."),
         fname,
     );
@@ -3380,7 +3380,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
         };
 
         format_to_buf!(
-            g_st().iobuff_bytes_mut(),
+            &mut *g_st().iobuff_bytes_mut(),
             gettext(c"Reading word file %s..."),
             fname,
         );
@@ -3569,7 +3569,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
 
         if spin.si_ascii && non_ascii > 0 {
             format_to_buf!(
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
@@ -3880,7 +3880,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             ((tot - n) * 100 / tot) as i64
         };
         format_to_buf!(
-            g_st().iobuff_bytes_mut(),
+            &mut *g_st().iobuff_bytes_mut(),
             gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
             name,
             n,
@@ -4695,7 +4695,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     };
 
     format_to_buf!(
-        g_st().iobuff_bytes_mut(),
+        &mut *g_st().iobuff_bytes_mut(),
         gettext(c"Writing suggestion file %s..."),
         fname_cstr,
     );
@@ -4745,7 +4745,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         }
 
         format_to_buf!(
-            g_st().iobuff_bytes_mut(),
+            &mut *g_st().iobuff_bytes_mut(),
             gettext(c"Estimated runtime memory use: %d bytes"),
             spin.si_memtot,
         );
@@ -4908,7 +4908,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
             if !error && !g_st().got_int.get() {
                 format_to_buf!(
-                    g_st().iobuff_bytes_mut(),
+                    &mut *g_st().iobuff_bytes_mut(),
                     gettext(c"Writing spell file %s..."),
                     wfname_cstr,
                 );
@@ -4918,7 +4918,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
                 spell_message(&spin, gettext(c"Done!"));
                 format_to_buf!(
-                    g_st().iobuff_bytes_mut(),
+                    &mut *g_st().iobuff_bytes_mut(),
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
@@ -5069,14 +5069,14 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 if rw_fd.seek(fpos, SEEK_SET) == 0 {
                     rw_fd.putc(b'#' as i32);
                     if undo {
-                        home_replace(None, fname_opt, g_st().name_buff_bytes_mut(), true);
+                        home_replace(None, fname_opt, &mut *g_st().name_buff_bytes_mut(), true);
                         let word_cstr = crate::memory::bytes_to_cstring(word_bytes);
                         smsg!(
                             0,
                             gettext(c"Word '%.*s' removed from %s"),
                             ulen as i32,
                             &word_cstr,
-                            &g_st().name_buff,
+                            &*g_st().name_buff.borrow(),
                         );
                     }
                 }
@@ -5119,14 +5119,14 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             }
             drop(fd);
 
-            home_replace(None, fname_opt, g_st().name_buff_bytes_mut(), true);
+            home_replace(None, fname_opt, &mut *g_st().name_buff_bytes_mut(), true);
             let word_cstr = crate::memory::bytes_to_cstring(word_bytes);
             smsg!(
                 0,
                 gettext(c"Word '%.*s' added to %s"),
                 word_bytes.len() as i32,
                 &word_cstr,
-                &g_st().name_buff,
+                &*g_st().name_buff.borrow(),
             );
         } else {
             semsg!(gettext(E_NOTOPEN), fname_cstr);

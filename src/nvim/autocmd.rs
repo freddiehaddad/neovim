@@ -2332,7 +2332,7 @@ pub fn autocmd_register(
         };
 
         if event == EVENT_MODECHANGED && !has_event(EVENT_MODECHANGED) {
-            get_mode(&mut g_st().last_mode);
+            get_mode(&mut g_st().last_mode.borrow_mut());
         }
 
         if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
@@ -2746,7 +2746,7 @@ pub fn trigger_cursorhold() -> bool {
     if !g_st().did_cursorhold.get()
         && has_cursorhold()
         && g_st().reg_recording.get() == 0
-        && g_st().typebuf.tb_len == 0
+        && g_st().typebuf.tb_len.get() == 0
         && !ins_compl_active()
     {
         let state = get_real_state();
@@ -3097,8 +3097,8 @@ pub fn apply_autocmds_group(
                     restore_redobuff(&mut save_redo);
                 }
                 curbuf_mut().b_did_filetype.set(false);
-                g_st().au_pending_free_buf.clear();
-                g_st().au_pending_free_win.clear();
+                g_st().au_pending_free_buf.borrow_mut().clear();
+                g_st().au_pending_free_win.borrow_mut().clear();
             }
 
             if g_st().curbuf.get() == old_curbuf

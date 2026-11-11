@@ -10,14 +10,12 @@ use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
 use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
-use crate::channel::Channel;
 use crate::context::CtxWin;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::drawscreen::WinExtmark;
 use crate::eval::CallerScope;
 use crate::eval::typval::Callback;
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::eval::vars::Evalarg;
 use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{Except, Msglist};
 use crate::ex_getln::{Disptick, Hlf};
@@ -43,23 +41,6 @@ pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const DFLT_ROWS: i32 = 24;
 pub(crate) const DFLT_COLS: i32 = 80;
 pub(crate) const PROF_NONE: i32 = 0;
-
-#[repr(transparent)]
-struct GlobalState<T>(std::cell::UnsafeCell<T>);
-
-unsafe impl<T> Sync for GlobalState<T> {}
-
-impl<T> GlobalState<T> {
-    #[inline(always)]
-    const fn new(val: T) -> Self {
-        Self(std::cell::UnsafeCell::new(val))
-    }
-
-    #[inline(always)]
-    const fn handle(&'static self) -> GraphPtr<T> {
-        GraphPtr((&raw const self.0).cast::<T>().cast_mut())
-    }
-}
 
 pub struct EditorState {
     pub g_stats: NvimStats,
@@ -135,16 +116,16 @@ pub struct EditorState {
     pub check_cstack: std::cell::Cell<bool>,
     pub trylevel: std::cell::Cell<i32>,
     pub force_abort: std::cell::Cell<bool>,
-    pub msg_list: Option<Vec<Msglist>>,
+    pub msg_list: std::cell::RefCell<Option<Vec<Msglist>>>,
     pub suppress_errthrow: std::cell::Cell<bool>,
-    pub caught_stack: Vec<std::rc::Rc<Except>>,
+    pub caught_stack: std::cell::RefCell<Vec<std::rc::Rc<Except>>>,
     pub may_garbage_collect: std::cell::Cell<bool>,
     pub want_garbage_collect: std::cell::Cell<bool>,
     pub garbage_collect_at_exit: std::cell::Cell<bool>,
     pub current_sctx: std::cell::Cell<Sctx>,
     pub current_ui: std::cell::Cell<u64>,
     pub did_source_packages: std::cell::Cell<bool>,
-    pub provider_caller_scope: CallerScope,
+    pub provider_caller_scope: std::cell::RefCell<CallerScope>,
     pub provider_call_nesting: std::cell::Cell<i32>,
     pub t_colors: std::cell::Cell<i32>,
     pub include_none: std::cell::Cell<i32>,
@@ -160,7 +141,7 @@ pub struct EditorState {
     pub mouse_past_bottom: std::cell::Cell<bool>,
     pub mouse_past_eol: std::cell::Cell<bool>,
     pub mouse_dragging: std::cell::Cell<i32>,
-    pub root_menu: Vec<Vimmenu>,
+    pub root_menu: std::cell::RefCell<Vec<Vimmenu>>,
     pub sys_menu: std::cell::Cell<bool>,
     pub firstwin: CloneCell<WinPtr>,
     pub lastwin: CloneCell<WinPtr>,
@@ -190,12 +171,12 @@ pub struct EditorState {
     pub sandbox: std::cell::Cell<i32>,
     pub silent_mode: std::cell::Cell<bool>,
     pub exmode_active: std::cell::Cell<bool>,
-    pub visual_global: VisualState,
+    pub visual_global: std::cell::RefCell<VisualState>,
     pub where_paste_started: std::cell::Cell<CursorPos>,
     pub did_syncbind: std::cell::Cell<bool>,
     pub old_indent: std::cell::Cell<i32>,
     pub saved_cursor: std::cell::Cell<CursorPos>,
-    pub ins_global: InsState,
+    pub ins_global: std::cell::RefCell<InsState>,
     pub orig_line_count: std::cell::Cell<Linenr>,
     pub vr_lines_changed: std::cell::Cell<i32>,
     pub inhibit_delete_count: std::cell::Cell<i32>,
@@ -221,7 +202,7 @@ pub struct EditorState {
     pub no_abbr: std::cell::Cell<bool>,
     pub mapped_ctrl_c: std::cell::Cell<i32>,
     pub ctrl_c_interrupts: std::cell::Cell<bool>,
-    pub cmdmod: Cmdmod,
+    pub cmdmod: std::cell::RefCell<Cmdmod>,
     pub msg_silent: std::cell::Cell<i32>,
     pub emsg_silent: std::cell::Cell<i32>,
     pub emsg_noredir: std::cell::Cell<bool>,
@@ -229,10 +210,10 @@ pub struct EditorState {
     pub in_assert_fails: std::cell::Cell<bool>,
     pub swap_exists_action: std::cell::Cell<i32>,
     pub swap_exists_did_quit: std::cell::Cell<bool>,
-    pub iobuff: [u8; IOSIZE],
-    pub name_buff: [u8; MAXPATHL],
-    pub msg_buf: [u8; MSG_BUF_LEN],
-    pub os_buf: [u8; MAXPATHL],
+    pub iobuff: std::cell::RefCell<[u8; IOSIZE]>,
+    pub name_buff: std::cell::RefCell<[u8; MAXPATHL]>,
+    pub msg_buf: std::cell::RefCell<[u8; MSG_BUF_LEN]>,
+    pub os_buf: std::cell::RefCell<[u8; MAXPATHL]>,
     pub redrawing_disabled: std::cell::Cell<i32>,
     pub readonlymode: std::cell::Cell<bool>,
     pub recoverymode: std::cell::Cell<bool>,
@@ -249,7 +230,7 @@ pub struct EditorState {
     pub do_redraw: std::cell::Cell<bool>,
     pub must_redraw_pum: std::cell::Cell<bool>,
     pub need_highlight_changed: std::cell::Cell<bool>,
-    pub scriptout: Option<crate::os::fs::CFile>,
+    pub scriptout: std::cell::RefCell<Option<crate::os::fs::CFile>>,
     pub got_int: std::cell::Cell<bool>,
     pub bangredo: std::cell::Cell<bool>,
     pub reg_do_extmatch: std::cell::Cell<i32>,
@@ -260,7 +241,7 @@ pub struct EditorState {
     pub global_busy: std::cell::Cell<i32>,
     pub listcmd_busy: std::cell::Cell<bool>,
     pub need_start_insertmode: std::cell::Cell<bool>,
-    pub last_mode: [u8; MODE_MAX_LENGTH],
+    pub last_mode: std::cell::RefCell<[u8; MODE_MAX_LENGTH]>,
     pub last_cmdline: CloneCell<Option<std::ffi::CString>>,
     pub repeat_cmdline: CloneCell<Option<std::ffi::CString>>,
     pub new_last_cmdline: CloneCell<Option<std::ffi::CString>>,
@@ -272,10 +253,10 @@ pub struct EditorState {
     pub replace_offset: std::cell::Cell<i32>,
     pub keep_help_flag: std::cell::Cell<bool>,
     pub redir_off: std::cell::Cell<bool>,
-    pub redir_fd: Option<crate::os::fs::CFile>,
+    pub redir_fd: std::cell::RefCell<Option<crate::os::fs::CFile>>,
     pub redir_reg: std::cell::Cell<i32>,
     pub redir_vname: std::cell::Cell<bool>,
-    pub capture_ga: Option<Vec<u8>>,
+    pub capture_ga: std::cell::RefCell<Option<Vec<u8>>>,
     pub langmap_mapchar: [std::cell::Cell<u8>; 256],
     pub save_p_ls: std::cell::Cell<i32>,
     pub save_p_wmh: std::cell::Cell<i32>,
@@ -294,55 +275,53 @@ pub struct EditorState {
     pub typebuf_was_filled: std::cell::Cell<bool>,
     pub virtual_op: std::cell::Cell<TriState>,
     pub spell_redraw_lnum: std::cell::Cell<Linenr>,
-    pub time_fd: Option<crate::os::fs::CFile>,
+    pub time_fd: std::cell::RefCell<Option<crate::os::fs::CFile>>,
     pub vim_ignored: std::cell::Cell<i32>,
     pub embedded_mode: std::cell::Cell<bool>,
     pub headless_mode: std::cell::Cell<bool>,
-    pub windows_version: [u8; 20],
+    pub windows_version: std::cell::RefCell<[u8; 20]>,
     pub skip_win_fix_scroll: std::cell::Cell<bool>,
     pub skip_update_topline: std::cell::Cell<bool>,
-    pub namespace_ids: Vec<(std::ffi::CString, i32)>,
-    pub namespace_localscope: std::collections::BTreeSet<u32>,
+    pub namespace_ids: std::cell::RefCell<Vec<(std::ffi::CString, i32)>>,
+    pub namespace_localscope: std::cell::RefCell<std::collections::BTreeSet<u32>>,
     pub next_namespace_id: std::cell::Cell<ObjHandle>,
-    pub buffer_handles: std::collections::BTreeMap<i32, BufPtr>,
-    pub window_handles: std::collections::BTreeMap<i32, WinPtr>,
-    pub tabpage_handles: std::collections::BTreeMap<i32, TabpagePtr>,
+    pub buffer_handles: std::cell::RefCell<std::collections::BTreeMap<i32, BufPtr>>,
+    pub window_handles: std::cell::RefCell<std::collections::BTreeMap<i32, WinPtr>>,
+    pub tabpage_handles: std::cell::RefCell<std::collections::BTreeMap<i32, TabpagePtr>>,
     pub last_cursormoved_win: CloneCell<WinPtr>,
     pub last_cursormoved: std::cell::Cell<CursorPos>,
     pub autocmd_busy: std::cell::Cell<bool>,
     pub autocmd_no_enter: std::cell::Cell<i32>,
     pub autocmd_no_leave: std::cell::Cell<i32>,
     pub au_new_curbuf: std::cell::Cell<Bufref>,
-    pub au_pending_free_buf: Vec<Box<FileBuf>>,
-    pub au_pending_free_win: Vec<Box<WinInfoInfo>>,
+    pub au_pending_free_buf: std::cell::RefCell<Vec<Box<FileBuf>>>,
+    pub au_pending_free_win: std::cell::RefCell<Vec<Box<WinInfoInfo>>>,
     pub autocmd_fname: CloneCell<Option<std::ffi::CString>>,
     pub autocmd_fname_full: std::cell::Cell<bool>,
     pub autocmd_bufnr: std::cell::Cell<i32>,
     pub autocmd_match: CloneCell<Option<std::ffi::CString>>,
     pub did_cursorhold: std::cell::Cell<bool>,
     pub deferred_events: CloneCell<MultiQueue>,
-    pub channels: std::collections::BTreeMap<u64, Box<Channel>>,
     pub on_print: Callback,
-    pub ctx_win_vec: Vec<CtxWin>,
-    pub decor_state: DecorState,
+    pub ctx_win_vec: std::cell::RefCell<Vec<CtxWin>>,
+    pub decor_state: std::cell::RefCell<DecorState>,
     pub diff_context: std::cell::Cell<i32>,
     pub diff_foldcolumn: std::cell::Cell<i32>,
     pub diff_need_scrollbind: std::cell::Cell<bool>,
     pub need_diff_redraw: std::cell::Cell<bool>,
-    pub win_extmark_arr: Vec<WinExtmark>,
+    pub win_extmark_arr: std::cell::RefCell<Vec<WinExtmark>>,
     pub updating_screen: std::cell::Cell<bool>,
     pub redraw_not_allowed: std::cell::Cell<bool>,
-    pub screen_search_hl: SynMatch,
+    pub screen_search_hl: std::cell::RefCell<SynMatch>,
     pub search_hl_has_cursor_lnum: std::cell::Cell<Linenr>,
-    pub evalarg_evaluate: Evalarg,
     pub curbuf_splice_pending: std::cell::Cell<i32>,
     pub disable_fold_update: std::cell::Cell<i32>,
     pub default_grid: ScreenGrid,
     pub default_gridview: GridView,
     pub resizing_screen: std::cell::Cell<bool>,
-    pub linebuf_char: Vec<Schar>,
-    pub linebuf_attr: Vec<Sattr>,
-    pub linebuf_vcol: Vec<Colnr>,
+    pub linebuf_char: std::cell::RefCell<Vec<Schar>>,
+    pub linebuf_attr: std::cell::RefCell<Vec<Sattr>>,
+    pub linebuf_vcol: std::cell::RefCell<Vec<Colnr>>,
     pub highlight_attr: [std::cell::Cell<i32>; HLF_COUNT],
     pub highlight_attr_last: [std::cell::Cell<i32>; HLF_COUNT],
     pub highlight_user: [std::cell::Cell<i32>; 9],
@@ -360,7 +339,7 @@ pub struct EditorState {
     pub nlua_disable_preload: std::cell::Cell<bool>,
     pub tslua_query_parse_count: std::cell::Cell<u64>,
     pub repeat_luamap: std::cell::Cell<i32>,
-    pub namedfm: [Xfmark; 36],
+    pub namedfm: std::cell::RefCell<[Xfmark; 36]>,
     pub arena_alloc_count: std::cell::Cell<usize>,
     pub msg_ext_skip_flush: std::cell::Cell<bool>,
     pub msg_ext_overwrite: std::cell::Cell<bool>,
@@ -373,18 +352,18 @@ pub struct EditorState {
     pub msg_grid_scroll_discount: std::cell::Cell<i32>,
     pub msg_listdo_overwrite: std::cell::Cell<i32>,
     pub ch_before_blocking_events: CloneCell<MultiQueue>,
-    pub showcmd_buf: [u8; crate::normal::SHOWCMD_BUFLEN],
+    pub showcmd_buf: std::cell::RefCell<[u8; crate::normal::SHOWCMD_BUFLEN]>,
     pub nvim_testing: std::cell::Cell<bool>,
     pub pum_grid: ScreenGrid,
     pub pum_want: PumWant,
-    pub last_insert_ga: Vec<u8>,
+    pub last_insert_ga: std::cell::RefCell<Vec<u8>>,
     pub add_last_insert: std::cell::Cell<i32>,
-    pub tab_page_click_defs: Vec<StlClickDefinition>,
+    pub tab_page_click_defs: std::cell::RefCell<Vec<StlClickDefinition>>,
     pub ui_event_ns_id: std::cell::Cell<u32>,
     pub resize_events: CloneCell<MultiQueue>,
     pub ui_refresh_cmdheight: std::cell::Cell<bool>,
-    pub grid_line_buf_char: Vec<Schar>,
-    pub grid_line_buf_attr: Vec<Sattr>,
+    pub grid_line_buf_char: std::cell::RefCell<Vec<Schar>>,
+    pub grid_line_buf_attr: std::cell::RefCell<Vec<Sattr>>,
     pub ui_client_channel_id: std::cell::Cell<u64>,
     pub ui_client_error_exit: std::cell::Cell<i32>,
     pub ui_client_exit_status: std::cell::Cell<i32>,
@@ -473,9 +452,9 @@ impl EditorState {
             check_cstack: std::cell::Cell::new(false),
             trylevel: std::cell::Cell::new(0),
             force_abort: std::cell::Cell::new(false),
-            msg_list: None,
+            msg_list: std::cell::RefCell::new(None),
             suppress_errthrow: std::cell::Cell::new(false),
-            caught_stack: Vec::new(),
+            caught_stack: std::cell::RefCell::new(Vec::new()),
             may_garbage_collect: std::cell::Cell::new(false),
             want_garbage_collect: std::cell::Cell::new(false),
             garbage_collect_at_exit: std::cell::Cell::new(false),
@@ -487,7 +466,7 @@ impl EditorState {
             }),
             current_ui: std::cell::Cell::new(0),
             did_source_packages: std::cell::Cell::new(false),
-            provider_caller_scope: CallerScope {
+            provider_caller_scope: std::cell::RefCell::new(CallerScope {
                 script_ctx: Sctx {
                     sc_sid: 0,
                     sc_seq: 0,
@@ -505,7 +484,7 @@ impl EditorState {
                 autocmd_fname_full: false,
                 autocmd_bufnr: 0,
                 funccalp: crate::eval::userfunc::FunccalId::NULL,
-            },
+            }),
             provider_call_nesting: std::cell::Cell::new(0),
             t_colors: std::cell::Cell::new(256),
             include_none: std::cell::Cell::new(0),
@@ -530,7 +509,7 @@ impl EditorState {
             mouse_past_bottom: std::cell::Cell::new(false),
             mouse_past_eol: std::cell::Cell::new(false),
             mouse_dragging: std::cell::Cell::new(0),
-            root_menu: Vec::new(),
+            root_menu: std::cell::RefCell::new(Vec::new()),
             sys_menu: std::cell::Cell::new(false),
             firstwin: CloneCell::new(WinPtr::NULL),
             lastwin: CloneCell::new(WinPtr::NULL),
@@ -560,7 +539,7 @@ impl EditorState {
             sandbox: std::cell::Cell::new(0),
             silent_mode: std::cell::Cell::new(false),
             exmode_active: std::cell::Cell::new(false),
-            visual_global: VisualState {
+            visual_global: std::cell::RefCell::new(VisualState {
                 start: CursorPos {
                     lnum: 0,
                     col: 0,
@@ -579,7 +558,7 @@ impl EditorState {
                     line_count: 0,
                     vcol: 0,
                 },
-            },
+            }),
             where_paste_started: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
@@ -592,7 +571,7 @@ impl EditorState {
                 col: 0,
                 coladd: 0,
             }),
-            ins_global: InsState {
+            ins_global: std::cell::RefCell::new(InsState {
                 start: CursorPos {
                     lnum: 0,
                     col: 0,
@@ -624,7 +603,7 @@ impl EditorState {
                 revins_scol: 0,
                 dont_sync_undo: crate::extmark::K_NONE,
                 o_lnum: 0,
-            },
+            }),
             orig_line_count: std::cell::Cell::new(0),
             vr_lines_changed: std::cell::Cell::new(0),
             inhibit_delete_count: std::cell::Cell::new(0),
@@ -650,7 +629,7 @@ impl EditorState {
             no_abbr: std::cell::Cell::new(true),
             mapped_ctrl_c: std::cell::Cell::new(0),
             ctrl_c_interrupts: std::cell::Cell::new(true),
-            cmdmod: Cmdmod::new(),
+            cmdmod: std::cell::RefCell::new(Cmdmod::new()),
             msg_silent: std::cell::Cell::new(0),
             emsg_silent: std::cell::Cell::new(0),
             emsg_noredir: std::cell::Cell::new(false),
@@ -658,10 +637,10 @@ impl EditorState {
             in_assert_fails: std::cell::Cell::new(false),
             swap_exists_action: std::cell::Cell::new(SEA_NONE),
             swap_exists_did_quit: std::cell::Cell::new(false),
-            iobuff: [0; IOSIZE],
-            name_buff: [0; MAXPATHL],
-            msg_buf: [0; MSG_BUF_LEN],
-            os_buf: [0; MAXPATHL],
+            iobuff: std::cell::RefCell::new([0; IOSIZE]),
+            name_buff: std::cell::RefCell::new([0; MAXPATHL]),
+            msg_buf: std::cell::RefCell::new([0; MSG_BUF_LEN]),
+            os_buf: std::cell::RefCell::new([0; MAXPATHL]),
             redrawing_disabled: std::cell::Cell::new(0),
             readonlymode: std::cell::Cell::new(false),
             recoverymode: std::cell::Cell::new(false),
@@ -678,7 +657,7 @@ impl EditorState {
             do_redraw: std::cell::Cell::new(false),
             must_redraw_pum: std::cell::Cell::new(false),
             need_highlight_changed: std::cell::Cell::new(true),
-            scriptout: None,
+            scriptout: std::cell::RefCell::new(None),
             got_int: std::cell::Cell::new(false),
             bangredo: std::cell::Cell::new(false),
             reg_do_extmatch: std::cell::Cell::new(0),
@@ -689,7 +668,7 @@ impl EditorState {
             global_busy: std::cell::Cell::new(0),
             listcmd_busy: std::cell::Cell::new(false),
             need_start_insertmode: std::cell::Cell::new(false),
-            last_mode: [b'n', 0, 0, 0],
+            last_mode: std::cell::RefCell::new([b'n', 0, 0, 0]),
             last_cmdline: CloneCell::new(None),
             repeat_cmdline: CloneCell::new(None),
             new_last_cmdline: CloneCell::new(None),
@@ -701,10 +680,10 @@ impl EditorState {
             replace_offset: std::cell::Cell::new(0),
             keep_help_flag: std::cell::Cell::new(false),
             redir_off: std::cell::Cell::new(false),
-            redir_fd: None,
+            redir_fd: std::cell::RefCell::new(None),
             redir_reg: std::cell::Cell::new(0),
             redir_vname: std::cell::Cell::new(false),
-            capture_ga: None,
+            capture_ga: std::cell::RefCell::new(None),
             langmap_mapchar: [const { std::cell::Cell::new(0) }; 256],
             save_p_ls: std::cell::Cell::new(-1),
             save_p_wmh: std::cell::Cell::new(-1),
@@ -723,19 +702,19 @@ impl EditorState {
             typebuf_was_filled: std::cell::Cell::new(false),
             virtual_op: std::cell::Cell::new(-1),
             spell_redraw_lnum: std::cell::Cell::new(0),
-            time_fd: None,
+            time_fd: std::cell::RefCell::new(None),
             vim_ignored: std::cell::Cell::new(0),
             embedded_mode: std::cell::Cell::new(false),
             headless_mode: std::cell::Cell::new(false),
-            windows_version: [0u8; 20],
+            windows_version: std::cell::RefCell::new([0u8; 20]),
             skip_win_fix_scroll: std::cell::Cell::new(false),
             skip_update_topline: std::cell::Cell::new(false),
-            namespace_ids: Vec::new(),
-            namespace_localscope: std::collections::BTreeSet::new(),
+            namespace_ids: std::cell::RefCell::new(Vec::new()),
+            namespace_localscope: std::cell::RefCell::new(std::collections::BTreeSet::new()),
             next_namespace_id: std::cell::Cell::new(1),
-            buffer_handles: std::collections::BTreeMap::new(),
-            window_handles: std::collections::BTreeMap::new(),
-            tabpage_handles: std::collections::BTreeMap::new(),
+            buffer_handles: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            window_handles: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            tabpage_handles: std::cell::RefCell::new(std::collections::BTreeMap::new()),
             last_cursormoved_win: CloneCell::new(WinPtr::NULL),
             last_cursormoved: std::cell::Cell::new(CursorPos {
                 lnum: 0,
@@ -750,26 +729,25 @@ impl EditorState {
                 br_fnum: 0,
                 br_buf_free_count: 0,
             }),
-            au_pending_free_buf: Vec::new(),
-            au_pending_free_win: Vec::new(),
+            au_pending_free_buf: std::cell::RefCell::new(Vec::new()),
+            au_pending_free_win: std::cell::RefCell::new(Vec::new()),
             autocmd_fname: CloneCell::new(None),
             autocmd_fname_full: std::cell::Cell::new(false),
             autocmd_bufnr: std::cell::Cell::new(0),
             autocmd_match: CloneCell::new(None),
             did_cursorhold: std::cell::Cell::new(true),
             deferred_events: CloneCell::new(MultiQueue::NULL),
-            channels: std::collections::BTreeMap::new(),
             on_print: Callback::NONE,
-            ctx_win_vec: Vec::new(),
-            decor_state: DecorState::new(),
+            ctx_win_vec: std::cell::RefCell::new(Vec::new()),
+            decor_state: std::cell::RefCell::new(DecorState::new()),
             diff_context: std::cell::Cell::new(6),
             diff_foldcolumn: std::cell::Cell::new(2),
             diff_need_scrollbind: std::cell::Cell::new(false),
             need_diff_redraw: std::cell::Cell::new(false),
-            win_extmark_arr: Vec::new(),
+            win_extmark_arr: std::cell::RefCell::new(Vec::new()),
             updating_screen: std::cell::Cell::new(false),
             redraw_not_allowed: std::cell::Cell::new(false),
-            screen_search_hl: SynMatch {
+            screen_search_hl: std::cell::RefCell::new(SynMatch {
                 rm: crate::regexp::Regmmatch {
                     regprog: crate::regexp::RegprogPtr::NULL,
                     startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
@@ -788,9 +766,8 @@ impl EditorState {
                 is_addpos: false,
                 has_cursor: false,
                 tm: 0,
-            },
+            }),
             search_hl_has_cursor_lnum: std::cell::Cell::new(0),
-            evalarg_evaluate: Evalarg { eval_flags: 1 },
             curbuf_splice_pending: std::cell::Cell::new(0),
             disable_fold_update: std::cell::Cell::new(0),
             default_grid: ScreenGrid::with_target(GridTarget::Default),
@@ -800,9 +777,9 @@ impl EditorState {
                 col_offset: std::cell::Cell::new(0),
             },
             resizing_screen: std::cell::Cell::new(false),
-            linebuf_char: Vec::new(),
-            linebuf_attr: Vec::new(),
-            linebuf_vcol: Vec::new(),
+            linebuf_char: std::cell::RefCell::new(Vec::new()),
+            linebuf_attr: std::cell::RefCell::new(Vec::new()),
+            linebuf_vcol: std::cell::RefCell::new(Vec::new()),
             highlight_attr: [const { std::cell::Cell::new(0) }; HLF_COUNT],
             highlight_attr_last: [const { std::cell::Cell::new(0) }; HLF_COUNT],
             highlight_user: [const { std::cell::Cell::new(0) }; 9],
@@ -820,7 +797,7 @@ impl EditorState {
             nlua_disable_preload: std::cell::Cell::new(false),
             tslua_query_parse_count: std::cell::Cell::new(0),
             repeat_luamap: std::cell::Cell::new(0),
-            namedfm: [const { Xfmark::ZERO }; 36],
+            namedfm: std::cell::RefCell::new([const { Xfmark::ZERO }; 36]),
             arena_alloc_count: std::cell::Cell::new(0),
             msg_ext_skip_flush: std::cell::Cell::new(false),
             msg_ext_overwrite: std::cell::Cell::new(false),
@@ -837,7 +814,7 @@ impl EditorState {
             msg_grid_scroll_discount: std::cell::Cell::new(0),
             msg_listdo_overwrite: std::cell::Cell::new(0),
             ch_before_blocking_events: CloneCell::new(MultiQueue::NULL),
-            showcmd_buf: [0; crate::normal::SHOWCMD_BUFLEN],
+            showcmd_buf: std::cell::RefCell::new([0; crate::normal::SHOWCMD_BUFLEN]),
             nvim_testing: std::cell::Cell::new(false),
             pum_grid: ScreenGrid::with_target(GridTarget::Pum),
             pum_want: PumWant {
@@ -846,14 +823,14 @@ impl EditorState {
                 insert: std::cell::Cell::new(false),
                 finish: std::cell::Cell::new(false),
             },
-            last_insert_ga: Vec::new(),
+            last_insert_ga: std::cell::RefCell::new(Vec::new()),
             add_last_insert: std::cell::Cell::new(0),
-            tab_page_click_defs: Vec::new(),
+            tab_page_click_defs: std::cell::RefCell::new(Vec::new()),
             ui_event_ns_id: std::cell::Cell::new(0),
             resize_events: CloneCell::new(MultiQueue::NULL),
             ui_refresh_cmdheight: std::cell::Cell::new(true),
-            grid_line_buf_char: Vec::new(),
-            grid_line_buf_attr: Vec::new(),
+            grid_line_buf_char: std::cell::RefCell::new(Vec::new()),
+            grid_line_buf_attr: std::cell::RefCell::new(Vec::new()),
             ui_client_channel_id: std::cell::Cell::new(0),
             ui_client_error_exit: std::cell::Cell::new(-1),
             ui_client_exit_status: std::cell::Cell::new(0),
@@ -864,47 +841,59 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub const fn iobuff_bytes(&self) -> &[u8; IOSIZE] {
-        &self.iobuff
+    pub fn iobuff_bytes(&self) -> std::cell::Ref<'_, [u8; IOSIZE]> {
+        self.iobuff.borrow()
     }
 
     #[inline(always)]
-    pub const fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
-        &mut self.iobuff
+    pub fn iobuff_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; IOSIZE]> {
+        self.iobuff.borrow_mut()
     }
 
     #[inline(always)]
     pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
-        std::ffi::CStr::from_bytes_until_nul(&EDITOR_STATE.handle().borrow().iobuff).unwrap_or(c"")
+        let b = self.iobuff.borrow();
+        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
+        crate::option_vars::intern_opt_cstr(c)
     }
 
     #[inline(always)]
-    pub const fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
-        &mut self.name_buff
+    pub fn name_buff_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MAXPATHL]> {
+        self.name_buff.borrow_mut()
     }
 
     #[inline(always)]
     pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
-        std::ffi::CStr::from_bytes_until_nul(&EDITOR_STATE.handle().borrow().name_buff)
-            .unwrap_or(c"")
+        let b = self.name_buff.borrow();
+        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
+        crate::option_vars::intern_opt_cstr(c)
     }
 
     #[inline(always)]
-    pub const fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
-        &mut self.os_buf
+    pub fn os_buf_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MAXPATHL]> {
+        self.os_buf.borrow_mut()
     }
 
     #[inline(always)]
-    pub const fn msg_buf_bytes_mut(&mut self) -> &mut [u8; MSG_BUF_LEN] {
-        &mut self.msg_buf
+    pub fn msg_buf_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MSG_BUF_LEN]> {
+        self.msg_buf.borrow_mut()
+    }
+
+    #[inline(always)]
+    pub fn msg_buf_cstr(&self) -> &'static std::ffi::CStr {
+        let b = self.msg_buf.borrow();
+        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
+        crate::option_vars::intern_opt_cstr(c)
     }
 }
 
-static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
+thread_local! {
+    static EDITOR_STATE: &'static EditorState = Box::leak(Box::new(EditorState::new()));
+}
 
 #[inline(always)]
-pub fn g_st() -> GraphPtr<EditorState> {
-    EDITOR_STATE.handle()
+pub fn g_st() -> &'static EditorState {
+    EDITOR_STATE.with(|s| *s)
 }
 
 #[allow(non_upper_case_globals)]
@@ -1966,15 +1955,15 @@ pub fn inc_display_tick() {
 }
 #[inline(always)]
 pub fn has_time_fd() -> bool {
-    g_st().time_fd.is_some()
+    g_st().time_fd.borrow().is_some()
 }
 #[inline(always)]
 pub fn has_redir_fd() -> bool {
-    g_st().redir_fd.is_some()
+    g_st().redir_fd.borrow().is_some()
 }
 #[inline(always)]
 pub fn has_scriptout() -> bool {
-    g_st().scriptout.is_some()
+    g_st().scriptout.borrow().is_some()
 }
 #[allow(clippy::declare_interior_mutable_const)]
 pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid::with_target(GridTarget::None);
@@ -2125,7 +2114,7 @@ mod tests {
             assert_eq!({ g_st().t_colors.get() }, 256);
             assert_eq!(starting_val(), 2);
             assert_eq!({ g_st().state_global.get() }, 0x01);
-            assert_eq!({ g_st().visual_global.mode }, b'v' as i32);
+            assert_eq!({ g_st().visual_global.borrow().mode }, b'v' as i32);
             assert_eq!({ g_st().search_global.last_line.get() }, 0x7fffffff);
             assert_eq!(NO_LINES_MSG.to_bytes(), b"--No lines in buffer--");
         }

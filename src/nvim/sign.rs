@@ -137,6 +137,7 @@ fn find_ns_by_name(group: Option<&CStr>) -> i32 {
     };
     g_st()
         .namespace_ids
+        .borrow()
         .iter()
         .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
         .unwrap_or(0)

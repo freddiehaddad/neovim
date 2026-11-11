@@ -1142,9 +1142,9 @@ pub fn nvim_cmd(
         let save_msg_col = g_st().msg_col.get();
 
         if opts.output {
-            g_st().capture_ga = Some(Vec::new());
+            *g_st().capture_ga.borrow_mut() = Some(Vec::new());
         } else {
-            g_st().capture_ga = save_capture_ga.take();
+            *g_st().capture_ga.borrow_mut() = save_capture_ga.take();
         }
 
         try_wrap(err, || {
@@ -1159,7 +1159,9 @@ pub fn nvim_cmd(
             });
 
             if opts.output {
-                capture_local = std::mem::replace(&mut g_st().capture_ga, save_capture_ga.take())
+                capture_local = g_st()
+                    .capture_ga
+                    .replace(save_capture_ga.take())
                     .unwrap_or_default();
                 g_st().msg_silent.set(save_msg_silent);
                 g_st().redir_off.set(save_redir_off);

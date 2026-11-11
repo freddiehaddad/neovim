@@ -887,20 +887,20 @@ pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// Adjust the Visual area to include any fold at the start or end completely.
 pub fn fold_adjust_visual() {
-    if !g_st().visual_global.active || has_any_folding(curwin_mut()) == 0 {
+    if !g_st().visual_global.borrow().active || has_any_folding(curwin_mut()) == 0 {
         return;
     }
 
-    let visual_before_cursor = ltoreq(g_st().visual_global.start, curwin_mut().w_cursor);
+    let visual_before_cursor = ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
     let (mut start, mut end) = if visual_before_cursor {
-        (g_st().visual_global.start, curwin_mut().w_cursor)
+        (g_st().visual_global.borrow().start, curwin_mut().w_cursor)
     } else {
-        (curwin_mut().w_cursor, g_st().visual_global.start)
+        (curwin_mut().w_cursor, g_st().visual_global.borrow().start)
     };
     if has_folding(curwin_mut(), start.lnum, Some(&mut start.lnum), None) {
         start.col = 0;
         if visual_before_cursor {
-            g_st().visual_global.start = start;
+            g_st().visual_global.borrow_mut().start = start;
         } else {
             curwin_mut().w_cursor = start;
         }
@@ -918,7 +918,7 @@ pub fn fold_adjust_visual() {
     if visual_before_cursor {
         curwin_mut().w_cursor = end;
     } else {
-        g_st().visual_global.start = end;
+        g_st().visual_global.borrow_mut().start = end;
     }
     mb_adjust_cursor();
 }

@@ -218,8 +218,9 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
     {
         return;
     }
-    let running = g_st().decor_state.running_decor_provider;
-    g_st().decor_state.running_decor_provider = running || g_st().updating_screen.get();
+    let running = g_st().decor_state.borrow().running_decor_provider;
+    g_st().decor_state.borrow_mut().running_decor_provider =
+        running || g_st().updating_screen.get();
     let mut i = 0usize;
     while i < providers_len() {
         let ref_opt = with_providers_mut(|providers| {
@@ -249,7 +250,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
         }
         i += 1;
     }
-    g_st().decor_state.running_decor_provider = running;
+    g_st().decor_state.borrow_mut().running_decor_provider = running;
 }
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
@@ -286,8 +287,9 @@ pub fn decor_providers_start() {
 /// For each provider run 'win' (`decor_providers_invoke_win`).
 pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
     debug_assert!(
-        g_st().decor_state.current_end == 0
-            && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as i32
+        g_st().decor_state.borrow().current_end == 0
+            && g_st().decor_state.borrow().future_begin
+                == g_st().decor_state.borrow().ranges_i.len() as i32
     );
 
     if providers_len() > 0 {
@@ -333,7 +335,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
 pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
-    g_st().decor_state.running_decor_provider = true;
+    g_st().decor_state.borrow_mut().running_decor_provider = true;
     let mut i = 0usize;
     while i < providers_len() {
         let redraw_line = with_providers_mut(|providers| {
@@ -361,7 +363,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
         }
         i += 1;
     }
-    g_st().decor_state.running_decor_provider = false;
+    g_st().decor_state.borrow_mut().running_decor_provider = false;
 }
 
 pub fn decor_providers_invoke_range(
@@ -371,7 +373,7 @@ pub fn decor_providers_invoke_range(
     end_row: i32,
     end_col: i32,
 ) {
-    g_st().decor_state.running_decor_provider = true;
+    g_st().decor_state.borrow_mut().running_decor_provider = true;
     let mut i = 0usize;
     while i < providers_len() {
         let redraw_range = with_providers_mut(|providers| {
@@ -432,7 +434,7 @@ pub fn decor_providers_invoke_range(
         }
         i += 1;
     }
-    g_st().decor_state.running_decor_provider = false;
+    g_st().decor_state.borrow_mut().running_decor_provider = false;
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).

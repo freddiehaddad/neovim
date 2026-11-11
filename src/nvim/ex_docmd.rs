@@ -4877,7 +4877,7 @@ fn save_dbg_stuff(dsp: &mut DbgStuff) {
     g_st().trylevel.set(0);
     dsp.force_abort = i32::from(g_st().force_abort.get());
     g_st().force_abort.set(false);
-    dsp.caught_stack = std::mem::take(&mut g_st().caught_stack);
+    dsp.caught_stack = g_st().caught_stack.take();
     dsp.vv_exception = v_exception(None);
     dsp.vv_throwpoint = v_throwpoint(None);
 
@@ -4899,7 +4899,7 @@ fn restore_dbg_stuff(dsp: &mut DbgStuff) {
     g_st().suppress_errthrow.set(false);
     g_st().trylevel.set(dsp.trylevel);
     g_st().force_abort.set(dsp.force_abort != 0);
-    g_st().caught_stack = std::mem::take(&mut dsp.caught_stack);
+    *g_st().caught_stack.borrow_mut() = std::mem::take(&mut dsp.caught_stack);
     v_exception(dsp.vv_exception.take());
     v_throwpoint(dsp.vv_throwpoint.take());
     g_st().did_emsg.set(dsp.did_emsg);
@@ -5005,12 +5005,12 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut cmd_getline: LineGetter;
         let cmd_loop_cookie = std::rc::Rc::new(std::cell::RefCell::new(LoopCookie::new()));
 
-        let saved_msg_list = g_st().msg_list.replace(Vec::new());
+        let saved_msg_list = g_st().msg_list.replace(Some(Vec::new()));
 
         if !do_cmdline_start() {
             let _ = emsg(gettext(E_COMMAND_TOO_RECURSIVE));
             do_errthrow(None, None);
-            g_st().msg_list = saved_msg_list;
+            *g_st().msg_list.borrow_mut() = saved_msg_list;
             return false;
         }
 
@@ -5450,7 +5450,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             restore_dbg_stuff(&mut debug_saved);
         }
 
-        g_st().msg_list = saved_msg_list;
+        *g_st().msg_list.borrow_mut() = saved_msg_list;
 
         cstack.cs_emsg_silent_list.clear();
 
@@ -5496,7 +5496,7 @@ pub fn handle_did_throw() {
     match excp.r#type {
         ET_USER => {
             let _ = format_to_buf!(
-                &mut g_st().iobuff,
+                &mut *g_st().iobuff.borrow_mut(),
                 gettext(c"E605: Exception not caught: %s"),
                 &excp.value,
             );
@@ -5983,7 +5983,7 @@ pub fn parse_cmdline(
 
         if eap.cmdidx == Cmdidx::CmdSize {
             crate::memory::copy_bytes_to_c_buf(
-                g_st().iobuff_bytes_mut(),
+                &mut *g_st().iobuff_bytes_mut(),
                 gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
             );
             let cmdname = if !after_modifier.is_null() {
@@ -6145,14 +6145,14 @@ fn execute_cmd0(
         }
     }
 
-    if eap.cmdidx == Cmdidx::CmdTry && g_st().cmdmod.cmod_did_esilent > 0 {
+    if eap.cmdidx == Cmdidx::CmdTry && g_st().cmdmod.borrow().cmod_did_esilent > 0 {
         g_st()
             .emsg_silent
-            .set(g_st().emsg_silent.get() - (g_st().cmdmod.cmod_did_esilent));
+            .set(g_st().emsg_silent.get() - (g_st().cmdmod.borrow().cmod_did_esilent));
         if g_st().emsg_silent.get() < 0 {
             g_st().emsg_silent.set(0);
         }
-        g_st().cmdmod.cmod_did_esilent = 0;
+        g_st().cmdmod.borrow_mut().cmod_did_esilent = 0;
     }
 
     if eap.cmdidx.is_user() {
@@ -6182,9 +6182,11 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     }
 
     let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
-    let save_cmdmod = std::mem::replace(&mut g_st().cmdmod, std::mem::take(cmod));
+    let save_cmdmod = g_st().cmdmod.replace(std::mem::take(cmod));
 
-    apply_cmdmod(&mut g_st().cmdmod);
+    let mut cur_cmod = g_st().cmdmod.take();
+    apply_cmdmod(&mut cur_cmod);
+    *g_st().cmdmod.borrow_mut() = cur_cmod;
 
     'end: {
         if !curbuf_mut().b_p_ma.get()
@@ -6238,8 +6240,9 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
         let _ = emsg(&msg);
     }
 
-    undo_cmdmod(&mut g_st().cmdmod);
-    g_st().cmdmod = save_cmdmod;
+    let mut cur_cmod = g_st().cmdmod.take();
+    undo_cmdmod(&mut cur_cmod);
+    *g_st().cmdmod.borrow_mut() = save_cmdmod;
 
     do_cmdline_end();
     retv
@@ -6402,7 +6405,7 @@ fn do_one_cmd(
         DOCMD_STATE.with(|s| s.quitmore.set(s.quitmore.get() - (1)));
     }
 
-    let save_cmdmod = std::mem::take(&mut g_st().cmdmod);
+    let save_cmdmod = g_st().cmdmod.take();
 
     'doend: {
         if crate::memory::bytes_as_cstr(cmdline_buf)
@@ -6416,10 +6419,15 @@ fn do_one_cmd(
         ea.cmd = ea.cmdline_ptr();
         ea.ea_getline = fgetline.clone();
 
-        if !parse_command_modifiers(&mut ea, &mut errormsg, &mut g_st().cmdmod, false) {
+        let mut cur_cmod = Cmdmod::new();
+        let parsed_ok = parse_command_modifiers(&mut ea, &mut errormsg, &mut cur_cmod, false);
+        *g_st().cmdmod.borrow_mut() = cur_cmod;
+        if !parsed_ok {
             break 'doend;
         }
-        apply_cmdmod(&mut g_st().cmdmod);
+        let mut cur_cmod = g_st().cmdmod.take();
+        apply_cmdmod(&mut cur_cmod);
+        *g_st().cmdmod.borrow_mut() = cur_cmod;
 
         let after_modifier = ea.cmd.clone();
 
@@ -6501,7 +6509,7 @@ fn do_one_cmd(
         if ea.cmdidx == Cmdidx::CmdSize {
             if !ea.skip {
                 crate::memory::copy_bytes_to_c_buf(
-                    g_st().iobuff_bytes_mut(),
+                    &mut *g_st().iobuff_bytes_mut(),
                     gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
                 );
                 let cmdname = if !after_modifier.is_null() {
@@ -6749,9 +6757,9 @@ fn do_one_cmd(
         && g_st().did_emsg.get() == 0
     {
         if (flags & DOCMD_VERBOSE) != 0 {
-            let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr().cast();
+            let iobuf_ptr: RawCCharPtr = g_st().iobuff.borrow().as_ptr().cast();
             if !ptr::eq(msg.as_ptr(), iobuf_ptr) {
-                crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
+                crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), msg.to_bytes());
             }
             append_command(ea.cmdline_cstr());
             msg = std::borrow::Cow::Owned(g_st().iobuff_cstr().to_owned());
@@ -6764,8 +6772,9 @@ fn do_one_cmd(
             .then(|| CMDNAMES[ea.cmdidx as usize].cmd_name),
     );
 
-    undo_cmdmod(&mut g_st().cmdmod);
-    g_st().cmdmod = save_cmdmod;
+    let mut cur_cmod = g_st().cmdmod.take();
+    undo_cmdmod(&mut cur_cmod);
+    *g_st().cmdmod.borrow_mut() = save_cmdmod;
     g_st().reg_executing.set(save_reg_executing);
     g_st()
         .pending_end_reg_executing
@@ -7429,7 +7438,7 @@ pub fn checkforcmd(p_bytes: &[u8], cmd_bytes: &[u8], len: usize) -> Option<usize
 }
 
 fn append_command(cmd: &CStr) {
-    let iobuf = g_st().borrow_mut().iobuff_bytes_mut();
+    let iobuf = &mut *g_st().iobuff_bytes_mut();
     let mut d = iobuf.iter().position(|&b| b == 0).unwrap_or(IOSIZE);
     if d > IOSIZE - 100 {
         d = IOSIZE - 100;
@@ -8423,7 +8432,7 @@ pub fn expand_filename(
             let esc_wildcards = c" \t*?[{";
             expand_env_esc(
                 eap.arg.as_cstr(),
-                g_st().name_buff_bytes_mut(),
+                &mut *g_st().name_buff_bytes_mut(),
                 Some(esc_wildcards),
                 true,
                 None,
@@ -9053,7 +9062,8 @@ fn check_more(message: bool, forceit: bool) -> bool {
         && DOCMD_STATE.with(|s| s.quitmore.get()) == 0
     {
         if message {
-            if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            if (opt_vars().p_confirm.get()
+                || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
                 && curbuf_mut().fname_opt().is_some()
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
@@ -9274,11 +9284,12 @@ fn ex_restart(eap: &mut Exarg) {
             v_lock: 0,
             vval: TypvalVval::Dict(extra_d),
         };
+        let cmod = g_st().cmdmod.borrow().clone();
         nlua_call_excmd(
             c"vim._core.server",
             c"ex_session_restart",
             eap,
-            &g_st().cmdmod,
+            &cmod,
             Some(&mut extra_tv),
         );
         tv_clear(&mut extra_tv);
@@ -9590,7 +9601,7 @@ fn ex_restart(eap: &mut Exarg) {
         set_vim_var_string(VV_EXITREASON, Some(startreason), -1);
 
         let mut quit_cmd_copy: Option<std::ffi::CString> = None;
-        if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+        if (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0 {
             let mut bytes = Vec::from(&b"confirm "[..]);
             bytes.extend_from_slice(quit_cmd.to_bytes());
             let cstr = bytes_to_cstring(&bytes);
@@ -9685,7 +9696,7 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPage
 
     let mut need_hide = buf_is_changed_fn(win.buf_mut()) && win.buf_mut().b_nwindows.get() <= 1;
     if need_hide && !buf_hide(win.buf_mut()) && !forceit {
-        if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
             && opt_vars().p_write.get()
         {
             let mut bufref: Bufref = Bufref::new();
@@ -10079,7 +10090,7 @@ pub fn set_ref_in_findfunc(copy_id: i32) -> bool {
 }
 
 fn set_browse_edit_arg(eap: &mut Exarg) {
-    if (g_st().cmdmod.cmod_flags & CMOD_BROWSE) != 0
+    if (g_st().cmdmod.borrow().cmod_flags & CMOD_BROWSE) != 0
         && eap.arg.is_empty()
         && (eap.cmdidx == Cmdidx::CmdEdit
             || eap.cmdidx == Cmdidx::CmdSplit
@@ -10099,7 +10110,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
         || eap.cmdidx == Cmdidx::CmdTabfind
         || eap.cmdidx == Cmdidx::CmdTabnew;
 
-    if bt_quickfix(Some(crate::globals::curbuf_mut())) && g_st().cmdmod.cmod_tab == 0 {
+    if bt_quickfix(Some(crate::globals::curbuf_mut())) && g_st().cmdmod.borrow().cmod_tab == 0 {
         if eap.cmdidx == Cmdidx::CmdSplit {
             eap.cmdidx = Cmdidx::CmdNew;
         }
@@ -10134,8 +10145,8 @@ pub fn ex_splitview(eap: &mut Exarg) {
         }
 
         if use_tab {
-            let after = if g_st().cmdmod.cmod_tab != 0 {
-                g_st().cmdmod.cmod_tab
+            let after = if g_st().cmdmod.borrow().cmod_tab != 0 {
+                g_st().cmdmod.borrow().cmod_tab
             } else if eap.addr_count == 0 {
                 0
             } else {
@@ -10149,7 +10160,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin.opt())
                     && old_curwin.w_buffer.get() != g_st().curbuf.get()
-                    && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+                    && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
                 {
                     {
                         old_curwin.w_alt_fnum.set(curbuf_mut().b_fnum.get());
@@ -10248,12 +10259,12 @@ fn ex_tabs(_eap: &mut Exarg) {
         if g_st().msg_col.get() > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let _ = format_to_buf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
-        let _ = msg_outtrans(
-            crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-            HLF_T,
-            false,
+        let _ = format_to_buf!(
+            &mut *g_st().iobuff.borrow_mut(),
+            gettext(c"Tab page %d"),
+            tabcount
         );
+        let _ = msg_outtrans(g_st().iobuff_cstr(), HLF_T, false);
         os_breakcheck();
 
         for wp in for_all_windows_in_tab_ptr(&tp) {
@@ -10280,20 +10291,19 @@ fn ex_tabs(_eap: &mut Exarg) {
             });
             msg_putchar(b' ' as i32);
             if let Some(spname) = buf_spname(wp.buf_mut()) {
-                crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), spname.to_bytes());
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut *g_st().iobuff_bytes_mut(),
+                    spname.to_bytes(),
+                );
             } else {
                 home_replace(
                     wp.buf_opt(),
                     wp.buf_mut().fname_opt(),
-                    g_st().iobuff_bytes_mut(),
+                    &mut *g_st().iobuff_bytes_mut(),
                     true,
                 );
             }
-            let _ = msg_outtrans(
-                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
-                0,
-                false,
-            );
+            let _ = msg_outtrans(g_st().iobuff_cstr(), 0, false);
             os_breakcheck();
         }
     }
@@ -10473,7 +10483,7 @@ fn ex_resize(eap: &mut Exarg) {
     }
 
     let mut n = crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32;
-    if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
+    if (g_st().cmdmod.borrow().cmod_split & WSP_VERT) != 0 {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
             n += wp.w_width.get();
         } else if n == 0 && eap.arg.is_empty() {
@@ -10658,7 +10668,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         && old_curwin != curwin_ptr()
         && win_valid(old_curwin.opt())
         && old_curwin.w_buffer.get() != g_st().curbuf.get()
-        && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+        && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
     {
         {
             old_curwin.w_alt_fnum.set(curbuf_mut().b_fnum.get());
@@ -10889,14 +10899,14 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir_cstr = prev_dir_cstr.as_deref().unwrap();
     }
 
-    let pdir = if os_dirname(g_st().name_buff_bytes_mut()) {
+    let pdir = if os_dirname(&mut *g_st().name_buff_bytes_mut()) {
         Some(g_st().name_buff_cstr().to_owned())
     } else {
         None
     };
 
     if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh.get() {
-        expand_env(c"$HOME", g_st().name_buff_bytes_mut());
+        expand_env(c"$HOME", &mut *g_st().name_buff_bytes_mut());
         new_dir_cstr = g_st().name_buff_cstr();
     }
 
@@ -10985,9 +10995,9 @@ pub fn ex_cd(eap: &mut Exarg) {
 }
 
 fn ex_pwd(_eap: &mut Exarg) {
-    if os_dirname(g_st().name_buff_bytes_mut()) {
+    if os_dirname(&mut *g_st().name_buff_bytes_mut()) {
         #[cfg(windows)]
-        slash_adjust(g_st().name_buff_bytes_mut());
+        slash_adjust(&mut *g_st().name_buff_bytes_mut());
         if opt_vars().p_verbose.get() > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason.get() {
                 reason
@@ -11000,12 +11010,9 @@ fn ex_pwd(_eap: &mut Exarg) {
             } else {
                 c"global"
             };
-            let _ = smsg!(0, c"[%s] %s", context, &g_st().name_buff);
+            let _ = smsg!(0, c"[%s] %s", context, &*g_st().name_buff.borrow());
         } else {
-            let _ = msg(
-                crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
-                0,
-            );
+            let _ = msg(g_st().name_buff_cstr(), 0);
         }
     } else {
         let _ = emsg(gettext(c"E187: Unknown"));
@@ -11110,8 +11117,12 @@ fn ex_wincmd(eap: &mut Exarg) {
     if !(p).is_empty() && (p).first_byte() != b'"' && eap.nextcmd.is_null() {
         let _ = emsg(gettext(E_INVARG));
     } else if !eap.skip {
-        g_st().postponed_split_flags.set(g_st().cmdmod.cmod_split);
-        g_st().postponed_split_tab.set(g_st().cmdmod.cmod_tab);
+        g_st()
+            .postponed_split_flags
+            .set(g_st().cmdmod.borrow().cmod_split);
+        g_st()
+            .postponed_split_tab
+            .set(g_st().cmdmod.borrow().cmod_tab);
         do_window(
             i32::from(eap.arg.first_byte()),
             if eap.addr_count > 0 { eap.line2 } else { 0 },
@@ -11136,7 +11147,7 @@ fn ex_operators(eap: &mut Exarg) {
         beginline(BL_SOL | BL_FIX);
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         end_visual_mode();
     }
 
@@ -11267,7 +11278,7 @@ fn ex_join(eap: &mut Exarg) {
 }
 
 fn ex_at(eap: &mut Exarg) {
-    let prev_len = g_st().typebuf.tb_len;
+    let prev_len = g_st().typebuf.tb_len.get();
 
     curwin_mut().w_cursor.lnum = eap.line2;
     check_cursor_col(curwin_mut());
@@ -11290,7 +11301,7 @@ fn ex_at(eap: &mut Exarg) {
     let save_efr = g_st().exec_from_reg.get();
     g_st().exec_from_reg.set(true);
 
-    while !stuff_empty() || g_st().typebuf.tb_len > prev_len {
+    while !stuff_empty() || g_st().typebuf.tb_len.get() > prev_len {
         do_cmdline(None, LineGetter::ExLine, DOCMD_NOWAIT | DOCMD_VERBOSE);
     }
 
@@ -11433,7 +11444,7 @@ fn ex_redir(eap: &mut Exarg) {
         close_redir();
 
         let fname = expand_env_save((arg).as_cstr());
-        g_st().redir_fd = open_exfile(&fname, eap.forceit, mode);
+        *g_st().redir_fd.borrow_mut() = open_exfile(&fname, eap.forceit, mode);
     } else if let Some(mut rem) = arg_bytes.strip_prefix(b"@") {
         close_redir();
         if let Some((&reg_b, rest)) = rem.split_first()
@@ -11493,7 +11504,7 @@ fn ex_redraw(eap: &mut Exarg) {
     if eap.forceit {
         redraw_all_later(UPD_NOT_VALID);
         g_st().redraw_cmdline.set(true);
-    } else if g_st().visual_global.active {
+    } else if g_st().visual_global.borrow().active {
         redraw_curbuf_later(UPD_INVERTED);
     }
     update_screen();
@@ -11528,7 +11539,7 @@ fn ex_redrawstatus(eap: &mut Exarg) {
     if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
         redraw_statuslines();
     } else {
-        if g_st().visual_global.active {
+        if g_st().visual_global.borrow().active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         update_screen();
@@ -11553,7 +11564,7 @@ fn ex_redrawtabline(_eap: &mut Exarg) {
 }
 
 fn close_redir() {
-    g_st().redir_fd = None;
+    *g_st().redir_fd.borrow_mut() = None;
     g_st().redir_reg.set(0);
     if g_st().redir_vname.get() {
         var_redir_stop();
@@ -11780,14 +11791,14 @@ fn ex_startinsert(eap: &mut Exarg) {
         curwin_mut().w_curswant.set(0);
     }
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         showmode();
     }
 }
 
 fn ex_stopinsert(_eap: &mut Exarg) {
     g_st().restart_edit.set(0);
-    g_st().ins_global.stop_insert_mode = true;
+    g_st().ins_global.borrow_mut().stop_insert_mode = true;
     clearmode();
 }
 
@@ -11800,7 +11811,7 @@ pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     let mut oa = Oparg::new();
     g_st().finish_op.set(false);
     while (!stuff_empty()
-        || ((was_typed || typebuf_typed() == 0) && g_st().typebuf.tb_len > 0)
+        || ((was_typed || typebuf_typed() == 0) && g_st().typebuf.tb_len.get() > 0)
         || (use_vpeekc && {
             let c = vpeekc();
             c != 0 && c != i32::from(CTRL_C_CONST)
@@ -11947,8 +11958,12 @@ fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
 
 fn ex_stag(eap: &mut Exarg) {
     g_st().postponed_split.set(-1);
-    g_st().postponed_split_flags.set(g_st().cmdmod.cmod_split);
-    g_st().postponed_split_tab.set(g_st().cmdmod.cmod_tab);
+    g_st()
+        .postponed_split_flags
+        .set(g_st().cmdmod.borrow().cmod_split);
+    g_st()
+        .postponed_split_tab
+        .set(g_st().cmdmod.borrow().cmod_tab);
     ex_tag_cmd(
         eap,
         crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
@@ -12595,7 +12610,8 @@ pub fn is_loclist_cmd(cmdidx: Cmdidx) -> bool {
 
 fn ex_checkhealth(eap: &mut Exarg) {
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-    let ok = nlua_call_excmd(c"vim.health", c"_check", eap, &g_st().cmdmod, None);
+    let cmod = g_st().cmdmod.borrow().clone();
+    let ok = nlua_call_excmd(c"vim.health", c"_check", eap, &cmod, None);
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     if ok {
         return;
@@ -12626,13 +12642,8 @@ fn ex_terminal(eap: &mut Exarg) {
     g_st().msg_scroll.set(scroll_save);
 
     if !eap.arg.is_empty() {
-        nlua_call_excmd(
-            c"vim._core.ex_cmd",
-            c"ex_terminal",
-            eap,
-            &g_st().cmdmod,
-            None,
-        );
+        let cmod = g_st().cmdmod.borrow().clone();
+        nlua_call_excmd(c"vim._core.ex_cmd", c"ex_terminal", eap, &cmod, None);
     } else {
         if opt_vars().p_sh.is_empty() {
             let _ = emsg(gettext(E_SHELLEMPTY));
@@ -12648,11 +12659,12 @@ fn ex_terminal(eap: &mut Exarg) {
                 arg.as_bytes().len() as isize,
             );
         }
+        let cmod = g_st().cmdmod.borrow().clone();
         nlua_call_excmd(
             c"vim._core.ex_cmd",
             c"ex_terminal",
             eap,
-            &g_st().cmdmod,
+            &cmod,
             Some(&mut shell_tv),
         );
         tv_clear(&mut shell_tv);
@@ -12660,35 +12672,28 @@ fn ex_terminal(eap: &mut Exarg) {
 }
 
 fn ex_log(eap: &mut Exarg) {
-    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_log", eap, &g_st().cmdmod, None);
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_log", eap, &cmod, None);
 }
 
 fn ex_lsp(eap: &mut Exarg) {
-    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_lsp", eap, &g_st().cmdmod, None);
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_lsp", eap, &cmod, None);
 }
 
 fn ex_packdel(eap: &mut Exarg) {
-    nlua_call_excmd(
-        c"vim._core.ex_cmd",
-        c"ex_packdel",
-        eap,
-        &g_st().cmdmod,
-        None,
-    );
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_packdel", eap, &cmod, None);
 }
 
 fn ex_packupdate(eap: &mut Exarg) {
-    nlua_call_excmd(
-        c"vim._core.ex_cmd",
-        c"ex_packupdate",
-        eap,
-        &g_st().cmdmod,
-        None,
-    );
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_packupdate", eap, &cmod, None);
 }
 
 fn ex_uptime(eap: &mut Exarg) {
-    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_uptime", eap, &g_st().cmdmod, None);
+    let cmod = g_st().cmdmod.borrow().clone();
+    nlua_call_excmd(c"vim._core.ex_cmd", c"ex_uptime", eap, &cmod, None);
 }
 
 fn ex_fclose(eap: &mut Exarg) {

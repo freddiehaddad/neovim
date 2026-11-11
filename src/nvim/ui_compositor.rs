@@ -52,7 +52,7 @@ struct UiCompositorState {
 
 impl UiCompositorState {
     #[inline]
-    fn curgrid_mut(&self) -> &'static mut ScreenGrid {
+    fn curgrid_mut(&self) -> &'static ScreenGrid {
         self.curgrid.get().borrow_mut()
     }
 
@@ -88,7 +88,7 @@ fn with_comp<R>(f: impl FnOnce(&UiCompositorState) -> R) -> R {
 }
 
 #[inline]
-fn layer_mut(idx: usize) -> &'static mut ScreenGrid {
+fn layer_mut(idx: usize) -> &'static ScreenGrid {
     with_comp(|c| c.layers.borrow()[idx]).borrow_mut()
 }
 
@@ -177,7 +177,7 @@ pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
 
 /// Places `grid` at `(col, row)` position with `(width * height)` size (`ui_comp_put_grid`).
 pub fn ui_comp_put_grid(
-    grid: &mut ScreenGrid,
+    grid: &ScreenGrid,
     row: i32,
     col: i32,
     height: i32,
@@ -275,7 +275,7 @@ pub fn ui_comp_put_grid(
     moved
 }
 
-pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
+pub fn ui_comp_remove_grid(grid: &ScreenGrid) {
     debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
     if grid.comp_index.get() == 0 {
         return;
@@ -318,7 +318,7 @@ pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
     false
 }
 
-pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
+pub fn ui_comp_raise_grid(grid: &ScreenGrid, new_index: usize) {
     let old_index = grid.comp_index.get();
     for i in old_index..new_index {
         let next = layer_mut(i + 1);
@@ -369,7 +369,7 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     ui_composed_call_grid_cursor_goto(1, cursor_row as Integer, cursor_col as Integer);
 }
 
-pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid> {
+pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static ScreenGrid> {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
         if g.mouse_enabled.get()
@@ -398,7 +398,7 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid
 }
 
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
-pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid {
+pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static ScreenGrid {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
         if row >= g.comp_row.get()
@@ -421,7 +421,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid 
             return grid;
         }
     }
-    &mut g_st().borrow_mut().default_grid
+    &g_st().default_grid
 }
 
 fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut flags: LineFlags) {
@@ -486,7 +486,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
             if row == (msg_sep_row as Integer)
                 && grid.unwrap().comp_index <= g_st().msg_grid.comp_index
             {
-                grid = Some(&g_st().borrow_mut().msg_grid);
+                grid = Some(&g_st().msg_grid);
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
                 for i in col..until {
                     let idx = (i - startcol as i32) as usize;
@@ -658,7 +658,7 @@ fn compose_area(startrow: Integer, mut endrow: Integer, startcol: Integer, mut e
 }
 
 /// Compose the area under the grid (`ui_comp_compose_grid`).
-pub fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
+pub fn ui_comp_compose_grid(grid: &ScreenGrid) {
     if ui_comp_should_draw() {
         compose_area(
             grid.comp_row.get() as Integer,

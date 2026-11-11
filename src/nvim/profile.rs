@@ -905,14 +905,14 @@ pub fn time_pop(tp: Proftime) {
 fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = CString::new(format!("{:07.3}", (diff as f64) / 1.0e6)).unwrap();
-    if let Some(ref tf) = g_st().time_fd {
+    if let Some(ref tf) = *g_st().time_fd.borrow() {
         fprintf!(tf, c"%s", &s);
     }
 }
 
 /// Initializes the startuptime code (`time_start`).
 pub fn time_start(message: &std::ffi::CStr) {
-    let Some(ref tf) = g_st().time_fd else {
+    let Some(ref tf) = *g_st().time_fd.borrow() else {
         return;
     };
 
@@ -931,7 +931,7 @@ pub fn time_start(message: &std::ffi::CStr) {
 
 /// Prints out timing info (`time_msg`).
 pub fn time_msg(mesg: &CStr, start: Option<&Proftime>) {
-    let Some(ref tf) = g_st().time_fd else {
+    let Some(ref tf) = *g_st().time_fd.borrow() else {
         return;
     };
 
@@ -953,8 +953,8 @@ pub fn time_msg(mesg: &CStr, start: Option<&Proftime>) {
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
 pub fn time_init(fname: &CStr, proc_name: &CStr) {
     const BUFSIZE: usize = 8192;
-    g_st().time_fd = CFile::open_libc(fname, c"a");
-    let Some(ref tf) = g_st().time_fd else {
+    *g_st().time_fd.borrow_mut() = CFile::open_libc(fname, c"a");
+    let Some(ref tf) = *g_st().time_fd.borrow() else {
         let fname_str = fname.to_string_lossy();
         eprint!("E484: Can't open file {fname_str}");
         return;
@@ -966,7 +966,7 @@ pub fn time_init(fname: &CStr, proc_name: &CStr) {
     });
     if r != 0 {
         prof_st(|st| *st.startuptime_buf.borrow_mut() = Vec::new());
-        g_st().time_fd = None;
+        *g_st().time_fd.borrow_mut() = None;
         let err_str = uv_err_name(r).to_string_lossy();
         eprint!("time_init: setvbuf failed: {r} {err_str}");
         return;
@@ -982,7 +982,7 @@ pub fn time_finish() {
     assert!(prof_st(|st| !st.startuptime_buf.borrow().is_empty()));
     time_msg(c"--- NVIM STARTED ---\n", None);
 
-    g_st().time_fd = None;
+    *g_st().time_fd.borrow_mut() = None;
 
     prof_st(|st| *st.startuptime_buf.borrow_mut() = Vec::new());
 }

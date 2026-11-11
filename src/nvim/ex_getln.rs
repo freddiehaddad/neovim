@@ -1381,7 +1381,7 @@ fn command_line_check(s: &mut CommandLineState) -> i32 {
     g_st().quit_more.set(false);
     g_st().did_emsg.set(0);
 
-    if g_st().ex_normal_busy.get() == 0 && stuff_empty() && g_st().typebuf.tb_len == 0 {
+    if g_st().ex_normal_busy.get() == 0 && stuff_empty() && g_st().typebuf.tb_len.get() == 0 {
         s.some_key_typed = true;
     }
 
@@ -3125,14 +3125,14 @@ fn cmdpreview_prepare() -> CpInfo {
     }
 
     cpinfo.save_hls = opt_vars().p_hls.get();
-    cpinfo.save_cmdmod = std::mem::take(&mut g_st().cmdmod);
+    cpinfo.save_cmdmod = g_st().cmdmod.take();
     win_size_save(&mut cpinfo.save_view);
     save_search_patterns();
 
     opt_vars().p_hls.set(false);
-    g_st().cmdmod.cmod_split = 0;
-    g_st().cmdmod.cmod_tab = 0;
-    g_st().cmdmod.cmod_flags |= CMOD_NOSWAPFILE;
+    g_st().cmdmod.borrow_mut().cmod_split = 0;
+    g_st().cmdmod.borrow_mut().cmod_tab = 0;
+    g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_NOSWAPFILE;
 
     u_sync(true);
     cpinfo
@@ -3173,7 +3173,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
         update_topline(&mut *win);
     }
 
-    g_st().cmdmod = std::mem::take(&mut cpinfo.save_cmdmod);
+    *g_st().cmdmod.borrow_mut() = std::mem::take(&mut cpinfo.save_cmdmod);
     opt_vars().p_hls.set(cpinfo.save_hls);
     restore_search_patterns();
     win_size_restore(&cpinfo.save_view);
@@ -3774,7 +3774,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     Some(&get_globvar_dict()),
                     c"Nvim_color_cmdline",
                     18,
-                    &mut color_cb,
+                    &color_cb,
                 );
                 try_leave(&tstate, &mut err);
                 can_free_cb = true;
@@ -5189,7 +5189,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         vval: TypvalVval::Number(0),
     };
     let mut xp_name_cow: Option<std::borrow::Cow<'_, CStr>> = None;
-    let mut input_callback: Callback = Callback::new();
+    let input_callback: Callback = Callback::new();
     let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
@@ -5227,7 +5227,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             };
             xp_name_cow = Some(xp_cstr);
         }
-        if !tv_dict_get_callback(dict.opt(), c"highlight", 9, &mut input_callback) {
+        if !tv_dict_get_callback(dict.opt(), c"highlight", 9, &input_callback) {
             return;
         }
     } else {

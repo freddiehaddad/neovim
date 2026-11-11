@@ -1226,7 +1226,7 @@ pub fn terminal_enter() -> bool {
     s.term = buf.terminal.get();
 
     s.cursor_visible = true;
-    g_st().ins_global.stop_insert_mode = false;
+    g_st().ins_global.borrow_mut().stop_insert_mode = false;
 
     terminal_check_size(s.term);
 
@@ -1385,7 +1385,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
             || (with_term(s.term, |t| t.buf_handle == 0) && s.term != curbuf_mut().terminal.get())
     );
 
-    if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
+    if g_st().ins_global.borrow().stop_insert_mode || !terminal_check_focus(&mut *s) {
         return 0;
     }
 

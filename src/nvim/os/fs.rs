@@ -1463,7 +1463,8 @@ fn is_executable_ext(
         .map_or(&b""[..], |pos| &name_bytes[pos..]);
 
     let copied_len =
-        crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), name_bytes).min(MAXPATHL - 1);
+        crate::memory::copy_bytes_to_c_buf(&mut *g_st().os_buf_bytes_mut(), name_bytes)
+            .min(MAXPATHL - 1);
     let mut pathext_buf = [0u8; MAXPATHL];
     let pathext = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
         .unwrap_or(c".com;.exe;.bat;.cmd")
@@ -1483,14 +1484,14 @@ fn is_executable_ext(
 
         let ext_start = ext_rem;
         let ext_len = {
-            let mut g = g_st();
+            let g = g_st();
             let dst = &mut g.os_buf_bytes_mut()[copied_len..MAXPATHL];
             copy_option_part(&mut ext_rem, dst, ENV_SEPSTR)
         };
         if ext_len != 0 {
             let in_pathext = nameext.len() == ext_len
                 && mb_strnicmp(nameext, &ext_start[..ext_len], ext_len) == 0;
-            let cand_cstr = crate::memory::cstring_until_nul(g_st().os_buf_bytes_mut());
+            let cand_cstr = crate::memory::cstring_until_nul(&*g_st().os_buf_bytes_mut());
             if ((in_pathext || is_unix_shell) && is_executable(name_cstr, abspath.as_deref_mut()))
                 || is_executable(&cand_cstr, abspath.as_deref_mut())
             {

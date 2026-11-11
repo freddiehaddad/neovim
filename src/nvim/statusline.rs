@@ -372,7 +372,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
             wp.w_p_fcs_chars.vert
         };
         let attr = win_hl_attr(&mut *wp, group);
-        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(w_endcol(wp), fillchar, attr);
         grid_line_flush();
     }
@@ -381,16 +381,16 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
 
 pub fn get_trans_bufname(buf: &mut FileBuf) {
     if let Some(sp) = buf_spname(&*buf) {
-        crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
+        crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
         home_replace(
             Some(&*buf),
             buf.fname_opt(),
-            g_st().name_buff_bytes_mut(),
+            &mut *g_st().name_buff_bytes_mut(),
             true,
         );
     }
-    trans_characters(g_st().name_buff_bytes_mut());
+    trans_characters(&mut *g_st().name_buff_bytes_mut());
 }
 
 /// Return true if the status line of window `wp` is connected to the status
@@ -563,8 +563,7 @@ fn win_redr_stl_expr(
         };
         row = -1;
         col = 0;
-        let has_grid =
-            crate::grid::grid_adjust_opt(&mut wp_ref.w_grid, &mut row, &mut col).is_some();
+        let has_grid = crate::grid::grid_adjust_opt(&wp_ref.w_grid, &mut row, &mut col).is_some();
         if has_grid {
             grid_target = StlGridTarget::WinGrid(wp);
         }
@@ -625,7 +624,7 @@ fn win_redr_stl_expr(
         stl_cstr = stl.to_owned();
         row = g_st().rows_global.get() - 1;
         col = g_st().ru_col.get().max(g_st().columns_global.get() / 2);
-        let _ = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
+        let _ = grid_adjust(&g_st().msg_grid_adj, &mut row, &mut col);
         grid_target = StlGridTarget::MsgAdj;
         maxwidth = g_st().columns_global.get() - col;
         fillchar = schar_from_ascii(b' ');
@@ -692,10 +691,15 @@ fn win_redr_stl_expr(
             None,
         );
         let maxwidth_u = maxwidth as usize;
+        let mut tab_defs_guard = if click_defs_target == ClickDefsTarget::Tabline {
+            Some(g_st().tab_page_click_defs.borrow_mut())
+        } else {
+            None
+        };
         let click_defs_slice = match click_defs_target {
             ClickDefsTarget::None => None,
             ClickDefsTarget::Tabline => {
-                let defs = &mut g_st().borrow_mut().tab_page_click_defs;
+                let defs = tab_defs_guard.as_deref_mut().unwrap();
                 (defs.len() >= maxwidth_u).then(|| &mut defs[..maxwidth_u])
             }
             ClickDefsTarget::Winbar => Some(&mut wp.borrow_mut().w_winbar_click_defs[..maxwidth_u]),
@@ -710,6 +714,7 @@ fn win_redr_stl_expr(
                 wp.is_null(),
             );
         });
+        drop(tab_defs_guard);
 
         drop(stl_cstr);
         ewp.w_onebuf_opt.wo_crb.set(p_crb_save);
@@ -719,7 +724,7 @@ fn win_redr_stl_expr(
 
         if !ui_event {
             let grid_ref = match grid_target {
-                StlGridTarget::Default => &mut g_st().default_grid,
+                StlGridTarget::Default => &g_st().default_grid,
                 StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow_mut(),
                 StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow_mut(),
                 StlGridTarget::WinAlloc(w) => &mut w.borrow_mut().w_grid_alloc,
@@ -1021,15 +1026,17 @@ pub fn draw_tabline() {
         return;
     }
 
-    debug_assert!(g_st().tab_page_click_defs.len() >= g_st().columns_global.get() as usize);
-    stl_clear_click_defs(&mut g_st().tab_page_click_defs);
+    debug_assert!(
+        g_st().tab_page_click_defs.borrow().len() >= g_st().columns_global.get() as usize
+    );
+    stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
 
     if !opt_vars().p_tal.is_empty() {
         win_redr_stl_expr(None, false, false, false);
     } else {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
-        grid_line_start(&mut g_st().default_gridview, 0);
+        grid_line_start(&g_st().default_gridview, 0);
         let mut tp = g_st().first_tabpage.get().clone();
         while !tp.is_null() {
             tabcount += 1;
@@ -1090,7 +1097,7 @@ pub fn draw_tabline() {
 
             if modified || wincount > 1 {
                 if wincount > 1 {
-                    let len = format_to_buf!(g_st().name_buff_bytes_mut(), c"%d", wincount);
+                    let len = format_to_buf!(&mut *g_st().name_buff_bytes_mut(), c"%d", wincount);
                     if col + len >= g_st().columns_global.get() - 3 {
                         break;
                     }
@@ -1116,7 +1123,7 @@ pub fn draw_tabline() {
             if room > 0 {
                 get_trans_bufname(cwp.borrow_mut().buf_mut());
 
-                shorten_dir(g_st().name_buff_bytes_mut());
+                shorten_dir(&mut *g_st().name_buff_bytes_mut());
                 let name_cstr = g_st().name_buff_cstr();
                 let mut len = vim_strsize(name_cstr);
                 let mut p_cstr = name_cstr;
@@ -1137,11 +1144,12 @@ pub fn draw_tabline() {
 
             tabcount += 1;
             while scol < col {
-                g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
-                    type_: K_STL_CLICK_TAB_SWITCH,
-                    tabnr: tabcount,
-                    func: None,
-                };
+                g_st().tab_page_click_defs.borrow_mut().as_mut_slice()[scol as usize] =
+                    StlClickDefinition {
+                        type_: K_STL_CLICK_TAB_SWITCH,
+                        tabnr: tabcount,
+                        func: None,
+                    };
                 scol += 1;
             }
 
@@ -1149,11 +1157,12 @@ pub fn draw_tabline() {
         }
 
         for scol in col..g_st().columns_global.get() {
-            g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
-                type_: K_STL_CLICK_TAB_SWITCH,
-                tabnr: 0,
-                func: None,
-            };
+            g_st().tab_page_click_defs.borrow_mut().as_mut_slice()[scol as usize] =
+                StlClickDefinition {
+                    type_: K_STL_CLICK_TAB_SWITCH,
+                    tabnr: 0,
+                    func: None,
+                };
         }
 
         let c = if use_sep_chars { b'_' } else { b' ' };
@@ -1171,7 +1180,7 @@ pub fn draw_tabline() {
             if sc_width > 0 {
                 grid_line_puts(
                     g_st().columns_global.get() - sc_width - i32::from(tabcount > 1) * 2,
-                    crate::memory::bytes_as_cstr(&g_st().showcmd_buf),
+                    crate::memory::bytes_as_cstr(&*g_st().showcmd_buf.borrow()),
                     sc_width,
                     attr_nosel,
                 );
@@ -1185,12 +1194,12 @@ pub fn draw_tabline() {
                 schar_from_ascii(b'X'),
                 attr_nosel,
             );
-            g_st().tab_page_click_defs.as_mut_slice()[(g_st().columns_global.get() - 1) as usize] =
-                StlClickDefinition {
-                    type_: K_STL_CLICK_TAB_CLOSE,
-                    tabnr: 999,
-                    func: None,
-                };
+            g_st().tab_page_click_defs.borrow_mut().as_mut_slice()
+                [(g_st().columns_global.get() - 1) as usize] = StlClickDefinition {
+                type_: K_STL_CLICK_TAB_CLOSE,
+                tabnr: 999,
+                func: None,
+            };
         }
 
         grid_line_flush();
@@ -1996,7 +2005,7 @@ pub fn build_stl_str_hl_slice(
                 fillable = false;
                 if let Some(name) = buf_spname(&wp.w_buffer.get()) {
                     crate::memory::copy_bytes_to_c_buf(
-                        g_st().name_buff_bytes_mut(),
+                        &mut *g_st().name_buff_bytes_mut(),
                         name.to_bytes(),
                     );
                 } else {
@@ -2009,11 +2018,11 @@ pub fn build_stl_str_hl_slice(
                     home_replace(
                         wp.w_buffer.get().opt(),
                         t,
-                        g_st().name_buff_bytes_mut(),
+                        &mut *g_st().name_buff_bytes_mut(),
                         true,
                     );
                 }
-                trans_characters(g_st().name_buff_bytes_mut());
+                trans_characters(&mut *g_st().name_buff_bytes_mut());
                 if opt != STL_FILENAME {
                     str_slice = Some(g_st().name_buff_cstr().to_bytes_with_nul());
                 } else {
@@ -2062,11 +2071,11 @@ pub fn build_stl_str_hl_slice(
                     let save_curbuf = g_st().curbuf.get();
                     let save_curwin = curwin_ptr();
                     #[allow(non_snake_case)]
-                    let save_VIsual_active = g_st().visual_global.active;
+                    let save_VIsual_active = g_st().visual_global.borrow().active;
                     set_curwin(&mut *wp);
                     g_st().curbuf.set(wp.w_buffer.get());
                     if curwin_ptr() != save_curwin {
-                        g_st().visual_global.active = false;
+                        g_st().visual_global.borrow_mut().active = false;
                     }
 
                     owned_str = eval_to_string_safe(
@@ -2078,7 +2087,7 @@ pub fn build_stl_str_hl_slice(
 
                     set_curwin(save_curwin);
                     g_st().curbuf.set(save_curbuf);
-                    g_st().visual_global.active = save_VIsual_active;
+                    g_st().visual_global.borrow_mut().active = save_VIsual_active;
 
                     do_unlet(b"g:actual_curbuf", true);
                     do_unlet(b"g:actual_curwin", true);
@@ -2193,7 +2202,9 @@ pub fn build_stl_str_hl_slice(
                     && (opt_idx == K_OPT_INVALID
                         || find_option(opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {
-                    str_slice = Some(&g_st().borrow_mut().showcmd_buf);
+                    let sc = *g_st().showcmd_buf.borrow();
+                    buf_tmp[..sc.len()].copy_from_slice(&sc);
+                    str_slice = Some(&buf_tmp[..sc.len()]);
                 }
             }
             STL_ARGLISTSTAT => {

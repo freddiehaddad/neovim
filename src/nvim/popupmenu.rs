@@ -926,12 +926,12 @@ pub fn pum_redraw() {
         .pum_grid
         .blending
         .set(opt_vars().p_pb.get() > 0 || fconfig.shadow);
-    grid_assign_handle(&mut g_st().pum_grid);
+    grid_assign_handle(&g_st().pum_grid);
 
     PUM.with(|s| s.left_col.set(PUM.with(|s| s.col.get()) - col_off));
     PUM.with(|s| s.right_col.set(PUM.with(|s| s.left_col.get()) + grid_width));
     let moved = ui_comp_put_grid(
-        &mut g_st().pum_grid,
+        &g_st().pum_grid,
         PUM.with(|s| s.row.get()),
         PUM.with(|s| s.left_col.get()),
         PUM.with(|s| s.height.get()) + border_width,
@@ -968,7 +968,7 @@ pub fn pum_redraw() {
 
     let scroll_range = PUM.with(|s| s.size.get()) - PUM.with(|s| s.height.get());
     if fconfig.border {
-        grid_draw_border(&mut g_st().pum_grid, &mut fconfig, None, 0, None, 0);
+        grid_draw_border(&g_st().pum_grid, &mut fconfig, None, 0, None, 0);
         if !fconfig.shadow {
             row += 1;
             col_off += 1;
@@ -1198,31 +1198,33 @@ pub fn pum_redraw() {
             let lcol = col_off - PUM.with(|s| s.width.get()) + 1;
             grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
-                g_st().linebuf_char[lcol as usize] = if fcs_trunc != 0 {
+                g_st().linebuf_char.borrow_mut()[lcol as usize] = if fcs_trunc != 0 {
                     fcs_trunc
                 } else {
                     schar_from_ascii(b'<')
                 };
-                g_st().linebuf_attr[lcol as usize] = trunc_attr;
-                if PUM.with(|s| s.width.get()) > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0
+                g_st().linebuf_attr.borrow_mut()[lcol as usize] = trunc_attr;
+                if PUM.with(|s| s.width.get()) > 1
+                    && g_st().linebuf_char.borrow()[(lcol + 1) as usize] == 0
                 {
-                    g_st().linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
+                    g_st().linebuf_char.borrow_mut()[(lcol + 1) as usize] = schar_from_ascii(b' ');
                 }
             }
         } else {
             let rcol = col_off + PUM.with(|s| s.width.get());
             grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
-                if PUM.with(|s| s.width.get()) > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0
+                if PUM.with(|s| s.width.get()) > 1
+                    && g_st().linebuf_char.borrow()[(rcol - 1) as usize] == 0
                 {
-                    g_st().linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
+                    g_st().linebuf_char.borrow_mut()[(rcol - 2) as usize] = schar_from_ascii(b' ');
                 }
-                g_st().linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
+                g_st().linebuf_char.borrow_mut()[(rcol - 1) as usize] = if fcs_trunc != 0 {
                     fcs_trunc
                 } else {
                     schar_from_ascii(b'>')
                 };
-                g_st().linebuf_attr[(rcol - 1) as usize] = trunc_attr;
+                g_st().linebuf_attr.borrow_mut()[(rcol - 1) as usize] = trunc_attr;
             }
         }
 
@@ -1643,7 +1645,7 @@ pub fn pum_check_clear() {
         if PUM.with(|s| s.external.get()) {
             ui_call_popupmenu_hide();
         } else {
-            ui_comp_remove_grid(&mut g_st().pum_grid);
+            ui_comp_remove_grid(&g_st().pum_grid);
             if ui_has(K_UIMULTIGRID) {
                 ui_call_win_close(i64::from(g_st().pum_grid.handle.get()));
                 ui_call_grid_destroy(i64::from(g_st().pum_grid.handle.get()));
@@ -2029,8 +2031,8 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
         }
     }
 
-    if let Some(menu) = menu_find(path_name) {
-        pum_show_popupmenu(menu);
+    if let Some(mut menu) = menu_find(path_name) {
+        pum_show_popupmenu(&mut menu);
     }
 }
 

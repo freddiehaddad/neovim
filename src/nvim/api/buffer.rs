@@ -548,12 +548,12 @@ pub fn nvim_buf_set_lines(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().visual_global.active
+        if g_st().visual_global.borrow().active
             && g_st().curbuf.get() == b
-            && g_st().visual_global.start.lnum >= (start as Linenr)
+            && g_st().visual_global.borrow().start.lnum >= (start as Linenr)
         {
-            if g_st().visual_global.start.lnum >= (end as Linenr) {
-                g_st().visual_global.start.lnum += extra as Linenr;
+            if g_st().visual_global.borrow().start.lnum >= (end as Linenr) {
+                g_st().visual_global.borrow_mut().start.lnum += extra as Linenr;
             }
             check_visual_pos();
         }
@@ -869,13 +869,13 @@ pub fn nvim_buf_set_text(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().visual_global.active
+        if g_st().visual_global.borrow().active
             && b_ptr == g_st().curbuf.get().as_ptr()
-            && g_st().visual_global.mode != CTRL_V_CONST
+            && g_st().visual_global.borrow().mode != CTRL_V_CONST
         {
             fix_pos_col(
                 b,
-                &mut g_st().visual_global.start,
+                &mut g_st().visual_global.borrow_mut().start,
                 start_row as Linenr,
                 start_col as Colnr,
                 end_row as Linenr,

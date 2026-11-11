@@ -776,7 +776,7 @@ pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
     if use_simple_function {
         r = may_call_simple_func(expr, &mut rettv);
     }
-    let ok = r.unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));
+    let ok = r.unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut Evalarg { eval_flags: 1 })));
     if !ok {
         retval = -1;
     } else {
@@ -1286,7 +1286,7 @@ fn get_lval_subscript<'a>(
                 empty1 = true;
             } else {
                 empty1 = false;
-                if !eval1(&mut p_cstr, &mut var1, Some(&mut g_st().evalarg_evaluate)) {
+                if !eval1(&mut p_cstr, &mut var1, Some(&mut Evalarg { eval_flags: 1 })) {
                     tv_clear(&mut var1);
                     tv_clear(&mut var2);
                     return None;
@@ -1326,7 +1326,7 @@ fn get_lval_subscript<'a>(
                     lp.ll_empty2 = true;
                 } else {
                     lp.ll_empty2 = false;
-                    if !eval1(&mut p_cstr, &mut var2, Some(&mut g_st().evalarg_evaluate))
+                    if !eval1(&mut p_cstr, &mut var2, Some(&mut Evalarg { eval_flags: 1 }))
                         || !tv_check_str(&var2)
                     {
                         tv_clear(&mut var1);
@@ -4141,7 +4141,7 @@ pub fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        for cw in &g_st().ctx_win_vec {
+        for cw in &*g_st().ctx_win_vec.borrow() {
             if let Some(cw_win) = cw.cw_win.opt_mut() {
                 let mut w_tv = cw_win.w_winvar.tv().clone();
                 abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
@@ -4161,7 +4161,7 @@ pub fn garbage_collect(testing: bool) -> bool {
     abort = abort || set_ref_in_functions(copy_id);
 
     {
-        for ct in g_st().channels.values_mut() {
+        for ct in crate::event::r#loop::main_loop_ptr().channels.values_mut() {
             set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
             set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
             set_ref_in_callback(&ct.on_exit, copy_id, None, None);
@@ -4955,7 +4955,7 @@ pub fn callback_call(
         K_CALLBACK_EXPR => {
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
             let expr = crate::charset::skipwhite(callback.data.as_funcref().unwrap_or(c""));
-            let r = eval0_simple_funccal(expr, rettv, None, &mut g_st().evalarg_evaluate);
+            let r = eval0_simple_funccal(expr, rettv, None, &mut Evalarg { eval_flags: 1 });
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
             return r;
         }
@@ -5382,11 +5382,11 @@ pub fn var2fpos(
             coladd: wp.w_cursor.coladd,
         };
     } else if name_bytes == b"v" {
-        if g_st().visual_global.active && wp == curwin_ptr() {
+        if g_st().visual_global.borrow().active && wp == curwin_ptr() {
             pos = CursorPos {
-                lnum: g_st().visual_global.start.lnum,
-                col: g_st().visual_global.start.col,
-                coladd: g_st().visual_global.start.coladd,
+                lnum: g_st().visual_global.borrow().start.lnum,
+                col: g_st().visual_global.borrow().start.col,
+                coladd: g_st().visual_global.borrow().start.coladd,
             };
         } else {
             pos = CursorPos {
@@ -6494,8 +6494,8 @@ pub fn common_job_callbacks(
     on_stderr: &mut CallbackReader,
     on_exit: &mut Callback,
 ) -> bool {
-    if tv_dict_get_callback(Some(vopts), c"on_stdout", 9, &mut on_stdout.cb)
-        && tv_dict_get_callback(Some(vopts), c"on_stderr", 9, &mut on_stderr.cb)
+    if tv_dict_get_callback(Some(vopts), c"on_stdout", 9, &on_stdout.cb)
+        && tv_dict_get_callback(Some(vopts), c"on_stderr", 9, &on_stderr.cb)
         && tv_dict_get_callback(Some(vopts), c"on_exit", 7, on_exit)
     {
         on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
@@ -6591,8 +6591,7 @@ pub fn eval_call_provider(
         autocmd_bufnr: g_st().autocmd_bufnr.get(),
         funccalp: get_current_funccal().into(),
     };
-    let saved_provider_caller_scope =
-        std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
+    let saved_provider_caller_scope = g_st().provider_caller_scope.replace(new_scope);
     save_funccal();
     {
         g_st()
@@ -6640,7 +6639,7 @@ pub fn eval_call_provider(
     tv_list_unref(Some(arguments));
     restore_funccal();
     {
-        g_st().provider_caller_scope = saved_provider_caller_scope;
+        *g_st().provider_caller_scope.borrow_mut() = saved_provider_caller_scope;
         g_st()
             .provider_call_nesting
             .set(g_st().provider_call_nesting.get() - (1));

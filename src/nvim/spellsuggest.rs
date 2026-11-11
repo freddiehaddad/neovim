@@ -684,16 +684,16 @@ pub fn spell_suggest(count: i32) {
             emsg(gettext(E_NO_SPELL));
             break 'skip;
         }
-        if g_st().visual_global.active {
-            if curwin_mut().w_cursor.lnum != g_st().visual_global.start.lnum {
+        if g_st().visual_global.borrow().active {
+            if curwin_mut().w_cursor.lnum != g_st().visual_global.borrow().start.lnum {
                 vim_beep(K_OPT_BO_FLAG_SPELL);
                 break 'skip;
             }
-            badlen = curwin_mut().w_cursor.col - g_st().visual_global.start.col;
+            badlen = curwin_mut().w_cursor.col - g_st().visual_global.borrow().start.col;
             if badlen < 0 {
                 badlen = -badlen;
             } else {
-                curwin_mut().w_cursor.col = g_st().visual_global.start.col;
+                curwin_mut().w_cursor.col = g_st().visual_global.borrow().start.col;
             }
             badlen += 1;
             end_visual_mode();
@@ -768,7 +768,7 @@ pub fn spell_suggest(count: i32) {
                 let from = Some(crate::memory::bytes_to_cstring(&badptr_bytes[..bad_off]));
                 let tail_cstr = &sug.su_badptr.as_c_str()[org_off..];
                 format_to_buf!(
-                    g_st().iobuff_bytes_mut(),
+                    &mut *g_st().iobuff_bytes_mut(),
                     c"%s%.*s",
                     &stp.st_word,
                     sug.su_badlen - stp.st_orglen,

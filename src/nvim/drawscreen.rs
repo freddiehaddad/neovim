@@ -244,15 +244,17 @@ pub fn conceal_check_cursor_line() {
 /// Redraws the lines that entered or left the Visual area since the last check: 'concealcursor'
 /// reveals the area (see conceal_cursor_reveals_line()).
 pub fn conceal_check_visual() {
-    let cur = if g_st().visual_global.active {
+    let cur = if g_st().visual_global.borrow().active {
         [
             g_st()
                 .visual_global
+                .borrow()
                 .start
                 .lnum
                 .min(curwin_mut().w_cursor.lnum),
             g_st()
                 .visual_global
+                .borrow()
                 .start
                 .lnum
                 .max(curwin_mut().w_cursor.lnum),
@@ -308,8 +310,11 @@ pub fn default_grid_alloc() -> bool {
         true,
     );
 
-    stl_clear_click_defs(&mut g_st().tab_page_click_defs);
-    stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().columns_global.get());
+    stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
+    stl_alloc_click_defs(
+        &mut g_st().tab_page_click_defs.borrow_mut(),
+        g_st().columns_global.get(),
+    );
 
     g_st()
         .default_grid
@@ -673,7 +678,7 @@ pub fn update_screen() -> bool {
 
     if type_ == UPD_NOT_VALID && g_st().clear_cmdline.get() && !ui_has(K_UIMESSAGES) {
         grid_clear(
-            &mut g_st().default_gridview,
+            &g_st().default_gridview,
             g_st().rows_global.get() - (opt_vars().p_ch.get() as i32),
             g_st().rows_global.get(),
             0,
@@ -742,7 +747,7 @@ pub fn update_screen() -> bool {
     }
 
     let mut did_one = false;
-    g_st().screen_search_hl.rm.free_prog();
+    g_st().screen_search_hl.borrow_mut().rm.free_prog();
 
     for wp in for_all_windows_ptr() {
         if wp.w_config.hide && !wp.w_grid_alloc.chars.borrow().is_empty() {
@@ -767,7 +772,7 @@ pub fn update_screen() -> bool {
         if wp.w_redr_border.get() || wp.w_redr_type.get() >= UPD_NOT_VALID {
             let adj = wp.w_border_adj.each_ref().map(std::cell::Cell::get);
             grid_draw_border(
-                &mut wp.w_grid_alloc,
+                &wp.w_grid_alloc,
                 &mut wp.w_config,
                 Some(&adj),
                 wp.w_onebuf_opt.wo_winbl.get() as i32,
@@ -846,12 +851,12 @@ pub fn start_search_hl() {
     }
 
     end_search_hl();
-    last_pat_prog(&mut g_st().screen_search_hl.rm);
-    g_st().screen_search_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
+    last_pat_prog(&mut g_st().screen_search_hl.borrow_mut().rm);
+    g_st().screen_search_hl.borrow_mut().tm = profile_setlimit(opt_vars().p_rdt.get());
 }
 
 pub fn end_search_hl() {
-    g_st().screen_search_hl.rm.free_prog();
+    g_st().screen_search_hl.borrow_mut().rm.free_prog();
 }
 
 pub fn setcursor() {
@@ -872,7 +877,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
             col = wp.w_view_width.get() - wp.w_wcol.get() - if wide { 2 } else { 1 };
         }
 
-        if let Some(grid) = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut row, &mut col) {
+        if let Some(grid) = crate::grid::grid_adjust_opt(&wp.w_grid, &mut row, &mut col) {
             ui_grid_cursor_goto(grid.handle.get(), row, col);
         }
     }
@@ -906,11 +911,12 @@ pub fn show_cursor_info_later(force: bool) {
         || empty_line != curwin_mut().w_stl_empty.get()
         || g_st().reg_recording.get() != curwin_mut().w_stl_recording.get()
         || state != curwin_mut().w_stl_state.get()
-        || (g_st().visual_global.active
-            && (g_st().visual_global.mode != curwin_mut().w_stl_visual_mode.get()
-                || g_st().visual_global.start.lnum != curwin_mut().w_stl_visual_pos.lnum
-                || g_st().visual_global.start.col != curwin_mut().w_stl_visual_pos.col
-                || g_st().visual_global.start.coladd != curwin_mut().w_stl_visual_pos.coladd))
+        || (g_st().visual_global.borrow().active
+            && (g_st().visual_global.borrow().mode != curwin_mut().w_stl_visual_mode.get()
+                || g_st().visual_global.borrow().start.lnum != curwin_mut().w_stl_visual_pos.lnum
+                || g_st().visual_global.borrow().start.col != curwin_mut().w_stl_visual_pos.col
+                || g_st().visual_global.borrow().start.coladd
+                    != curwin_mut().w_stl_visual_pos.coladd))
     {
         if curwin_mut().w_status_height.get() != 0 || global_stl_height() != 0 {
             curwin_mut().w_redr_status.set(true);
@@ -935,11 +941,11 @@ pub fn show_cursor_info_later(force: bool) {
     curwin_mut().w_stl_topfill.set(curwin_mut().w_topfill.get());
     curwin_mut().w_stl_recording.set(g_st().reg_recording.get());
     curwin_mut().w_stl_state.set(state);
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         curwin_mut()
             .w_stl_visual_mode
-            .set(g_st().visual_global.mode);
-        curwin_mut().w_stl_visual_pos = g_st().visual_global.start;
+            .set(g_st().visual_global.borrow().mode);
+        curwin_mut().w_stl_visual_pos = g_st().visual_global.borrow().start;
     }
 }
 
@@ -965,7 +971,7 @@ pub fn showmode() -> i32 {
         && ((g_st().state_global.get() & MODE_TERMINAL) != 0
             || (g_st().state_global.get() & MODE_INSERT) != 0
             || g_st().restart_edit.get() != 0
-            || g_st().visual_global.active);
+            || g_st().visual_global.borrow().active);
 
     let can_show_mode = opt_vars().p_ch.get() != 0 || ui_has(K_UIMESSAGES);
     if (do_mode || g_st().reg_recording.get() != 0) && can_show_mode {
@@ -1052,32 +1058,33 @@ pub fn showmode() -> i32 {
                 if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
                     if curwin_mut().w_onebuf_opt.wo_arab.get() {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
-                    } else if get_keymap_str(curwin_mut(), c" (%s)", g_st().name_buff_bytes_mut())
-                        > 0
+                    } else if get_keymap_str(
+                        curwin_mut(),
+                        c" (%s)",
+                        &mut *g_st().name_buff_bytes_mut(),
+                    ) > 0
                     {
-                        msg_puts_hl(
-                            crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
-                            hl_id,
-                            false,
-                        );
+                        msg_puts_hl(g_st().name_buff_cstr(), hl_id, false);
                     }
                 }
                 if (g_st().state_global.get() & MODE_INSERT) != 0 && opt_vars().p_paste.get() {
                     msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                 }
 
-                if g_st().visual_global.active {
-                    let code = (if g_st().visual_global.select { 4 } else { 0 })
-                        + (if g_st().visual_global.mode == CTRL_V_CONST {
-                            2
-                        } else {
-                            0
-                        })
-                        + (if g_st().visual_global.mode == i32::from(b'V') {
-                            1
-                        } else {
-                            0
-                        });
+                if g_st().visual_global.borrow().active {
+                    let code = (if g_st().visual_global.borrow().select {
+                        4
+                    } else {
+                        0
+                    }) + (if g_st().visual_global.borrow().mode == CTRL_V_CONST {
+                        2
+                    } else {
+                        0
+                    }) + (if g_st().visual_global.borrow().mode == i32::from(b'V') {
+                        1
+                    } else {
+                        0
+                    });
                     let p: &CStr = match code {
                         0 => c" VISUAL",
                         1 => c" VISUAL LINE",
@@ -1117,7 +1124,7 @@ pub fn showmode() -> i32 {
 
     msg_ext_flush_showmode();
 
-    if g_st().visual_global.active {
+    if g_st().visual_global.borrow().active {
         clear_showcmd();
     }
 
@@ -1335,7 +1342,7 @@ fn draw_vsep_win(wp: &mut WinInfoInfo) {
     }
 
     for row in wp.w_winrow.get()..w_endrow(&*wp) {
-        grid_line_start(&mut g_st().default_gridview, row);
+        grid_line_start(&g_st().default_gridview, row);
         grid_line_put_schar(
             w_endcol(&*wp),
             wp.w_p_fcs_chars.vert,
@@ -1350,7 +1357,7 @@ fn draw_hsep_win(wp: &mut WinInfoInfo) {
         return;
     }
 
-    grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
+    grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
     grid_line_fill(
         wp.w_wincol.get(),
         w_endcol(&*wp),
@@ -1410,7 +1417,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
     let bot_right = !(win_at_bottom || win_at_right);
 
     if top_left {
-        grid_line_start(&mut g_st().default_gridview, wp.w_winrow.get() - 1);
+        grid_line_start(&g_st().default_gridview, wp.w_winrow.get() - 1);
         grid_line_put_schar(
             wp.w_wincol.get() - 1,
             get_corner_sep_connector(wp, WindowCorner::TopLeft),
@@ -1419,7 +1426,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if top_right {
-        grid_line_start(&mut g_st().default_gridview, wp.w_winrow.get() - 1);
+        grid_line_start(&g_st().default_gridview, wp.w_winrow.get() - 1);
         grid_line_put_schar(
             w_endcol(&*wp),
             get_corner_sep_connector(wp, WindowCorner::TopRight),
@@ -1428,7 +1435,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if bot_left {
-        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(
             wp.w_wincol.get() - 1,
             get_corner_sep_connector(wp, WindowCorner::BottomLeft),
@@ -1437,7 +1444,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if bot_right {
-        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(
             w_endcol(&*wp),
             get_corner_sep_connector(wp, WindowCorner::BottomRight),
@@ -1495,9 +1502,9 @@ fn win_update(wp: &mut WinInfoInfo) {
     let syntax_tm = profile_setlimit(opt_vars().p_rdt.get());
     syn_set_timeout(Some(syntax_tm));
 
-    g_st().win_extmark_arr.clear();
+    g_st().win_extmark_arr.borrow_mut().clear();
 
-    decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+    decor_redraw_reset(&mut *wp, &mut g_st().decor_state.borrow_mut());
     decor_providers_invoke_win(wp);
 
     if let Some(term) = buf.terminal.get().opt()
@@ -1523,7 +1530,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             ds_st(|st| st.suspended_virt_text.set(susp_vt));
         }
         decor_range_add_virt(
-            &mut g_st().borrow_mut().decor_state,
+            &mut g_st().decor_state.borrow_mut(),
             buf.b_ml.ml_line_count.get() - 1,
             0,
             buf.b_ml.ml_line_count.get() - 1,
@@ -1544,7 +1551,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     validate_virtcol(wp);
     type_ = wp.w_redr_type.get();
 
-    init_search_hl(wp, &mut g_st().screen_search_hl);
+    init_search_hl(wp, &mut g_st().screen_search_hl.borrow_mut());
 
     if wp.w_skipcol.get() > 0 && wp.w_view_width.get() > win_col_off(wp) {
         let mut w: i32 = 0;
@@ -1602,7 +1609,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                 mod_bot = buf.b_mod_bot.get();
             }
 
-            if let Some(regprog) = g_st().screen_search_hl.rm.regprog.opt()
+            let search_regprog = g_st().screen_search_hl.borrow().rm.regprog.clone();
+            if let Some(regprog) = search_regprog.opt()
                 && re_multiline(regprog) != 0
             {
                 top_to_mod = true;
@@ -1828,21 +1836,21 @@ fn win_update(wp: &mut WinInfoInfo) {
         type_ = UPD_NOT_VALID;
     }
 
-    if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer.get().as_ptr()))
+    if (g_st().visual_global.borrow().active && ptr::eq(buf, curwin_mut().w_buffer.get().as_ptr()))
         || (wp.w_old_cursor_lnum.get() != 0 && type_ != UPD_NOT_VALID)
     {
         let mut from: Linenr;
         let mut to: Linenr;
 
-        if g_st().visual_global.active {
-            if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode.get())
+        if g_st().visual_global.borrow().active {
+            if g_st().visual_global.borrow().mode != i32::from(wp.w_old_visual_mode.get())
                 || type_ == UPD_INVERTED_ALL
             {
-                if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
+                if curwin_mut().w_cursor.lnum < g_st().visual_global.borrow().start.lnum {
                     from = curwin_mut().w_cursor.lnum;
-                    to = g_st().visual_global.start.lnum;
+                    to = g_st().visual_global.borrow().start.lnum;
                 } else {
-                    from = g_st().visual_global.start.lnum;
+                    from = g_st().visual_global.borrow().start.lnum;
                     to = curwin_mut().w_cursor.lnum;
                 }
                 from = from
@@ -1863,26 +1871,26 @@ fn win_update(wp: &mut WinInfoInfo) {
                     }
                 }
 
-                if g_st().visual_global.start.lnum != wp.w_old_visual_lnum.get()
-                    || g_st().visual_global.start.col != wp.w_old_visual_col.get()
+                if g_st().visual_global.borrow().start.lnum != wp.w_old_visual_lnum.get()
+                    || g_st().visual_global.borrow().start.col != wp.w_old_visual_col.get()
                 {
                     if wp.w_old_visual_lnum.get() < from && wp.w_old_visual_lnum.get() != 0 {
                         from = wp.w_old_visual_lnum.get();
                     }
                     to = to
                         .max(wp.w_old_visual_lnum.get())
-                        .max(g_st().visual_global.start.lnum);
-                    from = from.min(g_st().visual_global.start.lnum);
+                        .max(g_st().visual_global.borrow().start.lnum);
+                    from = from.min(g_st().visual_global.borrow().start.lnum);
                 }
             }
 
-            if g_st().visual_global.mode == CTRL_V_CONST {
+            if g_st().visual_global.borrow().mode == CTRL_V_CONST {
                 let mut fromc: Colnr = 0;
                 let mut toc: Colnr = 0;
                 let mut cursor = curwin_mut().w_cursor;
                 getvcols(
                     &mut *wp,
-                    &mut g_st().visual_global.start,
+                    &mut g_st().visual_global.borrow_mut().start,
                     &mut cursor,
                     &mut fromc,
                     &mut toc,
@@ -1893,7 +1901,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 if curwin_mut().w_curswant.get() == MAXCOL {
                     if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
                         let cursor_above =
-                            curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum;
+                            curwin_mut().w_cursor.lnum < g_st().visual_global.borrow().start.lnum;
                         toc = 0;
                         let mut pos = CursorPos {
                             lnum: curwin_mut().w_cursor.lnum,
@@ -1901,9 +1909,9 @@ fn win_update(wp: &mut WinInfoInfo) {
                             coladd: 0,
                         };
                         while if cursor_above {
-                            pos.lnum <= g_st().visual_global.start.lnum
+                            pos.lnum <= g_st().visual_global.borrow().start.lnum
                         } else {
-                            pos.lnum >= g_st().visual_global.start.lnum
+                            pos.lnum >= g_st().visual_global.borrow().start.lnum
                         } {
                             let mut t: Colnr = 0;
                             pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
@@ -1918,8 +1926,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                 }
 
                 if fromc != wp.w_old_cursor_fcol.get() || toc != wp.w_old_cursor_lcol.get() {
-                    from = from.min(g_st().visual_global.start.lnum);
-                    to = to.max(g_st().visual_global.start.lnum);
+                    from = from.min(g_st().visual_global.borrow().start.lnum);
+                    to = to.max(g_st().visual_global.borrow().start.lnum);
                 }
                 wp.w_old_cursor_fcol.set(fromc);
                 wp.w_old_cursor_lcol.set(toc);
@@ -1972,11 +1980,14 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
     }
 
-    if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer.get().as_ptr()) {
-        wp.w_old_visual_mode.set(g_st().visual_global.mode as u8);
+    if g_st().visual_global.borrow().active && ptr::eq(buf, curwin_mut().w_buffer.get().as_ptr()) {
+        wp.w_old_visual_mode
+            .set(g_st().visual_global.borrow().mode as u8);
         wp.w_old_cursor_lnum.set(curwin_mut().w_cursor.lnum);
-        wp.w_old_visual_lnum.set(g_st().visual_global.start.lnum);
-        wp.w_old_visual_col.set(g_st().visual_global.start.col);
+        wp.w_old_visual_lnum
+            .set(g_st().visual_global.borrow().start.lnum);
+        wp.w_old_visual_col
+            .set(g_st().visual_global.borrow().start.col);
         wp.w_old_curswant.set(curwin_mut().w_curswant.get());
     } else {
         wp.w_old_visual_mode.set(0);
@@ -2204,7 +2215,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 {
                     row = wp.w_view_height.get() + 1;
                 } else {
-                    prepare_search_hl(wp, &mut g_st().screen_search_hl, lnum);
+                    prepare_search_hl(wp, &mut g_st().screen_search_hl.borrow_mut(), lnum);
                     if syntax_last_parsed != 0
                         && syntax_last_parsed + 1 < lnum
                         && syntax_present(&mut *wp)
@@ -2324,7 +2335,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 lnum = wp.w_topline.get();
                 wp.w_lines_valid.set(0);
                 wp.w_valid.set(wp.w_valid.get() & (!VALID_WCOL));
-                decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+                decor_redraw_reset(&mut *wp, &mut g_st().decor_state.borrow_mut());
                 decor_providers_invoke_win(wp);
                 continue;
             }
@@ -2361,7 +2372,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 wp.w_botline.set(lnum);
                 wp.w_filler_rows.set(wp.w_view_height.get() - srow);
             } else if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_TRUNCATE) != 0 {
-                grid_line_start(&mut wp.w_grid, wp.w_view_height.get() - 1);
+                grid_line_start(&wp.w_grid, wp.w_view_height.get() - 1);
                 grid_line_fill(
                     0,
                     wp.w_view_width.get().min(3),
@@ -2373,7 +2384,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 set_empty_rows(&mut *wp, srow);
                 wp.w_botline.set(lnum);
             } else if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_LASTLINE) != 0 {
-                grid_line_start(&mut wp.w_grid, wp.w_view_height.get() - 1);
+                grid_line_start(&wp.w_grid, wp.w_view_height.get() - 1);
                 let width = if grid_line_getchar((wp.w_view_width.get() - 3).max(0), None) == 0 {
                     4
                 } else {
@@ -2426,7 +2437,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         lnum = wp.w_topline.get();
                         wp.w_lines_valid.set(0);
                         wp.w_valid.set(wp.w_valid.get() & (!VALID_WCOL));
-                        decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+                        decor_redraw_reset(&mut *wp, &mut g_st().decor_state.borrow_mut());
                         decor_providers_invoke_win(wp);
                         continue 'statuscol_retry;
                     }
@@ -2464,8 +2475,8 @@ fn win_update(wp: &mut WinInfoInfo) {
         wp.w_old_topfill.set(wp.w_topfill.get());
         wp.w_old_botfill.set(wp.w_botfill.get());
 
-        for n in 0..g_st().win_extmark_arr.len() {
-            let item = g_st().win_extmark_arr.as_slice()[n];
+        for n in 0..g_st().win_extmark_arr.borrow().len() {
+            let item = g_st().win_extmark_arr.borrow().as_slice()[n];
             ui_call_win_extmark(
                 Integer::from(wp.w_grid_alloc.handle.get()),
                 wp.handle,
@@ -2519,7 +2530,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
 
     let mut col: i32 = 0;
     let mut row_off: i32 = 0;
-    let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
+    let grid = grid_adjust(&wp.w_grid, &mut row_off, &mut col);
 
     let checked_width = (grid.cols.get() - col).min(wp.w_view_width.get());
     let checked_height = (grid.rows.get() - row_off).min(wp.w_view_height.get());
@@ -2563,7 +2574,7 @@ pub fn win_draw_end(
     let scwidth = wp.w_scwidth.get();
 
     for row in startrow..endrow {
-        grid_line_start(&mut wp.w_grid, row);
+        grid_line_start(&wp.w_grid, row);
 
         let mut n: i32 = 0;
         if draw_margin {
@@ -2882,7 +2893,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
     if wp == curwin_ptr() && lnum == wp.w_cursor.lnum && !conceal_cursor_line(wp) {
         return true;
     }
-    g_st().visual_global.active
+    g_st().visual_global.borrow().active
         && ptr::eq(
             wp.w_buffer.get().as_ptr(),
             curwin_mut().w_buffer.get().as_ptr(),
@@ -2890,12 +2901,14 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
         && lnum
             >= g_st()
                 .visual_global
+                .borrow()
                 .start
                 .lnum
                 .min(curwin_mut().w_cursor.lnum)
         && lnum
             <= g_st()
                 .visual_global
+                .borrow()
                 .start
                 .lnum
                 .max(curwin_mut().w_cursor.lnum)
