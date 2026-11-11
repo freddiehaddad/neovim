@@ -597,7 +597,7 @@ pub fn free_all_mem() {
 
         free_all_autocmds();
         free_all_marks();
-        alist_clear(&mut g_st().global_alist);
+        alist_clear(&crate::arglist::global_alist_rc());
         free_homedir();
         free_users();
         free_search_patterns();

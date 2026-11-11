@@ -395,7 +395,7 @@ pub struct WinInfoInfo {
     pub w_stl_visual_mode: i32,
     pub w_stl_visual_pos: CursorPos,
     pub w_alt_fnum: i32,
-    pub w_alist: Option<std::rc::Rc<std::cell::RefCell<crate::arglist::Alist>>>,
+    pub w_alist: Option<std::rc::Rc<crate::arglist::Alist>>,
     pub w_arg_idx: i32,
     pub w_arg_idx_invalid: bool,
     pub w_localdir: Option<std::ffi::CString>,

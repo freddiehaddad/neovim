@@ -9,7 +9,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::remote_ui_wait_for_attach;
-use crate::arglist::{alist_add, alist_name, gargcount, garglist_slice};
+use crate::arglist::{alist_add, alist_name, garg_entry, gargcount, global_alist_rc};
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
     EVENT_VIMLEAVEPRE, apply_autocmds, autocmd_init, block_autocmds, is_autocmd_blocked,
@@ -366,7 +366,7 @@ fn early_init(paramp: &mut Mparm) {
     win_alloc_first();
     time_msg_if_enabled(c"init first window");
 
-    g_st().global_alist.id = 0;
+    global_alist_rc().id.set(0);
 
     init_homedir();
     set_init_1(paramp.clean);
@@ -420,7 +420,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         std::process::exit(1);
     }
 
-    let mut fname: Option<&CStr> = None;
+    let mut fname: Option<std::ffi::CString> = None;
     let mut params = Mparm::new();
 
     init_params(&mut params, argv);
@@ -1671,15 +1671,18 @@ fn command_line_scan(parmp: &mut Mparm) {
             if parmp.diff_mode != 0
                 && os_isdir(crate::memory::bytes_as_cstr(&p_vec))
                 && gargcount() > 0
-                && !os_isdir(alist_name(&garglist_slice()[0]).unwrap_or(c""))
             {
-                let tail = path_tail(alist_name(&garglist_slice()[0]).unwrap_or(c""));
-                let joined = concat_fnames(
-                    cstr_as_string(Some(crate::memory::bytes_as_cstr(&p_vec))),
-                    cstr_as_string(Some(tail)),
-                    true,
-                );
-                p_vec = joined.as_bytes_with_nul().to_vec();
+                let e0 = garg_entry(0);
+                let name0 = alist_name(&e0).unwrap_or(c"");
+                if !os_isdir(name0) {
+                    let tail = path_tail(name0);
+                    let joined = concat_fnames(
+                        cstr_as_string(Some(crate::memory::bytes_as_cstr(&p_vec))),
+                        cstr_as_string(Some(tail)),
+                        true,
+                    );
+                    p_vec = joined.as_bytes_with_nul().to_vec();
+                }
             }
 
             if CASE_INSENSITIVE_FILENAME {
@@ -1688,7 +1691,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
             let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
             alist_add(
-                &mut g_st().global_alist,
+                &global_alist_rc(),
                 crate::memory::cstring_until_nul(&p_vec),
                 alist_fnum_flag,
             );
@@ -1731,7 +1734,8 @@ fn set_argf_var() {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let count = gargcount();
     for i in 0..count {
-        if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
+        let entry = garg_entry(i as usize);
+        if let Some(fname) = alist_name(&entry) {
             let _ = vim_full_name(Some(fname), g_st().name_buff_bytes_mut(), false);
             tv_list_append_string(&mut *list, Some(g_st().name_buff_cstr()), -1);
         }
@@ -1803,8 +1807,9 @@ fn init_path(exename: &CStr) {
     }
 }
 
-fn get_fname(_parmp: &mut Mparm) -> Option<&'static CStr> {
-    alist_name(&garglist_slice()[0])
+fn get_fname(_parmp: &mut Mparm) -> Option<std::ffi::CString> {
+    let entry = garg_entry(0);
+    alist_name(&entry).map(std::ffi::CStr::to_owned)
 }
 
 fn set_window_layout(paramp: &mut Mparm) {
@@ -2046,11 +2051,8 @@ fn edit_buffers(parmp: &mut Mparm) {
         {
             curwin_mut().w_arg_idx = arg_idx;
             g_st().swap_exists_did_quit = false;
-            let fname = if arg_idx < gargcount() {
-                alist_name(&garglist_slice()[arg_idx as usize])
-            } else {
-                None
-            };
+            let entry_opt = (arg_idx < gargcount()).then(|| garg_entry(arg_idx as usize));
+            let fname = entry_opt.as_ref().and_then(|e| alist_name(e));
             do_ecmd(
                 0,
                 fname,
@@ -2485,7 +2487,7 @@ pub(crate) fn ensure_test_editor_init() {
         init_locale();
         set_init_tablocal();
         win_alloc_first();
-        g_st().global_alist.id = 0;
+        global_alist_rc().id.set(0);
         init_homedir();
         set_init_1(true);
         set_lang_var();

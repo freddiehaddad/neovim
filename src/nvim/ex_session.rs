@@ -293,11 +293,12 @@ fn put_view(
             return false;
         }
     } else {
-        let alist = crate::arglist::win_alist(&*wp);
+        let alist = crate::arglist::win_alist_rc(&*wp);
+        let entries = alist.al_ga.borrow().clone();
         if !ses_arglist(
             fd,
             c"arglocal",
-            &alist.al_ga,
+            &entries,
             ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                 || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
                 || tp.tp_localdir.is_some()
@@ -308,7 +309,7 @@ fn put_view(
         }
     }
 
-    let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as i32;
+    let wargcount = crate::arglist::wargcount(&*wp);
     if wp.w_arg_idx != current_arg_idx
         && wp.w_arg_idx < wargcount
         && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
@@ -611,10 +612,11 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             }
         }
 
+        let g_entries = crate::arglist::global_alist_rc().al_ga.borrow().clone();
         if !ses_arglist(
             fd,
             c"argglobal",
-            &g_st().global_alist.al_ga,
+            &g_entries,
             (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) == 0,
             &mut opt_vars().ssop_flags,
         ) {

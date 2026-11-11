@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::arglist::{
-    Aentry, CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, do_argfile, editing_arg_idx,
-    ex_all, ex_rewind, set_arglist,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, do_argfile, editing_arg_idx, ex_all,
+    ex_rewind, set_arglist,
 };
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_VERBOSE, EVENT_SYNTAX, apply_autocmds, au_event_disable, au_event_restore,
@@ -68,8 +68,8 @@ fn curwin_argcount() -> i32 {
 }
 
 #[inline]
-fn curwin_arglist() -> &'static Aentry {
-    &crate::arglist::arglist_slice()[0]
+fn curwin_arglist() -> crate::arglist::Aentry {
+    crate::arglist::arg_entry(0)
 }
 
 pub fn ex_ruby(eap: &mut Exarg) {

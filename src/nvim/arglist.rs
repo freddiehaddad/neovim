@@ -61,20 +61,21 @@ const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout change
 
 #[repr(C)]
 pub struct Alist {
-    pub al_ga: Vec<Aentry>,
-    pub id: i32,
+    pub al_ga: std::cell::RefCell<Vec<Aentry>>,
+    pub id: std::cell::Cell<i32>,
 }
 
 impl Alist {
     pub const fn new() -> Self {
         Self {
-            al_ga: Vec::new(),
-            id: 0,
+            al_ga: std::cell::RefCell::new(Vec::new()),
+            id: std::cell::Cell::new(0),
         }
     }
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct Aentry {
     pub ae_fname: Option<std::ffi::CString>,
     pub ae_fnum: i32,
@@ -88,8 +89,8 @@ impl Aentry {
 }
 
 struct ArgAllState {
-    alist: crate::globals::GraphPtr<Alist>,
-    local_alist: Option<std::rc::Rc<std::cell::RefCell<Alist>>>,
+    alist: std::rc::Rc<Alist>,
+    local_alist: Option<std::rc::Rc<Alist>>,
     had_tab: i32,
     keep_tabs: bool,
     forceit: bool,
@@ -101,30 +102,28 @@ struct ArgAllState {
 
 std::thread_local! {
     static ARGLIST_LOCKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static MAX_ALIST_ID: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+    static GLOBAL_ALIST: std::rc::Rc<Alist> = std::rc::Rc::new(Alist::new());
 }
 
 #[inline]
-pub fn win_alist(wp: &WinInfoInfo) -> &'static mut Alist {
-    let ptr = wp
-        .w_alist
-        .as_ref()
-        .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr());
-    crate::globals::GraphPtr::of(ptr).borrow_mut()
+pub fn global_alist_rc() -> std::rc::Rc<Alist> {
+    GLOBAL_ALIST.with(std::rc::Rc::clone)
 }
 
 #[inline]
-fn warglist_slice(wp: &WinInfoInfo) -> &'static [Aentry] {
-    &win_alist(wp).al_ga
+pub fn win_alist_rc(wp: &WinInfoInfo) -> std::rc::Rc<Alist> {
+    wp.w_alist.clone().unwrap_or_else(global_alist_rc)
 }
 
 #[inline]
-fn wargcount(wp: &WinInfoInfo) -> i32 {
-    win_alist(wp).al_ga.len() as i32
+pub fn is_global_alist(al: &std::rc::Rc<Alist>) -> bool {
+    GLOBAL_ALIST.with(|g| std::rc::Rc::ptr_eq(al, g))
 }
 
 #[inline]
-pub fn arglist_slice() -> &'static [Aentry] {
-    warglist_slice(curwin_mut())
+pub fn wargcount(wp: &WinInfoInfo) -> i32 {
+    win_alist_rc(wp).al_ga.borrow().len() as i32
 }
 
 #[inline]
@@ -133,13 +132,23 @@ pub fn argcount() -> i32 {
 }
 
 #[inline]
-pub fn garglist_slice() -> &'static [Aentry] {
-    &g_st().borrow_mut().global_alist.al_ga
+pub fn gargcount() -> i32 {
+    GLOBAL_ALIST.with(|g| g.al_ga.borrow().len() as i32)
 }
 
 #[inline]
-pub fn gargcount() -> i32 {
-    g_st().global_alist.al_ga.len() as i32
+pub fn garg_entry(idx: usize) -> Aentry {
+    GLOBAL_ALIST.with(|g| g.al_ga.borrow()[idx].clone())
+}
+
+#[inline]
+pub fn arg_entry(idx: usize) -> Aentry {
+    win_alist_rc(curwin_mut()).al_ga.borrow()[idx].clone()
+}
+
+#[inline]
+pub fn warg_entry(wp: &WinInfoInfo, idx: usize) -> Aentry {
+    win_alist_rc(wp).al_ga.borrow()[idx].clone()
 }
 
 fn check_arglist_locked() -> bool {
@@ -151,32 +160,35 @@ fn check_arglist_locked() -> bool {
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-pub fn alist_clear(al: &mut Alist) {
+pub fn alist_clear(al: &Alist) {
     if !check_arglist_locked() {
         return;
     }
-    al.al_ga = Vec::new();
+    *al.al_ga.borrow_mut() = Vec::new();
 }
 
 /// Create a new argument list and use it for the current window (`alist_new`).
 pub fn alist_new() {
-    g_st().max_alist_id += 1;
-    curwin_mut().w_alist = Some(std::rc::Rc::new(std::cell::RefCell::new(Alist {
-        al_ga: Vec::new(),
-        id: g_st().max_alist_id,
-    })));
+    let next_id = MAX_ALIST_ID.with(|id| {
+        let next = id.get() + 1;
+        id.set(next);
+        next
+    });
+    curwin_mut().w_alist = Some(std::rc::Rc::new(Alist {
+        al_ga: std::cell::RefCell::new(Vec::new()),
+        id: std::cell::Cell::new(next_id),
+    }));
 }
 
 /// Set the argument list for the current window (`alist_set`).
-fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
+fn alist_set(al: &std::rc::Rc<Alist>, files: Vec<CString>, use_curbuf: i32) {
     if !check_arglist_locked() {
         return;
     }
 
-    let mut al_ptr = crate::globals::GraphPtr::<Alist>::from_ref(al);
-    alist_clear(al_ptr.borrow_mut());
+    alist_clear(al);
 
-    al_ptr.al_ga.reserve(files.len());
+    al.al_ga.borrow_mut().reserve(files.len());
 
     for fname in files {
         if g_st().got_int {
@@ -184,22 +196,18 @@ fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
         }
 
         if !fname.as_bytes().is_empty() {
-            alist_add(
-                al_ptr.borrow_mut(),
-                fname,
-                if use_curbuf != 0 { 2 } else { 1 },
-            );
+            alist_add(al, fname, if use_curbuf != 0 { 2 } else { 1 });
         }
         os_breakcheck();
     }
 
-    if al_ptr == &g_st().global_alist {
+    if is_global_alist(al) {
         g_st().arg_had_last = false;
     }
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
+pub fn alist_add(al: &Alist, ae_fname: CString, set_fnum: i32) {
     let mut wp = curwin_ptr();
     if !check_arglist_locked() {
         return;
@@ -216,7 +224,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
     } else {
         0
     };
-    al.al_ga.push(Aentry {
+    al.al_ga.borrow_mut().push(Aentry {
         ae_fname: Some(ae_fname),
         ae_fnum,
     });
@@ -284,9 +292,10 @@ pub fn get_arglist_exp(str_: &[u8], fnames: &mut Vec<CString>, wig: bool) -> boo
 
 /// Check the validity of the `arg_idx` for each other window (`alist_check_arg_idx`).
 fn alist_check_arg_idx() {
+    let cur_al = win_alist_rc(curwin_mut());
     for tp in for_all_tabpages_ptr() {
         for win in win_iter_mut(first_win_in_tab(&mut *tp)) {
-            if ptr::eq(win_alist(win), win_alist(curwin_mut())) {
+            if std::rc::Rc::ptr_eq(&win_alist_rc(win), &cur_al) {
                 check_arg_idx(win);
             }
         }
@@ -298,7 +307,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
         let mut wp = curwin_ptr();
-        let mut al = crate::globals::GraphPtr::<Alist>::of(win_alist(wp.borrow()));
+        let al = win_alist_rc(wp.borrow());
         after = after.clamp(0, old_argcount);
         ARGLIST_LOCKED.set(true);
 
@@ -314,7 +323,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         }
         let pos = after as usize;
 
-        al.al_ga.splice(pos..pos, new_entries);
+        al.al_ga.borrow_mut().splice(pos..pos, new_entries);
 
         ARGLIST_LOCKED.set(false);
         {
@@ -349,13 +358,13 @@ fn arglist_del_files(alist_ga: &[CString]) {
         let mut didone = false;
         let mut match_idx: i32 = 0;
         while match_idx < argcount() {
-            if vim_regexec(
-                &mut regmatch,
-                alist_name(&arglist_slice()[match_idx as usize]).unwrap_or(c""),
-                0,
-            ) {
+            let entry = arg_entry(match_idx as usize);
+            if vim_regexec(&mut regmatch, alist_name(&entry).unwrap_or(c""), 0) {
                 didone = true;
-                win_alist(curwin_mut()).al_ga.remove(match_idx as usize);
+                win_alist_rc(curwin_mut())
+                    .al_ga
+                    .borrow_mut()
+                    .remove(match_idx as usize);
                 if curwin_mut().w_arg_idx > match_idx {
                     curwin_mut().w_arg_idx -= 1;
                 }
@@ -411,7 +420,7 @@ fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
             alist_add_list(exp_files, after, will_edit);
         } else {
             debug_assert_eq!(what, AL_SET);
-            alist_set(win_alist(curwin_mut()), exp_files, i32::from(will_edit));
+            alist_set(&win_alist_rc(curwin_mut()), exp_files, i32::from(will_edit));
         }
     }
 
@@ -430,13 +439,13 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
     if idx >= wargcount(&*win) {
         return false;
     }
-    let entry = &warglist_slice(&*win)[idx as usize];
+    let entry = warg_entry(&*win, idx as usize);
     if win.buf_mut().b_fnum == entry.ae_fnum {
         return true;
     }
     win.buf_mut().ffname_opt().is_some_and(|ffname| {
         path_equal(
-            alist_name(entry).unwrap_or(c""),
+            alist_name(&entry).unwrap_or(c""),
             ffname,
             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
         )
@@ -451,16 +460,16 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
         let gcount = gargcount();
         if win.w_arg_idx != wcount - 1
             && !g_st().arg_had_last
-            && ptr::eq(win_alist(&*win), &raw const g_st().global_alist)
+            && is_global_alist(&win_alist_rc(&*win))
             && gcount > 0
             && win.w_arg_idx < gcount
         {
-            let last_entry = &garglist_slice()[(gcount - 1) as usize];
+            let last_entry = garg_entry((gcount - 1) as usize);
             let buf = win.buf_mut();
             if buf.b_fnum == last_entry.ae_fnum
                 || (buf.b_ffname.is_some()
                     && path_equal(
-                        alist_name(last_entry).unwrap_or(c""),
+                        alist_name(&last_entry).unwrap_or(c""),
                         buf.ffname_cstr(),
                         K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                     ))
@@ -470,8 +479,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
         }
     } else {
         win.w_arg_idx_invalid = false;
-        if win.w_arg_idx == wcount - 1 && ptr::eq(win_alist(&*win), &raw const g_st().global_alist)
-        {
+        if win.w_arg_idx == wcount - 1 && is_global_alist(&win_alist_rc(&*win)) {
             g_st().arg_had_last = true;
         }
     }
@@ -506,7 +514,8 @@ pub fn ex_args(eap: &mut Exarg) {
 
         gotocmdline(true);
 
-        let items: Vec<&CStr> = arglist_slice()[..(count as usize)]
+        let entries = win_alist_rc(curwin_mut()).al_ga.borrow().clone();
+        let items: Vec<&CStr> = entries[..(count as usize)]
             .iter()
             .map(|e| alist_name(e).unwrap_or(c""))
             .collect();
@@ -515,13 +524,14 @@ pub fn ex_args(eap: &mut Exarg) {
     }
 
     if eap.cmdidx == Cmdidx::CmdArglocal {
-        let al = win_alist(curwin_mut());
-        let gslice = garglist_slice();
-        al.al_ga.reserve(gslice.len());
+        let al = win_alist_rc(curwin_mut());
+        let g_entries = global_alist_rc().al_ga.borrow().clone();
+        let mut al_ga = al.al_ga.borrow_mut();
+        al_ga.reserve(g_entries.len());
 
-        for ge in gslice {
+        for ge in &g_entries {
             if ge.ae_fname.is_some() {
-                al.al_ga.push(Aentry {
+                al_ga.push(Aentry {
                     ae_fname: ge.ae_fname.clone(),
                     ae_fnum: ge.ae_fnum,
                 });
@@ -579,7 +589,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     }
 
     if !is_split_cmd
-        && arglist_slice()[argn as usize].ae_fnum != curbuf_mut().b_fnum
+        && arg_entry(argn as usize).ae_fnum != curbuf_mut().b_fnum
         && !check_can_set_curbuf_forceit(eap.forceit)
     {
         return;
@@ -596,7 +606,8 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     } else {
         let mut other = true;
         if buf_hide(curbuf_mut()) {
-            let p = fix_fname(alist_name(&arglist_slice()[argn as usize]));
+            let entry = arg_entry(argn as usize);
+            let p = fix_fname(alist_name(&entry));
             other = otherfile(p.as_deref());
         }
         if (!buf_hide(curbuf_mut()) || !other)
@@ -613,13 +624,14 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     }
 
     curwin_mut().w_arg_idx = argn;
-    if argn == argcount() - 1 && ptr::eq(win_alist(curwin_mut()), &raw const g_st().global_alist) {
+    if argn == argcount() - 1 && is_global_alist(&win_alist_rc(curwin_mut())) {
         g_st().arg_had_last = true;
     }
 
+    let cur_entry = arg_entry(curwin_mut().w_arg_idx as usize);
     if !do_ecmd(
         0,
-        alist_name(&arglist_slice()[curwin_mut().w_arg_idx as usize]),
+        alist_name(&cur_entry),
         None,
         Some(&*eap),
         ECMD_LAST,
@@ -661,10 +673,12 @@ pub fn ex_next(eap: &mut Exarg) {
 pub fn ex_argdedupe(_eap: &mut Exarg) {
     let mut i: i32 = 0;
     while i < argcount() {
-        let first_fullname = FullName_save(arglist_slice()[i as usize].fname_cstr(), false);
+        let first_entry = arg_entry(i as usize);
+        let first_fullname = FullName_save(first_entry.fname_cstr(), false);
         let mut j = i + 1;
         while j < argcount() {
-            let second_fullname = FullName_save(arglist_slice()[j as usize].fname_cstr(), false);
+            let second_entry = arg_entry(j as usize);
+            let second_fullname = FullName_save(second_entry.fname_cstr(), false);
             let dup = path_equal(
                 first_fullname.as_deref().unwrap_or(c""),
                 second_fullname.as_deref().unwrap_or(c""),
@@ -672,7 +686,10 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
             );
 
             if dup {
-                win_alist(curwin_mut()).al_ga.remove(j as usize);
+                win_alist_rc(curwin_mut())
+                    .al_ga
+                    .borrow_mut()
+                    .remove(j as usize);
 
                 if curwin_mut().w_arg_idx == j {
                     curwin_mut().w_arg_idx = i;
@@ -758,8 +775,9 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             return;
         }
 
-        win_alist(curwin_mut())
+        win_alist_rc(curwin_mut())
             .al_ga
+            .borrow_mut()
             .drain((eap.line1 as usize - 1)..(eap.line2 as usize));
         if curwin_mut().w_arg_idx >= eap.line2 {
             curwin_mut().w_arg_idx -= n;
@@ -781,11 +799,13 @@ pub fn ex_argdelete(eap: &mut Exarg) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_arglist_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx < 0 || idx >= argcount() {
         return None;
     }
-    alist_name(&arglist_slice()[idx as usize])
+    let entry = arg_entry(idx as usize);
+    xp.xp_item = alist_name(&entry).map(CStr::to_owned);
+    xp.xp_item.as_deref()
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
@@ -851,46 +871,45 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             } else {
                 i = 0;
                 while i < opened_len {
-                    let al = aall_ref.alist;
-                    if (i as usize) < al.al_ga.len() {
-                        let entry = &(&al.al_ga)[i as usize];
-                        if entry.ae_fnum == buf.b_fnum
+                    let al = &aall_ref.alist;
+                    let entry_opt = al.al_ga.borrow().get(i as usize).cloned();
+                    if let Some(ref entry) = entry_opt
+                        && (entry.ae_fnum == buf.b_fnum
                             || path_equal(
                                 alist_name(entry).unwrap_or(c""),
                                 buf.ffname_cstr(),
                                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
-                            )
-                        {
-                            let mut weight: i32 = 1;
-                            if old_curtab == g_st().curtab {
+                            ))
+                    {
+                        let mut weight: i32 = 1;
+                        if old_curtab == g_st().curtab {
+                            weight += 1;
+                            if old_curwin == wp {
                                 weight += 1;
-                                if old_curwin == wp {
-                                    weight += 1;
-                                }
                             }
-
-                            if weight > i32::from(aall_ref.opened[i as usize]) {
-                                aall_ref.opened[i as usize] = weight as u8;
-                                if i == 0 {
-                                    if !aall_ref.new_curwin.is_null() {
-                                        aall_ref.new_curwin.w_arg_idx = opened_len;
-                                    }
-                                    aall_ref.new_curwin = crate::globals::WinPtr::new(wp);
-                                    aall_ref.new_curtab = g_st().curtab;
-                                }
-                            } else if aall_ref.keep_tabs {
-                                i = opened_len;
-                            }
-
-                            if !ptr::eq(
-                                win_alist(crate::globals::GraphPtr::of(wp).borrow()),
-                                al.as_ptr(),
-                            ) {
-                                crate::globals::GraphPtr::of(wp).borrow_mut().w_alist =
-                                    aall_ref.local_alist.clone();
-                            }
-                            break;
                         }
+
+                        if weight > i32::from(aall_ref.opened[i as usize]) {
+                            aall_ref.opened[i as usize] = weight as u8;
+                            if i == 0 {
+                                if !aall_ref.new_curwin.is_null() {
+                                    aall_ref.new_curwin.w_arg_idx = opened_len;
+                                }
+                                aall_ref.new_curwin = crate::globals::WinPtr::new(wp);
+                                aall_ref.new_curtab = g_st().curtab;
+                            }
+                        } else if aall_ref.keep_tabs {
+                            i = opened_len;
+                        }
+
+                        if !std::rc::Rc::ptr_eq(
+                            &win_alist_rc(crate::globals::GraphPtr::of(wp).borrow()),
+                            al,
+                        ) {
+                            crate::globals::GraphPtr::of(wp).borrow_mut().w_alist =
+                                aall_ref.local_alist.clone();
+                        }
+                        break;
                     }
                     i += 1;
                 }
@@ -972,7 +991,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
     let mut split_ret = true;
     let mut i: i32 = 0;
     while i < count && !g_st().got_int {
-        if ptr::eq(aall.alist.as_ptr(), &raw const g_st().global_alist) && i == gargcount() - 1 {
+        if is_global_alist(&aall.alist) && i == gargcount() - 1 {
             g_st().arg_had_last = true;
         }
         if aall.opened[i as usize] > 0 {
@@ -1018,9 +1037,10 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 aall.new_curwin = crate::globals::curwin_ptr();
                 aall.new_curtab = g_st().curtab;
             }
+            let entry = aall.alist.al_ga.borrow()[i as usize].clone();
             do_ecmd(
                 0,
-                alist_name(&(&aall.alist.al_ga)[i as usize]),
+                alist_name(&entry),
                 None,
                 None,
                 ECMD_ONE,
@@ -1060,7 +1080,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     setpcmark();
 
     let mut aall = ArgAllState {
-        alist: crate::globals::GraphPtr::new(win_alist(curwin_mut())),
+        alist: win_alist_rc(curwin_mut()),
         local_alist: curwin_mut().w_alist.clone(),
         had_tab: g_st().cmdmod.cmod_tab,
         keep_tabs,
@@ -1131,7 +1151,8 @@ pub fn ex_all(eap: &mut Exarg) {
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
 pub fn arg_all() -> CString {
     let mut bytes: Vec<u8> = Vec::new();
-    for entry in &arglist_slice()[..(argcount() as usize)] {
+    let entries = win_alist_rc(curwin_mut()).al_ga.borrow().clone();
+    for entry in &entries[..(argcount() as usize).min(entries.len())] {
         let Some(p) = alist_name(entry) else {
             continue;
         };
@@ -1175,7 +1196,8 @@ pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     if let Some(wp_ref) = find_tabwin(&argvars[0], &argvars[1]) {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(win_alist(wp_ref).id as Varnumber);
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(win_alist_rc(wp_ref).id.get() as Varnumber);
     }
 }
 
@@ -1191,30 +1213,29 @@ fn get_arglist_as_rettv(entries: Option<&[Aentry]>, rettv: &mut TypVal) {
 
 /// `argv(nr)` function (`f_argv`).
 pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut entries: Option<&[Aentry]> = None;
-
     if argvars[0].v_type == VarType::VarUnknown {
-        get_arglist_as_rettv(Some(&arglist_slice()[..(argcount() as usize)]), rettv);
+        let entries = win_alist_rc(curwin_mut()).al_ga.borrow().clone();
+        get_arglist_as_rettv(Some(&entries), rettv);
         return;
     }
 
-    if argvars[1].v_type == VarType::VarUnknown {
-        entries = Some(&arglist_slice()[..(argcount() as usize)]);
+    let entries: Option<Vec<Aentry>> = if argvars[1].v_type == VarType::VarUnknown {
+        Some(win_alist_rc(curwin_mut()).al_ga.borrow().clone())
     } else if argvars[1].v_type == VarType::VarNumber && tv_get_number(&argvars[1]) == -1 {
-        entries = Some(&garglist_slice()[..(gargcount() as usize)]);
-    } else if let Some(wp_ref) = find_win_by_nr_or_id(&argvars[1]) {
-        entries = Some(&warglist_slice(wp_ref)[..(wargcount(wp_ref) as usize)]);
-    }
+        Some(global_alist_rc().al_ga.borrow().clone())
+    } else {
+        find_win_by_nr_or_id(&argvars[1]).map(|wp_ref| win_alist_rc(wp_ref).al_ga.borrow().clone())
+    };
 
     tv_set_string(rettv, None);
     let idx = tv_get_number_chk(&argvars[0], None) as i32;
-    if let Some(entries) = entries
+    if let Some(ref entries) = entries
         && idx >= 0
         && (idx as usize) < entries.len()
     {
         tv_set_string(rettv, alist_name(&entries[idx as usize]));
     } else if idx == -1 {
-        get_arglist_as_rettv(entries, rettv);
+        get_arglist_as_rettv(entries.as_deref(), rettv);
     }
 }
 
@@ -1224,9 +1245,9 @@ mod tests {
 
     #[test]
     fn alist_init_and_clear_work() {
-        let mut al = Alist::new();
-        assert!(al.al_ga.is_empty());
-        alist_clear(&mut al);
-        assert!(al.al_ga.is_empty());
+        let al = Alist::new();
+        assert!(al.al_ga.borrow().is_empty());
+        alist_clear(&al);
+        assert!(al.al_ga.borrow().is_empty());
     }
 }

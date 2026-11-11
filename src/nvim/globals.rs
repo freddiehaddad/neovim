@@ -8,7 +8,6 @@ use crate::decoration::{DecorState, NS};
 use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
-use crate::arglist::Alist;
 use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
 use crate::channel::Channel;
 use crate::context::CtxWin;
@@ -176,8 +175,6 @@ pub struct EditorState {
     pub firstbuf: BufPtr,
     pub lastbuf: BufPtr,
     pub curbuf: BufPtr,
-    pub global_alist: Alist,
-    pub max_alist_id: i32,
     pub arg_had_last: bool,
     pub ru_col: i32,
     pub ru_wid: i32,
@@ -552,8 +549,6 @@ impl EditorState {
             firstbuf: BufPtr::NULL,
             lastbuf: BufPtr::NULL,
             curbuf: BufPtr::NULL,
-            global_alist: Alist::new(),
-            max_alist_id: 0,
             arg_had_last: false,
             ru_col: 0,
             ru_wid: 0,
