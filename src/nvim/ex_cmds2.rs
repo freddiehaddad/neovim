@@ -609,7 +609,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             if execute {
                 do_cmdline(
                     eap.arg.as_opt_cstr(),
-                    eap.ea_getline,
+                    eap.ea_getline.clone(),
                     DOCMD_VERBOSE + DOCMD_NOWAIT,
                 );
             }

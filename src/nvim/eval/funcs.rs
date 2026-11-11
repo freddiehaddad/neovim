@@ -307,7 +307,7 @@ enum SomeMatchType {
 
 #[repr(C)]
 pub struct GetListLineCookie {
-    li: crate::eval::typval::ListitemId,
+    li: std::cell::Cell<crate::eval::typval::ListitemId>,
 }
 
 struct EvalFuncsState {
@@ -2048,14 +2048,14 @@ pub fn f_eventhandler(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 pub fn get_list_line(
     _c: i32,
-    p: &mut GetListLineCookie,
+    p: &GetListLineCookie,
     _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    let item = p.li.opt()?;
+    let item = p.li.get().opt()?;
     let mut buf = [0u8; NUMBUFLEN];
     let s = tv_get_string_buf_chk(&item.li_tv, &mut buf);
-    p.li = item.li_next;
+    p.li.set(item.li_next);
     s.map(std::ffi::CStr::to_owned)
 }
 
@@ -2103,16 +2103,18 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     if argvars[off].v_type != VarType::VarList {
         do_cmdline_cmd(&tv_get_string(&argvars[off]));
     } else if let Some(list) = argvars[off].vval.v_list_opt() {
-        let list_ptr = crate::globals::GraphPtr::<TvList>::from_ref(list);
+        let list_id = argvars[off].vval.v_list();
         let first_li = list.lv_first;
         tv_list_ref(Some(list));
-        let mut cookie = GetListLineCookie { li: first_li };
+        let cookie = std::rc::Rc::new(GetListLineCookie {
+            li: std::cell::Cell::new(first_li),
+        });
         do_cmdline(
             None,
-            crate::cmdexpand::LineGetter::List((&mut cookie).into()),
+            crate::cmdexpand::LineGetter::List(cookie),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_KEYTYPED,
         );
-        tv_list_unref(list_ptr.opt_mut());
+        tv_list_unref(list_id.opt_mut());
     }
     g_st().msg_silent = save_msg_silent;
     g_st().emsg_silent = save_emsg_silent;

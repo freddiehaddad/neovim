@@ -2907,7 +2907,7 @@ fn get_function_body(
             ui_ext_cmdline_block_append(indent as usize, theline_bytes);
         }
 
-        let mut sourcing_lnum_off = get_sourced_lnum(eap.ea_getline);
+        let mut sourcing_lnum_off = get_sourced_lnum(&eap.ea_getline);
         let cur_sourcing_lnum = sourcing_lnum();
         if cur_sourcing_lnum < sourcing_lnum_off {
             sourcing_lnum_off -= cur_sourcing_lnum;

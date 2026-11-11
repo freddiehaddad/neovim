@@ -209,56 +209,56 @@ impl Drop for ExpandCtx {
 
 pub type XpPrefix = i32;
 pub type CompleteListItemGetter = Option<fn(&mut ExpandCtx, i32) -> Option<&CStr>>;
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum LineGetter {
     None,
     ExLine,
     CmdKeyCmd,
-    AutoCmd(crate::globals::GraphPtr<crate::autocmd::AutoPatCmd>),
+    AutoCmd(std::rc::Rc<std::cell::RefCell<crate::autocmd::AutoPatCmd>>),
     Func(crate::eval::userfunc::FunccalId),
-    Source(crate::globals::GraphPtr<crate::runtime::SourceCookie>),
-    Loop(crate::globals::GraphPtr<crate::ex_docmd::LoopCookie>),
-    List(crate::globals::GraphPtr<crate::eval::funcs::GetListLineCookie>),
-    LuaEx(crate::globals::GraphPtr<crate::lua::executor::ExDocmdCookie>),
+    Source(std::rc::Rc<std::cell::RefCell<crate::runtime::SourceCookie>>),
+    Loop(std::rc::Rc<std::cell::RefCell<crate::ex_docmd::LoopCookie>>),
+    List(std::rc::Rc<crate::eval::funcs::GetListLineCookie>),
+    LuaEx(std::rc::Rc<crate::lua::executor::ExDocmdCookie>),
 }
 
 impl LineGetter {
     #[inline]
-    pub const fn is_none(self) -> bool {
+    pub const fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
     #[inline]
-    pub fn inner(self) -> Self {
-        let mut gp = self;
+    pub fn inner(&self) -> Self {
+        let mut gp = self.clone();
         while let Self::Loop(cp) = gp {
-            gp = cp.lc_getline;
+            gp = cp.borrow().lc_getline.clone();
         }
         gp
     }
 
     #[inline]
-    pub fn is_exline(self) -> bool {
+    pub fn is_exline(&self) -> bool {
         matches!(self.inner(), Self::ExLine)
     }
 
     #[inline]
-    pub fn is_autocmd(self) -> bool {
+    pub fn is_autocmd(&self) -> bool {
         matches!(self.inner(), Self::AutoCmd(_))
     }
 
     #[inline]
-    pub fn is_func(self) -> bool {
+    pub fn is_func(&self) -> bool {
         matches!(self.inner(), Self::Func(_))
     }
 
     #[inline]
-    pub fn is_source(self) -> bool {
+    pub fn is_source(&self) -> bool {
         matches!(self.inner(), Self::Source(_))
     }
 
     #[inline]
-    pub fn as_func(self) -> Option<std::rc::Rc<crate::profile::Funccall>> {
+    pub fn as_func(&self) -> Option<std::rc::Rc<crate::profile::Funccall>> {
         match self.inner() {
             Self::Func(id) => id.rc(),
             _ => None,
@@ -266,29 +266,26 @@ impl LineGetter {
     }
 
     #[inline]
-    pub fn as_source(self) -> Option<&'static mut crate::runtime::SourceCookie> {
+    pub fn as_source(
+        &self,
+    ) -> Option<std::rc::Rc<std::cell::RefCell<crate::runtime::SourceCookie>>> {
         match self.inner() {
-            Self::Source(p) => p.opt_mut(),
+            Self::Source(p) => Some(p),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn as_source_mut(self) -> Option<&'static mut crate::runtime::SourceCookie> {
-        self.as_source()
-    }
-
-    #[inline]
-    pub fn breakpoint_get(self) -> Option<crate::cursor::Linenr> {
+    pub fn breakpoint_get(&self) -> Option<crate::cursor::Linenr> {
         match self.inner() {
             Self::Func(id) => id.rc().map(|fc| fc.fc_breakpoint.get()),
-            Self::Source(p) => p.opt().map(|sp| sp.breakpoint),
+            Self::Source(p) => Some(p.borrow().breakpoint),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn breakpoint_set(self, val: crate::cursor::Linenr) {
+    pub fn breakpoint_set(&self, val: crate::cursor::Linenr) {
         match self.inner() {
             Self::Func(id) => {
                 if let Some(fc) = id.rc() {
@@ -296,25 +293,23 @@ impl LineGetter {
                 }
             }
             Self::Source(p) => {
-                if let Some(sp) = p.opt_mut() {
-                    sp.breakpoint = val;
-                }
+                p.borrow_mut().breakpoint = val;
             }
             _ => {}
         }
     }
 
     #[inline]
-    pub fn dbg_tick_get(self) -> Option<i32> {
+    pub fn dbg_tick_get(&self) -> Option<i32> {
         match self.inner() {
             Self::Func(id) => id.rc().map(|fc| fc.fc_dbg_tick.get()),
-            Self::Source(p) => p.opt().map(|sp| sp.dbg_tick),
+            Self::Source(p) => Some(p.borrow().dbg_tick),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn dbg_tick_set(self, val: i32) {
+    pub fn dbg_tick_set(&self, val: i32) {
         match self.inner() {
             Self::Func(id) => {
                 if let Some(fc) = id.rc() {
@@ -322,36 +317,28 @@ impl LineGetter {
                 }
             }
             Self::Source(p) => {
-                if let Some(sp) = p.opt_mut() {
-                    sp.dbg_tick = val;
-                }
+                p.borrow_mut().dbg_tick = val;
             }
             _ => {}
         }
     }
 
-    pub fn call(self, c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
+    pub fn call(&self, c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
         match self {
             Self::None => None,
             Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
             Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
-            Self::AutoCmd(cookie) => {
-                crate::autocmd::getnextac(c, cookie.borrow_mut(), indent, do_concat)
-            }
+            Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
             Self::Func(cookie) => {
                 crate::eval::userfunc::get_func_line(c, &cookie.unwrap_rc(), indent, do_concat)
             }
             Self::Source(cookie) => {
-                crate::runtime::getsourceline(c, cookie.borrow_mut(), indent, do_concat)
+                crate::runtime::getsourceline(c, &mut cookie.borrow_mut(), indent, do_concat)
             }
-            Self::Loop(cookie) => {
-                crate::ex_docmd::get_loop_line(c, cookie.borrow_mut(), indent, do_concat)
-            }
-            Self::List(cookie) => {
-                crate::eval::funcs::get_list_line(c, cookie.borrow_mut(), indent, do_concat)
-            }
+            Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),
+            Self::List(cookie) => crate::eval::funcs::get_list_line(c, cookie, indent, do_concat),
             Self::LuaEx(cookie) => {
-                crate::lua::executor::nlua_ex_getline(c, cookie.borrow_mut(), indent, do_concat)
+                crate::lua::executor::nlua_ex_getline(c, cookie, indent, do_concat)
             }
         }
     }

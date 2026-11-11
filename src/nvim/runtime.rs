@@ -2406,7 +2406,7 @@ pub fn ex_options(_eap: &mut Exarg) {
     cmd_source(c"$VIMRUNTIME/scripts/optwin.lua", None);
 }
 
-pub fn source_level(sp: &mut SourceCookie) -> i32 {
+pub fn source_level(sp: &SourceCookie) -> i32 {
     sp.level
 }
 
@@ -2862,9 +2862,10 @@ fn do_source_ext(
                     |v| crate::memory::cstring_until_nul(&v),
                 ));
             }
+            let cookie = std::rc::Rc::new(std::cell::RefCell::new(cookie));
             do_cmdline(
                 firstline.as_deref(),
-                LineGetter::Source((&mut cookie).into()),
+                LineGetter::Source(cookie),
                 DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
             );
         }
@@ -2917,7 +2918,6 @@ fn do_source_ext(
             prof_child_exit(&mut wait_start);
         }
         drop(firstline);
-        drop(cookie);
 
         if str_opt.is_none() && trigger_source_post {
             let fname_exp_opt = Some(fname_exp_owned.as_c_str());
@@ -3078,9 +3078,9 @@ pub fn free_autoload_scriptnames() {
     GA_LOADED.with(|cell| cell.borrow_mut().clear());
 }
 
-pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
-    if let Some(sp) = fgetline.as_source_mut() {
-        sp.sourcing_lnum
+pub fn get_sourced_lnum(fgetline: &LineGetter) -> Linenr {
+    if let Some(sp) = fgetline.as_source() {
+        sp.borrow().sourcing_lnum
     } else {
         sourcing_lnum()
     }
@@ -3376,7 +3376,7 @@ pub fn sourcing_a_script(eap: &mut Exarg) -> i32 {
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
 pub fn ex_scriptencoding(eap: &mut Exarg) {
-    let Some(sp) = eap.ea_getline.as_source_mut() else {
+    let Some(sp) = eap.ea_getline.as_source() else {
         emsg(gettext(
             c"E167: :scriptencoding used outside of a sourced file",
         ));
@@ -3390,7 +3390,11 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
         eap.arg.as_opt_cstr()
     };
 
-    convert_setup(&mut sp.conv, name_opt, Some(opt_vars().p_enc.as_cstr()));
+    convert_setup(
+        &mut sp.borrow_mut().conv,
+        name_opt,
+        Some(opt_vars().p_enc.as_cstr()),
+    );
 }
 
 /// ":finish": Mark a sourced file as finished.
@@ -3404,9 +3408,9 @@ pub fn ex_finish(eap: &mut Exarg) {
 
 /// Mark a sourced file as finished.
 pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
-    let sp = eap.ea_getline.as_source_mut().unwrap();
+    let sp = eap.ea_getline.as_source().unwrap();
     if reanimate {
-        sp.finished = false;
+        sp.borrow_mut().finished = false;
     }
 
     let cstack = eap.cstack_mut();
@@ -3415,12 +3419,12 @@ pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
         cstack.cs_pending[idx as usize] = CSTP_FINISH as u8;
         report_make_pending(CSTP_FINISH, PendingVal::None);
     } else {
-        sp.finished = true;
+        sp.borrow_mut().finished = true;
     }
 }
 
-pub fn source_finished(fgetline: LineGetter) -> bool {
-    fgetline.as_source_mut().is_some_and(|sp| sp.finished)
+pub fn source_finished(fgetline: &LineGetter) -> bool {
+    fgetline.as_source().is_some_and(|sp| sp.borrow().finished)
 }
 
 /// Return the autoload script name for a function or variable name.

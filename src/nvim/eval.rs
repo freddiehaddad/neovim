@@ -6291,7 +6291,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         } else if eap.cmdidx == Cmdidx::CmdExecute {
             do_cmdline(
                 Some(crate::memory::bytes_as_cstr(&buf)),
-                eap.ea_getline,
+                eap.ea_getline.clone(),
                 DOCMD_NOWAIT | DOCMD_VERBOSE,
             );
         }

@@ -3002,7 +3002,8 @@ pub fn apply_autocmds_group(
             aucmd_next(&mut patcmd);
 
             if patcmd.lastpat.is_some() {
-                ACTIVE_APC_LIST.with(|cell| cell.borrow_mut().push(patcmd.arg_bufnr.clone()));
+                let arg_bufnr = patcmd.arg_bufnr.clone();
+                ACTIVE_APC_LIST.with(|cell| cell.borrow_mut().push(arg_bufnr.clone()));
                 patcmd.data = data.copied();
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
@@ -3022,10 +3023,11 @@ pub fn apply_autocmds_group(
                 }
 
                 let save_did_emsg = g_st().did_emsg;
+                let patcmd_rc = std::rc::Rc::new(std::cell::RefCell::new(patcmd));
 
                 do_cmdline(
                     None,
-                    crate::cmdexpand::LineGetter::AutoCmd((&mut patcmd).into()),
+                    crate::cmdexpand::LineGetter::AutoCmd(patcmd_rc),
                     DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
                 );
 
@@ -3043,7 +3045,7 @@ pub fn apply_autocmds_group(
                     let mut list = cell.borrow_mut();
                     if list
                         .last()
-                        .is_some_and(|last| std::rc::Rc::ptr_eq(last, &patcmd.arg_bufnr))
+                        .is_some_and(|last| std::rc::Rc::ptr_eq(last, &arg_bufnr))
                     {
                         list.pop();
                     }
@@ -3066,7 +3068,6 @@ pub fn apply_autocmds_group(
                 prof_child_exit(&mut wait_time);
             }
             g_st().key_typed = save_key_typed;
-            drop(patcmd);
             AU_STATE.with(|s| {
                 s.apply_autocmds_nesting
                     .set(s.apply_autocmds_nesting.get() - (1))
@@ -3323,8 +3324,14 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
     }
 }
 
-pub fn getnextac(_c: i32, apc: &mut AutoPatCmd, _indent: i32, _do_concat: bool) -> Option<CString> {
-    aucmd_next(apc);
+pub fn getnextac(
+    _c: i32,
+    apc_cell: &std::cell::RefCell<AutoPatCmd>,
+    _indent: i32,
+    _do_concat: bool,
+) -> Option<CString> {
+    let mut apc = apc_cell.borrow_mut();
+    aucmd_next(&mut apc);
     apc.lastpat.as_ref()?;
 
     let auidx = apc.auidx;
@@ -3364,13 +3371,15 @@ pub fn getnextac(_c: i32, apc: &mut AutoPatCmd, _indent: i32, _do_concat: bool) 
     AU_STATE.with(|s| s.autocmd_nested.set(nested));
     g_st().current_sctx = script_ctx;
     apc.script_ctx.set(g_st().current_sctx);
+    let event = apc.event;
+    drop(apc);
 
     let retval = match cmd_or_cb {
         Ok(cmd) => cmd,
         Err((cb, id, group, saved_pat)) => {
-            let rv = au_callback(cb, id, group, apc);
+            let rv = au_callback(cb, id, group, &apc_cell.borrow());
             if oneshot {
-                with_autocmds_for_event(apc.event, |acs| {
+                with_autocmds_for_event(event, |acs| {
                     acs[auidx].pat = saved_pat;
                 });
             }
@@ -3380,11 +3389,12 @@ pub fn getnextac(_c: i32, apc: &mut AutoPatCmd, _indent: i32, _do_concat: bool) 
     };
 
     if oneshot {
-        with_autocmds_for_event(apc.event, |acs| {
+        with_autocmds_for_event(event, |acs| {
             aucmd_del(&mut acs[auidx]);
         });
     }
 
+    let mut apc = apc_cell.borrow_mut();
     if apc.auidx < apc.ausize {
         apc.auidx += 1;
     } else {

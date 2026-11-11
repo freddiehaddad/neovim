@@ -2091,7 +2091,7 @@ pub fn keymap_init() -> Option<&'static CStr> {
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
 pub fn ex_loadkeymap(eap: &mut Exarg) {
     let mut buf = [0u8; KMAP_LLEN + 11];
-    let fgetline: LineGetter = eap.ea_getline;
+    let fgetline: LineGetter = eap.ea_getline.clone();
 
     if !fgetline.is_source() {
         emsg(gettext(c"E105: Using :loadkeymap not in a sourced file"));

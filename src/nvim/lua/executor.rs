@@ -297,7 +297,7 @@ const BUILTIN_MODULES: [BuiltinModule; 35] = [
 #[repr(C)]
 pub struct ExDocmdCookie {
     getline: LuaRef,
-    got_line: bool,
+    got_line: std::cell::Cell<bool>,
 }
 
 static MAIN_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -814,7 +814,7 @@ extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> i32 {
 
 pub fn nlua_ex_getline(
     _c: i32,
-    ecd: &mut ExDocmdCookie,
+    ecd: &ExDocmdCookie,
     _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
@@ -833,27 +833,23 @@ pub fn nlua_ex_getline(
     }
     let line = lua_tostring(lstate, -1).map_or_else(CString::default, CStr::to_owned);
     lua_pop(lstate, 1);
-    ecd.got_line = true;
+    ecd.got_line.set(true);
     Some(line)
 }
 
 extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
     luaL_checktype_safe(lstate, 1, LUA_TFUNCTION);
-    let mut cookie = ExDocmdCookie {
+    let cookie = std::rc::Rc::new(ExDocmdCookie {
         getline: nlua_ref_global(lstate, 1),
-        got_line: false,
-    };
+        got_line: std::cell::Cell::new(false),
+    });
     g_st().msg_scroll = 1;
     g_st().need_wait_return = false;
     g_st().no_wait_return += 1;
-    do_cmdline(
-        None,
-        crate::cmdexpand::LineGetter::LuaEx((&mut cookie).into()),
-        0,
-    );
+    do_cmdline(None, crate::cmdexpand::LineGetter::LuaEx(cookie.clone()), 0);
     g_st().no_wait_return -= 1;
     nlua_unref_global(lstate, cookie.getline);
-    lua_pushboolean_safe(lstate, cookie.got_line);
+    lua_pushboolean_safe(lstate, cookie.got_line.get());
     1
 }
 

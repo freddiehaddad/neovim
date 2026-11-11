@@ -5003,7 +5003,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut debug_saved = DbgStuff::new();
 
         let mut cmd_getline: LineGetter;
-        let mut cmd_loop_cookie = LoopCookie::new();
+        let cmd_loop_cookie = std::rc::Rc::new(std::cell::RefCell::new(LoopCookie::new()));
 
         let saved_msg_list = g_st().msg_list.replace(Vec::new());
 
@@ -5056,9 +5056,10 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 g_st().did_emsg = 0;
             }
 
-            if cstack.cs_looplevel > 0 && (current_line as usize) < cmd_loop_cookie.lines.len() {
+            if cstack.cs_looplevel > 0
+                && (current_line as usize) < cmd_loop_cookie.borrow().lines.len()
+            {
                 cmdline_buf.clear();
-                has_cmdline_copy = false;
 
                 if let Some(ref fcp) = fgetline.as_func() {
                     if g_st().do_profiling == PROF_YES {
@@ -5072,7 +5073,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     script_line_end();
                 }
 
-                if source_finished(fgetline) {
+                if source_finished(&fgetline) {
                     retval = false;
                     break;
                 }
@@ -5090,9 +5091,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     fgetline.dbg_tick_set(g_st().debug_tick);
                 }
 
-                let wp = &cmd_loop_cookie.lines[current_line as usize];
-                next_cmdline = Some(wp.line.as_c_str());
-                set_sourcing_lnum(wp.lnum);
+                {
+                    let loop_cookie = cmd_loop_cookie.borrow();
+                    let wp = &loop_cookie.lines[current_line as usize];
+                    cmdline_buf.extend_from_slice(wp.line.to_bytes_with_nul());
+                    has_cmdline_copy = true;
+                    next_cmdline = Some(c"");
+                    set_sourcing_lnum(wp.lnum);
+                }
 
                 if fgetline
                     .breakpoint_get()
@@ -5178,18 +5184,21 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             let using_loop_cookie =
                 cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline_cstr.to_bytes());
             if using_loop_cookie {
-                cmd_loop_cookie.current_line = current_line;
-                cmd_loop_cookie.lc_getline = fgetline;
-                cmd_loop_cookie.repeating =
-                    i32::from((current_line as usize) < cmd_loop_cookie.lines.len());
-                cmd_getline = LineGetter::Loop((&mut cmd_loop_cookie).into());
+                {
+                    let mut loop_cookie = cmd_loop_cookie.borrow_mut();
+                    loop_cookie.current_line = current_line;
+                    loop_cookie.lc_getline = fgetline.clone();
+                    loop_cookie.repeating =
+                        i32::from((current_line as usize) < loop_cookie.lines.len());
 
-                if (current_line as usize) == cmd_loop_cookie.lines.len() {
-                    store_loop_line(&mut cmd_loop_cookie.lines, next_cmdline_cstr);
+                    if (current_line as usize) == loop_cookie.lines.len() {
+                        store_loop_line(&mut loop_cookie.lines, next_cmdline_cstr);
+                    }
                 }
+                cmd_getline = LineGetter::Loop(cmd_loop_cookie.clone());
                 current_line_before = current_line;
             } else {
-                cmd_getline = fgetline;
+                cmd_getline = fgetline.clone();
             }
 
             g_st().did_endif = false;
@@ -5220,7 +5229,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             RECURSIVE.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 
             if using_loop_cookie {
-                current_line = cmd_loop_cookie.current_line;
+                current_line = cmd_loop_cookie.borrow().current_line;
             }
 
             if !has_next {
@@ -5266,14 +5275,15 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                         line_breakcheck();
 
                         if fgetline.breakpoint_get().is_some()
-                            && cmd_loop_cookie.lines.len() > current_line as usize
+                            && cmd_loop_cookie.borrow().lines.len() > current_line as usize
                         {
-                            let wp = &cmd_loop_cookie.lines[current_line as usize];
+                            let wp_lnum =
+                                cmd_loop_cookie.borrow().lines[current_line as usize].lnum;
                             let fname_cstr = fname_opt.unwrap_or(c"");
                             fgetline.breakpoint_set(dbg_find_breakpoint(
                                 fgetline.is_source(),
                                 fname_cstr,
-                                wp.lnum - 1,
+                                wp_lnum - 1,
                             ));
                             fgetline.dbg_tick_set(g_st().debug_tick);
                         }
@@ -5295,9 +5305,10 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             }
 
             if cstack.cs_looplevel == 0 {
-                if let Some(wp) = cmd_loop_cookie.lines.last() {
+                let mut loop_cookie = cmd_loop_cookie.borrow_mut();
+                if let Some(wp) = loop_cookie.lines.last() {
                     set_sourcing_lnum(wp.lnum);
-                    cmd_loop_cookie.lines.clear();
+                    loop_cookie.lines.clear();
                 }
                 current_line = 0;
             }
@@ -5350,7 +5361,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             if !g_st().got_int
                 && !g_st().did_throw
                 && !aborting()
-                && ((fgetline.is_source() && !source_finished(fgetline))
+                && ((fgetline.is_source() && !source_finished(&fgetline))
                     || fgetline
                         .as_func()
                         .is_some_and(|fcp| func_has_ended(&fcp) == 0))
@@ -5400,7 +5411,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
+            .is_some_and(|sp| g_st().ex_nesting_level > source_level(&sp.borrow()))
             || fgetline
                 .as_func()
                 .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&fcp) + 1)
@@ -5507,31 +5518,40 @@ pub fn handle_did_throw() {
 /// Obtain a line when inside a ":while" or ":for" loop.
 pub fn get_loop_line(
     c: i32,
-    cp: &mut LoopCookie,
+    cookie: &std::cell::RefCell<LoopCookie>,
     indent: i32,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    let lines = &mut cp.lines;
+    let (at_end, repeating, lc_getline) = {
+        let cp = cookie.borrow();
+        (
+            (cp.current_line + 1) as usize >= cp.lines.len(),
+            cp.repeating != 0,
+            cp.lc_getline.clone(),
+        )
+    };
 
-    if (cp.current_line + 1) as usize >= lines.len() {
-        if cp.repeating != 0 {
+    if at_end {
+        if repeating {
             return None;
         }
-        let line = if !cp.lc_getline.is_none() {
-            cp.lc_getline.call(c, indent, do_concat)
+        let line = if !lc_getline.is_none() {
+            lc_getline.call(c, indent, do_concat)
         } else {
             getcmdline(c, 0, indent, do_concat)
         };
         if let Some(ref l) = line {
-            store_loop_line(lines, l);
+            let mut cp = cookie.borrow_mut();
+            store_loop_line(&mut cp.lines, l);
             cp.current_line += 1;
         }
         return line;
     }
 
     g_st().key_typed = false;
+    let mut cp = cookie.borrow_mut();
     cp.current_line += 1;
-    let wp = &lines[cp.current_line as usize];
+    let wp = &cp.lines[cp.current_line as usize];
     set_sourcing_lnum(wp.lnum);
     Some(wp.line.clone())
 }
@@ -6205,7 +6225,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     retv
 }
 
-fn profile_cmd(eap: &Exarg, fgetline: LineGetter) {
+fn profile_cmd(eap: &Exarg, fgetline: &LineGetter) {
     let cstack = eap.cstack();
     if g_st().do_profiling == PROF_YES
         && (!eap.skip
@@ -6372,7 +6392,7 @@ fn do_one_cmd(
 
         ea.cmdline_buf = std::mem::take(cmdline_buf);
         ea.cmd = ea.cmdline_ptr();
-        ea.ea_getline = fgetline;
+        ea.ea_getline = fgetline.clone();
 
         if !parse_command_modifiers(&mut ea, &mut errormsg, &mut g_st().cmdmod, false) {
             break 'doend;
@@ -6388,7 +6408,7 @@ fn do_one_cmd(
                 && (ea.cstack().cs_flags[ea.cstack().cs_idx as usize] & CSF_ACTIVE) == 0);
 
         let mut p_opt = find_excmd_after_range(&mut ea);
-        profile_cmd(&ea, fgetline);
+        profile_cmd(&ea, &fgetline);
 
         if !g_st().exiting {
             dbg_check_breakpoint(&mut ea);
@@ -6685,7 +6705,7 @@ fn do_one_cmd(
         if g_st().need_rethrow {
             do_throw(ea.cstack_mut());
         } else if g_st().check_cstack {
-            if source_finished(fgetline) {
+            if source_finished(&fgetline) {
                 do_finish(&mut ea, true);
             } else if fgetline.is_func() && current_func_returned() != 0 {
                 let _ = do_return(&mut ea, true, false, None);
