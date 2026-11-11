@@ -1029,7 +1029,7 @@ mod win_iconv {
             os_set_errno(EINVAL);
             return usize::MAX;
         }
-        let desc = crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).borrow_mut();
+        let desc = unsafe { &mut *(cd as *mut WinIconvDesc) };
         let Some(inbuf) = inbuf else {
             desc.from_resolved = None;
             return 0;
@@ -1092,13 +1092,11 @@ pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]
     }
     #[cfg(not(windows))]
     unsafe {
-        let mut out_ptr = crate::globals::GraphPtr::<u8>::of(outbuf.as_mut_ptr()).as_ptr();
+        let mut out_ptr = outbuf.as_mut_ptr();
         let mut out_left: usize = outbuf.len();
         let orig_out_len = out_left;
         let ret = if let Some(inbuf) = inbuf {
-            let mut in_ptr = crate::globals::GraphPtr::<u8>::of(inbuf.as_ptr())
-                .as_ptr()
-                .cast_const();
+            let mut in_ptr = inbuf.as_ptr();
             let mut in_left: usize = inbuf.len();
             let orig_in_len = in_left;
             let r = iconv(
@@ -2581,15 +2579,14 @@ pub fn os_scandir(dir: &mut Directory, path: &CStr) -> bool {
 
 /// Increments the directory pointer.
 pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
-    let dir = crate::globals::GraphPtr::<Directory>::from_ref(dir_in);
-    let req = dir.cast::<uv_fs_buf_t>();
-    let ent = dir
+    let req = (&raw mut *dir_in).cast::<uv_fs_buf_t>();
+    let ent = (&raw mut *dir_in)
         .cast::<u8>()
         .wrapping_add(unsafe { uv_req_size(UV_FS) })
         .cast::<uv_dirent_t>();
     let err = unsafe { uv_fs_scandir_next(req, ent) };
     if err != UV_EOF {
-        let name = crate::globals::GraphPtr::of(ent).borrow().name;
+        let name = unsafe { (*ent).name };
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name.cast()) })
     } else {
         None
@@ -2908,42 +2905,35 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
             semsg!(c"utf8_to_utf16 failed: %d", r);
             return false;
         }
-        let utf16_path = utf16_vec.as_ptr();
 
         let is_sep = |c: u16| c == (b'\\' as u16) || c == (b'/' as u16);
-        let mut p = utf16_path;
-        let p0 = (*crate::globals::GraphPtr::of(p).borrow() & 0xff) as u8;
-        if p0.is_ascii_alphabetic()
-            && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() == (b':' as u16)
-            && is_sep(*crate::globals::GraphPtr::of(p.wrapping_add(2)).borrow())
-        {
-            p = p.wrapping_add(3);
-        } else if is_sep(*crate::globals::GraphPtr::of(p).borrow())
-            && is_sep(*crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow())
-        {
-            p = p.wrapping_add(2);
+        let mut p_idx = 0usize;
+        let c_at = |idx: usize| utf16_vec.get(idx).copied().unwrap_or(0);
+        let p0 = (c_at(0) & 0xff) as u8;
+        if p0.is_ascii_alphabetic() && c_at(1) == (b':' as u16) && is_sep(c_at(2)) {
+            p_idx = 3;
+        } else if is_sep(c_at(0)) && is_sep(c_at(1)) {
+            p_idx = 2;
         }
 
         let mut buf = [0u16; 260];
         let mut result = false;
 
-        while *crate::globals::GraphPtr::of(p).borrow() != 0 {
-            let mut q = p;
-            while *crate::globals::GraphPtr::of(q).borrow() != 0
-                && !is_sep(*crate::globals::GraphPtr::of(q).borrow())
-            {
-                q = q.wrapping_add(1);
+        while c_at(p_idx) != 0 {
+            let mut q_idx = p_idx;
+            while c_at(q_idx) != 0 && !is_sep(c_at(q_idx)) {
+                q_idx += 1;
             }
-            if *crate::globals::GraphPtr::of(q).borrow() == 0 {
-                p = q;
+            if c_at(q_idx) == 0 {
+                p_idx = q_idx;
             } else {
-                p = q.wrapping_add(1);
+                p_idx = q_idx + 1;
             }
-            let len = ((q as usize) - (utf16_path as usize)) / size_of::<u16>();
+            let len = q_idx;
             if len >= 260 {
                 break;
             }
-            unsafe { ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len) };
+            buf[..len].copy_from_slice(&utf16_vec[..len]);
             buf[len] = 0;
             let attr = unsafe { GetFileAttributesW(buf.as_ptr()) };
             if attr != 0xffff_ffff && (attr & 0x0400) != 0 {

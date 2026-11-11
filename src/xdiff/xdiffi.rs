@@ -768,7 +768,7 @@ pub fn xdl_build_script(xe: &mut Xdfenv<'_>, xscr: &mut Vec<Xdchange>) -> i32 {
 fn xdl_call_hunk_func(
     _xe: &mut Xdfenv<'_>,
     xscr: &[Xdchange],
-    ecb: &mut Xdemitcb<'_>,
+    ecb: &mut Xdemitcb<'_, '_>,
     xecfg: &Xdemitconf,
 ) -> i32 {
     let mut idx = 0;
@@ -815,7 +815,7 @@ fn xdl_mark_ignorable_lines(xscr: &mut [Xdchange], xe: &Xdfenv<'_>, flags: u64) 
 fn xdl_emit_diff_wrapper(
     xe: &mut Xdfenv<'_>,
     xscr: &[Xdchange],
-    ecb: &mut Xdemitcb<'_>,
+    ecb: &mut Xdemitcb<'_, '_>,
     xecfg: &Xdemitconf,
 ) -> i32 {
     xdl_emit_diff(xe, xscr, ecb, xecfg)
@@ -826,7 +826,7 @@ pub fn xdl_diff<'a>(
     mf2: &mut Mmfile<'a>,
     xpp: &Xpparam,
     xecfg: &Xdemitconf,
-    ecb: &mut Xdemitcb<'_>,
+    ecb: &mut Xdemitcb<'_, '_>,
 ) -> i32 {
     let mut xscr: Vec<Xdchange> = Vec::new();
     let mut xe = Xdfenv::new();

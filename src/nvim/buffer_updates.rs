@@ -67,7 +67,16 @@ pub fn buf_updates_register(
         let mut arena = ARENA_EMPTY;
         if line_count > 0 {
             linedata = arena_array(&mut arena, line_count);
-            buf_collect_lines(buf, line_count, 1, 0, true, &mut linedata, None, &mut arena);
+            buf_collect_lines(
+                buf,
+                line_count,
+                1,
+                0,
+                true,
+                &mut linedata,
+                std::ptr::null_mut(),
+                &mut arena,
+            );
         }
 
         let mut items = [
@@ -206,7 +215,7 @@ pub fn buf_updates_send_changes(
             0,
             true,
             &mut linedata,
-            None,
+            std::ptr::null_mut(),
             &mut arena,
         );
     }

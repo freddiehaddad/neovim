@@ -3,7 +3,12 @@
 use crate::xdiff::xutils::{xdl_emit_diffrec, xdl_emit_hunk_hdr};
 use crate::xdiff::{XDL_EMIT_NO_HUNK_HDR, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile};
 
-fn xdl_emit_record(xdf: &Xdfile<'_>, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb<'_>) -> i32 {
+fn xdl_emit_record(
+    xdf: &Xdfile<'_>,
+    ri: i64,
+    pre: &std::ffi::CStr,
+    ecb: &mut Xdemitcb<'_, '_>,
+) -> i32 {
     let rec = xdf.recs[ri as usize].slice;
     if xdl_emit_diffrec(rec, pre.to_bytes(), ecb) < 0 {
         return -1;
@@ -64,7 +69,7 @@ pub fn xdl_get_hunk(xscr: &[Xdchange], idx: &mut usize, xecfg: &Xdemitconf) -> O
 pub fn xdl_emit_diff(
     xe: &mut Xdfenv<'_>,
     xscr: &[Xdchange],
-    ecb: &mut Xdemitcb<'_>,
+    ecb: &mut Xdemitcb<'_, '_>,
     xecfg: &Xdemitconf,
 ) -> i32 {
     let mut idx = 0;

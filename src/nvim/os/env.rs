@@ -259,7 +259,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         loop {
             let l = {
                 let mut n = 0usize;
-                while *crate::globals::GraphPtr::of(p.wrapping_add(n)).borrow() != 0 {
+                while unsafe { *p.wrapping_add(n) } != 0 {
                     n += 1;
                 }
                 n
@@ -689,7 +689,7 @@ pub fn os_get_environ(mut cb: impl FnMut(&CStr, Option<&CStr>)) {
     let mut envcount: i32 = 0;
     if unsafe { uv_os_environ(&raw mut envitems, &mut envcount) } == 0 {
         for i in 0..(envcount as usize) {
-            let item = crate::globals::GraphPtr::of(envitems.wrapping_add(i)).borrow();
+            let item = unsafe { &*envitems.wrapping_add(i) };
             let item_name = if item.name.is_null() {
                 c""
             } else {

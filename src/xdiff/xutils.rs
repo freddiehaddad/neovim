@@ -15,7 +15,7 @@ pub fn xdl_bogosqrt(mut n: i64) -> i64 {
     i
 }
 
-pub fn xdl_emit_diffrec(rec: &[u8], pre: &[u8], ecb: &mut Xdemitcb<'_>) -> i32 {
+pub fn xdl_emit_diffrec(rec: &[u8], pre: &[u8], ecb: &mut Xdemitcb<'_, '_>) -> i32 {
     let mut i: usize = 2;
     let mut mb = [Mmbuffer::default(); 3];
 
@@ -242,7 +242,7 @@ pub fn xdl_hashbits(size: u32) -> u32 {
     if bits != 0 { bits } else { 1 }
 }
 
-fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_>) -> i32 {
+fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_, '_>) -> i32 {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
     let mut cursor = std::io::Cursor::new(&mut buf[..]);
@@ -264,7 +264,7 @@ fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_
     0
 }
 
-pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_>) -> i32 {
+pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_, '_>) -> i32 {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 

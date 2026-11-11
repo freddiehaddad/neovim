@@ -432,15 +432,11 @@ pub extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
 
     if priv_state.err.err_type == ErrorType::ErrorTypeNone {
         let mut ecb = match mode {
-            NluaXdiffMode::Unified => {
-                Xdemitcb::Unified(crate::globals::GraphPtr::from(&mut unified_buf))
-            }
-            NluaXdiffMode::OnHunkCb => {
-                Xdemitcb::OnHunk(crate::globals::GraphPtr::from(&mut priv_state))
-            }
+            NluaXdiffMode::Unified => Xdemitcb::Unified(&mut unified_buf),
+            NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&mut priv_state),
             NluaXdiffMode::Locations => {
                 lua_createtable_safe(lstate, 0, 0);
-                Xdemitcb::Locations(crate::globals::GraphPtr::from(&mut priv_state))
+                Xdemitcb::Locations(&mut priv_state)
             }
         };
 

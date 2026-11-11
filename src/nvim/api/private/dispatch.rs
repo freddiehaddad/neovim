@@ -4243,7 +4243,16 @@ pub fn handle_nvim_buf_get_lines(
     ) {
         return ret;
     }
-    let rv = nvim_buf_get_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arena, None, error);
+    let rv = nvim_buf_get_lines(
+        channel_id,
+        arg_1,
+        arg_2,
+        arg_3,
+        arg_4,
+        arena,
+        std::ptr::null_mut(),
+        error,
+    );
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -4498,7 +4507,16 @@ pub fn handle_nvim_buf_get_text(
         return ret;
     }
     let rv = nvim_buf_get_text(
-        channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, &mut arg_6, arena, None, error,
+        channel_id,
+        arg_1,
+        arg_2,
+        arg_3,
+        arg_4,
+        arg_5,
+        &mut arg_6,
+        arena,
+        std::ptr::null_mut(),
+        error,
     );
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
@@ -15959,7 +15977,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
                         arg3,
                         arg4,
                         &mut arena,
-                        crate::globals::GraphPtr::of(lstate).opt_mut(),
+                        lstate,
                         &mut err,
                     );
                     debug_assert!(
@@ -16219,7 +16237,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                                 arg5,
                                 &mut arg6,
                                 &mut arena,
-                                crate::globals::GraphPtr::of(lstate).opt_mut(),
+                                lstate,
                                 &mut err,
                             );
                             debug_assert!(

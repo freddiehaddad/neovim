@@ -420,7 +420,16 @@ pub fn buffer_get_line(
 ) -> NvimString {
     let mut rv = NvimString::new();
     index = convert_index(index);
-    let slice = nvim_buf_get_lines(0, buffer, index, index + 1, true, arena, None, err);
+    let slice = nvim_buf_get_lines(
+        0,
+        buffer,
+        index,
+        index + 1,
+        true,
+        arena,
+        std::ptr::null_mut(),
+        err,
+    );
     if !error_set(err) && slice.size > 0 {
         rv = slice[0].data.string();
     }
@@ -495,7 +504,16 @@ pub fn buffer_get_line_slice(
 ) -> Array {
     start = convert_index(start) + i64::from(!include_start);
     end = convert_index(end) + i64::from(include_end);
-    nvim_buf_get_lines(0, buffer, start, end, false, arena, None, err)
+    nvim_buf_get_lines(
+        0,
+        buffer,
+        start,
+        end,
+        false,
+        arena,
+        std::ptr::null_mut(),
+        err,
+    )
 }
 
 /// Replaces a line range on the buffer

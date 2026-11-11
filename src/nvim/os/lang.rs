@@ -788,16 +788,15 @@ pub fn init_locale() {
 
     let mut localepath = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(&mut localepath, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let mut tail = path_tail_with_sep(crate::memory::bytes_as_cstr(&localepath))
-        .as_ptr()
-        .cast_mut()
-        .cast::<u8>();
-    *crate::globals::GraphPtr::of(tail).borrow_mut() = 0;
-    tail = path_tail(crate::memory::bytes_as_cstr(&localepath))
-        .as_ptr()
-        .cast_mut()
-        .cast::<u8>();
-    let offset = (tail as usize) - (localepath.as_ptr() as usize);
+    let tail_with_sep_len = path_tail_with_sep(crate::memory::bytes_as_cstr(&localepath))
+        .to_bytes()
+        .len();
+    let trim_idx = crate::memory::bytes_until_nul(&localepath).len() - tail_with_sep_len;
+    localepath[trim_idx] = 0;
+    let tail_len = path_tail(crate::memory::bytes_as_cstr(&localepath))
+        .to_bytes()
+        .len();
+    let offset = crate::memory::bytes_until_nul(&localepath).len() - tail_len;
     crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 
     if HAVE_LIBINTL {

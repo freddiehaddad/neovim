@@ -8,7 +8,6 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::win_config::K_CTX_NO_DISPLAY;
 use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
-use crate::buffer::FileBuf;
 use crate::charset::NUL;
 use crate::context::K_CTX_KEEP_DIRS;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
@@ -56,7 +55,7 @@ use crate::path::path_with_url;
 use crate::regexp::{RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, vim_regcomp, vim_regexec};
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
-use crate::window::{WinInfoInfo, win_find_tabpage};
+use crate::window::win_find_tabpage;
 use std::ffi::CStr;
 use std::ptr;
 
@@ -129,7 +128,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     }
 
     let buf = if bufnr != 0 {
-        crate::globals::GraphPtr::from(handle_get_buffer(bufnr))
+        crate::globals::BufPtr::from(handle_get_buffer(bufnr))
     } else {
         g_st().curbuf
     };
@@ -567,8 +566,8 @@ extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
 
 extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     let mut flags: i32 = 0;
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
-    let mut win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
+    let mut win = crate::globals::WinPtr::NULL;
     let mut keepcwd = false;
     let mut log_level: i32 = -1;
 
@@ -582,14 +581,16 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             let v = lua_toboolean_safe(lstate, -1);
             match k {
                 b"buf" => {
-                    buf = crate::globals::GraphPtr::from(handle_get_buffer(
-                        luaL_checkinteger_safe(lstate, -1) as i32,
-                    ));
+                    buf = crate::globals::BufPtr::from(handle_get_buffer(luaL_checkinteger_safe(
+                        lstate, -1,
+                    )
+                        as i32));
                 }
                 b"win" => {
-                    win = crate::globals::GraphPtr::from(handle_get_window(
-                        luaL_checkinteger_safe(lstate, -1) as i32,
-                    ));
+                    win = crate::globals::WinPtr::from(handle_get_window(luaL_checkinteger_safe(
+                        lstate, -1,
+                    )
+                        as i32));
                 }
                 b"keepcwd" => keepcwd = v,
                 b"log_level" => log_level = luaL_checkinteger_safe(lstate, -1) as i32,
@@ -633,7 +634,7 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
         let mut switched = true;
 
         if !win.is_null() {
-            buf = crate::globals::GraphPtr::NULL;
+            buf = crate::globals::BufPtr::NULL;
         }
 
         if !win.is_null() || !buf.is_null() || keepcwd {

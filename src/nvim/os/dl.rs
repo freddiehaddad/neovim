@@ -97,15 +97,13 @@ pub fn os_libcall(
         }
 
         if let Some(out) = str_out {
-            let res = crate::globals::GraphPtr::<u8>::of(if let Some(argv) = argv {
+            let res = if let Some(argv) = argv {
                 let sfn: unsafe extern "C" fn(*const u8) -> *const u8 = std::mem::transmute(fn_ptr);
                 sfn(argv.as_ptr().cast())
             } else {
                 let ifn: unsafe extern "C" fn(i32) -> *const u8 = std::mem::transmute(fn_ptr);
                 ifn(argi)
-            })
-            .as_ptr()
-            .cast_const();
+            };
 
             let addr = res as isize;
             *out = if !res.is_null() && addr != 1 && addr != -1 {

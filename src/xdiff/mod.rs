@@ -50,50 +50,40 @@ pub struct Xpparam {
     pub flags: u64,
 }
 
-#[derive(Copy, Clone, Default)]
-pub enum Xdemitcb<'a> {
+#[derive(Default)]
+pub enum Xdemitcb<'a, 'b> {
     #[default]
     None,
-    Unified(crate::globals::GraphPtr<Vec<u8>>),
-    Diff(crate::globals::GraphPtr<crate::diff::Diffout>),
-    OnHunk(crate::globals::GraphPtr<crate::lua::xdiff::HunkPriv<'a>>),
-    Locations(crate::globals::GraphPtr<crate::lua::xdiff::HunkPriv<'a>>),
+    Unified(&'a mut Vec<u8>),
+    Diff(&'a mut crate::diff::Diffout),
+    OnHunk(&'a mut crate::lua::xdiff::HunkPriv<'b>),
+    Locations(&'a mut crate::lua::xdiff::HunkPriv<'b>),
 }
 
-impl<'a> Xdemitcb<'a> {
+impl<'a, 'b> Xdemitcb<'a, 'b> {
     #[inline]
-    pub const fn has_hunk_func(self) -> bool {
+    pub const fn has_hunk_func(&self) -> bool {
         matches!(self, Self::Diff(_) | Self::OnHunk(_) | Self::Locations(_))
     }
 
     #[inline]
-    pub fn out_line(self, mb: &[Mmbuffer<'_>]) -> i32 {
+    pub fn out_line(&mut self, mb: &[Mmbuffer<'_>]) -> i32 {
         match self {
-            Self::Unified(out) => crate::lua::xdiff::write_string(out.borrow_mut(), mb),
+            Self::Unified(out) => crate::lua::xdiff::write_string(out, mb),
             _ => 0,
         }
     }
 
     #[inline]
-    pub fn call_hunk(self, start_a: i32, count_a: i32, start_b: i32, count_b: i32) -> i32 {
+    pub fn call_hunk(&mut self, start_a: i32, count_a: i32, start_b: i32, count_b: i32) -> i32 {
         match self {
-            Self::Diff(dout) => {
-                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, dout.borrow_mut())
+            Self::Diff(dout) => crate::diff::xdiff_out(start_a, count_a, start_b, count_b, dout),
+            Self::OnHunk(priv_data) => {
+                crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data)
             }
-            Self::OnHunk(priv_data) => crate::lua::xdiff::call_on_hunk_cb(
-                start_a,
-                count_a,
-                start_b,
-                count_b,
-                priv_data.borrow_mut(),
-            ),
-            Self::Locations(priv_data) => crate::lua::xdiff::hunk_locations_cb(
-                start_a,
-                count_a,
-                start_b,
-                count_b,
-                priv_data.borrow_mut(),
-            ),
+            Self::Locations(priv_data) => {
+                crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, priv_data)
+            }
             Self::None | Self::Unified(_) => 0,
         }
     }
@@ -186,8 +176,12 @@ pub struct Xdchange {
     pub ignore: i32,
 }
 
-pub type EmitFunc<'a> =
-    fn(xe: &mut Xdfenv<'a>, xscr: &[Xdchange], ecb: &mut Xdemitcb<'_>, xecfg: &Xdemitconf) -> i32;
+pub type EmitFunc<'a> = fn(
+    xe: &mut Xdfenv<'a>,
+    xscr: &[Xdchange],
+    ecb: &mut Xdemitcb<'_, '_>,
+    xecfg: &Xdemitconf,
+) -> i32;
 
 #[inline]
 pub fn xdl_hashlong(v: u64, b: u32) -> u64 {

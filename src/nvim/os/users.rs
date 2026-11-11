@@ -172,12 +172,10 @@ fn collect_usernames() -> Vec<CString> {
         } == 0
         {
             for i in 0..nusers as usize {
-                let name_ptr = crate::globals::GraphPtr::of(uinfo.wrapping_add(i))
-                    .borrow()
-                    .usri0_name;
+                let name_ptr = unsafe { (*uinfo.wrapping_add(i)).usri0_name };
                 if !name_ptr.is_null() {
                     let mut len = 0usize;
-                    while *crate::globals::GraphPtr::of(name_ptr.wrapping_add(len)).borrow() != 0 {
+                    while unsafe { *name_ptr.wrapping_add(len) } != 0 {
                         len += 1;
                     }
                     if len > 0 {

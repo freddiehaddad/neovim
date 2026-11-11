@@ -80,10 +80,9 @@ struct TVPopStackItem {
     idx: i32,
 }
 
-#[derive(Clone, Copy)]
 struct ObjPopStackItem {
-    obj: crate::globals::GraphPtr<Object>,
-    container: bool,
+    obj: Object,
+    next_key: Option<NvimString>,
 }
 
 #[inline]
@@ -880,7 +879,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
     while !mpstack.is_empty() {
         let cur_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-        let next_tv = crate::globals::GraphPtr::<TypVal>::from_ref(match mpstack[cur_idx].data {
+        let next_tv: &mut TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 ref mut hi_idx,
@@ -903,7 +902,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 *todo -= 1;
                 *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());
-                &di.di_tv
+                &mut di.di_tv
             }
             MPConvStackData::List {
                 mut list,
@@ -923,7 +922,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 }
                 let cur_li = cur_li.borrow_mut();
                 *li = cur_li.li_next;
-                &cur_li.li_tv
+                &mut cur_li.li_tv
             }
             MPConvStackData::Pairs { mut list, li } => {
                 if li.is_null() {
@@ -947,14 +946,14 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 {
                     *li_ref = next_li;
                 }
-                &last_item.li_tv
+                &mut last_item.li_tv
             }
             MPConvStackData::Partial { .. } | MPConvStackData::PartialList { .. } => {
                 unreachable!()
             }
-        });
+        };
 
-        if !lua_convert_one_value(lstate, &mut mpstack, next_tv.borrow_mut(), copy_id) {
+        if !lua_convert_one_value(lstate, &mut mpstack, next_tv, copy_id) {
             return false;
         }
     }
@@ -1320,6 +1319,25 @@ pub fn nlua_pop_object(
     nlua_pop_object_opt(lstate, ref_, Some(arena), err)
 }
 
+#[inline]
+fn attach_popped_object(stack: &mut [ObjPopStackItem], ret: &mut Object, val: Object) {
+    if let Some(parent) = stack.last_mut() {
+        if parent.obj.obj_type == ObjectType::ObjectTypeDict {
+            let idx = parent.obj.data.dict().size;
+            parent.obj.data.dict_mut().size += 1;
+            let item = &mut parent.obj.data.dict_mut()[idx];
+            item.key = parent.next_key.take().unwrap();
+            item.value = val;
+        } else {
+            let idx = parent.obj.data.array().size;
+            parent.obj.data.array_mut().size += 1;
+            parent.obj.data.array_mut()[idx] = val;
+        }
+    } else {
+        *ret = val;
+    }
+}
+
 pub fn nlua_pop_object_opt(
     lstate: *mut lua_State,
     ref_: bool,
@@ -1329,14 +1347,10 @@ pub fn nlua_pop_object_opt(
     let mut ret = nil_obj();
     let initial_size = nlua_gettop(lstate);
     let mut stack: Vec<ObjPopStackItem> = Vec::with_capacity(2);
-    stack.push(ObjPopStackItem {
-        obj: crate::globals::GraphPtr::from(&mut ret),
-        container: false,
-    });
+    let mut need_pop_value = true;
 
-    while !error_set(err) && !stack.is_empty() {
-        let mut cur = stack.pop().unwrap();
-        if cur.container {
+    while !error_set(err) && (need_pop_value || !stack.is_empty()) {
+        if !need_pop_value {
             if !lua_checkstack_safe(lstate, 3) {
                 api_set_error!(
                     err,
@@ -1345,9 +1359,12 @@ pub fn nlua_pop_object_opt(
                 );
                 break;
             }
+            let cur = stack.last_mut().unwrap();
             if cur.obj.obj_type == ObjectType::ObjectTypeDict {
                 if cur.obj.data.dict().size == cur.obj.data.dict().capacity {
                     lua_pop(lstate, 2);
+                    let finished = stack.pop().unwrap().obj;
+                    attach_popped_object(&mut stack, &mut ret, finished);
                     continue;
                 }
                 let mut next_key_found = false;
@@ -1360,49 +1377,39 @@ pub fn nlua_pop_object_opt(
                 }
                 if next_key_found {
                     let s_bytes = lua_tolstring_bytes(lstate, -2);
-                    let idx = cur.obj.data.dict().size;
-                    cur.obj.data.dict_mut().size += 1;
-                    let item = &mut cur.obj.data.dict_mut()[idx];
-                    item.key = cbuf_to_arena_str_opt(arena.as_deref_mut(), s_bytes);
-                    let item_val_ptr = crate::globals::GraphPtr::from(&mut item.value);
-                    stack.push(cur);
-                    cur = ObjPopStackItem {
-                        obj: item_val_ptr,
-                        container: false,
-                    };
+                    cur.next_key = Some(cbuf_to_arena_str_opt(arena.as_deref_mut(), s_bytes));
                 } else {
                     lua_pop(lstate, 1);
+                    let finished = stack.pop().unwrap().obj;
+                    attach_popped_object(&mut stack, &mut ret, finished);
                     continue;
                 }
             } else {
                 if cur.obj.data.array().size == cur.obj.data.array().capacity {
                     lua_pop(lstate, 1);
+                    let finished = stack.pop().unwrap().obj;
+                    attach_popped_object(&mut stack, &mut ret, finished);
                     continue;
                 }
                 let idx = cur.obj.data.array().size;
-                cur.obj.data.array_mut().size += 1;
                 lua_rawgeti_safe(lstate, -1, (idx as i32) + 1);
-                let item_ptr = crate::globals::GraphPtr::from(&mut cur.obj.data.array_mut()[idx]);
-                stack.push(cur);
-                cur = ObjPopStackItem {
-                    obj: item_ptr,
-                    container: false,
-                };
             }
         }
 
-        *cur.obj = nil_obj();
+        need_pop_value = false;
+        let mut cur_obj = nil_obj();
+        let mut pushed_container = false;
         match lua_type_safe(lstate, -1) {
             LUA_TNIL => {}
             LUA_TBOOLEAN => {
-                *cur.obj = Object {
+                cur_obj = Object {
                     obj_type: ObjectType::ObjectTypeBoolean,
                     data: ObjectData::Boolean(lua_toboolean_safe(lstate, -1)),
                 };
             }
             LUA_TSTRING => {
                 let s_bytes = lua_tolstring_bytes(lstate, -1);
-                *cur.obj = Object {
+                cur_obj = Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cbuf_to_arena_str_opt(arena.as_deref_mut(), s_bytes)),
                 };
@@ -1413,12 +1420,12 @@ pub fn nlua_pop_object_opt(
                     || n < (Integer::MIN as lua_Number)
                     || ((n as Integer) as lua_Number) != n
                 {
-                    *cur.obj = Object {
+                    cur_obj = Object {
                         obj_type: ObjectType::ObjectTypeFloat,
                         data: ObjectData::Floating(n),
                     };
                 } else {
-                    *cur.obj = Object {
+                    cur_obj = Object {
                         obj_type: ObjectType::ObjectTypeInteger,
                         data: ObjectData::Integer(n as Integer),
                     };
@@ -1428,36 +1435,42 @@ pub fn nlua_pop_object_opt(
                 let table_props = nlua_traverse_table(lstate);
                 match table_props.table_type {
                     ObjectType::ObjectTypeArray => {
-                        *cur.obj = Object {
+                        cur_obj = Object {
                             obj_type: ObjectType::ObjectTypeArray,
                             data: ObjectData::Array(Array::new()),
                         };
                         if table_props.maxidx != 0 {
-                            cur.obj.data = ObjectData::Array(arena_array_opt(
+                            cur_obj.data = ObjectData::Array(arena_array_opt(
                                 arena.as_deref_mut(),
                                 table_props.maxidx,
                             ));
-                            cur.container = true;
-                            stack.push(cur);
+                            stack.push(ObjPopStackItem {
+                                obj: cur_obj,
+                                next_key: None,
+                            });
+                            pushed_container = true;
                         }
                     }
                     ObjectType::ObjectTypeDict => {
-                        *cur.obj = Object {
+                        cur_obj = Object {
                             obj_type: ObjectType::ObjectTypeDict,
                             data: ObjectData::Dict(Dict::new()),
                         };
                         if table_props.string_keys_num != 0 {
-                            cur.obj.data = ObjectData::Dict(arena_dict_opt(
+                            cur_obj.data = ObjectData::Dict(arena_dict_opt(
                                 arena.as_deref_mut(),
                                 table_props.string_keys_num,
                             ));
-                            cur.container = true;
-                            stack.push(cur);
+                            stack.push(ObjPopStackItem {
+                                obj: cur_obj,
+                                next_key: None,
+                            });
+                            pushed_container = true;
                             lua_pushnil_safe(lstate);
                         }
                     }
                     ObjectType::ObjectTypeFloat => {
-                        *cur.obj = Object {
+                        cur_obj = Object {
                             obj_type: ObjectType::ObjectTypeFloat,
                             data: ObjectData::Floating(table_props.val),
                         };
@@ -1474,7 +1487,7 @@ pub fn nlua_pop_object_opt(
             }
             LUA_TFUNCTION => {
                 if ref_ {
-                    *cur.obj = Object {
+                    cur_obj = Object {
                         obj_type: ObjectType::ObjectTypeLuaRef,
                         data: ObjectData::LuaRef(nlua_ref_global(lstate, -1)),
                     };
@@ -1491,7 +1504,7 @@ pub fn nlua_pop_object_opt(
                 let is_nil = lua_rawequal_safe(lstate, -2, -1);
                 lua_pop(lstate, 1);
                 if is_nil {
-                    *cur.obj = nil_obj();
+                    cur_obj = nil_obj();
                 } else {
                     api_set_error!(
                         err,
@@ -1508,13 +1521,17 @@ pub fn nlua_pop_object_opt(
                 );
             }
         }
-        if !cur.container {
+        if !pushed_container {
             lua_pop(lstate, 1);
+            attach_popped_object(&mut stack, &mut ret, cur_obj);
         }
     }
 
     if error_set(err) {
         if arena.is_none() {
+            for item in stack {
+                api_free_object(item.obj);
+            }
             api_free_object(ret);
         }
         ret = nil_obj();
