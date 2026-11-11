@@ -22,7 +22,7 @@ use crate::mbyte::{
     Vimconv, convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr2char_adv,
     string_convert, utf_char2bytes, utf_ptr2char, utf_slice2char, utf_valid_string, utfc_ptr2len,
 };
-use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
+use crate::memline::{ml_append_buf, ml_get_buf};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -4728,9 +4728,8 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     let mut write_err = false;
     let mut memtot_add = 0;
     for lnum in 1..=wcount {
-        let line_cstr = ml_get_buf(spellbuf, lnum);
-        let len = ml_get_buf_len(spellbuf, lnum) + 1;
-        let line_slice = line_cstr.to_bytes_with_nul();
+        let line_slice = ml_get_buf(spellbuf, lnum).to_bytes_with_nul();
+        let len = line_slice.len() as i32;
         if spell_write(line_slice, &fd) == 0 {
             emsg(gettext(E_WRITE));
             write_err = true;

@@ -45,6 +45,9 @@ const S_IREAD: i32 = 0o400;
 #[cfg(not(any(windows, target_os = "linux")))]
 const S_IWRITE: i32 = 0o200;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BhdrId(usize);
+
 #[repr(C)]
 pub struct Bhdr {
     pub bh_bnum: Blocknr,
@@ -68,7 +71,9 @@ pub struct Memfile {
     pub mf_flags: i32,
     pub mf_reopen: bool,
     pub mf_free_list: Vec<Bhdr>,
-    pub mf_hash: std::collections::HashMap<i64, Box<Bhdr>>,
+    pub mf_blocks: Vec<Option<Bhdr>>,
+    pub mf_free_slots: Vec<usize>,
+    pub mf_hash: std::collections::HashMap<i64, BhdrId>,
     pub mf_trans: std::collections::HashMap<i64, i64>,
     pub mf_blocknr_max: Blocknr,
     pub mf_blocknr_min: Blocknr,
@@ -78,19 +83,73 @@ pub struct Memfile {
     pub mf_dirty: Mfdirty,
 }
 
+impl Memfile {
+    #[inline(always)]
+    pub fn bhdr(&self, id: BhdrId) -> &Bhdr {
+        self.mf_blocks[id.0].as_ref().expect("invalid BhdrId")
+    }
+
+    #[inline(always)]
+    pub fn bhdr_mut(&mut self, id: BhdrId) -> &mut Bhdr {
+        self.mf_blocks[id.0].as_mut().expect("invalid BhdrId")
+    }
+
+    #[inline(always)]
+    pub fn find_bhdr(&self, bnum: Blocknr) -> Option<BhdrId> {
+        self.mf_hash.get(&bnum).copied()
+    }
+
+    pub fn insert_bhdr(&mut self, bhdr: Bhdr) -> BhdrId {
+        let bnum = bhdr.bh_bnum;
+        let id = if let Some(slot) = self.mf_free_slots.pop() {
+            self.mf_blocks[slot] = Some(bhdr);
+            BhdrId(slot)
+        } else {
+            let slot = self.mf_blocks.len();
+            self.mf_blocks.push(Some(bhdr));
+            BhdrId(slot)
+        };
+        self.mf_hash.insert(bnum, id);
+        id
+    }
+
+    pub fn remove_bhdr(&mut self, id: BhdrId) -> Option<Bhdr> {
+        let bhdr = self.mf_blocks[id.0].take()?;
+        self.mf_hash.remove(&bhdr.bh_bnum);
+        self.mf_free_slots.push(id.0);
+        Some(bhdr)
+    }
+
+    pub fn copy_bhdr_data(
+        &mut self,
+        src_id: BhdrId,
+        src_start: usize,
+        dst_id: BhdrId,
+        dst_start: usize,
+        len: usize,
+    ) {
+        if src_id == dst_id {
+            self.bhdr_mut(src_id)
+                .bh_data
+                .copy_within(src_start..src_start + len, dst_start);
+        } else if src_id.0 < dst_id.0 {
+            let (left, right) = self.mf_blocks.split_at_mut(dst_id.0);
+            let src = &left[src_id.0].as_ref().unwrap().bh_data[src_start..src_start + len];
+            let dst = &mut right[0].as_mut().unwrap().bh_data[dst_start..dst_start + len];
+            dst.copy_from_slice(src);
+        } else {
+            let (left, right) = self.mf_blocks.split_at_mut(src_id.0);
+            let src = &right[0].as_ref().unwrap().bh_data[src_start..src_start + len];
+            let dst = &mut left[dst_id.0].as_mut().unwrap().bh_data[dst_start..dst_start + len];
+            dst.copy_from_slice(src);
+        }
+    }
+}
+
 #[inline]
 fn perror_msg(msg: &std::ffi::CStr) {
     let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
     let _ = semsg!(c"%s: %s", gettext(msg), strerror(err));
-}
-
-#[inline]
-pub fn pmap_get_bhdr(
-    map: &std::collections::HashMap<i64, Box<Bhdr>>,
-    key: i64,
-) -> Option<&'static mut Bhdr> {
-    map.get(&key)
-        .map(|b| crate::globals::GraphPtr::of((&raw const **b).cast_mut()).borrow_mut())
 }
 
 /// Open a new or existing memory block file.
@@ -102,6 +161,8 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfi
         mf_flags: 0,
         mf_reopen: false,
         mf_free_list: Vec::new(),
+        mf_blocks: Vec::new(),
+        mf_free_slots: Vec::new(),
         mf_hash: std::collections::HashMap::new(),
         mf_trans: std::collections::HashMap::new(),
         mf_blocknr_max: 0,
@@ -209,7 +270,7 @@ pub fn mf_new_page_size(mfp: &mut Memfile, new_size: u32) {
 }
 
 /// Get a new block.
-pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> &'static mut Bhdr {
+pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> BhdrId {
     let bnum: Blocknr = if !negative
         && let Some(freep) = mfp.mf_free_list.last_mut()
         && freep.bh_page_count >= page_count
@@ -234,41 +295,36 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> &'static mu
         b
     };
 
-    let boxed = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
-    let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
+    let bhdr = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
     mfp.mf_dirty = MF_DIRTY_YES;
-    mfp.mf_hash.insert(bnum, boxed);
-    hp.borrow_mut()
+    mfp.insert_bhdr(bhdr)
 }
 
 /// Get existing block `nr` with `page_count` pages.
-pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> Option<&'static mut Bhdr> {
+pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> Option<BhdrId> {
     if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
         return None;
     }
 
-    if let Some(hp) = pmap_get_bhdr(&mfp.mf_hash, nr) {
-        hp.bh_flags |= BH_LOCKED;
-        return Some(hp);
+    if let Some(hp_id) = mfp.find_bhdr(nr) {
+        mfp.bhdr_mut(hp_id).bh_flags |= BH_LOCKED;
+        return Some(hp_id);
     }
 
     if nr < 0 || nr >= mfp.mf_infile_count || page_count == 0 {
         return None;
     }
 
-    let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
-    if !mf_read(mfp, &mut boxed) {
+    let mut bhdr = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
+    if !mf_read(mfp, &mut bhdr) {
         return None;
     }
-    let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
-    mfp.mf_hash.insert(nr, boxed);
-
-    Some(hp.borrow_mut())
+    Some(mfp.insert_bhdr(bhdr))
 }
 
-/// Release the block `*hp`.
-pub fn mf_put(mfp: &mut Memfile, hp: &mut Bhdr, dirty: bool, infile: bool) {
-    let mut flags = hp.bh_flags;
+/// Release the block `hp_id`.
+pub fn mf_put(mfp: &mut Memfile, hp_id: BhdrId, dirty: bool, infile: bool) {
+    let mut flags = mfp.bhdr(hp_id).bh_flags;
 
     if (flags & BH_LOCKED) == 0 {
         iemsg(gettext(c"E293: Block was not locked"));
@@ -280,17 +336,19 @@ pub fn mf_put(mfp: &mut Memfile, hp: &mut Bhdr, dirty: bool, infile: bool) {
             mfp.mf_dirty = MF_DIRTY_YES;
         }
     }
-    hp.bh_flags = flags;
+    mfp.bhdr_mut(hp_id).bh_flags = flags;
     if infile {
-        let _ = mf_trans_add(mfp, hp);
+        let _ = mf_trans_add(mfp, hp_id);
     }
 }
 
 /// Signal block as no longer used (may put it in the free list).
-pub fn mf_free(mfp: &mut Memfile, hp: &mut Bhdr) {
-    let bnum = hp.bh_bnum;
-    let page_count = hp.bh_page_count;
-    let _ = mfp.mf_hash.remove(&bnum);
+pub fn mf_free(mfp: &mut Memfile, hp_id: BhdrId) {
+    let Some(bhdr) = mfp.remove_bhdr(hp_id) else {
+        return;
+    };
+    let bnum = bhdr.bh_bnum;
+    let page_count = bhdr.bh_page_count;
     if bnum < 0 {
         mfp.mf_neg_count -= 1;
     } else {
@@ -318,22 +376,21 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
 
     let mut status = true;
     let mut completed_all = true;
-    let blocks: Vec<*mut Bhdr> = mfp
-        .mf_hash
-        .values()
-        .map(|b| (&raw const **b).cast_mut())
-        .collect();
+    let blocks: Vec<BhdrId> = mfp.mf_hash.values().copied().collect();
 
-    for hp_ptr in blocks {
-        let hp = crate::globals::GraphPtr::of(hp_ptr).borrow_mut();
-        if ((flags & MFS_ALL) != 0 || hp.bh_bnum >= 0)
-            && (hp.bh_flags & BH_DIRTY) != 0
-            && (status || (hp.bh_bnum >= 0 && hp.bh_bnum < mfp.mf_infile_count))
+    for hp_id in blocks {
+        let (bh_bnum, bh_flags) = {
+            let hp = mfp.bhdr(hp_id);
+            (hp.bh_bnum, hp.bh_flags)
+        };
+        if ((flags & MFS_ALL) != 0 || bh_bnum >= 0)
+            && (bh_flags & BH_DIRTY) != 0
+            && (status || (bh_bnum >= 0 && bh_bnum < mfp.mf_infile_count))
         {
-            if (flags & MFS_ZERO) != 0 && hp.bh_bnum != 0 {
+            if (flags & MFS_ZERO) != 0 && bh_bnum != 0 {
                 continue;
             }
-            if !mf_write(mfp, hp) {
+            if !mf_write(mfp, hp_id) {
                 if !status {
                     completed_all = false;
                     break;
@@ -372,7 +429,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
 
 /// Set dirty flag for all blocks in memory file with a positive block number.
 pub fn mf_set_dirty(mfp: &mut Memfile) {
-    for hp in mfp.mf_hash.values_mut() {
+    for hp in mfp.mf_blocks.iter_mut().flatten() {
         if hp.bh_bnum > 0 {
             hp.bh_flags |= BH_DIRTY;
         }
@@ -391,18 +448,13 @@ pub fn mf_release_all() -> bool {
         if let Some(mfp_ref) = buf.b_ml.mfp_opt()
             && mfp_ref.mf_fd >= 0
         {
-            let blocks: Vec<*mut Bhdr> = mfp_ref
-                .mf_hash
-                .values()
-                .map(|b| (&raw const **b).cast_mut())
-                .collect();
-            for hp in blocks {
-                let hp_ref = crate::globals::GraphPtr::of(hp).borrow_mut();
-                if (hp_ref.bh_flags & BH_LOCKED) == 0
-                    && ((hp_ref.bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_ref))
+            let blocks: Vec<BhdrId> = mfp_ref.mf_hash.values().copied().collect();
+            for hp_id in blocks {
+                let bh_flags = mfp_ref.bhdr(hp_id).bh_flags;
+                if (bh_flags & BH_LOCKED) == 0
+                    && ((bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_id))
                 {
-                    let bnum = hp_ref.bh_bnum;
-                    let _ = mfp_ref.mf_hash.remove(&bnum);
+                    let _ = mfp_ref.remove_bhdr(hp_id);
                     retval = true;
                 }
             }
@@ -412,14 +464,14 @@ pub fn mf_release_all() -> bool {
     retval
 }
 
-fn mf_alloc_bhdr(mfp: &mut Memfile, bnum: Blocknr, page_count: u32, flags: u32) -> Box<Bhdr> {
+fn mf_alloc_bhdr(mfp: &mut Memfile, bnum: Blocknr, page_count: u32, flags: u32) -> Bhdr {
     let len = (mfp.mf_page_size as usize) * (page_count as usize);
-    Box::new(Bhdr {
+    Bhdr {
         bh_bnum: bnum,
         bh_data: vec![0u8; len],
         bh_page_count: page_count,
         bh_flags: flags,
-    })
+    }
 }
 
 fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
@@ -444,28 +496,28 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
     true
 }
 
-fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
+fn mf_write(mfp: &mut Memfile, hp_id: BhdrId) -> bool {
     if mfp.mf_fd < 0 && !mfp.mf_reopen {
         return false;
     }
 
-    if hp.bh_bnum < 0 && !mf_trans_add(&mut *mfp, hp) {
+    if mfp.bhdr(hp_id).bh_bnum < 0 && !mf_trans_add(mfp, hp_id) {
         return false;
     }
 
     let page_size = mfp.mf_page_size;
 
     loop {
-        let mut nr = hp.bh_bnum;
-        let hp2: Option<&mut Bhdr> = if nr > mfp.mf_infile_count {
-            nr = mfp.mf_infile_count;
-            pmap_get_bhdr(&mfp.mf_hash, nr)
+        let target_bnum = mfp.bhdr(hp_id).bh_bnum;
+        let (nr, hp2_id) = if target_bnum > mfp.mf_infile_count {
+            let nr = mfp.mf_infile_count;
+            (nr, mfp.find_bhdr(nr))
         } else {
-            Some(crate::globals::GraphPtr::from(&*hp).borrow_mut())
+            (target_bnum, Some(hp_id))
         };
 
         let offset = i64::from(page_size).wrapping_mul(nr);
-        let page_count = hp2.as_deref().map_or(1, |h| h.bh_page_count);
+        let page_count = hp2_id.map_or(1, |id| mfp.bhdr(id).bh_page_count);
         let size = (page_size * page_count) as usize;
 
         for attempt in 1..=2 {
@@ -474,10 +526,8 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
                     perror_msg(c"E296: Seek error in swap file write");
                     return false;
                 }
-                let data = match hp2.as_deref() {
-                    Some(h) => &h.bh_data[..size],
-                    None => &hp.bh_data[..size],
-                };
+                let data_id = hp2_id.unwrap_or(hp_id);
+                let data = &mfp.bhdr(data_id).bh_data[..size];
                 let nwritten = write_eintr(mfp.mf_fd, data);
                 if (nwritten as usize) == size {
                     break;
@@ -511,25 +561,26 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
         {
             g_st().did_swapwrite_msg = false;
         }
-        if let Some(hp2) = hp2 {
-            hp2.bh_flags &= !BH_DIRTY;
+        if let Some(hp2_id) = hp2_id {
+            mfp.bhdr_mut(hp2_id).bh_flags &= !BH_DIRTY;
         }
         if nr + i64::from(page_count) > mfp.mf_infile_count {
             mfp.mf_infile_count = nr + i64::from(page_count);
         }
-        if nr == hp.bh_bnum {
+        if nr == target_bnum {
             break;
         }
     }
     true
 }
 
-fn mf_trans_add(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
-    if hp.bh_bnum >= 0 {
+fn mf_trans_add(mfp: &mut Memfile, hp_id: BhdrId) -> bool {
+    let old_bnum = mfp.bhdr(hp_id).bh_bnum;
+    if old_bnum >= 0 {
         return true;
     }
 
-    let page_count = hp.bh_page_count;
+    let page_count = mfp.bhdr(hp_id).bh_page_count;
     let new_bnum: Blocknr = if let Some(freep) = mfp.mf_free_list.last_mut()
         && freep.bh_page_count >= page_count
     {
@@ -547,11 +598,9 @@ fn mf_trans_add(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
         bnum
     };
 
-    let old_bnum = hp.bh_bnum;
-    if let Some(mut boxed) = mfp.mf_hash.remove(&old_bnum) {
-        boxed.bh_bnum = new_bnum;
-        mfp.mf_hash.insert(new_bnum, boxed);
-    }
+    mfp.mf_hash.remove(&old_bnum);
+    mfp.bhdr_mut(hp_id).bh_bnum = new_bnum;
+    mfp.mf_hash.insert(new_bnum, hp_id);
 
     mfp.mf_trans.insert(old_bnum, new_bnum);
 
@@ -639,13 +688,12 @@ mod tests {
         assert_eq!(mfp.mf_page_size, 4096);
 
         let hp1 = mf_new(mfp, true, 1);
-        let hp1_ptr = crate::globals::GraphPtr::<Bhdr>::from_ref(hp1);
-        assert_eq!(hp1.bh_bnum, -1);
+        assert_eq!(mfp.bhdr(hp1).bh_bnum, -1);
         mf_put(&mut *mfp, hp1, true, true);
         assert_eq!(mf_trans_del(mfp, -1), 0);
 
         let hp2 = mf_get(mfp, 0, 1).expect("mf_get failed");
-        assert!(hp1_ptr == hp2);
+        assert_eq!(hp1, hp2);
         mf_put(&mut *mfp, hp2, false, false);
         mf_free(mfp, hp2);
 
@@ -659,63 +707,54 @@ mod tests {
             (i as Blocknr) ^ 15167
         }
 
-        {
-            let mut ht: std::collections::HashMap<i64, Box<Bhdr>> =
-                std::collections::HashMap::new();
-            let mut items: Vec<*mut Bhdr> = Vec::with_capacity(TEST_COUNT);
+        let mut mfp = mf_open(None, 0).expect("mf_open failed");
 
-            for i in 0..TEST_COUNT {
-                assert_eq!(ht.len(), i);
+        for i in 0..TEST_COUNT {
+            assert_eq!(mfp.mf_hash.len(), i);
+            let key = index_to_key(i);
+            assert!(mfp.find_bhdr(key).is_none());
+
+            let bhdr = Bhdr {
+                bh_bnum: key,
+                bh_data: Vec::new(),
+                bh_page_count: 1,
+                bh_flags: 0,
+            };
+            let id = mfp.insert_bhdr(bhdr);
+            assert_eq!(Some(id), mfp.find_bhdr(key));
+        }
+
+        for i in 0..TEST_COUNT {
+            let key = index_to_key(i);
+            let id = mfp.find_bhdr(key).unwrap();
+            assert_eq!(mfp.bhdr(id).bh_bnum, key);
+        }
+
+        for i in 0..TEST_COUNT {
+            if i % 100 < 70 {
                 let key = index_to_key(i);
-                assert!(pmap_get_bhdr(&ht, key).is_none());
+                let id = mfp.find_bhdr(key).unwrap();
+                assert_eq!(mfp.bhdr(id).bh_bnum, key);
 
-                let boxed = Box::new(Bhdr {
-                    bh_bnum: key,
-                    bh_data: Vec::new(),
-                    bh_page_count: 1,
-                    bh_flags: 0,
-                });
-                let item = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
-                ht.insert(key, boxed);
-                assert!(item == pmap_get_bhdr(&ht, key).unwrap());
-                items.push(item.as_ptr());
+                let removed = mfp.remove_bhdr(id).unwrap();
+                assert!(mfp.find_bhdr(key).is_none());
+
+                let new_id = mfp.insert_bhdr(removed);
+                assert_eq!(id, new_id);
+                assert_eq!(Some(id), mfp.find_bhdr(key));
+
+                let _ = mfp.remove_bhdr(id);
+                assert!(mfp.find_bhdr(key).is_none());
             }
+        }
 
-            for i in 0..TEST_COUNT {
-                let key = index_to_key(i);
-                let item = crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
-                assert_eq!(item.bh_bnum, key);
-            }
-
-            for i in 0..TEST_COUNT {
-                if i % 100 < 70 {
-                    let key = index_to_key(i);
-                    let item_ptr =
-                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
-                    let item =
-                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
-                    assert_eq!(item.bh_bnum, key);
-
-                    let removed = ht.remove(&key).unwrap();
-                    assert!(pmap_get_bhdr(&ht, key).is_none());
-
-                    ht.insert(key, removed);
-                    assert!(item_ptr == pmap_get_bhdr(&ht, key).unwrap());
-
-                    ht.remove(&key);
-                    assert!(pmap_get_bhdr(&ht, key).is_none());
-                }
-            }
-
-            for i in 0..TEST_COUNT {
-                let key = index_to_key(i);
-                if i % 100 < 70 {
-                    assert!(pmap_get_bhdr(&ht, key).is_none());
-                } else {
-                    let item =
-                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
-                    assert_eq!(item.bh_bnum, key);
-                }
+        for i in 0..TEST_COUNT {
+            let key = index_to_key(i);
+            if i % 100 < 70 {
+                assert!(mfp.find_bhdr(key).is_none());
+            } else {
+                let id = mfp.find_bhdr(key).unwrap();
+                assert_eq!(mfp.bhdr(id).bh_bnum, key);
             }
         }
     }

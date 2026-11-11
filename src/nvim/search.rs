@@ -951,8 +951,7 @@ pub fn searchit(
                                 at_first_line = false;
                                 continue;
                             }
-                        }
-                        if dir == BACKWARD {
+                        } else if dir == BACKWARD {
                             match_ok = false;
                             loop {
                                 if loop_idx != 0

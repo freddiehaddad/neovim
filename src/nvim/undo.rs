@@ -2666,9 +2666,11 @@ pub fn u_forget_unchanged(buf: &mut FileBuf) {
         return;
     }
     for i in 0..ue_size {
+        let saved_bytes = uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize]
+            .as_bytes()
+            .to_vec();
         let line_bytes = crate::memline::ml_get_buf_slice(buf, ue_top + 1 + i);
-        let saved_bytes = uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize].as_bytes();
-        if saved_bytes != line_bytes {
+        if saved_bytes.as_slice() != line_bytes {
             return;
         }
     }

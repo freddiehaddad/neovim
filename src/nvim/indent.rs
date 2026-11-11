@@ -396,11 +396,9 @@ pub fn get_indent_lnum(lnum: Linenr) -> i32 {
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub fn get_indent_buf(buf: &mut FileBuf, lnum: Linenr) -> i32 {
-    indent_size_ts(
-        crate::memline::ml_get_buf_slice(buf, lnum),
-        buf.b_p_ts,
-        &buf.b_p_vts_array,
-    )
+    let p_ts = buf.b_p_ts;
+    let vts = buf.b_p_vts_array.clone();
+    indent_size_ts(crate::memline::ml_get_buf_slice(buf, lnum), p_ts, &vts)
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).

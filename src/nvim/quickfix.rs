@@ -1106,7 +1106,7 @@ fn qf_get_next_buf_line(
     }
     let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     let p_buf = ml_get_buf(buf, buflnum).to_bytes();
-    let len = ml_get_buf_len(buf, buflnum) as usize;
+    let len = p_buf.len();
     state.source = QfInputSource::Buf {
         buf: buf_ptr,
         buflnum: buflnum + 1,
@@ -5247,13 +5247,14 @@ fn vgr_match_buflines(
                 None,
             ) > 0
             {
+                let entry_fnum = if duplicate_name != 0 { 0 } else { buf.b_fnum };
                 let mesg_cstr = ml_get_buf(buf, regmatch.startpos[0].lnum + lnum);
                 if qf_add_entry(
                     qfl,
                     None,
                     fname,
                     None,
-                    if duplicate_name != 0 { 0 } else { buf.b_fnum },
+                    entry_fnum,
                     mesg_cstr,
                     regmatch.startpos[0].lnum + lnum,
                     regmatch.endpos[0].lnum + lnum,
@@ -5284,9 +5285,10 @@ fn vgr_match_buflines(
                 }
             }
         } else {
+            let entry_fnum = if duplicate_name != 0 { 0 } else { buf.b_fnum };
             let str_cstr = ml_get_buf(buf, lnum);
             let str_bytes = str_cstr.to_bytes();
-            let linelen = ml_get_buf_len(buf, lnum);
+            let linelen = str_bytes.len() as Colnr;
             let mut score: i32 = 0;
             let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
@@ -5302,7 +5304,7 @@ fn vgr_match_buflines(
                     None,
                     fname,
                     None,
-                    if duplicate_name != 0 { 0 } else { buf.b_fnum },
+                    entry_fnum,
                     str_cstr,
                     lnum,
                     0,

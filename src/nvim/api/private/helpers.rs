@@ -23,7 +23,7 @@ use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 
 use crate::mark::setmark_pos;
-use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get_buf;
 use crate::memory::{
     Arena, ArenaMem, arena_alloc, arena_alloc_opt, arena_finish, arena_memdupz, arena_memdupz_opt,
     free_items, raw_dealloc,
@@ -789,7 +789,7 @@ pub fn buf_get_text(
     }
 
     let bufstr = ml_get_buf(buf, lnum as Linenr).to_bytes_with_nul();
-    let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
+    let line_length = (bufstr.len() - 1) as i64;
 
     if start_col < 0 {
         start_col = line_length + start_col + 1;

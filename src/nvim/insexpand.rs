@@ -4609,87 +4609,101 @@ fn get_next_spell_completion(lnum: Linenr) {
     }
 }
 
-fn ins_compl_get_next_word_or_line(
-    ins_buf: &mut FileBuf,
+fn ins_compl_get_next_word_or_line<'a>(
+    ins_buf: &'a mut FileBuf,
     cur_match_pos: &mut CursorPos,
     match_len: &mut i32,
     cont_s_ipos: &mut bool,
-) -> Option<&'static [u8]> {
+) -> Option<&'a [u8]> {
     *match_len = 0;
-    let line_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum);
-    let col_u = (cur_match_pos.col.max(0) as usize).min(line_slice.len());
-    let mut res_slice = &line_slice[col_u..];
-    let mut len = res_slice.len() as i32;
-    if ctrl_x_mode_line_or_eval() {
-        if compl_status_adding() {
-            if cur_match_pos.lnum >= ins_buf.b_ml.ml_line_count {
-                return None;
-            }
-            res_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
-            if !opt_vars().p_paste {
-                res_slice = crate::charset::skipwhite_slice(res_slice);
-            }
-            len = res_slice.len() as i32;
+    let line_count = ins_buf.b_ml.ml_line_count;
+    if ctrl_x_mode_line_or_eval() && compl_status_adding() {
+        if cur_match_pos.lnum >= line_count {
+            return None;
         }
-    } else {
-        let mut rem = res_slice;
-
-        if compl_status_adding() && INSEXPAND.with(|s| s.compl_length.get()) <= len {
-            rem = &rem[INSEXPAND.with(|s| s.compl_length.get()).max(0) as usize..];
-            if vim_iswordp(rem) {
-                return None;
-            }
-            rem = find_word_start(rem);
+        let mut res_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
+        if !opt_vars().p_paste {
+            res_slice = crate::charset::skipwhite_slice(res_slice);
         }
-        let end_rem = find_word_end(rem);
-        len = (res_slice.len() - end_rem.len()) as i32;
+        let len = res_slice.len() as i32;
+        *match_len = len;
+        return Some(&res_slice[..(len.max(0) as usize).min(res_slice.len())]);
+    }
 
-        if compl_status_adding() && len == INSEXPAND.with(|s| s.compl_length.get()) {
-            if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
-                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
-                {
-                    let len_usize = len as usize;
-                    let n = len_usize.min(res_slice.len());
-                    iobuff[..n].copy_from_slice(&res_slice[..n]);
-                    iobuff[n..len_usize].fill(0);
+    let (col_u, mut len) = {
+        let line_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum);
+        let col_u = (cur_match_pos.col.max(0) as usize).min(line_slice.len());
+        let res_slice = &line_slice[col_u..];
+        let mut len = res_slice.len() as i32;
+        if !ctrl_x_mode_line_or_eval() {
+            let mut rem = res_slice;
+
+            if compl_status_adding() && INSEXPAND.with(|s| s.compl_length.get()) <= len {
+                rem = &rem[INSEXPAND.with(|s| s.compl_length.get()).max(0) as usize..];
+                if vim_iswordp(rem) {
+                    return None;
                 }
-                let next_line = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
-                let next_s = crate::charset::skipwhite_slice(next_line);
-                let wstart = find_word_start(next_s);
-                let wend = find_word_end(wstart);
-                let next_wlen = next_s.len() - wend.len();
-                if next_wlen > 0 {
-                    if next_s.first() != Some(&b')') && iobuff[(len - 1) as usize] != TAB as u8 {
-                        if iobuff[(len - 1) as usize] != b' ' {
+                rem = find_word_start(rem);
+            }
+            let end_rem = find_word_end(rem);
+            len = (res_slice.len() - end_rem.len()) as i32;
+
+            if compl_status_adding()
+                && len == INSEXPAND.with(|s| s.compl_length.get())
+                && cur_match_pos.lnum < line_count
+            {
+                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+                let len_usize = len as usize;
+                let n = len_usize.min(res_slice.len());
+                iobuff[..n].copy_from_slice(&res_slice[..n]);
+                iobuff[n..len_usize].fill(0);
+            }
+        }
+        (col_u, len)
+    };
+
+    if !ctrl_x_mode_line_or_eval()
+        && compl_status_adding()
+        && len == INSEXPAND.with(|s| s.compl_length.get())
+    {
+        if cur_match_pos.lnum < line_count {
+            let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
+            let next_line = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
+            let next_s = crate::charset::skipwhite_slice(next_line);
+            let wstart = find_word_start(next_s);
+            let wend = find_word_end(wstart);
+            let next_wlen = next_s.len() - wend.len();
+            if next_wlen > 0 {
+                if next_s.first() != Some(&b')') && iobuff[(len - 1) as usize] != TAB as u8 {
+                    if iobuff[(len - 1) as usize] != b' ' {
+                        iobuff[len as usize] = b' ';
+                        len += 1;
+                    }
+                    if opt_vars().p_js {
+                        let prev = iobuff[(len - 2) as usize];
+                        if prev == b'.' || prev == b'?' || prev == b'!' {
                             iobuff[len as usize] = b' ';
                             len += 1;
                         }
-                        if opt_vars().p_js {
-                            let prev = iobuff[(len - 2) as usize];
-                            if prev == b'.' || prev == b'?' || prev == b'!' {
-                                iobuff[len as usize] = b' ';
-                                len += 1;
-                            }
-                        }
                     }
-                    let copy_n = next_wlen.min(IOSIZE - len as usize - 1);
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut iobuff[len as usize..],
-                        &next_s[..copy_n],
-                    );
-                    len += copy_n as i32;
-                    *cont_s_ipos = true;
                 }
-                iobuff[len as usize] = 0;
-                res_slice = &iobuff[..len as usize];
+                let copy_n = next_wlen.min(IOSIZE - len as usize - 1);
+                crate::memory::copy_bytes_to_c_buf(&mut iobuff[len as usize..], &next_s[..copy_n]);
+                len += copy_n as i32;
+                *cont_s_ipos = true;
             }
+            iobuff[len as usize] = 0;
             if len == INSEXPAND.with(|s| s.compl_length.get()) {
                 return None;
             }
+            *match_len = len;
+            return Some(&iobuff[..len as usize]);
         }
+        return None;
     }
 
     *match_len = len;
+    let res_slice = &crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum)[col_u..];
     Some(&res_slice[..(len.max(0) as usize).min(res_slice.len())])
 }
 

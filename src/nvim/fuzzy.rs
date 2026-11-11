@@ -788,14 +788,14 @@ pub fn fuzzy_match_str_in_line(
 }
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
-pub fn search_for_fuzzy_match(
-    buf: &mut FileBuf,
+pub fn search_for_fuzzy_match<'a>(
+    buf: &'a mut FileBuf,
     pos: &mut CursorPos,
     pattern: Option<&[u8]>,
     dir: i32,
     start_pos: &CursorPos,
     len: &mut i32,
-    out_line: &mut &'static [u8],
+    out_line: &mut &'a [u8],
     score: &mut i32,
 ) -> bool {
     let mut current_pos = *pos;
@@ -803,11 +803,12 @@ pub fn search_for_fuzzy_match(
     let mut looped_around = false;
 
     let whole_line = ctrl_x_mode_whole_line();
+    let line_count = buf.b_ml.ml_line_count;
     let circly_end = if g_st().curbuf == buf {
         *start_pos
     } else {
         CursorPos {
-            lnum: buf.b_ml.ml_line_count,
+            lnum: line_count,
             col: 0,
             coladd: 0,
         }
@@ -817,6 +818,7 @@ pub fn search_for_fuzzy_match(
         current_pos.lnum += dir;
     }
 
+    let mut matched_line: Option<(i32, usize)> = None;
     loop {
         if looped_around
             && if whole_line {
@@ -828,23 +830,26 @@ pub fn search_for_fuzzy_match(
             break;
         }
 
-        if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
+        if current_pos.lnum >= 1 && current_pos.lnum <= line_count {
             let full_line = crate::memline::ml_get_buf_slice(buf, current_pos.lnum);
-            *out_line = if !whole_line {
-                &full_line[(current_pos.col as usize).min(full_line.len())..]
+            let full_len = full_line.len();
+            let mut candidate_line = if !whole_line {
+                &full_line[(current_pos.col as usize).min(full_len)..]
             } else {
                 full_line
             };
 
-            if !out_line.is_empty() {
+            if !candidate_line.is_empty() {
                 if !whole_line {
                     found_new_match = fuzzy_match_str_in_line(
-                        out_line,
+                        &mut candidate_line,
                         pattern,
                         len,
                         Some(&mut current_pos),
                         score,
                     );
+                    let off = full_len - candidate_line.len();
+                    matched_line = Some((current_pos.lnum, off));
                     if found_new_match {
                         *pos = current_pos;
                         break;
@@ -852,21 +857,25 @@ pub fn search_for_fuzzy_match(
                         break;
                     }
                 } else {
-                    let p = crate::charset::skipwhite_slice(out_line);
+                    let p = crate::charset::skipwhite_slice(candidate_line);
+                    let off = full_len - p.len();
+                    matched_line = Some((current_pos.lnum, full_len - candidate_line.len()));
                     if fuzzy_match_str(Some(p), pattern) != FUZZY_SCORE_NONE {
                         found_new_match = true;
                         *pos = current_pos;
-                        *out_line = p;
+                        matched_line = Some((current_pos.lnum, off));
                         *len = p.len() as i32;
                         break;
                     }
                 }
+            } else {
+                matched_line = Some((current_pos.lnum, full_len));
             }
         }
 
         if dir == FORWARD {
             current_pos.lnum += 1;
-            if current_pos.lnum > buf.b_ml.ml_line_count {
+            if current_pos.lnum > line_count {
                 if opt_vars().p_ws {
                     current_pos.lnum = 1;
                     looped_around = true;
@@ -878,7 +887,7 @@ pub fn search_for_fuzzy_match(
             current_pos.lnum -= 1;
             if current_pos.lnum < 1 {
                 if opt_vars().p_ws {
-                    current_pos.lnum = buf.b_ml.ml_line_count;
+                    current_pos.lnum = line_count;
                     looped_around = true;
                 } else {
                     break;
@@ -886,6 +895,11 @@ pub fn search_for_fuzzy_match(
             }
         }
         current_pos.col = 0;
+    }
+
+    if let Some((lnum, off)) = matched_line {
+        let full_line = crate::memline::ml_get_buf_slice(buf, lnum);
+        *out_line = &full_line[off.min(full_line.len())..];
     }
 
     found_new_match

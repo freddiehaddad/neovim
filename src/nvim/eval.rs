@@ -6719,10 +6719,10 @@ pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
         return None;
     }
     let lnum_start = buf.b_prompt_start.mark.lnum;
+    let mark_col = buf.b_prompt_start.mark.col;
     let lnum_last = buf.b_ml.ml_line_count;
 
     let mut text = crate::memline::ml_get_buf_slice(buf, lnum_start);
-    let mark_col = buf.b_prompt_start.mark.col;
     if mark_col >= 0 && (text.len() as i32) >= mark_col {
         text = &text[mark_col as usize..];
     }
