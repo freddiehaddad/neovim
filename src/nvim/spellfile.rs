@@ -5137,7 +5137,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         mkspell(&[fname_cstr.to_owned()], false, true, true);
 
         if !buf.is_null() {
-            let orig_mode = buf.b_orig_mode;
+            let orig_mode = buf.b_orig_mode.get();
             buf_reload(buf.borrow_mut(), orig_mode, false);
         }
 

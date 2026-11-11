@@ -983,7 +983,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
     buffer_get_line(
-        curbuf_mut().b_fnum,
+        curbuf_mut().b_fnum.get(),
         Integer::from(curwin_mut().w_cursor.lnum - 1),
         arena,
         err,
@@ -998,7 +998,7 @@ pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
 //                                      Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Error) {
     buffer_set_line(
-        curbuf_mut().b_fnum,
+        curbuf_mut().b_fnum.get(),
         Integer::from(curwin_mut().w_cursor.lnum - 1),
         line,
         arena,
@@ -1012,7 +1012,7 @@ pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Erro
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
     buffer_del_line(
-        curbuf_mut().b_fnum,
+        curbuf_mut().b_fnum.get(),
         Integer::from(curwin_mut().w_cursor.lnum - 1),
         arena,
         err,
@@ -1286,7 +1286,7 @@ pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
     let n = for_all_buffers_mut().count();
     let mut rv = arena_array(arena, n);
     for b in for_all_buffers_mut() {
-        add_c(&mut rv, buffer_obj(b.b_fnum));
+        add_c(&mut rv, buffer_obj(b.b_fnum.get()));
     }
     rv
 }
@@ -1296,7 +1296,7 @@ pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
 /// @return Buffer id
 // DLLEXPORT Buffer nvim_get_current_buf(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_buf() -> Buffer {
-    curbuf_mut().b_fnum
+    curbuf_mut().b_fnum.get()
 }
 
 /// Sets the current window's buffer to `buf`.
@@ -1310,7 +1310,7 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
     };
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum, 0);
+    do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum.get(), 0);
     try_leave(&tstate, err);
 }
 
@@ -1389,9 +1389,9 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             break 'create;
         }
         let tick = buf_get_changedtick(&*buf);
-        buf.b_last_changedtick = tick;
-        buf.b_last_changedtick_i = tick;
-        buf.b_last_changedtick_pum = tick;
+        buf.b_last_changedtick.set(tick);
+        buf.b_last_changedtick_i.set(tick);
+        buf.b_last_changedtick_pum.set(tick);
 
         buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
 
@@ -1432,7 +1432,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             break 'create;
         }
 
-        ret = buf_ptr.b_fnum;
+        ret = buf_ptr.b_fnum.get();
     }
     try_leave(&tstate, err);
 
@@ -1489,13 +1489,13 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     };
 
     let mut may_read_buffer = true;
-    if !b.terminal.is_null() {
-        if terminal_running(b.terminal.borrow()) {
+    if !b.terminal.get().is_null() {
+        if terminal_running(b.terminal.get().borrow()) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Terminal already connected to buffer %d",
-                b.b_fnum,
+                b.b_fnum.get(),
             );
 
             return 0;
@@ -1676,7 +1676,7 @@ pub fn nvim_paste(
     }
     if phase == -1 || phase == 1 {
         PASTE_CANCELLED.set(false);
-        if !curbuf_mut().terminal.is_null() {
+        if !curbuf_mut().terminal.get().is_null() {
             terminal_set_streamed_paste(curbuf_mut().terminal_mut(), true);
         }
     } else if PASTE_CANCELLED.get() {
@@ -1701,7 +1701,9 @@ pub fn nvim_paste(
     if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
         PASTE_CANCELLED.set(true);
     }
-    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get()) && !curbuf_mut().terminal.is_null() {
+    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get())
+        && !curbuf_mut().terminal.get().is_null()
+    {
         terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
     }
     let null_str = NvimString::new();
@@ -2943,7 +2945,7 @@ pub fn nvim_complete_set(
         && let Some(wp) = pum_set_info(index as i32, Some(opts.info.as_bytes()))
     {
         put_c(&mut rv, c"winid", window_obj(wp.handle));
-        put_c(&mut rv, c"bufnr", buffer_obj(wp.buf_mut().b_fnum));
+        put_c(&mut rv, c"bufnr", buffer_obj(wp.buf_mut().b_fnum.get()));
     }
     rv
 }

@@ -297,8 +297,8 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
 pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
     for buf in for_all_buffers_mut() {
-        if n < buf.b_fnum {
-            n = buf.b_fnum;
+        if n < buf.b_fnum.get() {
+            n = buf.b_fnum.get();
         }
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);

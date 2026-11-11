@@ -555,8 +555,11 @@ fn insert_enter(s: &mut InsertState) {
     }
     g_st().did_cursorhold = false;
 
-    if !char_avail() && curbuf_mut().b_last_changedtick_i == buf_get_changedtick(curbuf_mut()) {
-        curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
+    if !char_avail() && curbuf_mut().b_last_changedtick_i.get() == buf_get_changedtick(curbuf_mut())
+    {
+        curbuf_mut()
+            .b_last_changedtick
+            .set(buf_get_changedtick(curbuf_mut()));
     }
 }
 
@@ -577,7 +580,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
         g_st().ins_global.start_orig = g_st().ins_global.start;
     }
 
-    if !curbuf_mut().terminal.is_null() && !g_st().ins_global.stop_insert_mode {
+    if !curbuf_mut().terminal.get().is_null() && !g_st().ins_global.stop_insert_mode {
         g_st().ins_global.stop_insert_mode = true;
         g_st().restart_edit = b'I' as i32;
         stuffchar_readbuff(K_NOP);
@@ -614,7 +617,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
         s.cmdchar_todo = NUL as i32;
     }
 
-    if curbuf_mut().b_mod_set
+    if curbuf_mut().b_mod_set.get()
         && curwin_mut().w_onebuf_opt.wo_wrap.get()
         && !curwin_mut().w_onebuf_opt.wo_sms.get()
         && !s.did_backspace
@@ -1052,7 +1055,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             let changed = bufref_valid(Some(&save_curbuf))
                 && save_curbuf.br_buf == g_st().curbuf
                 && tick != buf_get_changedtick(curbuf_mut());
-            if curbuf_mut().b_u_synced || changed {
+            if curbuf_mut().b_u_synced.get() || changed {
                 g_st().ins_global.need_undo = true;
             }
             if changed && !ins_compl_active() {
@@ -1339,7 +1342,7 @@ fn insert_handle_key_post(s: &mut InsertState) {
 
 /// Start inserting text.
 pub fn edit(cmdchar: i32, startln: bool, count: i32) -> bool {
-    if !curbuf_mut().terminal.is_null() {
+    if !curbuf_mut().terminal.get().is_null() {
         if g_st().ex_normal_busy != 0 {
             g_st().restart_edit = b'i' as i32;
             g_st().force_restart_edit = true;
@@ -1394,7 +1397,7 @@ pub fn ins_redraw(ready: bool) {
 
     if ready
         && has_event(EVENT_TEXTCHANGEDI)
-        && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
+        && curbuf_mut().b_last_changedtick_i.get() != buf_get_changedtick(curbuf_mut())
         && !pum_visible()
     {
         let mut aco = CtxSwitch::new();
@@ -1402,7 +1405,9 @@ pub fn ins_redraw(ready: bool) {
         ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
         apply_autocmds(EVENT_TEXTCHANGEDI, None, None, false, curbuf_opt_mut());
         ctx_restore(&mut aco);
-        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+        curbuf_mut()
+            .b_last_changedtick_i
+            .set(buf_get_changedtick(curbuf_mut()));
         if tick != buf_get_changedtick(curbuf_mut()) {
             u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
         }
@@ -1410,7 +1415,7 @@ pub fn ins_redraw(ready: bool) {
 
     if ready
         && has_event(EVENT_TEXTCHANGEDP)
-        && curbuf_mut().b_last_changedtick_pum != buf_get_changedtick(curbuf_mut())
+        && curbuf_mut().b_last_changedtick_pum.get() != buf_get_changedtick(curbuf_mut())
         && pum_visible()
     {
         let mut aco = CtxSwitch::new();
@@ -1418,7 +1423,9 @@ pub fn ins_redraw(ready: bool) {
         ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
         apply_autocmds(EVENT_TEXTCHANGEDP, None, None, false, curbuf_opt_mut());
         ctx_restore(&mut aco);
-        curbuf_mut().b_last_changedtick_pum = buf_get_changedtick(curbuf_mut());
+        curbuf_mut()
+            .b_last_changedtick_pum
+            .set(buf_get_changedtick(curbuf_mut()));
         if tick != buf_get_changedtick(curbuf_mut()) {
             u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
         }
@@ -1545,7 +1552,7 @@ fn init_prompt(cmdchar_todo: i32) {
             .lnum
             .min(curbuf_mut().b_ml.ml_line_count)
             .max(1);
-        curbuf_mut().b_prompt_append_new_line = true;
+        curbuf_mut().b_prompt_append_new_line.set(true);
     }
 
     curwin_mut().w_cursor.lnum = curwin_mut()
@@ -1574,7 +1581,7 @@ fn init_prompt(cmdchar_todo: i32) {
             ml_append(lnum, prompt.to_bytes(), 0, false);
             appended_lines_mark(lnum, 1);
             curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
-            curbuf_mut().b_prompt_append_new_line = true;
+            curbuf_mut().b_prompt_append_new_line.set(true);
             u_clearallandblockfree(curbuf_mut());
         }
         curbuf_mut().b_prompt_start.mark.col = prompt_len;
@@ -2798,7 +2805,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
         reset_fmark(
             &mut curbuf_mut().b_last_insert,
             curwin_mut().w_cursor,
-            curbuf_mut().b_fnum,
+            curbuf_mut().b_fnum.get(),
             view,
         );
     }

@@ -802,7 +802,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     let eff_wwidth = wp.w_view_width - win_col_off(wp) + win_col_off2(wp);
     let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.tab1 == 0;
 
-    let buf_fnum = wp.buf_mut().b_fnum;
+    let buf_fnum = wp.buf_mut().b_fnum.get();
     let buf_p_ts = wp.buf_mut().b_p_ts.get();
     let buf_tick = buf_get_changedtick(wp.buf_mut());
     let flp_val = get_flp_value(wp.buf_mut());
@@ -1028,7 +1028,7 @@ pub fn preprocs_left() -> bool {
     (curbuf_mut().b_p_si.get() && !curbuf_mut().b_p_cin.get())
         || (curbuf_mut().b_p_cin.get()
             && in_cinkeys(b'#' as i32, b' ' as i32, true)
-            && curbuf_mut().b_ind_hash_comment == 0)
+            && curbuf_mut().b_ind_hash_comment.get() == 0)
 }
 
 /// Return true if the conditions are OK for smart indenting (`may_do_si`).
@@ -1518,7 +1518,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     if let Some(ref ts_cstr) = new_ts_str {
         let win_handle: ObjHandle = curwin_mut().handle;
-        let buf_handle: ObjHandle = curbuf_mut().b_fnum;
+        let buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
 
         if tabstop_count(&curbuf_mut().b_p_vts_array) > 0 || tabstop_count(&new_vts_array) > 1 {
             set_option_value(
@@ -1537,7 +1537,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                 None,
             );
         }
-        if curwin_mut().handle != win_handle || curbuf_mut().b_fnum != buf_handle {
+        if curwin_mut().handle != win_handle || curbuf_mut().b_fnum.get() != buf_handle {
             return;
         }
     }

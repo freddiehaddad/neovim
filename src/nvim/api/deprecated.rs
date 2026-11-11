@@ -115,7 +115,7 @@ pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
     let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
         return 0;
     };
-    i64::from(buf.b_fnum)
+    i64::from(buf.b_fnum.get())
 }
 
 fn src2ns(src_id: &mut Integer) -> u32 {

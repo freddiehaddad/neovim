@@ -205,7 +205,7 @@ pub fn has_extconceal(wp: &mut WinInfoInfo) -> bool {
     wp.w_onebuf_opt.wo_wrap.get()
         && wp.w_onebuf_opt.wo_cole.get() > 0
         && (buf_meta_total(wp.buf_mut(), K_MTMETA_CONCEAL) > 0
-            || wp.buf_mut().b_conceal_providers > 0)
+            || wp.buf_mut().b_conceal_providers.get() > 0)
 }
 
 pub fn init_charsize_arg<'a>(

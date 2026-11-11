@@ -934,9 +934,11 @@ fn save_chartab(chartab: &mut [u64; 4]) {
         return;
     }
 
-    *chartab = SYN_STATE.with(SyntaxState::syn_buf_mut).b_chartab;
-    SYN_STATE.with(SyntaxState::syn_buf_mut).b_chartab =
-        win_s(SYN_STATE.with(|s| s.syn_win.get()).borrow_mut()).b_syn_chartab;
+    *chartab = SYN_STATE.with(SyntaxState::syn_buf_mut).b_chartab.get();
+    SYN_STATE
+        .with(SyntaxState::syn_buf_mut)
+        .b_chartab
+        .set(win_s(SYN_STATE.with(|s| s.syn_win.get()).borrow_mut()).b_syn_chartab);
 }
 
 fn restore_chartab(chartab: &[u64; 4]) {
@@ -944,7 +946,10 @@ fn restore_chartab(chartab: &[u64; 4]) {
         .b_syn_isk
         .is_some()
     {
-        SYN_STATE.with(SyntaxState::syn_buf_mut).b_chartab = *chartab;
+        SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_chartab
+            .set(*chartab);
     }
 }
 
@@ -1087,9 +1092,9 @@ fn syn_stack_alloc() {
 
 /// Check for changes in a buffer to affect stored syntax states.
 pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
-    let mod_top = buf.b_mod_top;
-    let mod_bot = buf.b_mod_bot;
-    let mod_xlines = buf.b_mod_xlines;
+    let mod_top = buf.b_mod_top.get();
+    let mod_bot = buf.b_mod_bot.get();
+    let mod_xlines = buf.b_mod_xlines.get();
     syn_stack_apply_changes_block(&mut buf.b_s, mod_top, mod_bot, mod_xlines);
 
     if !g_st().curtab.is_null() {
@@ -2909,7 +2914,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
         .get(..5)
         .is_some_and(|s| s.eq_ignore_ascii_case(b"clear"))
     {
-        win_s(curwin_mut()).b_syn_chartab = curbuf_mut().b_chartab;
+        win_s(curwin_mut()).b_syn_chartab = curbuf_mut().b_chartab.get();
         win_s(curwin_mut()).b_syn_isk = None;
     } else {
         let arg_bytes = (arg).as_bytes();

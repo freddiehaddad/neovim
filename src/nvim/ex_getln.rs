@@ -3008,7 +3008,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
     curbuf_mut().b_p_tw.set(0);
     ctx_restore(&mut aco);
     let buf_ref = cmdpreview_buf.opt_mut()?;
-    GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(buf_ref.b_fnum));
+    GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(buf_ref.b_fnum.get()));
 
     Some(buf_ref)
 }
@@ -3026,7 +3026,13 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let result = do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, cmdpreview_buf.b_fnum, 0);
+    let result = do_buffer(
+        DOBUF_GOTO,
+        DOBUF_FIRST,
+        FORWARD,
+        cmdpreview_buf.b_fnum.get(),
+        0,
+    );
     try_leave(&tstate, &mut err);
     if error_set(&err) || !result {
         api_clear_error(&mut err);
@@ -3066,7 +3072,7 @@ fn cmdpreview_prepare() -> CpInfo {
     for win in for_all_windows_ptr() {
         let buf = win.w_buffer.borrow_mut();
 
-        if buf.b_fnum != GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) {
+        if buf.b_fnum.get() != GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) {
             if saved_bufs.insert(buf) {
                 let mut cp_bufinfo = CpBufInfo::new();
                 cp_bufinfo.buf = crate::globals::BufPtr::new(buf);
@@ -3485,7 +3491,7 @@ pub fn text_or_buf_locked() -> bool {
 
 /// Check if `curbuf->b_ro_locked` or `allbuf_lock` is set.
 pub fn curbuf_locked() -> bool {
-    if curbuf_mut().b_ro_locked > 0 {
+    if curbuf_mut().b_ro_locked.get() > 0 {
         emsg(gettext(E_CANNOT_EDIT_OTHER_BUF));
         return true;
     }

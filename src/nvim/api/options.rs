@@ -327,7 +327,7 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
-    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     block_autocmds();
 
     let mut bufref = Bufref {
@@ -338,11 +338,11 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
     set_bufref(&mut bufref, buf_ptr.opt_mut());
 
     close_windows(buf_ptr.opt_mut(), false);
-    if bufref_valid(Some(&bufref)) && g_st().curbuf != buf_ptr && buf_ptr.b_nwindows == 0 {
+    if bufref_valid(Some(&bufref)) && g_st().curbuf != buf_ptr && buf_ptr.b_nwindows.get() == 0 {
         wipe_buffer(buf_ptr.borrow_mut(), false);
     }
     if bufref_valid(Some(&bufref)) {
-        buf_ptr.b_flags &= !BF_DUMMY;
+        buf_ptr.b_flags.set(buf_ptr.b_flags.get() & (!BF_DUMMY));
     }
 
     unblock_autocmds();

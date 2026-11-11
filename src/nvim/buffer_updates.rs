@@ -50,7 +50,7 @@ pub fn buf_updates_register(
         let utf_sizes = cb.utf_sizes;
         buf.update_callbacks.push(cb);
         if utf_sizes {
-            buf.update_need_codepoints = true;
+            buf.update_need_codepoints.set(true);
         }
         return true;
     }
@@ -80,7 +80,7 @@ pub fn buf_updates_register(
         }
 
         let mut items = [
-            buffer_obj(buf.b_fnum),
+            buffer_obj(buf.b_fnum.get()),
             integer_obj(buf_get_changedtick(&*buf)),
             integer_obj(0),
             integer_obj(-1),
@@ -103,7 +103,7 @@ pub fn buf_updates_active(buf: &mut FileBuf) -> bool {
 }
 
 pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
-    let mut items = [buffer_obj(buf.b_fnum)];
+    let mut items = [buffer_obj(buf.b_fnum.get())];
     let args = Array::from_slice(&mut items[..1]);
     rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
@@ -148,7 +148,7 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
         }
 
         if thecb != LUA_NOREF {
-            let mut items = [buffer_obj(buf.b_fnum)];
+            let mut items = [buffer_obj(buf.b_fnum.get())];
             let args = Array::from_slice(&mut items[..1]);
 
             textlock_wrap(|| {
@@ -210,7 +210,7 @@ pub fn buf_updates_send_changes(
 
     for &channelid in &buf.update_channels {
         let mut items = [
-            buffer_obj(buf.b_fnum),
+            buffer_obj(buf.b_fnum.get()),
             if send_tick {
                 integer_obj(buf_get_changedtick(buf))
             } else {
@@ -250,7 +250,7 @@ pub fn buf_updates_send_changes(
         let mut keep = true;
         if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
             let mut items = [
-                buffer_obj(buf.b_fnum),
+                buffer_obj(buf.b_fnum.get()),
                 if send_tick {
                     integer_obj(buf_get_changedtick(buf))
                 } else {
@@ -305,7 +305,7 @@ pub fn buf_updates_send_splice(
         let mut keep = true;
         if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
             let mut items = [
-                buffer_obj(buf.b_fnum),
+                buffer_obj(buf.b_fnum.get()),
                 integer_obj(buf_get_changedtick(&*buf)),
                 integer_obj(i64::from(start_row)),
                 integer_obj(i64::from(start_col)),
@@ -348,7 +348,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
         let mut keep = true;
         if on_changedtick != LUA_NOREF {
             let mut items = [
-                buffer_obj(buf.b_fnum),
+                buffer_obj(buf.b_fnum.get()),
                 integer_obj(buf_get_changedtick(&*buf)),
             ];
             let args = Array::from_slice(&mut items[..2]);
@@ -379,7 +379,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
 
 pub fn buf_updates_changedtick_single(buf: &mut FileBuf, channel_id: u64) {
     let mut items = [
-        buffer_obj(buf.b_fnum),
+        buffer_obj(buf.b_fnum.get()),
         integer_obj(buf_get_changedtick(&*buf)),
     ];
     let args = Array::from_slice(&mut items[..2]);

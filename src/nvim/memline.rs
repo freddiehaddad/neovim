@@ -616,7 +616,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         buf.b_p_swf.set(false);
     }
 
-    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc.get() != 0 && buf.b_p_swf.get();
+    buf.b_may_swap
+        .set(buf.terminal.get().is_null() && opt_vars().p_uc.get() != 0 && buf.b_p_swf.get());
 
     buf.b_ml.ml_mfp = mf_open(None, 0);
     if buf.b_ml.mfp_ref().is_none() {
@@ -643,7 +644,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     let page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
     long_to_char(page_size as i64, &mut b0p.b0_page_size);
 
-    if !buf.b_spell {
+    if !buf.b_spell.get() {
         b0p.set_dirty(if buf.b_changed.get() != 0 {
             B0_DIRTY
         } else {
@@ -660,7 +661,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
 
     b0p.write_to_bytes(&mut buf.b_ml.mfp_mut().bhdr_mut(hp).bh_data);
     mf_put(buf.b_ml.mfp_mut(), hp, true, false);
-    if !buf.b_help && !buf.b_spell {
+    if !buf.b_help.get() && !buf.b_spell.get() {
         mf_sync(buf.b_ml.mfp_mut(), 0);
     }
 
@@ -787,16 +788,16 @@ pub fn ml_open_file(buf: &mut FileBuf) {
     if mfp_fd >= 0
         || !buf.b_p_swf.get()
         || (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0
-        || !buf.terminal.is_null()
+        || !buf.terminal.get().is_null()
     {
         return;
     }
 
-    if buf.b_spell {
+    if buf.b_spell.get() {
         if let Some(fname) = vim_tempname() {
             mf_open_file(buf.b_ml.mfp_mut(), fname);
         }
-        buf.b_may_swap = false;
+        buf.b_may_swap.set(false);
         return;
     }
 
@@ -843,7 +844,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         g_st().no_wait_return -= 1;
     }
 
-    buf.b_may_swap = false;
+    buf.b_may_swap.set(false);
 }
 
 /// If still need to create a swapfile, create a swapfile now.
@@ -851,7 +852,7 @@ pub fn check_need_swap(newfile: bool) {
     let old_msg_silent = g_st().msg_silent;
     g_st().msg_silent = 0;
 
-    if curbuf_mut().b_may_swap && (!curbuf_mut().b_p_ro.get() || !newfile) {
+    if curbuf_mut().b_may_swap.get() && (!curbuf_mut().b_p_ro.get() || !newfile) {
         ml_open_file(curbuf_mut());
     }
 
@@ -868,7 +869,7 @@ pub fn ml_close(buf: &mut FileBuf, del_file: i32) {
     buf.b_ml.ml_stack = Vec::new();
     buf.b_ml.ml_chunksize = Vec::new();
 
-    buf.b_flags &= !BF_RECOVERED;
+    buf.b_flags.set(buf.b_flags.get() & (!BF_RECOVERED));
 }
 
 /// Close all existing memlines and memfiles.
@@ -953,19 +954,19 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         let mut file_info = FileInfo::new();
         if os_fileinfo(buf.ffname_cstr(), &mut file_info) {
             buf_store_file_info(buf, &mut file_info);
-            long_to_char(buf.b_mtime, &mut b0p.b0_mtime);
+            long_to_char(buf.b_mtime.get(), &mut b0p.b0_mtime);
             long_to_char(os_fileinfo_inode(&file_info) as i64, &mut b0p.b0_ino);
-            buf.b_mtime_read = buf.b_mtime;
-            buf.b_mtime_read_ns = buf.b_mtime_ns;
+            buf.b_mtime_read.set(buf.b_mtime.get());
+            buf.b_mtime_read_ns.set(buf.b_mtime_ns.get());
         } else {
             long_to_char(0, &mut b0p.b0_mtime);
             long_to_char(0, &mut b0p.b0_ino);
-            buf.b_mtime = 0;
-            buf.b_mtime_ns = 0;
-            buf.b_mtime_read = 0;
-            buf.b_mtime_read_ns = 0;
-            buf.b_orig_size = 0;
-            buf.b_orig_mode = 0;
+            buf.b_mtime.set(0);
+            buf.b_mtime_ns.set(0);
+            buf.b_mtime_read.set(0);
+            buf.b_mtime_read_ns.set(0);
+            buf.b_orig_size.set(0);
+            buf.b_orig_mode.set(0);
         }
     }
 
@@ -1615,7 +1616,9 @@ pub fn ml_recover(checkext: bool) {
     while curbuf_mut().b_ml.ml_line_count > lnum && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
         ml_delete(curbuf_mut().b_ml.ml_line_count);
     }
-    curbuf_mut().b_flags |= BF_RECOVERED;
+    curbuf_mut()
+        .b_flags
+        .set(curbuf_mut().b_flags.get() | (BF_RECOVERED));
     check_cursor(curwin_mut());
 
     g_st().msg_ext_skip_flush = !g_st().got_int;
@@ -2065,9 +2068,9 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
         {
             let mut file_info = FileInfo::new();
             if !os_fileinfo(buf.ffname_cstr(), &mut file_info)
-                || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
-                || buf.b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
-                || os_fileinfo_size(&file_info) != buf.b_orig_size
+                || buf.b_mtime_read.get() != file_info.stat.st_mtim.tv_sec as _
+                || buf.b_mtime_read_ns.get() != file_info.stat.st_mtim.tv_nsec as _
+                || os_fileinfo_size(&file_info) != buf.b_orig_size.get()
             {
                 ml_preserve(&mut *buf, false, do_fsync);
                 g_st().did_check_timestamps = false;
@@ -2294,7 +2297,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
-                    buf.b_fnum,
+                    buf.b_fnum.get(),
                     &g_st().name_buff,
                 );
                 ml_st(|st| st.ml_get_recursive.set(st.ml_get_recursive.get() - 1));
@@ -2320,19 +2323,21 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE;
         let deleted_len = crate::memory::bytes_until_nul(buf.b_ml.current_line_slice()).len();
         if g_st().inhibit_delete_count == 0 {
-            buf.deleted_bytes += deleted_len + 1;
-            buf.deleted_bytes2 += deleted_len + 1;
-            if buf.update_need_codepoints {
-                let mut cp = buf.deleted_codepoints;
-                let mut cu = buf.deleted_codeunits;
+            buf.deleted_bytes
+                .set(buf.deleted_bytes.get() + (deleted_len + 1));
+            buf.deleted_bytes2
+                .set(buf.deleted_bytes2.get() + (deleted_len + 1));
+            if buf.update_need_codepoints.get() {
+                let mut cp = buf.deleted_codepoints.get();
+                let mut cu = buf.deleted_codeunits.get();
                 mb_utflen(
                     &buf.b_ml.current_line_slice()[..deleted_len],
                     deleted_len,
                     &mut cp,
                     &mut cu,
                 );
-                buf.deleted_codepoints = cp + 1;
-                buf.deleted_codeunits = cu + 1;
+                buf.deleted_codepoints.set(cp + 1);
+                buf.deleted_codeunits.set(cu + 1);
             }
         }
     } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0
@@ -2404,8 +2409,8 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
     }
 
-    if buf.b_prev_line_count == 0 {
-        buf.b_prev_line_count = buf.b_ml.ml_line_count;
+    if buf.b_prev_line_count.get() == 0 {
+        buf.b_prev_line_count.set(buf.b_ml.ml_line_count);
     }
     buf.b_ml.ml_line_count += 1;
 
@@ -2853,17 +2858,18 @@ pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, bytes: &[u8]) {
         return;
     }
     let len = bytes.len();
-    buf.deleted_bytes += len + 1;
-    buf.deleted_bytes2 += len + 1;
-    if buf.update_need_codepoints {
+    buf.deleted_bytes.set(buf.deleted_bytes.get() + (len + 1));
+    buf.deleted_bytes2.set(buf.deleted_bytes2.get() + (len + 1));
+    if buf.update_need_codepoints.get() {
         mb_utflen(
             bytes,
             len,
-            &mut buf.deleted_codepoints,
-            &mut buf.deleted_codeunits,
+            &mut buf.deleted_codepoints.get(),
+            &mut buf.deleted_codeunits.get(),
         );
-        buf.deleted_codepoints += 1;
-        buf.deleted_codeunits += 1;
+        buf.deleted_codepoints
+            .set(buf.deleted_codepoints.get() + (1));
+        buf.deleted_codeunits.set(buf.deleted_codeunits.get() + (1));
     }
 }
 
@@ -2990,8 +2996,8 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     let mut count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 2;
     let mut idx = lnum - buf.b_ml.ml_locked_low;
 
-    if buf.b_prev_line_count == 0 {
-        buf.b_prev_line_count = buf.b_ml.ml_line_count;
+    if buf.b_prev_line_count.get() == 0 {
+        buf.b_prev_line_count.set(buf.b_ml.ml_line_count);
     }
     buf.b_ml.ml_line_count -= 1;
 
@@ -3011,19 +3017,19 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     let end = start + (line_size - 1) as usize;
     if g_st().inhibit_delete_count == 0 {
         let len = end - start;
-        buf.deleted_bytes += len + 1;
-        buf.deleted_bytes2 += len + 1;
-        if buf.update_need_codepoints {
-            let mut cp = buf.deleted_codepoints;
-            let mut cu = buf.deleted_codeunits;
+        buf.deleted_bytes.set(buf.deleted_bytes.get() + (len + 1));
+        buf.deleted_bytes2.set(buf.deleted_bytes2.get() + (len + 1));
+        if buf.update_need_codepoints.get() {
+            let mut cp = buf.deleted_codepoints.get();
+            let mut cu = buf.deleted_codeunits.get();
             mb_utflen(
                 &buf.b_ml.mfp_ref().unwrap().bhdr(hp).bh_data[start..end],
                 len,
                 &mut cp,
                 &mut cu,
             );
-            buf.deleted_codepoints = cp + 1;
-            buf.deleted_codeunits = cu + 1;
+            buf.deleted_codepoints.set(cp + 1);
+            buf.deleted_codeunits.set(cu + 1);
         }
     }
 
@@ -3198,12 +3204,12 @@ pub fn ml_flush_deleted_bytes(
     codepoints: &mut usize,
     codeunits: &mut usize,
 ) -> usize {
-    let ret = buf.deleted_bytes;
-    *codepoints = buf.deleted_codepoints;
-    *codeunits = buf.deleted_codeunits;
-    buf.deleted_bytes = 0;
-    buf.deleted_codepoints = 0;
-    buf.deleted_codeunits = 0;
+    let ret = buf.deleted_bytes.get();
+    *codepoints = buf.deleted_codepoints.get();
+    *codeunits = buf.deleted_codeunits.get();
+    buf.deleted_bytes.set(0);
+    buf.deleted_codepoints.set(0);
+    buf.deleted_codeunits.set(0);
     ret
 }
 
@@ -3220,7 +3226,7 @@ fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
             return;
         }
 
-        buf.flush_count += 1;
+        buf.flush_count.set(buf.flush_count.get() + (1));
 
         let lnum = buf.b_ml.ml_line_lnum;
         let new_len = buf.b_ml.ml_line_textlen;
@@ -3759,8 +3765,8 @@ fn findswapname(
         if fname_slice.ends_with(b"wp")
             && !g_st().recoverymode
             && buf_fname.is_some()
-            && !buf.b_help
-            && (buf.b_flags & BF_DUMMY) == 0
+            && !buf.b_help.get()
+            && (buf.b_flags.get() & BF_DUMMY) == 0
         {
             let mut differ = false;
 
@@ -3806,7 +3812,7 @@ fn findswapname(
             }
 
             if !differ
-                && (curbuf_mut().b_flags & BF_RECOVERED) == 0
+                && (curbuf_mut().b_flags.get() & BF_RECOVERED) == 0
                 && !crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), K_SHM_ATTENTION)
             {
                 let mut choice: SeaChoice = SEA_CHOICE_NONE;

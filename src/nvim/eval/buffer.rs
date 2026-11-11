@@ -363,7 +363,7 @@ pub fn prompt_invoke_callback() {
     u_clearallandblockfree(curbuf_mut());
 
     curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
-    curbuf_mut().b_prompt_append_new_line = true;
+    curbuf_mut().b_prompt_append_new_line.set(true);
 
     prompt_trim_scrollback(curbuf_mut());
 }
@@ -400,7 +400,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let Some(buf_ref) = tv_get_buf_from_arg(&mut argvars[0]) else {
         return;
     };
-    let mut buf = crate::globals::BufPtr::from(&*buf_ref);
+    let buf = crate::globals::BufPtr::from(&*buf_ref);
     if !bt_prompt(buf.opt()) {
         return;
     }
@@ -409,7 +409,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let lines = &mut argvars[1];
     let mut did_concat = false;
 
-    if !buf.b_prompt_append_new_line {
+    if !buf.b_prompt_append_new_line.get() {
         let text = if lnum > 0 {
             ml_get_buf(buf.borrow_mut(), lnum)
         } else {
@@ -448,13 +448,13 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 set_buffer_lines(buf.opt_mut(), lnum, true, &mut *lines, &mut *rettv);
             }
         } else {
-            let append_new = buf.b_prompt_append_new_line;
+            let append_new = buf.b_prompt_append_new_line.get();
             set_buffer_lines(buf.opt_mut(), lnum, append_new, &mut *lines, &mut *rettv);
         }
     }
 
     if rettv.vval.v_number() == 0 {
-        buf.b_prompt_append_new_line = false;
+        buf.b_prompt_append_new_line.set(false);
 
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
@@ -464,14 +464,14 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 let str_ = tv_get_string(&li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {
-                    buf.b_prompt_append_new_line = true;
+                    buf.b_prompt_append_new_line.set(true);
                 }
             }
         } else if lines.v_type == VarType::VarString {
             let str_ = tv_get_string(&*lines);
             let bytes = str_.to_bytes();
             if bytes.last() == Some(&b'\n') {
-                buf.b_prompt_append_new_line = true;
+                buf.b_prompt_append_new_line.set(true);
             }
         }
 
@@ -564,7 +564,7 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     if let Some(buf_ref) = buf.opt() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(buf_ref.b_fnum as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(buf_ref.b_fnum.get() as Varnumber);
     }
 }
 
@@ -675,7 +675,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
-    tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum as Varnumber);
+    tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum.get() as Varnumber);
     tv_dict_add_str(&dict, c"name", Some(buf.ffname_cstr()));
     let lnum = if g_st().curbuf == buf {
         curwin_mut().w_cursor.lnum
@@ -691,7 +691,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     tv_dict_add_nr(
         &dict,
         c"hidden",
-        Varnumber::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows == 0),
+        Varnumber::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows.get() == 0),
     );
     tv_dict_add_nr(&dict, c"command", Varnumber::from(bt_cmdwin(Some(&*buf))));
 
@@ -711,7 +711,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
         tv_dict_add_list(&dict, c"signs", Some(&get_buffer_signs(buf)));
     }
 
-    tv_dict_add_nr(&dict, c"lastused", buf.b_last_used);
+    tv_dict_add_nr(&dict, c"lastused", buf.b_last_used.get());
 
     dict
 }
@@ -962,7 +962,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 .lnum
                 .min(buf.b_ml.ml_line_count)
                 .max(1);
-            curbuf_mut().b_prompt_append_new_line = true;
+            curbuf_mut().b_prompt_append_new_line.set(true);
         }
 
         let prompt_lno = buf.b_prompt_start.mark.lnum;

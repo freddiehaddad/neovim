@@ -436,7 +436,7 @@ pub fn nvim_open_win(
                 }
             }
         } else {
-            if curwin_mut().buf_mut().b_locked_split != 0 {
+            if curwin_mut().buf_mut().b_locked_split.get() != 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,

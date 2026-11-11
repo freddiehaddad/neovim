@@ -2067,7 +2067,9 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> Option<&'static CStr> {
-    curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
+    curbuf_mut()
+        .b_kmap_state
+        .set(curbuf_mut().b_kmap_state.get() & (!KEYMAP_INIT));
 
     if curbuf_mut().b_p_keymap.is_empty() {
         keymap_unload();
@@ -2105,7 +2107,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     keymap_unload();
 
-    curbuf_mut().b_kmap_state = 0;
+    curbuf_mut().b_kmap_state.set(0);
     curbuf_mut().b_kmap_ga.clear();
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
@@ -2146,7 +2148,9 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     opt_vars().p_cpo.set(save_cpo);
 
-    curbuf_mut().b_kmap_state |= KEYMAP_LOADED;
+    curbuf_mut()
+        .b_kmap_state
+        .set(curbuf_mut().b_kmap_state.get() | (KEYMAP_LOADED));
     status_redraw_curbuf();
 }
 
@@ -2154,7 +2158,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 fn keymap_unload() {
     let mut buf = [0u8; KMAP_MAXLEN + 10];
 
-    if (curbuf_mut().b_kmap_state & KEYMAP_LOADED) == 0 {
+    if (curbuf_mut().b_kmap_state.get() & KEYMAP_LOADED) == 0 {
         return;
     }
 
@@ -2173,7 +2177,9 @@ fn keymap_unload() {
 
     opt_vars().p_cpo.set(save_cpo);
 
-    curbuf_mut().b_kmap_state &= !KEYMAP_LOADED;
+    curbuf_mut()
+        .b_kmap_state
+        .set(curbuf_mut().b_kmap_state.get() & (!KEYMAP_LOADED));
     status_redraw_curbuf();
 }
 
@@ -2195,7 +2201,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     g_st().curbuf = old_curbuf;
     set_curwin(old_curwin);
     if p_cstr.is_empty() {
-        if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
+        if (wp.buf_mut().b_kmap_state.get() & KEYMAP_LOADED) != 0 {
             p_cstr = wp.buf_mut().b_p_keymap.as_cstr();
         } else {
             p_cstr = c"lang";

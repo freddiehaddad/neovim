@@ -3273,7 +3273,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             };
             INSEXPAND.with(|s| s.next_buf_wp.set(next_wp));
             if next_wp == curwin_ptr()
-                || (!next_wp.buf_mut().b_scanned && next_wp.w_config.focusable)
+                || (!next_wp.buf_mut().b_scanned.get() && next_wp.w_config.focusable)
             {
                 break;
             }
@@ -3297,7 +3297,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
                 !buf.b_p_bl.get() || buf.b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
             };
 
-            if !skip_buffer && !buf.b_scanned {
+            if !skip_buffer && !buf.b_scanned.get() {
                 break;
             }
         }
@@ -4021,7 +4021,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &TvDict) {
                 tv_dict_add_nr(
                     retdict,
                     c"preview_bufnr",
-                    Varnumber::from(wp.buf_mut().b_fnum),
+                    Varnumber::from(wp.buf_mut().b_fnum.get()),
                 );
             }
         }
@@ -4092,7 +4092,7 @@ fn process_next_cpt_value(
     }
 
     if st.e_cpt_char() == b'.'
-        && !curbuf_mut().b_scanned
+        && !curbuf_mut().b_scanned.get()
         && !skip_source
         && !INSEXPAND.with(|s| s.compl_time_slice_expired.get())
     {
@@ -5200,7 +5200,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
 
     if !INSEXPAND.with(|s| s.compl_started.get()) {
         for buf in for_all_buffers_mut() {
-            buf.b_scanned = false;
+            buf.b_scanned.set(false);
         }
         if !INSEXPAND.with(|s| s.next_state_cleared.get()) {
             *st = InsComplNextState::new();
@@ -5331,7 +5331,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             });
         } else {
             if buf_valid(st.ins_buf.opt()) && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS) {
-                st.ins_buf.b_scanned = true;
+                st.ins_buf.b_scanned.set(true);
             }
 
             INSEXPAND.with(|s| s.compl_started.set(false));

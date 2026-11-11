@@ -97,7 +97,7 @@ pub fn check_linecomment(bytes: &[u8]) -> i32 {
     MAXCOL
 }
 fn ind_find_start_comment() -> Option<CursorPos> {
-    find_start_comment(curbuf_mut().b_ind_maxcomment)
+    find_start_comment(curbuf_mut().b_ind_maxcomment.get())
 }
 pub fn find_start_comment(ind_maxcomment: i32) -> Option<CursorPos> {
     let mut pos: Option<CursorPos>;
@@ -119,8 +119,8 @@ pub fn find_start_comment(ind_maxcomment: i32) -> Option<CursorPos> {
     pos
 }
 fn ind_find_start_cors(is_raw: Option<&mut Linenr>) -> Option<CursorPos> {
-    let comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment);
-    let rs_pos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
+    let comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment.get());
+    let rs_pos = find_start_rawstring(curbuf_mut().b_ind_maxcomment.get());
     if comment_pos.is_none_or(|cp| rs_pos.is_some_and(|rs| lt(rs, cp))) {
         if let Some(rs) = rs_pos
             && let Some(is_raw) = is_raw
@@ -241,7 +241,10 @@ fn cin_skipcomment_slice(mut s: &[u8]) -> &[u8] {
     while !s.is_empty() {
         let prev_len = s.len();
         s = crate::charset::skipwhite_slice(s);
-        if curbuf_mut().b_ind_hash_comment != 0 && s.len() != prev_len && s.first() == Some(&b'#') {
+        if curbuf_mut().b_ind_hash_comment.get() != 0
+            && s.len() != prev_len
+            && s.first() == Some(&b'#')
+        {
             return &s[s.len()..];
         }
         if s.first() != Some(&b'/') {
@@ -762,7 +765,7 @@ fn cin_isfuncdecl(sp: Option<&mut &'static [u8]>, first_lnum: Linenr, min_lnum: 
     let mut just_started = true;
     curwin_mut().w_cursor.lnum = lnum;
     if find_last_paren_slice(s, b'(', b')')
-        && let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen)
+        && let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
     {
         lnum = trypos.lnum;
         if lnum < min_lnum {
@@ -863,7 +866,12 @@ fn cin_iswhileofdo(p: &[u8], lnum: Linenr) -> bool {
     let line = crate::cursor::get_cursor_line_slice();
     let w_pos = line.iter().position(|&b| b == b'w').unwrap_or(line.len());
     curwin_mut().w_cursor.col = w_pos as Colnr;
-    let trypos = findmatchlimit(None, 0, FM_SKIPCOMM, curbuf_mut().b_ind_maxparen as i64);
+    let trypos = findmatchlimit(
+        None,
+        0,
+        FM_SKIPCOMM,
+        curbuf_mut().b_ind_maxparen.get() as i64,
+    );
     let retval = trypos.is_some_and(|ref tp| {
         cin_skipcomment_slice(crate::memline::ml_get_pos_slice(tp).get(1..).unwrap_or(&[])).first()
             == Some(&b';')
@@ -930,7 +938,7 @@ fn cin_iswhileofdo_end(terminated: i32) -> bool {
             if s.first() == Some(&b';') && cin_nocode_slice(&s[1..]) {
                 let i = (line.len() - p.len()) as Colnr;
                 curwin_mut().w_cursor.col = i;
-                if let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen) {
+                if let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen.get()) {
                     let tp_lnum = trypos.lnum;
                     let mut s2 = cin_skipcomment_slice(crate::memline::ml_get_slice(tp_lnum));
                     if let Some(after) = s2.strip_prefix(b"}") {
@@ -1080,12 +1088,12 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
     if col == 0 {
         amount = get_indent();
         if find_last_paren_slice(crate::cursor::get_cursor_line_slice(), b'(', b')')
-            && let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen)
+            && let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
         {
             amount = get_indent_lnum(trypos.lnum);
         }
         if !cin_ends_in_slice(crate::cursor::get_cursor_line_slice(), b",") {
-            amount += curbuf_mut().b_ind_cpp_baseclass;
+            amount += curbuf_mut().b_ind_cpp_baseclass.get();
         }
     } else {
         curwin_mut().w_cursor.col = col;
@@ -1094,8 +1102,8 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
         curwin_mut().w_cursor = cursor;
         amount = vcol;
     }
-    if amount < curbuf_mut().b_ind_cpp_baseclass {
-        amount = curbuf_mut().b_ind_cpp_baseclass;
+    if amount < curbuf_mut().b_ind_cpp_baseclass.get() {
+        amount = curbuf_mut().b_ind_cpp_baseclass.get();
     }
     amount
 }
@@ -1243,10 +1251,10 @@ fn find_match_paren_after_brace(ind_maxparen: i32) -> Option<CursorPos> {
 }
 fn corr_ind_maxparen(startpos: &CursorPos) -> i32 {
     let n = startpos.lnum - curwin_mut().w_cursor.lnum;
-    if n > 0 && n < curbuf_mut().b_ind_maxparen / 2 {
-        return curbuf_mut().b_ind_maxparen - n;
+    if n > 0 && n < curbuf_mut().b_ind_maxparen.get() / 2 {
+        return curbuf_mut().b_ind_maxparen.get() - n;
     }
-    curbuf_mut().b_ind_maxparen
+    curbuf_mut().b_ind_maxparen.get()
 }
 fn find_last_paren_slice(bytes: &[u8], start: u8, end: u8) -> bool {
     let mut retval = false;
@@ -1278,43 +1286,43 @@ fn find_last_paren_slice(bytes: &[u8], start: u8, end: u8) -> bool {
 pub fn parse_cino(buf: &mut FileBuf) {
     let mut fraction: i32 = 0;
     let sw = get_sw_value(&mut *buf);
-    buf.b_ind_level = sw;
-    buf.b_ind_open_imag = 0;
-    buf.b_ind_no_brace = 0;
-    buf.b_ind_first_open = 0;
-    buf.b_ind_open_extra = 0;
-    buf.b_ind_close_extra = 0;
-    buf.b_ind_open_left_imag = 0;
-    buf.b_ind_jump_label = -1;
-    buf.b_ind_case = sw;
-    buf.b_ind_case_code = sw;
-    buf.b_ind_case_break = 0;
-    buf.b_ind_scopedecl = sw;
-    buf.b_ind_scopedecl_code = sw;
-    buf.b_ind_param = sw;
-    buf.b_ind_func_type = sw;
-    buf.b_ind_cpp_baseclass = sw;
-    buf.b_ind_continuation = sw;
-    buf.b_ind_unclosed = sw * 2;
-    buf.b_ind_unclosed2 = sw;
-    buf.b_ind_unclosed_noignore = 0;
-    buf.b_ind_unclosed_wrapped = 0;
-    buf.b_ind_unclosed_whiteok = 0;
-    buf.b_ind_matching_paren = 0;
-    buf.b_ind_paren_prev = 0;
-    buf.b_ind_comment = 0;
-    buf.b_ind_in_comment = 3;
-    buf.b_ind_in_comment2 = 0;
-    buf.b_ind_maxparen = 20;
-    buf.b_ind_maxcomment = 70;
-    buf.b_ind_java = 0;
-    buf.b_ind_js = 0;
-    buf.b_ind_keep_case_label = 0;
-    buf.b_ind_cpp_namespace = 0;
-    buf.b_ind_if_for_while = 0;
-    buf.b_ind_hash_comment = 0;
-    buf.b_ind_cpp_extern_c = 0;
-    buf.b_ind_pragma = 0;
+    buf.b_ind_level.set(sw);
+    buf.b_ind_open_imag.set(0);
+    buf.b_ind_no_brace.set(0);
+    buf.b_ind_first_open.set(0);
+    buf.b_ind_open_extra.set(0);
+    buf.b_ind_close_extra.set(0);
+    buf.b_ind_open_left_imag.set(0);
+    buf.b_ind_jump_label.set(-1);
+    buf.b_ind_case.set(sw);
+    buf.b_ind_case_code.set(sw);
+    buf.b_ind_case_break.set(0);
+    buf.b_ind_scopedecl.set(sw);
+    buf.b_ind_scopedecl_code.set(sw);
+    buf.b_ind_param.set(sw);
+    buf.b_ind_func_type.set(sw);
+    buf.b_ind_cpp_baseclass.set(sw);
+    buf.b_ind_continuation.set(sw);
+    buf.b_ind_unclosed.set(sw * 2);
+    buf.b_ind_unclosed2.set(sw);
+    buf.b_ind_unclosed_noignore.set(0);
+    buf.b_ind_unclosed_wrapped.set(0);
+    buf.b_ind_unclosed_whiteok.set(0);
+    buf.b_ind_matching_paren.set(0);
+    buf.b_ind_paren_prev.set(0);
+    buf.b_ind_comment.set(0);
+    buf.b_ind_in_comment.set(3);
+    buf.b_ind_in_comment2.set(0);
+    buf.b_ind_maxparen.set(20);
+    buf.b_ind_maxcomment.set(70);
+    buf.b_ind_java.set(0);
+    buf.b_ind_js.set(0);
+    buf.b_ind_keep_case_label.set(0);
+    buf.b_ind_cpp_namespace.set(0);
+    buf.b_ind_if_for_while.set(0);
+    buf.b_ind_hash_comment.set(0);
+    buf.b_ind_cpp_extern_c.set(0);
+    buf.b_ind_pragma.set(0);
     let mut rem = buf.b_p_cino.as_bytes();
     while !rem.is_empty() {
         let l0 = rem[0];
@@ -1351,43 +1359,43 @@ pub fn parse_cino(buf: &mut FileBuf) {
         }
         let val = trim_to_int(n);
         match l0 {
-            b'>' => buf.b_ind_level = val,
-            b'e' => buf.b_ind_open_imag = val,
-            b'n' => buf.b_ind_no_brace = val,
-            b'f' => buf.b_ind_first_open = val,
-            b'{' => buf.b_ind_open_extra = val,
-            b'}' => buf.b_ind_close_extra = val,
-            b'^' => buf.b_ind_open_left_imag = val,
-            b'L' => buf.b_ind_jump_label = val,
-            b':' => buf.b_ind_case = val,
-            b'=' => buf.b_ind_case_code = val,
-            b'b' => buf.b_ind_case_break = val,
-            b'p' => buf.b_ind_param = val,
-            b't' => buf.b_ind_func_type = val,
-            b'/' => buf.b_ind_comment = val,
-            b'c' => buf.b_ind_in_comment = val,
-            b'C' => buf.b_ind_in_comment2 = val,
-            b'i' => buf.b_ind_cpp_baseclass = val,
-            b'+' => buf.b_ind_continuation = val,
-            b'(' => buf.b_ind_unclosed = val,
-            b'u' => buf.b_ind_unclosed2 = val,
-            b'U' => buf.b_ind_unclosed_noignore = val,
-            b'W' => buf.b_ind_unclosed_wrapped = val,
-            b'w' => buf.b_ind_unclosed_whiteok = val,
-            b'm' => buf.b_ind_matching_paren = val,
-            b'M' => buf.b_ind_paren_prev = val,
-            b')' => buf.b_ind_maxparen = val,
-            b'*' => buf.b_ind_maxcomment = val,
-            b'g' => buf.b_ind_scopedecl = val,
-            b'h' => buf.b_ind_scopedecl_code = val,
-            b'j' => buf.b_ind_java = val,
-            b'J' => buf.b_ind_js = val,
-            b'l' => buf.b_ind_keep_case_label = val,
-            b'#' => buf.b_ind_hash_comment = val,
-            b'N' => buf.b_ind_cpp_namespace = val,
-            b'k' => buf.b_ind_if_for_while = val,
-            b'E' => buf.b_ind_cpp_extern_c = val,
-            b'P' => buf.b_ind_pragma = val,
+            b'>' => buf.b_ind_level.set(val),
+            b'e' => buf.b_ind_open_imag.set(val),
+            b'n' => buf.b_ind_no_brace.set(val),
+            b'f' => buf.b_ind_first_open.set(val),
+            b'{' => buf.b_ind_open_extra.set(val),
+            b'}' => buf.b_ind_close_extra.set(val),
+            b'^' => buf.b_ind_open_left_imag.set(val),
+            b'L' => buf.b_ind_jump_label.set(val),
+            b':' => buf.b_ind_case.set(val),
+            b'=' => buf.b_ind_case_code.set(val),
+            b'b' => buf.b_ind_case_break.set(val),
+            b'p' => buf.b_ind_param.set(val),
+            b't' => buf.b_ind_func_type.set(val),
+            b'/' => buf.b_ind_comment.set(val),
+            b'c' => buf.b_ind_in_comment.set(val),
+            b'C' => buf.b_ind_in_comment2.set(val),
+            b'i' => buf.b_ind_cpp_baseclass.set(val),
+            b'+' => buf.b_ind_continuation.set(val),
+            b'(' => buf.b_ind_unclosed.set(val),
+            b'u' => buf.b_ind_unclosed2.set(val),
+            b'U' => buf.b_ind_unclosed_noignore.set(val),
+            b'W' => buf.b_ind_unclosed_wrapped.set(val),
+            b'w' => buf.b_ind_unclosed_whiteok.set(val),
+            b'm' => buf.b_ind_matching_paren.set(val),
+            b'M' => buf.b_ind_paren_prev.set(val),
+            b')' => buf.b_ind_maxparen.set(val),
+            b'*' => buf.b_ind_maxcomment.set(val),
+            b'g' => buf.b_ind_scopedecl.set(val),
+            b'h' => buf.b_ind_scopedecl_code.set(val),
+            b'j' => buf.b_ind_java.set(val),
+            b'J' => buf.b_ind_js.set(val),
+            b'l' => buf.b_ind_keep_case_label.set(val),
+            b'#' => buf.b_ind_hash_comment.set(val),
+            b'N' => buf.b_ind_cpp_namespace.set(val),
+            b'k' => buf.b_ind_if_for_while.set(val),
+            b'E' => buf.b_ind_cpp_extern_c.set(val),
+            b'P' => buf.b_ind_pragma.set(val),
             _ => {}
         }
         if let Some(after_comma) = rem.strip_prefix(b",") {
@@ -1426,7 +1434,7 @@ pub fn get_c_indent() -> i32 {
             col: 0,
         },
     };
-    let mut ind_continuation = curbuf_mut().b_ind_continuation;
+    let mut ind_continuation = curbuf_mut().b_ind_continuation.get();
     let cur_curpos = curwin_mut().w_cursor;
     if cur_curpos.lnum == 1 {
         return 0;
@@ -1449,7 +1457,7 @@ pub fn get_c_indent() -> i32 {
     curwin_mut().w_cursor.col = 0;
     let original_line_islabel = cin_islabel();
     let comment_pos = ind_find_start_comment();
-    trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
+    trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment.get());
     'laterend: {
         if let Some(tp) = trypos
             && comment_pos.is_none_or(|cp| lt(tp, cp))
@@ -1463,14 +1471,14 @@ pub fn get_c_indent() -> i32 {
                     || in_cinkeys(b'#' as i32, b' ' as i32, true))
             {
                 let directive = crate::charset::skipwhite_slice(&theline_slice[1..]);
-                if curbuf_mut().b_ind_pragma == 0 || !directive.starts_with(b"pragma") {
-                    amount = curbuf_mut().b_ind_hash_comment;
+                if curbuf_mut().b_ind_pragma.get() == 0 || !directive.starts_with(b"pragma") {
+                    amount = curbuf_mut().b_ind_hash_comment.get();
                     break 'theend;
                 }
             }
             if original_line_islabel
-                && curbuf_mut().b_ind_js == 0
-                && curbuf_mut().b_ind_jump_label < 0
+                && curbuf_mut().b_ind_js.get() == 0
+                && curbuf_mut().b_ind_jump_label.get() < 0
             {
                 amount = 0;
                 break 'theend;
@@ -1608,7 +1616,7 @@ pub fn get_c_indent() -> i32 {
                         break;
                     }
                     if amount == -1 {
-                        if curbuf_mut().b_ind_in_comment2 == 0 {
+                        if curbuf_mut().b_ind_in_comment2.get() == 0 {
                             let start_slice = crate::memline::ml_get_slice(cp.lnum);
                             let off = (cp.col as usize + 2).min(start_slice.len());
                             look = &start_slice[off..];
@@ -1622,23 +1630,23 @@ pub fn get_c_indent() -> i32 {
                         getvcol(curwin_mut(), &mut cp, Some(&mut col), None, None, 0);
 
                         amount = col;
-                        if curbuf_mut().b_ind_in_comment2 != 0 || look.is_empty() {
-                            amount += curbuf_mut().b_ind_in_comment;
+                        if curbuf_mut().b_ind_in_comment2.get() != 0 || look.is_empty() {
+                            amount += curbuf_mut().b_ind_in_comment.get();
                         }
                     }
                 }
                 break 'theend;
             }
             if theline_b0 == b']'
-                && let Some(tp) = find_match_char(b'[', curbuf_mut().b_ind_maxparen)
+                && let Some(tp) = find_match_char(b'[', curbuf_mut().b_ind_maxparen.get())
             {
                 amount = get_indent_lnum(tp.lnum);
 
                 break 'theend;
             }
             if ({
-                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                trypos.is_some() && curbuf_mut().b_ind_java == 0
+                trypos = find_match_paren(curbuf_mut().b_ind_maxparen.get());
+                trypos.is_some() && curbuf_mut().b_ind_java.get() == 0
             }) || ({
                 trypos_brace = find_start_brace();
                 trypos_brace.is_some()
@@ -1658,7 +1666,7 @@ pub fn get_c_indent() -> i32 {
                 if let Some(tp) = trypos {
                     our_paren_pos = tp;
 
-                    if theline_b0 == b')' && curbuf_mut().b_ind_paren_prev != 0 {
+                    if theline_b0 == b')' && curbuf_mut().b_ind_paren_prev.get() != 0 {
                         amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
                     } else {
                         amount = -1;
@@ -1698,7 +1706,7 @@ pub fn get_c_indent() -> i32 {
                     if amount == -1 {
                         let mut ignore_paren_col: i32 = 0;
                         let mut is_if_for_while: i32 = 0;
-                        if curbuf_mut().b_ind_if_for_while != 0 {
+                        if curbuf_mut().b_ind_if_for_while.get() != 0 {
                             let cursor_save = curwin_mut().w_cursor;
                             let mut outermost: CursorPos;
                             trypos = Some(our_paren_pos);
@@ -1707,7 +1715,7 @@ pub fn get_c_indent() -> i32 {
 
                                 curwin_mut().w_cursor.lnum = outermost.lnum;
                                 curwin_mut().w_cursor.col = outermost.col;
-                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen.get());
                                 if trypos.is_none_or(|tp| tp.lnum != outermost.lnum) {
                                     break;
                                 }
@@ -1729,7 +1737,7 @@ pub fn get_c_indent() -> i32 {
                                 None,
                                 b')' as i32,
                                 FM_SKIPCOMM,
-                                curbuf_mut().b_ind_maxparen as i64,
+                                curbuf_mut().b_ind_maxparen.get() as i64,
                             ) && tp.lnum == our_paren_pos.lnum
                                 && tp.col < our_paren_pos.col
                             {
@@ -1740,15 +1748,15 @@ pub fn get_c_indent() -> i32 {
                             look = &paren_line[(look_col as usize).min(paren_line.len())..];
                         }
                         if theline_b0 == b')'
-                            || (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
-                            || (curbuf_mut().b_ind_unclosed_noignore == 0
+                            || (curbuf_mut().b_ind_unclosed.get() == 0 && is_if_for_while == 0)
+                            || (curbuf_mut().b_ind_unclosed_noignore.get() == 0
                                 && look.first() == Some(&b'(')
                                 && ignore_paren_col == 0)
                         {
                             if theline_b0 != b')' {
                                 cur_amount = MAXCOL;
                                 let l_slice = crate::memline::ml_get_slice(our_paren_pos.lnum);
-                                if curbuf_mut().b_ind_unclosed_wrapped != 0
+                                if curbuf_mut().b_ind_unclosed_wrapped.get() != 0
                                     && cin_ends_in_slice(l_slice, b"(")
                                 {
                                     n = 1;
@@ -1762,8 +1770,8 @@ pub fn get_c_indent() -> i32 {
                                         }
                                     }
                                     our_paren_pos.col = 0;
-                                    amount += n * curbuf_mut().b_ind_unclosed_wrapped;
-                                } else if curbuf_mut().b_ind_unclosed_whiteok != 0 {
+                                    amount += n * curbuf_mut().b_ind_unclosed_wrapped.get();
+                                } else if curbuf_mut().b_ind_unclosed_whiteok.get() != 0 {
                                     our_paren_pos.col += 1;
                                 } else {
                                     col = our_paren_pos.col + 1;
@@ -1794,10 +1802,10 @@ pub fn get_c_indent() -> i32 {
                                 }
                             }
                         }
-                        if theline_b0 == b')' && curbuf_mut().b_ind_matching_paren != 0 {
+                        if theline_b0 == b')' && curbuf_mut().b_ind_matching_paren.get() != 0 {
                             // Line up with the start of the matching paren line.
-                        } else if (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
-                            || (curbuf_mut().b_ind_unclosed_noignore == 0
+                        } else if (curbuf_mut().b_ind_unclosed.get() == 0 && is_if_for_while == 0)
+                            || (curbuf_mut().b_ind_unclosed_noignore.get() == 0
                                 && look.first() == Some(&b'(')
                                 && ignore_paren_col == 0)
                         {
@@ -1814,29 +1822,29 @@ pub fn get_c_indent() -> i32 {
                                     .unwrap_or(0)
                                 {
                                     b'(' => {
-                                        amount += curbuf_mut().b_ind_unclosed2;
+                                        amount += curbuf_mut().b_ind_unclosed2.get();
                                         col = our_paren_pos.col;
                                     }
                                     b')' => {
-                                        amount -= curbuf_mut().b_ind_unclosed2;
+                                        amount -= curbuf_mut().b_ind_unclosed2.get();
                                         col = MAXCOL;
                                     }
                                     _ => {}
                                 }
                             }
                             if col == MAXCOL {
-                                amount += curbuf_mut().b_ind_unclosed;
+                                amount += curbuf_mut().b_ind_unclosed.get();
                             } else {
                                 curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
                                 curwin_mut().w_cursor.col = col;
-                                if find_match_paren_after_brace(curbuf_mut().b_ind_maxparen)
+                                if find_match_paren_after_brace(curbuf_mut().b_ind_maxparen.get())
                                     .is_some()
                                 {
-                                    amount += curbuf_mut().b_ind_unclosed2;
+                                    amount += curbuf_mut().b_ind_unclosed2.get();
                                 } else if is_if_for_while != 0 {
-                                    amount += curbuf_mut().b_ind_if_for_while;
+                                    amount += curbuf_mut().b_ind_if_for_while.get();
                                 } else {
-                                    amount += curbuf_mut().b_ind_unclosed;
+                                    amount += curbuf_mut().b_ind_unclosed.get();
                                 }
                             }
                             if cur_amount < amount {
@@ -1845,7 +1853,7 @@ pub fn get_c_indent() -> i32 {
                         }
                     }
                     if cin_iscomment_slice(theline_slice) {
-                        amount += curbuf_mut().b_ind_comment;
+                        amount += curbuf_mut().b_ind_comment.get();
                     }
                 } else {
                     let mut tb = trypos_brace.unwrap();
@@ -1866,11 +1874,12 @@ pub fn get_c_indent() -> i32 {
                         curwin_mut().w_cursor.lnum = ourscope;
                         lnum = ourscope;
                         if find_last_paren_slice(start_slice, b'(', b')')
-                            && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen)
+                            && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
                         {
                             lnum = tp.lnum;
                         }
-                        if (curbuf_mut().b_ind_js != 0 || curbuf_mut().b_ind_keep_case_label != 0)
+                        if (curbuf_mut().b_ind_js.get() != 0
+                            || curbuf_mut().b_ind_keep_case_label.get() != 0)
                             && cin_iscase_slice(
                                 crate::charset::skipwhite_slice(
                                     crate::cursor::get_cursor_line_slice(),
@@ -1879,20 +1888,20 @@ pub fn get_c_indent() -> i32 {
                             )
                         {
                             amount = get_indent();
-                        } else if curbuf_mut().b_ind_js != 0 {
+                        } else if curbuf_mut().b_ind_js.get() != 0 {
                             amount = get_indent_lnum(lnum);
                         } else {
                             amount = skip_label(lnum, &mut l);
                         }
                         start_brace = BRACE_AT_END;
                     }
-                    let mut js_cur_has_key = if curbuf_mut().b_ind_js != 0 {
+                    let mut js_cur_has_key = if curbuf_mut().b_ind_js.get() != 0 {
                         cin_has_js_key(theline_slice)
                     } else {
                         false
                     };
                     if theline_b0 == b'}' {
-                        amount += curbuf_mut().b_ind_close_extra;
+                        amount += curbuf_mut().b_ind_close_extra.get();
                     } else {
                         lookfor = LOOKFOR_INITIAL;
                         if cin_iselse_slice(theline_slice) {
@@ -1908,22 +1917,22 @@ pub fn get_c_indent() -> i32 {
                             }
                         }
                         if start_brace == BRACE_IN_COL0 {
-                            amount = curbuf_mut().b_ind_open_left_imag;
+                            amount = curbuf_mut().b_ind_open_left_imag.get();
                             lookfor_cpp_namespace = true;
                         } else if start_brace == BRACE_AT_START && lookfor_cpp_namespace {
                             lookfor_cpp_namespace = true;
                         } else if start_brace == BRACE_AT_END {
-                            amount += curbuf_mut().b_ind_open_imag;
+                            amount += curbuf_mut().b_ind_open_imag.get();
                             let l_slice = crate::charset::skipwhite_slice(
                                 crate::cursor::get_cursor_line_slice(),
                             );
                             if cin_is_cpp_namespace_slice(l_slice) {
-                                amount += curbuf_mut().b_ind_cpp_namespace;
+                                amount += curbuf_mut().b_ind_cpp_namespace.get();
                             } else if cin_is_cpp_extern_c_slice(l_slice) {
-                                amount += curbuf_mut().b_ind_cpp_extern_c;
+                                amount += curbuf_mut().b_ind_cpp_extern_c.get();
                             }
                         } else {
-                            amount -= curbuf_mut().b_ind_open_extra;
+                            amount -= curbuf_mut().b_ind_open_extra.get();
                             if amount < 0 {
                                 amount = 0;
                             }
@@ -1931,18 +1940,18 @@ pub fn get_c_indent() -> i32 {
                         lookfor_break = false;
                         if cin_iscase_slice(theline_slice, false) {
                             lookfor = LOOKFOR_CASE;
-                            amount += curbuf_mut().b_ind_case;
+                            amount += curbuf_mut().b_ind_case.get();
                         } else if cin_isscopedecl_slice(theline_slice) {
                             lookfor = LOOKFOR_SCOPEDECL;
-                            amount += curbuf_mut().b_ind_scopedecl;
+                            amount += curbuf_mut().b_ind_scopedecl.get();
                         } else {
-                            if curbuf_mut().b_ind_case_break != 0
+                            if curbuf_mut().b_ind_case_break.get() != 0
                                 && cin_isbreak_slice(theline_slice)
                             {
                                 lookfor_break = true;
                             }
                             lookfor = LOOKFOR_INITIAL;
-                            amount += curbuf_mut().b_ind_level;
+                            amount += curbuf_mut().b_ind_level.get();
                         }
                         scope_amount = amount;
                         whilelevel = 0;
@@ -1954,11 +1963,11 @@ pub fn get_c_indent() -> i32 {
                                 if lookfor == LOOKFOR_ENUM_OR_INIT {
                                     if curwin_mut().w_cursor.lnum == 0
                                         || curwin_mut().w_cursor.lnum
-                                            < ourscope - curbuf_mut().b_ind_maxparen
+                                            < ourscope - curbuf_mut().b_ind_maxparen.get()
                                     {
                                         if cont_amount > 0 {
                                             amount = cont_amount;
-                                        } else if curbuf_mut().b_ind_js == 0 {
+                                        } else if curbuf_mut().b_ind_js.get() == 0 {
                                             amount += ind_continuation;
                                         }
                                         break;
@@ -2001,7 +2010,8 @@ pub fn get_c_indent() -> i32 {
                                     if terminated != b';' {
                                         trypos = None;
                                         if find_last_paren_slice(l, b'(', b')') {
-                                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                                            trypos =
+                                                find_match_paren(curbuf_mut().b_ind_maxparen.get());
                                         }
                                         if trypos.is_none() && find_last_paren_slice(l, b'{', b'}')
                                         {
@@ -2032,8 +2042,8 @@ pub fn get_c_indent() -> i32 {
                                     {
                                         amount = scope_amount;
                                         if theline_b0 == b'{' {
-                                            amount += curbuf_mut().b_ind_open_extra;
-                                            added_to_amount = curbuf_mut().b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra.get();
+                                            added_to_amount = curbuf_mut().b_ind_open_extra.get();
                                         }
                                     }
                                     if lookfor_cpp_namespace {
@@ -2061,12 +2071,12 @@ pub fn get_c_indent() -> i32 {
                                             continue;
                                         }
                                         if cin_is_cpp_namespace_slice(l) {
-                                            amount +=
-                                                curbuf_mut().b_ind_cpp_namespace - added_to_amount;
+                                            amount += curbuf_mut().b_ind_cpp_namespace.get()
+                                                - added_to_amount;
                                             break;
                                         } else if cin_is_cpp_extern_c_slice(l) {
-                                            amount +=
-                                                curbuf_mut().b_ind_cpp_extern_c - added_to_amount;
+                                            amount += curbuf_mut().b_ind_cpp_extern_c.get()
+                                                - added_to_amount;
                                             break;
                                         }
                                         if cin_nocode_slice(l) {
@@ -2126,21 +2136,21 @@ pub fn get_c_indent() -> i32 {
                                         && cin_is_cinword(after_l)
                                     {
                                         if theline_b0 == b'{' {
-                                            amount += curbuf_mut().b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra.get();
                                         } else {
-                                            amount += curbuf_mut().b_ind_level
-                                                + curbuf_mut().b_ind_no_brace;
+                                            amount += curbuf_mut().b_ind_level.get()
+                                                + curbuf_mut().b_ind_no_brace.get();
                                         }
                                     }
                                     break;
                                 }
                                 scope_amount = get_indent()
                                     + if iscase {
-                                        curbuf_mut().b_ind_case_code
+                                        curbuf_mut().b_ind_case_code.get()
                                     } else {
-                                        curbuf_mut().b_ind_scopedecl_code
+                                        curbuf_mut().b_ind_scopedecl_code.get()
                                     };
-                                lookfor = if curbuf_mut().b_ind_case_break != 0 {
+                                lookfor = if curbuf_mut().b_ind_case_break.get() != 0 {
                                     LOOKFOR_NOBREAK
                                 } else {
                                     LOOKFOR_ANY
@@ -2157,7 +2167,7 @@ pub fn get_c_indent() -> i32 {
                                 }
                                 continue;
                             }
-                            if curbuf_mut().b_ind_js == 0 && cin_islabel() {
+                            if curbuf_mut().b_ind_js.get() == 0 && cin_islabel() {
                                 let Some(after_l) =
                                     after_label_slice(crate::cursor::get_cursor_line_slice())
                                 else {
@@ -2177,7 +2187,8 @@ pub fn get_c_indent() -> i32 {
                                 continue;
                             }
                             n = 0;
-                            if lookfor != LOOKFOR_TERM && curbuf_mut().b_ind_cpp_baseclass > 0 {
+                            if lookfor != LOOKFOR_TERM && curbuf_mut().b_ind_cpp_baseclass.get() > 0
+                            {
                                 n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
                                 l = crate::cursor::get_cursor_line_slice();
                             }
@@ -2206,7 +2217,7 @@ pub fn get_c_indent() -> i32 {
                             terminated = cin_isterminated_slice(l, false, true);
                             if js_cur_has_key {
                                 js_cur_has_key = false;
-                                if curbuf_mut().b_ind_js != 0 && terminated == b',' {
+                                if curbuf_mut().b_ind_js.get() != 0 && terminated == b',' {
                                     lookfor = LOOKFOR_JS_KEY;
                                 }
                             }
@@ -2279,7 +2290,7 @@ pub fn get_c_indent() -> i32 {
                                     }
                                 }
                                 l = crate::cursor::get_cursor_line_slice();
-                                if curbuf_mut().b_ind_js != 0 {
+                                if curbuf_mut().b_ind_js.get() != 0 {
                                     cur_amount = get_indent();
                                 } else {
                                     cur_amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
@@ -2290,10 +2301,10 @@ pub fn get_c_indent() -> i32 {
                                 {
                                     amount = cur_amount;
                                     if crate::charset::skipwhite_slice(l).first() != Some(&b'{') {
-                                        amount += curbuf_mut().b_ind_open_extra;
+                                        amount += curbuf_mut().b_ind_open_extra.get();
                                     }
-                                    if curbuf_mut().b_ind_cpp_baseclass != 0
-                                        && curbuf_mut().b_ind_js == 0
+                                    if curbuf_mut().b_ind_cpp_baseclass.get() != 0
+                                        && curbuf_mut().b_ind_js.get() == 0
                                     {
                                         lookfor = LOOKFOR_CPP_BASECLASS;
                                         continue;
@@ -2314,11 +2325,11 @@ pub fn get_c_indent() -> i32 {
                                     }
                                     amount = cur_amount;
                                     if theline_b0 == b'{' {
-                                        amount += curbuf_mut().b_ind_open_extra;
+                                        amount += curbuf_mut().b_ind_open_extra.get();
                                     }
                                     if lookfor != LOOKFOR_TERM {
-                                        amount +=
-                                            curbuf_mut().b_ind_level + curbuf_mut().b_ind_no_brace;
+                                        amount += curbuf_mut().b_ind_level.get()
+                                            + curbuf_mut().b_ind_no_brace.get();
                                         break;
                                     }
                                     let cur_s = crate::cursor::get_cursor_line_slice();
@@ -2347,7 +2358,7 @@ pub fn get_c_indent() -> i32 {
                                     break;
                                 } else if lookfor == LOOKFOR_ENUM_OR_INIT {
                                     if terminated == b',' {
-                                        if curbuf_mut().b_ind_cpp_baseclass == 0 {
+                                        if curbuf_mut().b_ind_cpp_baseclass.get() == 0 {
                                             break;
                                         }
                                         lookfor = LOOKFOR_CPP_BASECLASS;
@@ -2360,7 +2371,7 @@ pub fn get_c_indent() -> i32 {
                                     let cur_s = crate::cursor::get_cursor_line_slice();
                                     amount = cur_amount;
                                     let n_len = cur_s.len();
-                                    if curbuf_mut().b_ind_js != 0
+                                    if curbuf_mut().b_ind_js.get() != 0
                                         && terminated == b','
                                         && (crate::charset::skipwhite_slice(cur_s).first()
                                             == Some(&b']')
@@ -2369,16 +2380,17 @@ pub fn get_c_indent() -> i32 {
                                         break;
                                     }
                                     if lookfor == LOOKFOR_INITIAL && terminated == b',' {
-                                        if curbuf_mut().b_ind_js != 0 {
+                                        if curbuf_mut().b_ind_js.get() != 0 {
                                             if cin_iscomment_slice(crate::charset::skipwhite_slice(
                                                 cur_s,
                                             )) {
                                                 break;
                                             }
                                             lookfor = LOOKFOR_COMMA;
-                                            if let Some(tp) =
-                                                find_match_char(b'[', curbuf_mut().b_ind_maxparen)
-                                            {
+                                            if let Some(tp) = find_match_char(
+                                                b'[',
+                                                curbuf_mut().b_ind_maxparen.get(),
+                                            ) {
                                                 if tp.lnum == curwin_mut().w_cursor.lnum - 1 {
                                                     break;
                                                 }
@@ -2417,7 +2429,7 @@ pub fn get_c_indent() -> i32 {
                                     lookfor = LOOKFOR_TERM;
                                     amount = get_indent();
                                     if theline_b0 == b'{' {
-                                        amount += curbuf_mut().b_ind_open_extra;
+                                        amount += curbuf_mut().b_ind_open_extra.get();
                                     }
                                 }
                                 whilelevel += 1;
@@ -2457,7 +2469,7 @@ pub fn get_c_indent() -> i32 {
                                         let cur_s = crate::cursor::get_cursor_line_slice();
                                         if find_last_paren_slice(cur_s, b'(', b')')
                                             && let Some(tp) =
-                                                find_match_paren(curbuf_mut().b_ind_maxparen)
+                                                find_match_paren(curbuf_mut().b_ind_maxparen.get())
                                         {
                                             curwin_mut().w_cursor = tp;
 
@@ -2471,15 +2483,15 @@ pub fn get_c_indent() -> i32 {
                                             }
                                         }
                                         let cur_s = crate::cursor::get_cursor_line_slice();
-                                        iscase = curbuf_mut().b_ind_keep_case_label != 0
+                                        iscase = curbuf_mut().b_ind_keep_case_label.get() != 0
                                             && cin_iscase_slice(cur_s, false);
                                         amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
                                         if theline_b0 == b'{' {
-                                            amount += curbuf_mut().b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra.get();
                                         }
                                         let l_trim = crate::charset::skipwhite_slice(l);
                                         if l_trim.first() == Some(&b'{') {
-                                            amount -= curbuf_mut().b_ind_open_extra;
+                                            amount -= curbuf_mut().b_ind_open_extra.get();
                                         }
                                         lookfor = if iscase { LOOKFOR_ANY } else { LOOKFOR_TERM };
                                         if lookfor == LOOKFOR_TERM
@@ -2520,15 +2532,15 @@ pub fn get_c_indent() -> i32 {
                     }
                 }
                 if cin_iscomment_slice(theline_slice) {
-                    amount += curbuf_mut().b_ind_comment;
+                    amount += curbuf_mut().b_ind_comment.get();
                 }
-                if curbuf_mut().b_ind_jump_label > 0 && original_line_islabel {
-                    amount -= curbuf_mut().b_ind_jump_label;
+                if curbuf_mut().b_ind_jump_label.get() > 0 && original_line_islabel {
+                    amount -= curbuf_mut().b_ind_jump_label.get();
                 }
                 break 'theend;
             }
             if theline_b0 == b'{' {
-                amount = curbuf_mut().b_ind_first_open;
+                amount = curbuf_mut().b_ind_first_open.get();
                 break 'theend;
             }
             if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
@@ -2540,7 +2552,7 @@ pub fn get_c_indent() -> i32 {
                 && cin_isfuncdecl(None, cur_curpos.lnum + 1, cur_curpos.lnum + 1)
                 && cin_isterminated_slice(theline_slice, false, true) == 0
             {
-                amount = curbuf_mut().b_ind_func_type;
+                amount = curbuf_mut().b_ind_func_type.get();
                 break 'theend;
             }
             amount = 0;
@@ -2556,7 +2568,7 @@ pub fn get_c_indent() -> i32 {
                     continue;
                 }
                 n = 0;
-                if curbuf_mut().b_ind_cpp_baseclass != 0 {
+                if curbuf_mut().b_ind_cpp_baseclass.get() != 0 {
                     n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
                     l = crate::cursor::get_cursor_line_slice();
                 }
@@ -2575,7 +2587,7 @@ pub fn get_c_indent() -> i32 {
                     n == b'\\' as i32
                 } {
                     if find_last_paren_slice(l, b'(', b')')
-                        && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen)
+                        && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
                     {
                         curwin_mut().w_cursor = tp;
                     }
@@ -2633,7 +2645,7 @@ pub fn get_c_indent() -> i32 {
                 }
                 l = crate::cursor::get_cursor_line_slice();
                 if cin_isfuncdecl(Some(&mut l), curwin_mut().w_cursor.lnum, 0) {
-                    amount = curbuf_mut().b_ind_param;
+                    amount = curbuf_mut().b_ind_param.get();
                     break;
                 }
                 if cin_ends_in_slice(l, b";") {
@@ -2643,14 +2655,14 @@ pub fn get_c_indent() -> i32 {
                     }
                 }
                 let _ = find_last_paren_slice(crate::cursor::get_cursor_line_slice(), b'(', b')');
-                if let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen) {
+                if let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get()) {
                     curwin_mut().w_cursor = tp;
                 }
                 amount = get_indent();
                 break;
             }
             if cin_iscomment_slice(theline_slice) {
-                amount += curbuf_mut().b_ind_comment;
+                amount += curbuf_mut().b_ind_comment.get();
             }
             if cur_curpos.lnum > 1 {
                 let prev_s = crate::memline::ml_get_slice(cur_curpos.lnum - 1);

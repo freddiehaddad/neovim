@@ -1542,7 +1542,8 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "changenr()" function
 pub fn f_changenr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(curbuf_mut().b_u_seq_cur));
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(curbuf_mut().b_u_seq_cur.get()));
 }
 
 /// "chanclose(id[, stream])" function
@@ -1667,10 +1668,10 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
 
     let bp = wp.w_buffer.borrow_mut();
     let mut col: Colnr = 0;
-    let mut fnum = bp.b_fnum;
+    let mut fnum = bp.b_fnum.get();
     let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, wp.borrow_mut());
     if let Some(fp_ref) = fp
-        && fnum == bp.b_fnum
+        && fnum == bp.b_fnum.get()
     {
         if fp_ref.col == MAXCOL {
             if fp_ref.lnum <= bp.b_ml.ml_line_count {
@@ -1954,7 +1955,7 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 /// "did_filetype()" function
 pub fn f_did_filetype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(curbuf_mut().b_did_filetype));
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(curbuf_mut().b_did_filetype.get()));
 }
 
 /// "empty({expr})" function
@@ -2774,12 +2775,12 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     };
 
-    let l = tv_list_alloc(buf_ref.b_changelistlen as isize);
+    let l = tv_list_alloc(buf_ref.b_changelistlen.get() as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(&l));
     let mut changelistindex = if buf == curwin_mut().w_buffer {
         curwin_mut().w_changelistidx
     } else {
-        let mut idx = buf_ref.b_changelistlen;
+        let mut idx = buf_ref.b_changelistlen.get();
         for wip in &buf_ref.b_wininfo {
             if wip.wi_win == curwin_ptr() {
                 idx = wip.wi_changelistidx;
@@ -2791,7 +2792,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let _ = &mut changelistindex;
     tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(changelistindex));
 
-    for i in 0..(buf_ref.b_changelistlen as usize) {
+    for i in 0..(buf_ref.b_changelistlen.get() as usize) {
         if buf_ref.b_changelist[i].mark.lnum == 0 {
             continue;
         }
@@ -3192,12 +3193,12 @@ fn add_regionpos_range(rettv: &mut TypVal, p1: CursorPos, p2: CursorPos) {
     let l3 = tv_list_alloc(4);
     tv_list_append_list(&l1, Some(&l3));
 
-    tv_list_append_number(&l2, Varnumber::from(curbuf_mut().b_fnum));
+    tv_list_append_number(&l2, Varnumber::from(curbuf_mut().b_fnum.get()));
     tv_list_append_number(&l2, Varnumber::from(p1.lnum));
     tv_list_append_number(&l2, Varnumber::from(p1.col));
     tv_list_append_number(&l2, Varnumber::from(p1.coladd));
 
-    tv_list_append_number(&l3, Varnumber::from(curbuf_mut().b_fnum));
+    tv_list_append_number(&l3, Varnumber::from(curbuf_mut().b_fnum.get()));
     tv_list_append_number(&l3, Varnumber::from(p2.lnum));
     tv_list_append_number(&l3, Varnumber::from(p2.col));
     tv_list_append_number(&l3, Varnumber::from(p2.coladd));
@@ -4422,11 +4423,11 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             ));
             return;
         }
-        if !curbuf_mut().terminal.is_null() {
-            if terminal_running(curbuf_mut().terminal.borrow()) {
+        if !curbuf_mut().terminal.get().is_null() {
+            if terminal_running(curbuf_mut().terminal.get().borrow()) {
                 semsg!(
                     gettext(c"Terminal already connected to buffer %d"),
-                    curbuf_mut().b_fnum,
+                    curbuf_mut().b_fnum.get(),
                 );
                 return;
             }
@@ -4546,7 +4547,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
 
             let mut err = Error::new();
-            buf.b_locked += 1;
+            buf.b_locked.set(buf.b_locked.get() + (1));
 
             dict_set_var(
                 &buf.b_vars(),
@@ -4575,7 +4576,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 &mut err,
             );
             api_clear_error(&mut err);
-            buf.b_locked -= 1;
+            buf.b_locked.set(buf.b_locked.get() - (1));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
                 break 'term_done;
@@ -8202,7 +8203,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         while let Some(wp_ref) = wp.opt_mut() {
             tv_list_append_number(
                 rettv.vval.v_list_ref(),
-                Varnumber::from(wp_ref.buf_mut().b_fnum),
+                Varnumber::from(wp_ref.buf_mut().b_fnum.get()),
             );
 
             wp = wp_ref.w_next;
@@ -8366,11 +8367,11 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         let wp_ref = wp.borrow_mut();
         let bp = wp_ref.buf_mut();
-        let mut fnum = bp.b_fnum;
+        let mut fnum = bp.b_fnum.get();
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, wp_ref);
         if let Some(mut fp_val) = fp
             && fp_val.lnum <= bp.b_ml.ml_line_count
-            && fnum == bp.b_fnum
+            && fnum == bp.b_fnum.get()
         {
             if fp_val.col < 0 {
                 fp_val.col = 0;
@@ -8404,11 +8405,11 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "visualmode()" function
 pub fn f_visualmode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let str_ = [curbuf_mut().b_visual_mode_eval as u8, 0];
+    let str_ = [curbuf_mut().b_visual_mode_eval.get() as u8, 0];
     crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&str_)));
 
     if non_zero_arg(&argvars[0]) {
-        curbuf_mut().b_visual_mode_eval = 0;
+        curbuf_mut().b_visual_mode_eval.set(0);
     }
 }
 

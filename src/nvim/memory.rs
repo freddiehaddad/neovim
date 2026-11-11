@@ -311,7 +311,7 @@ pub fn free_all_mem() {
             };
             set_bufref(&mut bufref, buf.opt_mut());
             let nextbuf = buf.b_next;
-            buf.b_nwindows = 0;
+            buf.b_nwindows.set(0);
 
             buf_free_callbacks(buf.borrow_mut());
             close_buffer(None, buf.opt_mut(), DOBUF_WIPE, false, false, false);

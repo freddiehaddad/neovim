@@ -1383,9 +1383,13 @@ fn set_diff_option(wp: &mut WinInfoInfo, value: bool) {
     let old_curwin = curwin_ptr();
     set_curwin(wp);
     g_st().curbuf = curwin_mut().w_buffer;
-    curbuf_mut().b_ro_locked += 1;
+    curbuf_mut()
+        .b_ro_locked
+        .set(curbuf_mut().b_ro_locked.get() + (1));
     set_option_value_give_err(K_OPT_DIFF, boolean_obj(value), OPT_LOCAL);
-    curbuf_mut().b_ro_locked -= 1;
+    curbuf_mut()
+        .b_ro_locked
+        .set(curbuf_mut().b_ro_locked.get() - (1));
     set_curwin(old_curwin);
     g_st().curbuf = curwin_mut().w_buffer;
 }
@@ -2682,8 +2686,10 @@ fn diff_refine_inline_word_highlight(
             let mut i: usize = 0;
             while i < (gap_size as usize).min(gap_text.len()) {
                 has_content = true;
-                let char_class =
-                    mb_get_class_tab(&gap_text[i..], &curtab_mut().diffbuf_mut(idx1).b_chartab);
+                let char_class = mb_get_class_tab(
+                    &gap_text[i..],
+                    &curtab_mut().diffbuf_mut(idx1).b_chartab.get(),
+                );
                 if char_class == 2 {
                     only_non_word = false;
                     break;
@@ -2795,7 +2801,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if (flags & DIFF_INLINE_WORD) != 0 {
                         new_in_keyword = mb_get_class_tab(
                             s,
-                            &curtab_mut().diffbuf_mut(file1_idx as usize).b_chartab,
+                            &curtab_mut().diffbuf_mut(file1_idx as usize).b_chartab.get(),
                         ) == 2;
                     }
                     if in_keyword && !new_in_keyword {
@@ -3675,7 +3681,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         lnum = 0;
     }
     let cur_tick = buf_get_changedtick(curbuf_mut());
-    let cur_fnum = curbuf_mut().b_fnum;
+    let cur_fnum = curbuf_mut().b_fnum.get();
     let need_recompute = !cache_results
         || diff_st(|st| {
             lnum != st.f_diff_hlid_prev_lnum.get()
@@ -3708,7 +3714,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             0
         };
         let new_tick = buf_get_changedtick(curbuf_mut());
-        let new_fnum = curbuf_mut().b_fnum;
+        let new_fnum = curbuf_mut().b_fnum.get();
         diff_st(|st| {
             st.f_diff_hlid_change_start.set(change_start);
             st.f_diff_hlid_change_end.set(change_end);

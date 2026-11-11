@@ -313,8 +313,8 @@ pub fn ctx_free(ctx: &mut Context) {
 
 pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     if (flags & (K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
-        assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum);
-        ctx.buf = curbuf_mut().b_fnum;
+        assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum.get());
+        ctx.buf = curbuf_mut().b_fnum.get();
         ctx.pos = curwin_mut().w_cursor;
     }
 
@@ -334,7 +334,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 
     if (flags & K_CTX_VISUAL) != 0 {
         ctx.visual = curbuf_mut().b_visual;
-        ctx.visual_mode_eval = curbuf_mut().b_visual_mode_eval;
+        ctx.visual_mode_eval = curbuf_mut().b_visual_mode_eval.get();
     }
     if (flags & K_CTX_MARKS) != 0 {
         ctx.op_start = curbuf_mut().b_op_start;
@@ -449,7 +449,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
         }
         if (flags & K_CTX_VISUAL) != 0 {
             buf.b_visual = ctx.visual;
-            buf.b_visual_mode_eval = ctx.visual_mode_eval;
+            buf.b_visual_mode_eval.set(ctx.visual_mode_eval);
         }
         if (flags & K_CTX_MARKS) != 0 {
             buf.b_op_start = ctx.op_start;
@@ -724,7 +724,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     cs.cs_ctxwin_idx = idx as i32;
 
     cw_win.w_buffer = (&raw mut *buf).into();
-    buf.b_nwindows += 1;
+    buf.b_nwindows.set(buf.b_nwindows.get() + (1));
     win_init_empty(&mut *cw_win);
 
     ctx_win_dirs_save(cs, &mut *cw_win, buf);
@@ -759,7 +759,9 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
         }
     }
 
-    curbuf_mut().b_nwindows -= 1;
+    curbuf_mut()
+        .b_nwindows
+        .set(curbuf_mut().b_nwindows.get() - (1));
     win_remove(curwin_mut(), None);
     g_st().window_handles.remove(&curwin_mut().handle);
 
@@ -840,7 +842,7 @@ pub fn ctx_switch(
     };
     cs.cs_same_win = wp == curwin_ptr();
     if bt_prompt(Some(crate::globals::curbuf_mut())) {
-        cs.cs_prompt_insert = curbuf_mut().b_prompt_insert;
+        cs.cs_prompt_insert = curbuf_mut().b_prompt_insert.get();
     }
     if !cs.cs_same_win {
         cs.cs_visual_active = g_st().visual_global.active;
@@ -930,7 +932,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         ctx_restore_curwin(cs, g_st().firstwin.opt_mut());
         entering_window(curwin_mut());
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
-            curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
+            curbuf_mut().b_prompt_insert.set(cs.cs_prompt_insert);
         }
 
         vars_clear(&cwp.w_vars().dv_hashtab);
@@ -955,10 +957,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             && bufref_valid(Some(&cs.cs_new_curbuf))
             && saved_buf.b_ml.ml_mfp.is_some()
         {
-            curbuf_mut().b_nwindows -= 1;
+            curbuf_mut()
+                .b_nwindows
+                .set(curbuf_mut().b_nwindows.get() - (1));
             g_st().curbuf = saved_buf;
             curwin_mut().w_buffer = g_st().curbuf;
-            curbuf_mut().b_nwindows += 1;
+            curbuf_mut()
+                .b_nwindows
+                .set(curbuf_mut().b_nwindows.get() + (1));
         }
 
         ctx_restore_curwin(cs, None);

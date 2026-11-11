@@ -1491,7 +1491,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    let count = b.b_conceal_providers + if enabled { 1 } else { -1 };
+    let count = b.b_conceal_providers.get() + if enabled { 1 } else { -1 };
     if count < 0 {
         api_set_error!(
             err,
@@ -1501,7 +1501,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
         );
         return;
     }
-    b.b_conceal_providers = count;
+    b.b_conceal_providers.set(count);
     if count != if enabled { 1 } else { 0 } {
         return;
     }

@@ -1126,10 +1126,10 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
                 0,
                 false,
             );
-            curbuf_mut().b_no_eol_lnum = curwin_mut().w_cursor.lnum;
+            curbuf_mut().b_no_eol_lnum.set(curwin_mut().w_cursor.lnum);
             base += remaining;
         } else {
-            curbuf_mut().b_no_eol_lnum = 0;
+            curbuf_mut().b_no_eol_lnum.set(0);
         }
     }
     output.pop();

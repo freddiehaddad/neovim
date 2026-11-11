@@ -2757,7 +2757,7 @@ pub fn did_set_follow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'helpheight' option value.
 pub fn did_set_helpheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !firstwin_mut().w_next.is_null()
-        && curbuf_mut().b_help
+        && curbuf_mut().b_help.get()
         && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh.get()
     {
         win_setheight(opt_vars().p_hh.get() as i32);
@@ -2881,7 +2881,7 @@ pub fn did_set_modified<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         save_file_ff(buf);
     }
     redraw_titles();
-    buf.b_modified_was_set = new_bool;
+    buf.b_modified_was_set.set(new_bool);
     None
 }
 
@@ -3043,7 +3043,7 @@ pub fn did_set_readonly<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
 
     if buf.b_p_ro.get() {
-        buf.b_did_warn = false;
+        buf.b_did_warn.set(false);
     }
 
     redraw_titles();
@@ -3307,7 +3307,7 @@ pub fn did_set_xhistory<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
     OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() + (1)));
-    buf.b_flags |= BF_SYN_SET;
+    buf.b_flags.set(buf.b_flags.get() | (BF_SYN_SET));
     let syn_name = buf.b_p_syn.to_owned();
     let buf_fname = buf.fname_opt().map(CStr::to_owned);
     apply_autocmds(
@@ -7137,7 +7137,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 });
             }
             let dont_do_help =
-                ((flags & BCO_NOHELP) != 0 && buf.b_help) || buf.b_p_initialized.get();
+                ((flags & BCO_NOHELP) != 0 && buf.b_help.get()) || buf.b_p_initialized.get();
             if dont_do_help {
                 save_p_isk = buf.b_p_isk.take();
             }
@@ -7291,7 +7291,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_keymap
                 .set_option_cstr(opt_vars().p_keymap.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
-            buf.b_kmap_state |= KEYMAP_INIT;
+            buf.b_kmap_state.set(buf.b_kmap_state.get() | (KEYMAP_INIT));
             buf.b_p_iminsert.set(opt_vars().p_iminsert.get());
             copy_opt_sctx(buf, K_BUF_OPT_IMINSERT);
             buf.b_p_imsearch.set(opt_vars().p_imsearch.get());
@@ -7363,7 +7363,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 } else {
                     buf.b_p_vts_array.clear();
                 }
-                buf.b_help = false;
+                buf.b_help.set(false);
                 if buf.b_p_bt.first_byte() == b'h' {
                     buf.b_p_bt.clear_option_str();
                 }
@@ -8320,7 +8320,7 @@ pub fn get_winbuf_options(bufopt: i32) -> crate::eval::typval::DictId {
 
 /// Return the effective 'scrolloff' value for the current window.
 pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
-    if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
+    if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.get().is_null() {
         return 0;
     }
     if wp.w_onebuf_opt.wo_so.get() < 0 {

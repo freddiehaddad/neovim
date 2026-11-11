@@ -1275,7 +1275,7 @@ pub fn remove_bom(buf: &mut [u8]) {
 }
 
 pub fn mb_get_class(bytes: &[u8]) -> i32 {
-    mb_get_class_tab(bytes, &curbuf_mut().b_chartab)
+    mb_get_class_tab(bytes, &curbuf_mut().b_chartab.get())
 }
 
 pub fn mb_get_class_tab(bytes: &[u8], chartab: &[u64; 4]) -> i32 {
@@ -1760,7 +1760,7 @@ pub fn utf_printable(c: i32) -> bool {
 }
 
 pub fn utf_class(c: i32) -> i32 {
-    utf_class_tab(c, &curbuf_mut().b_chartab)
+    utf_class_tab(c, &curbuf_mut().b_chartab.get())
 }
 
 pub fn utf_class_tab(c: i32, chartab: &[u64; 4]) -> i32 {

@@ -1279,7 +1279,7 @@ fn pum_preview_set_text(
     g_st().textlock = 0;
     nvim_buf_set_lines(
         0,
-        buf.b_fnum,
+        buf.b_fnum.get(),
         0,
         -1,
         false,
@@ -1480,7 +1480,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             if curwin_mut().w_onebuf_opt.wo_pvw.get() || curwin_mut().w_kind == K_WIN_INFO {
                 let mut res = true;
                 if !resized
-                    && curbuf_mut().b_nwindows == 1
+                    && curbuf_mut().b_nwindows.get() == 1
                     && curbuf_mut().fname_opt().is_none()
                     && bt_nofile(Some(crate::globals::curbuf_mut()))
                     && curbuf_mut().b_p_bh.first_byte() == b'w'

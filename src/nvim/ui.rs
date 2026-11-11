@@ -729,7 +729,7 @@ pub fn ui_mouse_has(mode: i32) -> bool {
                 return true;
             }
         } else if p_byte == K_MOUSE_HELP {
-            if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
+            if mode != K_MOUSE_RETURN && curbuf_mut().b_help.get() {
                 return true;
             }
         } else if mode == i32::from(p_byte as i8) {

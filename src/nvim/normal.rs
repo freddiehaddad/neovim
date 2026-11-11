@@ -2362,10 +2362,12 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
 fn normal_check_text_changed(_s: &mut NormalState) {
     if !g_st().finish_op
         && has_event(EVENT_TEXTCHANGED)
-        && curbuf_mut().b_last_changedtick != buf_get_changedtick(curbuf_mut())
+        && curbuf_mut().b_last_changedtick.get() != buf_get_changedtick(curbuf_mut())
     {
         apply_autocmds(EVENT_TEXTCHANGED, None, None, false, curbuf_opt_mut());
-        curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
+        curbuf_mut()
+            .b_last_changedtick
+            .set(buf_get_changedtick(curbuf_mut()));
     }
 }
 
@@ -2400,7 +2402,7 @@ fn normal_redraw(_s: &mut NormalState) {
         }
     }
 
-    curbuf_mut().b_last_used = os_time() as time_t;
+    curbuf_mut().b_last_used.set(os_time() as time_t);
 
     if let Some(p) = g_st().keep_msg.clone() {
         g_st().msg_hist_off = true;
@@ -2501,7 +2503,9 @@ pub fn end_visual_mode() {
     g_st().mouse_dragging = 0;
 
     curbuf_mut().b_visual = visualinfo();
-    curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
+    curbuf_mut()
+        .b_visual_mode_eval
+        .set(g_st().visual_global.mode);
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
     }
@@ -3949,7 +3953,7 @@ fn nv_zet(cap: &mut Cmdarg) {
     }
 
     let win_handle = curwin_mut().handle;
-    let buf_handle = curbuf_mut().b_fnum;
+    let buf_handle = curbuf_mut().b_fnum.get();
     if foldenable != K_NONE && (foldenable != 0) != curwin_mut().w_onebuf_opt.wo_fen.get() {
         set_option_value(
             K_OPT_FOLDENABLE,
@@ -3958,7 +3962,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             true,
             None,
         );
-        if curwin_mut().handle != win_handle || curbuf_mut().b_fnum != buf_handle {
+        if curwin_mut().handle != win_handle || curbuf_mut().b_fnum.get() != buf_handle {
             clearop(&mut cap.oap);
             return;
         }
@@ -3978,7 +3982,7 @@ fn nv_zet(cap: &mut Cmdarg) {
     }
     if nchar == b'x' as i32
         && curwin_mut().handle == win_handle
-        && curbuf_mut().b_fnum == buf_handle
+        && curbuf_mut().b_fnum.get() == buf_handle
     {
         fold_open_cursor();
     }
@@ -4304,7 +4308,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         }
         _ => {
             tag_cmd = true;
-            if curbuf_mut().b_help {
+            if curbuf_mut().b_help.get() {
                 buf_vec[..7].copy_from_slice(b"help! \0");
                 buflen = 6;
             } else if g_cmd {
@@ -4731,7 +4735,7 @@ fn nv_gotofile(cap: &mut Cmdarg) {
     }
 
     if let Some(fname_cstr) = grab_file_name(cap.count1, &mut lnum) {
-        if curbuf_is_changed_fn() && curbuf_mut().b_nwindows <= 1 && !buf_hide(curbuf_mut()) {
+        if curbuf_is_changed_fn() && curbuf_mut().b_nwindows.get() <= 1 && !buf_hide(curbuf_mut()) {
             autowrite(curbuf_mut(), false);
         }
         setpcmark();
@@ -5906,7 +5910,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
     if let Some(ref fm) = fm {
         move_res = nv_mark_move_to(cap, flags, Some(fm));
     } else if cap.cmdchar == b'g' as i32 {
-        if curbuf_mut().b_changelistlen == 0 {
+        if curbuf_mut().b_changelistlen.get() == 0 {
             emsg(tr(E_CHANGELIST_IS_EMPTY));
         } else if cap.count1 < 0 {
             emsg(tr(c"E662: At start of changelist"));
@@ -6106,7 +6110,9 @@ fn nv_gv_cmd(cap: &mut Cmdarg) {
     let prev = curbuf_mut().b_visual;
     if g_st().visual_global.active {
         curbuf_mut().b_visual = visualinfo();
-        curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
+        curbuf_mut()
+            .b_visual_mode_eval
+            .set(g_st().visual_global.mode);
     }
     g_st().visual_global.mode = prev.vi_mode;
     curwin_mut().w_curswant = prev.vi_curswant;
@@ -6567,7 +6573,9 @@ fn n_opencmd(cap: &mut Cmdarg) {
         has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum));
     }
     curwin_mut().w_cursor.lnum = cur_lnum;
-    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+    curbuf_mut()
+        .b_last_changedtick_i
+        .set(buf_get_changedtick(curbuf_mut()));
     if u_save(
         curwin_mut().w_cursor.lnum - i32::from(cap.cmdchar == b'O' as i32),
         curwin_mut().w_cursor.lnum + i32::from(cap.cmdchar == b'o' as i32),
@@ -6980,7 +6988,7 @@ fn nv_edit(cap: &mut Cmdarg) {
         && (cap.oap.op_type != OP_NOP || g_st().visual_global.active)
     {
         nv_object(cap);
-    } else if !curbuf_mut().b_p_ma.get() && curbuf_mut().terminal.is_null() {
+    } else if !curbuf_mut().b_p_ma.get() && curbuf_mut().terminal.get().is_null() {
         emsg(tr(E_MODIFIABLE));
         clearop(&mut cap.oap);
     } else if !checkclearopq(&mut cap.oap) {
@@ -7027,7 +7035,9 @@ fn invoke_edit(cap: &mut Cmdarg, repl: i32, cmd: i32, startln: i32) {
     g_st().restart_edit = 0;
 
     if cap.cmdchar != b'O' as i32 && cap.cmdchar != b'o' as i32 {
-        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+        curbuf_mut()
+            .b_last_changedtick_i
+            .set(buf_get_changedtick(curbuf_mut()));
     }
     let mut session: InsSession = atom_ins_start(cmd, i64::from(cap.count1), K_VINS_NONE, false);
     let busy = edit(cmd, startln != 0, cap.count1);

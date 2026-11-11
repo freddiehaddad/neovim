@@ -461,7 +461,9 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if g_st().visual_global.active {
         if atom_type == K_AVISUAL_SPAN {
             curbuf_mut().b_visual = visualinfo();
-            curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
+            curbuf_mut()
+                .b_visual_mode_eval
+                .set(g_st().visual_global.mode);
         }
         g_st().visual_global.active = false;
         g_st().visual_global.select = false;
@@ -558,8 +560,8 @@ fn mc_cascade() {
 
     mc_cleanup(true, Some(&curwin_mut().w_cursor), mcursor);
     if handle_get_buffer(bufnr).is_some_and(|b| g_st().curbuf == b)
-        && !curbuf_mut().b_u_synced
-        && let Some(nh) = curbuf_mut().b_u_newhead
+        && !curbuf_mut().b_u_synced.get()
+        && let Some(nh) = curbuf_mut().b_u_newhead.get()
     {
         uhp_mut(curbuf_mut(), nh).uh_cursor_after = curwin_mut().w_cursor;
     }
@@ -674,8 +676,8 @@ pub fn mc_ins_cascade_start(
 fn mc_ins_save_state() -> McInsSaved {
     let saved = McInsSaved {
         ins: g_st().ins_global,
-        last_changedtick: curbuf_mut().b_last_changedtick,
-        last_changedtick_i: curbuf_mut().b_last_changedtick_i,
+        last_changedtick: curbuf_mut().b_last_changedtick.get(),
+        last_changedtick_i: curbuf_mut().b_last_changedtick_i.get(),
     };
     g_st().ins_global.did_ai = false;
     g_st().ins_global.ai_col = 0;
@@ -688,8 +690,10 @@ fn mc_ins_save_state() -> McInsSaved {
 
 fn mc_ins_restore_state(saved: &McInsSaved) {
     g_st().ins_global = saved.ins;
-    curbuf_mut().b_last_changedtick = saved.last_changedtick;
-    curbuf_mut().b_last_changedtick_i = saved.last_changedtick_i;
+    curbuf_mut().b_last_changedtick.set(saved.last_changedtick);
+    curbuf_mut()
+        .b_last_changedtick_i
+        .set(saved.last_changedtick_i);
 }
 
 fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
@@ -1140,7 +1144,7 @@ fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col:
         true,
         false,
     );
-    with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum));
+    with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum.get()));
 }
 
 pub fn mc_vsel_refresh() {
@@ -1225,7 +1229,7 @@ pub fn mc_vsel_refresh() {
             true,
             true,
         );
-        with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum));
+        with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum.get()));
         g_st().visual_global.active = false;
     }
 
@@ -1271,8 +1275,12 @@ pub fn mc_ins_commit() -> bool {
     if !ins_cascaded {
         return false;
     }
-    curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
-    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+    curbuf_mut()
+        .b_last_changedtick
+        .set(buf_get_changedtick(curbuf_mut()));
+    curbuf_mut()
+        .b_last_changedtick_i
+        .set(buf_get_changedtick(curbuf_mut()));
     for i in 0..cursors_len() {
         let ctx = cursor_clone(i);
         let mut pos = INIT_POS;
@@ -1300,7 +1308,7 @@ pub fn mc_buf_has_cursors(buf: &mut FileBuf) -> bool {
         st.mc_cursors
             .borrow()
             .iter()
-            .any(|ctx| ctx.buf == buf.b_fnum)
+            .any(|ctx| ctx.buf == buf.b_fnum.get())
     })
 }
 
@@ -1388,7 +1396,7 @@ fn mc_zq_target(
     ctx_idx: Option<usize>,
 ) -> Visualinfo {
     let save = curbuf_mut().b_visual;
-    let save_mode_eval = curbuf_mut().b_visual_mode_eval;
+    let save_mode_eval = curbuf_mut().b_visual_mode_eval.get();
     if !search {
         curbuf_mut().b_visual = Visualinfo {
             vi_start: step,
@@ -1408,14 +1416,16 @@ fn mc_zq_target(
             vi_curswant: 0,
         };
     }
-    curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
+    curbuf_mut()
+        .b_visual_mode_eval
+        .set(curbuf_mut().b_visual.vi_mode);
     if let Some(idx) = ctx_idx {
         curwin_mut().w_cursor = step;
         with_mc(|st| ctx_save(&mut st.mc_cursors.borrow_mut()[idx], K_CTX_VISUAL));
     }
     let target = curbuf_mut().b_visual;
     curbuf_mut().b_visual = save;
-    curbuf_mut().b_visual_mode_eval = save_mode_eval;
+    curbuf_mut().b_visual_mode_eval.set(save_mode_eval);
     target
 }
 
@@ -1637,7 +1647,9 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
             curwin_mut().w_set_curswant = true;
         }
         curbuf_mut().b_visual = mc_zq_target(primary, search, oap.motion_type, None);
-        curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
+        curbuf_mut()
+            .b_visual_mode_eval
+            .set(curbuf_mut().b_visual.vi_mode);
         set_no_hlsearch(true);
         redraw_all_later(UPD_SOME_VALID);
     }
@@ -1698,7 +1710,7 @@ pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<usize> {
             st.mc_cursors
                 .borrow()
                 .iter()
-                .position(|ctx| ctx.buf == buf.b_fnum && ctx.mark == existing)
+                .position(|ctx| ctx.buf == buf.b_fnum.get() && ctx.mark == existing)
         });
         if found.is_some() {
             return found;
@@ -1737,7 +1749,7 @@ pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: Cursor
         mc_lua_enable(true);
     }
     let mut ctx = CONTEXT_INIT;
-    ctx.buf = buf.b_fnum;
+    ctx.buf = buf.b_fnum.get();
     ctx.pos = pos;
     ctx.mark = id;
     with_mc(|st| st.mc_cursors.borrow_mut().push(ctx));
@@ -1757,7 +1769,7 @@ pub fn mc_buf_free(buf: &mut FileBuf) {
     }
     mc_cleanup(false, None, 0);
     with_mc(|st| {
-        if st.mc_vsel_buf.get() == buf.b_fnum {
+        if st.mc_vsel_buf.get() == buf.b_fnum.get() {
             st.mc_vsel_buf.set(0);
         }
     });
@@ -1772,7 +1784,7 @@ pub fn mc_ns_clearing(buf: &mut FileBuf, ns_id: u32) {
             let ctx = &st.mc_cursors.borrow()[i];
             (ctx.buf, ctx.mark, ctx.pos)
         });
-        if ctx_buf == buf.b_fnum && ctx_mark != 0 {
+        if ctx_buf == buf.b_fnum.get() && ctx_mark != 0 {
             extmark_get_pos(buf, mc_ns(), ctx_mark, &mut pos);
             with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
         }
@@ -1791,7 +1803,7 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
             (ctx.buf, ctx.mark)
         });
         let mut pos = INIT_POS;
-        if ctx_buf != buf.b_fnum
+        if ctx_buf != buf.b_fnum.get()
             || (ctx_mark != 0 && extmark_get_pos(buf, mc_ns(), ctx_mark, &mut pos))
         {
             others = true;
@@ -1821,7 +1833,7 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
                 let ctx = &st.mc_cursors.borrow()[idx];
                 (ctx.buf, ctx.pos)
             });
-            if ctx_buf != buf.b_fnum {
+            if ctx_buf != buf.b_fnum.get() {
                 continue;
             }
             let mut mark: u32 = 0;

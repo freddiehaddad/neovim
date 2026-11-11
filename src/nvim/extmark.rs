@@ -259,7 +259,10 @@ pub fn extmark_set(
         let old_mark = marktree_lookup_ns(&buf.b_marktree, ns_id, id, false, Some(&mut itr));
         if old_mark.id != 0 {
             created = false;
-            if !no_undo && !buf.b_u_synced && (old_mark.pos.row != row || old_mark.pos.col != col) {
+            if !no_undo
+                && !buf.b_u_synced.get()
+                && (old_mark.pos.row != row || old_mark.pos.col != col)
+            {
                 extmark_push_savepos(
                     buf,
                     mt_lookup_key(old_mark),
@@ -319,7 +322,7 @@ pub fn extmark_set(
         );
         decor_state_invalidate(buf);
 
-        if created && !no_undo && !buf.b_u_synced {
+        if created && !no_undo && !buf.b_u_synced.get() {
             extmark_push_savepos(buf, mt_lookup_id(ns_id, id, false), -1, 0, row, col);
             if end_row > -1 {
                 extmark_push_savepos(buf, mt_lookup_id(ns_id, id, true), -1, 0, end_row, end_col);
@@ -873,7 +876,7 @@ pub fn extmark_adjust(
     let new_row: i32;
     if amount == MAXLNUM {
         old_row = line2 - line1 + 1;
-        old_byte = buf.deleted_bytes2 as Bcount;
+        old_byte = buf.deleted_bytes2.get() as Bcount;
         new_row = amount_after + old_row;
     } else {
         debug_assert_eq!(line2, MAXLNUM);
@@ -944,7 +947,7 @@ pub fn extmark_splice_impl(
     new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
-    buf.deleted_bytes2 = 0;
+    buf.deleted_bytes2.set(0);
     buf_updates_send_splice(
         &mut *buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
         new_byte,
@@ -959,8 +962,8 @@ pub fn extmark_splice_impl(
     }
 
     if old_row > 0 || new_row > 0 {
-        let count = if buf.b_prev_line_count > 0 {
-            buf.b_prev_line_count
+        let count = if buf.b_prev_line_count.get() > 0 {
+            buf.b_prev_line_count.get()
         } else {
             buf.b_ml.ml_line_count
         };
@@ -971,7 +974,7 @@ pub fn extmark_splice_impl(
             0,
             K_TRUE,
         );
-        buf.b_prev_line_count = 0;
+        buf.b_prev_line_count.set(0);
     }
 
     marktree_splice(
@@ -1077,7 +1080,7 @@ pub fn extmark_move_region(
     new_byte: Bcount,
     undo: ExtmarkOp,
 ) {
-    buf.deleted_bytes2 = 0;
+    buf.deleted_bytes2.set(0);
     buf_updates_send_splice(
         &mut *buf,
         start_row,

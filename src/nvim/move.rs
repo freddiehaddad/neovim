@@ -106,7 +106,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
     check_cursor_moved(&mut *wp);
 
     let use_cache = redrawing()
-        && !wp.buf_mut().b_mod_set
+        && !wp.buf_mut().b_mod_set.get()
         && g_st().dollar_vcol == -1
         && wp.w_skipcol == 0
         && !win_may_fill(wp)
@@ -702,9 +702,9 @@ fn curs_rows(wp: &mut WinInfoInfo) {
                 continue;
             }
             if wl.wl_lnum == lnum {
-                if !wp.buf_mut().b_mod_set
+                if !wp.buf_mut().b_mod_set.get()
                     || wl.wl_lastlnum < wp.w_cursor.lnum
-                    || wp.buf_mut().b_mod_top > wl.wl_lastlnum + 1
+                    || wp.buf_mut().b_mod_top.get() > wl.wl_lastlnum + 1
                 {
                     valid = true;
                 }

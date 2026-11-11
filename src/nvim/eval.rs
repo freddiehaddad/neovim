@@ -5481,7 +5481,7 @@ pub fn list2fpos(
             return false;
         }
         if n == 0 {
-            n = curbuf_mut().b_fnum;
+            n = curbuf_mut().b_fnum.get();
         }
         *fnump.as_deref_mut().unwrap() = n;
     }
@@ -5504,7 +5504,7 @@ pub fn list2fpos(
         let Some(buf) = buflist_findnr(if let Some(fnump) = fnump {
             *fnump
         } else {
-            curbuf_mut().b_fnum
+            curbuf_mut().b_fnum.get()
         }) else {
             return false;
         };

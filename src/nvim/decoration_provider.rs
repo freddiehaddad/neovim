@@ -194,7 +194,7 @@ pub fn decor_providers_invoke_spell(
         if let Some(spell_nav) = spell_nav {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
-                integer_obj(wp.buf_mut().b_fnum as Integer),
+                integer_obj(wp.buf_mut().b_fnum.get() as Integer),
                 integer_obj(start_row as Integer),
                 integer_obj(start_col as Integer),
                 integer_obj(end_row as Integer),
@@ -212,7 +212,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
     if !lines
         && (row < 0
             || wp.w_onebuf_opt.wo_cole.get() < 1
-            || wp.buf_mut().b_conceal_providers == 0
+            || wp.buf_mut().b_conceal_providers.get() == 0
             || (!wp.w_onebuf_opt.wo_wrap.get()
                 && !crate::decoration::decor_row_has_conceal(wp, row)))
     {
@@ -234,7 +234,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
         if let Some(ref_) = ref_opt {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
-                integer_obj(wp.buf_mut().b_fnum as Integer),
+                integer_obj(wp.buf_mut().b_fnum.get() as Integer),
                 integer_obj(row as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..3]);
@@ -313,7 +313,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
         if let Some(redraw_win) = redraw_win {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum),
+                buffer_obj(wp.buf_mut().b_fnum.get()),
                 integer_obj((wp.w_topline - 1) as Integer),
                 integer_obj((botline - 1) as Integer),
             ];
@@ -344,7 +344,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
         if let Some(redraw_line) = redraw_line {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum),
+                buffer_obj(wp.buf_mut().b_fnum.get()),
                 integer_obj(row as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..3]);
@@ -388,7 +388,7 @@ pub fn decor_providers_invoke_range(
         if let Some(redraw_range) = redraw_range {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum),
+                buffer_obj(wp.buf_mut().b_fnum.get()),
                 integer_obj(start_row as Integer),
                 integer_obj(start_col as Integer),
                 integer_obj(end_row as Integer),
@@ -446,7 +446,7 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
         });
         if let Some(redraw_buf) = redraw_buf {
             let mut args_buf = [
-                buffer_obj(buf.b_fnum),
+                buffer_obj(buf.b_fnum.get()),
                 integer_obj(display_tick_val() as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..2]);

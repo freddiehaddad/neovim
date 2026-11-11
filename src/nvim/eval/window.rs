@@ -191,7 +191,7 @@ pub fn win_findbuf(argvars: &mut [TypVal], list: &TvList) {
 
     for tp in for_all_tabpages_mut() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
-            if wp.buf_mut().b_fnum == bufnr {
+            if wp.buf_mut().b_fnum.get() == bufnr {
                 tv_list_append_number(list, wp.handle as Varnumber);
             }
         }
@@ -403,7 +403,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typ
     tv_dict_add_nr(&dict, c"leftcol", wp.w_leftcol as Varnumber);
     tv_dict_add_nr(&dict, c"winbar", wp.w_winbar_height as Varnumber);
     tv_dict_add_nr(&dict, c"width", wp.w_view_width as Varnumber);
-    tv_dict_add_nr(&dict, c"bufnr", wp.buf_mut().b_fnum as Varnumber);
+    tv_dict_add_nr(&dict, c"bufnr", wp.buf_mut().b_fnum.get() as Varnumber);
     tv_dict_add_nr(&dict, c"wincol", (wp.w_wincol + 1) as Varnumber);
     tv_dict_add_nr(&dict, c"textoff", win_col_off(wp) as Varnumber);
     tv_dict_add_nr(
@@ -798,8 +798,9 @@ pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 /// `winbufnr(nr)` function (`f_winbufnr`).
 pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.buf_mut().b_fnum as Varnumber));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(
+        wp.map_or(-1, |w| w.buf_mut().b_fnum.get() as Varnumber),
+    );
 }
 
 /// `wincol()` function (`f_wincol`).

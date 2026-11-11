@@ -1582,7 +1582,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         insert_string_owned = Some(spec_vec);
     }
 
-    if curbuf_mut().terminal.is_null()
+    if curbuf_mut().terminal.get().is_null()
         && !u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1)
     {
         return;
@@ -1654,7 +1654,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     }
 
     'end: {
-        if !curbuf_mut().terminal.is_null() {
+        if !curbuf_mut().terminal.get().is_null() {
             terminal_paste(count, y_array);
             break 'end;
         }
@@ -2360,7 +2360,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
 
     drop(insert_string_owned);
 
-    if curbuf_mut().terminal.is_null() {
+    if curbuf_mut().terminal.get().is_null() {
         g_st().visual_global.active = false;
     }
 
@@ -2884,7 +2884,7 @@ pub fn write_reg_contents_ex(
         let Some(buf_ref) = buf else {
             return;
         };
-        curwin_mut().w_alt_fnum = buf_ref.b_fnum;
+        curwin_mut().w_alt_fnum = buf_ref.b_fnum.get();
         return;
     }
 

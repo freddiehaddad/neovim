@@ -193,7 +193,7 @@ fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
         return 0;
     }
     let buf = wp.buf_mut();
-    if buf.fname_opt().is_none() || (buf.terminal.is_null() && bt_nofilename(Some(buf))) {
+    if buf.fname_opt().is_none() || (buf.terminal.get().is_null() && bt_nofilename(Some(buf))) {
         return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BLANK) as i32;
     }
     if bt_help(Some(buf)) {
@@ -338,7 +338,7 @@ fn put_view(
                 return false;
             }
         } else if (*wp).buf_mut().b_ffname.is_some()
-            && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.is_null())
+            && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.get().is_null())
         {
             let fesc = cstr_to_str(&fname_esc);
             if !write_fmt(
@@ -595,8 +595,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         }
 
         for buf in for_all_buffers_ptr() {
-            if !(only_save_windows && buf.b_nwindows == 0)
-                && !(buf.b_help && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
+            if !(only_save_windows && buf.b_nwindows.get() == 0)
+                && !(buf.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
                 && !(bt_terminal(Some(&*buf))
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
@@ -630,8 +630,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if b.b_localdir.is_none()
                     || b.fname_opt().is_none()
                     || !b.b_p_bl.get()
-                    || (only_save_windows && b.b_nwindows == 0)
-                    || (b.b_help && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
+                    || (only_save_windows && b.b_nwindows.get() == 0)
+                    || (b.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
                     || (bt_terminal(Some(&*b))
                         && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {

@@ -961,7 +961,7 @@ fn ui_ext_tabline_update() {
                 c"buffer",
                 Object {
                     obj_type: ObjectType::ObjectTypeBuffer,
-                    data: ObjectData::Integer(i64::from(b.b_fnum)),
+                    data: ObjectData::Integer(i64::from(b.b_fnum.get())),
                 },
             );
 
@@ -991,7 +991,12 @@ fn ui_ext_tabline_update() {
         buf = b.b_next;
     }
 
-    ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);
+    ui_call_tabline_update(
+        curtab_mut().handle,
+        tabs,
+        curbuf_mut().b_fnum.get(),
+        buffers,
+    );
     arena_mem_free(arena_finish(&mut arena));
 }
 
@@ -2032,7 +2037,7 @@ pub fn build_stl_str_hl_slice(
 
                     out_idx = t_idx;
 
-                    format_to_buf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum);
+                    format_to_buf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum.get());
                     set_internal_string_var(
                         c"g:actual_curbuf",
                         crate::memory::bytes_as_cstr(&buf_tmp),
@@ -2197,7 +2202,7 @@ pub fn build_stl_str_hl_slice(
                 num = 0;
             }
             STL_BUFNO => {
-                num = (*wp).buf_mut().b_fnum;
+                num = (*wp).buf_mut().b_fnum.get();
             }
             STL_OFFSET_X | STL_OFFSET => {
                 if opt == STL_OFFSET_X {
@@ -2238,7 +2243,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_HELPFLAG | STL_HELPFLAG_ALT => {
                 itemisflag = true;
-                if (*wp).buf_mut().b_help {
+                if (*wp).buf_mut().b_help.get() {
                     str_slice = Some(if opt == STL_HELPFLAG_ALT {
                         c",HLP".to_bytes_with_nul()
                     } else {

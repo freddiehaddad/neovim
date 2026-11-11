@@ -732,7 +732,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
         }
         setpcmark();
         if !do_ecmd(
-            buf.b_fnum,
+            buf.b_fnum.get(),
             None,
             None,
             None,
@@ -1150,7 +1150,7 @@ fn sign_get_placed_in_buf(
     let d = tv_dict_alloc();
     tv_list_append_dict(retlist, Some(&d));
 
-    tv_dict_add_nr(&d, c"bufnr", i64::from(buf.b_fnum));
+    tv_dict_add_nr(&d, c"bufnr", i64::from(buf.b_fnum.get()));
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     tv_dict_add_list(&d, c"signs", Some(&l));

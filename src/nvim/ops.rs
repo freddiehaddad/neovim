@@ -2100,7 +2100,7 @@ pub fn do_join(
         del_lines((count as i32) - 1, false);
         curwin_mut().w_cursor.lnum = saved_lnum;
         g_st().curbuf_splice_pending -= 1;
-        curbuf_mut().deleted_bytes2 = 0;
+        curbuf_mut().deleted_bytes2.set(0);
 
         curwin_mut().w_cursor.col =
             if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_JOINCOL) {
@@ -3540,7 +3540,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             if !gui_yank && !g_st().finish_op {
                 curbuf_mut().b_visual = visualinfo();
                 restore_visual_mode();
-                curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
+                curbuf_mut()
+                    .b_visual_mode_eval
+                    .set(g_st().visual_global.mode);
             }
 
             if g_st().visual_global.select
@@ -3805,7 +3807,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     restore_lbr(lbr_saved);
 
-                    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+                    curbuf_mut()
+                        .b_last_changedtick_i
+                        .set(buf_get_changedtick(curbuf_mut()));
 
                     let v_ins = op_ins_visual(cap);
                     let oap = &mut cap.oap;
@@ -3891,7 +3895,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     restore_lbr(lbr_saved);
 
-                    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+                    curbuf_mut()
+                        .b_last_changedtick_i
+                        .set(buf_get_changedtick(curbuf_mut()));
 
                     let v_ins = op_ins_visual(cap);
                     let oap = &mut cap.oap;

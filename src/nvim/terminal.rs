@@ -505,7 +505,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
     let Some(buf) = handle_get_buffer_opt(buf_handle) else {
         return;
     };
-    let term_id = buf.terminal;
+    let term_id = buf.terminal.get();
     if term_id.is_null() {
         return;
     }
@@ -799,7 +799,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> TermId {
         old_sb_deleted: 0,
         old_height: 1,
         title: Vec::new(),
-        buf_handle: buf.b_fnum,
+        buf_handle: buf.b_fnum.get(),
         in_altscreen: false,
         suspended: false,
         closed: false,
@@ -836,7 +836,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> TermId {
     let term_id = TermId((idx + 1) as u32);
     TERMINALS.with(|terms| terms.borrow_mut()[idx] = Some(term));
 
-    buf.terminal = term_id;
+    buf.terminal.set(term_id);
     vterm_set_utf8(&mut vt, 1);
 
     let _ = vterm_obtain_state(&mut vt);
@@ -902,7 +902,7 @@ pub fn terminal_open(term_id: TermId, buf: &mut FileBuf) {
         debug_assert!(with_term(term_id, |t| t.invalid_start >= 0));
     }
     refresh_screen(term_id, &mut *buf);
-    buf.b_locked += 1;
+    buf.b_locked.set(buf.b_locked.get() + (1));
     set_option_value(
         K_OPT_BUFTYPE,
         string_obj(cstr_slice_as_string(b"terminal\0")),
@@ -910,7 +910,7 @@ pub fn terminal_open(term_id: TermId, buf: &mut FileBuf) {
         true,
         None,
     );
-    buf.b_locked -= 1;
+    buf.b_locked.set(buf.b_locked.get() - (1));
 
     if buf.b_ffname.is_some() {
         let ffname_bytes = buf.ffname_bytes().to_vec();
@@ -931,7 +931,7 @@ pub fn terminal_open(term_id: TermId, buf: &mut FileBuf) {
     let Some(buf) = handle_get_buffer(buf_handle) else {
         return;
     };
-    let Some(term_id) = buf.terminal.opt_mut() else {
+    let Some(term_id) = buf.terminal.get().opt_mut() else {
         return;
     };
     if with_term(term_id, |t| t.buf_handle == 0) {
@@ -1003,7 +1003,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
     if status == -1 || g_st().exiting {
         with_term_mut(term_id, |t| t.buf_handle = 0);
         if let Some(buf) = handle_get_buffer_opt(buf_handle) {
-            buf.terminal = TermId::NULL;
+            buf.terminal.set(TermId::NULL);
         }
         let should_close = with_term_mut(term_id, |t| {
             if t.refcount == 0 {
@@ -1018,7 +1018,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
         }
     } else if !only_destroy {
         for wp in for_all_windows_mut() {
-            if !wp.w_buffer.is_null() && wp.buf_mut().b_fnum == buf_handle {
+            if !wp.w_buffer.is_null() && wp.buf_mut().b_fnum.get() == buf_handle {
                 wp.w_redr_status = true;
             }
         }
@@ -1070,7 +1070,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
 
 pub fn terminal_state_change_event(buf_handle: ObjHandle) {
     if let Some(buf) = handle_get_buffer_opt(buf_handle)
-        && !buf.terminal.is_null()
+        && !buf.terminal.get().is_null()
     {
         redraw_buf_line_later(buf, buf.b_ml.ml_line_count, false);
     }
@@ -1103,7 +1103,10 @@ pub fn terminal_check_size(term_id: TermId) {
 
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            if !is_ctx_win(wp) && !wp.w_buffer.is_null() && (*wp).buf_mut().terminal == term_id {
+            if !is_ctx_win(wp)
+                && !wp.w_buffer.is_null()
+                && (*wp).buf_mut().terminal.get() == term_id
+            {
                 let win_width = (wp.w_view_width - win_col_off(wp)).max(0) as u16;
                 width = width.max(win_width);
                 height = height.max(wp.w_view_height as u16);
@@ -1171,7 +1174,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
     let term_buf_handle = with_term(s.term, |t| t.buf_handle);
     if let Some(wp) = handle_get_window_opt(s.save_curwin_handle) {
         let mut winopts: Option<&mut Winopt> = None;
-        if wp.buf_mut().b_fnum != term_buf_handle {
+        if wp.buf_mut().b_fnum.get() != term_buf_handle {
             if let Some(buf) = handle_get_buffer_opt(term_buf_handle) {
                 for wip in &mut buf.b_wininfo {
                     if !wip.wi_win.is_null()
@@ -1215,11 +1218,11 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 pub fn terminal_enter() -> bool {
     let buf = g_st().curbuf;
 
-    debug_assert!(!buf.terminal.is_null());
+    debug_assert!(!buf.terminal.get().is_null());
 
     let mut s = TerminalState::new();
 
-    s.term = buf.terminal;
+    s.term = buf.terminal.get();
 
     s.cursor_visible = true;
     g_st().ins_global.stop_insert_mode = false;
@@ -1243,7 +1246,9 @@ pub fn terminal_enter() -> bool {
     ui_cursor_shape();
 
     terminal_focus(s.term, true);
-    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+    curbuf_mut()
+        .b_last_changedtick_i
+        .set(buf_get_changedtick(curbuf_mut()));
 
     with_term_mut(s.term, |t| t.refcount += 1);
     apply_autocmds(EVENT_TERMENTER, None, None, false, curbuf_opt_mut());
@@ -1272,9 +1277,11 @@ pub fn terminal_enter() -> bool {
     unset_terminal_winopts(&mut s);
 
     terminal_focus(s.term, false);
-    curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
+    curbuf_mut()
+        .b_last_changedtick
+        .set(buf_get_changedtick(curbuf_mut()));
 
-    if s.term == curbuf_mut().terminal && !s.close {
+    if s.term == curbuf_mut().terminal.get() && !s.close {
         terminal_check_cursor();
     }
     if g_st().restart_edit != 0 {
@@ -1306,7 +1313,7 @@ pub fn terminal_enter() -> bool {
 }
 
 fn terminal_check_cursor() {
-    let term_id = curbuf_mut().terminal;
+    let term_id = curbuf_mut().terminal.get();
     let (lnum_target, suspended, cursor_col) = with_term_mut(term_id, |term| {
         (
             row_to_linenr(term, term.cursor.row),
@@ -1338,7 +1345,7 @@ fn terminal_check_cursor() {
 }
 
 fn terminal_check_focus(s: &mut TerminalState) -> bool {
-    if curbuf_mut().terminal.is_null() {
+    if curbuf_mut().terminal.get().is_null() {
         return false;
     }
 
@@ -1346,7 +1353,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
         unset_terminal_winopts(s);
         set_terminal_winopts(s);
     }
-    let cur_term = curbuf_mut().terminal;
+    let cur_term = curbuf_mut().terminal.get();
     if s.term != cur_term {
         terminal_focus(s.term, false);
         if s.close {
@@ -1370,7 +1377,8 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
 
 fn terminal_check(s: &mut TerminalState) -> i32 {
     debug_assert!(
-        !s.close || (with_term(s.term, |t| t.buf_handle == 0) && s.term != curbuf_mut().terminal)
+        !s.close
+            || (with_term(s.term, |t| t.buf_handle == 0) && s.term != curbuf_mut().terminal.get())
     );
 
     if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
@@ -1384,10 +1392,12 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
 
     with_term_mut(s.term, |t| t.refcount += 1);
     if has_event(EVENT_TEXTCHANGEDT)
-        && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
+        && curbuf_mut().b_last_changedtick_i.get() != buf_get_changedtick(curbuf_mut())
     {
         apply_autocmds(EVENT_TEXTCHANGEDT, None, None, false, curbuf_opt_mut());
-        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+        curbuf_mut()
+            .b_last_changedtick_i
+            .set(buf_get_changedtick(curbuf_mut()));
     }
     may_trigger_win_scrolled_resized();
     let buf_handle = with_term_mut(s.term, |t| {
@@ -1500,7 +1510,7 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
         bh
     });
     if let Some(buf) = handle_get_buffer_opt(buf_handle) {
-        buf.terminal = TermId::NULL;
+        buf.terminal.set(TermId::NULL);
     }
 
     if with_term(term_id, |t| t.refcount == 0) {
@@ -1576,7 +1586,7 @@ pub fn terminal_set_streamed_paste(term_id: TermId, streamed: bool) {
         changed
     });
     if changed {
-        let cur_term = curbuf_mut().terminal;
+        let cur_term = curbuf_mut().terminal.get();
         with_vterm_mut(cur_term, |vt| {
             if streamed {
                 vterm_keyboard_start_paste(vt);
@@ -1591,7 +1601,7 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
     if y_slice.is_empty() {
         return;
     }
-    let cur_term = curbuf_mut().terminal;
+    let cur_term = curbuf_mut().terminal.get();
     if !with_term(cur_term, |t| t.streamed_paste) {
         with_vterm_mut(cur_term, vterm_keyboard_start_paste);
     }
@@ -1599,7 +1609,7 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
     for _ in 0..count {
         for (j, item) in y_slice.iter().enumerate() {
             if j > 0 {
-                let term_now = curbuf_mut().terminal;
+                let term_now = curbuf_mut().terminal.get();
                 #[cfg(windows)]
                 terminal_send(term_now, b"\r\n");
                 #[cfg(not(windows))]
@@ -1618,11 +1628,11 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
                 }
                 pos += len;
             }
-            let term_now = curbuf_mut().terminal;
+            let term_now = curbuf_mut().terminal.get();
             terminal_send(term_now, &buff);
         }
     }
-    let term_end = curbuf_mut().terminal;
+    let term_end = curbuf_mut().terminal.get();
     if !with_term(term_end, |t| t.streamed_paste) {
         with_vterm_mut(term_end, vterm_keyboard_end_paste);
     }
@@ -1651,7 +1661,7 @@ pub fn on_sync_flush(buf_handle: ObjHandle) {
     let Some(buf) = handle_get_buffer_opt(buf_handle) else {
         return;
     };
-    let term_id = buf.terminal;
+    let term_id = buf.terminal.get();
     if term_id.is_null() {
         return;
     }
@@ -1909,7 +1919,7 @@ fn buf_set_term_title(buf: Option<&mut FileBuf>, title: &[u8]) {
     };
 
     let mut err = Error::new();
-    buf_ref.b_locked += 1;
+    buf_ref.b_locked.set(buf_ref.b_locked.get() + (1));
     dict_set_var(
         &buf_ref.b_vars(),
         cstr_slice_as_string(b"term_title\0"),
@@ -1919,7 +1929,7 @@ fn buf_set_term_title(buf: Option<&mut FileBuf>, title: &[u8]) {
         None,
         &mut err,
     );
-    buf_ref.b_locked -= 1;
+    buf_ref.b_locked.set(buf_ref.b_locked.get() - (1));
     api_clear_error(&mut err);
     status_redraw_buf(buf_ref);
 }
@@ -2275,14 +2285,14 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
     let mut grid = g_st().mouse_grid;
     let mut is_term_mouse_win = false;
     if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
-        is_term_mouse_win = (*mouse_win).buf_mut().terminal == term_id;
+        is_term_mouse_win = (*mouse_win).buf_mut().terminal.get() == term_id;
         let offset: i32;
         let (suspended, closed, forward_mouse) =
             with_term(term_id, |t| (t.suspended, t.closed, t.forward_mouse));
         if !suspended
             && !closed
             && forward_mouse
-            && (*mouse_win).buf_mut().terminal == term_id
+            && (*mouse_win).buf_mut().terminal.get() == term_id
             && row >= 0
             && (grid > 1 || row + mouse_win.w_winbar_height < mouse_win.w_height)
             && {
@@ -2439,7 +2449,7 @@ fn refresh_terminal(term_id: TermId) {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
                 if !wp.w_buffer.is_null()
-                    && (*wp).buf_mut().b_fnum == buf_handle
+                    && (*wp).buf_mut().b_fnum.get() == buf_handle
                     && wp.w_leftcol != 0
                 {
                     wp.w_leftcol = 0;
@@ -2729,7 +2739,7 @@ fn linenr_to_row(term: &Terminal, linenr: i32) -> i32 {
 
 #[inline]
 fn is_focused(term_id: TermId) -> bool {
-    (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term_id
+    (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal.get() == term_id
 }
 
 fn get_config_string(buf: &mut FileBuf, key: &[u8]) -> Option<std::ffi::CString> {

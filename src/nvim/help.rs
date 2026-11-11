@@ -169,7 +169,7 @@ pub fn ex_help(eap: &mut Exarg) {
             }
         }
         if let Some(wp) = wp
-            && wp.buf_mut().b_nwindows > 0
+            && wp.buf_mut().b_nwindows.get() > 0
         {
             win_enter(wp, true);
         } else if CFile::open(opt_vars().p_hf.as_cstr(), c"rb").is_none() {
@@ -194,7 +194,7 @@ pub fn ex_help(eap: &mut Exarg) {
                     win_setheight(opt_vars().p_hh.get() as i32);
                 }
 
-                alt_fnum = curbuf_mut().b_fnum;
+                alt_fnum = curbuf_mut().b_fnum.get();
                 do_ecmd(
                     0,
                     None,
@@ -208,7 +208,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
                     curwin_mut().w_alt_fnum = alt_fnum;
                 }
-                empty_fnum = curbuf_mut().b_fnum;
+                empty_fnum = curbuf_mut().b_fnum.get();
             }
         }
     }
@@ -220,9 +220,9 @@ pub fn ex_help(eap: &mut Exarg) {
         do_tag(None, &tag, DT_HELP, 1, false, true);
 
         if empty_fnum != 0
-            && curbuf_mut().b_fnum != empty_fnum
+            && curbuf_mut().b_fnum.get() != empty_fnum
             && let Some(buf) = buflist_findnr_opt(empty_fnum)
-            && buf.b_nwindows == 0
+            && buf.b_nwindows.get() == 0
         {
             wipe_buffer(buf, true);
         }
@@ -414,7 +414,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
-    curbuf_mut().b_help = true;
+    curbuf_mut().b_help.set(true);
     set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(Some(c"help")), OPT_LOCAL, 0);
 
     let p = c"!-~,^*,^|,^\",192-255";

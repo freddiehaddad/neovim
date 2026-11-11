@@ -284,7 +284,7 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
                 buf[i] = g_st().motion_force as u8;
                 i += 1;
             }
-        } else if !curbuf_mut().terminal.is_null() {
+        } else if !curbuf_mut().terminal.get().is_null() {
             buf[i] = b't';
             i += 1;
             if g_st().restart_edit == b'I' as i32 {

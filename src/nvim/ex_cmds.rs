@@ -1978,7 +1978,9 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
         curbuf_mut().restore_fnames(fname_cstr, sfname_cstr, xfname_kind);
         return false;
     }
-    curbuf_mut().b_flags |= BF_NOTEDITED;
+    curbuf_mut()
+        .b_flags
+        .set(curbuf_mut().b_flags.get() | (BF_NOTEDITED));
     let xfname = match xfname_kind {
         crate::buffer::BufFname::None => None,
         crate::buffer::BufFname::Short => sfname_cstr.as_deref(),
@@ -1994,7 +1996,7 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
         if let Some(b) = buf.opt()
             && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
-            curwin_mut().w_alt_fnum = b.b_fnum;
+            curwin_mut().w_alt_fnum = b.b_fnum.get();
         }
     }
     drop(fname_cstr);
@@ -2232,10 +2234,10 @@ pub fn check_overwrite(
     let ffname_cstr = ffname_opt.unwrap_or(c"");
     if (other
         || (!bt_nofilename(Some(&*buf))
-            && ((buf.b_flags & BF_NOTEDITED) != 0
-                || ((buf.b_flags & BF_NEW) != 0
+            && ((buf.b_flags.get() & BF_NOTEDITED) != 0
+                || ((buf.b_flags.get() & BF_NEW) != 0
                     && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
-                || (buf.b_flags & BF_READERR) != 0)))
+                || (buf.b_flags.get() & BF_READERR) != 0)))
         && !opt_vars().p_wa.get()
         && os_path_exists(ffname_cstr)
     {
@@ -2334,7 +2336,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         let b = buf.borrow_mut();
         if g_st().exiting
             && !eap.forceit
-            && !b.terminal.is_null()
+            && !b.terminal.get().is_null()
             && channel_job_running(b.b_p_channel.get() as u64)
         {
             no_write_message_buf(b);
@@ -2353,7 +2355,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         if b.b_ffname.is_none() {
             semsg!(
                 gettext(c"E141: No file name for buffer %lld"),
-                b.b_fnum as i64,
+                b.b_fnum.get() as i64,
             );
             error += 1;
         } else if check_readonly(&mut eap.forceit, b) || {
@@ -2476,7 +2478,7 @@ pub fn getfile(
         other = otherfile(expanded.as_ref().map(|(ff, _)| ff.as_c_str()));
     } else {
         expanded = None;
-        other = fnum != curbuf_mut().b_fnum;
+        other = fnum != curbuf_mut().b_fnum.get();
     }
 
     if other {
@@ -2485,7 +2487,7 @@ pub fn getfile(
     'theend: {
         if other
             && !forceit
-            && curbuf_mut().b_nwindows == 1
+            && curbuf_mut().b_nwindows.get() == 1
             && !buf_hide(curbuf_mut())
             && curbuf_is_changed_fn()
             && !autowrite(curbuf_mut(), forceit)
@@ -2592,7 +2594,7 @@ pub fn do_ecmd(
         let opt_is_empty =
             |opt: Option<&CStr>| -> bool { opt.is_none_or(|s| s.to_bytes().is_empty()) };
         if fnum != 0 {
-            if fnum == curbuf_mut().b_fnum {
+            if fnum == curbuf_mut().b_fnum.get() {
                 return true;
             }
             other_file = true;
@@ -2632,7 +2634,7 @@ pub fn do_ecmd(
             }
         }
 
-        if !other_file && !curbuf_mut().terminal.is_null() {
+        if !other_file && !curbuf_mut().terminal.get().is_null() {
             check_arg_idx(curwin_mut());
             maketitle();
             retval = true;
@@ -2640,7 +2642,7 @@ pub fn do_ecmd(
         }
 
         if ((!other_file && (flags & ECMD_OLDBUF) == 0)
-            || (curbuf_mut().b_nwindows == 1
+            || (curbuf_mut().b_nwindows.get() == 1
                 && (flags & (ECMD_HIDE | ECMD_ADDBUF | ECMD_ALTBUF)) == 0))
             && check_changed(
                 curbuf_mut(),
@@ -2673,7 +2675,7 @@ pub fn do_ecmd(
 
             if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) == 0 {
                 if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                    curwin_mut().w_alt_fnum = curbuf_mut().b_fnum;
+                    curwin_mut().w_alt_fnum = curbuf_mut().b_fnum.get();
                 }
                 if let Some(ow) = oldwin.opt_mut() {
                     buflist_altfpos(ow);
@@ -2696,7 +2698,7 @@ pub fn do_ecmd(
                     if let Some(nb) = newbuf
                         && (flags & ECMD_ALTBUF) != 0
                     {
-                        curwin_mut().w_alt_fnum = nb.b_fnum;
+                        curwin_mut().w_alt_fnum = nb.b_fnum.get();
                     }
                     break 'theend;
                 }
@@ -2719,11 +2721,11 @@ pub fn do_ecmd(
             if buf.is_null() {
                 break 'theend;
             }
-            if buf.b_locked_split > 0 {
+            if buf.b_locked_split.get() > 0 {
                 emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
                 break 'theend;
             }
-            if curwin_mut().w_alt_fnum == buf.b_fnum && prev_alt_fnum != 0 {
+            if curwin_mut().w_alt_fnum == buf.b_fnum.get() && prev_alt_fnum != 0 {
                 curwin_mut().w_alt_fnum = prev_alt_fnum;
             }
             if buf.b_ml.ml_mfp.is_none() {
@@ -2769,7 +2771,7 @@ pub fn do_ecmd(
                     let mut the_curwin = curwin_ptr();
 
                     the_curwin.w_locked += 1;
-                    buf.b_locked += 1;
+                    buf.b_locked.set(buf.b_locked.get() + (1));
 
                     if old_curbuf.br_buf == g_st().curbuf {
                         buf_copy_options(buf.borrow_mut(), BCO_ENTER);
@@ -2780,8 +2782,8 @@ pub fn do_ecmd(
                         curwin_ptr().opt_mut(),
                         g_st().curbuf.opt_mut(),
                         if (flags & ECMD_HIDE) != 0
-                            || (!curbuf_mut().terminal.is_null()
-                                && terminal_running(curbuf_mut().terminal.borrow()))
+                            || (!curbuf_mut().terminal.get().is_null()
+                                && terminal_running(curbuf_mut().terminal.get().borrow()))
                         {
                             0
                         } else {
@@ -2797,7 +2799,7 @@ pub fn do_ecmd(
                             the_curwin.w_locked -= 1;
                         }
                     }
-                    buf.b_locked -= 1;
+                    buf.b_locked.set(buf.b_locked.get() - (1));
 
                     if aborting() && !curwin_mut().w_buffer.is_null() {
                         g_st().au_new_curbuf = save_au_new_curbuf;
@@ -2816,12 +2818,17 @@ pub fn do_ecmd(
                         auto_buf = true;
                     } else {
                         if !curwin_mut().w_buffer.is_null() {
-                            curwin_mut().buf_mut().b_nwindows -= 1;
+                            curwin_mut()
+                                .buf_mut()
+                                .b_nwindows
+                                .set(curwin_mut().buf_mut().b_nwindows.get() - (1));
                         }
 
                         curwin_mut().w_buffer = buf;
                         g_st().curbuf = buf;
-                        curbuf_mut().b_nwindows += 1;
+                        curbuf_mut()
+                            .b_nwindows
+                            .set(curbuf_mut().b_nwindows.get() + (1));
 
                         if !oldbuf && let Some(eap) = eap {
                             set_file_options(true, Some(eap));
@@ -2851,7 +2858,7 @@ pub fn do_ecmd(
         buf = g_st().curbuf;
         if (flags & ECMD_SET_HELP) != 0 || g_st().keep_help_flag {
             prepare_help_buffer();
-        } else if !curbuf_mut().b_help {
+        } else if !curbuf_mut().b_help.get() {
             set_buflisted(1);
         }
 
@@ -2862,7 +2869,7 @@ pub fn do_ecmd(
             break 'theend;
         }
 
-        curbuf_mut().b_did_filetype = false;
+        curbuf_mut().b_did_filetype.set(false);
 
         if !other_file && !oldbuf {
             set_last_cursor(curwin_mut());
@@ -2874,7 +2881,7 @@ pub fn do_ecmd(
             new_name = buf.fname_opt().map(CStr::to_owned);
             set_bufref(&mut bufref, buf.opt_mut());
 
-            if (curbuf_mut().b_flags & BF_NEVERLOADED) == 0
+            if (curbuf_mut().b_flags.get() & BF_NEVERLOADED) == 0
                 && (opt_vars().p_ur.get() < 0
                     || (curbuf_mut().b_ml.ml_line_count as OptInt) <= opt_vars().p_ur.get())
             {
@@ -2915,7 +2922,9 @@ pub fn do_ecmd(
         retval = true;
 
         if !other_file {
-            curbuf_mut().b_flags &= !BF_NOTEDITED;
+            curbuf_mut()
+                .b_flags
+                .set(curbuf_mut().b_flags.get() & (!BF_NOTEDITED));
         }
 
         check_arg_idx(curwin_mut());
@@ -2937,7 +2946,9 @@ pub fn do_ecmd(
             topline = curwin_mut().w_topline;
             if !oldbuf {
                 g_st().swap_exists_action = SEA_DIALOG;
-                curbuf_mut().b_flags |= BF_CHECK_RO;
+                curbuf_mut()
+                    .b_flags
+                    .set(curbuf_mut().b_flags.get() | (BF_CHECK_RO));
 
                 if (flags & ECMD_NOWINENTER) != 0 {
                     readfile_flags |= READ_NOWINENTER;
@@ -3057,7 +3068,7 @@ pub fn do_ecmd(
             g_st().msg_scrolled_ign = false;
         }
 
-        curbuf_mut().b_last_used = os_time() as time_t;
+        curbuf_mut().b_last_used.set(os_time() as time_t);
 
         if let Some(ref cmd) = command {
             do_cmdline(
@@ -3067,7 +3078,7 @@ pub fn do_ecmd(
             );
         }
 
-        if (curbuf_mut().b_kmap_state & KEYMAP_INIT) != 0 {
+        if (curbuf_mut().b_kmap_state.get() & KEYMAP_INIT) != 0 {
             keymap_init();
         }
 
@@ -3103,11 +3114,11 @@ pub fn do_ecmd(
     }
 
     // theend:
-    if bufref_valid(Some(&old_curbuf)) && !old_curbuf.br_buf.terminal.is_null() {
-        terminal_check_size(old_curbuf.br_buf.terminal.borrow_mut());
+    if bufref_valid(Some(&old_curbuf)) && !old_curbuf.br_buf.terminal.get().is_null() {
+        terminal_check_size(old_curbuf.br_buf.terminal.get().borrow_mut());
     }
     if (!bufref_valid(Some(&old_curbuf)) || old_curbuf.br_buf != g_st().curbuf)
-        && !curbuf_mut().terminal.is_null()
+        && !curbuf_mut().terminal.get().is_null()
     {
         terminal_check_size(curbuf_mut().terminal_mut());
     }
@@ -4601,7 +4612,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         lnum += 1;
     }
 
-    curbuf_mut().deleted_bytes2 = 0;
+    curbuf_mut().deleted_bytes2.set(0);
 
     if first_line != 0 {
         i = curbuf_mut().b_ml.ml_line_count - old_line_count;

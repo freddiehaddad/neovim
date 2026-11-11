@@ -393,7 +393,7 @@ pub fn do_tag(
         let mut tagstackidx = curwin_mut().w_tagstackidx;
         let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: i32 = 0;
-        let mut cur_fnum = curbuf_mut().b_fnum;
+        let mut cur_fnum = curbuf_mut().b_fnum.get();
         let oldtagstackidx = tagstackidx;
         let mut prevtagstackidx = tagstackidx;
         let mut new_tag = false;
@@ -531,7 +531,7 @@ pub fn do_tag(
                         }
 
                         saved_fmark = curwin_mut().w_tagstack[tagstackidx as usize].fmark.clone();
-                        if saved_fmark.fnum != curbuf_mut().b_fnum {
+                        if saved_fmark.fnum != curbuf_mut().b_fnum.get() {
                             if !buflist_getfile(
                                 saved_fmark.fnum,
                                 saved_fmark.mark.lnum,
@@ -614,7 +614,7 @@ pub fn do_tag(
                             emsg(gettext(c"E425: Cannot go before first matching tag"));
                             skip_msg = true;
                             cur_match = 0;
-                            cur_fnum = curbuf_mut().b_fnum;
+                            cur_fnum = curbuf_mut().b_fnum.get();
                         }
                     }
                 }
@@ -633,7 +633,7 @@ pub fn do_tag(
                         curwin_mut().w_tagstack[tagstackidx as usize].fmark.mark =
                             curwin_mut().w_cursor;
                         curwin_mut().w_tagstack[tagstackidx as usize].fmark.fnum =
-                            curbuf_mut().b_fnum;
+                            curbuf_mut().b_fnum.get();
                         curwin_mut().w_tagstack[tagstackidx as usize].fmark.view =
                             mark_view_make(curwin_mut(), curwin_mut().w_cursor);
                     }
@@ -646,7 +646,7 @@ pub fn do_tag(
                 }
             }
 
-            if cur_fnum != curbuf_mut().b_fnum
+            if cur_fnum != curbuf_mut().b_fnum.get()
                 && let Some(buf) = buflist_findnr(cur_fnum)
             {
                 buf_ffname = buf.ffname_opt();
@@ -1141,7 +1141,7 @@ pub fn do_tags(_eap: &mut Exarg) {
             );
             msg_outtrans(
                 &name,
-                if entry.fmark.fnum == curbuf_mut().b_fnum {
+                if entry.fmark.fnum == curbuf_mut().b_fnum.get() {
                     HLF_D
                 } else {
                     0
@@ -2129,7 +2129,7 @@ fn findtags_in_file(st: &mut FindtagsState, _flags: i32, buf_ffname: Option<&std
         st.fp = None;
         findtags_matchargs_init(&mut margs, st.flags);
 
-        if curbuf_mut().b_help && !findtags_in_help_init(st) {
+        if curbuf_mut().b_help.get() && !findtags_in_help_init(st) {
             return;
         }
 
@@ -2230,17 +2230,17 @@ pub fn find_tags(
             _ => std::process::abort(),
         }
 
-        let help_save = curbuf_mut().b_help;
+        let help_save = curbuf_mut().b_help.get();
 
         findtags_state_init(&mut st, pat_cstr, flags, mincount);
 
         if st.help_only {
-            curbuf_mut().b_help = true;
+            curbuf_mut().b_help.set(true);
         }
 
         let pat_bytes = pat_cstr.to_bytes();
         let pat_slice = &pat_bytes[..(st.orgpat.len.max(0) as usize).min(pat_bytes.len())];
-        if curbuf_mut().b_help
+        if curbuf_mut().b_help.get()
             && pat_slice.len() > 3
             && pat_slice[pat_slice.len() - 3] == b'@'
             && pat_slice[pat_slice.len() - 2].is_ascii_alphabetic()
@@ -2328,7 +2328,7 @@ pub fn find_tags(
 
         findtags_copy_matches(&mut st, matches);
 
-        curbuf_mut().b_help = help_save;
+        curbuf_mut().b_help.set(help_save);
 
         opt_vars().p_ic.set(save_p_ic);
 
@@ -2368,7 +2368,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
         *tnp = Tagname::new();
     }
 
-    if curbuf_mut().b_help {
+    if curbuf_mut().b_help.get() {
         if first != 0 {
             tag_st(|st| st.tag_fnames.borrow_mut().clear());
             do_in_runtimepath(
@@ -2713,7 +2713,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             if l_g_do_tagpreview != 0 {
                 g_st().keep_help_flag = bt_help(curwin_save.buf_opt());
             } else {
-                g_st().keep_help_flag = curbuf_mut().b_help;
+                g_st().keep_help_flag = curbuf_mut().b_help.get();
             }
         }
 
@@ -2883,7 +2883,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             }
 
             if retval == Some(true) {
-                if curbuf_mut().b_help {
+                if curbuf_mut().b_help.get() {
                     set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                 }
                 if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
@@ -2942,7 +2942,8 @@ fn expand_tag_fname(
             }
         }
 
-        if (opt_vars().p_tr.get() || curbuf_mut().b_help) && !vim_isAbsName(fname.to_bytes()) {
+        if (opt_vars().p_tr.get() || curbuf_mut().b_help.get()) && !vim_isAbsName(fname.to_bytes())
+        {
             let p = path_tail(tag_fname).as_ptr();
             if p != tag_fname.as_ptr() {
                 let mut retval = [0u8; MAXPATHL];

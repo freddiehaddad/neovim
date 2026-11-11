@@ -1269,11 +1269,11 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
-    let b_fnum = b.b_fnum;
+    let b_fnum = b.b_fnum.get();
 
     let mut ren_ret = true;
     try_wrap(err, || {
-        let is_curbuf = b_fnum == curbuf_mut().b_fnum;
+        let is_curbuf = b_fnum == curbuf_mut().b_fnum.get();
         let save_acd = opt_vars().p_acd.get();
         if !is_curbuf {
             g_st().redrawing_disabled += 1;
@@ -1345,7 +1345,7 @@ pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Err
         if unload { DOBUF_UNLOAD } else { DOBUF_WIPE },
         DOBUF_FIRST,
         FORWARD,
-        b.b_fnum,
+        b.b_fnum.get(),
         i32::from(force),
     );
 
@@ -1413,7 +1413,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         return res;
     };
 
-    if fm.mark.lnum != 0 && fm.fnum == b.b_fnum {
+    if fm.mark.lnum != 0 && fm.fnum == b.b_fnum.get() {
         res = set_mark(Some(b), name, 0, 0, err);
     }
 
@@ -1507,7 +1507,7 @@ pub fn nvim_buf_get_mark(
         return rv;
     };
 
-    let (lnum, col) = if fm.fnum != b.b_fnum {
+    let (lnum, col) = if fm.fnum != b.b_fnum.get() {
         (0, 0)
     } else {
         (fm.mark.lnum, fm.mark.col)
@@ -1567,7 +1567,7 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"flush_count",
-        integer_obj(i64::from(b.flush_count)),
+        integer_obj(i64::from(b.flush_count.get())),
     );
     put_c(
         &mut rv,
@@ -1582,12 +1582,12 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"dirty_bytes",
-        integer_obj(b.deleted_bytes as Integer),
+        integer_obj(b.deleted_bytes.get() as Integer),
     );
     put_c(
         &mut rv,
         c"dirty_bytes2",
-        integer_obj(b.deleted_bytes2 as Integer),
+        integer_obj(b.deleted_bytes2.get() as Integer),
     );
     put_c(
         &mut rv,
@@ -1597,10 +1597,10 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"conceal_providers",
-        integer_obj(i64::from(b.b_conceal_providers)),
+        integer_obj(i64::from(b.b_conceal_providers.get())),
     );
 
-    let uhp = b.b_u_curhead.or(b.b_u_newhead);
+    let uhp = b.b_u_curhead.get().or(b.b_u_newhead.get());
     if let Some(uh) = uhp {
         put_c(
             &mut rv,

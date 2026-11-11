@@ -313,7 +313,9 @@ fn buf_write_bytes(ip: &mut BwInfo) -> bool {
 }
 
 fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
-    if buf.b_mtime_read != 0 && time_differs(file_info, buf.b_mtime_read, buf.b_mtime_read_ns) {
+    if buf.b_mtime_read.get() != 0
+        && time_differs(file_info, buf.b_mtime_read.get(), buf.b_mtime_read_ns.get())
+    {
         g_st().msg_scroll = 1;
         g_st().msg_silent = 0;
         msg(
@@ -504,9 +506,9 @@ fn buf_write_do_autocmds(
             if overwriting {
                 ml_timestamp(b);
                 if append {
-                    b.b_flags &= !BF_NEW;
+                    b.b_flags.set(b.b_flags.get() & (!BF_NEW));
                 } else {
-                    b.b_flags &= !BF_WRITE_MASK;
+                    b.b_flags.set(b.b_flags.get() & (!BF_WRITE_MASK));
                 }
             }
             if reset_changed
@@ -571,7 +573,7 @@ fn buf_write_do_post_autocmds(
     whole: bool,
 ) {
     let mut aco: CtxSwitch = CtxSwitch::new();
-    curbuf_mut().b_no_eol_lnum = 0;
+    curbuf_mut().b_no_eol_lnum.set(0);
 
     let _ = ctx_switch(&mut aco, None, None, Some(buf), 0);
 
@@ -1287,7 +1289,7 @@ pub fn buf_write(
             let mut backup_copy = false;
             prev_got_int = g_st().got_int;
             g_st().got_int = false;
-            buf.b_saving = true;
+            buf.b_saving.set(true);
 
             if !(append && opt_vars().p_pm.is_empty())
                 && !filtering
@@ -1582,7 +1584,7 @@ pub fn buf_write(
                         if end == 0
                             || (lnum == end
                                 && (write_bin || !buf.b_p_fixeol.get())
-                                && ((write_bin && lnum == buf.b_no_eol_lnum)
+                                && ((write_bin && lnum == buf.b_no_eol_lnum.get())
                                     || (lnum == buf.b_ml.ml_line_count && !buf.b_p_eol.get())))
                         {
                             lnum += 1;
@@ -1714,7 +1716,7 @@ pub fn buf_write(
                             }
                         }
                         buf_set_file_id(&mut *buf);
-                    } else if !buf.file_id_valid {
+                    } else if !buf.file_id_valid.get() {
                         buf_set_file_id(&mut *buf);
                     }
 
@@ -1897,8 +1899,8 @@ pub fn buf_write(
                 {
                     unchanged(&mut *buf, true, false);
                     let changedtick = buf_get_changedtick(&*buf);
-                    if buf.b_last_changedtick + 1 == changedtick {
-                        buf.b_last_changedtick = changedtick;
+                    if buf.b_last_changedtick.get() + 1 == changedtick {
+                        buf.b_last_changedtick.set(changedtick);
                     }
                     u_unchanged(&mut *buf);
                     u_update_save_nr(&mut *buf);
@@ -1907,9 +1909,9 @@ pub fn buf_write(
                 if overwriting {
                     ml_timestamp(&mut *buf);
                     if append {
-                        buf.b_flags &= !BF_NEW;
+                        buf.b_flags.set(buf.b_flags.get() & (!BF_NEW));
                     } else {
-                        buf.b_flags &= !BF_WRITE_MASK;
+                        buf.b_flags.set(buf.b_flags.get() & (!BF_WRITE_MASK));
                     }
                 }
 
@@ -2025,13 +2027,13 @@ pub fn buf_write(
 
             if os_fileinfo(fname.unwrap_or(c""), &mut file_info_old) {
                 buf_store_file_info(&mut *buf, &mut file_info_old);
-                buf.b_mtime_read = buf.b_mtime;
-                buf.b_mtime_read_ns = buf.b_mtime_ns;
+                buf.b_mtime_read.set(buf.b_mtime.get());
+                buf.b_mtime_read_ns.set(buf.b_mtime_ns.get());
             }
         }
     }
 
-    buf.b_saving = false;
+    buf.b_saving.set(false);
     g_st().msg_scroll = msg_save;
 
     if retval && write_undo_file {

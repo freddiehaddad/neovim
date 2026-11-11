@@ -1722,7 +1722,7 @@ fn au_cleanup() {
 pub fn aubuflocal_remove(buf: &mut FileBuf) {
     ACTIVE_APC_LIST.with(|cell| {
         for arg_bufnr in cell.borrow().iter().rev() {
-            if buf.b_fnum == arg_bufnr.get() {
+            if buf.b_fnum.get() == arg_bufnr.get() {
                 arg_bufnr.set(0);
             }
         }
@@ -1735,7 +1735,7 @@ pub fn aubuflocal_remove(buf: &mut FileBuf) {
                 if ac
                     .pat
                     .as_ref()
-                    .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum)
+                    .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum.get())
                 {
                     aucmd_del(ac);
                     removed_count += 1;
@@ -1749,7 +1749,7 @@ pub fn aubuflocal_remove(buf: &mut FileBuf) {
                     0,
                     tr(c"auto-removing autocommand: %s <buffer=%d>"),
                     event_nr2name(event),
-                    buf.b_fnum,
+                    buf.b_fnum.get(),
                 );
                 verbose_leave();
             }
@@ -2535,7 +2535,7 @@ pub fn aucmd_defer(
         fname: fname.map(CStr::to_owned),
         fname_io: fname_io.map(CStr::to_owned),
         group,
-        buf: buf.b_fnum,
+        buf: buf.b_fnum.get(),
         data: data.map(|d| copy_object(d.clone(), None)),
     });
 
@@ -2628,7 +2628,7 @@ pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     multiqueue_put_event(
         g_st().deferred_events.borrow_mut(),
         Event::AutoCmdOptionSetModified {
-            bufnr: buf.b_fnum,
+            bufnr: buf.b_fnum.get(),
             new_val,
         },
     );
@@ -2803,7 +2803,9 @@ pub fn apply_autocmds_group(
             let mut win_ignore = false;
             if buf == g_st().curbuf.as_ptr() && EVENT_NAMES[event as usize].event <= 0 {
                 win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
-            } else if !buf.is_null() && EVENT_NAMES[event as usize].event <= 0 && buf.b_nwindows > 0
+            } else if !buf.is_null()
+                && EVENT_NAMES[event as usize].event <= 0
+                && buf.b_nwindows.get() > 0
             {
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
@@ -2872,7 +2874,7 @@ pub fn apply_autocmds_group(
             };
             g_st().autocmd_fname_full = false;
 
-            g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
+            g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum.get() };
 
             let mut sfname_owned: Option<CString> = None;
             let fname_owned: Option<CString> = if fname.is_none_or(|s| s.to_bytes().is_empty()) {
@@ -2972,7 +2974,9 @@ pub fn apply_autocmds_group(
                     save_redobuff(&mut save_redo);
                     did_save_redobuff = true;
                 }
-                curbuf_mut().b_did_filetype = curbuf_mut().b_keep_filetype;
+                curbuf_mut()
+                    .b_did_filetype
+                    .set(curbuf_mut().b_keep_filetype.get());
             }
 
             g_st().autocmd_busy = true;
@@ -2983,7 +2987,7 @@ pub fn apply_autocmds_group(
             });
 
             if event == EVENT_FILETYPE && !curbuf_mut().b_p_ft.is_empty() {
-                curbuf_mut().b_did_filetype = true;
+                curbuf_mut().b_did_filetype.set(true);
             }
 
             let ausize = AUTOCMDS.with(|a| a[event as usize].borrow().len());
@@ -3084,7 +3088,7 @@ pub fn apply_autocmds_group(
                 if did_save_redobuff {
                     restore_redobuff(&mut save_redo);
                 }
-                curbuf_mut().b_did_filetype = false;
+                curbuf_mut().b_did_filetype.set(false);
                 g_st().au_pending_free_buf.clear();
                 g_st().au_pending_free_win.clear();
             }
@@ -3110,7 +3114,7 @@ pub fn apply_autocmds_group(
         }
 
         if retval && event == EVENT_FILETYPE {
-            curbuf_mut().b_au_did_filetype = true;
+            curbuf_mut().b_au_did_filetype.set(true);
         }
 
         ctx_restore(&mut aco);
@@ -3439,7 +3443,7 @@ fn has_autocmd_ext(
                         i32::from(ap.allow_dirs),
                     )
                 } else {
-                    buf.is_some() && ap.buflocal_nr == buf.as_deref_mut().unwrap().b_fnum
+                    buf.is_some() && ap.buflocal_nr == buf.as_deref_mut().unwrap().b_fnum.get()
                 };
                 if matched {
                     retval = true;
@@ -3633,7 +3637,7 @@ pub fn au_exists(arg: &CStr) -> bool {
                 if let Some(pattern) = pattern_opt
                     && pattern.to_bytes().eq_ignore_ascii_case(b"<buffer>")
                 {
-                    buflocal_fnum = Some(curbuf_mut().b_fnum);
+                    buflocal_fnum = Some(curbuf_mut().b_fnum.get());
                 }
 
                 for ac in acs.iter() {
@@ -3672,7 +3676,7 @@ pub fn aupat_get_buflocal_nr(slice: &[u8]) -> i32 {
     let patlen = slice.len();
 
     if patlen == 8 {
-        return curbuf_mut().b_fnum;
+        return curbuf_mut().b_fnum.get();
     }
 
     if patlen > 9 && slice.get(7) == Some(&b'=') {
@@ -3694,7 +3698,7 @@ pub fn aupat_normalize_buflocal_pat(dest: &mut [u8], pat: &[u8], mut buflocal_nr
     assert!(aupat_is_buflocal(pat));
 
     if buflocal_nr == 0 {
-        buflocal_nr = curbuf_mut().b_fnum;
+        buflocal_nr = curbuf_mut().b_fnum.get();
     }
 
     let s = format!("<buffer={buflocal_nr}>");
@@ -3869,7 +3873,7 @@ pub fn do_autocmd_focusgained(gained: bool) {
 }
 
 pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
-    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     if AU_STATE.with(|s| s.ft_recursive.get()) > 0 && !force {
         return false;
     }
@@ -3878,7 +3882,7 @@ pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
     g_st().secure = 0;
 
     AU_STATE.with(|s| s.ft_recursive.set(s.ft_recursive.get() + (1)));
-    buf_ptr.b_did_filetype = true;
+    buf_ptr.b_did_filetype.set(true);
     let ret = apply_autocmds(
         EVENT_FILETYPE,
         Some(buf_ptr.b_p_ft.as_cstr()),

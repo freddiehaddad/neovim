@@ -2812,7 +2812,7 @@ pub(super) fn reg_prev_class() -> i32 {
                 let prev_off = off - 1;
                 let head_off =
                     prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
-                mb_get_class_tab(&line_bytes[head_off..], &s.rex.buf_mut().b_chartab)
+                mb_get_class_tab(&line_bytes[head_off..], &s.rex.buf_mut().b_chartab.get())
             })
         });
     }
@@ -4072,7 +4072,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
 
     let engine = re_s.regexp_engine.get();
     let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
-    let chartab = curbuf_mut().b_chartab;
+    let chartab = curbuf_mut().b_chartab.get();
     let can_cache = g_st().reg_do_extmatch == 0
         && opt_vars().p_verbose.get() == 0
         && !expr.to_bytes().contains(&b'[');

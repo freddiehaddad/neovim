@@ -128,15 +128,15 @@ fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
 pub fn change_warning(buf: &mut FileBuf, col: i32) {
     const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
-    if !buf_ptr.b_did_warn
+    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    if !buf_ptr.b_did_warn.get()
         && !curbuf_is_changed_fn()
         && !g_st().autocmd_busy
         && buf_ptr.b_p_ro.get()
     {
-        buf_ptr.b_ro_locked += 1;
+        buf_ptr.b_ro_locked.set(buf_ptr.b_ro_locked.get() + (1));
         apply_autocmds(EVENT_FILECHANGEDRO, None, None, false, buf_ptr.opt_mut());
-        buf_ptr.b_ro_locked -= 1;
+        buf_ptr.b_ro_locked.set(buf_ptr.b_ro_locked.get() - (1));
         if !buf_ptr.b_p_ro.get() {
             return;
         }
@@ -153,7 +153,7 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
         if g_st().msg_silent == 0 && !g_st().silent_mode && ui_active() != 0 {
             msg_delay(1002, true);
         }
-        buf.b_did_warn = true;
+        buf.b_did_warn.set(true);
         g_st().redraw_cmdline = false;
         if g_st().msg_row < g_st().rows_global - 1 {
             showmode();
@@ -168,7 +168,7 @@ pub fn changed(buf: &mut FileBuf) {
 
         change_warning(buf, 0);
 
-        if buf.b_may_swap && !bt_dontwrite(Some(&*buf)) {
+        if buf.b_may_swap.get() && !bt_dontwrite(Some(&*buf)) {
             let save_need_wait_return = g_st().need_wait_return;
 
             g_st().need_wait_return = false;
@@ -319,17 +319,17 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                 col,
                 coladd: 0,
             },
-            buf.b_fnum,
+            buf.b_fnum.get(),
             view,
         );
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 && !mc_replaying() {
-        if buf.b_new_change || buf.b_changelistlen == 0 {
-            let add = if buf.b_changelistlen == 0 {
+        if buf.b_new_change.get() || buf.b_changelistlen.get() == 0 {
+            let add = if buf.b_changelistlen.get() == 0 {
                 true
             } else {
-                let p = &buf.b_changelist[(buf.b_changelistlen - 1) as usize].mark;
+                let p = &buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize].mark;
                 if p.lnum != lnum {
                     true
                 } else {
@@ -341,10 +341,10 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                 }
             };
             if add {
-                buf.b_new_change = false;
+                buf.b_new_change.set(false);
 
-                if buf.b_changelistlen == JUMPLISTSIZE {
-                    buf.b_changelistlen = JUMPLISTSIZE - 1;
+                if buf.b_changelistlen.get() == JUMPLISTSIZE {
+                    buf.b_changelistlen.set(JUMPLISTSIZE - 1);
                     buf.b_changelist.rotate_left(1);
                     for_all_tab_windows(|wp| {
                         if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx > 0 {
@@ -353,16 +353,18 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                     });
                 }
                 for_all_tab_windows(|wp| {
-                    if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx == buf.b_changelistlen {
+                    if wp.w_buffer == (&raw mut *buf)
+                        && wp.w_changelistidx == buf.b_changelistlen.get()
+                    {
                         wp.w_changelistidx += 1;
                     }
                 });
-                buf.b_changelistlen += 1;
+                buf.b_changelistlen.set(buf.b_changelistlen.get() + (1));
             }
         }
-        buf.b_changelist[(buf.b_changelistlen - 1) as usize] = buf.b_last_change.clone();
+        buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize] = buf.b_last_change.clone();
         if curwin_mut().w_buffer == (&raw mut *buf) {
-            curwin_mut().w_changelistidx = buf.b_changelistlen;
+            curwin_mut().w_changelistidx = buf.b_changelistlen.get();
         }
     }
 
@@ -522,19 +524,19 @@ pub fn changed_lines_redraw_buf(buf: &mut FileBuf, lnum: Linenr, mut lnume: Line
         lnume += 1 + i32::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
     }
 
-    if buf.b_mod_set {
-        buf.b_mod_top = buf.b_mod_top.min(lnum);
-        if lnum < buf.b_mod_bot {
-            buf.b_mod_bot += xtra;
-            buf.b_mod_bot = buf.b_mod_bot.max(lnum);
+    if buf.b_mod_set.get() {
+        buf.b_mod_top.set(buf.b_mod_top.get().min(lnum));
+        if lnum < buf.b_mod_bot.get() {
+            buf.b_mod_bot.set(buf.b_mod_bot.get() + (xtra));
+            buf.b_mod_bot.set(buf.b_mod_bot.get().max(lnum));
         }
-        buf.b_mod_bot = buf.b_mod_bot.max(lnume + xtra);
-        buf.b_mod_xlines += xtra;
+        buf.b_mod_bot.set(buf.b_mod_bot.get().max(lnume + xtra));
+        buf.b_mod_xlines.set(buf.b_mod_xlines.get() + (xtra));
     } else {
-        buf.b_mod_set = true;
-        buf.b_mod_top = lnum;
-        buf.b_mod_bot = lnume + xtra;
-        buf.b_mod_xlines = xtra;
+        buf.b_mod_set.set(true);
+        buf.b_mod_top.set(lnum);
+        buf.b_mod_bot.set(lnume + xtra);
+        buf.b_mod_xlines.set(xtra);
     }
 }
 
@@ -597,10 +599,10 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
-    buf.b_start_ffc = i32::from(buf.b_p_ff.first_byte());
-    buf.b_start_eof = buf.b_p_eof.get();
-    buf.b_start_eol = buf.b_p_eol.get();
-    buf.b_start_bomb = buf.b_p_bomb.get();
+    buf.b_start_ffc.set(i32::from(buf.b_p_ff.first_byte()));
+    buf.b_start_eof.set(buf.b_p_eof.get());
+    buf.b_start_eol.set(buf.b_p_eol.get());
+    buf.b_start_bomb.set(buf.b_p_bomb.get());
 
     let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
@@ -615,25 +617,26 @@ pub fn save_file_ff(buf: &mut FileBuf) {
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
 pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
-    if (buf.b_flags & BF_NEVERLOADED) != 0 {
+    if (buf.b_flags.get() & BF_NEVERLOADED) != 0 {
         return false;
     }
     if ignore_empty
-        && (buf.b_flags & BF_NEW) != 0
+        && (buf.b_flags.get() & BF_NEW) != 0
         && buf.b_ml.ml_line_count == 1
         && crate::memline::ml_get_buf_slice(buf, 1).is_empty()
     {
         return false;
     }
-    if buf.b_start_ffc != i32::from(buf.b_p_ff.first_byte()) {
+    if buf.b_start_ffc.get() != i32::from(buf.b_p_ff.first_byte()) {
         return true;
     }
     if (buf.b_p_bin.get() || !buf.b_p_fixeol.get())
-        && (buf.b_start_eof != buf.b_p_eof.get() || buf.b_start_eol != buf.b_p_eol.get())
+        && (buf.b_start_eof.get() != buf.b_p_eof.get()
+            || buf.b_start_eol.get() != buf.b_p_eol.get())
     {
         return true;
     }
-    if !buf.b_p_bin.get() && buf.b_start_bomb != buf.b_p_bomb.get() {
+    if !buf.b_p_bin.get() && buf.b_start_bomb.get() != buf.b_p_bomb.get() {
         return true;
     }
     let Some(ref start_fenc) = buf.b_start_fenc else {

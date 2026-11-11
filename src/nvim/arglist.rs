@@ -443,7 +443,7 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
         return false;
     }
     let entry = warg_entry(&*win, idx as usize);
-    if win.buf_mut().b_fnum == entry.ae_fnum {
+    if win.buf_mut().b_fnum.get() == entry.ae_fnum {
         return true;
     }
     win.buf_mut().ffname_opt().is_some_and(|ffname| {
@@ -469,7 +469,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
         {
             let last_entry = garg_entry((gcount - 1) as usize);
             let buf = win.buf_mut();
-            if buf.b_fnum == last_entry.ae_fnum
+            if buf.b_fnum.get() == last_entry.ae_fnum
                 || (buf.b_ffname.is_some()
                     && path_equal(
                         alist_name(&last_entry).unwrap_or(c""),
@@ -592,7 +592,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     }
 
     if !is_split_cmd
-        && arg_entry(argn as usize).ae_fnum != curbuf_mut().b_fnum
+        && arg_entry(argn as usize).ae_fnum != curbuf_mut().b_fnum.get()
         && !check_can_set_curbuf_forceit(eap.forceit)
     {
         return;
@@ -858,7 +858,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             let mut i: i32;
             if buf.b_ffname.is_none()
                 || (!aall_ref.keep_tabs
-                    && (buf.b_nwindows > 1
+                    && (buf.b_nwindows.get() > 1
                         || wp.w_width != g_st().columns_global
                         || (wp.w_floating && !is_ctx_win(&wp))))
             {
@@ -869,7 +869,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     let al = &aall_ref.alist;
                     let entry_opt = al.al_ga.borrow().get(i as usize).cloned();
                     if let Some(ref entry) = entry_opt
-                        && (entry.ae_fnum == buf.b_fnum
+                        && (entry.ae_fnum == buf.b_fnum.get()
                             || path_equal(
                                 alist_name(entry).unwrap_or(c""),
                                 buf.ffname_cstr(),
@@ -912,10 +912,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 && !aall_ref.keep_tabs
                 && (buf_hide(&*buf)
                     || aall_ref.forceit
-                    || buf.b_nwindows > 1
+                    || buf.b_nwindows.get() > 1
                     || !buf_is_changed_fn(&mut *buf))
             {
-                if !buf_hide(&*buf) && buf.b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
+                if !buf_hide(&*buf) && buf.b_nwindows.get() <= 1 && buf_is_changed_fn(&mut *buf) {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
@@ -966,7 +966,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
     if aall.keep_tabs
         && buf_is_empty(curbuf_mut())
-        && curbuf_mut().b_nwindows == 1
+        && curbuf_mut().b_nwindows.get() == 1
         && curbuf_mut().b_ffname.is_none()
         && curbuf_mut().b_changed.get() == 0
     {

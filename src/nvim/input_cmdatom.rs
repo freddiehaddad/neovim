@@ -519,7 +519,7 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
 #[inline]
 fn atom_origin_undoseq(origin: CmdOrigin) -> i32 {
     if bufref_valid(Some(&origin.buf)) {
-        origin.buf.buf_opt().map_or(0, |b| b.b_u_seq_cur)
+        origin.buf.buf_opt().map_or(0, |b| b.b_u_seq_cur.get())
     } else {
         0
     }

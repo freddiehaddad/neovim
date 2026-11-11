@@ -3814,7 +3814,7 @@ pub fn find_pattern_in_path(
                                         if l_g_do_tagpreview != 0 {
                                             if !win_valid(curwin_save.opt())
                                                 || !getfile_success(getfile(
-                                                    curwin_save.buf_mut().b_fnum,
+                                                    curwin_save.buf_mut().b_fnum.get(),
                                                     None,
                                                     None,
                                                     true,

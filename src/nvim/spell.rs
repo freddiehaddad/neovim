@@ -1300,7 +1300,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
     };
     let lang_bytes = lang_cstr.to_bytes_with_nul();
     sl.sl_lang[..lang_bytes.len()].copy_from_slice(lang_bytes);
-    curbuf_mut().b_locked += 1;
+    curbuf_mut().b_locked.set(curbuf_mut().b_locked.get() + (1));
     for round in 1..=2 {
         let max_len = fname_enc.len() - 5;
         format_to_buf!(
@@ -1367,7 +1367,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
     }
-    curbuf_mut().b_locked -= 1;
+    curbuf_mut().b_locked.set(curbuf_mut().b_locked.get() - (1));
 }
 pub fn spell_enc() -> std::ffi::CString {
     if opt_vars().p_enc.as_bytes().len() < 60 && (opt_vars().p_enc.as_bytes() != b"iso-8859-15") {
@@ -2006,7 +2006,7 @@ pub fn spell_reload() {
 }
 pub fn open_spellbuf() -> Box<FileBuf> {
     let mut buf = Box::new(FileBuf::new());
-    buf.b_spell = true;
+    buf.b_spell.set(true);
     buf.b_p_swf.set(true);
     if !ml_open(&mut buf) {
         let _ = logmsg!(

@@ -2491,13 +2491,13 @@ fn do_source_buffer_init(
             format_to_buf!(
                 &mut g_st().iobuff,
                 c":{range}lua buffer=%d",
-                curbuf_mut().b_fnum,
+                curbuf_mut().b_fnum.get(),
             );
         } else {
             format_to_buf!(
                 &mut g_st().iobuff,
                 c":source buffer=%d",
-                curbuf_mut().b_fnum,
+                curbuf_mut().b_fnum.get(),
             );
         }
         g_st().iobuff_cstr().to_owned()
@@ -2808,7 +2808,7 @@ fn do_source_ext(
                 .is_some_and(|f| path_with_extension(f, c"lua"))
         {
             let mut args_items = [
-                integer_obj(Integer::from(curbuf_mut().b_fnum)),
+                integer_obj(Integer::from(curbuf_mut().b_fnum.get())),
                 integer_obj(Integer::from(eap.line1)),
                 integer_obj(Integer::from(eap.line2)),
             ];

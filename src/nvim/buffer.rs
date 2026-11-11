@@ -200,80 +200,80 @@ pub enum BufFname {
 
 #[repr(C)]
 pub struct FileBuf {
-    pub b_fnum: crate::msgpack_rpc::packer::ObjHandle,
+    pub b_fnum: std::cell::Cell<crate::msgpack_rpc::packer::ObjHandle>,
     pub b_ml: crate::memline::Memline,
     pub b_next: crate::globals::BufPtr,
     pub b_prev: crate::globals::BufPtr,
-    pub b_nwindows: i32,
-    pub b_flags: i32,
-    pub b_locked: i32,
-    pub b_locked_split: i32,
-    pub b_ro_locked: i32,
+    pub b_nwindows: std::cell::Cell<i32>,
+    pub b_flags: std::cell::Cell<i32>,
+    pub b_locked: std::cell::Cell<i32>,
+    pub b_locked_split: std::cell::Cell<i32>,
+    pub b_ro_locked: std::cell::Cell<i32>,
     pub b_ffname: Option<std::ffi::CString>,
     pub b_sfname: Option<std::ffi::CString>,
-    pub b_fname: BufFname,
-    pub file_id_valid: bool,
-    pub file_id: FileID,
+    pub b_fname: std::cell::Cell<BufFname>,
+    pub file_id_valid: std::cell::Cell<bool>,
+    pub file_id: std::cell::Cell<FileID>,
     pub b_changed: std::cell::Cell<i32>,
     pub changedtick_di: crate::eval::typval::DictitemId,
-    pub b_last_changedtick: i64,
-    pub b_last_changedtick_i: i64,
-    pub b_last_changedtick_pum: i64,
-    pub b_saving: bool,
-    pub b_mod_set: bool,
-    pub b_mod_top: i32,
-    pub b_mod_bot: i32,
-    pub b_mod_xlines: i32,
+    pub b_last_changedtick: std::cell::Cell<i64>,
+    pub b_last_changedtick_i: std::cell::Cell<i64>,
+    pub b_last_changedtick_pum: std::cell::Cell<i64>,
+    pub b_saving: std::cell::Cell<bool>,
+    pub b_mod_set: std::cell::Cell<bool>,
+    pub b_mod_top: std::cell::Cell<i32>,
+    pub b_mod_bot: std::cell::Cell<i32>,
+    pub b_mod_xlines: std::cell::Cell<i32>,
     pub b_wininfo: Vec<WinInfo>,
-    pub b_mod_tick_syn: u64,
-    pub b_mod_tick_decor: u64,
-    pub b_mtime: i64,
-    pub b_mtime_ns: i64,
-    pub b_mtime_read: i64,
-    pub b_mtime_read_ns: i64,
-    pub b_orig_size: u64,
-    pub b_orig_mode: i32,
-    pub b_last_used: i64,
+    pub b_mod_tick_syn: std::cell::Cell<u64>,
+    pub b_mod_tick_decor: std::cell::Cell<u64>,
+    pub b_mtime: std::cell::Cell<i64>,
+    pub b_mtime_ns: std::cell::Cell<i64>,
+    pub b_mtime_read: std::cell::Cell<i64>,
+    pub b_mtime_read_ns: std::cell::Cell<i64>,
+    pub b_orig_size: std::cell::Cell<u64>,
+    pub b_orig_mode: std::cell::Cell<i32>,
+    pub b_last_used: std::cell::Cell<i64>,
     pub b_namedm: [Fmark; 26],
     pub b_visual: crate::normal::Visualinfo,
-    pub b_visual_mode_eval: i32,
+    pub b_visual_mode_eval: std::cell::Cell<i32>,
     pub b_last_cursor: Fmark,
     pub b_last_insert: Fmark,
     pub b_last_change: Fmark,
     pub b_changelist: [Fmark; 100],
-    pub b_changelistlen: i32,
-    pub b_new_change: bool,
-    pub b_chartab: [u64; 4],
+    pub b_changelistlen: std::cell::Cell<i32>,
+    pub b_new_change: std::cell::Cell<bool>,
+    pub b_chartab: std::cell::Cell<[u64; 4]>,
     pub b_maphash: [Vec<crate::mapping::Mapblock>; 256],
     pub b_first_abbr: Vec<crate::mapping::Mapblock>,
     pub b_ucmds: Vec<crate::usercmd::Ucmd>,
     pub b_op_start: CursorPos,
     pub b_op_start_orig: CursorPos,
     pub b_op_end: CursorPos,
-    pub b_marks_read: bool,
-    pub b_modified_was_set: bool,
-    pub b_did_filetype: bool,
-    pub b_keep_filetype: bool,
-    pub b_au_did_filetype: bool,
+    pub b_marks_read: std::cell::Cell<bool>,
+    pub b_modified_was_set: std::cell::Cell<bool>,
+    pub b_did_filetype: std::cell::Cell<bool>,
+    pub b_keep_filetype: std::cell::Cell<bool>,
+    pub b_au_did_filetype: std::cell::Cell<bool>,
     pub b_u_headers: Vec<crate::undo::UHeader>,
     pub b_u_free_headers: Vec<usize>,
-    pub b_u_oldhead: Option<usize>,
-    pub b_u_newhead: Option<usize>,
-    pub b_u_curhead: Option<usize>,
-    pub b_u_numhead: i32,
-    pub b_u_synced: bool,
-    pub b_u_seq_last: i32,
-    pub b_u_save_nr_last: i32,
-    pub b_u_seq_cur: i32,
-    pub b_u_time_cur: i64,
-    pub b_u_save_nr_cur: i32,
+    pub b_u_oldhead: std::cell::Cell<Option<usize>>,
+    pub b_u_newhead: std::cell::Cell<Option<usize>>,
+    pub b_u_curhead: std::cell::Cell<Option<usize>>,
+    pub b_u_numhead: std::cell::Cell<i32>,
+    pub b_u_synced: std::cell::Cell<bool>,
+    pub b_u_seq_last: std::cell::Cell<i32>,
+    pub b_u_save_nr_last: std::cell::Cell<i32>,
+    pub b_u_seq_cur: std::cell::Cell<i32>,
+    pub b_u_time_cur: std::cell::Cell<i64>,
+    pub b_u_save_nr_cur: std::cell::Cell<i32>,
     pub b_u_line_ptr: Option<std::ffi::CString>,
-    pub b_u_line_lnum: i32,
-    pub b_u_line_colnr: i32,
-    pub b_scanned: bool,
+    pub b_u_line_lnum: std::cell::Cell<i32>,
+    pub b_u_line_colnr: std::cell::Cell<i32>,
+    pub b_scanned: std::cell::Cell<bool>,
     pub b_p_iminsert: std::cell::Cell<i64>,
     pub b_p_imsearch: std::cell::Cell<i64>,
-    pub b_kmap_state: i16,
+    pub b_kmap_state: std::cell::Cell<i16>,
     pub b_kmap_ga: Vec<crate::digraph::Kmap>,
     pub b_p_initialized: std::cell::Cell<bool>,
     pub b_p_script_ctx: [std::cell::Cell<crate::runtime::Sctx>; 93],
@@ -288,7 +288,7 @@ pub struct FileBuf {
     pub b_p_bh: crate::option_vars::OptString,
     pub b_p_bt: crate::option_vars::OptString,
     pub b_p_busy: std::cell::Cell<i64>,
-    pub b_has_qf_entry: i32,
+    pub b_has_qf_entry: std::cell::Cell<i32>,
     pub b_p_bl: std::cell::Cell<bool>,
     pub b_p_channel: std::cell::Cell<i64>,
     pub b_p_cin: std::cell::Cell<bool>,
@@ -385,78 +385,78 @@ pub struct FileBuf {
     pub b_p_ul: std::cell::Cell<i64>,
     pub b_p_udf: std::cell::Cell<bool>,
     pub b_p_lw: crate::option_vars::OptString,
-    pub b_ind_level: i32,
-    pub b_ind_open_imag: i32,
-    pub b_ind_no_brace: i32,
-    pub b_ind_first_open: i32,
-    pub b_ind_open_extra: i32,
-    pub b_ind_close_extra: i32,
-    pub b_ind_open_left_imag: i32,
-    pub b_ind_jump_label: i32,
-    pub b_ind_case: i32,
-    pub b_ind_case_code: i32,
-    pub b_ind_case_break: i32,
-    pub b_ind_param: i32,
-    pub b_ind_func_type: i32,
-    pub b_ind_comment: i32,
-    pub b_ind_in_comment: i32,
-    pub b_ind_in_comment2: i32,
-    pub b_ind_cpp_baseclass: i32,
-    pub b_ind_continuation: i32,
-    pub b_ind_unclosed: i32,
-    pub b_ind_unclosed2: i32,
-    pub b_ind_unclosed_noignore: i32,
-    pub b_ind_unclosed_wrapped: i32,
-    pub b_ind_unclosed_whiteok: i32,
-    pub b_ind_matching_paren: i32,
-    pub b_ind_paren_prev: i32,
-    pub b_ind_maxparen: i32,
-    pub b_ind_maxcomment: i32,
-    pub b_ind_scopedecl: i32,
-    pub b_ind_scopedecl_code: i32,
-    pub b_ind_java: i32,
-    pub b_ind_js: i32,
-    pub b_ind_keep_case_label: i32,
-    pub b_ind_hash_comment: i32,
-    pub b_ind_cpp_namespace: i32,
-    pub b_ind_if_for_while: i32,
-    pub b_ind_cpp_extern_c: i32,
-    pub b_ind_pragma: i32,
-    pub b_no_eol_lnum: i32,
-    pub b_start_eof: bool,
-    pub b_start_eol: bool,
-    pub b_start_ffc: i32,
+    pub b_ind_level: std::cell::Cell<i32>,
+    pub b_ind_open_imag: std::cell::Cell<i32>,
+    pub b_ind_no_brace: std::cell::Cell<i32>,
+    pub b_ind_first_open: std::cell::Cell<i32>,
+    pub b_ind_open_extra: std::cell::Cell<i32>,
+    pub b_ind_close_extra: std::cell::Cell<i32>,
+    pub b_ind_open_left_imag: std::cell::Cell<i32>,
+    pub b_ind_jump_label: std::cell::Cell<i32>,
+    pub b_ind_case: std::cell::Cell<i32>,
+    pub b_ind_case_code: std::cell::Cell<i32>,
+    pub b_ind_case_break: std::cell::Cell<i32>,
+    pub b_ind_param: std::cell::Cell<i32>,
+    pub b_ind_func_type: std::cell::Cell<i32>,
+    pub b_ind_comment: std::cell::Cell<i32>,
+    pub b_ind_in_comment: std::cell::Cell<i32>,
+    pub b_ind_in_comment2: std::cell::Cell<i32>,
+    pub b_ind_cpp_baseclass: std::cell::Cell<i32>,
+    pub b_ind_continuation: std::cell::Cell<i32>,
+    pub b_ind_unclosed: std::cell::Cell<i32>,
+    pub b_ind_unclosed2: std::cell::Cell<i32>,
+    pub b_ind_unclosed_noignore: std::cell::Cell<i32>,
+    pub b_ind_unclosed_wrapped: std::cell::Cell<i32>,
+    pub b_ind_unclosed_whiteok: std::cell::Cell<i32>,
+    pub b_ind_matching_paren: std::cell::Cell<i32>,
+    pub b_ind_paren_prev: std::cell::Cell<i32>,
+    pub b_ind_maxparen: std::cell::Cell<i32>,
+    pub b_ind_maxcomment: std::cell::Cell<i32>,
+    pub b_ind_scopedecl: std::cell::Cell<i32>,
+    pub b_ind_scopedecl_code: std::cell::Cell<i32>,
+    pub b_ind_java: std::cell::Cell<i32>,
+    pub b_ind_js: std::cell::Cell<i32>,
+    pub b_ind_keep_case_label: std::cell::Cell<i32>,
+    pub b_ind_hash_comment: std::cell::Cell<i32>,
+    pub b_ind_cpp_namespace: std::cell::Cell<i32>,
+    pub b_ind_if_for_while: std::cell::Cell<i32>,
+    pub b_ind_cpp_extern_c: std::cell::Cell<i32>,
+    pub b_ind_pragma: std::cell::Cell<i32>,
+    pub b_no_eol_lnum: std::cell::Cell<i32>,
+    pub b_start_eof: std::cell::Cell<bool>,
+    pub b_start_eol: std::cell::Cell<bool>,
+    pub b_start_ffc: std::cell::Cell<i32>,
     pub b_start_fenc: Option<std::ffi::CString>,
-    pub b_bad_char: i32,
-    pub b_start_bomb: bool,
+    pub b_bad_char: std::cell::Cell<i32>,
+    pub b_start_bomb: std::cell::Cell<bool>,
     pub b_bufvar: crate::eval::typval::DictitemId,
-    pub b_may_swap: bool,
-    pub b_did_warn: bool,
-    pub b_help: bool,
-    pub b_spell: bool,
+    pub b_may_swap: std::cell::Cell<bool>,
+    pub b_did_warn: std::cell::Cell<bool>,
+    pub b_help: std::cell::Cell<bool>,
+    pub b_spell: std::cell::Cell<bool>,
     pub b_prompt_text: Option<std::ffi::CString>,
     pub b_prompt_callback: crate::eval::typval::Callback,
     pub b_prompt_interrupt: crate::eval::typval::Callback,
-    pub b_prompt_append_new_line: bool,
-    pub b_prompt_insert: i32,
+    pub b_prompt_append_new_line: std::cell::Cell<bool>,
+    pub b_prompt_insert: std::cell::Cell<i32>,
     pub b_prompt_start: Fmark,
     pub b_s: Synblock,
     pub b_signcols: BufSigncols,
-    pub terminal: TermId,
+    pub terminal: std::cell::Cell<TermId>,
     pub additional_data: Option<crate::search::AdditionalData>,
-    pub b_mapped_ctrl_c: i32,
+    pub b_mapped_ctrl_c: std::cell::Cell<i32>,
     pub b_marktree: crate::marktree::MarkTree,
     pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
-    pub b_conceal_providers: i32,
-    pub b_prev_line_count: i32,
+    pub b_conceal_providers: std::cell::Cell<i32>,
+    pub b_prev_line_count: std::cell::Cell<i32>,
     pub update_channels: Vec<u64>,
     pub update_callbacks: Vec<BufUpdateCallbacks>,
-    pub update_need_codepoints: bool,
-    pub deleted_bytes: usize,
-    pub deleted_bytes2: usize,
-    pub deleted_codepoints: usize,
-    pub deleted_codeunits: usize,
-    pub flush_count: i32,
+    pub update_need_codepoints: std::cell::Cell<bool>,
+    pub deleted_bytes: std::cell::Cell<usize>,
+    pub deleted_bytes2: std::cell::Cell<usize>,
+    pub deleted_codepoints: std::cell::Cell<usize>,
+    pub deleted_codeunits: std::cell::Cell<usize>,
+    pub flush_count: std::cell::Cell<i32>,
     pub b_localdir: Option<std::ffi::CString>,
     pub b_prevdir: Option<std::ffi::CString>,
 }
@@ -464,12 +464,12 @@ pub struct FileBuf {
 impl FileBuf {
     #[inline]
     pub fn terminal_mut(&self) -> TermId {
-        self.terminal
+        self.terminal.get()
     }
 
     #[inline]
     pub fn terminal_opt(&self) -> Option<TermId> {
-        self.terminal.opt()
+        self.terminal.get().opt()
     }
 
     pub const fn new() -> Self {
@@ -485,43 +485,43 @@ impl FileBuf {
             sc_chan: 0,
         };
         Self {
-            b_fnum: 0,
+            b_fnum: std::cell::Cell::new(0),
             b_ml: crate::memline::Memline::new(),
             b_next: crate::globals::BufPtr::NULL,
             b_prev: crate::globals::BufPtr::NULL,
-            b_nwindows: 0,
-            b_flags: 0,
-            b_locked: 0,
-            b_locked_split: 0,
-            b_ro_locked: 0,
+            b_nwindows: std::cell::Cell::new(0),
+            b_flags: std::cell::Cell::new(0),
+            b_locked: std::cell::Cell::new(0),
+            b_locked_split: std::cell::Cell::new(0),
+            b_ro_locked: std::cell::Cell::new(0),
             b_ffname: None,
             b_sfname: None,
-            b_fname: BufFname::None,
-            file_id_valid: false,
-            file_id: FileID {
+            b_fname: std::cell::Cell::new(BufFname::None),
+            file_id_valid: std::cell::Cell::new(false),
+            file_id: std::cell::Cell::new(FileID {
                 inode: 0,
                 device_id: 0,
-            },
+            }),
             b_changed: std::cell::Cell::new(0),
             changedtick_di: crate::eval::typval::DictitemId::NULL,
-            b_last_changedtick: 0,
-            b_last_changedtick_i: 0,
-            b_last_changedtick_pum: 0,
-            b_saving: false,
-            b_mod_set: false,
-            b_mod_top: 0,
-            b_mod_bot: 0,
-            b_mod_xlines: 0,
+            b_last_changedtick: std::cell::Cell::new(0),
+            b_last_changedtick_i: std::cell::Cell::new(0),
+            b_last_changedtick_pum: std::cell::Cell::new(0),
+            b_saving: std::cell::Cell::new(false),
+            b_mod_set: std::cell::Cell::new(false),
+            b_mod_top: std::cell::Cell::new(0),
+            b_mod_bot: std::cell::Cell::new(0),
+            b_mod_xlines: std::cell::Cell::new(0),
             b_wininfo: Vec::new(),
-            b_mod_tick_syn: 0,
-            b_mod_tick_decor: 0,
-            b_mtime: 0,
-            b_mtime_ns: 0,
-            b_mtime_read: 0,
-            b_mtime_read_ns: 0,
-            b_orig_size: 0,
-            b_orig_mode: 0,
-            b_last_used: 0,
+            b_mod_tick_syn: std::cell::Cell::new(0),
+            b_mod_tick_decor: std::cell::Cell::new(0),
+            b_mtime: std::cell::Cell::new(0),
+            b_mtime_ns: std::cell::Cell::new(0),
+            b_mtime_read: std::cell::Cell::new(0),
+            b_mtime_read_ns: std::cell::Cell::new(0),
+            b_orig_size: std::cell::Cell::new(0),
+            b_orig_mode: std::cell::Cell::new(0),
+            b_last_used: std::cell::Cell::new(0),
             b_namedm: [const { Fmark::ZERO }; 26],
             b_visual: crate::normal::Visualinfo {
                 vi_start: ZERO_POS,
@@ -529,44 +529,44 @@ impl FileBuf {
                 vi_mode: 0,
                 vi_curswant: 0,
             },
-            b_visual_mode_eval: 0,
+            b_visual_mode_eval: std::cell::Cell::new(0),
             b_last_cursor: Fmark::ZERO,
             b_last_insert: Fmark::ZERO,
             b_last_change: Fmark::ZERO,
             b_changelist: [const { Fmark::ZERO }; 100],
-            b_changelistlen: 0,
-            b_new_change: false,
-            b_chartab: [0; 4],
+            b_changelistlen: std::cell::Cell::new(0),
+            b_new_change: std::cell::Cell::new(false),
+            b_chartab: std::cell::Cell::new([0; 4]),
             b_maphash: [const { Vec::new() }; 256],
             b_first_abbr: Vec::new(),
             b_ucmds: Vec::new(),
             b_op_start: ZERO_POS,
             b_op_start_orig: ZERO_POS,
             b_op_end: ZERO_POS,
-            b_marks_read: false,
-            b_modified_was_set: false,
-            b_did_filetype: false,
-            b_keep_filetype: false,
-            b_au_did_filetype: false,
+            b_marks_read: std::cell::Cell::new(false),
+            b_modified_was_set: std::cell::Cell::new(false),
+            b_did_filetype: std::cell::Cell::new(false),
+            b_keep_filetype: std::cell::Cell::new(false),
+            b_au_did_filetype: std::cell::Cell::new(false),
             b_u_headers: Vec::new(),
             b_u_free_headers: Vec::new(),
-            b_u_oldhead: None,
-            b_u_newhead: None,
-            b_u_curhead: None,
-            b_u_numhead: 0,
-            b_u_synced: false,
-            b_u_seq_last: 0,
-            b_u_save_nr_last: 0,
-            b_u_seq_cur: 0,
-            b_u_time_cur: 0,
-            b_u_save_nr_cur: 0,
+            b_u_oldhead: std::cell::Cell::new(None),
+            b_u_newhead: std::cell::Cell::new(None),
+            b_u_curhead: std::cell::Cell::new(None),
+            b_u_numhead: std::cell::Cell::new(0),
+            b_u_synced: std::cell::Cell::new(false),
+            b_u_seq_last: std::cell::Cell::new(0),
+            b_u_save_nr_last: std::cell::Cell::new(0),
+            b_u_seq_cur: std::cell::Cell::new(0),
+            b_u_time_cur: std::cell::Cell::new(0),
+            b_u_save_nr_cur: std::cell::Cell::new(0),
             b_u_line_ptr: None,
-            b_u_line_lnum: 0,
-            b_u_line_colnr: 0,
-            b_scanned: false,
+            b_u_line_lnum: std::cell::Cell::new(0),
+            b_u_line_colnr: std::cell::Cell::new(0),
+            b_scanned: std::cell::Cell::new(false),
             b_p_iminsert: std::cell::Cell::new(0),
             b_p_imsearch: std::cell::Cell::new(0),
-            b_kmap_state: 0,
+            b_kmap_state: std::cell::Cell::new(0),
             b_kmap_ga: Vec::new(),
             b_p_initialized: std::cell::Cell::new(false),
             b_p_script_ctx: [const { std::cell::Cell::new(ZERO_SCTX) }; 93],
@@ -581,7 +581,7 @@ impl FileBuf {
             b_p_bh: crate::option_vars::OptString::new(),
             b_p_bt: crate::option_vars::OptString::new(),
             b_p_busy: std::cell::Cell::new(0),
-            b_has_qf_entry: 0,
+            b_has_qf_entry: std::cell::Cell::new(0),
             b_p_bl: std::cell::Cell::new(false),
             b_p_channel: std::cell::Cell::new(0),
             b_p_cin: std::cell::Cell::new(false),
@@ -678,60 +678,60 @@ impl FileBuf {
             b_p_ul: std::cell::Cell::new(0),
             b_p_udf: std::cell::Cell::new(false),
             b_p_lw: crate::option_vars::OptString::new(),
-            b_ind_level: 0,
-            b_ind_open_imag: 0,
-            b_ind_no_brace: 0,
-            b_ind_first_open: 0,
-            b_ind_open_extra: 0,
-            b_ind_close_extra: 0,
-            b_ind_open_left_imag: 0,
-            b_ind_jump_label: 0,
-            b_ind_case: 0,
-            b_ind_case_code: 0,
-            b_ind_case_break: 0,
-            b_ind_param: 0,
-            b_ind_func_type: 0,
-            b_ind_comment: 0,
-            b_ind_in_comment: 0,
-            b_ind_in_comment2: 0,
-            b_ind_cpp_baseclass: 0,
-            b_ind_continuation: 0,
-            b_ind_unclosed: 0,
-            b_ind_unclosed2: 0,
-            b_ind_unclosed_noignore: 0,
-            b_ind_unclosed_wrapped: 0,
-            b_ind_unclosed_whiteok: 0,
-            b_ind_matching_paren: 0,
-            b_ind_paren_prev: 0,
-            b_ind_maxparen: 0,
-            b_ind_maxcomment: 0,
-            b_ind_scopedecl: 0,
-            b_ind_scopedecl_code: 0,
-            b_ind_java: 0,
-            b_ind_js: 0,
-            b_ind_keep_case_label: 0,
-            b_ind_hash_comment: 0,
-            b_ind_cpp_namespace: 0,
-            b_ind_if_for_while: 0,
-            b_ind_cpp_extern_c: 0,
-            b_ind_pragma: 0,
-            b_no_eol_lnum: 0,
-            b_start_eof: false,
-            b_start_eol: false,
-            b_start_ffc: 0,
+            b_ind_level: std::cell::Cell::new(0),
+            b_ind_open_imag: std::cell::Cell::new(0),
+            b_ind_no_brace: std::cell::Cell::new(0),
+            b_ind_first_open: std::cell::Cell::new(0),
+            b_ind_open_extra: std::cell::Cell::new(0),
+            b_ind_close_extra: std::cell::Cell::new(0),
+            b_ind_open_left_imag: std::cell::Cell::new(0),
+            b_ind_jump_label: std::cell::Cell::new(0),
+            b_ind_case: std::cell::Cell::new(0),
+            b_ind_case_code: std::cell::Cell::new(0),
+            b_ind_case_break: std::cell::Cell::new(0),
+            b_ind_param: std::cell::Cell::new(0),
+            b_ind_func_type: std::cell::Cell::new(0),
+            b_ind_comment: std::cell::Cell::new(0),
+            b_ind_in_comment: std::cell::Cell::new(0),
+            b_ind_in_comment2: std::cell::Cell::new(0),
+            b_ind_cpp_baseclass: std::cell::Cell::new(0),
+            b_ind_continuation: std::cell::Cell::new(0),
+            b_ind_unclosed: std::cell::Cell::new(0),
+            b_ind_unclosed2: std::cell::Cell::new(0),
+            b_ind_unclosed_noignore: std::cell::Cell::new(0),
+            b_ind_unclosed_wrapped: std::cell::Cell::new(0),
+            b_ind_unclosed_whiteok: std::cell::Cell::new(0),
+            b_ind_matching_paren: std::cell::Cell::new(0),
+            b_ind_paren_prev: std::cell::Cell::new(0),
+            b_ind_maxparen: std::cell::Cell::new(0),
+            b_ind_maxcomment: std::cell::Cell::new(0),
+            b_ind_scopedecl: std::cell::Cell::new(0),
+            b_ind_scopedecl_code: std::cell::Cell::new(0),
+            b_ind_java: std::cell::Cell::new(0),
+            b_ind_js: std::cell::Cell::new(0),
+            b_ind_keep_case_label: std::cell::Cell::new(0),
+            b_ind_hash_comment: std::cell::Cell::new(0),
+            b_ind_cpp_namespace: std::cell::Cell::new(0),
+            b_ind_if_for_while: std::cell::Cell::new(0),
+            b_ind_cpp_extern_c: std::cell::Cell::new(0),
+            b_ind_pragma: std::cell::Cell::new(0),
+            b_no_eol_lnum: std::cell::Cell::new(0),
+            b_start_eof: std::cell::Cell::new(false),
+            b_start_eol: std::cell::Cell::new(false),
+            b_start_ffc: std::cell::Cell::new(0),
             b_start_fenc: None,
-            b_bad_char: 0,
-            b_start_bomb: false,
+            b_bad_char: std::cell::Cell::new(0),
+            b_start_bomb: std::cell::Cell::new(false),
             b_bufvar: crate::eval::typval::DictitemId::NULL,
-            b_may_swap: false,
-            b_did_warn: false,
-            b_help: false,
-            b_spell: false,
+            b_may_swap: std::cell::Cell::new(false),
+            b_did_warn: std::cell::Cell::new(false),
+            b_help: std::cell::Cell::new(false),
+            b_spell: std::cell::Cell::new(false),
             b_prompt_text: None,
             b_prompt_callback: crate::eval::typval::Callback::NONE,
             b_prompt_interrupt: crate::eval::typval::Callback::NONE,
-            b_prompt_append_new_line: false,
-            b_prompt_insert: 0,
+            b_prompt_append_new_line: std::cell::Cell::new(false),
+            b_prompt_insert: std::cell::Cell::new(0),
             b_prompt_start: Fmark::ZERO,
             b_s: Synblock::new(),
             b_signcols: BufSigncols {
@@ -740,21 +740,21 @@ impl FileBuf {
                 count: [0; 9],
                 autom: false,
             },
-            terminal: TermId::NULL,
+            terminal: std::cell::Cell::new(TermId::NULL),
             additional_data: None,
-            b_mapped_ctrl_c: 0,
+            b_mapped_ctrl_c: std::cell::Cell::new(0),
             b_marktree: crate::marktree::MarkTree::new(),
             b_extmark_ns: std::collections::BTreeMap::new(),
-            b_conceal_providers: 0,
-            b_prev_line_count: 0,
+            b_conceal_providers: std::cell::Cell::new(0),
+            b_prev_line_count: std::cell::Cell::new(0),
             update_channels: Vec::new(),
             update_callbacks: Vec::new(),
-            update_need_codepoints: false,
-            deleted_bytes: 0,
-            deleted_bytes2: 0,
-            deleted_codepoints: 0,
-            deleted_codeunits: 0,
-            flush_count: 0,
+            update_need_codepoints: std::cell::Cell::new(false),
+            deleted_bytes: std::cell::Cell::new(0),
+            deleted_bytes2: std::cell::Cell::new(0),
+            deleted_codepoints: std::cell::Cell::new(0),
+            deleted_codeunits: std::cell::Cell::new(0),
+            flush_count: std::cell::Cell::new(0),
             b_localdir: None,
             b_prevdir: None,
         }
@@ -961,15 +961,15 @@ pub fn first_win_in_tab(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
 
 #[inline]
 pub fn modifiable(buf: &FileBuf) -> bool {
-    buf.b_p_ma.get() && buf.b_ro_locked == 0
+    buf.b_p_ma.get() && buf.b_ro_locked.get() == 0
 }
 
 fn trigger_undo_ftplugin(buf: &mut FileBuf, win: &mut WinInfoInfo) {
     window_layout_lock();
-    buf.b_locked += 1;
+    buf.b_locked.set(buf.b_locked.get() + (1));
     win.w_locked += 1;
     do_cmdline_cmd(c"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif");
-    buf.b_locked -= 1;
+    buf.b_locked.set(buf.b_locked.get() - (1));
     win.w_locked -= 1;
     window_layout_unlock();
 }
@@ -1071,7 +1071,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
     if g_st().readonlymode
         && curbuf_mut().b_ffname.is_some()
-        && (curbuf_mut().b_flags & BF_NEVERLOADED) != 0
+        && (curbuf_mut().b_flags.get() & BF_NEVERLOADED) != 0
     {
         curbuf_mut().b_p_ro.set(true);
     }
@@ -1113,7 +1113,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     }
 
     set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
-    curbuf_mut().b_modified_was_set = false;
+    curbuf_mut().b_modified_was_set.set(false);
 
     curwin_mut().w_valid = 0;
 
@@ -1209,13 +1209,13 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         mfp.mf_dirty = MF_DIRTY_YES;
     }
 
-    if (curbuf_mut().b_flags & BF_NEVERLOADED) != 0 {
+    if (curbuf_mut().b_flags.get() & BF_NEVERLOADED) != 0 {
         buf_init_isk_chartab(curbuf_mut());
         parse_cino(curbuf_mut());
     }
 
     if (g_st().got_int && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
-        || curbuf_mut().b_modified_was_set
+        || curbuf_mut().b_modified_was_set.get()
         || (aborting() && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
     {
         changed(crate::globals::curbuf_mut());
@@ -1225,12 +1225,14 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     save_file_ff(curbuf_mut());
 
     let tick = buf_get_changedtick(curbuf_mut());
-    curbuf_mut().b_last_changedtick = tick;
-    curbuf_mut().b_last_changedtick_i = tick;
-    curbuf_mut().b_last_changedtick_pum = tick;
+    curbuf_mut().b_last_changedtick.set(tick);
+    curbuf_mut().b_last_changedtick_i.set(tick);
+    curbuf_mut().b_last_changedtick_pum.set(tick);
 
     if aborting() {
-        curbuf_mut().b_flags |= BF_READERR;
+        curbuf_mut()
+            .b_flags
+            .set(curbuf_mut().b_flags.get() | (BF_READERR));
     }
 
     if retval.is_none()
@@ -1276,7 +1278,9 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
         ctx_switch(&mut aco, None, None, old_curbuf.buf_opt(), 0);
         do_modelines(0);
-        curbuf_mut().b_flags &= !(BF_CHECK_RO | BF_NEVERLOADED);
+        curbuf_mut()
+            .b_flags
+            .set(curbuf_mut().b_flags.get() & (!(BF_CHECK_RO | BF_NEVERLOADED)));
 
         if (flags & READ_NOWINENTER) == 0 {
             apply_autocmds_retval(
@@ -1298,7 +1302,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 /// Store `buf` in `bufref` and set the free count.
 pub fn set_bufref(bufref: &mut Bufref, buf: Option<&mut FileBuf>) {
     bufref.br_buf = buf.map_or(crate::globals::BufPtr::NULL, crate::globals::BufPtr::from);
-    bufref.br_fnum = bufref.buf_opt().map_or(0, |b| b.b_fnum);
+    bufref.br_fnum = bufref.buf_opt().map_or(0, |b| b.b_fnum.get());
     bufref.br_buf_free_count = BUF_STATE.with(|s| s.buf_free_count.get());
 }
 
@@ -1310,7 +1314,9 @@ pub fn bufref_valid(bufref: Option<&Bufref>) -> bool {
         true
     } else {
         buf_valid_handle(bufref.br_buf)
-            && bufref.buf_opt().is_some_and(|b| bufref.br_fnum == b.b_fnum)
+            && bufref
+                .buf_opt()
+                .is_some_and(|b| bufref.br_fnum == b.b_fnum.get())
     }
 }
 
@@ -1334,7 +1340,7 @@ pub fn buf_valid(buf: Option<&FileBuf>) -> bool {
 }
 
 fn can_unload_buffer(buf: &mut FileBuf) -> bool {
-    let mut can_unload = buf.b_locked == 0;
+    let mut can_unload = buf.b_locked.get() == 0;
 
     if can_unload && g_st().updating_screen {
         for wp in for_all_windows_mut() {
@@ -1344,7 +1350,7 @@ fn can_unload_buffer(buf: &mut FileBuf) -> bool {
             }
         }
     }
-    if can_unload && buf.b_saving {
+    if can_unload && buf.b_saving.get() {
         can_unload = false;
     }
 
@@ -1359,10 +1365,10 @@ fn can_unload_buffer(buf: &mut FileBuf) -> bool {
 }
 
 pub fn buf_close_terminal(buf: &mut FileBuf) {
-    debug_assert!(!buf.terminal.is_null());
-    buf.b_locked += 1;
+    debug_assert!(!buf.terminal.get().is_null());
+    buf.b_locked.set(buf.b_locked.get() + (1));
     terminal_close(buf.terminal_mut(), -1);
-    buf.b_locked -= 1;
+    buf.b_locked.set(buf.b_locked.get() - (1));
 }
 
 /// Close the link to a buffer.
@@ -1385,7 +1391,7 @@ pub fn close_buffer(
         && curwin_mut().w_buffer == buf.as_ptr();
     let the_curtab = crate::globals::curtab_handle();
 
-    if buf.borrow().terminal.is_null() {
+    if buf.borrow().terminal.get().is_null() {
         let bh0 = buf.borrow().b_p_bh.first_byte();
         if bh0 == b'd' {
             del_buf = true;
@@ -1399,7 +1405,7 @@ pub fn close_buffer(
         }
     }
 
-    if !buf.borrow().terminal.is_null() && (unload_buf || del_buf || wipe_buf) {
+    if !buf.borrow().terminal.get().is_null() && (unload_buf || del_buf || wipe_buf) {
         unload_buf = true;
         del_buf = true;
         wipe_buf = true;
@@ -1411,7 +1417,7 @@ pub fn close_buffer(
 
     let mut win_valid = win_valid_any_tab(win.opt());
     if set_context && win_valid && win.borrow().w_buffer == buf.as_ptr() {
-        if buf.borrow().b_nwindows == 1 {
+        if buf.borrow().b_nwindows.get() == 1 {
             set_last_cursor(win.borrow_mut());
         }
         let cursor = win.borrow().w_cursor;
@@ -1427,9 +1433,13 @@ pub fn close_buffer(
     let mut bufref: Bufref = Bufref::new();
     set_bufref(&mut bufref, buf.opt_mut());
 
-    if win_valid && win.borrow().w_buffer == buf.as_ptr() && buf.borrow().b_nwindows == 1 {
-        buf.borrow_mut().b_locked += 1;
-        buf.borrow_mut().b_locked_split += 1;
+    if win_valid && win.borrow().w_buffer == buf.as_ptr() && buf.borrow().b_nwindows.get() == 1 {
+        buf.borrow_mut()
+            .b_locked
+            .set(buf.borrow_mut().b_locked.get() + (1));
+        buf.borrow_mut()
+            .b_locked_split
+            .set(buf.borrow_mut().b_locked_split.get() + (1));
         let b_fname = buf.borrow().fname_opt();
         if apply_autocmds_win(
             EVENT_BUFWINLEAVE,
@@ -1443,16 +1453,24 @@ pub fn close_buffer(
             emsg(gettext(E_AUABORT));
             return false;
         }
-        buf.borrow_mut().b_locked -= 1;
-        buf.borrow_mut().b_locked_split -= 1;
+        buf.borrow_mut()
+            .b_locked
+            .set(buf.borrow_mut().b_locked.get() - (1));
+        buf.borrow_mut()
+            .b_locked_split
+            .set(buf.borrow_mut().b_locked_split.get() - (1));
         if abort_if_last && one_window(win.borrow_mut(), None) {
             emsg(gettext(E_AUABORT));
             return false;
         }
 
         if !unload_buf {
-            buf.borrow_mut().b_locked += 1;
-            buf.borrow_mut().b_locked_split += 1;
+            buf.borrow_mut()
+                .b_locked
+                .set(buf.borrow_mut().b_locked.get() + (1));
+            buf.borrow_mut()
+                .b_locked_split
+                .set(buf.borrow_mut().b_locked_split.get() + (1));
             let b_fname = buf.borrow().fname_opt();
             if apply_autocmds(EVENT_BUFHIDDEN, b_fname, b_fname, false, buf.opt_mut())
                 && !bufref_valid(Some(&bufref))
@@ -1460,8 +1478,12 @@ pub fn close_buffer(
                 emsg(gettext(E_AUABORT));
                 return false;
             }
-            buf.borrow_mut().b_locked -= 1;
-            buf.borrow_mut().b_locked_split -= 1;
+            buf.borrow_mut()
+                .b_locked
+                .set(buf.borrow_mut().b_locked.get() - (1));
+            buf.borrow_mut()
+                .b_locked_split
+                .set(buf.borrow_mut().b_locked_split.get() - (1));
             if abort_if_last && one_window(win.borrow_mut(), None) {
                 emsg(gettext(E_AUABORT));
                 return false;
@@ -1483,8 +1505,10 @@ pub fn close_buffer(
         win.borrow_mut().w_onebuf_opt.wo_wfh.set(false);
     }
 
-    let hiding_buf = buf.borrow().b_nwindows <= 0
-        || (win_valid && win.borrow().w_buffer == buf.as_ptr() && buf.borrow().b_nwindows == 1);
+    let hiding_buf = buf.borrow().b_nwindows.get() <= 0
+        || (win_valid
+            && win.borrow().w_buffer == buf.as_ptr()
+            && buf.borrow().b_nwindows.get() == 1);
 
     if diffopt_hiddenoff() && !unload_buf && hiding_buf {
         diff_buf_delete(buf.borrow_mut());
@@ -1510,12 +1534,14 @@ pub fn close_buffer(
     let mut clear_w_buf = false;
     win_valid = win_valid && win_valid_any_tab(win.opt());
     if win_valid && win.borrow().w_buffer == buf.as_ptr() {
-        buf.borrow_mut().b_nwindows -= 1;
+        buf.borrow_mut()
+            .b_nwindows
+            .set(buf.borrow_mut().b_nwindows.get() - (1));
         clear_w_buf = true;
     }
 
     if wipe_buf
-        && buf.borrow().b_nwindows <= 0
+        && buf.borrow().b_nwindows.get() <= 0
         && (!buf.borrow().b_prev.is_null()
             || !buf.borrow().b_next.is_null()
             || entered_free_all_mem())
@@ -1523,7 +1549,7 @@ pub fn close_buffer(
         if clear_w_buf {
             win.borrow_mut().w_buffer = crate::globals::BufPtr::NULL;
         }
-        let b_fnum = buf.borrow().b_fnum;
+        let b_fnum = buf.borrow().b_fnum.get();
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&tp) {
                 mark_forget_file(wp, b_fnum);
@@ -1549,7 +1575,7 @@ pub fn close_buffer(
                 buf.borrow_mut(),
                 K_BFF_CLEAR_WIN_INFO | K_BFF_INIT_CHANGEDTICK,
             );
-            buf.borrow_mut().b_flags = BF_CHECK_RO | BF_NEVERLOADED;
+            buf.borrow_mut().b_flags.set(BF_CHECK_RO | BF_NEVERLOADED);
             buf.borrow_mut().b_p_initialized.set(false);
         }
         g_st().textlock += 1;
@@ -1572,11 +1598,11 @@ pub fn buf_clear_file(buf: &mut FileBuf) {
     buf.b_ml.ml_line_count = 1;
     unchanged(&mut *buf, true, true);
     buf.b_p_eof.set(false);
-    buf.b_start_eof = false;
+    buf.b_start_eof.set(false);
     buf.b_p_eol.set(true);
-    buf.b_start_eol = true;
+    buf.b_start_eol.set(true);
     buf.b_p_bomb.set(false);
-    buf.b_start_bomb = false;
+    buf.b_start_bomb.set(false);
     buf.b_ml.ml_mfp = None;
     buf.b_ml.ml_flags = ML_EMPTY;
 }
@@ -1599,19 +1625,19 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     let the_curwin = curwin_ptr();
     let the_curtab = g_st().curtab.clone();
 
-    buf.b_locked += 1;
-    buf.b_locked_split += 1;
+    buf.b_locked.set(buf.b_locked.get() + (1));
+    buf.b_locked_split.set(buf.b_locked_split.get() + (1));
 
     let mut bufref: Bufref = Bufref::new();
     set_bufref(&mut bufref, Some(&mut *buf));
 
-    if !buf.terminal.is_null() {
+    if !buf.terminal.get().is_null() {
         buf_close_terminal(buf);
     }
 
     buf_updates_unload(buf, false);
 
-    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     if buf_ptr.b_ml.ml_mfp.is_some() {
         let b_fname = buf_ptr.borrow().fname_opt();
         if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, buf_ptr.opt_mut())
@@ -1636,8 +1662,10 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
             return false;
         }
     }
-    buf_ptr.b_locked -= 1;
-    buf_ptr.b_locked_split -= 1;
+    buf_ptr.b_locked.set(buf_ptr.b_locked.get() - (1));
+    buf_ptr
+        .b_locked_split
+        .set(buf_ptr.b_locked_split.get() - (1));
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
         block_autocmds();
@@ -1674,7 +1702,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         }
     }
 
-    if !buf.terminal.is_null() {
+    if !buf.terminal.get().is_null() {
         block_autocmds();
         buf_close_terminal(buf);
         unblock_autocmds();
@@ -1702,7 +1730,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         u_clearallandblockfree(buf);
     }
     syntax_clear(&mut buf.b_s);
-    buf.b_flags &= !BF_READERR;
+    buf.b_flags.set(buf.b_flags.get() & (!BF_READERR));
     true
 }
 
@@ -1739,7 +1767,7 @@ impl FileBuf {
 
     #[inline]
     pub fn fname_opt(&self) -> Option<&std::ffi::CStr> {
-        match self.b_fname {
+        match self.b_fname.get() {
             BufFname::None => None,
             BufFname::Short => self.sfname_opt(),
             BufFname::Full => self.ffname_opt(),
@@ -1770,7 +1798,7 @@ impl FileBuf {
     pub fn clear_fnames(&mut self) {
         self.b_ffname = None;
         self.b_sfname = None;
-        self.b_fname = BufFname::None;
+        self.b_fname.set(BufFname::None);
     }
 
     #[inline]
@@ -1781,7 +1809,7 @@ impl FileBuf {
         Option<std::ffi::CString>,
         BufFname,
     ) {
-        let kind = std::mem::replace(&mut self.b_fname, BufFname::None);
+        let kind = std::mem::replace(&mut self.b_fname.get(), BufFname::None);
         (self.b_ffname.take(), self.b_sfname.take(), kind)
     }
 
@@ -1794,12 +1822,12 @@ impl FileBuf {
     ) {
         self.set_ffname(ffname);
         self.set_sfname(sfname);
-        self.b_fname = kind;
+        self.b_fname.set(kind);
     }
 
     #[inline]
     pub fn swap_fnames(&mut self, other: &mut Self) {
-        std::mem::swap(&mut self.b_fname, &mut other.b_fname);
+        self.b_fname.swap(&other.b_fname);
         std::mem::swap(&mut self.b_ffname, &mut other.b_ffname);
         std::mem::swap(&mut self.b_sfname, &mut other.b_sfname);
     }
@@ -1820,7 +1848,7 @@ impl Drop for FileBuf {
         clear_fmark(&mut self.b_last_insert, 0);
         clear_fmark(&mut self.b_last_change, 0);
         clear_fmark(&mut self.b_prompt_start, 0);
-        self.b_changelistlen = 0;
+        self.b_changelistlen.set(0);
         if let Some(cdi) = self.changedtick_di.opt() {
             crate::eval::typval::tv_dict_item_free_slot(cdi);
         }
@@ -1832,7 +1860,7 @@ impl Drop for FileBuf {
 fn free_buffer(buf: &mut FileBuf) {
     let buf_ptr = crate::globals::BufPtr::from(buf);
     let buf_ref = buf_ptr.borrow_mut();
-    g_st().buffer_handles.remove(&buf_ref.b_fnum);
+    g_st().buffer_handles.remove(&buf_ref.b_fnum.get());
 
     BUF_STATE.with(|s| s.buf_free_count.set(s.buf_free_count.get() + (1)));
 
@@ -1856,7 +1884,7 @@ fn free_buffer(buf: &mut FileBuf) {
         clear_fmark(&mut buf_ref.b_last_insert, 0);
         clear_fmark(&mut buf_ref.b_last_change, 0);
         clear_fmark(&mut buf_ref.b_prompt_start, 0);
-        buf_ref.b_changelistlen = 0;
+        buf_ref.b_changelistlen.set(0);
         buf_ref.b_namedm.fill(Fmark::new());
         buf_ref.b_changelist.fill(Fmark::new());
 
@@ -1891,7 +1919,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     buf.b_ucmds.clear();
     extmark_free_all(buf);
     mc_buf_free(buf);
-    buf.b_conceal_providers = 0;
+    buf.b_conceal_providers.set(0);
     map_clear_mode(buf, MAP_ALL_MODES, true, false);
     map_clear_mode(buf, MAP_ALL_MODES, true, true);
     buf.b_start_fenc = None;
@@ -2025,7 +2053,7 @@ pub fn do_bufdel(
         }
 
         while !g_st().got_int {
-            if bnr == curbuf_mut().b_fnum {
+            if bnr == curbuf_mut().b_fnum.get() {
                 do_current = bnr;
             } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, i32::from(forceit)) {
                 deleted += 1;
@@ -2159,7 +2187,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
 
     if g_st().curbuf != buf
         && bufref_valid(Some(&bufref))
-        && bufref.buf_opt().is_some_and(|b| b.b_nwindows == 0)
+        && bufref.buf_opt().is_some_and(|b| b.b_nwindows.get() == 0)
     {
         close_buffer(None, buf.opt_mut(), action, false, false, false);
     }
@@ -2203,18 +2231,18 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             return false;
         }
     } else if start == DOBUF_FIRST && count != 0 {
-        while !buf.is_null() && buf.b_fnum != count {
+        while !buf.is_null() && buf.b_fnum.get() != count {
             buf = buf.b_next;
         }
     } else {
-        let help_only = (flags & DOBUF_SKIPHELP) != 0 && buf.b_help;
+        let help_only = (flags & DOBUF_SKIPHELP) != 0 && buf.b_help.get();
 
         bp = crate::globals::BufPtr::NULL;
         while count > 0
             || (bp != buf
                 && !unload
                 && !(if help_only {
-                    buf.b_help
+                    buf.b_help.get()
                 } else {
                     buf.b_p_bl.get()
                 }))
@@ -2235,10 +2263,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             };
             if unload
                 || (if help_only {
-                    buf.b_help
+                    buf.b_help.get()
                 } else {
                     let b = buf.borrow();
-                    b.b_p_bl.get() && ((flags & DOBUF_SKIPHELP) == 0 || !b.b_help)
+                    b.b_p_bl.get() && ((flags & DOBUF_SKIPHELP) == 0 || !b.b_help.get())
                 })
             {
                 count -= 1;
@@ -2271,7 +2299,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         return false;
     }
 
-    if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && (buf.b_flags & BF_DUMMY) != 0 {
+    if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && (buf.b_flags.get() & BF_DUMMY) != 0 {
         semsg!(gettext(E_NOBUFNR), count);
         return false;
     }
@@ -2302,7 +2330,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             } else {
                 semsg!(
                     gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE,),
-                    buf.b_fnum,
+                    buf.b_fnum.get(),
                 );
 
                 return false;
@@ -2310,8 +2338,8 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
 
         if (flags & DOBUF_FORCEIT) == 0
-            && !buf.terminal.is_null()
-            && terminal_running(buf.terminal.borrow())
+            && !buf.terminal.get().is_null()
+            && terminal_running(buf.terminal.get().borrow())
         {
             if opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 if !dialog_close_terminal(buf.borrow_mut()) {
@@ -2327,7 +2355,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             }
         }
 
-        let buf_fnum = buf.b_fnum;
+        let buf_fnum = buf.b_fnum.get();
 
         if buf == g_st().curbuf && g_st().visual_global.active {
             end_visual_mode();
@@ -2345,7 +2373,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
 
         while buf == g_st().curbuf
-            && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked > 0)
+            && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked.get() > 0)
             && (is_ctx_win(lastwin_mut()) || !last_window(curwin_mut()))
         {
             if !win_close(curwin_mut(), false, false) {
@@ -2378,7 +2406,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 ctx_restore(&mut switchwin);
             }
 
-            if g_st().curbuf != buf && bufref_valid(Some(&bufref)) && buf.b_nwindows <= 0 {
+            if g_st().curbuf != buf && bufref_valid(Some(&bufref)) && buf.b_nwindows.get() <= 0 {
                 close_buffer(None, buf.opt_mut(), action, false, false, false);
             }
             return true;
@@ -2388,7 +2416,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         bp = crate::globals::BufPtr::NULL;
         if !g_st().au_new_curbuf.br_buf.is_null()
             && bufref_valid(Some(&g_st().au_new_curbuf))
-            && g_st().au_new_curbuf.br_buf.b_locked_split == 0
+            && g_st().au_new_curbuf.br_buf.b_locked_split.get() == 0
         {
             buf = g_st().au_new_curbuf.br_buf;
         } else if curwin_mut().w_jumplistlen > 0 {
@@ -2423,7 +2451,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                         if buf == g_st().curbuf
                             || !buf.b_p_bl.get()
                             || bt_quickfix(buf.opt())
-                            || buf.b_locked_split != 0
+                            || buf.b_locked_split.get() != 0
                         {
                             buf = crate::globals::BufPtr::NULL;
                         } else if buf.b_ml.ml_mfp.is_none() {
@@ -2466,10 +2494,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     forward = false;
                     continue;
                 }
-                if buf.b_help == curbuf_mut().b_help
+                if buf.b_help.get() == curbuf_mut().b_help.get()
                     && buf.b_p_bl.get()
                     && !bt_quickfix(buf.opt())
-                    && buf.b_locked_split == 0
+                    && buf.b_locked_split.get() == 0
                 {
                     if buf.b_ml.ml_mfp.is_some() {
                         break;
@@ -2489,7 +2517,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 if buf2.b_p_bl.get()
                     && g_st().curbuf != buf2
                     && !bt_quickfix(Some(&*buf2))
-                    && buf2.b_locked_split == 0
+                    && buf2.b_locked_split.get() == 0
                 {
                     buf = crate::globals::BufPtr::from(&*buf2);
                     break;
@@ -2503,7 +2531,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 curbuf_mut().b_prev
             };
             if bt_quickfix(buf.opt())
-                || (!buf.is_null() && buf != g_st().curbuf && buf.b_locked_split != 0)
+                || (!buf.is_null() && buf != g_st().curbuf && buf.b_locked_split.get() != 0)
             {
                 buf = crate::globals::BufPtr::NULL;
             }
@@ -2517,7 +2545,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     if action == DOBUF_SPLIT && swbuf_goto_win_with_buf(buf.opt_mut()).is_some() {
         return true;
     }
-    if g_st().curbuf != buf && buf.b_locked_split != 0 {
+    if g_st().curbuf != buf && buf.b_locked_split.get() != 0 {
         emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
         return false;
     }
@@ -2580,7 +2608,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-        curwin_mut().w_alt_fnum = curbuf_mut().b_fnum;
+        curwin_mut().w_alt_fnum = curbuf_mut().b_fnum.get();
     }
     buflist_altfpos(curwin_mut());
 
@@ -2603,7 +2631,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
         }
         if bufref_valid(Some(&prevbufref)) && !aborting() {
             if g_st().curbuf == prevbuf
-                && ((g_st().state_global & MODE_INSERT) == 0 || curbuf_mut().b_nwindows <= 1)
+                && ((g_st().state_global & MODE_INSERT) == 0 || curbuf_mut().b_nwindows.get() <= 1)
             {
                 u_sync(false);
             }
@@ -2654,15 +2682,20 @@ fn enter_buffer(buf_in: &mut FileBuf) {
     }
 
     if !curwin_mut().w_buffer.is_null() {
-        curwin_mut().buf_mut().b_nwindows -= 1;
+        curwin_mut()
+            .buf_mut()
+            .b_nwindows
+            .set(curwin_mut().buf_mut().b_nwindows.get() - (1));
     }
 
     curwin_mut().w_buffer = buf;
     g_st().curbuf = buf;
-    curbuf_mut().b_nwindows += 1;
+    curbuf_mut()
+        .b_nwindows
+        .set(curbuf_mut().b_nwindows.get() + (1));
 
     buf_copy_options(curbuf_mut(), BCO_ENTER | BCO_NOHELP);
-    if !curbuf_mut().b_help {
+    if !curbuf_mut().b_help.get() {
         get_winopts(curbuf_mut());
     } else {
         clear_folding(curwin_mut());
@@ -2685,7 +2718,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 
     if curbuf_mut().b_ml.ml_mfp.is_none() {
         if curbuf_mut().b_p_ft.is_empty() {
-            curbuf_mut().b_did_filetype = false;
+            curbuf_mut().b_did_filetype.set(false);
         }
         open_buffer(false, None, 0);
     } else {
@@ -2713,16 +2746,16 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 
     do_autochdir();
 
-    if (curbuf_mut().b_kmap_state & KEYMAP_INIT) != 0 {
+    if (curbuf_mut().b_kmap_state.get() & KEYMAP_INIT) != 0 {
         keymap_init();
     }
-    if !curbuf_mut().b_help
+    if !curbuf_mut().b_help.get()
         && curwin_mut().w_onebuf_opt.wo_spell.get()
         && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
     {
         parse_spelllang(curwin_mut());
     }
-    curbuf_mut().b_last_used = os_time() as i64;
+    curbuf_mut().b_last_used.set(os_time() as i64);
 
     if let Some(term) = curbuf_mut().terminal_opt() {
         terminal_check_size(term);
@@ -2744,18 +2777,18 @@ pub fn do_autochdir() {
 }
 
 pub fn no_write_message_buf(buf: &mut FileBuf) {
-    if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel.get() as u64) {
+    if !buf.terminal.get().is_null() && channel_job_running(buf.b_p_channel.get() as u64) {
         emsg(gettext(E_JOB_STILL_RUNNING_ADD_BANG_TO_END_THE_JOB));
     } else {
         semsg!(
             gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE),
-            buf.b_fnum,
+            buf.b_fnum.get(),
         );
     }
 }
 
 pub fn no_write_message() {
-    if !curbuf_mut().terminal.is_null()
+    if !curbuf_mut().terminal.get().is_null()
         && channel_job_running(curbuf_mut().b_p_channel.get() as u64)
     {
         emsg(gettext(E_JOB_STILL_RUNNING_ADD_BANG_TO_END_THE_JOB));
@@ -2765,7 +2798,7 @@ pub fn no_write_message() {
 }
 
 pub fn no_write_message_nobang(buf: &FileBuf) {
-    if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel.get() as u64) {
+    if !buf.terminal.get().is_null() && channel_job_running(buf.b_p_channel.get() as u64) {
         emsg(gettext(E_JOB_STILL_RUNNING));
     } else {
         emsg(gettext(E_NO_WRITE_SINCE_LAST_CHANGE));
@@ -2874,7 +2907,9 @@ pub fn buflist_new(
         free_buffer_stuff(buf_ref, K_BFF_INIT_CHANGEDTICK);
         buf_ref.b_p_initialized.set(false);
         buf_copy_options(buf_ref, BCO_ENTER);
-        curbuf_mut().b_kmap_state |= KEYMAP_INIT;
+        curbuf_mut()
+            .b_kmap_state
+            .set(curbuf_mut().b_kmap_state.get() | (KEYMAP_INIT));
     } else {
         buf_ref.b_next = crate::globals::BufPtr::NULL;
         if g_st().firstbuf.is_null() {
@@ -2886,9 +2921,9 @@ pub fn buflist_new(
         }
         g_st().lastbuf = buf;
 
-        buf_ref.b_fnum = BUF_STATE.with(|s| s.top_file_num.get());
+        buf_ref.b_fnum.set(BUF_STATE.with(|s| s.top_file_num.get()));
         BUF_STATE.with(|s| s.top_file_num.set(s.top_file_num.get() + (1)));
-        g_st().buffer_handles.insert(buf_ref.b_fnum, buf);
+        g_st().buffer_handles.insert(buf_ref.b_fnum.get(), buf);
         if BUF_STATE.with(|s| s.top_file_num.get()) < 0 {
             emsg(gettext(c"W14: Warning: List of file names overflow"));
             if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
@@ -2905,17 +2940,17 @@ pub fn buflist_new(
     curwin_info.wi_mark.mark.lnum = lnum;
     curwin_info.wi_win = crate::globals::curwin_ptr();
 
-    buf_ref.b_fname = BufFname::Short;
+    buf_ref.b_fname.set(BufFname::Short);
     if !file_id_valid {
-        buf_ref.file_id_valid = false;
+        buf_ref.file_id_valid.set(false);
     } else {
-        buf_ref.file_id_valid = true;
-        buf_ref.file_id = file_id;
+        buf_ref.file_id_valid.set(true);
+        buf_ref.file_id.set(file_id);
     }
-    buf_ref.b_u_synced = true;
-    buf_ref.b_flags = BF_CHECK_RO | BF_NEVERLOADED;
+    buf_ref.b_u_synced.set(true);
+    buf_ref.b_flags.set(BF_CHECK_RO | BF_NEVERLOADED);
     if (flags & BLN_DUMMY) != 0 {
-        buf_ref.b_flags |= BF_DUMMY;
+        buf_ref.b_flags.set(buf_ref.b_flags.get() | (BF_DUMMY));
     }
     buf_clear_file(buf_ref);
     clrallmarks(buf_ref, 0);
@@ -2948,7 +2983,7 @@ pub fn buflist_new(
     buf_ref.b_prompt_text = None;
     buf_ref.b_prompt_start = INIT_FMARK;
     buf_ref.b_prompt_start.mark.col = 2;
-    buf_ref.b_prompt_append_new_line = true;
+    buf_ref.b_prompt_append_new_line.set(true);
 
     Some(buf_ref)
 }
@@ -2958,8 +2993,8 @@ pub fn buflist_new(
 pub fn curbuf_reusable() -> bool {
     !g_st().curbuf.is_null()
         && curbuf_mut().b_ffname.is_none()
-        && curbuf_mut().b_nwindows <= 1
-        && curbuf_mut().terminal.is_null()
+        && curbuf_mut().b_nwindows.get() <= 1
+        && curbuf_mut().terminal.get().is_null()
         && (curbuf_mut().b_ml.ml_mfp.is_none() || buf_is_empty(curbuf_mut()))
         && !bt_quickfix(Some(crate::globals::curbuf_mut()))
         && !curbuf_is_changed()
@@ -3078,7 +3113,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     } else {
         col = 0;
     }
-    let buf_fnum = buf_ref.b_fnum;
+    let buf_fnum = buf_ref.b_fnum.get();
 
     if (options & GETF_SWITCH) != 0 {
         let wp = swbuf_goto_win_with_buf(buf.opt_mut());
@@ -3180,7 +3215,7 @@ fn buflist_findname_file_id(
     file_id_valid: bool,
 ) -> Option<&'static mut FileBuf> {
     for buf in for_all_buffers_rev_ptr() {
-        if (buf.b_flags & BF_DUMMY) == 0
+        if (buf.b_flags.get() & BF_DUMMY) == 0
             && !otherfile_buf(&mut *buf, ffname, Some(file_id), file_id_valid)
         {
             return Some(buf);
@@ -3195,7 +3230,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
 
     if pat_slice == b"%" || pat_slice == b"#" {
         match_fnum = if pat_slice[0] == b'%' {
-            curbuf_mut().b_fnum
+            curbuf_mut().b_fnum.get()
         } else {
             curwin_mut().w_alt_fnum
         };
@@ -3257,7 +3292,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                             match_fnum = -2;
                             break;
                         }
-                        match_fnum = buf.b_fnum;
+                        match_fnum = buf.b_fnum.get();
                     }
                 }
 
@@ -3286,7 +3321,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
 }
 
 fn buf_time_compare(buf1: &FileBuf, buf2: &FileBuf) -> std::cmp::Ordering {
-    buf2.b_last_used.cmp(&buf1.b_last_used)
+    buf2.b_last_used.get().cmp(&buf1.b_last_used.get())
 }
 
 /// Find all buffer names that match.
@@ -3647,7 +3682,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             break;
         }
         let buf = buf_ptr.borrow_mut();
-        let is_terminal = !buf.terminal.is_null();
+        let is_terminal = !buf.terminal.get().is_null();
         let job_running = buf.terminal_opt().is_some_and(terminal_running);
 
         if (!buf.b_p_bl.get()
@@ -3655,11 +3690,11 @@ pub fn buflist_list(eap: &mut Exarg) {
             && !crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32) && buf.b_p_bl.get())
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'+' as i32)
-                && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
+                && ((buf.b_flags.get() & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'a' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
+                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows.get() == 0))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'h' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
+                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows.get() != 0))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'R' as i32)
                 && (!is_terminal || !job_running))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'F' as i32)
@@ -3667,10 +3702,10 @@ pub fn buflist_list(eap: &mut Exarg) {
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'-' as i32) && buf.b_p_ma.get())
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'=' as i32) && !buf.b_p_ro.get())
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'x' as i32)
-                && (buf.b_flags & BF_READERR) == 0)
+                && (buf.b_flags.get() & BF_READERR) == 0)
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'%' as i32) && g_st().curbuf != buf)
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'#' as i32)
-                && (g_st().curbuf == buf || curwin_mut().w_alt_fnum != buf.b_fnum))
+                && (g_st().curbuf == buf || curwin_mut().w_alt_fnum != buf.b_fnum.get()))
         {
             continue;
         }
@@ -3690,7 +3725,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             continue;
         }
 
-        let changed_char = if (buf.b_flags & BF_READERR) != 0 {
+        let changed_char = if (buf.b_flags.get() & BF_READERR) != 0 {
             b'x' as i32
         } else if buf_is_changed(&mut *buf) {
             b'+' as i32
@@ -3718,7 +3753,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         let mut len = format_to_buf_safelen!(
             &mut g_st().iobuff[..IOSIZE - 20],
             c"%3d%c%c%c%c%c \"%s\"",
-            buf.b_fnum,
+            buf.b_fnum.get(),
             if buf.b_p_bl.get() {
                 b' ' as i32
             } else {
@@ -3726,14 +3761,14 @@ pub fn buflist_list(eap: &mut Exarg) {
             },
             if g_st().curbuf == buf {
                 b'%' as i32
-            } else if curwin_mut().w_alt_fnum == buf.b_fnum {
+            } else if curwin_mut().w_alt_fnum == buf.b_fnum.get() {
                 b'#' as i32
             } else {
                 b' ' as i32
             },
             if buf.b_ml.ml_mfp.is_none() {
                 b' ' as i32
-            } else if buf.b_nwindows == 0 {
+            } else if buf.b_nwindows.get() == 0 {
                 b'h' as i32
             } else {
                 b'a' as i32
@@ -3753,8 +3788,12 @@ pub fn buflist_list(eap: &mut Exarg) {
                 break;
             }
         }
-        if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buf.b_last_used != 0 {
-            undo_fmt_time(&mut g_st().iobuff_bytes_mut()[len..IOSIZE], buf.b_last_used);
+        if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buf.b_last_used.get() != 0
+        {
+            undo_fmt_time(
+                &mut g_st().iobuff_bytes_mut()[len..IOSIZE],
+                buf.b_last_used.get(),
+            );
         } else {
             format_to_buf!(
                 &mut g_st().iobuff[len..IOSIZE],
@@ -3815,7 +3854,7 @@ pub fn setfname(
         };
 
         file_id_valid = os_fileid(&ffname_cstr, &mut file_id);
-        if (buf.b_flags & BF_DUMMY) == 0 {
+        if (buf.b_flags.get() & BF_DUMMY) == 0 {
             obuf = crate::globals::BufPtr::from(buflist_findname_file_id(
                 Some(&ffname_cstr),
                 &mut file_id,
@@ -3839,9 +3878,9 @@ pub fn setfname(
                 }
                 return false;
             }
-            buf.b_locked += 1;
+            buf.b_locked.set(buf.b_locked.get() + (1));
             close_buffer(None, obuf.opt_mut(), DOBUF_WIPE, false, false, false);
-            buf.b_locked -= 1;
+            buf.b_locked.set(buf.b_locked.get() - (1));
         }
         let mut sf_vec = sfname_raw.into_bytes_with_nul();
         if CASE_INSENSITIVE_FILENAME {
@@ -3852,12 +3891,12 @@ pub fn setfname(
         buf.set_ffname(Some(ffname_cstr));
         buf.set_sfname(Some(sfname_cstr));
     }
-    buf.b_fname = BufFname::Short;
+    buf.b_fname.set(BufFname::Short);
     if !file_id_valid {
-        buf.file_id_valid = false;
+        buf.file_id_valid.set(false);
     } else {
-        buf.file_id = file_id;
-        buf.file_id_valid = true;
+        buf.file_id.set(file_id);
+        buf.file_id_valid.set(true);
     }
 
     buf_name_changed(buf);
@@ -3875,7 +3914,7 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
         buf.set_ffname(Some(ffname_cstr));
         buf.set_sfname(Some(sfname_cstr));
     }
-    buf.b_fname = BufFname::Short;
+    buf.b_fname.set(BufFname::Short);
 }
 
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
@@ -3903,7 +3942,7 @@ pub fn setaltfname(
     if let Some(ref b) = buf
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
-        curwin_mut().w_alt_fnum = b.b_fnum;
+        curwin_mut().w_alt_fnum = b.b_fnum.get();
     }
     buf
 }
@@ -3925,7 +3964,7 @@ pub fn getaltfname(errmsg: bool) -> Option<std::ffi::CString> {
 /// Add a file name to the buflist and return its number.
 pub fn buflist_add(fname: Option<&CStr>, flags: i32) -> i32 {
     let buf = buflist_new(fname, None, 0, flags);
-    buf.map_or(0, |b| b.b_fnum)
+    buf.map_or(0, |b| b.b_fnum.get())
 }
 
 /// Set alternate cursor position for the current buffer and window `win`.
@@ -3983,16 +4022,16 @@ pub fn buf_set_file_id(buf: &mut FileBuf) {
     if let Some(fname) = buf.fname_opt()
         && os_fileid(fname, &mut file_id)
     {
-        buf.file_id_valid = true;
-        buf.file_id = file_id;
+        buf.file_id_valid.set(true);
+        buf.file_id.set(file_id);
     } else {
-        buf.file_id_valid = false;
+        buf.file_id_valid.set(false);
     }
 }
 
 #[inline]
 fn buf_same_file_id(buf: &FileBuf, file_id: &FileID) -> bool {
-    buf.file_id_valid && os_fileid_equal(&buf.file_id, file_id)
+    buf.file_id_valid.get() && os_fileid_equal(&buf.file_id.get(), file_id)
 }
 
 /// Print info about the current buffer.
@@ -4001,7 +4040,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let mut bufferlen = 0usize;
 
     if fullname > 1 {
-        bufferlen = format_to_buf_safelen!(&mut buffer_vec, c"buf %d: ", curbuf_mut().b_fnum);
+        bufferlen = format_to_buf_safelen!(&mut buffer_vec, c"buf %d: ", curbuf_mut().b_fnum.get());
     }
 
     buffer_vec[bufferlen] = b'"';
@@ -4034,17 +4073,17 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     } else {
         c" "
     };
-    let notedited_str = if (curbuf_mut().b_flags & BF_NOTEDITED) != 0 && !dontwrite {
+    let notedited_str = if (curbuf_mut().b_flags.get() & BF_NOTEDITED) != 0 && !dontwrite {
         gettext(c"[Not edited]")
     } else {
         c""
     };
-    let new_str = if (curbuf_mut().b_flags & BF_NEW) != 0 && !dontwrite {
+    let new_str = if (curbuf_mut().b_flags.get() & BF_NEW) != 0 && !dontwrite {
         gettext(c"[New]")
     } else {
         c""
     };
-    let readerr_str = if (curbuf_mut().b_flags & BF_READERR) != 0 {
+    let readerr_str = if (curbuf_mut().b_flags.get() & BF_READERR) != 0 {
         gettext(c"[Read errors]")
     } else {
         c""
@@ -4058,12 +4097,14 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     } else {
         c""
     };
-    let sep_str =
-        if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro.get() {
-            c" "
-        } else {
-            c""
-        };
+    let sep_str = if is_changed
+        || (curbuf_mut().b_flags.get() & BF_WRITE_MASK) != 0
+        || curbuf_mut().b_p_ro.get()
+    {
+        c" "
+    } else {
+        c""
+    };
 
     bufferlen += format_to_buf_safelen!(
         &mut buffer_vec[bufferlen..],
@@ -4439,12 +4480,12 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             } else {
                 wp.borrow().w_width != g_st().columns_global
             };
-            if (wp.borrow().buf_mut().b_nwindows > 1
+            if (wp.borrow().buf_mut().b_nwindows.get() > 1
                 || wp.borrow().w_floating
                 || size_mismatch
                 || (had_tab > 0 && wp.as_ptr() != g_st().firstwin.as_ptr()))
                 && g_st().firstwin != g_st().lastwin
-                && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked > 0)
+                && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked.get() > 0)
                 && !is_ctx_win(&wp)
             {
                 if !win_close(wp.borrow_mut(), false, false) {
@@ -4481,7 +4522,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
 
         let mut wp: crate::globals::WinPtr;
         if had_tab != 0 {
-            wp = crate::globals::WinPtr::new(if buf.borrow().b_nwindows > 0 {
+            wp = crate::globals::WinPtr::new(if buf.borrow().b_nwindows.get() > 0 {
                 g_st().lastwin.as_ptr()
             } else {
                 ptr::null_mut()
@@ -4738,7 +4779,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
 
 /// Return true if `buf` is a help buffer.
 pub fn bt_help(buf: Option<&FileBuf>) -> bool {
-    buf.is_some() && buf.unwrap().b_help
+    buf.is_some() && buf.unwrap().b_help.get()
 }
 
 /// Return true if `buf` is a normal buffer, `'buftype'` is empty.
@@ -4764,7 +4805,7 @@ pub fn bt_nofilename(buf: Option<&FileBuf>) -> bool {
     let bt = buf.b_p_bt.as_bytes();
     (bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f'))
         || matches!(bt.first(), Some(b'a' | b'p'))
-        || !buf.terminal.is_null()
+        || !buf.terminal.get().is_null()
 }
 
 fn bt_nofileread(buf: Option<&FileBuf>) -> bool {
@@ -4791,7 +4832,7 @@ pub fn bt_dontwrite(buf: Option<&FileBuf>) -> bool {
         return false;
     };
     let bt = buf.b_p_bt.as_bytes();
-    matches!(bt.first(), Some(b'n' | b'p')) || !buf.terminal.is_null()
+    matches!(bt.first(), Some(b'n' | b'p')) || !buf.terminal.get().is_null()
 }
 
 pub fn bt_dontwrite_msg(buf: Option<&FileBuf>) -> bool {
@@ -4814,7 +4855,7 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
 /// Return special buffer name or NULL when the buffer has a normal file name.
 pub fn buf_spname(buf: &FileBuf) -> Option<&std::ffi::CStr> {
     if bt_quickfix(Some(buf)) {
-        if buf.b_fnum == qf_stack_get_bufnr() {
+        if buf.b_fnum.get() == qf_stack_get_bufnr() {
             return Some(gettext(MSG_QFLIST));
         }
         return Some(gettext(MSG_LOCLIST));
@@ -4944,14 +4985,14 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
 
     if tv_dict_is_watched(Some(&*buf.b_vars())) {
         let new_val = buf.changedtick_di.tv().clone();
-        buf.b_locked += 1;
+        buf.b_locked.set(buf.b_locked.get() + (1));
         tv_dict_watcher_notify(
             &buf.b_vars(),
             buf.changedtick_di.key_cstr(),
             Some(&new_val),
             Some(&old_val),
         );
-        buf.b_locked -= 1;
+        buf.b_locked.set(buf.b_locked.get() - (1));
     }
 }
 
@@ -4991,7 +5032,8 @@ pub fn read_buffer_into(
             let b = buf.as_deref_mut().unwrap();
             if lnum != end
                 || (!b.b_p_bin.get() && b.b_p_fixeol.get())
-                || (lnum != b.b_no_eol_lnum && (lnum != b.b_ml.ml_line_count || b.b_p_eol.get()))
+                || (lnum != b.b_no_eol_lnum.get()
+                    && (lnum != b.b_ml.ml_line_count || b.b_p_eol.get()))
             {
                 sb.push(b'\n');
             }
@@ -5062,9 +5104,9 @@ mod tests {
             let buf3 = crate::globals::BufPtr::from(
                 &*buflist_new(Some(p3), Some(p3), 1, BLN_LISTED).unwrap(),
             );
-            let buf1_fnum = buf1.b_fnum;
-            let buf2_fnum = buf2.b_fnum;
-            let buf3_fnum = buf3.b_fnum;
+            let buf1_fnum = buf1.b_fnum.get();
+            let buf2_fnum = buf2.b_fnum.get();
+            let buf3_fnum = buf3.b_fnum.get();
 
             assert_eq!(findpat(c"test_file_path", false), buf1_fnum);
             assert_eq!(findpat(c"test", false), buf1_fnum);

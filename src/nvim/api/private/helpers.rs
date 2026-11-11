@@ -1343,7 +1343,7 @@ pub fn set_mark(
         coladd: 0,
     };
     let mark_char = name.as_bytes().first().copied().unwrap_or(0) as i32;
-    let res = setmark_pos(mark_char, &mut pos, buf.b_fnum, None);
+    let res = setmark_pos(mark_char, &mut pos, buf.b_fnum.get(), None);
     if !res {
         if deleting {
             api_set_error!(

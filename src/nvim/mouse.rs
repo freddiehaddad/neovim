@@ -1051,7 +1051,9 @@ pub fn do_mouse(
             do_cmdline_cmd(c".ll");
         }
         mouse_st(|st| st.got_click.set(false));
-    } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+    } else if curbuf_mut().b_help.get()
+        && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
+    {
         if (g_st().state_global & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
@@ -1186,7 +1188,7 @@ pub fn ins_mouse(c: i32) {
             set_curwin(old_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
             if bt_prompt(Some(crate::globals::curbuf_mut())) {
-                curbuf_mut().b_prompt_insert = b'A' as i32;
+                curbuf_mut().b_prompt_insert.set(b'A' as i32);
             }
         }
         start_arrow(

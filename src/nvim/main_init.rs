@@ -1861,11 +1861,11 @@ fn read_stdin() {
         };
         let stdin_buf = crate::globals::BufPtr::from(&*stdin_buf_ref);
 
-        let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
+        let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
         set_curbuf(stdin_buf.borrow_mut(), 0, false);
         readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
-        let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum;
+        let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum.get();
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
         let mut buf = [0u8; 100];

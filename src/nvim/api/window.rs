@@ -74,7 +74,7 @@ pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return 0;
     };
-    w.buf_mut().b_fnum
+    w.buf_mut().b_fnum.get()
 }
 
 /// Sets the current buffer in a window.

@@ -716,7 +716,7 @@ fn map_add(
     {
         if keys.to_bytes().first().copied().unwrap_or(0) == CTRL_C_CONST {
             if local {
-                buf.b_mapped_ctrl_c |= mode;
+                buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() | (mode));
             } else {
                 g_st().mapped_ctrl_c |= mode;
             }
@@ -1086,7 +1086,7 @@ fn buf_do_map(
                     }
                 } else if lhs_arr[0] == CTRL_C_CONST {
                     if local {
-                        buf.b_mapped_ctrl_c &= !mode;
+                        buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() & (!mode));
                     } else {
                         g_st().mapped_ctrl_c &= !mode;
                     }
@@ -3018,7 +3018,7 @@ pub fn keymap_array(mode: NvimString, buf: Option<&FileBuf>, arena: &mut Arena) 
     let is_abbrev =
         (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0 && p_slice.first() == Some(&b'a');
 
-    let buffer_value = buf.map_or(0, |b| b.b_fnum);
+    let buffer_value = buf.map_or(0, |b| b.b_fnum.get());
 
     with_map_buckets(buf, is_abbrev, |buckets| {
         for bucket in buckets {

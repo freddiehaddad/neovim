@@ -1546,7 +1546,8 @@ pub fn validate_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if errmsg.is_some() {
         return errmsg;
     }
-    if (os_flags & OPT_GLOBAL) == 0 && !buf.terminal.is_null() != (newval_data.first_byte() == b't')
+    if (os_flags & OPT_GLOBAL) == 0
+        && !buf.terminal.get().is_null() != (newval_data.first_byte() == b't')
     {
         return Some(E_INVARG);
     }
@@ -1587,7 +1588,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         win.w_redr_status = true;
         redraw_later(Some(win), UPD_VALID);
     }
-    buf.b_help = buf.b_p_bt.first_byte() == b'h';
+    buf.b_help.set(buf.b_p_bt.first_byte() == b'h');
     redraw_titles();
     None
 }

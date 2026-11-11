@@ -1474,7 +1474,8 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 let fm_mark = cur_entry.data.filemark().mark;
                 let fm_name = cur_entry.data.filemark().name;
                 let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
-                let buf_fnum = find_buffer(&mut fname_bufs, fname_cstr).map_or(0, |b| b.b_fnum);
+                let buf_fnum =
+                    find_buffer(&mut fname_bufs, fname_cstr).map_or(0, |b| b.b_fnum.get());
                 if buf_fnum != 0 {
                     cur_entry.data.filemark_mut().fname = None;
                 }
@@ -1575,7 +1576,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 };
                 let fm = Fmark {
                     mark: fm_mark,
-                    fnum: buf.b_fnum,
+                    fnum: buf.b_fnum.get(),
                     timestamp: cur_entry.timestamp,
                     view: INIT_FMARKV,
                     additional_data: cur_entry.additional_data.take(),
@@ -1587,7 +1588,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     }
                 } else {
                     cl_bufs.insert(ptr::from_mut(buf) as usize);
-                    let mut i = buf.b_changelistlen;
+                    let mut i = buf.b_changelistlen.get();
                     while i > 0 {
                         let jl_entry = &buf.b_changelist[(i - 1) as usize];
                         if jl_entry.timestamp <= cur_entry.timestamp {
@@ -1598,11 +1599,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         }
                         i -= 1;
                     }
-                    i = marklist_insert(&mut buf.b_changelist, buf.b_changelistlen, i);
+                    i = marklist_insert(&mut buf.b_changelist, buf.b_changelistlen.get(), i);
                     if i != -1 {
                         buf.b_changelist[i as usize] = fm;
-                        if buf.b_changelistlen < (JUMPLISTSIZE as i32) {
-                            buf.b_changelistlen += 1;
+                        if buf.b_changelistlen.get() < (JUMPLISTSIZE as i32) {
+                            buf.b_changelistlen.set(buf.b_changelistlen.get() + (1));
                         }
                     }
                 }
@@ -1627,7 +1628,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&tp) {
                 if cl_bufs.contains(&(wp.w_buffer.as_ptr() as usize)) {
-                    wp.w_changelistidx = wp.buf_mut().b_changelistlen;
+                    wp.w_changelistidx = wp.buf_mut().b_changelistlen.get();
                 }
             }
         }
@@ -2828,7 +2829,7 @@ fn shada_write(
                             break;
                         }
                     }
-                    for i in 0..(buf.b_changelistlen as usize) {
+                    for i in 0..(buf.b_changelistlen.get() as usize) {
                         let fm = &buf.b_changelist[i];
                         filemarks.changes[i] = ShadaEntry {
                             can_free_entry: false,
@@ -2845,7 +2846,7 @@ fn shada_write(
                             filemarks.greatest_timestamp = fm.timestamp;
                         }
                     }
-                    filemarks.changes_size = buf.b_changelistlen as usize;
+                    filemarks.changes_size = buf.b_changelistlen.get() as usize;
                 }
             }
         }
@@ -4187,13 +4188,13 @@ pub fn find_shada_parameter(param_type: i32) -> Option<std::ffi::CString> {
 
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
 pub fn check_marks_read() {
-    if !curbuf_mut().b_marks_read
+    if !curbuf_mut().b_marks_read.get()
         && get_shada_parameter(b'\'' as i32) > 0
         && curbuf_mut().b_ffname.is_some()
     {
         shada_read_marks();
     }
-    curbuf_mut().b_marks_read = true;
+    curbuf_mut().b_marks_read.set(true);
 }
 
 #[cfg(test)]

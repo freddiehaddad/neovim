@@ -373,19 +373,19 @@ pub fn u_savecommon(
 
     let size = bot - top - 1;
 
-    if buf.b_u_synced {
-        buf.b_new_change = true;
+    if buf.b_u_synced.get() {
+        buf.b_new_change.set(true);
 
         let uhp = (get_undolevel(buf) >= 0).then(|| u_alloc_header(buf));
 
-        let mut old_curhead = buf.b_u_curhead;
+        let mut old_curhead = buf.b_u_curhead.get();
         if let Some(oc) = old_curhead {
-            buf.b_u_newhead = uhp_ref(buf, oc).uh_next;
-            buf.b_u_curhead = None;
+            buf.b_u_newhead.set(uhp_ref(buf, oc).uh_next);
+            buf.b_u_curhead.set(None);
         }
 
-        while (buf.b_u_numhead as OptInt) > get_undolevel(buf)
-            && let Some(mut uhfree) = buf.b_u_oldhead
+        while (buf.b_u_numhead.get() as OptInt) > get_undolevel(buf)
+            && let Some(mut uhfree) = buf.b_u_oldhead.get()
         {
             if Some(uhfree) == old_curhead {
                 u_freebranch(buf, uhfree, &mut old_curhead);
@@ -404,12 +404,12 @@ pub fn u_savecommon(
                 let mut dummy = None;
                 u_freebranch(buf, oc, &mut dummy);
             }
-            buf.b_u_synced = false;
+            buf.b_u_synced.set(false);
             return true;
         };
 
         uhp_mut(buf, uhp).uh_prev = None;
-        uhp_mut(buf, uhp).uh_next = buf.b_u_newhead;
+        uhp_mut(buf, uhp).uh_next = buf.b_u_newhead.get();
         uhp_mut(buf, uhp).uh_alt_next = old_curhead;
         if let Some(oc) = old_curhead {
             let oc_alt_prev = uhp_ref(buf, oc).uh_alt_prev;
@@ -418,25 +418,25 @@ pub fn u_savecommon(
                 uhp_mut(buf, ap).uh_alt_next = Some(uhp);
             }
             uhp_mut(buf, oc).uh_alt_prev = Some(uhp);
-            if buf.b_u_oldhead == Some(oc) {
-                buf.b_u_oldhead = Some(uhp);
+            if buf.b_u_oldhead.get() == Some(oc) {
+                buf.b_u_oldhead.set(Some(uhp));
             }
         } else {
             uhp_mut(buf, uhp).uh_alt_prev = None;
         }
 
-        if let Some(nh) = buf.b_u_newhead {
+        if let Some(nh) = buf.b_u_newhead.get() {
             uhp_mut(buf, nh).uh_prev = Some(uhp);
         }
 
-        buf.b_u_seq_last += 1;
-        let seq_last = buf.b_u_seq_last;
+        buf.b_u_seq_last.set(buf.b_u_seq_last.get() + (1));
+        let seq_last = buf.b_u_seq_last.get();
         uhp_mut(buf, uhp).uh_seq = seq_last;
-        buf.b_u_seq_cur = seq_last;
+        buf.b_u_seq_cur.set(seq_last);
         let now_time = os_time() as time_t;
         uhp_mut(buf, uhp).uh_time = now_time;
         uhp_mut(buf, uhp).uh_save_nr = 0;
-        buf.b_u_time_cur = now_time + 1;
+        buf.b_u_time_cur.set(now_time + 1);
 
         uhp_mut(buf, uhp).uh_walk = 0;
         uhp_mut(buf, uhp).uh_entries.clear();
@@ -467,18 +467,18 @@ pub fn u_savecommon(
         uhp_mut(buf, uhp).uh_namedm = buf.b_namedm.clone();
         uhp_mut(buf, uhp).uh_visual = buf.b_visual;
 
-        buf.b_u_newhead = Some(uhp);
-        if buf.b_u_oldhead.is_none() {
-            buf.b_u_oldhead = Some(uhp);
+        buf.b_u_newhead.set(Some(uhp));
+        if buf.b_u_oldhead.get().is_none() {
+            buf.b_u_oldhead.set(Some(uhp));
         }
-        buf.b_u_numhead += 1;
+        buf.b_u_numhead.set(buf.b_u_numhead.get() + (1));
     } else {
         if get_undolevel(buf) < 0 {
             return true;
         }
 
         if size == 1 && u_get_headentry(buf).is_some() {
-            let newhead = buf.b_u_newhead.unwrap();
+            let newhead = buf.b_u_newhead.get().unwrap();
             let limit = uhp_ref(buf, newhead).uh_entries.len().min(10);
             for i in 0..limit {
                 let uep = &uhp_ref(buf, newhead).uh_entries[i];
@@ -494,7 +494,7 @@ pub fn u_savecommon(
                 if ue_size == 1 && ue_top == top {
                     if i > 0 {
                         u_getbot(buf);
-                        buf.b_u_synced = false;
+                        buf.b_u_synced.set(false);
 
                         let entry = uhp_mut(buf, newhead).uh_entries.remove(i);
                         uhp_mut(buf, newhead).uh_entries.insert(0, entry);
@@ -525,7 +525,7 @@ pub fn u_savecommon(
         ue_array: Vec::new(),
     };
 
-    let newhead = buf.b_u_newhead.unwrap();
+    let newhead = buf.b_u_newhead.get().unwrap();
     if newbot != 0 {
         uep.ue_bot = newbot;
     } else if bot > buf.b_ml.ml_line_count {
@@ -551,14 +551,14 @@ pub fn u_savecommon(
     if reload {
         uhp_mut(buf, newhead).uh_flags |= UH_RELOAD;
     }
-    buf.b_u_synced = false;
+    buf.b_u_synced.set(false);
     undo_st(|st| st.undo_undoes.set(false));
 
     true
 }
 
 fn u_entry_resized(buf: &FileBuf, uep: &UEntry) -> bool {
-    let newhead = uhp_ref(buf, buf.b_u_newhead.unwrap());
+    let newhead = uhp_ref(buf, buf.b_u_newhead.get().unwrap());
     if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
         uep.ue_top + uep.ue_size() + 1
             != if uep.ue_bot == 0 {
@@ -699,22 +699,22 @@ fn serialize_header(bi: &mut Bufinfo, hash: &[u8; UNDO_HASH_SIZE]) -> bool {
     if len > 0 && !undo_write(bi, &buf.b_u_line_ptr.as_ref().unwrap().as_bytes()[..len]) {
         return false;
     }
-    undo_write_bytes(bi, buf.b_u_line_lnum as u64, 4);
-    undo_write_bytes(bi, buf.b_u_line_colnr as u64, 4);
+    undo_write_bytes(bi, buf.b_u_line_lnum.get() as u64, 4);
+    undo_write_bytes(bi, buf.b_u_line_colnr.get() as u64, 4);
 
-    put_header_ptr(bi, buf.b_u_oldhead);
-    put_header_ptr(bi, buf.b_u_newhead);
-    put_header_ptr(bi, buf.b_u_curhead);
+    put_header_ptr(bi, buf.b_u_oldhead.get());
+    put_header_ptr(bi, buf.b_u_newhead.get());
+    put_header_ptr(bi, buf.b_u_curhead.get());
 
-    undo_write_bytes(bi, buf.b_u_numhead as u64, 4);
-    undo_write_bytes(bi, buf.b_u_seq_last as u64, 4);
-    undo_write_bytes(bi, buf.b_u_seq_cur as u64, 4);
-    let time_buf = (buf.b_u_time_cur as u64).to_be_bytes();
+    undo_write_bytes(bi, buf.b_u_numhead.get() as u64, 4);
+    undo_write_bytes(bi, buf.b_u_seq_last.get() as u64, 4);
+    undo_write_bytes(bi, buf.b_u_seq_cur.get() as u64, 4);
+    let time_buf = (buf.b_u_time_cur.get() as u64).to_be_bytes();
     undo_write(bi, &time_buf);
 
     undo_write_bytes(bi, 4, 1);
     undo_write_bytes(bi, UF_LAST_SAVE_NR as u64, 1);
-    undo_write_bytes(bi, buf.b_u_save_nr_last as u64, 4);
+    undo_write_bytes(bi, buf.b_u_save_nr_last.get() as u64, 4);
 
     undo_write_bytes(bi, 0, 1);
 
@@ -1057,7 +1057,7 @@ pub fn u_write_undo(
             os_remove(file_name_cstr);
         }
 
-        if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
+        if buf.b_u_numhead.get() == 0 && buf.b_u_line_ptr.is_none() {
             if opt_vars().p_verbose.get() > 0 {
                 verb_msg(gettext(c"Skipping undo file write, nothing to undo"));
             }
@@ -1124,7 +1124,7 @@ pub fn u_write_undo(
                 st.lastmark.set(m);
                 m
             });
-            let mut uhp = buf.b_u_oldhead;
+            let mut uhp = buf.b_u_oldhead.get();
             while let Some(uh) = uhp {
                 if uhp_ref(buf, uh).uh_walk != mark {
                     uhp_mut(buf, uh).uh_walk = mark;
@@ -1437,20 +1437,20 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             u_blockfree(curbuf_mut());
             curbuf_mut().b_u_headers = uhp_table.into_iter().map(|(u, _)| u).collect();
             curbuf_mut().b_u_free_headers.clear();
-            curbuf_mut().b_u_oldhead = old_idx;
-            curbuf_mut().b_u_newhead = new_idx;
-            curbuf_mut().b_u_curhead = cur_idx;
+            curbuf_mut().b_u_oldhead.set(old_idx);
+            curbuf_mut().b_u_newhead.set(new_idx);
+            curbuf_mut().b_u_curhead.set(cur_idx);
             curbuf_mut().b_u_line_ptr = line_ptr;
-            curbuf_mut().b_u_line_lnum = line_lnum;
-            curbuf_mut().b_u_line_colnr = line_colnr;
-            curbuf_mut().b_u_numhead = num_head;
-            curbuf_mut().b_u_seq_last = seq_last;
-            curbuf_mut().b_u_seq_cur = seq_cur;
-            curbuf_mut().b_u_time_cur = seq_time;
-            curbuf_mut().b_u_save_nr_last = last_save_nr;
-            curbuf_mut().b_u_save_nr_cur = last_save_nr;
+            curbuf_mut().b_u_line_lnum.set(line_lnum);
+            curbuf_mut().b_u_line_colnr.set(line_colnr);
+            curbuf_mut().b_u_numhead.set(num_head);
+            curbuf_mut().b_u_seq_last.set(seq_last);
+            curbuf_mut().b_u_seq_cur.set(seq_cur);
+            curbuf_mut().b_u_time_cur.set(seq_time);
+            curbuf_mut().b_u_save_nr_last.set(last_save_nr);
+            curbuf_mut().b_u_save_nr_cur.set(last_save_nr);
 
-            curbuf_mut().b_u_synced = true;
+            curbuf_mut().b_u_synced.set(true);
 
             if name.is_some() {
                 smsg!(0, gettext(c"Finished reading undo file %s"), file_name_cstr,);
@@ -1545,7 +1545,7 @@ fn undo_read_string(bi: &mut Bufinfo, len: usize) -> Option<std::ffi::CString> {
 
 /// Undo `count` times.
 pub fn u_undo(mut count: i32) {
-    if !curbuf_mut().b_u_synced {
+    if !curbuf_mut().b_u_synced.get() {
         u_sync(true);
         count = 1;
     }
@@ -1569,14 +1569,14 @@ pub fn u_redo(count: i32) {
 
 /// Undo and remove the branch from the undo tree.
 pub fn u_undo_and_forget(mut count: i32, do_buf_event: bool) -> bool {
-    if !curbuf_mut().b_u_synced {
+    if !curbuf_mut().b_u_synced.get() {
         u_sync(true);
         count = 1;
     }
     undo_st(|st| st.undo_undoes.set(true));
     u_doit(count, true, do_buf_event);
 
-    let Some(curhead) = curbuf_mut().b_u_curhead else {
+    let Some(curhead) = curbuf_mut().b_u_curhead.get() else {
         return false;
     };
 
@@ -1606,14 +1606,16 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
         change_warning(curbuf_mut(), 0);
 
         if undo_st(|st| st.undo_undoes.get()) {
-            if curbuf_mut().b_u_curhead.is_none() {
-                curbuf_mut().b_u_curhead = curbuf_mut().b_u_newhead;
+            if curbuf_mut().b_u_curhead.get().is_none() {
+                curbuf_mut().b_u_curhead.set(curbuf_mut().b_u_newhead.get());
             } else if get_undolevel(curbuf_mut()) > 0 {
-                let ch = curbuf_mut().b_u_curhead.unwrap();
-                curbuf_mut().b_u_curhead = uhp_ref(curbuf_mut(), ch).uh_next;
+                let ch = curbuf_mut().b_u_curhead.get().unwrap();
+                curbuf_mut()
+                    .b_u_curhead
+                    .set(uhp_ref(curbuf_mut(), ch).uh_next);
             }
-            if curbuf_mut().b_u_numhead == 0 || curbuf_mut().b_u_curhead.is_none() {
-                curbuf_mut().b_u_curhead = curbuf_mut().b_u_oldhead;
+            if curbuf_mut().b_u_numhead.get() == 0 || curbuf_mut().b_u_curhead.get().is_none() {
+                curbuf_mut().b_u_curhead.set(curbuf_mut().b_u_oldhead.get());
                 beep_flush();
                 if count == startcount - 1 {
                     if !shortmess(K_SHM_UNDO) {
@@ -1626,7 +1628,7 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
 
             u_undoredo(true, do_buf_event);
         } else {
-            if curbuf_mut().b_u_curhead.is_none() || get_undolevel(curbuf_mut()) <= 0 {
+            if curbuf_mut().b_u_curhead.get().is_none() || get_undolevel(curbuf_mut()) <= 0 {
                 beep_flush();
                 if count == startcount - 1 {
                     if !shortmess(K_SHM_UNDO) {
@@ -1639,12 +1641,12 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
 
             u_undoredo(false, do_buf_event);
 
-            let curhead = curbuf_mut().b_u_curhead.unwrap();
+            let curhead = curbuf_mut().b_u_curhead.get().unwrap();
             let prev = uhp_ref(curbuf_mut(), curhead).uh_prev;
             if prev.is_none() {
-                curbuf_mut().b_u_newhead = Some(curhead);
+                curbuf_mut().b_u_newhead.set(Some(curhead));
             }
-            curbuf_mut().b_u_curhead = prev;
+            curbuf_mut().b_u_curhead.set(prev);
         }
     }
     u_undo_end(undo_st(|st| st.undo_undoes.get()), false, quiet);
@@ -1658,7 +1660,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
     }
     mc_undo_time();
 
-    if !curbuf_mut().b_u_synced {
+    if !curbuf_mut().b_u_synced.get() {
         u_sync(true);
     }
 
@@ -1681,31 +1683,31 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         closest = -1;
     } else {
         if dosec {
-            target = (curbuf_mut().b_u_time_cur as i32) + step;
+            target = (curbuf_mut().b_u_time_cur.get() as i32) + step;
         } else if dofile {
             if step < 0 {
-                uhp = if let Some(ch) = curbuf_mut().b_u_curhead {
+                uhp = if let Some(ch) = curbuf_mut().b_u_curhead.get() {
                     uhp_ref(curbuf_mut(), ch).uh_next
                 } else {
-                    curbuf_mut().b_u_newhead
+                    curbuf_mut().b_u_newhead.get()
                 };
                 if uhp.is_some_and(|uh| uhp_ref(curbuf_mut(), uh).uh_save_nr != 0) {
-                    target = curbuf_mut().b_u_save_nr_cur + step;
+                    target = curbuf_mut().b_u_save_nr_cur.get() + step;
                 } else {
-                    target = curbuf_mut().b_u_save_nr_cur + step + 1;
+                    target = curbuf_mut().b_u_save_nr_cur.get() + step + 1;
                 }
                 if target <= 0 {
                     dofile = false;
                 }
             } else {
-                target = curbuf_mut().b_u_save_nr_cur + step;
-                if target > curbuf_mut().b_u_save_nr_last {
-                    target = curbuf_mut().b_u_seq_last + 1;
+                target = curbuf_mut().b_u_save_nr_cur.get() + step;
+                if target > curbuf_mut().b_u_save_nr_last.get() {
+                    target = curbuf_mut().b_u_seq_last.get() + 1;
                     dofile = false;
                 }
             }
         } else {
-            target = curbuf_mut().b_u_seq_cur + step;
+            target = curbuf_mut().b_u_seq_cur.get() + step;
         }
         if step < 0 {
             target = target.max(0);
@@ -1714,9 +1716,9 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
             if dosec {
                 closest = (os_time() + 1) as i32;
             } else if dofile {
-                closest = curbuf_mut().b_u_save_nr_last + 2;
+                closest = curbuf_mut().b_u_save_nr_last.get() + 2;
             } else {
-                closest = curbuf_mut().b_u_seq_last + 2;
+                closest = curbuf_mut().b_u_seq_last.get() + 2;
             }
             if target >= closest {
                 target = closest - 1;
@@ -1724,7 +1726,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         }
     }
     let closest_start = closest;
-    let mut closest_seq = curbuf_mut().b_u_seq_cur;
+    let mut closest_seq = curbuf_mut().b_u_seq_cur.get();
     let mut mark = undo_st(|st| st.lastmark.get());
     let mut nomark: i32 = 0;
 
@@ -1737,7 +1739,10 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
                 st.lastmark.set(nomark);
             });
 
-            uhp = curbuf_mut().b_u_curhead.or(curbuf_mut().b_u_newhead);
+            uhp = curbuf_mut()
+                .b_u_curhead
+                .get()
+                .or(curbuf_mut().b_u_newhead.get());
 
             while let Some(uh) = uhp {
                 uhp_mut(curbuf_mut(), uh).uh_walk = mark;
@@ -1752,9 +1757,9 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
                 let uh_seq = uhp_ref(curbuf_mut(), uh).uh_seq;
                 if round == 1 && !(dofile && val == 0) {
                     let dir_ok = if step < 0 {
-                        uh_seq <= curbuf_mut().b_u_seq_cur
+                        uh_seq <= curbuf_mut().b_u_seq_cur.get()
                     } else {
-                        uh_seq > curbuf_mut().b_u_seq_cur
+                        uh_seq > curbuf_mut().b_u_seq_cur.get()
                     };
                     let closer = if dosec && val == closest {
                         if step < 0 {
@@ -1806,7 +1811,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
                     && uhp_ref(curbuf_mut(), n).uh_walk != nomark
                     && uhp_ref(curbuf_mut(), n).uh_walk != mark
                 {
-                    if Some(uh) == curbuf_mut().b_u_curhead {
+                    if Some(uh) == curbuf_mut().b_u_curhead.get() {
                         uhp_mut(curbuf_mut(), uh).uh_walk = nomark;
                     }
                     uhp = Some(n);
@@ -1849,10 +1854,10 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         while !g_st().got_int {
             change_warning(curbuf_mut(), 0);
 
-            uhp = if let Some(ch) = curbuf_mut().b_u_curhead {
+            uhp = if let Some(ch) = curbuf_mut().b_u_curhead.get() {
                 uhp_ref(curbuf_mut(), ch).uh_next
             } else {
-                curbuf_mut().b_u_newhead
+                curbuf_mut().b_u_newhead.get()
             };
             let Some(uh) = uhp else {
                 break;
@@ -1862,7 +1867,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
             {
                 break;
             }
-            curbuf_mut().b_u_curhead = Some(uh);
+            curbuf_mut().b_u_curhead.set(Some(uh));
             u_undoredo(true, true);
             if target > 0 {
                 uhp_mut(curbuf_mut(), uh).uh_walk = nomark;
@@ -1873,7 +1878,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
             while !g_st().got_int {
                 change_warning(curbuf_mut(), 0);
 
-                let Some(mut uh) = curbuf_mut().b_u_curhead else {
+                let Some(mut uh) = curbuf_mut().b_u_curhead.get() else {
                     break;
                 };
 
@@ -1905,22 +1910,22 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
                     uhp_mut(curbuf_mut(), last).uh_alt_next = Some(uh);
                     uhp_mut(curbuf_mut(), uh).uh_alt_prev = Some(last);
 
-                    if curbuf_mut().b_u_oldhead == Some(uh) {
-                        curbuf_mut().b_u_oldhead = Some(last);
+                    if curbuf_mut().b_u_oldhead.get() == Some(uh) {
+                        curbuf_mut().b_u_oldhead.set(Some(last));
                     }
                     uh = last;
                     if let Some(n) = uhp_ref(curbuf_mut(), uh).uh_next {
                         uhp_mut(curbuf_mut(), n).uh_prev = Some(uh);
                     }
                 }
-                curbuf_mut().b_u_curhead = Some(uh);
+                curbuf_mut().b_u_curhead.set(Some(uh));
 
                 if uhp_ref(curbuf_mut(), uh).uh_walk != mark {
                     break;
                 }
 
                 if uhp_ref(curbuf_mut(), uh).uh_seq == target && above {
-                    curbuf_mut().b_u_seq_cur = target - 1;
+                    curbuf_mut().b_u_seq_cur.set(target - 1);
                     break;
                 }
 
@@ -1928,9 +1933,9 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
 
                 let prev = uhp_ref(curbuf_mut(), uh).uh_prev;
                 if prev.is_none() {
-                    curbuf_mut().b_u_newhead = Some(uh);
+                    curbuf_mut().b_u_newhead.set(Some(uh));
                 }
-                curbuf_mut().b_u_curhead = prev;
+                curbuf_mut().b_u_curhead.set(prev);
                 did_undo = false;
 
                 if uhp_ref(curbuf_mut(), uh).uh_seq == target {
@@ -1951,7 +1956,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
 fn u_undoredo(undo: bool, do_buf_event: bool) {
     let mut newlnum: Linenr = MAXLNUM;
     let mut new_curpos = curwin_mut().w_cursor;
-    let curhead_idx = curbuf_mut().b_u_curhead.unwrap();
+    let curhead_idx = curbuf_mut().b_u_curhead.get().unwrap();
     let curhead = uhp_mut(curbuf_mut(), curhead_idx);
 
     block_autocmds();
@@ -2194,24 +2199,25 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         check_cursor(curwin_mut());
     }
 
-    curbuf_mut().b_u_seq_cur = curhead.uh_seq;
+    curbuf_mut().b_u_seq_cur.set(curhead.uh_seq);
     if undo {
-        curbuf_mut().b_u_seq_cur = if let Some(n) = curhead.uh_next {
+        let next_seq = if let Some(n) = curhead.uh_next {
             uhp_ref(curbuf_mut(), n).uh_seq
         } else {
             0
         };
+        curbuf_mut().b_u_seq_cur.set(next_seq);
     }
 
     if curhead.uh_save_nr != 0 {
         if undo {
-            curbuf_mut().b_u_save_nr_cur = curhead.uh_save_nr - 1;
+            curbuf_mut().b_u_save_nr_cur.set(curhead.uh_save_nr - 1);
         } else {
-            curbuf_mut().b_u_save_nr_cur = curhead.uh_save_nr;
+            curbuf_mut().b_u_save_nr_cur.set(curhead.uh_save_nr);
         }
     }
 
-    curbuf_mut().b_u_time_cur = curhead.uh_time;
+    curbuf_mut().b_u_time_cur.set(curhead.uh_time);
 
     unblock_autocmds();
 }
@@ -2255,7 +2261,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         )
     });
 
-    let uhp = if let Some(ch) = curbuf_mut().b_u_curhead {
+    let uhp = if let Some(ch) = curbuf_mut().b_u_curhead.get() {
         let next = uhp_ref(curbuf_mut(), ch).uh_next;
         if absolute && next.is_some() {
             did_undo = false;
@@ -2266,7 +2272,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             next
         }
     } else {
-        curbuf_mut().b_u_newhead
+        curbuf_mut().b_u_newhead.get()
     };
 
     let mut msgbuf = [0u8; 80];
@@ -2330,15 +2336,15 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
 
 /// `u_sync`: stop adding to the current entry list.
 pub fn u_sync(force: bool) {
-    if curbuf_mut().b_u_synced || (!force && g_st().no_u_sync > 0) {
+    if curbuf_mut().b_u_synced.get() || (!force && g_st().no_u_sync > 0) {
         return;
     }
 
     if get_undolevel(curbuf_mut()) < 0 {
-        curbuf_mut().b_u_synced = true;
+        curbuf_mut().b_u_synced.set(true);
     } else {
         u_getbot(curbuf_mut());
-        curbuf_mut().b_u_curhead = None;
+        curbuf_mut().b_u_curhead.set(None);
     }
 }
 
@@ -2354,7 +2360,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
     });
     let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-    let mut uhp = curbuf_mut().b_u_oldhead;
+    let mut uhp = curbuf_mut().b_u_oldhead.get();
     while let Some(uh) = uhp {
         let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;
         let uh_walk = uhp_ref(curbuf_mut(), uh).uh_walk;
@@ -2436,36 +2442,36 @@ pub fn ex_undolist(_eap: &mut Exarg) {
 
 /// `":undojoin"`: continue adding to the last entry list.
 pub fn ex_undojoin(_eap: &mut Exarg) {
-    if curbuf_mut().b_u_newhead.is_none() {
+    if curbuf_mut().b_u_newhead.get().is_none() {
         return;
     }
-    if curbuf_mut().b_u_curhead.is_some() {
+    if curbuf_mut().b_u_curhead.get().is_some() {
         emsg(gettext(c"E790: undojoin is not allowed after undo"));
         return;
     }
-    if !curbuf_mut().b_u_synced {
+    if !curbuf_mut().b_u_synced.get() {
         return;
     }
     if get_undolevel(curbuf_mut()) < 0 {
         return;
     }
-    curbuf_mut().b_u_synced = false;
+    curbuf_mut().b_u_synced.set(false);
 }
 
 /// Called after writing or reloading the file and setting `b_changed` to false.
 pub fn u_unchanged(buf: &mut FileBuf) {
-    let oldhead = buf.b_u_oldhead;
+    let oldhead = buf.b_u_oldhead.get();
     u_unch_branch(buf, oldhead);
-    buf.b_did_warn = false;
+    buf.b_did_warn.set(false);
 }
 
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
 /// line that was changed and set the cursor there.
 pub fn u_find_first_changed() {
-    if curbuf_mut().b_u_curhead.is_some() {
+    if curbuf_mut().b_u_curhead.get().is_some() {
         return;
     }
-    let Some(nh) = curbuf_mut().b_u_newhead else {
+    let Some(nh) = curbuf_mut().b_u_newhead.get() else {
         return;
     };
     if uhp_ref(curbuf_mut(), nh).uh_entries.is_empty() {
@@ -2495,15 +2501,15 @@ pub fn u_find_first_changed() {
 
 /// Increase the write count, store it in the last undo header, what would be used for `"u"`.
 pub fn u_update_save_nr(buf: &mut FileBuf) {
-    buf.b_u_save_nr_last += 1;
-    buf.b_u_save_nr_cur = buf.b_u_save_nr_last;
-    let uhp = if let Some(ch) = buf.b_u_curhead {
+    buf.b_u_save_nr_last.set(buf.b_u_save_nr_last.get() + (1));
+    buf.b_u_save_nr_cur.set(buf.b_u_save_nr_last.get());
+    let uhp = if let Some(ch) = buf.b_u_curhead.get() {
         uhp_ref(buf, ch).uh_next
     } else {
-        buf.b_u_newhead
+        buf.b_u_newhead.get()
     };
     if let Some(uh) = uhp {
-        uhp_mut(buf, uh).uh_save_nr = buf.b_u_save_nr_last;
+        uhp_mut(buf, uh).uh_save_nr = buf.b_u_save_nr_last.get();
     }
 }
 
@@ -2521,7 +2527,7 @@ fn u_unch_branch(buf: &mut FileBuf, uhp: Option<usize>) {
 }
 
 fn u_get_headentry(buf: &mut FileBuf) -> Option<&mut UEntry> {
-    let Some(newhead) = buf.b_u_newhead else {
+    let Some(newhead) = buf.b_u_newhead.get() else {
         iemsg(gettext(E_UNDO_LIST_CORRUPT));
         return None;
     };
@@ -2537,7 +2543,7 @@ fn u_getbot(buf: &mut FileBuf) {
         return;
     }
 
-    let newhead = buf.b_u_newhead.unwrap();
+    let newhead = buf.b_u_newhead.get().unwrap();
 
     if uhp_ref(buf, newhead).uh_getbot_entry {
         let line_count = buf.b_ml.ml_line_count;
@@ -2553,7 +2559,7 @@ fn u_getbot(buf: &mut FileBuf) {
         uhp_mut(buf, newhead).uh_getbot_entry = false;
     }
 
-    buf.b_u_synced = true;
+    buf.b_u_synced.set(true);
 }
 
 fn u_freeheader(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
@@ -2570,7 +2576,7 @@ fn u_freeheader(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
     if let Some(n) = next {
         uhp_mut(buf, n).uh_prev = prev;
     } else {
-        buf.b_u_oldhead = prev;
+        buf.b_u_oldhead.set(prev);
     }
 
     if let Some(p) = prev {
@@ -2580,15 +2586,15 @@ fn u_freeheader(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
             uhap = uhp_ref(buf, ua).uh_alt_next;
         }
     } else {
-        buf.b_u_newhead = next;
+        buf.b_u_newhead.set(next);
     }
 
     u_freeentries(buf, uhp, uhpp);
 }
 
 fn u_freebranch(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
-    if Some(uhp) == buf.b_u_oldhead {
-        while let Some(oh) = buf.b_u_oldhead {
+    if Some(uhp) == buf.b_u_oldhead.get() {
+        while let Some(oh) = buf.b_u_oldhead.get() {
             u_freeheader(buf, oh, uhpp);
         }
         return;
@@ -2621,28 +2627,29 @@ fn u_forget_header(buf: &mut FileBuf, uhp: usize) {
     if let Some(p) = parent {
         uhp_mut(&mut *buf, p).uh_prev = alt;
     }
-    if buf.b_u_oldhead == Some(uhp) {
-        buf.b_u_oldhead = alt;
+    if buf.b_u_oldhead.get() == Some(uhp) {
+        buf.b_u_oldhead.set(alt);
     }
     uhp_mut(&mut *buf, uhp).uh_alt_next = None;
     uhp_mut(&mut *buf, uhp).uh_alt_prev = None;
-    buf.b_u_newhead = parent;
-    buf.b_u_curhead = alt;
-    buf.b_u_seq_cur = parent.map_or(0, |p| uhp_ref(&*buf, p).uh_seq);
-    if buf.b_u_seq_last == uhp_ref(&*buf, uhp).uh_seq {
-        buf.b_u_seq_last -= 1;
+    buf.b_u_newhead.set(parent);
+    buf.b_u_curhead.set(alt);
+    buf.b_u_seq_cur
+        .set(parent.map_or(0, |p| uhp_ref(&*buf, p).uh_seq));
+    if buf.b_u_seq_last.get() == uhp_ref(&*buf, uhp).uh_seq {
+        buf.b_u_seq_last.set(buf.b_u_seq_last.get() - (1));
     }
-    buf.b_u_synced = true;
+    buf.b_u_synced.set(true);
     let mut dummy = None;
     u_freebranch(buf, uhp, &mut dummy);
 }
 
 fn u_freeentries(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
-    if buf.b_u_curhead == Some(uhp) {
-        buf.b_u_curhead = None;
+    if buf.b_u_curhead.get() == Some(uhp) {
+        buf.b_u_curhead.set(None);
     }
-    if buf.b_u_newhead == Some(uhp) {
-        buf.b_u_newhead = None;
+    if buf.b_u_newhead.get() == Some(uhp) {
+        buf.b_u_newhead.set(None);
     }
     if *uhpp == Some(uhp) {
         *uhpp = None;
@@ -2650,15 +2657,15 @@ fn u_freeentries(buf: &mut FileBuf, uhp: usize, uhpp: &mut Option<usize>) {
 
     uhp_mut(buf, uhp).clone_from_slice_or_reset();
     buf.b_u_free_headers.push(uhp);
-    buf.b_u_numhead -= 1;
+    buf.b_u_numhead.set(buf.b_u_numhead.get() - (1));
 }
 
 /// Prunes the newest undo entry if it has no changes.
 pub fn u_forget_unchanged(buf: &mut FileBuf) {
-    let Some(uhp) = buf.b_u_newhead else {
+    let Some(uhp) = buf.b_u_newhead.get() else {
         return;
     };
-    if uhp_ref(&*buf, uhp).uh_entries.is_empty() || buf.b_u_curhead.is_some() {
+    if uhp_ref(&*buf, uhp).uh_entries.is_empty() || buf.b_u_curhead.get().is_some() {
         return;
     };
     let (ue_top, ue_size, resized) = {
@@ -2687,21 +2694,21 @@ pub fn u_forget_unchanged(buf: &mut FileBuf) {
 
 /// Invalidate the undo buffer; called when storage has already been released.
 pub fn u_clearall(buf: &mut FileBuf) {
-    buf.b_u_newhead = None;
-    buf.b_u_oldhead = None;
-    buf.b_u_curhead = None;
-    buf.b_u_synced = true;
-    buf.b_u_numhead = 0;
+    buf.b_u_newhead.set(None);
+    buf.b_u_oldhead.set(None);
+    buf.b_u_curhead.set(None);
+    buf.b_u_synced.set(true);
+    buf.b_u_numhead.set(0);
     buf.b_u_line_ptr = None;
-    buf.b_u_line_lnum = 0;
+    buf.b_u_line_lnum.set(0);
 }
 
 /// Free all allocated memory blocks for the buffer `buf`.
 pub fn u_blockfree(buf: &mut FileBuf) {
-    while let Some(previous_oldhead) = buf.b_u_oldhead {
+    while let Some(previous_oldhead) = buf.b_u_oldhead.get() {
         let mut dummy = None;
         u_freeheader(buf, previous_oldhead, &mut dummy);
-        assert!(buf.b_u_oldhead != Some(previous_oldhead));
+        assert!(buf.b_u_oldhead.get() != Some(previous_oldhead));
     }
     buf.b_u_line_ptr = None;
 }
@@ -2715,18 +2722,18 @@ pub fn u_clearallandblockfree(buf: &mut FileBuf) {
 }
 
 fn u_saveline(buf: &mut FileBuf, lnum: Linenr) {
-    if lnum == buf.b_u_line_lnum {
+    if lnum == buf.b_u_line_lnum.get() {
         return;
     }
     if lnum < 1 || lnum > buf.b_ml.ml_line_count {
         return;
     }
     u_clearline(buf);
-    buf.b_u_line_lnum = lnum;
+    buf.b_u_line_lnum.set(lnum);
     if curwin_mut().w_buffer == buf && curwin_mut().w_cursor.lnum == lnum {
-        buf.b_u_line_colnr = curwin_mut().w_cursor.col;
+        buf.b_u_line_colnr.set(curwin_mut().w_cursor.col);
     } else {
-        buf.b_u_line_colnr = 0;
+        buf.b_u_line_colnr.set(0);
     }
     buf.b_u_line_ptr = Some(u_save_line_buf(buf, lnum));
 }
@@ -2738,13 +2745,13 @@ pub fn u_clearline(buf: &mut FileBuf) {
     }
 
     buf.b_u_line_ptr = None;
-    buf.b_u_line_lnum = 0;
+    buf.b_u_line_lnum.set(0);
 }
 
 /// Implementation of the `"U"` command.
 pub fn u_undoline() {
     if curbuf_mut().b_u_line_ptr.is_none()
-        || curbuf_mut().b_u_line_lnum > curbuf_mut().b_ml.ml_line_count
+        || curbuf_mut().b_u_line_lnum.get() > curbuf_mut().b_ml.ml_line_count
     {
         beep_flush();
         return;
@@ -2753,35 +2760,35 @@ pub fn u_undoline() {
 
     if !u_savecommon(
         curbuf_mut(),
-        curbuf_mut().b_u_line_lnum - 1,
-        curbuf_mut().b_u_line_lnum + 1,
+        curbuf_mut().b_u_line_lnum.get() - 1,
+        curbuf_mut().b_u_line_lnum.get() + 1,
         0,
         false,
     ) {
         return;
     }
 
-    let oldp = u_save_line(curbuf_mut().b_u_line_lnum);
+    let oldp = u_save_line(curbuf_mut().b_u_line_lnum.get());
     let new_line = curbuf_mut().b_u_line_ptr.as_ref().unwrap();
     let new_line_len = new_line.as_bytes().len() as Colnr;
-    ml_replace(curbuf_mut().b_u_line_lnum, new_line.to_bytes(), true);
+    ml_replace(curbuf_mut().b_u_line_lnum.get(), new_line.to_bytes(), true);
     extmark_splice_cols(
         curbuf_mut(),
-        curbuf_mut().b_u_line_lnum - 1,
+        curbuf_mut().b_u_line_lnum.get() - 1,
         0,
         oldp.as_bytes().len() as Colnr,
         new_line_len,
         K_EXTMARK_UNDO,
     );
-    changed_bytes(curbuf_mut().b_u_line_lnum, 0);
+    changed_bytes(curbuf_mut().b_u_line_lnum.get(), 0);
     curbuf_mut().b_u_line_ptr = Some(oldp);
 
-    let t = curbuf_mut().b_u_line_colnr;
-    if curwin_mut().w_cursor.lnum == curbuf_mut().b_u_line_lnum {
-        curbuf_mut().b_u_line_colnr = curwin_mut().w_cursor.col;
+    let t = curbuf_mut().b_u_line_colnr.get();
+    if curwin_mut().w_cursor.lnum == curbuf_mut().b_u_line_lnum.get() {
+        curbuf_mut().b_u_line_colnr.set(curwin_mut().w_cursor.col);
     }
     curwin_mut().w_cursor.col = t;
-    curwin_mut().w_cursor.lnum = curbuf_mut().b_u_line_lnum;
+    curwin_mut().w_cursor.lnum = curbuf_mut().b_u_line_lnum.get();
     check_cursor_col(curwin_mut());
 }
 
@@ -2796,7 +2803,7 @@ fn u_save_line_buf(buf: &mut FileBuf, lnum: Linenr) -> std::ffi::CString {
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
 pub fn buf_is_changed_fn(buf: &mut FileBuf) -> bool {
     if bt_prompt(Some(&*buf)) {
-        buf.b_modified_was_set
+        buf.b_modified_was_set.get()
     } else {
         !bt_dontwrite(Some(&*buf)) && (buf.b_changed.get() != 0 || file_ff_differs(buf, true))
     }
@@ -2825,10 +2832,10 @@ fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> crate::eval::typv
         let dict = tv_dict_alloc();
         tv_dict_add_nr(&dict, c"seq", uhp_ref(&*buf, uh).uh_seq as Varnumber);
         tv_dict_add_nr(&dict, c"time", uhp_ref(&*buf, uh).uh_time as Varnumber);
-        if Some(uh) == buf.b_u_newhead {
+        if Some(uh) == buf.b_u_newhead.get() {
             tv_dict_add_nr(&dict, c"newhead", 1);
         }
-        if Some(uh) == buf.b_u_curhead {
+        if Some(uh) == buf.b_u_curhead.get() {
             tv_dict_add_nr(&dict, c"curhead", 1);
         }
         if uhp_ref(&*buf, uh).uh_save_nr > 0 {
@@ -2875,19 +2882,23 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     };
 
-    tv_dict_add_nr(&dict, c"synced", Varnumber::from(buf.b_u_synced));
-    tv_dict_add_nr(&dict, c"seq_last", buf.b_u_seq_last as Varnumber);
-    tv_dict_add_nr(&dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
-    tv_dict_add_nr(&dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
-    tv_dict_add_nr(&dict, c"time_cur", buf.b_u_time_cur as Varnumber);
-    tv_dict_add_nr(&dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
+    tv_dict_add_nr(&dict, c"synced", Varnumber::from(buf.b_u_synced.get()));
+    tv_dict_add_nr(&dict, c"seq_last", buf.b_u_seq_last.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"save_last", buf.b_u_save_nr_last.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"seq_cur", buf.b_u_seq_cur.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"time_cur", buf.b_u_time_cur.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"save_cur", buf.b_u_save_nr_cur.get() as Varnumber);
 
-    tv_dict_add_list(&dict, c"entries", Some(&u_eval_tree(buf, buf.b_u_oldhead)));
+    tv_dict_add_list(
+        &dict,
+        c"entries",
+        Some(&u_eval_tree(buf, buf.b_u_oldhead.get())),
+    );
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.
 pub fn u_update_named_mark(buf: &mut FileBuf, idx: i32) {
-    let uhp = buf.b_u_curhead.or(buf.b_u_newhead);
+    let uhp = buf.b_u_curhead.get().or(buf.b_u_newhead.get());
     if let Some(uh) = uhp {
         uhp_mut(&mut *buf, uh).uh_namedm[idx as usize].mark.lnum = 0;
     }
@@ -2895,13 +2906,13 @@ pub fn u_update_named_mark(buf: &mut FileBuf, idx: i32) {
 
 /// Given the buffer, return the undo header index. If none is set, set one first.
 pub fn u_force_get_undo_header(buf: &mut FileBuf) -> Option<usize> {
-    let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
+    let mut uhp = buf.b_u_curhead.get().or(buf.b_u_newhead.get());
 
     if uhp.is_none() {
         u_savecommon(&mut *buf, 0, 1, 1, true);
-        uhp = buf.b_u_curhead;
+        uhp = buf.b_u_curhead.get();
         if uhp.is_none() {
-            uhp = buf.b_u_newhead;
+            uhp = buf.b_u_newhead.get();
             if get_undolevel(&mut *buf) > 0 && uhp.is_none() {
                 std::process::abort();
             }
@@ -2912,19 +2923,19 @@ pub fn u_force_get_undo_header(buf: &mut FileBuf) -> Option<usize> {
 
 /// Checkpoints the undo state of `buf` and detaches its undotree.
 pub fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
-    uc.uc_synced = buf.b_u_synced;
-    uc.uc_oldhead = buf.b_u_oldhead;
-    uc.uc_newhead = buf.b_u_newhead;
-    uc.uc_curhead = buf.b_u_curhead;
-    uc.uc_numhead = buf.b_u_numhead;
-    uc.uc_seq_last = buf.b_u_seq_last;
-    uc.uc_save_nr_last = buf.b_u_save_nr_last;
-    uc.uc_seq_cur = buf.b_u_seq_cur;
-    uc.uc_time_cur = buf.b_u_time_cur;
-    uc.uc_save_nr_cur = buf.b_u_save_nr_cur;
+    uc.uc_synced = buf.b_u_synced.get();
+    uc.uc_oldhead = buf.b_u_oldhead.get();
+    uc.uc_newhead = buf.b_u_newhead.get();
+    uc.uc_curhead = buf.b_u_curhead.get();
+    uc.uc_numhead = buf.b_u_numhead.get();
+    uc.uc_seq_last = buf.b_u_seq_last.get();
+    uc.uc_save_nr_last = buf.b_u_save_nr_last.get();
+    uc.uc_seq_cur = buf.b_u_seq_cur.get();
+    uc.uc_time_cur = buf.b_u_time_cur.get();
+    uc.uc_save_nr_cur = buf.b_u_save_nr_cur.get();
     uc.uc_line_ptr = buf.b_u_line_ptr.take();
-    uc.uc_line_lnum = buf.b_u_line_lnum;
-    uc.uc_line_colnr = buf.b_u_line_colnr;
+    uc.uc_line_lnum = buf.b_u_line_lnum.get();
+    uc.uc_line_colnr = buf.b_u_line_colnr.get();
     uc.uc_undolevels = buf.b_p_ul.get();
     uc.uc_changedtick = buf_get_changedtick(&*buf);
 
@@ -2934,9 +2945,9 @@ pub fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
 
 /// Reverts `buf` from a checkpoint.
 pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
-    if buf.b_u_seq_cur != uc.uc_seq_cur {
+    if buf.b_u_seq_cur.get() != uc.uc_seq_cur {
         let mut count: i32 = 0;
-        let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
+        let mut uhp = buf.b_u_curhead.get().or(buf.b_u_newhead.get());
         while let Some(uh) = uhp {
             uhp = uhp_ref(&*buf, uh).uh_next;
             count += 1;
@@ -2944,7 +2955,7 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
 
         let mut cs: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut cs, None, None, Some(&mut *buf), 0);
-        if !curbuf_mut().b_u_synced {
+        if !curbuf_mut().b_u_synced.get() {
             u_sync(true);
         }
         if !u_undo_and_forget(count, false) {
@@ -2954,20 +2965,20 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     }
 
     u_blockfree(buf);
-    buf.b_u_oldhead = uc.uc_oldhead;
-    buf.b_u_newhead = uc.uc_newhead;
-    buf.b_u_curhead = uc.uc_curhead;
-    buf.b_u_numhead = uc.uc_numhead;
-    buf.b_u_seq_last = uc.uc_seq_last;
-    buf.b_u_save_nr_last = uc.uc_save_nr_last;
-    buf.b_u_seq_cur = uc.uc_seq_cur;
-    buf.b_u_time_cur = uc.uc_time_cur;
-    buf.b_u_save_nr_cur = uc.uc_save_nr_cur;
+    buf.b_u_oldhead.set(uc.uc_oldhead);
+    buf.b_u_newhead.set(uc.uc_newhead);
+    buf.b_u_curhead.set(uc.uc_curhead);
+    buf.b_u_numhead.set(uc.uc_numhead);
+    buf.b_u_seq_last.set(uc.uc_seq_last);
+    buf.b_u_save_nr_last.set(uc.uc_save_nr_last);
+    buf.b_u_seq_cur.set(uc.uc_seq_cur);
+    buf.b_u_time_cur.set(uc.uc_time_cur);
+    buf.b_u_save_nr_cur.set(uc.uc_save_nr_cur);
     buf.b_u_line_ptr = uc.uc_line_ptr.take();
-    buf.b_u_line_lnum = uc.uc_line_lnum;
-    buf.b_u_line_colnr = uc.uc_line_colnr;
-    if buf.b_u_curhead.is_none() {
-        buf.b_u_synced = uc.uc_synced;
+    buf.b_u_line_lnum.set(uc.uc_line_lnum);
+    buf.b_u_line_colnr.set(uc.uc_line_colnr);
+    if buf.b_u_curhead.get().is_none() {
+        buf.b_u_synced.set(uc.uc_synced);
     }
 
     if uc.uc_changedtick != buf_get_changedtick(&*buf) {
@@ -3037,7 +3048,7 @@ mod tests {
                 BLN_LISTED,
             )
             .unwrap();
-            buf.b_u_numhead = 1;
+            buf.b_u_numhead.set(1);
 
             let mut hash = [0u8; UNDO_HASH_SIZE];
             u_compute_hash(&mut *buf, &mut hash);
@@ -3064,7 +3075,7 @@ mod tests {
             let _ = std::fs::remove_file(&ufile);
 
             // Does not write undo file when b_u_numhead == 0
-            buf.b_u_numhead = 0;
+            buf.b_u_numhead.set(0);
             u_write_undo(None, false, &mut *buf, &hash);
             assert!(!std::path::Path::new(&ufile).exists());
 

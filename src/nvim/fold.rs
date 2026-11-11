@@ -156,7 +156,7 @@ pub fn copy_folding_state(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
 /// True if there may be folded lines in window `win`.
 pub fn has_any_folding(win: &mut WinInfoInfo) -> i32 {
     i32::from(
-        win.buf_mut().terminal.is_null()
+        win.buf_mut().terminal.get().is_null()
             && win.w_onebuf_opt.wo_fen.get()
             && !mc_replaying()
             && (!foldmethod_is_manual(win) || !win.w_folds.is_empty()),

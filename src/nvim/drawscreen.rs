@@ -700,14 +700,14 @@ pub fn update_screen() -> bool {
             update_window_hl(&mut *wp, type_ >= UPD_NOT_VALID || hl_changed);
 
             let buf = wp.buf_mut();
-            if buf.b_mod_set {
-                if buf.b_mod_tick_syn < display_tick_val() && syntax_present(&mut *wp) {
+            if buf.b_mod_set.get() {
+                if buf.b_mod_tick_syn.get() < display_tick_val() && syntax_present(&mut *wp) {
                     syn_stack_apply_changes(&mut *buf);
-                    buf.b_mod_tick_syn = display_tick_val();
+                    buf.b_mod_tick_syn.set(display_tick_val());
                 }
-                if buf.b_mod_tick_decor < display_tick_val() {
+                if buf.b_mod_tick_decor.get() < display_tick_val() {
                     decor_providers_invoke_buf(&mut *buf);
-                    buf.b_mod_tick_decor = display_tick_val();
+                    buf.b_mod_tick_decor.set(display_tick_val());
                 }
             }
         }
@@ -776,7 +776,7 @@ pub fn update_screen() -> bool {
     win_check_ns_hl(None);
 
     for wp in for_all_windows_ptr() {
-        wp.buf_mut().b_mod_set = false;
+        wp.buf_mut().b_mod_set.set(false);
     }
 
     g_st().updating_screen = false;
@@ -1002,7 +1002,7 @@ pub fn showmode() -> i32 {
                     || g_st().restart_edit == i32::from(b'a')
                     || g_st().restart_edit == i32::from(b'A')
                 {
-                    if !curbuf_mut().terminal.is_null() {
+                    if !curbuf_mut().terminal.get().is_null() {
                         msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
                     } else {
                         msg_puts_hl(gettext(c" (insert)"), hl_id, false);
@@ -1454,7 +1454,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
     decor_providers_invoke_win(wp);
 
-    if let Some(term) = buf.terminal.opt()
+    if let Some(term) = buf.terminal.get().opt()
         && terminal_suspended(term)
     {
         let mut susp_vt = ds_st(|st| st.suspended_virt_text.get());
@@ -1544,16 +1544,16 @@ fn win_update(wp: &mut WinInfoInfo) {
         } else {
             0
         };
-        if buf.b_mod_set {
-            if mod_top == 0 || mod_top > buf.b_mod_top {
-                mod_top = buf.b_mod_top;
+        if buf.b_mod_set.get() {
+            if mod_top == 0 || mod_top > buf.b_mod_top.get() {
+                mod_top = buf.b_mod_top.get();
                 if syntax_present(&mut *wp) {
                     mod_top -= buf.b_s.b_syn_sync_linebreaks;
                     mod_top = mod_top.max(1);
                 }
             }
-            if mod_bot == 0 || mod_bot < buf.b_mod_bot {
-                mod_bot = buf.b_mod_bot;
+            if mod_bot == 0 || mod_bot < buf.b_mod_bot.get() {
+                mod_bot = buf.b_mod_bot.get();
             }
 
             if let Some(regprog) = g_st().screen_search_hl.rm.regprog.opt()
@@ -1981,8 +1981,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                                         && has_any_folding(&mut *wp) != 0)
                                         || syntax_check_changed(lnum)))
                                 || (!wp.w_match_head.is_empty()
-                                    && buf.b_mod_set
-                                    && buf.b_mod_xlines != 0)))))
+                                    && buf.b_mod_set.get()
+                                    && buf.b_mod_xlines.get() != 0)))))
                 || lnum == wp.w_cursorline
                 || lnum == wp.w_last_cursorline
             {
@@ -2232,8 +2232,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                 if (wp.w_onebuf_opt.wo_nu.get()
                     && mod_top != 0
                     && lnum >= mod_bot
-                    && buf.b_mod_set
-                    && buf.b_mod_xlines != 0)
+                    && buf.b_mod_set.get()
+                    && buf.b_mod_xlines.get() != 0)
                     || (wp.w_onebuf_opt.wo_rnu.get()
                         && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
                 {
@@ -2425,19 +2425,19 @@ fn win_update(wp: &mut WinInfoInfo) {
                 curwin_mut().w_valid &= !VALID_TOPLINE;
                 update_topline(curwin_mut());
                 if g_st().must_redraw != 0 {
-                    let mod_set = curbuf_mut().b_mod_set;
-                    curbuf_mut().b_mod_set = false;
+                    let mod_set = curbuf_mut().b_mod_set.get();
+                    curbuf_mut().b_mod_set.set(false);
                     curs_columns(curwin_mut(), true);
                     win_update(curwin_mut());
                     g_st().must_redraw = 0;
-                    curbuf_mut().b_mod_set = mod_set;
+                    curbuf_mut().b_mod_set.set(mod_set);
                 }
                 ds_st(|st| st.win_update_recursive.set(false));
             }
         }
 
         if nrwidth_before != wp.w_nrwidth
-            && let Some(term) = buf.terminal.opt_mut()
+            && let Some(term) = buf.terminal.get().opt_mut()
         {
             terminal_check_size(term);
         }

@@ -1615,7 +1615,7 @@ pub fn win_line(
 
         check_decor_providers = true;
 
-        wlv.color_cols = if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
+        wlv.color_cols = if !wp.buf_mut().terminal.get().is_null() || wp.w_p_cc_cols.is_empty() {
             &[]
         } else {
             crate::globals::WinPtr::from_ref(wp)
@@ -2083,8 +2083,12 @@ pub fn win_line(
     let mut leftcols_width: i32 = 0;
 
     let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
-    if !wp.buf_mut().terminal.is_null() {
-        terminal_get_line_attributes(wp.buf_mut().terminal.borrow_mut(), lnum, &mut term_attrs);
+    if !wp.buf_mut().terminal.get().is_null() {
+        terminal_get_line_attributes(
+            wp.buf_mut().terminal.get().borrow_mut(),
+            lnum,
+            &mut term_attrs,
+        );
 
         extra_check = true;
     }
@@ -2781,7 +2785,7 @@ pub fn win_line(
                         wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
                     }
 
-                    if !wp.buf_mut().terminal.is_null() {
+                    if !wp.buf_mut().terminal.get().is_null() {
                         wlv.char_attr = hl_combine_attr(
                             if (wlv.vcol as usize) < TERM_ATTRS_MAX {
                                 term_attrs[wlv.vcol as usize]
@@ -3405,7 +3409,7 @@ pub fn win_line(
                     || wlv.line_attr_lowprio != 0
                     || wlv.line_attr != 0
                     || wlv.diff_hlf != 0
-                    || !wp.buf_mut().terminal.is_null()
+                    || !wp.buf_mut().terminal.get().is_null()
                 {
                     let mut rightmost_vcol = get_rightmost_vcol(wp, wlv.color_cols);
                     let cuc_attr = win_hl_attr(&mut *wp, HLF_CUC);
@@ -3423,7 +3427,10 @@ pub fn win_line(
                     };
 
                     let base_attr = hl_combine_attr(wlv.line_attr_lowprio, diff_attr);
-                    if base_attr != 0 || wlv.line_attr != 0 || !wp.buf_mut().terminal.is_null() {
+                    if base_attr != 0
+                        || wlv.line_attr != 0
+                        || !wp.buf_mut().terminal.get().is_null()
+                    {
                         rightmost_vcol = i32::MAX;
                     }
 
@@ -3448,7 +3455,8 @@ pub fn win_line(
                             col_attr = hl_combine_attr(col_attr, mc_attr);
                         }
 
-                        if !wp.buf_mut().terminal.is_null() && (wlv.vcol as usize) < TERM_ATTRS_MAX
+                        if !wp.buf_mut().terminal.get().is_null()
+                            && (wlv.vcol as usize) < TERM_ATTRS_MAX
                         {
                             col_attr = hl_combine_attr(col_attr, term_attrs[wlv.vcol as usize]);
                         }

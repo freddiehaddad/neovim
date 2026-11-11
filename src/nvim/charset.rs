@@ -229,15 +229,14 @@ const fn nr2hex(n: u32) -> u8 {
 use crate::keycodes::k_second;
 
 pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
-    let save_chartab = buf.b_chartab;
-    buf.b_chartab = [0; 4];
+    let mut chartab = [0; 4];
     if buf.b_p_lisp.get() {
-        set_chartab(&mut buf.b_chartab, b'-' as i32);
+        set_chartab(&mut chartab, b'-' as i32);
     }
-    if !parse_isopt(buf.b_p_isk.as_bytes(), Some(&mut buf.b_chartab)) {
-        buf.b_chartab = save_chartab;
+    if !parse_isopt(buf.b_p_isk.as_bytes(), Some(&mut chartab)) {
         return false;
     }
+    buf.b_chartab.set(chartab);
     true
 }
 
@@ -687,7 +686,7 @@ pub fn vim_iswordc_tab(c: i32, chartab: &[u64; 4]) -> bool {
 }
 
 pub fn vim_iswordc_buf(c: i32, buf: &mut FileBuf) -> bool {
-    vim_iswordc_tab(c, &buf.b_chartab)
+    vim_iswordc_tab(c, &buf.b_chartab.get())
 }
 
 pub fn vim_iswordp(bytes: &[u8]) -> bool {

@@ -904,7 +904,7 @@ pub fn home_replace(
         return 0;
     };
 
-    if buf.is_some() && buf.unwrap().b_help {
+    if buf.is_some() && buf.unwrap().b_help.get() {
         let dlen = crate::memory::copy_bytes_to_c_buf(dst_slice, path_tail(src_cstr).to_bytes());
         return dlen.min(dstlen - 1);
     }

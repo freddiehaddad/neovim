@@ -252,7 +252,7 @@ fn get_patterns_from_pattern_or_buf(
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Array::new();
         };
-        patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum)));
+        patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum.get())));
     } else {
         patterns.push(string_obj(cstr_as_string(Some(fallback))));
     }
@@ -466,7 +466,7 @@ pub fn nvim_get_autocmds(
             ) else {
                 break 'body;
             };
-            let pat = format_buflocal_arena(arena, b.b_fnum);
+            let pat = format_buflocal_arena(arena, b.b_fnum.get());
             buffers = arena_array(arena, 1);
             add_c(&mut buffers, string_obj(pat));
         } else if buf.obj_type == ObjectType::ObjectTypeArray {
@@ -501,7 +501,7 @@ pub fn nvim_get_autocmds(
                 };
                 add_c(
                     &mut buffers,
-                    string_obj(format_buflocal_arena(arena, b.b_fnum)),
+                    string_obj(format_buflocal_arena(arena, b.b_fnum.get())),
                 );
             }
         } else if has_buf {
