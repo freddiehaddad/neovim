@@ -1,7 +1,6 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 #![forbid(unsafe_code)]
 
-use crate::globals::GraphPtr;
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackSintmax, MpackTokbuf, MpackToken, MpackTokenChunk,
     MpackTokenMap, MpackUint32, mpack_read, mpack_tokbuf_init, mpack_write,
@@ -22,8 +21,7 @@ pub enum MpackData {
     List(crate::eval::typval::ListId),
     MapPairs(Vec<[crate::eval::typval::TypVal; 2]>),
     OwnedBytes(Vec<u8>),
-    NvimString(crate::api::private::validate::NvimString),
-    Object(GraphPtr<crate::api::private::validate::Object>),
+    Object(crate::api::private::validate::Object),
 }
 
 impl MpackData {
@@ -64,14 +62,6 @@ impl MpackData {
     }
 
     #[inline]
-    pub fn nvim_string_mut(&mut self) -> &mut crate::api::private::validate::NvimString {
-        match self {
-            Self::NvimString(s) => s,
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline]
     pub fn owned_bytes_mut(&mut self) -> &mut [u8] {
         match self {
             Self::OwnedBytes(v) => v.as_mut_slice(),
@@ -88,10 +78,18 @@ impl MpackData {
     }
 
     #[inline]
-    pub fn object(&self) -> &'static mut crate::api::private::validate::Object {
-        match *self {
-            Self::Object(p) => p.borrow_mut(),
+    pub fn object_mut(&mut self) -> &mut crate::api::private::validate::Object {
+        match self {
+            Self::Object(obj) => obj,
             _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn take_object(&mut self) -> crate::api::private::validate::Object {
+        match std::mem::take(self) {
+            Self::Object(obj) => obj,
+            _ => crate::api::private::validate::Object::new(),
         }
     }
 }

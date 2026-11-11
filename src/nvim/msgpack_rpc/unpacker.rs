@@ -7,7 +7,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::globals::*;
-use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
+use crate::lua::converter::{Boolean, FieldHashfn};
 use crate::memory::{Arena, arena_alloc, arena_allocz, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
@@ -110,25 +110,10 @@ struct ApiParseCtx<'a> {
 }
 
 fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: usize) {
-    let mut result: GraphPtr<Object> = GraphPtr::NULL;
-    let mut key_location: GraphPtr<NvimString> = GraphPtr::NULL;
-
     let (node, mut parent) = parser.node_and_parent_mut(node_idx);
     if let Some(parent) = parent.as_deref_mut() {
         match parent.tok.r#type {
-            MpackTokenType::MpackTokenArray => {
-                let obj = parent.data[0].object();
-                result = obj.data.array().items.wrapping_add(parent.pos);
-            }
-            MpackTokenType::MpackTokenMap => {
-                let obj = parent.data[0].object();
-                let kv = &mut obj.data.dict()[parent.pos];
-                if parent.key_visited == 0 {
-                    kv.key = NvimString::new();
-                    key_location = GraphPtr::from(&mut kv.key);
-                }
-                result = GraphPtr::from(&mut kv.value);
-            }
+            MpackTokenType::MpackTokenArray | MpackTokenType::MpackTokenMap => {}
             MpackTokenType::MpackTokenStr
             | MpackTokenType::MpackTokenBin
             | MpackTokenType::MpackTokenExt => {
@@ -136,35 +121,35 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
             }
             _ => std::process::abort(),
         }
-    } else {
-        result = GraphPtr::from(&mut *p.result);
     }
 
     match node.tok.r#type {
-        MpackTokenType::MpackTokenNil => *result = nil_obj(),
+        MpackTokenType::MpackTokenNil => {
+            node.data[0] = crate::mpack::object::MpackData::Object(nil_obj());
+        }
         MpackTokenType::MpackTokenBoolean => {
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
                 data: ObjectData::Boolean(mpack_unpack_boolean(&node.tok)),
-            };
+            });
         }
         MpackTokenType::MpackTokenSint => {
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(mpack_unpack_sint(&node.tok)),
-            };
+            });
         }
         MpackTokenType::MpackTokenUint => {
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(mpack_unpack_uint(&node.tok) as Integer),
-            };
+            });
         }
         MpackTokenType::MpackTokenFloat => {
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeFloat,
                 data: ObjectData::Floating(mpack_unpack_float_fast(&node.tok)),
-            };
+            });
         }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = node.tok.length as usize;
@@ -173,18 +158,13 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
                 data: mem,
                 size: len,
             };
-            if !key_location.is_null() {
-                *key_location = s;
-            } else {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(s),
-                };
-            }
-            node.data[0] = crate::mpack::object::MpackData::NvimString(s);
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(s),
+            });
         }
         MpackTokenType::MpackTokenExt => {
-            node.data[0] = crate::mpack::object::MpackData::Object(result);
+            node.data[0] = crate::mpack::object::MpackData::Object(nil_obj());
         }
         MpackTokenType::MpackTokenChunk => {
             let parent = parent.unwrap();
@@ -193,12 +173,13 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
                 || parent.tok.r#type == MpackTokenType::MpackTokenBin
             {
                 let pos = parent.pos;
-                let data = parent.data[0].nvim_string_mut().as_bytes_with_nul_mut();
+                let mut s = parent.data[0].object_mut().data.string();
+                let data = s.as_bytes_with_nul_mut();
                 if chunk_len > 0 {
                     data[pos..pos + chunk_len].copy_from_slice(node.tok.data.chunk_bytes());
                 }
             } else {
-                let res = parent.data[0].object();
+                let res = parent.data[0].object_mut();
                 let endlen = parent.pos + chunk_len;
                 if endlen > MAX_EXT_LEN {
                     *res = nil_obj();
@@ -233,38 +214,64 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
             let items =
                 arena_alloc(p.arena, std::mem::size_of::<Object>() * len, true).cast::<Object>();
 
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(Array {
                     size: len,
                     capacity: len,
                     items: items.into(),
                 }),
-            };
-
-            node.data[0] = crate::mpack::object::MpackData::Object(result);
+            });
         }
         MpackTokenType::MpackTokenMap => {
             let len = node.tok.length as usize;
             let items = arena_alloc(p.arena, std::mem::size_of::<KeyValuePair>() * len, true)
                 .cast::<KeyValuePair>();
 
-            *result = Object {
+            node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(Dict {
                     size: len,
                     capacity: len,
                     items: items.into(),
                 }),
-            };
-
-            node.data[0] = crate::mpack::object::MpackData::Object(result);
+            });
         }
         MpackTokenType::MpackTokenNone => std::process::abort(),
     }
 }
 
-fn api_parse_exit(_parser: &mut MpackParser, _ctx: &mut ApiParseCtx<'_>, _node_idx: usize) {}
+fn api_parse_exit(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: usize) {
+    let (node, parent) = parser.node_and_parent_mut(node_idx);
+    if node.tok.r#type == MpackTokenType::MpackTokenChunk {
+        return;
+    }
+    let obj = node.data[0].take_object();
+    if let Some(parent) = parent {
+        match parent.tok.r#type {
+            MpackTokenType::MpackTokenArray => {
+                parent.data[0].object_mut().data.array_mut()[parent.pos - 1] = obj;
+            }
+            MpackTokenType::MpackTokenMap => {
+                if parent.key_visited != 0 {
+                    let kv = &mut parent.data[0].object_mut().data.dict_mut()[parent.pos];
+                    if obj.obj_type == ObjectType::ObjectTypeString {
+                        kv.key = obj.data.string();
+                    } else {
+                        kv.key = NvimString::new();
+                        kv.value = obj;
+                    }
+                } else {
+                    let kv = &mut parent.data[0].object_mut().data.dict_mut()[parent.pos - 1];
+                    kv.value = obj;
+                }
+            }
+            _ => std::process::abort(),
+        }
+    } else {
+        *p.result = obj;
+    }
+}
 
 fn parse_nop(_parser: &mut MpackParser, _ctx: &mut (), _node_idx: usize) {}
 
@@ -847,8 +854,6 @@ pub fn unpack_keydict<T>(
     buf: &mut &[u8],
     error: &mut Option<std::ffi::CString>,
 ) -> bool {
-    let retval_ptr = GraphPtr::from_ref(retval).cast_ptr::<OptKeySet>();
-    let mut ks = retval_ptr;
     let mut tok = MpackToken::new();
 
     let result = mpack_rtoken(buf, &mut tok);
@@ -893,15 +898,13 @@ pub fn unpack_keydict<T>(
         };
 
         assert!(field.opt_index >= 0);
-        let flag = 1u64 << (field.opt_index as u32);
-        if (ks.is_set_ & flag) != 0 {
+        if field.is_field_set(retval) {
             *error = Some(c"duplicate key".to_owned());
             return false;
         }
 
-        ks.is_set_ |= flag;
+        field.mark_set(retval);
 
-        let mem = retval_ptr.cast_ptr::<u8>().wrapping_add(field.ptr_off);
         if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
             let cur_byte = buf.first().copied().unwrap_or(0);
             if buf.is_empty() || (cur_byte & 0xfe) != 0xc2 {
@@ -909,11 +912,11 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            *mem.cast_ptr::<Boolean>() = (cur_byte & 0x01) != 0;
+            *field.field_mut::<T, Boolean>(retval) = (cur_byte & 0x01) != 0;
 
             *buf = &buf[1..];
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            if !unpack_integer(buf, mem.cast_ptr::<Integer>().borrow_mut()) {
+            if !unpack_integer(buf, field.field_mut::<T, Integer>(retval)) {
                 *error = alloc_key_error(key, b" key value which is not an integer");
                 return false;
             }
@@ -924,14 +927,14 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            *mem.cast_ptr::<NvimString>() = val;
+            *field.field_mut::<T, NvimString>(retval) = val;
         } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
             let len = unpack_array(buf);
             if len < 0 {
                 *error = alloc_key_error(key, b" key with non-array value");
                 return false;
             }
-            let a = mem.cast_ptr::<StringArray>().borrow_mut();
+            let a = field.field_mut::<T, StringArray>(retval);
             a.reserve(len as usize);
             for _ in 0..(len as usize) {
                 let item = unpack_string(buf);

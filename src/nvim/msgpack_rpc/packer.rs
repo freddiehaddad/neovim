@@ -11,27 +11,35 @@ pub(crate) const EXT_OBJECT_TYPE_SHIFT: i32 = ObjectType::ObjectTypeBuffer as i3
 pub type ObjHandle = i32;
 pub type Integer = i64;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum PackerData {
     None,
     StringBuffer,
     Ui(u64),
-    File(crate::globals::GraphPtr<crate::os::fileio::FileDescriptor>),
+    File(Box<crate::os::fileio::FileDescriptor>),
     Chans,
 }
 
 impl PackerData {
     #[inline]
-    pub fn as_file(self) -> &'static mut crate::os::fileio::FileDescriptor {
+    pub fn as_file(&mut self) -> &mut crate::os::fileio::FileDescriptor {
         match self {
-            Self::File(p) => p.borrow_mut(),
+            Self::File(p) => p,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    pub fn take_file(&mut self) -> crate::os::fileio::FileDescriptor {
+        match std::mem::replace(self, Self::None) {
+            Self::File(p) => *p,
             _ => unreachable!(),
         }
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct PackerBuffer {
     pub pos: usize,
     pub anydata: PackerData,
@@ -80,13 +88,6 @@ impl Default for PackerBuffer {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct ContainerStackItem {
-    container: crate::globals::GraphPtr<Object>,
-    idx: usize,
 }
 
 #[inline]
@@ -333,123 +334,59 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
 }
 
 /// Pack `obj` into `packer` (`mpack_object`).
-pub fn mpack_object(obj: &mut Object, packer: &mut PackerBuffer) {
-    mpack_object_inner(obj, None, 0, packer);
-}
-
-/// Pack `arr` into `packer` (`mpack_object_array`).
-pub fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
-    mpack_array(packer, arr.size as u32);
-    if arr.size > 0 {
-        let mut container = Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(arr),
-        };
-        mpack_object_inner(
-            arr.items.borrow_mut(),
-            (arr.size > 1).then_some(&mut container),
-            1,
-            packer,
-        );
+pub fn mpack_object(cur: &mut Object, packer: &mut PackerBuffer) {
+    mpack_check_buffer(packer);
+    match cur.obj_type {
+        ObjectType::ObjectTypeLuaRef => {
+            let cs = nlua_funcref_str(cur.data.luaref(), true);
+            api_free_luaref(cur.data.luaref());
+            cur.data = ObjectData::LuaRef(LUA_NOREF);
+            mpack_str(NvimString::from_cstr(&cs), packer);
+        }
+        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+            mpack_nil(packer);
+        }
+        ObjectType::ObjectTypeBoolean => {
+            mpack_bool(packer, cur.data.boolean());
+        }
+        ObjectType::ObjectTypeInteger => {
+            mpack_integer(packer, cur.data.integer());
+        }
+        ObjectType::ObjectTypeFloat => {
+            mpack_float8(packer, cur.data.floating());
+        }
+        ObjectType::ObjectTypeString => {
+            mpack_str(cur.data.string(), packer);
+        }
+        ObjectType::ObjectTypeBuffer
+        | ObjectType::ObjectTypeWindow
+        | ObjectType::ObjectTypeTabpage => {
+            mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
+        }
+        ObjectType::ObjectTypeArray => {
+            let mut arr = cur.data.array();
+            mpack_array(packer, arr.size as u32);
+            for item in arr.as_mut_slice() {
+                mpack_object(item, packer);
+            }
+        }
+        ObjectType::ObjectTypeDict => {
+            let mut dict = cur.data.dict();
+            mpack_map(packer, dict.size as u32);
+            for it in dict.as_mut_slice() {
+                mpack_check_buffer(packer);
+                mpack_str(it.key, packer);
+                mpack_object(&mut it.value, packer);
+            }
+        }
     }
 }
 
-/// Pack `current_in` and any remaining elements in `container_in` into `packer` (`mpack_object_inner`).
-pub fn mpack_object_inner(
-    current_in: &mut Object,
-    container_in: Option<&mut Object>,
-    mut container_idx: usize,
-    packer: &mut PackerBuffer,
-) {
-    let mut current = crate::globals::GraphPtr::from(current_in);
-    let mut container = crate::globals::GraphPtr::from(container_in);
-    let mut stack: Vec<ContainerStackItem> = Vec::with_capacity(2);
-
-    loop {
-        mpack_check_buffer(packer);
-        let cur = current.borrow_mut();
-        match cur.obj_type {
-            ObjectType::ObjectTypeLuaRef => {
-                let cs = nlua_funcref_str(cur.data.luaref(), true);
-                api_free_luaref(cur.data.luaref());
-                cur.data = ObjectData::LuaRef(LUA_NOREF);
-                mpack_str(NvimString::from_cstr(&cs), packer);
-            }
-            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
-                mpack_nil(packer);
-            }
-            ObjectType::ObjectTypeBoolean => {
-                mpack_bool(packer, cur.data.boolean());
-            }
-            ObjectType::ObjectTypeInteger => {
-                mpack_integer(packer, cur.data.integer());
-            }
-            ObjectType::ObjectTypeFloat => {
-                mpack_float8(packer, cur.data.floating());
-            }
-            ObjectType::ObjectTypeString => {
-                mpack_str(cur.data.string(), packer);
-            }
-            ObjectType::ObjectTypeBuffer
-            | ObjectType::ObjectTypeWindow
-            | ObjectType::ObjectTypeTabpage => {
-                mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
-            }
-            ObjectType::ObjectTypeDict | ObjectType::ObjectTypeArray => {
-                let current_size = if cur.obj_type == ObjectType::ObjectTypeArray {
-                    let sz = cur.data.array().size;
-                    mpack_array(packer, sz as u32);
-                    sz
-                } else {
-                    let sz = cur.data.dict().size;
-                    mpack_map(packer, sz as u32);
-                    sz
-                };
-                if current_size > 0 {
-                    if cur.obj_type == ObjectType::ObjectTypeArray && current_size == 1 {
-                        current = cur.data.array().items;
-                        continue;
-                    }
-                    if !container.is_null() {
-                        stack.push(ContainerStackItem {
-                            container,
-                            idx: container_idx,
-                        });
-                    }
-                    container = current;
-                    container_idx = 0;
-                }
-            }
-        }
-
-        if container.is_null() {
-            if let Some(it) = stack.pop() {
-                container = it.container;
-                container_idx = it.idx;
-            } else {
-                break;
-            }
-        }
-
-        let cont = container.borrow_mut();
-        if cont.obj_type == ObjectType::ObjectTypeArray {
-            let arr = cont.data.array();
-            current = arr.items.wrapping_add(container_idx);
-            container_idx += 1;
-            if container_idx >= arr.size {
-                container = crate::globals::GraphPtr::NULL;
-            }
-        } else {
-            let mut dict = cont.data.dict();
-            let it = &mut dict[container_idx];
-            container_idx += 1;
-            mpack_check_buffer(packer);
-            mpack_str(it.key, packer);
-            current = (&mut it.value).into();
-            if container_idx >= dict.size {
-                container = crate::globals::GraphPtr::NULL;
-            }
-        }
+/// Pack `arr` into `packer` (`mpack_object_array`).
+pub fn mpack_object_array(mut arr: Array, packer: &mut PackerBuffer) {
+    mpack_array(packer, arr.size as u32);
+    for item in arr.as_mut_slice() {
+        mpack_object(item, packer);
     }
 }
 

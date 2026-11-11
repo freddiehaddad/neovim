@@ -612,11 +612,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             entry_type: ShadaEntryType::SDItemHeader,
             can_free_entry: false,
             timestamp: 0,
-            data: ShadaEntryData::Header(Dict {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            }),
+            data: ShadaEntryData::Header(Dict::new()),
             additional_data: None,
         },
         ShadaEntryType::SDItemSearchPattern => ShadaEntry {
@@ -1207,21 +1203,21 @@ fn var_shada_iter(
 }
 
 fn find_buffer(
-    fname_bufs: &mut std::collections::HashMap<Vec<u8>, usize>,
+    fname_bufs: &mut std::collections::HashMap<Vec<u8>, crate::globals::BufPtr>,
     fname: &CStr,
 ) -> Option<&'static mut FileBuf> {
     let key = fname.to_bytes();
-    if let Some(&buf_addr) = fname_bufs.get(key) {
-        return crate::globals::GraphPtr::<FileBuf>::of(buf_addr as *mut FileBuf).as_mut();
+    if let Some(&buf_ptr) = fname_bufs.get(key) {
+        return buf_ptr.opt_mut();
     }
 
     for buf in for_all_buffers_ptr() {
         if buf.b_ffname.is_some() && path_equal(fname, buf.ffname_cstr(), K_PATH_CMP_LITERAL) {
-            fname_bufs.insert(key.to_vec(), ptr::from_mut(buf) as usize);
+            fname_bufs.insert(key.to_vec(), crate::globals::BufPtr::from(&mut *buf));
             return Some(buf);
         }
     }
-    fname_bufs.insert(key.to_vec(), 0);
+    fname_bufs.insert(key.to_vec(), crate::globals::BufPtr::NULL);
     None
 }
 
@@ -1316,15 +1312,14 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     }
     let mut cur_entry = MISSING_ENTRY;
     let mut cl_bufs: std::collections::HashSet<usize> = std::collections::HashSet::new();
-    let mut fname_bufs: std::collections::HashMap<Vec<u8>, usize> =
+    let mut fname_bufs: std::collections::HashMap<Vec<u8>, crate::globals::BufPtr> =
         std::collections::HashMap::new();
     let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
     if get_old_files && (oldfiles_list.is_none() || force) {
         let new_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        let new_list_ptr =
-            crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(new_list);
+        let new_list_id = new_list.lv_id;
         set_vim_var_list(VV_OLDFILES, Some(new_list));
-        oldfiles_list = Some(new_list_ptr.borrow_mut());
+        oldfiles_list = new_list_id.opt_mut();
     }
 
     loop {
@@ -2448,12 +2443,17 @@ const fn hist_type2char(hist_type: i32) -> i32 {
 }
 
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
+    let mut owned_buf = std::mem::take(&mut buffer.owned_buf);
+    let pos = buffer.pos;
     let fd = buffer.anydata.as_file();
-    std::mem::swap(&mut fd.buffer, &mut buffer.owned_buf);
-    fd.write_pos = buffer.pos;
-    buffer.anyint = i64::from(file_flush(fd));
-    buffer.pos = fd.write_pos;
-    std::mem::swap(&mut fd.buffer, &mut buffer.owned_buf);
+    std::mem::swap(&mut fd.buffer, &mut owned_buf);
+    fd.write_pos = pos;
+    let flush_res = i64::from(file_flush(fd));
+    let new_pos = fd.write_pos;
+    std::mem::swap(&mut fd.buffer, &mut owned_buf);
+    buffer.owned_buf = owned_buf;
+    buffer.pos = new_pos;
+    buffer.anyint = flush_res;
 }
 
 fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
@@ -2462,10 +2462,11 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     }
     let pos = file.write_pos;
     let owned_buf = std::mem::take(&mut file.buffer);
+    let fd = std::mem::take(file);
     PackerBuffer {
         pos,
         owned_buf,
-        anydata: crate::msgpack_rpc::packer::PackerData::File(file.into()),
+        anydata: crate::msgpack_rpc::packer::PackerData::File(Box::new(fd)),
         ..PackerBuffer::new()
     }
 }
@@ -2997,6 +2998,7 @@ fn shada_write(
     }
     wms.file_marks.clear();
     crate::msgpack_rpc::packer::packer_flush_buffer(&mut packer);
+    *sd_writer = packer.anydata.take_file();
     std::mem::swap(&mut sd_writer.buffer, &mut packer.owned_buf);
     if packer.anyint != 0 {
         ret = ShaDaWriteResult::SDWriteFailed;
