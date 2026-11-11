@@ -173,7 +173,7 @@ fn ui_rcs() -> Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
 
 pub fn ui_init() {
     g_st().default_grid.handle = 1;
-    g_st().msg_grid_adj.target = crate::globals::GraphPtr::from(&mut g_st().default_grid);
+    g_st().msg_grid_adj.target = crate::grid::GridTarget::Default;
     ui_comp_init();
 }
 

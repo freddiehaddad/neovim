@@ -1387,7 +1387,8 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
 }
 
 fn win_update(wp: &mut WinInfoInfo) {
-    if wp.w_grid.target == &raw mut g_st().default_grid && wp.w_wincol >= g_st().columns_global {
+    if wp.w_grid.target == crate::grid::GridTarget::Default && wp.w_wincol >= g_st().columns_global
+    {
         return;
     }
 

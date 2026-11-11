@@ -5,7 +5,7 @@
 use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
-    BRAILLE_SPACE, K_OPT_RDB_FLAG_INVALID, Sattr, Schar, ScreenGrid, schar_from_ascii,
+    BRAILLE_SPACE, GridTarget, K_OPT_RDB_FLAG_INVALID, Sattr, Schar, ScreenGrid, schar_from_ascii,
     schar_from_buf, schar_from_char, schar_invisible,
 };
 use crate::highlight::hl_blend_attrs;
@@ -33,12 +33,12 @@ use crate::msgpack_rpc::channel::RemoteUI;
 
 struct UiCompositorState {
     composed_uis: std::cell::Cell<i32>,
-    layers: std::cell::RefCell<Vec<crate::globals::GraphPtr<ScreenGrid>>>,
+    layers: std::cell::RefCell<Vec<GridTarget>>,
     linebuf: std::cell::RefCell<Vec<Schar>>,
     attrbuf: std::cell::RefCell<Vec<Sattr>>,
     chk_width: std::cell::Cell<i32>,
     chk_height: std::cell::Cell<i32>,
-    curgrid: std::cell::Cell<crate::globals::GraphPtr<ScreenGrid>>,
+    curgrid: std::cell::Cell<GridTarget>,
     valid_screen: std::cell::Cell<bool>,
     msg_current_row: std::cell::Cell<i32>,
     msg_was_scrolled: std::cell::Cell<bool>,
@@ -64,7 +64,7 @@ impl UiCompositorState {
             attrbuf: std::cell::RefCell::new(Vec::new()),
             chk_width: std::cell::Cell::new(0),
             chk_height: std::cell::Cell::new(0),
-            curgrid: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            curgrid: std::cell::Cell::new(GridTarget::None),
             valid_screen: std::cell::Cell::new(true),
             msg_current_row: std::cell::Cell::new(i32::MAX),
             msg_was_scrolled: std::cell::Cell::new(false),
@@ -99,10 +99,8 @@ fn layers_len() -> usize {
 
 pub fn ui_comp_init() {
     with_comp(|c| {
-        c.layers
-            .borrow_mut()
-            .push((&mut g_st().default_grid).into());
-        c.curgrid.set((&mut g_st().default_grid).into());
+        c.layers.borrow_mut().push(GridTarget::Default);
+        c.curgrid.set(GridTarget::Default);
     });
 }
 
@@ -153,11 +151,12 @@ pub fn ui_comp_should_draw() -> bool {
 pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     let size = layers_len();
     let layer = layer_mut(layer_idx);
+    let layer_target = layer.target_kind;
 
     if raise {
         while layer_idx < size - 1 && layer.zindex > layer_mut(layer_idx + 1).zindex {
             let next = layer_mut(layer_idx + 1);
-            with_comp(|c| c.layers.borrow_mut()[layer_idx] = next.into());
+            with_comp(|c| c.layers.borrow_mut()[layer_idx] = next.target_kind);
             next.comp_index = layer_idx;
             next.pending_comp_index_update = true;
             layer_idx += 1;
@@ -165,13 +164,13 @@ pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     } else {
         while layer_idx > 0 && layer.zindex < layer_mut(layer_idx - 1).zindex {
             let prev = layer_mut(layer_idx - 1);
-            with_comp(|c| c.layers.borrow_mut()[layer_idx] = prev.into());
+            with_comp(|c| c.layers.borrow_mut()[layer_idx] = prev.target_kind);
             prev.comp_index = layer_idx;
             prev.pending_comp_index_update = true;
             layer_idx -= 1;
         }
     }
-    with_comp(|c| c.layers.borrow_mut()[layer_idx] = layer.into());
+    with_comp(|c| c.layers.borrow_mut()[layer_idx] = layer_target);
     layer.comp_index = layer_idx;
     layer.pending_comp_index_update = true;
 }
@@ -227,8 +226,10 @@ pub fn ui_comp_put_grid(
         grid.comp_col = col;
     } else {
         moved = true;
-        let grid_ptr = &raw mut *grid;
-        debug_assert!(!with_comp(|c| c.layers.borrow().contains(&grid_ptr.into())));
+        debug_assert!(!with_comp(|c| c
+            .layers
+            .borrow()
+            .contains(&grid.target_kind)));
 
         let mut insert_at = layers_len();
         while insert_at > 0 && layer_mut(insert_at - 1).zindex > grid.zindex {
@@ -236,7 +237,9 @@ pub fn ui_comp_put_grid(
         }
 
         if !(curwin_ptr()).is_null()
-            && with_comp(|c| c.layers.borrow()[insert_at - 1] == &curwin_mut().w_grid_alloc)
+            && with_comp(|c| {
+                c.layers.borrow()[insert_at - 1] == curwin_mut().w_grid_alloc.target_kind
+            })
             && layer_mut(insert_at - 1).zindex == grid.zindex
             && !on_top
         {
@@ -244,7 +247,7 @@ pub fn ui_comp_put_grid(
         }
         let len = with_comp(|c| {
             let mut layers = c.layers.borrow_mut();
-            layers.insert(insert_at, grid.into());
+            layers.insert(insert_at, grid.target_kind);
             layers.len()
         });
         for idx in (insert_at + 1)..len {
@@ -279,8 +282,8 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     }
 
     with_comp(|c| {
-        if c.curgrid.get() == grid {
-            c.curgrid.set((&mut g_st().default_grid).into());
+        if c.curgrid.get() == grid.target_kind {
+            c.curgrid.set(GridTarget::Default);
         }
     });
 
@@ -308,7 +311,7 @@ pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
     for idx in 0..layers_len() {
         let g = layer_mut(idx);
         if g.handle == handle {
-            with_comp(|c| c.curgrid.set(g.into()));
+            with_comp(|c| c.curgrid.set(g.target_kind));
             return true;
         }
     }
@@ -319,11 +322,11 @@ pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
     let old_index = grid.comp_index;
     for i in old_index..new_index {
         let next = layer_mut(i + 1);
-        with_comp(|c| c.layers.borrow_mut()[i] = next.into());
+        with_comp(|c| c.layers.borrow_mut()[i] = next.target_kind);
         next.comp_index = i;
         next.pending_comp_index_update = true;
     }
-    with_comp(|c| c.layers.borrow_mut()[new_index] = grid.into());
+    with_comp(|c| c.layers.borrow_mut()[new_index] = grid.target_kind);
     grid.comp_index = new_index;
     grid.pending_comp_index_update = true;
     for idx in old_index..new_index {
@@ -347,7 +350,7 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     let cursor_row = curgrid.comp_row + (r as i32);
     let cursor_col = curgrid.comp_col + (c as i32);
 
-    if with_comp(|c| c.curgrid.get() != &g_st().default_grid) {
+    if with_comp(|c| c.curgrid.get() != GridTarget::Default) {
         let mut new_index = layers_len() - 1;
         while new_index > 1 && layer_mut(new_index).zindex > curgrid.zindex {
             new_index -= 1;
@@ -681,7 +684,7 @@ pub fn ui_comp_raw_line(
     startcol += curgrid.comp_col as Integer;
     endcol += curgrid.comp_col as Integer;
     clearcol += curgrid.comp_col as Integer;
-    if with_comp(|c| c.curgrid.get() != &g_st().default_grid) {
+    if with_comp(|c| c.curgrid.get() != GridTarget::Default) {
         flags &= !K_LINE_FLAG_WRAP;
     }
 

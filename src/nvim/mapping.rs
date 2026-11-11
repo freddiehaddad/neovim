@@ -6,8 +6,8 @@ use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
     ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, cstr_to_arena_obj, dict_obj, has_key,
-    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
+    arena_take_arraybuilder, cstr_to_arena_obj, dict_obj, has_key, integer_obj, luaref_obj, put_c,
+    string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
@@ -50,7 +50,7 @@ use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
-    str2special_arena, str2special_save, swmsg,
+    str2special_save, swmsg,
 };
 use crate::option::opt_error;
 use crate::option_vars::*;
@@ -2121,11 +2121,10 @@ fn mapblock_fill_dict(
     arena: &mut Arena,
 ) -> Dict {
     let mut dict = arena_dict(arena, 20);
-    let lhs = str2special_arena(
+    let lhs = str2special_save(
         mp.m_keys.as_bytes(),
         compatible,
         if compatible { K_FALSE } else { K_NONE },
-        arena,
     );
     let mut mapmode = [0u8; 7];
     map_mode_to_chars(mp.m_mode, &mut mapmode);
@@ -2150,14 +2149,13 @@ fn mapblock_fill_dict(
             cstr_to_arena_obj(arena, Some(mp.m_orig_str.as_c_str())),
         );
     } else {
-        let rhs_cstr = str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena);
-        let rhs = cstr_as_string(Some(rhs_cstr));
-        put_c(&mut dict, c"rhs", string_obj(rhs));
+        let rhs_cstr = str2special_save(mp.m_str.as_bytes(), false, K_NONE);
+        put_c(&mut dict, c"rhs", cstr_to_arena_obj(arena, Some(&rhs_cstr)));
     }
     if let Some(ref desc) = mp.m_desc {
         put_c(&mut dict, c"desc", cstr_to_arena_obj(arena, Some(desc)));
     }
-    put_c(&mut dict, c"lhs", cstr_as_obj(Some(lhs)));
+    put_c(&mut dict, c"lhs", cstr_to_arena_obj(arena, Some(&lhs)));
     put_c(
         &mut dict,
         c"lhsraw",
@@ -2542,7 +2540,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     let mut did_simplify = false;
 
                     let mut arena = Arena::new();
-                    let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
+                    let lhs = str2special_save(mp.m_keys.as_bytes(), true, K_FALSE);
                     let keys_buf = replace_termcodes(
                         lhs.to_bytes(),
                         false,

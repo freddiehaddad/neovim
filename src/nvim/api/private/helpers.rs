@@ -864,6 +864,13 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
     }
 }
 
+pub fn arena_zeroed_string(arena: &mut Arena, size: usize) -> NvimString {
+    NvimString {
+        data: crate::memory::arena_allocz(arena, size),
+        size,
+    }
+}
+
 pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
     if !bytes.is_empty() {
         NvimString {

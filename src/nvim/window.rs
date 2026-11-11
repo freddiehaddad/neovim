@@ -62,7 +62,8 @@ use crate::fold::{
 };
 use crate::globals::*;
 use crate::grid::{
-    GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc,
+    GridTarget, GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free,
+    win_grid_alloc,
 };
 use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{
@@ -652,7 +653,7 @@ impl WinInfoInfo {
             w_tagstackidx: 0,
             w_tagstacklen: 0,
             w_grid: GridView {
-                target: crate::globals::GraphPtr::NULL,
+                target: GridTarget::None,
                 row_offset: 0,
                 col_offset: 0,
             },
@@ -1562,7 +1563,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
 
     let c = &wp.w_config;
     if !c.external {
-        let mut grid = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().default_grid);
+        let mut grid_comp_row = g_st().default_grid.comp_row;
+        let mut grid_comp_col = g_st().default_grid.comp_col;
+        let mut grid_handle = g_st().default_grid.handle;
         let mut row = c.row;
         let mut col = c.col;
         if c.relative == K_FLOAT_RELATIVE_WINDOW {
@@ -1578,11 +1581,10 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 let mut row_off: i32 = 0;
                 let mut col_off: i32 = 0;
                 win_grid_alloc(&mut *win);
-                grid = crate::globals::GraphPtr::<ScreenGrid>::of(ptr::from_mut(grid_adjust(
-                    &mut win.w_grid,
-                    &mut row_off,
-                    &mut col_off,
-                )));
+                let g = grid_adjust(&mut win.w_grid, &mut row_off, &mut col_off);
+                grid_comp_row = g.comp_row;
+                grid_comp_col = g.comp_col;
+                grid_handle = g.handle;
                 row += f64::from(row_off);
                 col += f64::from(col_off);
                 if c.bufpos.lnum >= 0 {
@@ -1632,8 +1634,8 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
         } else {
             0
         };
-        comp_row += (grid.borrow_mut()).comp_row;
-        comp_col += (grid.borrow_mut()).comp_col;
+        comp_row += grid_comp_row;
+        comp_col += grid_comp_col;
         comp_row = comp_row
             .min(g_st().rows_global - wp.w_height_outer - above_ch)
             .max(0);
@@ -1664,7 +1666,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                     Integer::from(wp.w_grid_alloc.handle),
                     wp.handle,
                     anchor,
-                    Integer::from((grid.borrow_mut()).handle),
+                    Integer::from(grid_handle),
                     row,
                     col,
                     c.mouse,
@@ -5916,6 +5918,7 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
     new_wp.handle = WIN_STATE.with(|s| s.last_win_id.get());
     g_st().window_handles.insert(new_wp.handle, new_wp.into());
 
+    new_wp.w_grid_alloc.target_kind = GridTarget::Win(new_wp.handle);
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 
     new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
@@ -6078,7 +6081,7 @@ pub fn win_free_grid(wp: &mut WinInfoInfo, reinit: bool) {
     }
     grid_free(&mut wp.w_grid_alloc);
     if reinit {
-        wp.w_grid_alloc = SCREEN_GRID_INIT;
+        wp.w_grid_alloc = ScreenGrid::with_target(GridTarget::Win(wp.handle));
     }
 }
 

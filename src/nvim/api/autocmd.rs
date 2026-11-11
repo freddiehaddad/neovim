@@ -26,7 +26,7 @@ use crate::eval::typval::{
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::memory::{Arena, arena_memdupz, bytes_to_cstring};
+use crate::memory::{Arena, bytes_to_cstring};
 use crate::msgpack_rpc::packer::Integer;
 use std::ffi::{CStr, CString};
 
@@ -144,11 +144,7 @@ fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
 #[inline]
 fn format_buflocal_arena(arena: &mut Arena, handle: i32) -> NvimString {
     let s = format!("<buffer={handle}>");
-    let data = arena_memdupz(arena, s.as_bytes());
-    NvimString {
-        data,
-        size: s.len(),
-    }
+    arena_bytes(arena, s.as_bytes())
 }
 
 fn unpack_string_or_array(

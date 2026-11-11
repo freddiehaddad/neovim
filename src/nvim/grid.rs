@@ -39,10 +39,76 @@ const K_OPT_RDB_FLAG_NODELTA: u32 = 0x08;
 const HLF_BTITLE: usize = 68;
 const HLF_BFOOTER: usize = 69;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GridTarget {
+    #[default]
+    None,
+    Default,
+    Msg,
+    Pum,
+    Win(ObjHandle),
+}
+
+impl GridTarget {
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    #[inline]
+    pub fn opt(self) -> Option<&'static ScreenGrid> {
+        match self {
+            Self::None => None,
+            Self::Default => Some(&g_st().borrow().default_grid),
+            Self::Msg => Some(&g_st().borrow().msg_grid),
+            Self::Pum => Some(&g_st().borrow().pum_grid),
+            Self::Win(h) => g_st()
+                .window_handles
+                .get(&h)
+                .copied()
+                .and_then(WinPtr::opt)
+                .or_else(|| {
+                    for_all_windows_ptr()
+                        .find(|wp| wp.handle == h)
+                        .map(|wp| &*wp)
+                })
+                .map(|wp| &wp.w_grid_alloc),
+        }
+    }
+
+    #[inline]
+    pub fn opt_mut(self) -> Option<&'static mut ScreenGrid> {
+        match self {
+            Self::None => None,
+            Self::Default => Some(&mut g_st().borrow_mut().default_grid),
+            Self::Msg => Some(&mut g_st().borrow_mut().msg_grid),
+            Self::Pum => Some(&mut g_st().borrow_mut().pum_grid),
+            Self::Win(h) => g_st()
+                .window_handles
+                .get(&h)
+                .copied()
+                .and_then(WinPtr::opt_mut)
+                .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
+                .map(|wp| &mut wp.w_grid_alloc),
+        }
+    }
+
+    #[inline]
+    pub fn borrow(self) -> &'static ScreenGrid {
+        self.opt().expect("null GridTarget")
+    }
+
+    #[inline]
+    pub fn borrow_mut(self) -> &'static mut ScreenGrid {
+        self.opt_mut().expect("null GridTarget")
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Default)]
 pub struct ScreenGrid {
     pub handle: ObjHandle,
+    pub target_kind: GridTarget,
     pub chars: Vec<u32>,
     pub attrs: Vec<i32>,
     pub vcols: Vec<i32>,
@@ -64,10 +130,38 @@ pub struct ScreenGrid {
     pub pending_comp_index_update: bool,
 }
 
+impl ScreenGrid {
+    pub const fn with_target(target_kind: GridTarget) -> Self {
+        Self {
+            handle: 0,
+            target_kind,
+            chars: Vec::new(),
+            attrs: Vec::new(),
+            vcols: Vec::new(),
+            line_offset: Vec::new(),
+            dirty_col: Vec::new(),
+            rows: 0,
+            cols: 0,
+            valid: false,
+            throttled: false,
+            blending: false,
+            mouse_enabled: true,
+            zindex: 0,
+            comp_row: 0,
+            comp_col: 0,
+            comp_width: 0,
+            comp_height: 0,
+            comp_index: 0,
+            comp_disabled: false,
+            pending_comp_index_update: true,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct GridView {
-    pub target: crate::globals::GraphPtr<ScreenGrid>,
+    pub target: GridTarget,
     pub row_offset: i32,
     pub col_offset: i32,
 }
@@ -94,7 +188,7 @@ struct GridModuleState {
     linebuf_scratch: std::cell::RefCell<Vec<Sscratch>>,
     glyph_cache_keys: std::cell::RefCell<Vec<u8>>,
     glyph_cache_offsets: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, u32>>,
-    grid_line_grid: std::cell::Cell<crate::globals::GraphPtr<ScreenGrid>>,
+    grid_line_grid: std::cell::Cell<GridTarget>,
     grid_line_row: std::cell::Cell<i32>,
     grid_line_coloff: std::cell::Cell<i32>,
     grid_line_maxcol: std::cell::Cell<i32>,
@@ -113,7 +207,7 @@ impl GridModuleState {
             linebuf_scratch: std::cell::RefCell::new(Vec::new()),
             glyph_cache_keys: std::cell::RefCell::new(Vec::new()),
             glyph_cache_offsets: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            grid_line_grid: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            grid_line_grid: std::cell::Cell::new(GridTarget::None),
             grid_line_row: std::cell::Cell::new(-1),
             grid_line_coloff: std::cell::Cell::new(0),
             grid_line_maxcol: std::cell::Cell::new(0),
@@ -480,11 +574,11 @@ pub fn grid_line_start(view: &mut GridView, mut row: i32) {
 pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
     let linebuf_size = g_st().linebuf_char.len();
     let grid_cols = grid.cols;
-    let grid_ptr = crate::globals::GraphPtr::from(&mut *grid);
+    let grid_target = grid.target_kind;
     grid_st(|st| {
         assert!(st.grid_line_grid.get().is_null());
         st.grid_line_row.set(row);
-        st.grid_line_grid.set(grid_ptr);
+        st.grid_line_grid.set(grid_target);
         st.grid_line_coloff.set(col);
         st.grid_line_first.set(linebuf_size as i32);
         let maxcol = grid_cols.min(grid_cols - col);
@@ -634,7 +728,12 @@ pub fn grid_line_clear_end(start_col: i32, end_col: i32, bg_attr: i32, clear_att
 }
 
 pub fn grid_line_cursor_goto(col: i32) {
-    let (handle, row) = grid_st(|st| (st.grid_line_grid.get().handle, st.grid_line_row.get()));
+    let (handle, row) = grid_st(|st| {
+        (
+            st.grid_line_grid.get().borrow().handle,
+            st.grid_line_row.get(),
+        )
+    });
     ui_grid_cursor_goto(handle, row, col);
 }
 
@@ -714,13 +813,13 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
 
 pub fn grid_line_flush() {
     let (grid, row, coloff, first, last, clear_to, bg_attr, clear_attr, flags) = grid_st(|st| {
-        let g = st.grid_line_grid.replace(crate::globals::GraphPtr::NULL);
+        let g = st.grid_line_grid.replace(GridTarget::None);
         let last = st.grid_line_last.get();
         let clear = last.max(st.grid_line_clear_to.get());
         st.grid_line_clear_to.set(clear);
         assert!(clear <= st.grid_line_maxcol.get());
         (
-            g.as_ptr(),
+            g,
             st.grid_line_row.get(),
             st.grid_line_coloff.get(),
             st.grid_line_first.get(),
@@ -736,7 +835,7 @@ pub fn grid_line_flush() {
     }
 
     grid_put_linebuf(
-        crate::globals::GraphPtr::of(grid).borrow_mut(),
+        grid.borrow_mut(),
         row,
         coloff,
         first,
@@ -751,13 +850,14 @@ pub fn grid_line_flush() {
 
 pub fn grid_line_flush_if_valid_row() {
     let invalid = grid_st(|st| {
-        st.grid_line_row.get() < 0 || st.grid_line_row.get() >= st.grid_line_grid.get().rows
+        st.grid_line_row.get() < 0
+            || st.grid_line_row.get() >= st.grid_line_grid.get().borrow().rows
     });
     if invalid {
         if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
             std::process::abort();
         } else {
-            grid_st(|st| st.grid_line_grid.set(crate::globals::GraphPtr::NULL));
+            grid_st(|st| st.grid_line_grid.set(GridTarget::None));
             return;
         }
     }
@@ -776,8 +876,10 @@ pub fn grid_clear(
         grid_line_start(grid, row);
         let bail = grid_st(|st| {
             end_col = end_col.min(st.grid_line_maxcol.get());
-            if st.grid_line_row.get() >= st.grid_line_grid.get().rows || start_col >= end_col {
-                st.grid_line_grid.set(crate::globals::GraphPtr::NULL);
+            if st.grid_line_row.get() >= st.grid_line_grid.get().borrow().rows
+                || start_col >= end_col
+            {
+                st.grid_line_grid.set(GridTarget::None);
                 true
             } else {
                 false
@@ -1002,6 +1104,7 @@ pub fn grid_alloc(grid: &mut ScreenGrid, rows: i32, columns: i32, copy: bool, va
     let ncells = rows as usize * columns as usize;
     let mut ngrid = ScreenGrid {
         handle: grid.handle,
+        target_kind: grid.target_kind,
         chars: vec![0; ncells],
         attrs: vec![0; ncells],
         vcols: vec![-1; ncells],
@@ -1073,15 +1176,13 @@ pub fn grid_free_all_mem() {
 }
 
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
-    let grid_allocated_ptr = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&wp.w_grid_alloc);
-    let grid = &mut wp.w_grid;
-    let grid_allocated = grid_allocated_ptr.borrow_mut();
+    wp.w_grid_alloc.target_kind = GridTarget::Win(wp.handle);
 
     let total_rows = wp.w_height_outer;
     let total_cols = wp.w_width_outer;
 
     let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating;
-    let has_allocation = !grid_allocated.chars.is_empty();
+    let has_allocation = !wp.w_grid_alloc.chars.is_empty();
 
     if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
         wp.w_lines_valid = 0;
@@ -1093,48 +1194,48 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     let mut was_resized = false;
     if want_allocation
         && (!has_allocation
-            || grid_allocated.rows != total_rows
-            || grid_allocated.cols != total_cols)
+            || wp.w_grid_alloc.rows != total_rows
+            || wp.w_grid_alloc.cols != total_cols)
     {
         let is_valid = wp.w_grid_alloc.valid;
         grid_alloc(
-            &mut *grid_allocated,
+            &mut wp.w_grid_alloc,
             total_rows,
             total_cols,
             is_valid,
             false,
         );
-        grid_allocated.valid = true;
+        wp.w_grid_alloc.valid = true;
         if wp.w_floating && wp.w_config.border {
             wp.w_redr_border = true;
         }
         was_resized = true;
     } else if !want_allocation && has_allocation {
-        grid_free(&mut *grid_allocated);
-        grid_allocated.valid = false;
+        grid_free(&mut wp.w_grid_alloc);
+        wp.w_grid_alloc.valid = false;
         was_resized = true;
     } else if want_allocation && has_allocation && !wp.w_grid_alloc.valid {
-        grid_invalidate(&mut *grid_allocated);
-        grid_allocated.valid = true;
+        grid_invalidate(&mut wp.w_grid_alloc);
+        wp.w_grid_alloc.valid = true;
     }
 
     if want_allocation {
-        grid.target = crate::globals::GraphPtr::new(grid_allocated);
-        grid.row_offset = wp.w_winrow_off;
-        grid.col_offset = wp.w_wincol_off;
+        wp.w_grid.target = GridTarget::Win(wp.handle);
+        wp.w_grid.row_offset = wp.w_winrow_off;
+        wp.w_grid.col_offset = wp.w_wincol_off;
     } else {
-        grid.target = crate::globals::GraphPtr::from(&mut g_st().default_grid);
-        grid.row_offset = wp.w_winrow + wp.w_winrow_off;
-        grid.col_offset = wp.w_wincol + wp.w_wincol_off;
+        wp.w_grid.target = GridTarget::Default;
+        wp.w_grid.row_offset = wp.w_winrow + wp.w_winrow_off;
+        wp.w_grid.col_offset = wp.w_wincol + wp.w_wincol_off;
     }
 
     if (g_st().resizing_screen || was_resized) && want_allocation {
         ui_call_grid_resize(
-            i64::from(grid_allocated.handle),
-            i64::from(grid_allocated.cols),
-            i64::from(grid_allocated.rows),
+            i64::from(wp.w_grid_alloc.handle),
+            i64::from(wp.w_grid_alloc.cols),
+            i64::from(wp.w_grid_alloc.rows),
         );
-        ui_check_cursor_grid(grid_allocated.handle);
+        ui_check_cursor_grid(wp.w_grid_alloc.handle);
     }
 }
 

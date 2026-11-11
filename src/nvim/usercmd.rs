@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, put_c,
-    string_obj,
+    arena_bytes, arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj,
+    put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
@@ -40,7 +40,7 @@ use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL, replace_termcodes};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx};
 use crate::mapping::set_context_in_map_cmd;
-use crate::memory::{Arena, arena_memdupz};
+use crate::memory::Arena;
 use crate::menu::set_context_in_menu_cmd;
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar,
@@ -1758,11 +1758,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 
 #[inline]
 fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
-    let data = arena_memdupz(arena, bytes);
-    string_obj(NvimString {
-        data,
-        size: bytes.len(),
-    })
+    string_obj(arena_bytes(arena, bytes))
 }
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
@@ -1908,10 +1904,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             }
             put_c(&mut d, c"addr", obj);
 
-            let cmd_key = NvimString {
-                data: arena_memdupz(arena, cmd.uc_name.as_bytes()),
-                size: cmd.uc_name.as_bytes().len(),
-            };
+            let cmd_key = arena_bytes(arena, cmd.uc_name.as_bytes());
             put_c(&mut rv, cmd_key, dict_obj(d));
         }
         let _ = size_of::<KeyValuePair>();

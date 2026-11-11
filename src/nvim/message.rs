@@ -56,7 +56,6 @@ use crate::mbyte::{
     UTF8LEN_TAB, mb_string2cells_len, mb_unescape, utf_char2bytes, utf_char2cells, utf_ptr2cells,
     utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::Arena;
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -483,7 +482,7 @@ pub fn msg_grid_validate() {
 
         g_st().msg_scrolled_at_flush = g_st().msg_scrolled;
         g_st().msg_grid.mouse_enabled = false;
-        g_st().msg_grid_adj.target = crate::globals::GraphPtr::from(&mut g_st().msg_grid);
+        g_st().msg_grid_adj.target = crate::grid::GridTarget::Msg;
     } else if !should_alloc && !msg_grid_empty {
         ui_comp_remove_grid(&mut g_st().msg_grid);
         grid_free(&mut g_st().msg_grid);
@@ -491,7 +490,7 @@ pub fn msg_grid_validate() {
         ui_call_grid_destroy(g_st().msg_grid.handle as Integer);
         g_st().msg_grid.throttled = false;
         g_st().msg_grid_adj.row_offset = 0;
-        g_st().msg_grid_adj.target = crate::globals::GraphPtr::from(&mut g_st().default_grid);
+        g_st().msg_grid_adj.target = crate::grid::GridTarget::Default;
         g_st().redraw_cmdline = true;
     } else if !msg_grid_empty && g_st().msg_scrolled == 0 && g_st().msg_grid_pos != max_rows {
         let diff = g_st().msg_grid_pos - max_rows;
@@ -2347,34 +2346,6 @@ pub fn str2special_save(
         buf.extend_from_slice(s.to_bytes());
     }
     crate::memory::bytes_to_cstring(&buf)
-}
-
-/// Convert string, replacing key codes with printables
-pub fn str2special_arena(
-    str_: &[u8],
-    replace_spaces: bool,
-    replace_others: TriState,
-    arena: &mut Arena,
-) -> &'static CStr {
-    let str_bytes = crate::memory::bytes_until_nul(str_);
-    let mut rem = str_bytes;
-    let mut len = 0usize;
-    while !rem.is_empty() {
-        let s = str2special(&mut rem, replace_spaces, replace_others, None);
-        len += s.to_bytes().len();
-    }
-
-    let out = crate::memory::arena_allocz_opt_mut(Some(arena), len);
-    let mut pos = 0usize;
-    rem = str_bytes;
-    while !rem.is_empty() {
-        let s = str2special(&mut rem, replace_spaces, replace_others, None);
-        let s_bytes = s.to_bytes();
-        out[pos..pos + s_bytes.len()].copy_from_slice(s_bytes);
-        pos += s_bytes.len();
-    }
-    out[pos] = 0;
-    CStr::from_bytes_until_nul(out).unwrap_or(c"")
 }
 
 /// Convert character, replacing key with printable representation.

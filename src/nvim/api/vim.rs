@@ -2496,9 +2496,8 @@ pub fn nvim_inspect_cell(
     err: &mut Error,
 ) -> Array {
     let mut ret = Array::new();
-    let mut g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().default_grid);
-    if grid == Integer::from(g_st().pum_grid.handle) {
-        g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().pum_grid);
+    let g: &ScreenGrid = if grid == Integer::from(g_st().pum_grid.handle) {
+        &g_st().pum_grid
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
@@ -2511,10 +2510,11 @@ pub fn nvim_inspect_cell(
             return ret;
         }
 
-        g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&wp.unwrap().w_grid_alloc);
-    }
+        &wp.unwrap().w_grid_alloc
+    } else {
+        &g_st().default_grid
+    };
 
-    let g = g.borrow();
     if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
         return ret;
     }

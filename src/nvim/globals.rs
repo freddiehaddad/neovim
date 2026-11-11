@@ -21,7 +21,7 @@ use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{Except, Msglist};
 use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::TriState;
-use crate::grid::{GridView, Sattr, Schar, ScreenGrid};
+use crate::grid::{GridTarget, GridView, Sattr, Schar, ScreenGrid};
 use crate::lua::converter::NluaRefState;
 use crate::mapping::Typebuf;
 use crate::mark::Xfmark;
@@ -800,11 +800,9 @@ impl EditorState {
             evalarg_evaluate: Evalarg { eval_flags: 1 },
             curbuf_splice_pending: 0,
             disable_fold_update: 0,
-            default_grid: SCREEN_GRID_INIT,
+            default_grid: ScreenGrid::with_target(GridTarget::Default),
             default_gridview: GridView {
-                target: GraphPtr::new(unsafe {
-                    &raw mut (*EDITOR_STATE.handle().as_ptr()).default_grid
-                }),
+                target: GridTarget::Default,
                 row_offset: 0,
                 col_offset: 0,
             },
@@ -835,10 +833,10 @@ impl EditorState {
             msg_ext_overwrite: false,
             msg_ext_skip_verbose: false,
             msg_ext_fast: true,
-            msg_grid: SCREEN_GRID_INIT,
+            msg_grid: ScreenGrid::with_target(GridTarget::Msg),
             msg_grid_pos: 0,
             msg_grid_adj: GridView {
-                target: GraphPtr::NULL,
+                target: GridTarget::None,
                 row_offset: 0,
                 col_offset: 0,
             },
@@ -848,7 +846,7 @@ impl EditorState {
             ch_before_blocking_events: GraphPtr::NULL,
             showcmd_buf: [0; crate::normal::SHOWCMD_BUFLEN],
             nvim_testing: false,
-            pum_grid: SCREEN_GRID_INIT,
+            pum_grid: ScreenGrid::with_target(GridTarget::Pum),
             pum_want: PumWant {
                 active: false,
                 item: 0,
@@ -1683,6 +1681,7 @@ pub fn has_scriptout() -> bool {
 }
 pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     handle: 0,
+    target_kind: GridTarget::None,
     chars: Vec::new(),
     attrs: Vec::new(),
     vcols: Vec::new(),

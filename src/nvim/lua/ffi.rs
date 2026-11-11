@@ -657,12 +657,7 @@ pub fn luaL_check_nvim_string(
     lstate: *mut lua_State,
     numarg: i32,
 ) -> crate::api::private::validate::NvimString {
-    let mut size = 0usize;
-    let ptr = unsafe { luaL_checklstring(lstate, numarg, &mut size) };
-    crate::api::private::validate::NvimString {
-        data: crate::globals::GraphPtr::new(ptr.cast_mut().cast()),
-        size,
-    }
+    crate::api::private::validate::NvimString::from_bytes(luaL_checkbytes(lstate, numarg))
 }
 
 #[inline]

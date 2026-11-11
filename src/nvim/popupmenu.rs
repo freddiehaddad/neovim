@@ -538,13 +538,13 @@ pub fn pum_display(
         }
 
         if let Some(target_win) = target_win.opt() {
-            PUM.with(|s| s.anchor_grid.set(target_win.w_grid.target.handle));
+            PUM.with(|s| s.anchor_grid.set(target_win.w_grid.target.borrow().handle));
 
             pum_win_row += target_win.w_grid.row_offset;
 
             cursor_col += target_win.w_grid.col_offset;
 
-            if target_win.w_grid.target != &raw const g_st().default_grid {
+            if target_win.w_grid.target != crate::grid::GridTarget::Default {
                 pum_win_row += target_win.w_winrow;
 
                 cursor_col += target_win.w_wincol;
@@ -1972,8 +1972,8 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
                 curwin_mut().w_wcol
             };
         if ui_has(K_UIMULTIGRID) {
-            g_st().mouse_grid = curwin_mut().w_grid.target.handle;
-        } else if curwin_mut().w_grid.target != &raw const g_st().default_grid {
+            g_st().mouse_grid = curwin_mut().w_grid.target.borrow().handle;
+        } else if curwin_mut().w_grid.target != crate::grid::GridTarget::Default {
             g_st().mouse_grid = 0;
             g_st().mouse_row += curwin_mut().w_winrow;
             g_st().mouse_col += curwin_mut().w_wincol;

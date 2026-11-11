@@ -30,7 +30,7 @@ use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 pub use crate::lua::ffi::*;
-use crate::memory::{Arena, arena_memdupz_opt};
+use crate::memory::Arena;
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 
@@ -1076,10 +1076,9 @@ pub fn nlua_pop_string_opt(
         return NvimString::new();
     }
     let slice = lua_tolstring_bytes(lstate, -1);
-    let size = slice.len();
-    let dup = arena_memdupz_opt(arena, slice);
+    let ret = crate::api::private::helpers::arena_bytes_opt(arena, slice);
     lua_pop(lstate, 1);
-    NvimString { data: dup, size }
+    ret
 }
 
 /// Convert Lua value to `Integer` (`nlua_pop_Integer`).

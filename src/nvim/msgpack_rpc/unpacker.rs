@@ -2,13 +2,15 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
-use crate::api::private::helpers::{api_set_error, nil_obj};
+use crate::api::private::helpers::{
+    api_set_error, arena_array, arena_dict, arena_zeroed_string, nil_obj,
+};
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::globals::*;
 use crate::lua::converter::{Boolean, FieldHashfn};
-use crate::memory::{Arena, arena_alloc, arena_allocz, arena_finish, arena_mem_free};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
 };
@@ -153,11 +155,7 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
         }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = node.tok.length as usize;
-            let mem = arena_allocz(p.arena, len);
-            let s = NvimString {
-                data: mem,
-                size: len,
-            };
+            let s = arena_zeroed_string(p.arena, len);
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
@@ -211,30 +209,20 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
         }
         MpackTokenType::MpackTokenArray => {
             let len = node.tok.length as usize;
-            let items =
-                arena_alloc(p.arena, std::mem::size_of::<Object>() * len, true).cast::<Object>();
-
+            let mut arr = arena_array(p.arena, len);
+            arr.size = len;
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(Array {
-                    size: len,
-                    capacity: len,
-                    items: items.into(),
-                }),
+                data: ObjectData::Array(arr),
             });
         }
         MpackTokenType::MpackTokenMap => {
             let len = node.tok.length as usize;
-            let items = arena_alloc(p.arena, std::mem::size_of::<KeyValuePair>() * len, true)
-                .cast::<KeyValuePair>();
-
+            let mut dict = arena_dict(p.arena, len);
+            dict.size = len;
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(Dict {
-                    size: len,
-                    capacity: len,
-                    items: items.into(),
-                }),
+                data: ObjectData::Dict(dict),
             });
         }
         MpackTokenType::MpackTokenNone => std::process::abort(),
