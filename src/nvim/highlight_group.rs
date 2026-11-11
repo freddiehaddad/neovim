@@ -2325,7 +2325,7 @@ fn combine_stl_hlt(
     hlcnt: i32,
     i: i32,
     hlf: usize,
-    table: &mut [i32],
+    table: &[std::cell::Cell<i32>],
 ) {
     let dst = (hlcnt + i) as usize;
     let u_idx = (id - 1) as usize;
@@ -2335,8 +2335,8 @@ fn combine_stl_hlt(
         let mut ga = cell.borrow_mut();
         if id_alt == 0 {
             ga[dst] = HlGroup::new();
-            ga[dst].sg_cterm = g_st().highlight_attr[hlf];
-            ga[dst].sg_gui = g_st().highlight_attr[hlf];
+            ga[dst].sg_cterm = g_st().highlight_attr[hlf].get();
+            ga[dst].sg_gui = g_st().highlight_attr[hlf].get();
         } else {
             ga[dst] = ga[(id_alt - 1) as usize].clone();
         }
@@ -2362,7 +2362,7 @@ fn combine_stl_hlt(
     });
     set_hl_attr(hlcnt + i);
 
-    table[i as usize] = syn_id2attr(hlcnt + i + 1);
+    table[i as usize].set(syn_id2attr(hlcnt + i + 1));
 }
 
 pub fn highlight_changed() {
@@ -2372,7 +2372,7 @@ pub fn highlight_changed() {
 
     g_st().need_highlight_changed.set(false);
 
-    g_st().highlight_attr[HLF_NONE] = 0;
+    g_st().highlight_attr[HLF_NONE].set(0);
 
     for (hlf, name_opt) in HLF_NAMES.iter().enumerate().take(HLF_COUNT).skip(1) {
         let name_cstr = name_opt.unwrap();
@@ -2389,20 +2389,24 @@ pub fn highlight_changed() {
             id_s = final_id;
         }
 
-        g_st().highlight_attr[hlf] =
-            hl_get_ui_attr(ns_id, hlf as i32, final_id, hlf == HLF_INACTIVE);
+        g_st().highlight_attr[hlf].set(hl_get_ui_attr(
+            ns_id,
+            hlf as i32,
+            final_id,
+            hlf == HLF_INACTIVE,
+        ));
 
-        if g_st().highlight_attr[hlf] != g_st().highlight_attr_last[hlf] {
+        if g_st().highlight_attr[hlf].get() != g_st().highlight_attr_last[hlf].get() {
             if hlf == HLF_MSG {
                 g_st().clear_cmdline.set(true);
-                let attrs = syn_attr2entry(g_st().highlight_attr[hlf]);
+                let attrs = syn_attr2entry(g_st().highlight_attr[hlf].get());
                 g_st().msg_grid.blending = attrs.hl_blend > -1;
             }
             ui_call_hl_group_set(
                 cstr_as_string(Some(name_cstr)),
-                Integer::from(g_st().highlight_attr[hlf]),
+                Integer::from(g_st().highlight_attr[hlf].get()),
             );
-            g_st().highlight_attr_last[hlf] = g_st().highlight_attr[hlf];
+            g_st().highlight_attr_last[hlf].set(g_st().highlight_attr[hlf].get());
         }
     }
 
@@ -2426,10 +2430,10 @@ pub fn highlight_changed() {
         userhl[5] = 0;
         let id = syn_name2id(crate::memory::bytes_as_cstr(&userhl));
         if id == 0 {
-            g_st().highlight_user[i] = 0;
-            g_st().highlight_stlnc[i] = 0;
+            g_st().highlight_user[i].set(0);
+            g_st().highlight_stlnc[i].set(0);
         } else {
-            g_st().highlight_user[i] = syn_id2attr(id);
+            g_st().highlight_user[i].set(syn_id2attr(id));
             combine_stl_hlt(
                 id,
                 id_s,
@@ -2437,7 +2441,7 @@ pub fn highlight_changed() {
                 hlcnt,
                 i as i32,
                 HLF_SNC,
-                &mut g_st().highlight_stlnc,
+                &g_st().highlight_stlnc,
             );
         }
     }

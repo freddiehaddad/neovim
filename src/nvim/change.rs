@@ -191,7 +191,7 @@ pub fn changed(buf: &mut FileBuf) {
     buf_inc_changedtick(buf);
 
     if g_st().curbuf.get() == buf {
-        g_st().search_global.hl_match = false;
+        g_st().search_global.hl_match.set(false);
     }
 }
 

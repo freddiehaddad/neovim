@@ -344,7 +344,7 @@ pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
         && *c >= 0
     {
         if *c < 256 {
-            *c = g_st().langmap_mapchar[*c as usize] as i32;
+            *c = g_st().langmap_mapchar[*c as usize].get() as i32;
         } else {
             *c = langmap_adjust_mb(*c);
         }

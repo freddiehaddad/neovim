@@ -2239,7 +2239,11 @@ fn didset_options2() {
         None,
     );
 
-    check_opt_wim(opt_vars().p_wim.as_bytes(), &mut g_st().wim_flags);
+    let mut wim_flags = [0u8; 4];
+    check_opt_wim(opt_vars().p_wim.as_bytes(), &mut wim_flags);
+    for (dst, src) in g_st().wim_flags.iter().zip(wim_flags) {
+        dst.set(src);
+    }
     tabstop_set(
         curbuf_mut().b_p_vsts.as_bytes(),
         &mut curbuf_mut().b_p_vsts_array,

@@ -3018,7 +3018,9 @@ pub fn validate_wildmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'wildmode' option is changed.
 pub fn did_set_wildmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if let OptSetPrep::Wildmode(flags) = args.os_prep {
-        g_st().wim_flags = flags;
+        for (dst, src) in g_st().wim_flags.iter().zip(flags) {
+            dst.set(src);
+        }
     }
     None
 }

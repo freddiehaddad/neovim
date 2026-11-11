@@ -2987,7 +2987,7 @@ pub fn before_set_vvar(
         if varname.to_bytes() == b"searchforward" {
             set_search_direction(if n != 0 { b'/' as i32 } else { b'?' as i32 });
         } else if varname.to_bytes() == b"hlsearch" {
-            g_st().search_global.no_hlsearch = n == 0;
+            g_st().search_global.no_hlsearch.set(n == 0);
             redraw_all_later(UPD_SOME_VALID);
         }
         if watched {

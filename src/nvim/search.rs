@@ -384,7 +384,7 @@ pub fn search_regcomp(
             pat_ref = owned_pat.as_deref().unwrap_or(c"");
             patlen = plen;
             magic = pmagic;
-            g_st().search_global.no_smartcase = no_scs;
+            g_st().search_global.no_smartcase.set(no_scs);
         } else if (options & SEARCH_HIS) != 0 {
             let pat_bytes = pat_ref.to_bytes();
             add_to_history(
@@ -456,7 +456,7 @@ pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
         free_spat(&mut s.spats[i]);
         s.spats[i].pat = Some(new_pat);
         s.spats[i].magic = magic != 0;
-        s.spats[i].no_scs = g_st().search_global.no_smartcase;
+        s.spats[i].no_scs = g_st().search_global.no_smartcase.get();
         s.spats[i].timestamp = now;
         s.spats[i].additional_data = None;
         s.last_idx = idx;
@@ -480,7 +480,7 @@ pub fn save_search_patterns() {
         }
         s.saved_mr_pattern = s.mr_pattern.clone();
         s.saved_spats_last_idx = s.last_idx;
-        s.saved_spats_no_hlsearch = g_st().search_global.no_hlsearch;
+        s.saved_spats_no_hlsearch = g_st().search_global.no_hlsearch.get();
     });
 }
 
@@ -529,7 +529,7 @@ pub fn save_last_search_pattern() {
 
         s.saved_last_search_spat = s.spats[RE_SEARCH as usize].clone();
         s.saved_last_idx = s.last_idx;
-        s.saved_no_hlsearch = g_st().search_global.no_hlsearch;
+        s.saved_no_hlsearch = g_st().search_global.no_hlsearch.get();
     });
 }
 
@@ -564,15 +564,15 @@ pub fn restore_last_search_pattern() {
 
 fn save_incsearch_state() {
     with_srch_mut(|s| {
-        s.saved_search_match_endcol = g_st().search_global.match_endcol;
-        s.saved_search_match_lines = g_st().search_global.match_lines;
+        s.saved_search_match_endcol = g_st().search_global.match_endcol.get();
+        s.saved_search_match_lines = g_st().search_global.match_lines.get();
     });
 }
 
 fn restore_incsearch_state() {
     let (endcol, lines) = with_srch(|s| (s.saved_search_match_endcol, s.saved_search_match_lines));
-    g_st().search_global.match_endcol = endcol;
-    g_st().search_global.match_lines = lines;
+    g_st().search_global.match_endcol.set(endcol);
+    g_st().search_global.match_lines.set(lines);
 }
 
 pub fn ignorecase(pat: &CStr) -> bool {
@@ -582,13 +582,13 @@ pub fn ignorecase(pat: &CStr) -> bool {
 pub fn ignorecase_opt(pat: &CStr, ic_in: bool, scs: bool) -> bool {
     let mut ic = ic_in;
     if ic
-        && !g_st().search_global.no_smartcase
+        && !g_st().search_global.no_smartcase.get()
         && scs
         && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf.get())
     {
         ic = !pat_has_uppercase(pat);
     }
-    g_st().search_global.no_smartcase = false;
+    g_st().search_global.no_smartcase.set(false);
     ic
 }
 
@@ -703,7 +703,7 @@ pub fn set_last_search_pat(s: Option<&CStr>, idx: i32, magic: i32, setlast: bool
     });
     set_vv_searchforward();
     let is_last = with_srch(|s| idx == s.last_idx);
-    if opt_vars().p_hls.get() && is_last && !g_st().search_global.no_hlsearch {
+    if opt_vars().p_hls.get() && is_last && !g_st().search_global.no_hlsearch.get() {
         redraw_all_later(UPD_SOME_VALID);
     }
 }
@@ -1070,8 +1070,11 @@ pub fn searchit(
                         found = 1;
                         first_match = false;
 
-                        g_st().search_global.match_lines = endpos.lnum - matchpos.lnum;
-                        g_st().search_global.match_endcol = endpos.col;
+                        g_st()
+                            .search_global
+                            .match_lines
+                            .set(endpos.lnum - matchpos.lnum);
+                        g_st().search_global.match_endcol.set(endpos.col);
                         break;
                     }
                     line_breakcheck();
@@ -1322,7 +1325,7 @@ pub fn do_search(
     let mut msgbuflen: usize = 0;
     let mut has_offset = false;
 
-    g_st().search_global.cmdlen = 0;
+    g_st().search_global.cmdlen.set(0);
 
     if with_srch(|s| s.spats[0].off.line)
         && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LINEOFF)
@@ -1359,7 +1362,7 @@ pub fn do_search(
         pos.col = 0;
     }
 
-    if g_st().search_global.no_hlsearch && (options & SEARCH_KEEP) == 0 {
+    if g_st().search_global.no_hlsearch.get() && (options & SEARCH_KEEP) == 0 {
         redraw_all_later(UPD_SOME_VALID);
         set_no_hlsearch(false);
     }
@@ -1413,7 +1416,10 @@ pub fn do_search(
                     &mut s.spats[0].off,
                 )
             });
-            g_st().search_global.cmdlen += cmdlen_add;
+            g_st()
+                .search_global
+                .cmdlen
+                .set(g_st().search_global.cmdlen.get() + (cmdlen_add));
             if parsed_searchstr.as_bytes().is_empty() {
                 searchstr_cstr = prev_searchstr;
                 searchstrlen = prev_searchstrlen;

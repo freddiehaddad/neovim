@@ -2556,8 +2556,8 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
             findex = (findex + ht).min(xp.xp_numfiles - 1);
         }
     } else {
-        debug_assert!(g_st().pum_want.active);
-        findex = g_st().pum_want.item;
+        debug_assert!(g_st().pum_want.active.get());
+        findex = g_st().pum_want.item.get();
     }
 
     if findex < 0 || findex >= xp.xp_numfiles {
@@ -3248,7 +3248,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
         };
         xp.xp_pattern = ccline.cmdbuff();
         xp.xp_pattern_len = ccline.cmdpos.get() as usize;
-        g_st().search_global.first_line = 0;
+        g_st().search_global.first_line.set(0);
         return;
     }
 
@@ -6143,7 +6143,7 @@ fn concat_pattern_with_buffer_match(
 /// Search for strings matching "pat" in the specified range and return them.
 fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>) -> bool {
     let exacttext = (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
-    let has_range = g_st().search_global.first_line != 0;
+    let has_range = g_st().search_global.first_line.get() != 0;
 
     matches.clear();
 
@@ -6163,7 +6163,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         coladd: 0,
     };
     if has_range {
-        cur_match_pos.lnum = g_st().search_global.first_line;
+        cur_match_pos.lnum = g_st().search_global.first_line.get();
     } else {
         cur_match_pos = CMDEXP_STATE.with(|s| s.pre_incsearch_pos.get());
     }
@@ -6204,8 +6204,8 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         }
 
         if has_range
-            && (cur_match_pos.lnum < g_st().search_global.first_line
-                || cur_match_pos.lnum > g_st().search_global.last_line)
+            && (cur_match_pos.lnum < g_st().search_global.first_line.get()
+                || cur_match_pos.lnum > g_st().search_global.last_line.get())
         {
             break;
         }

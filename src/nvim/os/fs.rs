@@ -277,9 +277,9 @@ const ENOTSUP: i32 = 95;
 
 #[repr(C)]
 pub struct NvimStats {
-    pub fsync: i64,
-    pub redraw: i64,
-    pub log_skip: i16,
+    pub fsync: std::cell::Cell<i64>,
+    pub redraw: std::cell::Cell<i64>,
+    pub log_skip: std::cell::Cell<i16>,
 }
 
 #[repr(C)]
@@ -2130,7 +2130,7 @@ pub fn os_fsync(fd: i32) -> i32 {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        g_st().g_stats.fsync += 1;
+        g_st().g_stats.fsync.set(g_st().g_stats.fsync.get() + (1));
         r
     }
 }

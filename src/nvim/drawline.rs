@@ -1709,11 +1709,11 @@ pub fn win_line(
                 area_highlighting = true;
                 vi_attr = win_hl_attr(&mut *wp, HLF_V);
             }
-        } else if g_st().search_global.hl_match
+        } else if g_st().search_global.hl_match.get()
             && wp == curwin_ptr()
             && !has_foldtext
             && lnum >= curwin_mut().w_cursor.lnum
-            && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
+            && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines.get()
         {
             if lnum == curwin_mut().w_cursor.lnum {
                 let mut cursor = curwin_mut().w_cursor;
@@ -1729,10 +1729,10 @@ pub fn win_line(
             } else {
                 wlv.fromcol = 0;
             }
-            if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines {
+            if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines.get() {
                 let mut pos = CursorPos {
                     lnum,
-                    col: g_st().search_global.match_endcol,
+                    col: g_st().search_global.match_endcol.get(),
                     coladd: 0,
                 };
                 getvcol(
@@ -1744,7 +1744,7 @@ pub fn win_line(
                     GETVCOL_DISP,
                 );
             }
-            if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol != 0 {
+            if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol.get() != 0 {
                 wlv.tocol = wlv.fromcol + 1;
             }
             area_highlighting = true;
@@ -2033,7 +2033,7 @@ pub fn win_line(
                 word_end = wp.w_cursor.col + len as i32 + 1;
 
                 if spell_hlf != HLF_COUNT {
-                    spell_attr = g_st().highlight_attr[spell_hlf as usize];
+                    spell_attr = g_st().highlight_attr[spell_hlf as usize].get();
                 }
             }
             wp.w_cursor = pos;
@@ -2442,7 +2442,7 @@ pub fn win_line(
 
                 if area_attr != 0 {
                     char_attr_pri = hl_combine_attr(wlv.line_attr, area_attr);
-                    if !g_st().search_global.hl_match {
+                    if !g_st().search_global.hl_match.get() {
                         char_attr_pri = hl_combine_attr(search_attr, char_attr_pri);
                     }
                 } else if search_attr != 0 {
@@ -2778,7 +2778,7 @@ pub fn win_line(
                             }
 
                             if spell_hlf != HLF_COUNT {
-                                spell_attr = g_st().highlight_attr[spell_hlf as usize];
+                                spell_attr = g_st().highlight_attr[spell_hlf as usize].get();
                             }
 
                             if spv.spv_cap_col > 0 {

@@ -6058,7 +6058,7 @@ pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
 
 fn ins_compl_key2dir(c: i32) -> Direction {
     if c == K_EVENT || c == K_COMMAND || c == K_LUA {
-        return if g_st().pum_want.item < INSEXPAND.with(|s| s.compl_selected_item.get()) {
+        return if g_st().pum_want.item.get() < INSEXPAND.with(|s| s.compl_selected_item.get()) {
             BACKWARD
         } else {
             FORWARD
@@ -6090,7 +6090,8 @@ fn ins_compl_pum_key(c: i32) -> bool {
 
 fn ins_compl_key2count(c: i32) -> i32 {
     if c == K_EVENT || c == K_COMMAND || c == K_LUA {
-        return (g_st().pum_want.item - INSEXPAND.with(|s| s.compl_selected_item.get())).abs();
+        return (g_st().pum_want.item.get() - INSEXPAND.with(|s| s.compl_selected_item.get()))
+            .abs();
     }
 
     if ins_compl_pum_key(c) && c != K_UP && c != K_DOWN {
@@ -6108,7 +6109,7 @@ fn ins_compl_use_match(c: i32) -> bool {
         K_UP | K_DOWN | K_PAGEDOWN | K_KPAGEDOWN | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_S_UP => {
             false
         }
-        K_EVENT | K_COMMAND | K_LUA => g_st().pum_want.active && g_st().pum_want.insert,
+        K_EVENT | K_COMMAND | K_LUA => g_st().pum_want.active.get() && g_st().pum_want.insert.get(),
         _ => true,
     }
 }

@@ -2295,18 +2295,18 @@ pub fn nvim__id_float(flt: Float) -> Float {
 // DLLEXPORT Dict nvim__stats(Arena *arena);
 pub fn nvim_stats(arena: &mut Arena) -> Dict {
     let mut rv = arena_dict(arena, 6);
-    put_c(&mut rv, c"fsync", integer_obj(g_st().g_stats.fsync));
+    put_c(&mut rv, c"fsync", integer_obj(g_st().g_stats.fsync.get()));
     put_c(
         &mut rv,
         c"log_skip",
-        integer_obj(Integer::from(g_st().g_stats.log_skip)),
+        integer_obj(Integer::from(g_st().g_stats.log_skip.get())),
     );
     put_c(
         &mut rv,
         c"lua_refcount",
         integer_obj(Integer::from(nlua_get_global_ref_count())),
     );
-    put_c(&mut rv, c"redraw", integer_obj(g_st().g_stats.redraw));
+    put_c(&mut rv, c"redraw", integer_obj(g_st().g_stats.redraw.get()));
     put_c(
         &mut rv,
         c"arena_alloc_count",

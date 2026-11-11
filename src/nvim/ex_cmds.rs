@@ -4144,15 +4144,20 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 );
                             }
 
-                            g_st().search_global.match_lines =
-                                regmatch.endpos[0].lnum - regmatch.startpos[0].lnum;
-                            g_st().search_global.match_endcol = regmatch.endpos[0].col + len_change;
-                            if g_st().search_global.match_lines == 0
-                                && g_st().search_global.match_endcol == 0
+                            g_st()
+                                .search_global
+                                .match_lines
+                                .set(regmatch.endpos[0].lnum - regmatch.startpos[0].lnum);
+                            g_st()
+                                .search_global
+                                .match_endcol
+                                .set(regmatch.endpos[0].col + len_change);
+                            if g_st().search_global.match_lines.get() == 0
+                                && g_st().search_global.match_endcol.get() == 0
                             {
-                                g_st().search_global.match_endcol = 1;
+                                g_st().search_global.match_endcol.set(1);
                             }
-                            g_st().search_global.hl_match = true;
+                            g_st().search_global.hl_match.set(true);
 
                             update_topline(curwin_mut());
                             validate_cursor(curwin_mut());
@@ -4173,7 +4178,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             );
                             let p = g_st().iobuff_cstr().to_owned();
                             typed = prompt_for_input(Some(p.as_c_str()), HLF_R, true, None);
-                            g_st().search_global.hl_match = false;
+                            g_st().search_global.hl_match.set(false);
                             drop(p);
 
                             g_st().msg_didout.set(false);

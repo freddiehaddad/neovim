@@ -2740,7 +2740,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             curwin_mut().w_set_curswant.set(true);
             g_st().postponed_split.set(0);
 
-            let save_no_hlsearch = g_st().search_global.no_hlsearch;
+            let save_no_hlsearch = g_st().search_global.no_hlsearch.get();
 
             let search_options =
                 if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_TAGPAT) {

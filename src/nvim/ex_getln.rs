@@ -480,8 +480,8 @@ fn init_incsearch_state(s: &mut IncsearchState) {
 }
 
 fn set_search_match(t: &mut CursorPos) {
-    t.lnum += g_st().search_global.match_lines;
-    t.col = g_st().search_global.match_endcol;
+    t.lnum += g_st().search_global.match_lines.get();
+    t.col = g_st().search_global.match_endcol.get();
     if t.lnum > curbuf_mut().b_ml.ml_line_count {
         t.lnum = curbuf_mut().b_ml.ml_line_count;
         curwin_mut().w_cursor = *t;
@@ -509,8 +509,8 @@ pub fn parse_pattern_and_range(
     *patlen = get_cmdline_info().cmdlen.get();
 
     // Default range
-    g_st().search_global.first_line = 0;
-    g_st().search_global.last_line = MAXLNUM;
+    g_st().search_global.first_line.set(0);
+    g_st().search_global.last_line.set(MAXLNUM);
 
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
@@ -626,12 +626,18 @@ pub fn parse_pattern_and_range(
 
     if ea.addr_count > 0 {
         // Allow for reverse match.
-        g_st().search_global.first_line = ea.line2.min(ea.line1);
-        g_st().search_global.last_line = ea.line2.max(ea.line1);
+        g_st().search_global.first_line.set(ea.line2.min(ea.line1));
+        g_st().search_global.last_line.set(ea.line2.max(ea.line1));
     } else if cmd.first_byte() == b's' && cmd_bytes.get(1) != Some(&b'o') {
         // :s defaults to the current line
-        g_st().search_global.first_line = curwin_mut().w_cursor.lnum;
-        g_st().search_global.last_line = curwin_mut().w_cursor.lnum;
+        g_st()
+            .search_global
+            .first_line
+            .set(curwin_mut().w_cursor.lnum);
+        g_st()
+            .search_global
+            .last_line
+            .set(curwin_mut().w_cursor.lnum);
     }
 
     curwin_mut().w_cursor = save_cursor;
@@ -657,8 +663,8 @@ fn do_incsearch_highlighting(
     }
 
     // By default search all lines
-    g_st().search_global.first_line = 0;
-    g_st().search_global.last_line = MAXLNUM;
+    g_st().search_global.first_line.set(0);
+    g_st().search_global.last_line.set(MAXLNUM);
 
     if firstc == b'/' as i32 || firstc == b'?' as i32 {
         *search_delim = firstc;
@@ -726,16 +732,16 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         ui_flush();
     }
 
-    if g_st().search_global.first_line == 0 {
+    if g_st().search_global.first_line.get() == 0 {
         // start at the original cursor position
         curwin_mut().w_cursor = s.search_start;
-    } else if g_st().search_global.first_line > curbuf_mut().b_ml.ml_line_count {
+    } else if g_st().search_global.first_line.get() > curbuf_mut().b_ml.ml_line_count {
         // start after the last line
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
         curwin_mut().w_cursor.col = MAXCOL;
     } else {
         // start at the first line in the range
-        curwin_mut().w_cursor.lnum = g_st().search_global.first_line;
+        curwin_mut().w_cursor.lnum = g_st().search_global.first_line.get();
         curwin_mut().w_cursor.col = 0;
     }
 
@@ -746,7 +752,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         if !opt_vars().p_hls.get() {
             search_flags += SEARCH_KEEP;
         }
-        if g_st().search_global.first_line != 0 {
+        if g_st().search_global.first_line.get() != 0 {
             search_flags += SEARCH_START;
         }
         // Set the time limit to half a second.
@@ -776,8 +782,8 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         );
         g_st().emsg_off.set(g_st().emsg_off.get() - (1));
         get_cmdline_info().cmdbuff_vec.borrow_mut()[end_idx] = next_char;
-        if curwin_mut().w_cursor.lnum < g_st().search_global.first_line
-            || curwin_mut().w_cursor.lnum > g_st().search_global.last_line
+        if curwin_mut().w_cursor.lnum < g_st().search_global.first_line.get()
+            || curwin_mut().w_cursor.lnum > g_st().search_global.last_line.get()
         {
             // match outside of address range
             found = 0;
@@ -799,7 +805,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         redraw_all_later(UPD_SOME_VALID);
     }
 
-    g_st().search_global.hl_match = found != 0; // add or remove search match position
+    g_st().search_global.hl_match.set(found != 0); // add or remove search match position
 
     // first restore the old curwin values, so the screen is
     // positioned in the same way as the actual search command
@@ -825,7 +831,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         let ccline_rc = get_cmdline_info();
         let cmd_vec = ccline_rc.cmdbuff_vec.borrow();
         let pat_slice = &cmd_vec[skiplen as usize..(skiplen + patlen) as usize];
-        if empty_pattern(pat_slice, search_delim) && !g_st().search_global.no_hlsearch {
+        if empty_pattern(pat_slice, search_delim) && !g_st().search_global.no_hlsearch.get() {
             redraw_all_later(UPD_SOME_VALID);
             set_no_hlsearch(true);
         }
@@ -841,7 +847,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
     update_screen();
-    g_st().search_global.hl_match = false;
+    g_st().search_global.hl_match.set(false);
     restore_last_search_pattern();
 
     // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
@@ -954,11 +960,11 @@ fn finish_incsearch_highlighting(gotesc: bool, s: &mut IncsearchState, call_upda
         curwin_mut().w_cursor = s.search_start;
     }
     restore_viewstate(curwin_mut(), &s.old_viewstate);
-    g_st().search_global.hl_match = false;
+    g_st().search_global.hl_match.set(false);
 
     // by default search all lines
-    g_st().search_global.first_line = 0;
-    g_st().search_global.last_line = MAXLNUM;
+    g_st().search_global.first_line.set(0);
+    g_st().search_global.last_line.set(MAXLNUM);
 
     validate_cursor(curwin_mut()); // needed for TAB
     status_redraw_all();
@@ -1463,17 +1469,17 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
     let escape = s.firstc != b'@' as i32;
     let redraw_if_menu_empty = s.c == K_WILD;
     let wim_noselect =
-        opt_vars().p_wmnu.get() && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOSELECT) != 0;
+        opt_vars().p_wmnu.get() && (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_NOSELECT) != 0;
     let wim_noinsert =
-        opt_vars().p_wmnu.get() && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOINSERT) != 0;
+        opt_vars().p_wmnu.get() && (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_NOINSERT) != 0;
 
-    if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LASTUSED) != 0 {
+    if (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_LASTUSED) != 0 {
         options |= WILD_BUFLASTUSED;
     }
     if with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
         if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
             && !s.did_wild_list
-            && (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0
+            && (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_LIST) != 0
         {
             with_ccline_xpc(|xpc| {
                 showmatches(
@@ -1481,7 +1487,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                     false,
                     true,
                     if opt_vars().p_wmnu.get() {
-                        g_st().wim_flags[s.wim_index as usize] as i32
+                        g_st().wim_flags[s.wim_index as usize].get() as i32
                     } else {
                         0
                     },
@@ -1490,17 +1496,17 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             redrawcmd();
             s.did_wild_list = true;
         }
-        if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LONGEST) != 0 {
+        if (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_LONGEST) != 0 {
             res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_LONGEST, options, escape));
-        } else if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_FULL) != 0 {
+        } else if (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_FULL) != 0 {
             res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_NEXT, options, escape));
         } else {
             res = true;
         }
     } else {
-        let wim_longest = (g_st().wim_flags[0] & K_OPT_WIM_FLAG_LONGEST) != 0;
-        let wim_list = (g_st().wim_flags[0] & K_OPT_WIM_FLAG_LIST) != 0;
-        let wim_full = (g_st().wim_flags[0] & K_OPT_WIM_FLAG_FULL) != 0;
+        let wim_longest = (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_LONGEST) != 0;
+        let wim_list = (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_LIST) != 0;
+        let wim_full = (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_FULL) != 0;
 
         s.wim_index = 0;
         if s.c as OptInt == opt_vars().p_wc.get()
@@ -1555,10 +1561,12 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                         showmatches(xpc, show_menu, wim_list, K_OPT_WIM_FLAG_NOSELECT as i32);
                     });
                 } else if !found_longest_prefix {
-                    let wim_list_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_LIST) != 0;
-                    let wim_full_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_FULL) != 0;
-                    let wim_noselect_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_NOSELECT) != 0;
-                    let wim_noinsert_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_NOINSERT) != 0;
+                    let wim_list_next = (g_st().wim_flags[1].get() & K_OPT_WIM_FLAG_LIST) != 0;
+                    let wim_full_next = (g_st().wim_flags[1].get() & K_OPT_WIM_FLAG_FULL) != 0;
+                    let wim_noselect_next =
+                        (g_st().wim_flags[1].get() & K_OPT_WIM_FLAG_NOSELECT) != 0;
+                    let wim_noinsert_next =
+                        (g_st().wim_flags[1].get() & K_OPT_WIM_FLAG_NOINSERT) != 0;
                     if wim_list_next
                         || (opt_vars().p_wmnu.get()
                             && (wim_full_next || wim_noselect_next || wim_noinsert_next))
@@ -1575,7 +1583,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                                         && (wim_noselect_next || wim_noinsert_next),
                                     wim_list_next,
                                     if opt_vars().p_wmnu.get() {
-                                        g_st().wim_flags[1] as i32
+                                        g_st().wim_flags[1].get() as i32
                                     } else {
                                         0
                                     },
@@ -1597,7 +1605,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                             show_menu,
                             wim_list,
                             if opt_vars().p_wmnu.get() {
-                                g_st().wim_flags[0] as i32
+                                g_st().wim_flags[0].get() as i32
                             } else {
                                 0
                             },
@@ -1697,19 +1705,19 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
             command_line_changed(s);
         }
 
-        if g_st().pum_want.active {
+        if g_st().pum_want.active.get() {
             if cmdline_pum_active() {
                 with_ccline_xpc(|xpc| {
                     nextwild(xpc, WILD_PUM_WANT, 0, s.firstc != b'@' as i32);
                 });
-                if g_st().pum_want.finish {
+                if g_st().pum_want.finish.get() {
                     with_ccline_xpc(|xpc| {
                         nextwild(xpc, WILD_APPLY, WILD_NO_BEEP, s.firstc != b'@' as i32);
                     });
                     command_line_end_wildmenu(s, false, s.c);
                 }
             }
-            g_st().pum_want.active = false;
+            g_st().pum_want.active.set(false);
         }
 
         if !g_st().cmdline_was_last_drawn.get() {
@@ -1796,7 +1804,9 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         set_vim_var_char(s.c);
         trigger_cmd_autocmd(s.cmdline_type, EVENT_CMDLINELEAVEPRE);
         s.event_cmdlineleavepre_triggered = true;
-        if (s.c == ESC || s.c == CTRL_C_CONST) && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_LIST) != 0 {
+        if (s.c == ESC || s.c == CTRL_C_CONST)
+            && (g_st().wim_flags[0].get() & K_OPT_WIM_FLAG_LIST) != 0
+        {
             set_no_hlsearch(true);
         }
     }
@@ -1896,17 +1906,17 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     {
         if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
             && ((!s.did_wild_list
-                && (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0)
+                && (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_LIST) != 0)
                 || opt_vars().p_wmnu.get())
         {
-            let list = (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0;
+            let list = (g_st().wim_flags[s.wim_index as usize].get() & K_OPT_WIM_FLAG_LIST) != 0;
             with_ccline_xpc(|xpc| {
                 showmatches(
                     xpc,
                     opt_vars().p_wmnu.get() && !list,
                     list,
                     if opt_vars().p_wmnu.get() {
-                        g_st().wim_flags[0] as i32
+                        g_st().wim_flags[0].get() as i32
                     } else {
                         0
                     },
@@ -2073,11 +2083,11 @@ fn may_do_command_line_next_incsearch(
         changed_cline_bef_curs(curwin_mut());
         update_topline(curwin_mut());
         validate_cursor(curwin_mut());
-        g_st().search_global.hl_match = true;
+        g_st().search_global.hl_match.set(true);
         save_viewstate(curwin_mut(), &mut s.old_viewstate);
         redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
         update_screen();
-        g_st().search_global.hl_match = false;
+        g_st().search_global.hl_match.set(false);
         redrawcmdline();
         curwin_mut().w_cursor = s.match_end;
     } else {
@@ -2541,7 +2551,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                             false,
                             true,
                             if opt_vars().p_wmnu.get() {
-                                g_st().wim_flags[0] as i32
+                                g_st().wim_flags[0].get() as i32
                             } else {
                                 0
                             },

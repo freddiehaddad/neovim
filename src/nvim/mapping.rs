@@ -2633,8 +2633,8 @@ pub fn langmap_adjust_mb(c: i32) -> i32 {
 }
 
 pub fn langmap_init() {
-    for (i, slot) in g_st().langmap_mapchar.iter_mut().enumerate() {
-        *slot = i as u8;
+    for (i, slot) in g_st().langmap_mapchar.iter().enumerate() {
+        slot.set(i as u8);
     }
     LANGMAP_MAPGA.with(|cell| cell.borrow_mut().clear());
 }
@@ -2713,7 +2713,7 @@ pub fn did_set_langmap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
                         to_cstr,
                     );
                 }
-                g_st().langmap_mapchar[(from & 255) as usize] = to as u8;
+                g_st().langmap_mapchar[(from & 255) as usize].set(to as u8);
             }
 
             p_idx += utfc_ptr2len(&bytes[p_idx..]) as usize;

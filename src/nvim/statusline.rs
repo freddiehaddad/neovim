@@ -796,7 +796,7 @@ fn win_redr_stl_expr(
                 };
                 let userbuf: [u8; 5] = [b'U', b's', b'e', b'r', sp_ref.userhl as u8 + b'0'];
 
-                curattr = userhl[(sp_ref.userhl - 1) as usize];
+                curattr = userhl[(sp_ref.userhl - 1) as usize].get();
                 curgroup = syn_name2id_len(&userbuf[..5]);
             }
             if curattr != attr {

@@ -209,7 +209,10 @@ pub fn log_init() {
 
 pub fn log_should_log(log_level: i32) -> bool {
     if !DID_LOG_INIT.load(Ordering::Relaxed) {
-        g_st().g_stats.log_skip += 1;
+        g_st()
+            .g_stats
+            .log_skip
+            .set(g_st().g_stats.log_skip.get() + (1));
         return false;
     }
     log_level >= min_log_level()
@@ -224,7 +227,10 @@ pub fn logmsg_str(
     msg: &CStr,
 ) -> bool {
     if !DID_LOG_INIT.load(Ordering::Relaxed) {
-        g_st().g_stats.log_skip += 1;
+        g_st()
+            .g_stats
+            .log_skip
+            .set(g_st().g_stats.log_skip.get() + (1));
         return false;
     }
     if log_level < min_log_level() {
@@ -255,7 +261,10 @@ pub fn logmsg_str(
                 line_num,
             );
         }
-        g_st().g_stats.log_skip += 1;
+        g_st()
+            .g_stats
+            .log_skip
+            .set(g_st().g_stats.log_skip.get() + (1));
         return false;
     }
     LOG_RECURSIVE.set(true);

@@ -1048,15 +1048,15 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 map_execute_lua(false, false);
             }
 
-            if g_st().pum_want.active {
+            if g_st().pum_want.active.get() {
                 if pum_visible() {
                     g_st().edit_submode_extra.set(None);
                     insert_do_complete(&mut *s);
-                    if g_st().pum_want.finish {
+                    if g_st().pum_want.finish.get() {
                         ins_compl_prep(CTRL_Y);
                     }
                 }
-                g_st().pum_want.active = false;
+                g_st().pum_want.active.set(false);
             }
 
             let changed = bufref_valid(Some(&save_curbuf))

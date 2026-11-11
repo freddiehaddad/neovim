@@ -831,7 +831,7 @@ pub fn update_screen() -> bool {
 }
 
 pub fn start_search_hl() {
-    if !opt_vars().p_hls.get() || g_st().search_global.no_hlsearch {
+    if !opt_vars().p_hls.get() || g_st().search_global.no_hlsearch.get() {
         return;
     }
 

@@ -7926,7 +7926,7 @@ pub fn get_address(
                             } else {
                                 0
                             };
-                        g_st().search_global.cmdlen = 0;
+                        g_st().search_global.cmdlen.set(0);
                         let search_flags = if silent {
                             SEARCH_KEEP
                         } else {
@@ -7952,7 +7952,7 @@ pub fn get_address(
                         curwin_mut().w_cursor = pos;
                         cmd_cur = Some(crate::memory::CStrSubslice::advance(
                             after_delim,
-                            g_st().search_global.cmdlen as usize,
+                            g_st().search_global.cmdlen.get() as usize,
                         ));
                     }
                 }
@@ -12510,10 +12510,10 @@ fn ex_digraphs(eap: &mut Exarg) {
 }
 
 pub fn set_no_hlsearch(flag: bool) {
-    g_st().search_global.no_hlsearch = flag;
+    g_st().search_global.no_hlsearch.set(flag);
     set_vim_var_nr(
         VV_HLSEARCH,
-        Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls.get()),
+        Varnumber::from(!g_st().search_global.no_hlsearch.get() && opt_vars().p_hls.get()),
     );
 }
 

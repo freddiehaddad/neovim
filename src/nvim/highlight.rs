@@ -293,7 +293,7 @@ pub fn hl_attr(n: i32) -> i32 {
     if let Some(ref tbl) = g_st().hl_attr_active.get() {
         tbl[n as usize].get()
     } else {
-        g_st().highlight_attr[n as usize]
+        g_st().highlight_attr[n as usize].get()
     }
 }
 
@@ -387,7 +387,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
         remote_ui_hl_group_set(
             ui,
             cstr_as_string(hlf_name_ptr(hlf)),
-            Integer::from(g_st().highlight_attr[hlf]),
+            Integer::from(g_st().highlight_attr[hlf].get()),
         );
     }
 }
@@ -683,7 +683,7 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         wp.w_hl_attr_normal.set(if hl_attr(HLF_NFLOAT as i32) > 0 {
             hl_attr(HLF_NFLOAT as i32)
         } else {
-            g_st().highlight_attr[HLF_NFLOAT]
+            g_st().highlight_attr[HLF_NFLOAT].get()
         });
     } else {
         wp.w_hl_attr_normal.set(0);
@@ -870,7 +870,9 @@ pub fn clear_hl_tables(reinit: bool) {
             st.urls.borrow_mut().clear();
         });
         highlight_init();
-        g_st().highlight_attr_last = [-1; HLF_COUNT];
+        for slot in &g_st().highlight_attr_last {
+            slot.set(-1);
+        }
         highlight_attr_set_all();
         highlight_changed();
         screen_invalidate_highlights();

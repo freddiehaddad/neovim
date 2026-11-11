@@ -4320,7 +4320,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
                 buflen = 2;
             }
-            g_st().search_global.no_smartcase = true;
+            g_st().search_global.no_smartcase.set(true);
         }
         c if c == b'K' as i32 => {
             if !nv_k_getcmd(
@@ -4866,7 +4866,7 @@ fn nv_next(cap: &mut Cmdarg) {
 
     if i > 0
         && opt_vars().p_hls.get()
-        && !g_st().search_global.no_hlsearch
+        && !g_st().search_global.no_hlsearch.get()
         && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
     {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
@@ -4922,7 +4922,7 @@ fn normal_search(
         }
         if !equalpos(curwin_mut().w_cursor, prev_cursor)
             && opt_vars().p_hls.get()
-            && !g_st().search_global.no_hlsearch
+            && !g_st().search_global.no_hlsearch.get()
             && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
         {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);

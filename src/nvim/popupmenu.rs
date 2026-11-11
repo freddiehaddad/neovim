@@ -124,12 +124,12 @@ impl Pumitem {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PumWant {
-    pub active: bool,
-    pub item: i32,
-    pub insert: bool,
-    pub finish: bool,
+    pub active: std::cell::Cell<bool>,
+    pub item: std::cell::Cell<i32>,
+    pub insert: std::cell::Cell<bool>,
+    pub finish: std::cell::Cell<bool>,
 }
 
 const PUM_DEF_HEIGHT: i32 = 10;
@@ -1669,10 +1669,10 @@ pub fn pum_ext_select_item(item: i32, insert: bool, finish: bool) {
     if !pum_visible() || item < -1 || item >= PUM.with(|s| s.size.get()) {
         return;
     }
-    g_st().pum_want.active = true;
-    g_st().pum_want.item = item;
-    g_st().pum_want.insert = insert;
-    g_st().pum_want.finish = finish;
+    g_st().pum_want.active.set(true);
+    g_st().pum_want.item.set(item);
+    g_st().pum_want.insert.set(insert);
+    g_st().pum_want.finish.set(finish);
 }
 
 /// Gets the height of the menu (`pum_get_height`).

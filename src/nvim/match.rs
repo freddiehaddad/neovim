@@ -113,14 +113,14 @@ impl Drop for Matchitem {
 
 #[repr(C)]
 pub struct SearchState {
-    pub hl_match: bool,
-    pub match_lines: Linenr,
-    pub match_endcol: Colnr,
-    pub first_line: Linenr,
-    pub last_line: Linenr,
-    pub no_smartcase: bool,
-    pub cmdlen: i32,
-    pub no_hlsearch: bool,
+    pub hl_match: std::cell::Cell<bool>,
+    pub match_lines: std::cell::Cell<Linenr>,
+    pub match_endcol: std::cell::Cell<Colnr>,
+    pub first_line: std::cell::Cell<Linenr>,
+    pub last_line: std::cell::Cell<Linenr>,
+    pub no_smartcase: std::cell::Cell<bool>,
+    pub cmdlen: std::cell::Cell<i32>,
+    pub no_hlsearch: std::cell::Cell<bool>,
 }
 
 use crate::highlight::win_hl_attr;
@@ -456,7 +456,7 @@ fn next_search_hl(
     let mut nmatched: i32 = 0;
     let called_emsg_before = g_st().called_emsg.get();
 
-    if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line)
+    if (lnum < g_st().search_global.first_line.get() || lnum > g_st().search_global.last_line.get())
         && match_idx.is_none()
     {
         get_shl_mut(win, search_hl, match_idx).lnum = 0;

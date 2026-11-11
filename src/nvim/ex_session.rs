@@ -1037,7 +1037,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if opt_vars().p_hls.get() && !write_bytes(&fd, b"set hlsearch\n") {
                 failed = true;
             }
-            if g_st().search_global.no_hlsearch && !write_bytes(&fd, b"nohlsearch\n") {
+            if g_st().search_global.no_hlsearch.get() && !write_bytes(&fd, b"nohlsearch\n") {
                 failed = true;
             }
             if eap.cmdidx == Cmdidx::CmdMksession
