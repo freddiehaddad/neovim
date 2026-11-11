@@ -912,7 +912,7 @@ pub fn terminal_open(term_id: TermId, buf: &mut FileBuf) {
     );
     buf.b_locked.set(buf.b_locked.get() - (1));
 
-    if buf.b_ffname.is_some() {
+    if buf.b_ffname.get().is_some() {
         let ffname_bytes = buf.ffname_bytes().to_vec();
         buf_set_term_title(Some(&mut *buf), &ffname_bytes);
     }

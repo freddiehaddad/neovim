@@ -114,7 +114,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
         || !opt_vars().p_write.get()
         || bt_dontwrite(Some(&*buf))
         || (!forceit && buf.b_p_ro.get())
-        || buf.b_ffname.is_none()
+        || buf.b_ffname.get().is_none()
     {
         return false;
     }
@@ -148,7 +148,7 @@ pub fn autowrite_all() {
             }
         }
 
-        buf = buf.b_next;
+        buf = buf.b_next.get();
     }
 }
 
@@ -170,7 +170,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
 
             if (flags & CCGD_ALLBUF) != 0 {
                 for buf2 in for_all_buffers_mut() {
-                    if buf_is_changed_fn(buf2) && buf2.b_ffname.is_some() {
+                    if buf_is_changed_fn(buf2) && buf2.b_ffname.get().is_some() {
                         count += 1;
                     }
                 }
@@ -230,7 +230,9 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_ALL {
         let mut buf2 = g_st().firstbuf.get();
         while let Some(buf2_ref) = buf2.opt_mut() {
-            if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro.get()
+            if buf_is_changed_fn(buf2_ref)
+                && buf2_ref.b_ffname.get().is_some()
+                && !buf2_ref.b_p_ro.get()
             {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf2_ref));
@@ -254,7 +256,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 }
             }
 
-            buf2 = buf2.b_next;
+            buf2 = buf2.b_next.get();
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
@@ -415,7 +417,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
 pub fn check_fname() -> bool {
-    if curbuf_mut().b_ffname.is_none() {
+    if curbuf_mut().b_ffname.get().is_none() {
         emsg(gettext(E_NONAME));
         return false;
     }
@@ -535,7 +537,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     break;
                 }
 
-                buf = buf_ref.b_next;
+                buf = buf_ref.b_next.get();
             }
             if let Some(buf_ref) = buf.opt() {
                 goto_buffer(eap, DOBUF_FIRST, FORWARD, buf_ref.b_fnum.get());
@@ -603,7 +605,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 tp = tp.tp_next.get();
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
-                for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {
+                for bp in buf_iter_mut(curbuf_mut().b_next.get().as_ptr()) {
                     if bp.b_p_bl.get() {
                         next_fnum = bp.b_fnum.get();
                         break;
@@ -688,7 +690,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         let mut buf = g_st().firstbuf.get();
         while let Some(buf_ref) = buf.opt_mut() {
-            let mut bnext = buf_ref.b_next;
+            let mut bnext = buf_ref.b_next.get();
             if buf_ref.b_nwindows.get() > 0 && (buf_ref.b_flags.get() & BF_SYN_SET) != 0 {
                 buf_ref.b_flags.set(buf_ref.b_flags.get() & (!BF_SYN_SET));
 

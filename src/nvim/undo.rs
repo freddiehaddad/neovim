@@ -694,9 +694,18 @@ fn serialize_header(bi: &mut Bufinfo, hash: &[u8; UNDO_HASH_SIZE]) -> bool {
     }
 
     undo_write_bytes(bi, buf.b_ml.ml_line_count.get() as u64, 4);
-    let len = buf.b_u_line_ptr.as_ref().map_or(0, |s| s.as_bytes().len());
+    let len = buf
+        .b_u_line_ptr
+        .get()
+        .as_ref()
+        .map_or(0, |s| s.as_bytes().len());
     undo_write_bytes(bi, len as u64, 4);
-    if len > 0 && !undo_write(bi, &buf.b_u_line_ptr.as_ref().unwrap().as_bytes()[..len]) {
+    if len > 0
+        && !undo_write(
+            bi,
+            &buf.b_u_line_ptr.get().as_ref().unwrap().as_bytes()[..len],
+        )
+    {
         return false;
     }
     undo_write_bytes(bi, buf.b_u_line_lnum.get() as u64, 4);
@@ -1003,7 +1012,7 @@ pub fn u_write_undo(
     };
 
     let mut perm: i32 = 0o600;
-    if buf.b_ffname.is_some() {
+    if buf.b_ffname.get().is_some() {
         perm = os_getperm(buf.ffname_cstr());
         if perm < 0 {
             perm = 0o600;
@@ -1057,7 +1066,7 @@ pub fn u_write_undo(
             os_remove(file_name_cstr);
         }
 
-        if buf.b_u_numhead.get() == 0 && buf.b_u_line_ptr.is_none() {
+        if buf.b_u_numhead.get() == 0 && buf.b_u_line_ptr.get().is_none() {
             if opt_vars().p_verbose.get() > 0 {
                 verb_msg(gettext(c"Skipping undo file write, nothing to undo"));
             }
@@ -1084,7 +1093,7 @@ pub fn u_write_undo(
         {
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
-            if buf.b_ffname.is_some()
+            if buf.b_ffname.get().is_some()
                 && os_fileinfo(buf.ffname_cstr(), &mut file_info_old)
                 && os_fileinfo(file_name_cstr, &mut file_info_new)
                 && file_info_old.stat.st_gid != file_info_new.stat.st_gid
@@ -1172,7 +1181,7 @@ pub fn u_write_undo(
             semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR), file_name_cstr);
         }
 
-        if buf.b_ffname.is_some() {
+        if buf.b_ffname.get().is_some() {
             let acl: VimAcl = os_get_acl(buf.ffname_cstr());
             os_set_acl(file_name_cstr, acl);
             os_free_acl(acl);
@@ -1440,7 +1449,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             curbuf_mut().b_u_oldhead.set(old_idx);
             curbuf_mut().b_u_newhead.set(new_idx);
             curbuf_mut().b_u_curhead.set(cur_idx);
-            curbuf_mut().b_u_line_ptr = line_ptr;
+            curbuf_mut().b_u_line_ptr.set(line_ptr);
             curbuf_mut().b_u_line_lnum.set(line_lnum);
             curbuf_mut().b_u_line_colnr.set(line_colnr);
             curbuf_mut().b_u_numhead.set(num_head);
@@ -2702,7 +2711,7 @@ pub fn u_clearall(buf: &mut FileBuf) {
     buf.b_u_curhead.set(None);
     buf.b_u_synced.set(true);
     buf.b_u_numhead.set(0);
-    buf.b_u_line_ptr = None;
+    buf.b_u_line_ptr.set(None);
     buf.b_u_line_lnum.set(0);
 }
 
@@ -2713,7 +2722,7 @@ pub fn u_blockfree(buf: &mut FileBuf) {
         u_freeheader(buf, previous_oldhead, &mut dummy);
         assert!(buf.b_u_oldhead.get() != Some(previous_oldhead));
     }
-    buf.b_u_line_ptr = None;
+    buf.b_u_line_ptr.set(None);
 }
 
 /// Free all allocated memory blocks for the buffer `buf` and invalidate the undo buffer.
@@ -2738,22 +2747,23 @@ fn u_saveline(buf: &mut FileBuf, lnum: Linenr) {
     } else {
         buf.b_u_line_colnr.set(0);
     }
-    buf.b_u_line_ptr = Some(u_save_line_buf(buf, lnum));
+    let saved_line = u_save_line_buf(buf, lnum);
+    buf.b_u_line_ptr.set(Some(saved_line));
 }
 
 /// Clear the line saved for the `"U"` command.
 pub fn u_clearline(buf: &mut FileBuf) {
-    if buf.b_u_line_ptr.is_none() {
+    if buf.b_u_line_ptr.get().is_none() {
         return;
     }
 
-    buf.b_u_line_ptr = None;
+    buf.b_u_line_ptr.set(None);
     buf.b_u_line_lnum.set(0);
 }
 
 /// Implementation of the `"U"` command.
 pub fn u_undoline() {
-    if curbuf_mut().b_u_line_ptr.is_none()
+    if curbuf_mut().b_u_line_ptr.get().is_none()
         || curbuf_mut().b_u_line_lnum.get() > curbuf_mut().b_ml.ml_line_count.get()
     {
         beep_flush();
@@ -2772,7 +2782,7 @@ pub fn u_undoline() {
     }
 
     let oldp = u_save_line(curbuf_mut().b_u_line_lnum.get());
-    let new_line = curbuf_mut().b_u_line_ptr.as_ref().unwrap();
+    let new_line = curbuf_mut().b_u_line_ptr.get().unwrap();
     let new_line_len = new_line.as_bytes().len() as Colnr;
     ml_replace(curbuf_mut().b_u_line_lnum.get(), new_line.to_bytes(), true);
     extmark_splice_cols(
@@ -2784,7 +2794,7 @@ pub fn u_undoline() {
         K_EXTMARK_UNDO,
     );
     changed_bytes(curbuf_mut().b_u_line_lnum.get(), 0);
-    curbuf_mut().b_u_line_ptr = Some(oldp);
+    curbuf_mut().b_u_line_ptr.set(Some(oldp));
 
     let t = curbuf_mut().b_u_line_colnr.get();
     if curwin_mut().w_cursor.lnum == curbuf_mut().b_u_line_lnum.get() {
@@ -2977,7 +2987,7 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     buf.b_u_seq_cur.set(uc.uc_seq_cur);
     buf.b_u_time_cur.set(uc.uc_time_cur);
     buf.b_u_save_nr_cur.set(uc.uc_save_nr_cur);
-    buf.b_u_line_ptr = uc.uc_line_ptr.take();
+    buf.b_u_line_ptr.set(uc.uc_line_ptr.take());
     buf.b_u_line_lnum.set(uc.uc_line_lnum);
     buf.b_u_line_colnr.set(uc.uc_line_colnr);
     if buf.b_u_curhead.get().is_none() {

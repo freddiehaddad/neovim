@@ -1868,7 +1868,7 @@ fn read_stdin() {
     g_st().no_wait_return.set(1);
     let save_msg_didany = g_st().msg_didany.get();
 
-    if curbuf_mut().b_ffname.is_some() {
+    if curbuf_mut().b_ffname.get().is_some() {
         let Some(stdin_buf_ref) = buflist_new(None, None, 0, BLN_LISTED) else {
             semsg!(c"Failed to create buffer for stdin");
             return;
@@ -1893,7 +1893,7 @@ fn read_stdin() {
     } else {
         set_buflisted(1);
         open_buffer(true, None, 0);
-        if buf_is_empty(curbuf_mut()) && !curbuf_mut().b_next.is_null() {
+        if buf_is_empty(curbuf_mut()) && !curbuf_mut().b_next.get().is_null() {
             do_cmdline_cmd(c"silent! bnext");
             do_cmdline_cmd(c"silent! bwipeout 1");
         }
@@ -2072,7 +2072,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         if ptr::eq(
             g_st().curbuf.get().as_ptr(),
             firstwin_mut().w_buffer.as_ptr(),
-        ) || curbuf_mut().b_ffname.is_none()
+        ) || curbuf_mut().b_ffname.get().is_none()
         {
             curwin_mut().w_arg_idx.set(arg_idx);
             g_st().swap_exists_did_quit.set(false);

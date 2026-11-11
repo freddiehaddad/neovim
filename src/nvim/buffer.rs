@@ -202,15 +202,15 @@ pub enum BufFname {
 pub struct FileBuf {
     pub b_fnum: std::cell::Cell<crate::msgpack_rpc::packer::ObjHandle>,
     pub b_ml: crate::memline::Memline,
-    pub b_next: crate::globals::BufPtr,
-    pub b_prev: crate::globals::BufPtr,
+    pub b_next: std::cell::Cell<crate::globals::BufPtr>,
+    pub b_prev: std::cell::Cell<crate::globals::BufPtr>,
     pub b_nwindows: std::cell::Cell<i32>,
     pub b_flags: std::cell::Cell<i32>,
     pub b_locked: std::cell::Cell<i32>,
     pub b_locked_split: std::cell::Cell<i32>,
     pub b_ro_locked: std::cell::Cell<i32>,
-    pub b_ffname: Option<std::ffi::CString>,
-    pub b_sfname: Option<std::ffi::CString>,
+    pub b_ffname: std::cell::Cell<Option<&'static std::ffi::CStr>>,
+    pub b_sfname: std::cell::Cell<Option<&'static std::ffi::CStr>>,
     pub b_fname: std::cell::Cell<BufFname>,
     pub file_id_valid: std::cell::Cell<bool>,
     pub file_id: std::cell::Cell<FileID>,
@@ -267,7 +267,7 @@ pub struct FileBuf {
     pub b_u_seq_cur: std::cell::Cell<i32>,
     pub b_u_time_cur: std::cell::Cell<i64>,
     pub b_u_save_nr_cur: std::cell::Cell<i32>,
-    pub b_u_line_ptr: Option<std::ffi::CString>,
+    pub b_u_line_ptr: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub b_u_line_lnum: std::cell::Cell<i32>,
     pub b_u_line_colnr: std::cell::Cell<i32>,
     pub b_scanned: std::cell::Cell<bool>,
@@ -364,7 +364,7 @@ pub struct FileBuf {
     pub b_p_wm_nopaste: std::cell::Cell<i64>,
     pub b_p_vsts: crate::option_vars::OptString,
     pub b_p_vsts_array: Vec<i32>,
-    pub b_p_vsts_nopaste: Option<std::ffi::CString>,
+    pub b_p_vsts_nopaste: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub b_p_vts: crate::option_vars::OptString,
     pub b_p_vts_array: Vec<i32>,
     pub b_p_keymap: crate::option_vars::OptString,
@@ -426,7 +426,7 @@ pub struct FileBuf {
     pub b_start_eof: std::cell::Cell<bool>,
     pub b_start_eol: std::cell::Cell<bool>,
     pub b_start_ffc: std::cell::Cell<i32>,
-    pub b_start_fenc: Option<std::ffi::CString>,
+    pub b_start_fenc: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub b_bad_char: std::cell::Cell<i32>,
     pub b_start_bomb: std::cell::Cell<bool>,
     pub b_bufvar: crate::eval::typval::DictitemId,
@@ -434,7 +434,7 @@ pub struct FileBuf {
     pub b_did_warn: std::cell::Cell<bool>,
     pub b_help: std::cell::Cell<bool>,
     pub b_spell: std::cell::Cell<bool>,
-    pub b_prompt_text: Option<std::ffi::CString>,
+    pub b_prompt_text: std::cell::Cell<Option<&'static std::ffi::CStr>>,
     pub b_prompt_callback: crate::eval::typval::Callback,
     pub b_prompt_interrupt: crate::eval::typval::Callback,
     pub b_prompt_append_new_line: std::cell::Cell<bool>,
@@ -457,8 +457,8 @@ pub struct FileBuf {
     pub deleted_codepoints: std::cell::Cell<usize>,
     pub deleted_codeunits: std::cell::Cell<usize>,
     pub flush_count: std::cell::Cell<i32>,
-    pub b_localdir: Option<std::ffi::CString>,
-    pub b_prevdir: Option<std::ffi::CString>,
+    pub b_localdir: crate::globals::CloneCell<Option<std::ffi::CString>>,
+    pub b_prevdir: crate::globals::CloneCell<Option<std::ffi::CString>>,
 }
 
 impl FileBuf {
@@ -487,15 +487,15 @@ impl FileBuf {
         Self {
             b_fnum: std::cell::Cell::new(0),
             b_ml: crate::memline::Memline::new(),
-            b_next: crate::globals::BufPtr::NULL,
-            b_prev: crate::globals::BufPtr::NULL,
+            b_next: std::cell::Cell::new(crate::globals::BufPtr::NULL),
+            b_prev: std::cell::Cell::new(crate::globals::BufPtr::NULL),
             b_nwindows: std::cell::Cell::new(0),
             b_flags: std::cell::Cell::new(0),
             b_locked: std::cell::Cell::new(0),
             b_locked_split: std::cell::Cell::new(0),
             b_ro_locked: std::cell::Cell::new(0),
-            b_ffname: None,
-            b_sfname: None,
+            b_ffname: std::cell::Cell::new(None),
+            b_sfname: std::cell::Cell::new(None),
             b_fname: std::cell::Cell::new(BufFname::None),
             file_id_valid: std::cell::Cell::new(false),
             file_id: std::cell::Cell::new(FileID {
@@ -560,7 +560,7 @@ impl FileBuf {
             b_u_seq_cur: std::cell::Cell::new(0),
             b_u_time_cur: std::cell::Cell::new(0),
             b_u_save_nr_cur: std::cell::Cell::new(0),
-            b_u_line_ptr: None,
+            b_u_line_ptr: crate::globals::CloneCell::new(None),
             b_u_line_lnum: std::cell::Cell::new(0),
             b_u_line_colnr: std::cell::Cell::new(0),
             b_scanned: std::cell::Cell::new(false),
@@ -657,7 +657,7 @@ impl FileBuf {
             b_p_wm_nopaste: std::cell::Cell::new(0),
             b_p_vsts: crate::option_vars::OptString::new(),
             b_p_vsts_array: Vec::new(),
-            b_p_vsts_nopaste: None,
+            b_p_vsts_nopaste: crate::globals::CloneCell::new(None),
             b_p_vts: crate::option_vars::OptString::new(),
             b_p_vts_array: Vec::new(),
             b_p_keymap: crate::option_vars::OptString::new(),
@@ -719,7 +719,7 @@ impl FileBuf {
             b_start_eof: std::cell::Cell::new(false),
             b_start_eol: std::cell::Cell::new(false),
             b_start_ffc: std::cell::Cell::new(0),
-            b_start_fenc: None,
+            b_start_fenc: crate::globals::CloneCell::new(None),
             b_bad_char: std::cell::Cell::new(0),
             b_start_bomb: std::cell::Cell::new(false),
             b_bufvar: crate::eval::typval::DictitemId::NULL,
@@ -727,7 +727,7 @@ impl FileBuf {
             b_did_warn: std::cell::Cell::new(false),
             b_help: std::cell::Cell::new(false),
             b_spell: std::cell::Cell::new(false),
-            b_prompt_text: None,
+            b_prompt_text: std::cell::Cell::new(None),
             b_prompt_callback: crate::eval::typval::Callback::NONE,
             b_prompt_interrupt: crate::eval::typval::Callback::NONE,
             b_prompt_append_new_line: std::cell::Cell::new(false),
@@ -755,8 +755,8 @@ impl FileBuf {
             deleted_codepoints: std::cell::Cell::new(0),
             deleted_codeunits: std::cell::Cell::new(0),
             flush_count: std::cell::Cell::new(0),
-            b_localdir: None,
-            b_prevdir: None,
+            b_localdir: crate::globals::CloneCell::new(None),
+            b_prevdir: crate::globals::CloneCell::new(None),
         }
     }
 
@@ -1070,7 +1070,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     let silent = shortmess(K_SHM_FILEINFO);
 
     if g_st().readonlymode.get()
-        && curbuf_mut().b_ffname.is_some()
+        && curbuf_mut().b_ffname.get().is_some()
         && (curbuf_mut().b_flags.get() & BF_NEVERLOADED) != 0
     {
         curbuf_mut().b_p_ro.set(true);
@@ -1121,7 +1121,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         flags |= READ_NOFILE;
     }
 
-    if curbuf_mut().b_ffname.is_some() {
+    if curbuf_mut().b_ffname.get().is_some() {
         #[cfg(unix)]
         let save_bin = curbuf_mut().b_p_bin.get();
         #[cfg(unix)]
@@ -1238,7 +1238,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
     if retval.is_none()
         && curbuf_mut().b_p_ft.is_empty()
-        && curbuf_mut().b_ffname.is_some()
+        && curbuf_mut().b_ffname.get().is_some()
         && after_pathsep(curbuf_mut().ffname_bytes()) != 0
         && augroup_exists(Some(c"filetypedetect"))
     {
@@ -1330,7 +1330,7 @@ fn buf_valid_handle(buf: crate::globals::BufPtr) -> bool {
         if bp == buf {
             return true;
         }
-        bp = b.b_prev;
+        bp = b.b_prev.get();
     }
     false
 }
@@ -1519,7 +1519,7 @@ pub fn close_buffer(
         return false;
     }
 
-    if buf.borrow().b_ffname.is_none() {
+    if buf.borrow().b_ffname.get().is_none() {
         del_buf = true;
     }
 
@@ -1543,8 +1543,8 @@ pub fn close_buffer(
 
     if wipe_buf
         && buf.borrow().b_nwindows.get() <= 0
-        && (!buf.borrow().b_prev.is_null()
-            || !buf.borrow().b_next.is_null()
+        && (!buf.borrow().b_prev.get().is_null()
+            || !buf.borrow().b_next.get().is_null()
             || entered_free_all_mem())
     {
         if clear_w_buf {
@@ -1557,15 +1557,15 @@ pub fn close_buffer(
             }
         }
         buf.borrow_mut().clear_fnames();
-        let b_prev = buf.borrow().b_prev;
-        let b_next = buf.borrow().b_next;
+        let b_prev = buf.borrow().b_prev.get();
+        let b_next = buf.borrow().b_next.get();
         if let Some(prev) = b_prev.opt_mut() {
-            prev.b_next = b_next;
+            prev.b_next.set(b_next);
         } else {
             g_st().firstbuf.set((b_next.as_ptr()).into());
         }
         if let Some(next) = b_next.opt_mut() {
-            next.b_prev = b_prev;
+            next.b_prev.set(b_prev);
         } else {
             g_st().lastbuf.set((b_prev.as_ptr()).into());
         }
@@ -1737,37 +1737,37 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
 impl FileBuf {
     #[inline]
-    pub fn ffname_opt(&self) -> Option<&std::ffi::CStr> {
-        self.b_ffname.as_deref()
+    pub fn ffname_opt(&self) -> Option<&'static std::ffi::CStr> {
+        self.b_ffname.get()
     }
 
     #[inline]
-    pub fn ffname_cstr(&self) -> &std::ffi::CStr {
+    pub fn ffname_cstr(&self) -> &'static std::ffi::CStr {
         self.ffname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn ffname_bytes(&self) -> &[u8] {
+    pub fn ffname_bytes(&self) -> &'static [u8] {
         self.ffname_cstr().to_bytes()
     }
 
     #[inline]
-    pub fn sfname_opt(&self) -> Option<&std::ffi::CStr> {
-        self.b_sfname.as_deref()
+    pub fn sfname_opt(&self) -> Option<&'static std::ffi::CStr> {
+        self.b_sfname.get()
     }
 
     #[inline]
-    pub fn sfname_cstr(&self) -> &std::ffi::CStr {
+    pub fn sfname_cstr(&self) -> &'static std::ffi::CStr {
         self.sfname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn sfname_bytes(&self) -> &[u8] {
+    pub fn sfname_bytes(&self) -> &'static [u8] {
         self.sfname_cstr().to_bytes()
     }
 
     #[inline]
-    pub fn fname_opt(&self) -> Option<&std::ffi::CStr> {
+    pub fn fname_opt(&self) -> Option<&'static std::ffi::CStr> {
         match self.b_fname.get() {
             BufFname::None => None,
             BufFname::Short => self.sfname_opt(),
@@ -1776,47 +1776,53 @@ impl FileBuf {
     }
 
     #[inline]
-    pub fn fname_cstr(&self) -> &std::ffi::CStr {
+    pub fn fname_cstr(&self) -> &'static std::ffi::CStr {
         self.fname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn fname_bytes(&self) -> &[u8] {
+    pub fn fname_bytes(&self) -> &'static [u8] {
         self.fname_cstr().to_bytes()
     }
 
     #[inline]
-    pub fn set_ffname(&mut self, ffname: Option<std::ffi::CString>) {
-        self.b_ffname = ffname;
+    pub fn set_ffname(&self, ffname: Option<std::ffi::CString>) {
+        self.b_ffname
+            .set(ffname.as_deref().map(crate::option_vars::intern_opt_cstr));
     }
 
     #[inline]
-    pub fn set_sfname(&mut self, sfname: Option<std::ffi::CString>) {
-        self.b_sfname = sfname;
+    pub fn set_sfname(&self, sfname: Option<std::ffi::CString>) {
+        self.b_sfname
+            .set(sfname.as_deref().map(crate::option_vars::intern_opt_cstr));
     }
 
     #[inline]
-    pub fn clear_fnames(&mut self) {
-        self.b_ffname = None;
-        self.b_sfname = None;
+    pub fn clear_fnames(&self) {
+        self.b_ffname.set(None);
+        self.b_sfname.set(None);
         self.b_fname.set(BufFname::None);
     }
 
     #[inline]
     pub fn take_fnames(
-        &mut self,
+        &self,
     ) -> (
         Option<std::ffi::CString>,
         Option<std::ffi::CString>,
         BufFname,
     ) {
         let kind = self.b_fname.replace(BufFname::None);
-        (self.b_ffname.take(), self.b_sfname.take(), kind)
+        (
+            self.b_ffname.take().map(std::borrow::ToOwned::to_owned),
+            self.b_sfname.take().map(std::borrow::ToOwned::to_owned),
+            kind,
+        )
     }
 
     #[inline]
     pub fn restore_fnames(
-        &mut self,
+        &self,
         ffname: Option<std::ffi::CString>,
         sfname: Option<std::ffi::CString>,
         kind: BufFname,
@@ -1827,10 +1833,10 @@ impl FileBuf {
     }
 
     #[inline]
-    pub fn swap_fnames(&mut self, other: &mut Self) {
+    pub fn swap_fnames(&self, other: &Self) {
         self.b_fname.swap(&other.b_fname);
-        std::mem::swap(&mut self.b_ffname, &mut other.b_ffname);
-        std::mem::swap(&mut self.b_sfname, &mut other.b_sfname);
+        self.b_ffname.swap(&other.b_ffname);
+        self.b_sfname.swap(&other.b_sfname);
     }
 }
 
@@ -1838,11 +1844,11 @@ impl Drop for FileBuf {
     fn drop(&mut self) {
         self.clear_fnames();
         free_buf_options(&mut *self, true);
-        self.b_start_fenc = None;
-        self.b_localdir = None;
-        self.b_prevdir = None;
+        self.b_start_fenc.set(None);
+        self.b_localdir.set(None);
+        self.b_prevdir.set(None);
         self.additional_data = None;
-        self.b_prompt_text = None;
+        self.b_prompt_text.set(None);
         callback_free(&self.b_prompt_callback);
         callback_free(&self.b_prompt_interrupt);
         clear_fmark(&mut self.b_last_cursor, 0);
@@ -1878,7 +1884,7 @@ fn free_buffer(buf: &mut FileBuf) {
 
     if g_st().autocmd_busy.get() {
         buf_ref.additional_data = None;
-        buf_ref.b_prompt_text = None;
+        buf_ref.b_prompt_text.set(None);
         callback_free(&buf_ref.b_prompt_callback);
         callback_free(&buf_ref.b_prompt_interrupt);
         clear_fmark(&mut buf_ref.b_last_cursor, 0);
@@ -1923,9 +1929,9 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     buf.b_conceal_providers.set(0);
     map_clear_mode(buf, MAP_ALL_MODES, true, false);
     map_clear_mode(buf, MAP_ALL_MODES, true, true);
-    buf.b_start_fenc = None;
-    buf.b_localdir = None;
-    buf.b_prevdir = None;
+    buf.b_start_fenc.set(None);
+    buf.b_localdir.set(None);
+    buf.b_prevdir.set(None);
 
     buf_free_callbacks(buf);
 }
@@ -2217,7 +2223,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         while count > 0 {
             count -= 1;
             loop {
-                buf = buf.b_next;
+                buf = buf.b_next.get();
 
                 if buf.is_null() {
                     buf = g_st().firstbuf.get();
@@ -2233,7 +2239,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
     } else if start == DOBUF_FIRST && count != 0 {
         while !buf.is_null() && buf.b_fnum.get() != count {
-            buf = buf.b_next;
+            buf = buf.b_next.get();
         }
     } else {
         let help_only = (flags & DOBUF_SKIPHELP) != 0 && buf.b_help.get();
@@ -2252,13 +2258,13 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 bp = buf;
             }
             buf = if dir == FORWARD {
-                if !buf.b_next.is_null() {
-                    buf.b_next
+                if !buf.b_next.get().is_null() {
+                    buf.b_next.get()
                 } else {
                     g_st().firstbuf.get()
                 }
-            } else if !buf.b_prev.is_null() {
-                buf.b_prev
+            } else if !buf.b_prev.get().is_null() {
+                buf.b_prev.get()
             } else {
                 g_st().lastbuf.get()
             };
@@ -2490,13 +2496,13 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         if buf.is_null() {
             let mut forward = true;
-            buf = curbuf_mut().b_next;
+            buf = curbuf_mut().b_next.get();
             loop {
                 if buf.is_null() {
                     if !forward {
                         break;
                     }
-                    buf = curbuf_mut().b_prev;
+                    buf = curbuf_mut().b_prev.get();
                     forward = false;
                     continue;
                 }
@@ -2512,7 +2518,11 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                         bp = buf;
                     }
                 }
-                buf = if forward { buf.b_next } else { buf.b_prev };
+                buf = if forward {
+                    buf.b_next.get()
+                } else {
+                    buf.b_prev.get()
+                };
             }
         }
         if buf.is_null() {
@@ -2531,10 +2541,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             }
         }
         if buf.is_null() {
-            buf = if !curbuf_mut().b_next.is_null() {
-                curbuf_mut().b_next
+            buf = if !curbuf_mut().b_next.get().is_null() {
+                curbuf_mut().b_next.get()
             } else {
-                curbuf_mut().b_prev
+                curbuf_mut().b_prev.get()
             };
             if bt_quickfix(buf.opt())
                 || (!buf.is_null() && buf != g_st().curbuf.get() && buf.b_locked_split.get() != 0)
@@ -2775,7 +2785,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 pub fn do_autochdir() {
     if opt_vars().p_acd.get()
         && starting_val() == 0
-        && curbuf_mut().b_ffname.is_some()
+        && curbuf_mut().b_ffname.get().is_some()
         && vim_chdirfile(curbuf_mut().ffname_cstr(), K_CD_CAUSE_AUTO)
     {
         g_st().last_chdir_reason.set(Some(c"autochdir"));
@@ -2918,13 +2928,13 @@ pub fn buflist_new(
             .b_kmap_state
             .set(curbuf_mut().b_kmap_state.get() | (KEYMAP_INIT));
     } else {
-        buf_ref.b_next = crate::globals::BufPtr::NULL;
+        buf_ref.b_next.set(crate::globals::BufPtr::NULL);
         if g_st().firstbuf.get().is_null() {
-            buf_ref.b_prev = crate::globals::BufPtr::NULL;
+            buf_ref.b_prev.set(crate::globals::BufPtr::NULL);
             g_st().firstbuf.set(buf);
         } else {
-            g_st().lastbuf.get().b_next = buf;
-            buf_ref.b_prev = g_st().lastbuf.get();
+            g_st().lastbuf.get().b_next.set(buf);
+            buf_ref.b_prev.set(g_st().lastbuf.get());
         }
         g_st().lastbuf.set(buf);
 
@@ -2987,7 +2997,7 @@ pub fn buflist_new(
     let buf_ref = buf.borrow_mut();
     buf_ref.b_prompt_callback = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_interrupt = crate::eval::typval::Callback::NONE;
-    buf_ref.b_prompt_text = None;
+    buf_ref.b_prompt_text.set(None);
     buf_ref.b_prompt_start = INIT_FMARK;
     buf_ref.b_prompt_start.mark.col = 2;
     buf_ref.b_prompt_append_new_line.set(true);
@@ -2999,7 +3009,7 @@ pub fn buflist_new(
 /// only one window.
 pub fn curbuf_reusable() -> bool {
     !g_st().curbuf.get().is_null()
-        && curbuf_mut().b_ffname.is_none()
+        && curbuf_mut().b_ffname.get().is_none()
         && curbuf_mut().b_nwindows.get() <= 1
         && curbuf_mut().terminal.get().is_null()
         && (curbuf_mut().b_ml.ml_mfp.is_none() || buf_is_empty(curbuf_mut()))
@@ -3028,7 +3038,7 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_flp.clear_option_str();
     buf.b_p_isk.clear_option_str();
     buf.b_p_vsts.clear_option_str();
-    buf.b_p_vsts_nopaste = None;
+    buf.b_p_vsts_nopaste.set(None);
     buf.b_p_vsts_array = Vec::new();
     buf.b_p_vts.clear_option_str();
     buf.b_p_vts_array = Vec::new();
@@ -3390,12 +3400,12 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             } else {
                 let pat_opt = Some(pat_bytes);
                 score = fuzzy_match_str(buf.sfname_opt().map(CStr::to_bytes), pat_opt);
-                if score != FUZZY_SCORE_NONE && buf.b_sfname.is_some() {
+                if score != FUZZY_SCORE_NONE && buf.b_sfname.get().is_some() {
                     p = buf.sfname_opt();
                 }
                 if p.is_none() {
                     score = fuzzy_match_str(buf.ffname_opt().map(CStr::to_bytes), pat_opt);
-                    if score != FUZZY_SCORE_NONE && buf.b_ffname.is_some() {
+                    if score != FUZZY_SCORE_NONE && buf.b_ffname.get().is_some() {
                         p = buf.ffname_opt();
                     }
                 }
@@ -4545,7 +4555,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     let mut buf = g_st().firstbuf.get();
     while !buf.is_null() && open_wins < count {
         if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || !buf.borrow().b_p_bl.get() {
-            buf = buf.borrow().b_next;
+            buf = buf.borrow().b_next.get();
             continue;
         }
 
@@ -4579,7 +4589,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             open_wins += 1;
             opt_vars().p_ea.set(p_ea_save);
             if !ok {
-                buf = buf.borrow().b_next;
+                buf = buf.borrow().b_next.get();
                 continue;
             }
 
@@ -4617,7 +4627,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if had_tab > 0 && i64::from(tabpage_index(None)) <= opt_vars().p_tpm.get() {
             g_st().cmdmod.cmod_tab = 9999;
         }
-        buf = buf.borrow().b_next;
+        buf = buf.borrow().b_next.get();
     }
     g_st()
         .autocmd_no_enter

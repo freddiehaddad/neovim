@@ -1041,6 +1041,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         u_clearallandblockfree(&mut *buf);
     }
 
-    buf.b_prompt_text = Some((*new_prompt).to_owned());
+    buf.b_prompt_text
+        .set(Some(crate::option_vars::intern_opt_cstr(&new_prompt)));
     buf.b_prompt_start.mark.col = new_prompt_len as Colnr;
 }

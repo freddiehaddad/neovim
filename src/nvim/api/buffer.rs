@@ -1252,7 +1252,7 @@ pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return NvimString::new();
     };
-    if b.b_ffname.is_none() {
+    if b.b_ffname.get().is_none() {
         return NvimString::new();
     }
     cstr_as_string(b.ffname_opt())

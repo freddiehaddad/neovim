@@ -3286,8 +3286,8 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
         buf = INSEXPAND.with(|s| s.next_buf_wp.get()).w_buffer;
     } else {
         loop {
-            buf = if !buf.b_next.is_null() {
-                buf.b_next
+            buf = if !buf.b_next.get().is_null() {
+                buf.b_next.get()
             } else {
                 g_st().firstbuf.get()
             };
@@ -4146,7 +4146,7 @@ fn process_next_cpt_value(
         if !shortmess(K_SHM_COMPLETIONSCAN) && !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
             let name = if ins_buf.fname_opt().is_none() {
                 buf_spname(ins_buf)
-            } else if ins_buf.b_sfname.is_none() {
+            } else if ins_buf.b_sfname.get().is_none() {
                 ins_buf.fname_opt()
             } else {
                 ins_buf.sfname_opt()
@@ -5082,7 +5082,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
-        if b.b_p_bl.get() && b.b_sfname.is_some() {
+        if b.b_p_bl.get() && b.b_sfname.get().is_some() {
             let tail = path_tail(b.sfname_cstr());
             let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
             let orig_bytes = orig_str.as_bytes();

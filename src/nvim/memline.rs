@@ -928,7 +928,7 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
 }
 
 fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
-    if buf.b_ffname.is_none() {
+    if buf.b_ffname.get().is_none() {
         b0p.b0_fname[0] = 0;
     } else {
         let mut uname = [0u8; B0_UNAME_SIZE];
@@ -1257,7 +1257,7 @@ pub fn ml_recover(checkext: bool) {
     let mut org_file_info = FileInfo::new();
     let mut swp_file_info = FileInfo::new();
     let mtime = char_to_long(&b0p.b0_mtime);
-    if curbuf_mut().b_ffname.is_some()
+    if curbuf_mut().b_ffname.get().is_some()
         && os_fileinfo(curbuf_mut().ffname_cstr(), &mut org_file_info)
         && ((os_fileinfo(
             buf.b_ml
@@ -1295,7 +1295,7 @@ pub fn ml_recover(checkext: bool) {
         ml_delete(1);
     }
 
-    if curbuf_mut().b_ffname.is_some() {
+    if curbuf_mut().b_ffname.get().is_some() {
         orig_file_status = readfile(
             curbuf_mut().ffname_opt(),
             None,
@@ -1329,7 +1329,7 @@ pub fn ml_recover(checkext: bool) {
     buf.b_ml.ml_stack_top.set(0);
     buf.b_ml.ml_stack.clear();
 
-    let mut cannot_open = curbuf_mut().b_ffname.is_none();
+    let mut cannot_open = curbuf_mut().b_ffname.get().is_none();
 
     serious_error = false;
     while !g_st().got_int.get() {
@@ -2066,7 +2066,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
         if buf_is_changed_fn(&mut *buf)
             && check_file != 0
             && buf.b_ml.mfp_ref().is_some_and(mf_need_trans)
-            && buf.b_ffname.is_some()
+            && buf.b_ffname.get().is_some()
         {
             let mut file_info = FileInfo::new();
             if !os_fileinfo(buf.ffname_cstr(), &mut file_info)

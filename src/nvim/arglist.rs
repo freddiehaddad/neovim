@@ -396,7 +396,7 @@ fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
     }
 
     if what == AL_ADD && str_bytes.is_empty() {
-        if curbuf_mut().b_ffname.is_none() {
+        if curbuf_mut().b_ffname.get().is_none() {
             return false;
         }
         str_bytes = curbuf_mut().fname_bytes();
@@ -472,7 +472,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
             let last_entry = garg_entry((gcount - 1) as usize);
             let buf = win.buf_mut();
             if buf.b_fnum.get() == last_entry.ae_fnum
-                || (buf.b_ffname.is_some()
+                || (buf.b_ffname.get().is_some()
                     && path_equal(
                         alist_name(&last_entry).unwrap_or(c""),
                         buf.ffname_cstr(),
@@ -729,7 +729,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
 
     if curwin_mut().w_arg_idx.get() == 0
         && (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0
-        && (curbuf_mut().b_ffname.is_none() || curbuf_is_reusable)
+        && (curbuf_mut().b_ffname.get().is_none() || curbuf_is_reusable)
     {
         i = 0;
     }
@@ -864,7 +864,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
-            if buf.b_ffname.is_none()
+            if buf.b_ffname.get().is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows.get() > 1
                         || wp.w_width.get() != g_st().columns_global.get()
@@ -977,7 +977,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
     if aall.keep_tabs
         && buf_is_empty(curbuf_mut())
         && curbuf_mut().b_nwindows.get() == 1
-        && curbuf_mut().b_ffname.is_none()
+        && curbuf_mut().b_ffname.get().is_none()
         && curbuf_mut().b_changed.get() == 0
     {
         aall.use_firstwin = true;

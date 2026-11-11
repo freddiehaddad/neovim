@@ -5935,7 +5935,7 @@ pub fn update_cwd(cause: CdCause) {
     let new_dir: Option<std::ffi::CString>;
     let scope: CdScope;
 
-    if let Some(ref d) = curbuf_mut().b_localdir {
+    if let Some(ref d) = curbuf_mut().b_localdir.get() {
         new_dir = Some(d.clone());
         scope = K_CD_SCOPE_BUFFER;
     } else if let Some(ref d) = curwin_mut().w_localdir {

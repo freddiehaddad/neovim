@@ -422,7 +422,7 @@ pub fn readfile(
         curbuf_mut().b_no_eol_lnum.set(0);
 
         'theend: {
-            if curbuf_mut().b_ffname.is_none()
+            if curbuf_mut().b_ffname.get().is_none()
                 && !filtering
                 && fname.is_some()
                 && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMER)
@@ -1096,7 +1096,7 @@ pub fn readfile(
                     conv_restlen = 0;
                     read_undo_file = newfile
                         && (flags & READ_KEEP_UNDO) == 0
-                        && curbuf_mut().b_ffname.is_some()
+                        && curbuf_mut().b_ffname.get().is_some()
                         && curbuf_mut().b_p_udf.get()
                         && !filtering
                         && !read_fifo
@@ -2703,14 +2703,14 @@ pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: &CStr, force: i32) -> bool 
     if buf.fname_opt().is_none()
         || bt_nofilename(Some(&*buf))
         || path_with_url(buf.fname_bytes())
-        || !(force != 0 || buf.b_sfname.is_none() || path_is_absolute(buf.sfname_bytes()))
+        || !(force != 0 || buf.b_sfname.get().is_none() || path_is_absolute(buf.sfname_bytes()))
     {
         return false;
     }
 
     let p = path_shorten_fname(buf.ffname_opt(), dirname);
     let shorten = p.is_some_and(|s| !s.to_bytes().is_empty());
-    if shorten && buf.b_sfname.is_some() && p == Some(buf.sfname_cstr()) {
+    if shorten && buf.b_sfname.get().is_some() && p == Some(buf.sfname_cstr()) {
         return false;
     }
 
@@ -3099,7 +3099,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
         with_fio(|st| st.already_warned.set(false));
         let mut buf_opt = g_st().firstbuf.get().opt_mut();
         while let Some(buf) = buf_opt {
-            let next_ptr = buf.b_next;
+            let next_ptr = buf.b_next.get();
             if buf.b_nwindows.get() > 0 {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf));
@@ -3173,7 +3173,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     set_bufref(&mut bufref, Some(&mut *buf));
 
     if !buf.terminal.get().is_null()
-        || buf.b_ffname.is_none()
+        || buf.b_ffname.get().is_none()
         || buf.b_ml.ml_mfp.is_none()
         || !bt_normal(Some(&*buf))
         || buf.b_saving.get()
@@ -3363,7 +3363,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 
     if reload != RELOAD_NONE {
         buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
-        if bufref_valid(Some(&bufref)) && buf.b_p_udf.get() && buf.b_ffname.is_some() {
+        if bufref_valid(Some(&bufref)) && buf.b_p_udf.get() && buf.b_ffname.get().is_some() {
             let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
             u_compute_hash(buf, &mut hash);
             u_write_undo(None, false, buf, &hash);

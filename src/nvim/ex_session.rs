@@ -238,7 +238,7 @@ fn ses_arglist(
 }
 
 fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&'a CStr> {
-    if buf.b_sfname.is_some()
+    if buf.b_sfname.get().is_some()
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && (opt_vars().ssop_flags.get() & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
         && !opt_vars().p_acd.get()
@@ -337,7 +337,7 @@ fn put_view(
             {
                 return false;
             }
-        } else if (*wp).buf_mut().b_ffname.is_some()
+        } else if (*wp).buf_mut().b_ffname.get().is_some()
             && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.get().is_null())
         {
             let fesc = cstr_to_str(&fname_esc);
@@ -353,7 +353,7 @@ fn put_view(
             if !put_line(fd, c"enew") {
                 return false;
             }
-            if (*wp).buf_mut().b_ffname.is_some()
+            if (*wp).buf_mut().b_ffname.get().is_some()
                 && !write_fmt(fd, format!("file {}\n", cstr_to_str(&fname_esc)))
             {
                 return false;
@@ -404,7 +404,7 @@ fn put_view(
     }
 
     if (flagp.get() & K_OPT_SSOP_FLAG_FOLDS) != 0
-        && (*wp).buf_mut().b_ffname.is_some()
+        && (*wp).buf_mut().b_ffname.get().is_some()
         && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
         && !put_folds(fd, &mut *wp)
     {
@@ -627,7 +627,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             for b in for_all_buffers_ptr() {
-                if b.b_localdir.is_none()
+                if b.b_localdir.get().is_none()
                     || b.fname_opt().is_none()
                     || !b.b_p_bl.get()
                     || (only_save_windows && b.b_nwindows.get() == 0)
@@ -637,7 +637,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     continue;
                 }
-                let b_localdir = b.b_localdir.clone().unwrap();
+                let b_localdir = b.b_localdir.get().clone().unwrap();
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
@@ -735,7 +735,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let mut wp = tab_firstwin;
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) != 0
-                    && wp_ref.buf_mut().b_ffname.is_some()
+                    && wp_ref.buf_mut().b_ffname.get().is_some()
                     && !bt_help(wp_ref.buf_opt())
                     && !bt_nofilename(wp_ref.buf_opt())
                 {
@@ -1074,7 +1074,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 }
 
 fn get_view_file(c: u8) -> Option<CString> {
-    if curbuf_mut().b_ffname.is_none() {
+    if curbuf_mut().b_ffname.get().is_none() {
         emsg(gettext(E_NONAME));
         return None;
     }

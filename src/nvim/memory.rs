@@ -310,7 +310,7 @@ pub fn free_all_mem() {
                 br_buf_free_count: 0,
             };
             set_bufref(&mut bufref, buf.opt_mut());
-            let nextbuf = buf.b_next;
+            let nextbuf = buf.b_next.get();
             buf.b_nwindows.set(0);
 
             buf_free_callbacks(buf.borrow_mut());

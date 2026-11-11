@@ -607,9 +607,9 @@ fn ctx_localdirs_restore(
         .buf_opt()
         .filter(|_| bufref_valid(Some(&cs.cs_new_curbuf)));
     if let Some(b) = b
-        && !(persist && b.b_localdir.is_some())
+        && !(persist && b.b_localdir.get().is_some())
     {
-        b.b_localdir = cs.cs_b_localdir.take();
+        b.b_localdir.set(cs.cs_b_localdir.take());
     } else {
         cs.cs_b_localdir = None;
     }
@@ -647,7 +647,7 @@ fn ctx_dirs_save(
         let target_buf = buf.unwrap_or_else(|| wp.buf_mut());
         cs.cs_dirs_tab = tp.handle;
         cs.cs_w_localdir = wp.w_localdir.clone();
-        cs.cs_b_localdir = target_buf.b_localdir.clone();
+        cs.cs_b_localdir = target_buf.b_localdir.get().clone();
         cs.cs_tp_localdir = tp.tp_localdir.get();
     }
 

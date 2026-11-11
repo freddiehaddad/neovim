@@ -1544,8 +1544,8 @@ pub fn edit_putchar(c: i32, highlight: bool) {
 }
 
 /// Return the effective prompt for the specified buffer.
-pub fn buf_prompt_text(buf: &FileBuf) -> &CStr {
-    buf.b_prompt_text.as_deref().unwrap_or(c"% ")
+pub fn buf_prompt_text(buf: &FileBuf) -> &'static CStr {
+    buf.b_prompt_text.get().unwrap_or(c"% ")
 }
 
 /// Return the effective prompt for the current buffer.

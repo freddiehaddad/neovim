@@ -504,7 +504,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             semsg!(gettext(E_INVARG_NVAL), c"scope", s);
             return;
         }
-    } else if curbuf_mut().b_localdir.is_some() {
+    } else if curbuf_mut().b_localdir.get().is_some() {
         scope = K_CD_SCOPE_BUFFER;
     } else if curwin_mut().w_localdir.is_some() {
         scope = K_CD_SCOPE_WINDOW;
@@ -936,11 +936,12 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             cur_scope = K_CD_SCOPE_BUFFER;
         }
     }
+    let b_localdir_owned = buf.as_ref().and_then(|b| b.b_localdir.get());
     if cur_scope == K_CD_SCOPE_BUFFER {
         // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
         // particular window or tabpage, so it skips those and falls back to global dir.
         from = if scope == K_CD_SCOPE_BUFFER {
-            buf.as_ref().unwrap().b_localdir.as_deref()
+            b_localdir_owned.as_deref()
         } else {
             None
         };
@@ -1210,7 +1211,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
         K_CD_SCOPE_BUFFER => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                buf.unwrap().b_localdir.is_some(),
+                buf.unwrap().b_localdir.get().is_some(),
             ))
         }
         K_CD_SCOPE_TABPAGE => {

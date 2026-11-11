@@ -500,7 +500,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
         } else if p_bytes.starts_with(b"file") {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
-            if curbuf_mut().b_ffname.is_none() {
+            if curbuf_mut().b_ffname.get().is_none() {
                 emsg(E_NONAME);
                 return None;
             }
@@ -543,7 +543,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             };
             bp.dbg_name = name_src.to_owned();
         } else if here {
-            bp.dbg_name = curbuf_mut().b_ffname.clone()?;
+            bp.dbg_name = curbuf_mut().b_ffname.get().map(CStr::to_owned)?;
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = p.to_owned();
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);

@@ -2133,7 +2133,7 @@ fn qf_add_entry(
     let fullname = fname.and_then(|f| fix_fname(Some(f)));
     qfp.qf_fname = None;
     if let Some(buf) = buf
-        && buf.b_ffname.is_some()
+        && buf.b_ffname.get().is_some()
         && let Some(ref full) = fullname
         && !path_equal(full, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
         && let Some(p) = path_try_shorten_fname(Some(full))
@@ -4172,7 +4172,7 @@ fn qf_buf_add_line(
                 qfga_concat(gap, path_tail(errbuf.fname_cstr()).to_bytes());
             } else {
                 if first_bufline
-                    && (errbuf.b_sfname.is_none() || path_is_absolute(errbuf.sfname_bytes()))
+                    && (errbuf.b_sfname.get().is_none() || path_is_absolute(errbuf.sfname_bytes()))
                 {
                     if dirname[0] == 0 {
                         os_dirname(dirname);

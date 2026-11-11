@@ -4928,7 +4928,7 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
     }
 
     if !curbuf_mut().file_id_valid.get()
-        && curbuf_mut().b_sfname.is_some()
+        && curbuf_mut().b_sfname.get().is_some()
         && !curbuf_mut().sfname_bytes().is_empty()
     {
         return !path_equal(ffname, curbuf_mut().sfname_cstr(), K_PATH_CMP_LITERAL);
@@ -5585,19 +5585,27 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: &CStr) {
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
     let mut count = offset;
     let mut buf = g_st().firstbuf.get();
-    while !buf.b_next.is_null() && buf.b_fnum.get() < lnum {
-        buf = buf.b_next;
+    while !buf.b_next.get().is_null() && buf.b_fnum.get() < lnum {
+        buf = buf.b_next.get();
     }
     while count != 0 {
         count += if count < 0 { 1 } else { -1 };
-        let mut nextbuf = if offset < 0 { buf.b_prev } else { buf.b_next };
+        let mut nextbuf = if offset < 0 {
+            buf.b_prev.get()
+        } else {
+            buf.b_next.get()
+        };
         if nextbuf.is_null() {
             break;
         }
         buf = nextbuf;
         if addr_type == ADDR_LOADED_BUFFERS {
             while buf.b_ml.ml_mfp.is_none() {
-                nextbuf = if offset < 0 { buf.b_prev } else { buf.b_next };
+                nextbuf = if offset < 0 {
+                    buf.b_prev.get()
+                } else {
+                    buf.b_next.get()
+                };
                 if nextbuf.is_null() {
                     break;
                 }
@@ -5607,7 +5615,11 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
     }
     if addr_type == ADDR_LOADED_BUFFERS {
         while buf.b_ml.ml_mfp.is_none() {
-            let nextbuf = if offset >= 0 { buf.b_prev } else { buf.b_next };
+            let nextbuf = if offset >= 0 {
+                buf.b_prev.get()
+            } else {
+                buf.b_next.get()
+            };
             if nextbuf.is_null() {
                 break;
             }
@@ -5729,15 +5741,15 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
         }
         ADDR_LOADED_BUFFERS => {
             let mut buf = g_st().firstbuf.get();
-            while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
-                buf = buf.b_next;
+            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                buf = buf.b_next.get();
             }
 
             eap.line1 = buf.b_fnum.get();
 
             buf = g_st().lastbuf.get();
-            while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
-                buf = buf.b_prev;
+            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                buf = buf.b_prev.get();
             }
 
             eap.line2 = buf.b_fnum.get();
@@ -7285,15 +7297,15 @@ pub fn parse_cmd_address(
                         }
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().firstbuf.get();
-                            while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
-                                buf = buf.b_next;
+                            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                                buf = buf.b_next.get();
                             }
 
                             eap.line1 = buf.b_fnum.get();
 
                             buf = g_st().lastbuf.get();
-                            while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
-                                buf = buf.b_prev;
+                            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                                buf = buf.b_prev.get();
                             }
 
                             eap.line2 = buf.b_fnum.get();
@@ -7826,11 +7838,11 @@ pub fn get_address(
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().lastbuf.get();
                             while buf.b_ml.ml_mfp.is_none() {
-                                if buf.b_prev.is_null() {
+                                if buf.b_prev.get().is_null() {
                                     break;
                                 }
 
-                                buf = buf.b_prev;
+                                buf = buf.b_prev.get();
                             }
 
                             lnum = buf.b_fnum.get();
@@ -10782,7 +10794,7 @@ pub fn free_cd_dir() {
 fn get_prevdir(scope: CdScope) -> Option<std::ffi::CString> {
     match scope {
         K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir.get(),
-        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.clone(),
+        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.get().clone(),
         K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir.clone(),
         _ => PREV_DIR.with(|cell| cell.borrow().clone()),
     }
@@ -10791,7 +10803,7 @@ fn get_prevdir(scope: CdScope) -> Option<std::ffi::CString> {
 fn set_prevdir(scope: CdScope, dir: Option<std::ffi::CString>) {
     match scope {
         K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir.set(dir),
-        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir = dir,
+        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.set(dir),
         K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir = dir,
         _ => PREV_DIR.with(|cell| *cell.borrow_mut() = dir),
     }
@@ -10799,7 +10811,7 @@ fn set_prevdir(scope: CdScope, dir: Option<std::ffi::CString>) {
 
 fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     if scope == K_CD_SCOPE_BUFFER {
-        curbuf_mut().b_localdir = None;
+        curbuf_mut().b_localdir.set(None);
     }
     if scope >= K_CD_SCOPE_WINDOW {
         curwin_mut().w_localdir = None;
@@ -10822,17 +10834,19 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     let cwd_cstr = crate::memory::cstring_until_nul(&cwd);
     match scope {
         K_CD_SCOPE_GLOBAL => {
-            g_st().globaldir.set(if curbuf_mut().b_localdir.is_some() {
-                Some(cwd_cstr)
-            } else {
-                None
-            });
+            g_st()
+                .globaldir
+                .set(if curbuf_mut().b_localdir.get().is_some() {
+                    Some(cwd_cstr)
+                } else {
+                    None
+                });
         }
         K_CD_SCOPE_TABPAGE => {
             curtab_mut().tp_localdir.set(Some(cwd_cstr));
         }
         K_CD_SCOPE_BUFFER => {
-            curbuf_mut().b_localdir = Some(cwd_cstr);
+            curbuf_mut().b_localdir.set(Some(cwd_cstr));
         }
         K_CD_SCOPE_WINDOW => {
             curwin_mut().w_localdir = Some(cwd_cstr);
@@ -10888,7 +10902,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
     let new_dir_owned = to_slash_save(Some(new_dir_cstr)).unwrap_or_default();
 
-    let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf_mut().b_localdir.is_some();
+    let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf_mut().b_localdir.get().is_some();
 
     let dir_differs = pdir
         .as_ref()
@@ -10908,7 +10922,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
     post_chdir(scope, dir_differs && !bcd_active);
     if bcd_active {
-        os_chdir(curbuf_mut().b_localdir.as_ref().unwrap());
+        os_chdir(curbuf_mut().b_localdir.get().as_ref().unwrap());
         shorten_fnames(true);
     }
     ctx_did_chdir();
@@ -10918,10 +10932,10 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
 fn chdir_clear(scope: CdScope) {
     if scope == K_CD_SCOPE_BUFFER {
-        if curbuf_mut().b_localdir.is_none() {
+        if curbuf_mut().b_localdir.get().is_none() {
             return;
         }
-        curbuf_mut().b_localdir = None;
+        curbuf_mut().b_localdir.set(None);
     } else if scope == K_CD_SCOPE_WINDOW {
         if curwin_mut().w_localdir.is_none() {
             return;
@@ -10977,7 +10991,7 @@ fn ex_pwd(_eap: &mut Exarg) {
         if opt_vars().p_verbose.get() > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason.get() {
                 reason
-            } else if curbuf_mut().b_localdir.is_some() {
+            } else if curbuf_mut().b_localdir.get().is_some() {
                 c"buffer"
             } else if curwin_mut().w_localdir.is_some() {
                 c"window"

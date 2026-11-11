@@ -2889,7 +2889,7 @@ pub fn apply_autocmds_group(
                 } else if event == EVENT_FILETYPE {
                     fname = Some(buf.b_p_ft.as_cstr());
                 } else {
-                    sfname_owned = buf.b_sfname.clone();
+                    sfname_owned = buf.b_sfname.get().map(CStr::to_owned);
                     fname = buf.ffname_opt();
                 }
                 Some(fname.unwrap_or(c"").to_owned())

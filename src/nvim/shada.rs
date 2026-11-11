@@ -1216,7 +1216,8 @@ fn find_buffer(
     }
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ffname.is_some() && path_equal(fname, buf.ffname_cstr(), K_PATH_CMP_LITERAL) {
+        if buf.b_ffname.get().is_some() && path_equal(fname, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
+        {
             fname_bufs.insert(key.to_vec(), crate::globals::BufPtr::from(&mut *buf));
             return Some(buf);
         }
@@ -2210,7 +2211,7 @@ fn shada_read_when_writing(
                             }
                         } else {
                             for buf in for_all_buffers_mut() {
-                                if buf.b_ffname.is_some()
+                                if buf.b_ffname.get().is_some()
                                     && path_equal(fname_cstr, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
                                 {
                                     let mut fm = Fmark::new();
@@ -2298,7 +2299,7 @@ fn ignore_buf(buf: Option<&FileBuf>, removable_bufs: &std::collections::HashSet<
     let Some(buf) = buf else {
         return true;
     };
-    buf.b_ffname.is_none()
+    buf.b_ffname.get().is_none()
         || (!buf.b_p_bl.get() && buf.b_p_initialized.get())
         || bt_quickfix(Some(buf))
         || bt_terminal(Some(buf))
@@ -2433,7 +2434,7 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
 #[inline]
 fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<usize>) {
     for buf in for_all_buffers_ptr() {
-        if buf.b_ffname.is_some() && shada_removable(buf.ffname_cstr()) {
+        if buf.b_ffname.get().is_some() && shada_removable(buf.ffname_cstr()) {
             removable_bufs.insert(ptr::from_mut(buf) as usize);
         }
     }
@@ -2760,7 +2761,7 @@ fn shada_write(
                         }
                         continue;
                     };
-                    if buf.b_ffname.is_none()
+                    if buf.b_ffname.get().is_none()
                         || removable_bufs.contains(&(ptr::from_ref(&*buf) as usize))
                     {
                         if global_mark_iter.is_none() {
@@ -4024,7 +4025,7 @@ fn shada_init_jumps(
         let fname = if fm.fmark.fnum == 0 {
             fm.fname
         } else if let Some(buf) = buf
-            && buf.b_ffname.is_some()
+            && buf.b_ffname.get().is_some()
         {
             Some(buf.ffname_cstr().to_owned())
         } else {
@@ -4194,7 +4195,7 @@ pub fn find_shada_parameter(param_type: i32) -> Option<std::ffi::CString> {
 pub fn check_marks_read() {
     if !curbuf_mut().b_marks_read.get()
         && get_shada_parameter(b'\'' as i32) > 0
-        && curbuf_mut().b_ffname.is_some()
+        && curbuf_mut().b_ffname.get().is_some()
     {
         shada_read_marks();
     }

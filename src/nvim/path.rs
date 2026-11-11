@@ -782,7 +782,7 @@ fn expand_path_option(curdir: &CStr, path_option: &CStr, gap: &mut Vec<std::ffi:
         if buf_arr.first() == Some(&b'.')
             && (buflen == 1 || buf_arr.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b))))
         {
-            if curbuf_mut().b_ffname.is_none() {
+            if curbuf_mut().b_ffname.get().is_none() {
                 continue;
             }
             let ffname_cstr = curbuf_mut().ffname_cstr();

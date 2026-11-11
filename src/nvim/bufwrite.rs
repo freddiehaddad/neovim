@@ -549,13 +549,13 @@ fn buf_write_do_autocmds(
     }
 
     if names.buf_ffname {
-        names.ffname = b.b_ffname.clone();
+        names.ffname = b.b_ffname.get().map(CStr::to_owned);
     }
     if names.buf_sfname {
         names.sfname = b.fname_opt().map(CStr::to_owned);
     }
     if names.buf_fname_f {
-        names.fname = b.b_ffname.clone();
+        names.fname = b.b_ffname.get().map(CStr::to_owned);
     }
     if names.buf_fname_s {
         names.fname = b.fname_opt().map(CStr::to_owned);
@@ -1128,7 +1128,7 @@ pub fn buf_write(
         bw_iconv_fd: -1,
     };
 
-    if buf.b_ffname.is_none()
+    if buf.b_ffname.get().is_none()
         && reset_changed
         && whole
         && buf == g_st().curbuf.get().as_ptr()

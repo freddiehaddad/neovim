@@ -2203,7 +2203,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 break 'theend;
             }
 
-            let name_was_missing = curbuf_mut().b_ffname.is_none();
+            let name_was_missing = curbuf_mut().b_ffname.get().is_none();
             retval = buf_write(
                 curbuf_mut(),
                 ffname,
@@ -2351,10 +2351,10 @@ pub fn do_wqall(eap: &mut Exarg) {
         {
             no_write_message_buf(b);
             error += 1;
-            buf = b.b_next;
+            buf = b.b_next.get();
             continue;
         } else if !buf_is_changed_fn(b) || bt_dontwrite(Some(&*b)) {
-            buf = b.b_next;
+            buf = b.b_next.get();
             continue;
         }
 
@@ -2362,7 +2362,7 @@ pub fn do_wqall(eap: &mut Exarg) {
             error += 1;
             break;
         }
-        if b.b_ffname.is_none() {
+        if b.b_ffname.get().is_none() {
             semsg!(
                 gettext(c"E141: No file name for buffer %lld"),
                 b.b_fnum.get() as i64,
@@ -2384,13 +2384,13 @@ pub fn do_wqall(eap: &mut Exarg) {
                 buf = g_st().firstbuf.get();
                 eap.forceit = save_forceit;
                 if !buf.is_null() {
-                    buf = buf.b_next;
+                    buf = buf.b_next.get();
                 }
                 continue;
             }
         }
         eap.forceit = save_forceit;
-        buf = buf.b_next;
+        buf = buf.b_next.get();
     }
     if g_st().exiting.get() {
         if error == 0 {
@@ -2629,7 +2629,7 @@ pub fn do_ecmd(
 
             if ffname.is_none() {
                 other_file = true;
-            } else if opt_is_empty(ffname) && curbuf_mut().b_ffname.is_none() {
+            } else if opt_is_empty(ffname) && curbuf_mut().b_ffname.get().is_none() {
                 other_file = false;
             } else {
                 if opt_is_empty(ffname) {

@@ -1722,7 +1722,7 @@ impl Iterator for BufMutIter {
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
-        self.0 = cur.b_next;
+        self.0 = cur.b_next.get();
         Some(cur)
     }
 }
@@ -1735,7 +1735,7 @@ impl Iterator for BufPtrIter {
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
-        self.0 = cur.b_next;
+        self.0 = cur.b_next.get();
         Some(cur)
     }
 }
@@ -1763,7 +1763,7 @@ impl Iterator for BufRevPtrIter {
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
-        self.0 = cur.b_prev;
+        self.0 = cur.b_prev.get();
         Some(cur)
     }
 }

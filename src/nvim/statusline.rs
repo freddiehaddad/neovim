@@ -947,7 +947,7 @@ fn ui_ext_tabline_update() {
         if buf.b_p_bl.get() {
             n_buffers += 1;
         }
-        buf = buf.b_next;
+        buf = buf.b_next.get();
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
@@ -989,7 +989,7 @@ fn ui_ext_tabline_update() {
             );
         }
 
-        buf = b.b_next;
+        buf = b.b_next.get();
     }
 
     ui_call_tabline_update(

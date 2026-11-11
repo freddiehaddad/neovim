@@ -611,10 +611,11 @@ pub fn save_file_ff(buf: &mut FileBuf) {
     let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
         .b_start_fenc
+        .get()
         .as_ref()
         .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
     {
-        buf.b_start_fenc = Some(buf.b_p_fenc.to_owned());
+        buf.b_start_fenc.set(Some(buf.b_p_fenc.to_owned()));
     }
 }
 
@@ -643,7 +644,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     if !buf.b_p_bin.get() && buf.b_start_bomb.get() != buf.b_p_bomb.get() {
         return true;
     }
-    let Some(ref start_fenc) = buf.b_start_fenc else {
+    let Some(ref start_fenc) = buf.b_start_fenc.get() else {
         return !buf.b_p_fenc.is_empty();
     };
     start_fenc.to_bytes() != buf.b_p_fenc.as_bytes()

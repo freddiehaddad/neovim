@@ -2484,7 +2484,7 @@ fn do_source_buffer_init(
         return None;
     }
 
-    let fname = if curbuf_mut().b_ffname.is_some() {
+    let fname = if curbuf_mut().b_ffname.get().is_some() {
         curbuf_mut().ffname_cstr().to_owned()
     } else {
         if ex_lua {

@@ -2929,7 +2929,8 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
                 buf.b_p_sts_nopaste.set(buf.b_p_sts.get());
                 buf.b_p_ai_nopaste.set(buf.b_p_ai.get());
                 buf.b_p_et_nopaste.set(buf.b_p_et.get());
-                buf.b_p_vsts_nopaste = (!buf.b_p_vsts.is_empty()).then(|| buf.b_p_vsts.to_owned());
+                buf.b_p_vsts_nopaste
+                    .set((!buf.b_p_vsts.is_empty()).then(|| buf.b_p_vsts.to_owned()));
             }
 
             OPT_STATE.with(|s| s.save_sm.set(opt_vars().p_sm.get()));
@@ -2979,6 +2980,7 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             buf.b_p_et.set(buf.b_p_et_nopaste.get());
             buf.b_p_vsts = buf
                 .b_p_vsts_nopaste
+                .get()
                 .as_deref()
                 .map_or_else(OptString::new, OptString::from_cstr);
             if !buf.b_p_vsts.is_empty() {
@@ -7250,7 +7252,8 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             } else {
                 buf.b_p_vsts_array.clear();
             }
-            buf.b_p_vsts_nopaste = P_VSTS_NOPASTE.with(|cell| cell.borrow().clone());
+            buf.b_p_vsts_nopaste
+                .set(P_VSTS_NOPASTE.with(|cell| cell.borrow().clone()));
             buf.b_p_com.set_option_cstr(opt_vars().p_com.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
             buf.b_p_cms.set_option_cstr(opt_vars().p_cms.as_cstr());
