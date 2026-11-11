@@ -68,7 +68,7 @@ pub struct CharsizeArg<'a> {
     pub max_head_vcol: i32,
     pub extconceal_off: i32,
     pub iter: MarkTreeIter,
-    pub extconceal: Option<&'static ConcealSpans>,
+    pub extconceal: Option<ConcealSpans>,
 }
 
 impl CharsizeArg<'_> {
@@ -95,8 +95,8 @@ impl CharsizeArg<'_> {
     }
 
     #[inline]
-    pub fn extconceal_opt(&self) -> Option<&'static ConcealSpans> {
-        self.extconceal
+    pub fn extconceal_opt(&self) -> Option<&ConcealSpans> {
+        self.extconceal.as_ref()
     }
 }
 
@@ -272,7 +272,7 @@ pub fn init_charsize_arg_extconceal(
     if spans.is_empty() {
         return cstype;
     }
-    csarg.extconceal = Some(crate::globals::GraphPtr::of(spans as *const ConcealSpans).borrow());
+    csarg.extconceal = Some(spans.clone());
     K_CHARSIZE_REGULAR
 }
 
@@ -516,8 +516,7 @@ pub fn charsize_regular(
         let body = size;
         let mut hidden = 0;
         let mut lbr_char = i32::from(cur_bytes.first().copied().unwrap_or(0));
-        let spans = csarg.extconceal_opt();
-        if let Some(spans) = spans {
+        if let Some(spans) = csarg.extconceal_opt() {
             let col = cur_off as i32;
             let own = body - csarg.cur_text_width_left - csarg.cur_text_width_right;
             let span = conceal_span_at(spans, col);
@@ -700,7 +699,7 @@ pub fn charsize_regular(
 
                 let s_bytes = &line_bytes[s_off..];
                 let s_first = i32::from(s_bytes[0]);
-                let raw_w = if spans.is_none() {
+                let raw_w = if csarg.extconceal.is_none() {
                     0
                 } else if s_first == TAB && csarg.use_tabstop {
                     tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts, &buf.b_p_vts_array)
@@ -713,7 +712,9 @@ pub fn charsize_regular(
                     win_chartabsize(&mut *wp, s_bytes, vcol2 + virt_width)
                 };
 
-                let span = spans.and_then(|sp| conceal_span_at(sp, col));
+                let span = csarg
+                    .extconceal_opt()
+                    .and_then(|sp| conceal_span_at(sp, col));
                 let mut lookahead_hidden = conceal_span_hidden(span, col, w);
                 if !use_raw_width && lookahead_hidden != 0 {
                     use_raw_width = true;

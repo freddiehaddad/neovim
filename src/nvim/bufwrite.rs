@@ -469,7 +469,7 @@ fn buf_write_do_autocmds(
     ctx_restore(&mut aco);
 
     if !bufref_valid(Some(bufref)) {
-        buf = crate::globals::GraphPtr::NULL;
+        buf = crate::globals::BufPtr::NULL;
         bufref.br_buf = crate::globals::BufPtr::NULL;
     }
     if buf.is_null()
@@ -1086,7 +1086,7 @@ pub fn buf_write(
     reset_changed: bool,
     filtering: bool,
 ) -> bool {
-    let mut buf = crate::globals::GraphPtr::from(buf_arg);
+    let mut buf = crate::globals::BufPtr::from(buf_arg);
     #[cfg_attr(windows, allow(unused_mut))]
     let mut fname = fname_arg;
     let mut sfname = sfname_arg;

@@ -738,20 +738,18 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
 }
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
-    let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize]
-        .cw_win
-        .as_ptr();
+    let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
     block_autocmds();
     if curwin_ptr() != cwp {
         'win_found: {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&*tp) {
-                    if std::ptr::eq(wp, cwp) {
+                    if wp == cwp {
                         if g_st().curtab != tp {
                             goto_tabpage_tp(Some(&mut *tp), true, true);
                         }
-                        win_goto(crate::globals::GraphPtr::of(cwp).borrow_mut());
+                        win_goto(cwp.borrow_mut());
                         break 'win_found;
                     }
                 }
@@ -770,7 +768,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
     }
 
     unblock_autocmds();
-    crate::globals::GraphPtr::of(cwp).borrow_mut()
+    cwp.borrow_mut()
 }
 
 pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {
@@ -789,9 +787,9 @@ pub fn ctx_switch(
     buf_opt: Option<&mut FileBuf>,
     flags: CtxSwitchFlags,
 ) -> bool {
-    let mut wp = crate::globals::GraphPtr::from(wp_opt);
-    let tp = crate::globals::GraphPtr::from(tp_opt);
-    let buf = crate::globals::GraphPtr::from(buf_opt);
+    let mut wp = crate::globals::WinPtr::from(wp_opt);
+    let tp = crate::globals::TabpagePtr::from(tp_opt);
+    let buf = crate::globals::BufPtr::from(buf_opt);
     assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & K_CTX_KEEP_DIRS) != 0));
     assert!(buf.is_null() || tp.is_null());
     *cs = CtxSwitch::new();

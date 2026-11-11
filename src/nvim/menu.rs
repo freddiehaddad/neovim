@@ -443,18 +443,20 @@ fn add_menu_path(
     call_data: Option<&CStr>,
 ) -> bool {
     let mut modes = menuarg.modes;
-    let mut menu_opt: Option<&mut Vimmenu> = None;
     let mut pri_idx: usize = 0;
     let mut old_modes: i32 = 0;
 
     let mut path_name_vec: Vec<u8> = menu_path.to_bytes_with_nul().to_vec();
-    let mut menup = crate::globals::GraphPtr::<Vec<Vimmenu>>::from_ref(&g_st().root_menu);
-    let mut ancestor_stack: Vec<(*mut Vec<Vimmenu>, usize)> = Vec::new();
+    let mut ancestor_stack: Vec<usize> = Vec::new();
     let mut name_off = 0usize;
 
-    let cleanup_erret = |ancestor_stack: &[(*mut Vec<Vimmenu>, usize)]| -> bool {
-        for &(mp, idx) in ancestor_stack.iter().rev() {
-            let mp_ref = crate::globals::GraphPtr::of(mp).borrow_mut();
+    let cleanup_erret = |ancestor_stack: &[usize]| -> bool {
+        for depth in (0..ancestor_stack.len()).rev() {
+            let mut mp_ref = &mut g_st().root_menu;
+            for &idx in &ancestor_stack[..depth] {
+                mp_ref = &mut mp_ref[idx].children;
+            }
+            let idx = ancestor_stack[depth];
             if mp_ref[idx].children.is_empty() {
                 mp_ref.remove(idx);
             } else {
@@ -483,7 +485,10 @@ fn add_menu_path(
         let next_is_empty = path_name_vec.get(next_off).is_none_or(|&b| b == 0);
         let mut lower_pri_idx: usize = 0;
         let mut found_idx: Option<usize> = None;
-        let menup_vec = menup.borrow_mut();
+        let mut menup_vec = &mut g_st().root_menu;
+        for &idx in &ancestor_stack {
+            menup_vec = &mut menup_vec[idx].children;
+        }
         for (idx, m) in menup_vec.iter_mut().enumerate() {
             if menu_name_equal(name_cstr.to_bytes(), m) || menu_name_equal(dname.as_bytes(), m) {
                 if next_is_empty && !m.children.is_empty() {
@@ -548,10 +553,7 @@ fn add_menu_path(
             lower_pri_idx
         };
 
-        ancestor_stack.push((menup.as_ptr(), f_idx));
-        let cur_menu = &mut menup_vec[f_idx];
-        menup = crate::globals::GraphPtr::<Vec<Vimmenu>>::from_ref(&cur_menu.children);
-        menu_opt = Some(cur_menu);
+        ancestor_stack.push(f_idx);
         name_off = next_off;
         if pri_tab[pri_idx + 1] != -1 {
             pri_idx += 1;
@@ -565,9 +567,12 @@ fn add_menu_path(
         modes &= !old_modes;
     }
 
-    if let Some(menu) = menu_opt
-        && modes != 0
-    {
+    if !ancestor_stack.is_empty() && modes != 0 {
+        let mut menup_vec = &mut g_st().root_menu;
+        for &idx in &ancestor_stack[..ancestor_stack.len() - 1] {
+            menup_vec = &mut menup_vec[idx].children;
+        }
+        let menu = &mut menup_vec[*ancestor_stack.last().unwrap()];
         let p = call_data.map(CStr::to_owned);
         let call_bytes = call_data.map_or(&[][..], CStr::to_bytes);
 

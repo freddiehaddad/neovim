@@ -290,8 +290,7 @@ pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
 
 #[inline]
 pub fn hl_attr(n: i32) -> i32 {
-    let ha = &raw const g_st().hl_attr_active;
-    if let Some(ref tbl) = *crate::globals::GraphPtr::of(ha).borrow() {
+    if let Some(ref tbl) = g_st().hl_attr_active {
         tbl[n as usize].get()
     } else {
         g_st().highlight_attr[n as usize]
@@ -488,7 +487,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Integer(0),
         }; 3];
-        let mut args = Array::from_slice(&mut args_storage[..0]);
+        let mut args = Array::from_buf(&mut args_storage);
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
         let hl_name = syn_id2name(hl_id);
         add_c(&mut args, cstr_as_obj(Some(&hl_name)));

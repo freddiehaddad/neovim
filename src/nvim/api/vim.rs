@@ -2105,7 +2105,7 @@ pub fn nvim_set_client_info(
     _err: &mut Error,
 ) {
     let mut info_items = [KeyValuePair::default(); 5];
-    let mut info = Dict::from_slice(&mut info_items[..0]);
+    let mut info = Dict::from_buf(&mut info_items);
     put_c(&mut info, c"name", string_obj(name));
 
     let mut has_major = false;

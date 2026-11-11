@@ -1283,7 +1283,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array::from_slice(&mut args_storage[..0]);
+    let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();
 
     for tv in argvars
@@ -1317,7 +1317,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array::from_slice(&mut args_storage[..0]);
+    let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();
 
     for tv in argvars

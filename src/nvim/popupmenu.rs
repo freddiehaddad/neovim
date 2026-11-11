@@ -493,9 +493,9 @@ pub fn pum_display(
             below_row = g_st().cmdline_row;
         }
         let target_win = if (g_st().state_global & MODE_CMDLINE) != 0 {
-            g_st().cmdline_win.as_ptr()
+            g_st().cmdline_win
         } else {
-            curwin_ptr().as_ptr()
+            curwin_ptr()
         };
         PUM.with(|s| s.win_row_offset.set(0));
         PUM.with(|s| s.win_col_offset.set(0));
@@ -537,7 +537,7 @@ pub fn pum_display(
             }
         }
 
-        if let Some(target_win) = crate::globals::GraphPtr::of(target_win).opt() {
+        if let Some(target_win) = target_win.opt() {
             PUM.with(|s| s.anchor_grid.set(target_win.w_grid.target.handle));
 
             pum_win_row += target_win.w_grid.row_offset;
@@ -603,7 +603,7 @@ pub fn pum_display(
 
         pum_compute_vertical_placement(
             size,
-            crate::globals::GraphPtr::of(target_win).opt_mut(),
+            target_win.opt_mut(),
             pum_win_row,
             above_row,
             below_row,
@@ -633,11 +633,7 @@ pub fn pum_display(
             })
         });
 
-        pum_compute_horizontal_placement(
-            crate::globals::GraphPtr::of(target_win).opt(),
-            cursor_col,
-            border_width,
-        );
+        pum_compute_horizontal_placement(target_win.opt(), cursor_col, border_width);
 
         if !(pum_set_selected(selected, redo_count) && {
             redo_count += 1;
@@ -1353,7 +1349,6 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
         wp_ref.w_onebuf_opt.wo_wfb = true;
         wp_ref
     };
-    let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp_ref);
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
@@ -1363,7 +1358,7 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
 
     let ok = pum_adjust_info_position(&mut *wp_ref, max_info_width);
     unblock_autocmds();
-    ok.then(|| wp_ptr.borrow_mut())
+    ok.then_some(wp_ref)
 }
 
 /// Set the index of the currently selected item (`pum_set_selected`).

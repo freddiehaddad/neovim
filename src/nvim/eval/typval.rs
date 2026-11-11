@@ -4829,7 +4829,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
     while !mpstack.is_empty() {
         let last_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[last_idx].saved_copy_id;
-        let tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[last_idx].data {
+        let tv: &mut TypVal = match mpstack[last_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 ref mut hi_idx,
@@ -4849,7 +4849,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 let di = tv_dict_hi2di(&hi);
                 *todo -= 1;
                 *hi_idx += 1;
-                &raw mut di.di_tv
+                &mut di.di_tv
             }
             MPConvStackData::List {
                 mut list,
@@ -4866,7 +4866,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 }
                 let cur_li = cur_li.borrow_mut();
                 *li = cur_li.li_next;
-                &raw mut cur_li.li_tv
+                &mut cur_li.li_tv
             }
             MPConvStackData::Partial { stage, ref pt } => {
                 let pt = pt.clone();
@@ -4956,14 +4956,8 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 continue;
             }
             MPConvStackData::Pairs { .. } => unreachable!(),
-        })
-        .as_ptr();
-        debug_assert!(!tv.is_null());
-        if !nothing_convert_one_value(
-            &mut mpstack,
-            crate::globals::GraphPtr::of(tv).borrow_mut(),
-            copy_id,
-        ) {
+        };
+        if !nothing_convert_one_value(&mut mpstack, tv, copy_id) {
             return false;
         }
     }
@@ -5845,12 +5839,8 @@ mod tests {
 
             // remove_items range
             let first_item = l2.lv_first;
-            let second_item = first_item.li_next.as_ptr();
-            tv_list_remove_items(
-                &mut *l2,
-                first_item.borrow_mut(),
-                crate::globals::GraphPtr::of(second_item).borrow_mut(),
-            );
+            let second_item = first_item.li_next;
+            tv_list_remove_items(&mut *l2, first_item.borrow_mut(), second_item.borrow_mut());
             assert_eq!(tv_list_len_inline(Some(&*l2)), 4);
 
             tv_list_unref(l2_copy);

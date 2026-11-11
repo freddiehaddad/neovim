@@ -112,7 +112,6 @@ use crate::usercmd::{
 };
 use crate::window::{global_stl_height, last_status};
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 use crate::api::win_config::UIExtension;
 use crate::lua::converter::LuaRef;
@@ -5504,19 +5503,16 @@ pub fn expand_process_user_list(
 /// Expand names with a list returned by a function defined by the user.
 fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     matches.clear();
-    let retlist = call_user_expand_func(
-        |name, argc, argv| {
-            call_func_retlist(name, argc, argv).map_or(ptr::null_mut(), ptr::from_mut)
-        },
+    let Some(retlist) = call_user_expand_func(
+        |name, argc, argv| call_func_retlist(name, argc, argv),
         xp,
-        ptr::null_mut(),
-    );
-    if retlist.is_null() {
+        None,
+    ) else {
         return false;
-    }
+    };
 
-    expand_process_user_list(crate::globals::GraphPtr::of(retlist).opt(), matches, xp);
-    tv_list_unref(crate::globals::GraphPtr::of(retlist).opt_mut());
+    expand_process_user_list(Some(&*retlist), matches, xp);
+    tv_list_unref(Some(retlist));
     true
 }
 

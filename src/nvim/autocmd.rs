@@ -2552,7 +2552,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
     let mut err = Error::new();
     if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
-        let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
+        let buf_ptr = crate::globals::BufPtr::from(&*buf);
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         if let Some(ref data_obj) = data
@@ -2761,7 +2761,7 @@ pub fn apply_autocmds_group(
     data: Option<&Object>,
     with_buf: bool,
 ) -> bool {
-    let buf = crate::globals::GraphPtr::from(buf);
+    let buf = crate::globals::BufPtr::from(buf);
     let mut fname = fname;
     {
         let mut retval = false;
@@ -3471,10 +3471,7 @@ pub fn aucmd_set_expand_context<'a>(
 
     if arg.to_bytes().is_empty()
         && group != AUGROUP_ALL
-        && !ascii_iswhite(
-            *crate::globals::GraphPtr::of(arg.as_ptr().cast::<u8>().wrapping_sub(1)).borrow()
-                as i32,
-        )
+        && !ascii_iswhite(p.to_bytes().last().copied().unwrap_or(0) as i32)
     {
         arg = p;
         group = AUGROUP_ALL;
@@ -3859,7 +3856,7 @@ pub fn do_autocmd_focusgained(gained: bool) {
 }
 
 pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
-    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
+    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     if AU_STATE.with(|s| s.ft_recursive.get()) > 0 && !force {
         return false;
     }

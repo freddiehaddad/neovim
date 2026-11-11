@@ -2825,8 +2825,7 @@ pub fn win_line(
                             let mut cstype =
                                 init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line_cstr);
                             if has_conceal {
-                                csarg.extconceal =
-                                    Some(crate::globals::GraphPtr::from(&conceal_spans).borrow());
+                                csarg.extconceal = Some(conceal_spans.clone());
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }

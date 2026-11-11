@@ -3594,20 +3594,15 @@ fn ins_tab() -> bool {
     {
         let mut cursor_pos = curwin_mut().w_cursor;
         let mut saved_line_vec: Vec<u8> = Vec::new();
-        let mut ptr;
         let mut vcol: Colnr = 0;
         let mut want_vcol: Colnr = 0;
         let mut change_col: i32 = -1;
         let save_list = curwin_mut().w_onebuf_opt.wo_list;
+        let is_vreplace = (g_st().state_global & VREPLACE_FLAG) != 0;
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        if is_vreplace {
             saved_line_vec = get_cursor_line_slice().to_vec();
             saved_line_vec.push(0);
-            ptr = saved_line_vec
-                .as_mut_ptr()
-                .wrapping_offset(cursor_pos.col as isize);
-        } else {
-            ptr = get_cursor_pos_ptr().as_ptr().cast_mut().cast();
         }
 
         if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM) {
@@ -3615,18 +3610,26 @@ fn ins_tab() -> bool {
         }
 
         let mut fpos = curwin_mut().w_cursor;
-        while fpos.col > 0
-            && ascii_iswhite(*crate::globals::GraphPtr::of(ptr.wrapping_offset(-1)).borrow())
-        {
+        let byte_at = |saved: &[u8], col: usize| -> u8 {
+            if is_vreplace {
+                saved.get(col).copied().unwrap_or(0)
+            } else {
+                curbuf_mut()
+                    .b_ml
+                    .current_line_slice()
+                    .get(col)
+                    .copied()
+                    .unwrap_or(0)
+            }
+        };
+        while fpos.col > 0 && ascii_iswhite(byte_at(&saved_line_vec, (fpos.col - 1) as usize)) {
             fpos.col -= 1;
-            ptr = ptr.wrapping_offset(-1);
         }
 
         if (g_st().state_global & REPLACE_FLAG) != 0
             && fpos.lnum == g_st().ins_global.start.lnum
             && fpos.col < g_st().ins_global.start.col
         {
-            ptr = ptr.wrapping_offset((g_st().ins_global.start.col - fpos.col) as isize);
             fpos.col = g_st().ins_global.start.col;
         }
 
@@ -3639,7 +3642,7 @@ fn ins_tab() -> bool {
             None,
             0,
         );
-        if (g_st().state_global & VREPLACE_FLAG) == 0 {
+        if !is_vreplace {
             curwin_mut().w_cursor = cursor_pos;
         }
 
@@ -3648,13 +3651,18 @@ fn ins_tab() -> bool {
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(*crate::globals::GraphPtr::of(ptr).borrow()) {
+        while ascii_iswhite(byte_at(&saved_line_vec, fpos.col as usize)) {
             let i = win_charsize(cstype, vcol, tab.to_bytes_with_nul(), tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;
             }
-            if *crate::globals::GraphPtr::of(ptr).borrow() != b'\t' {
-                *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\t';
+            if byte_at(&saved_line_vec, fpos.col as usize) != b'\t' {
+                if is_vreplace {
+                    saved_line_vec[fpos.col as usize] = b'\t';
+                } else {
+                    crate::memline::ml_get_buf_mut_slice(curbuf_mut(), fpos.lnum)
+                        [fpos.col as usize] = b'\t';
+                }
 
                 if change_col < 0 {
                     change_col = fpos.col;
@@ -3666,36 +3674,35 @@ fn ins_tab() -> bool {
                 }
             }
             fpos.col += 1;
-            ptr = ptr.wrapping_add(1);
             vcol += i;
         }
 
         if change_col >= 0 {
             let mut repl_off: i32 = 0;
-            let ptr_cstr = if (g_st().state_global & VREPLACE_FLAG) != 0 {
+            let ptr_cstr = if is_vreplace {
                 crate::memory::bytes_as_cstr(&saved_line_vec[fpos.col as usize..])
             } else {
                 crate::memory::CStrSubslice::advance(get_cursor_line_ptr(), fpos.col as usize)
             };
             cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr_cstr);
-            while vcol < want_vcol && *crate::globals::GraphPtr::of(ptr).borrow() == b' ' {
+            while vcol < want_vcol
+                && byte_at(&saved_line_vec, (fpos.col + repl_off) as usize) == b' '
+            {
                 vcol += win_charsize(cstype, vcol, b" ", b' ' as i32, &mut csarg, 1).width;
-                ptr = ptr.wrapping_add(1);
                 repl_off += 1;
             }
 
             if vcol > want_vcol {
-                ptr = ptr.wrapping_offset(-1);
                 repl_off -= 1;
             }
             fpos.col += repl_off;
 
             let i = cursor_pos.col - fpos.col;
             if i > 0 {
-                if (g_st().state_global & VREPLACE_FLAG) == 0 {
+                if !is_vreplace {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
                     let line_slice = curbuf_mut().b_ml.current_line_slice();
-                    let col = ((ptr as isize) - (line_slice.as_ptr() as isize)) as usize;
+                    let col = fpos.col as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                     new_line.extend_from_slice(&line_slice[..col]);

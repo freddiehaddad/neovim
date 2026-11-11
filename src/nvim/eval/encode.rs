@@ -1323,7 +1323,7 @@ fn encode_vim_with_backend(
     while !mpstack.is_empty() {
         let cur_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-        let next_tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[cur_idx].data {
+        let next_tv: &mut TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 mut hi_idx,
@@ -1364,7 +1364,7 @@ fn encode_vim_with_backend(
                 mut list,
                 ref mut li,
             } => {
-                let mut cur_li = *li;
+                let cur_li = *li;
                 if cur_li.is_null() {
                     mpstack.pop();
 
@@ -1377,9 +1377,10 @@ fn encode_vim_with_backend(
                     backend.conv_list_between_items();
                 }
 
+                let cur_li = cur_li.borrow_mut();
                 *li = cur_li.li_next;
 
-                &raw mut cur_li.li_tv
+                &mut cur_li.li_tv
             }
             MPConvStackData::Pairs { mut list, li } => {
                 if li.is_null() {
@@ -1415,7 +1416,7 @@ fn encode_vim_with_backend(
                 {
                     *li_ref = next_li;
                 }
-                &raw mut last_item.li_tv
+                &mut last_item.li_tv
             }
             MPConvStackData::Partial { stage, ref pt } => {
                 let pt = pt.clone();
@@ -1521,16 +1522,9 @@ fn encode_vim_with_backend(
                 }
                 continue;
             }
-        })
-        .as_ptr();
+        };
 
-        if !convert_one_value(
-            backend,
-            &mut mpstack,
-            crate::globals::GraphPtr::of(next_tv).borrow_mut(),
-            copy_id,
-            objname,
-        ) {
+        if !convert_one_value(backend, &mut mpstack, next_tv, copy_id, objname) {
             return false;
         }
     }

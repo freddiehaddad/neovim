@@ -401,7 +401,7 @@ pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
         let chan = find_channel_opt(ui.channel_id).unwrap();
         let addr = chan.addr.as_deref();
         let mut cfg_items: [KeyValuePair; 2] = [KeyValuePair::new(); 2];
-        let mut chan_config = Dict::from_slice(&mut cfg_items[..0]);
+        let mut chan_config = Dict::from_buf(&mut cfg_items);
         *chan_config.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(c"detach")),
             value: boolean_obj(chan.detach),
@@ -974,9 +974,9 @@ pub fn remote_ui_hl_attr_define(
     }
 
     let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
-    let mut rgb = Dict::from_slice(&mut rgb_items[..0]);
+    let mut rgb = Dict::from_buf(&mut rgb_items);
     let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
-    let mut cterm = Dict::from_slice(&mut cterm_items[..0]);
+    let mut cterm = Dict::from_buf(&mut cterm_items);
     let mut arena = Arena::new();
     hlattrs2dict(&mut rgb, None, rgb_attrs, true, false, Some(&mut arena));
     hlattrs2dict(&mut cterm, None, rgb_attrs, false, false, None);
@@ -1014,7 +1014,7 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
     ui.hl_id = id;
     let mut arena = Arena::new();
     let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
-    let mut dict = Dict::from_slice(&mut dict_items[..0]);
+    let mut dict = Dict::from_buf(&mut dict_items);
     hlattrs2dict(
         &mut dict,
         None,

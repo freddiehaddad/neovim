@@ -389,10 +389,7 @@ pub fn do_tag(
     verbose: bool,
 ) {
     {
-        let tagstack = crate::globals::GraphPtr::<Taggy>::of(
-            (&raw mut curwin_mut().w_tagstack).cast::<Taggy>(),
-        )
-        .as_ptr();
+        let orig_curwin_handle = curwin_mut().handle;
         let mut tagstackidx = curwin_mut().w_tagstackidx;
         let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: i32 = 0;
@@ -718,7 +715,7 @@ pub fn do_tag(
                         tag_st(|st| st.do_tag_max_num_matches.set(MAXCOL));
                     }
 
-                    if tagstack != (&raw mut curwin_mut().w_tagstack).cast::<Taggy>() {
+                    if curwin_mut().handle != orig_curwin_handle {
                         emsg(gettext(
                             E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS,
                         ));
@@ -2604,7 +2601,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
     let mut tagp = Tagptrs::default();
     let mut retval = Some(false);
     let mut getfile_result = GetFileResult::Unused;
-    let mut curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut curwin_save = crate::globals::WinPtr::NULL;
     let mut full_fname: Option<std::ffi::CString> = None;
     let old_key_typed = g_st().key_typed;
     let l_g_do_tagpreview = g_st().g_do_tagpreview;
@@ -2662,7 +2659,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if l_g_do_tagpreview != 0 {
             g_st().postponed_split = 0;
-            curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
+            curwin_save = curwin_ptr();
 
             if !curwin_mut().w_onebuf_opt.wo_pvw {
                 full_fname = FullName_save(fname_opt_ref, false);

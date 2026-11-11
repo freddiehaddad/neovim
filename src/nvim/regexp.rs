@@ -2820,12 +2820,13 @@ pub(super) fn reg_prev_class() -> i32 {
 }
 
 pub(super) fn reg_match_visual() -> bool {
-    let wp = if RE_STATE.with(|s| s.rex.reg_win.get()).is_null() {
-        curwin_ptr().as_ptr()
+    let reg_win = RE_STATE.with(|s| s.rex.reg_win.get());
+    let mut wp = if reg_win.is_null() {
+        curwin_ptr()
     } else {
-        RE_STATE.with(|s| s.rex.reg_win.get()).as_ptr()
+        reg_win
     };
-    let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
+    let wp = &mut *wp;
     if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf
         || g_st().visual_global.start.lnum == 0
         || !reg_multi()

@@ -5,7 +5,7 @@ use crate::buffer::VAR_FIXED;
 use crate::errors::*;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    EvalFuncData, Listitem, TV_TRANSLATE, TvBlob, TvDict, TvList, TypVal, TypvalVval, VAR_LOCKED,
+    EvalFuncData, TV_TRANSLATE, TvBlob, TvDict, TvList, TypVal, TypvalVval, VAR_LOCKED,
     VAR_UNLOCKED, VarType, tv_blob_copy, tv_blob_get, tv_blob_len, tv_blob_remove,
     tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
     tv_dict_copy, tv_dict_extend, tv_dict_item_free, tv_dict_remove, tv_dict_unref, tv_equal,
@@ -706,7 +706,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
         let l1_ref = l1.borrow_mut();
 
         if let Some(l2) = argvars[1].vval.v_list_opt() {
-            let mut item = crate::globals::GraphPtr::<Listitem>::NULL;
+            let mut item = crate::eval::typval::ListitemId::NULL;
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VarUnknown {
                 let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
@@ -717,7 +717,8 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     return;
                 }
                 if before != tv_list_len(Some(l1_ref)) {
-                    item = crate::globals::GraphPtr::from(tv_list_find(Some(l1_ref), before));
+                    item =
+                        crate::eval::typval::ListitemId::from(tv_list_find(Some(l1_ref), before));
                     if item.is_null() {
                         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
@@ -833,9 +834,12 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             return;
         }
 
-        let mut item = crate::globals::GraphPtr::<Listitem>::NULL;
+        let mut item = crate::eval::typval::ListitemId::NULL;
         if before != (tv_list_len(l.as_deref()) as i64) {
-            item = crate::globals::GraphPtr::from(tv_list_find(l.as_deref_mut(), before as i32));
+            item = crate::eval::typval::ListitemId::from(tv_list_find(
+                l.as_deref_mut(),
+                before as i32,
+            ));
             if item.is_null() {
                 semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                 l = None;

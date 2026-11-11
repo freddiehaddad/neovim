@@ -230,10 +230,14 @@ pub fn nvim_open_tabpage(
     let mut wp_opt: Option<&'static mut WinInfoInfo> = None;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let tp =
-        crate::globals::GraphPtr::from(win_new_tabpage(after + 1, None, enter, Some(&mut wp_opt)));
+    let tp = crate::globals::TabpagePtr::from(win_new_tabpage(
+        after + 1,
+        None,
+        enter,
+        Some(&mut wp_opt),
+    ));
     try_leave(&tstate, err);
-    let wp = crate::globals::GraphPtr::from(wp_opt);
+    let wp = crate::globals::WinPtr::from(wp_opt);
 
     if tp.is_null() {
         if !error_set(err) {

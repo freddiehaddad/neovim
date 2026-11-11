@@ -4980,7 +4980,7 @@ pub fn ex_spell(eap: &mut Exarg) {
 
 /// Add `word_bytes` to 'spellfile' as a good or bad word.
 pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: bool) {
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
     let mut new_spf = false;
     let mut fnamebuf_arr = [0u8; MAXPATHL];
     let mut line = [0u8; MAXWLEN * 2];
@@ -5029,9 +5029,9 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         }
 
         let fnamebuf_cstr = crate::memory::bytes_as_cstr(&fnamebuf_arr);
-        buf = crate::globals::GraphPtr::from(buflist_findname_exp(Some(fnamebuf_cstr)));
+        buf = crate::globals::BufPtr::from(buflist_findname_exp(Some(fnamebuf_cstr)));
         if !buf.is_null() && buf.b_ml.ml_mfp.is_none() {
-            buf = crate::globals::GraphPtr::NULL;
+            buf = crate::globals::BufPtr::NULL;
         }
         if !buf.is_null() && buf_is_changed_fn(buf.borrow_mut()) {
             emsg(gettext(E_BUFLOADED));

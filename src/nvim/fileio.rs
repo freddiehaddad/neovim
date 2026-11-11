@@ -3345,7 +3345,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let mut ea: Exarg = Exarg::new();
     let old_ro = buf.b_p_ro;
-    let savebuf: crate::globals::GraphPtr<FileBuf>;
+    let savebuf: crate::globals::BufPtr;
     let mut bufref: Bufref = Bufref::new();
     let mut saved = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
@@ -3377,9 +3377,9 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     }
 
     if buf_is_empty(curbuf_mut()) || !saved {
-        savebuf = crate::globals::GraphPtr::NULL;
+        savebuf = crate::globals::BufPtr::NULL;
     } else {
-        savebuf = crate::globals::GraphPtr::from(buflist_new(None, None, 1, BLN_DUMMY));
+        savebuf = crate::globals::BufPtr::from(buflist_new(None, None, 1, BLN_DUMMY));
         set_bufref(&mut bufref, savebuf.opt_mut());
         if !savebuf.is_null() && g_st().curbuf == buf {
             g_st().curbuf = savebuf;

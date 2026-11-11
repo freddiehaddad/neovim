@@ -267,7 +267,7 @@ fn do_ft_buf(
         return Some(ftbuf_ref);
     }
 
-    let mut ftbuf = crate::globals::GraphPtr::<FileBuf>::from_ref(ftbuf_ref);
+    let mut ftbuf = crate::globals::BufPtr::from(&*ftbuf_ref);
     let mut bufref = Bufref {
         br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
@@ -327,7 +327,7 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
-    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
+    let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
     block_autocmds();
 
     let mut bufref = Bufref {
@@ -399,7 +399,7 @@ pub fn nvim_get_option_value(
 
     let mut aco: CtxSwitch = CtxSwitch::new();
 
-    let ftbuf = crate::globals::GraphPtr::from(do_ft_buf(filetype, &mut aco, err));
+    let ftbuf = crate::globals::BufPtr::from(do_ft_buf(filetype, &mut aco, err));
     if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {

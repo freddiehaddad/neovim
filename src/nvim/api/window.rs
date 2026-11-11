@@ -161,7 +161,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut switchwin,
-        Some(crate::globals::GraphPtr::from(&*w).borrow_mut()),
+        Some(&mut *w),
         None,
         None,
         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -331,7 +331,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         return;
     }
 
-    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(w.borrow()));
+    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
     try_wrap(err, || {
         if is_ctx_win(w.borrow()) {
             emsg(gettext(E_AUTOCMD_CLOSE));
@@ -358,7 +358,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         return;
     };
 
-    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(&*w));
+    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(&*w));
     try_wrap(err, || {
         ex_win_close(
             force,
@@ -390,7 +390,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
     if w.is_null() {
         return OBJECT_NIL;
     }
-    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(w.borrow()));
+    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
 
     try_wrap_err(err, |err| {
         let mut cs: CtxSwitch = CtxSwitch::new();

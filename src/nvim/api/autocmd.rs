@@ -1097,7 +1097,6 @@ pub fn nvim_exec_autocmds(
 ) {
     let mut au_group = AUGROUP_ALL;
     let mut b = g_st().curbuf;
-    let mut data = crate::globals::GraphPtr::<Object>::NULL;
 
     let event_array = unpack_string_or_array(event, c"event", true, arena, err);
     if error_set(err) {
@@ -1153,7 +1152,7 @@ pub fn nvim_exec_autocmds(
             api_err_con(err, c"pattern", c"buf");
             return;
         }
-        b = crate::globals::GraphPtr::from(find_buffer_by_handle(buf, err));
+        b = crate::globals::BufPtr::from(find_buffer_by_handle(buf, err));
         if error_set(err) {
             return;
         }
@@ -1164,9 +1163,7 @@ pub fn nvim_exec_autocmds(
         return;
     }
 
-    if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA) {
-        data = crate::globals::GraphPtr::<Object>::of(&mut opts.data);
-    }
+    let data = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA).then_some(&opts.data);
 
     let modeline = if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE) {
         opts.modeline
@@ -1196,7 +1193,7 @@ pub fn nvim_exec_autocmds(
                 b.opt_mut(),
                 Some(crate::globals::curwin_mut()),
                 None,
-                data.opt(),
+                data,
                 has_buf,
             );
         }

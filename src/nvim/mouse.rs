@@ -275,16 +275,16 @@ fn move_tab_to_mouse() {
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
-        g_st().curtab.as_ptr()
+        g_st().curtab
     } else {
-        find_tabpage(c1).map_or(ptr::null_mut(), ptr::from_mut)
+        crate::globals::TabpagePtr::from(find_tabpage(c1))
     };
     if g_st().curtab == tp {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
             tabpage_close(false);
         }
     } else if !tp.is_null() {
-        tabpage_close_other(crate::globals::GraphPtr::of(tp).borrow_mut(), false);
+        tabpage_close_other(tp.borrow_mut(), false);
     }
 }
 
@@ -394,9 +394,9 @@ fn get_fpos_of_mouse(
         return IN_UNKNOWN;
     };
     let wpp_is_none = wpp.is_none();
-    let wp_ptr = ptr::from_mut(wp);
+    let wp_ptr = crate::globals::WinPtr::from(&*wp);
     if let Some(wpp) = wpp {
-        *wpp = Some(crate::globals::GraphPtr::of(wp_ptr).borrow_mut());
+        *wpp = Some(wp_ptr.borrow_mut());
     }
     let winrow = row;
     let wincol = col;
@@ -1495,7 +1495,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     let old_curwin = curwin_ptr();
     let old_cursor = curwin_mut().w_cursor;
-    let mut resolved = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut resolved = crate::globals::WinPtr::NULL;
     let mut lnum: Linenr = 0;
     let mut vcol: Colnr = 0;
     let mut mouse_fold_flags: i32 = 0;
@@ -1547,7 +1547,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         })
                         && (flags & MOUSE_MAY_STOP_VIS) != 0));
             if status_line_offset == 0 && sep_line_offset == 0 {
-                resolved = crate::globals::GraphPtr::<WinInfoInfo>::of(&wp);
+                resolved = crate::globals::WinPtr::from(&*wp);
                 g_st().mouse_past_bottom = mouse_resolve(
                     &mut *wp,
                     row,

@@ -943,8 +943,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let mut p: Option<std::borrow::Cow<'_, CStr>> = None;
     let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
-        let list_ptr = crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(list);
-        for li in crate::eval::typval::list_iter_mut(list_ptr.first_opt()) {
+        for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
             if li.li_tv.v_type == VarType::VarList
                 && let Some(sublist) = li.li_tv.vval.v_list_opt()
             {
@@ -964,7 +963,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                 }
             }
         }
-        tv_list_unref(list_ptr.opt_mut());
+        tv_list_unref(Some(list));
     }
     check_suggestions(su, false);
     cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);

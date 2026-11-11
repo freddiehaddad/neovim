@@ -3469,8 +3469,8 @@ fn regmatch_inner(
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
                             let no = (op - ZREF) as usize;
-                            let ext_in = &raw const g_st().re_extmatch_in;
-                            if let Some(ref em) = *crate::globals::GraphPtr::of(ext_in).borrow()
+                            let ext_in = g_st().re_extmatch_in.clone();
+                            if let Some(ref em) = ext_in
                                 && let Some(ref m_cstr) = em.matches[no]
                             {
                                 let mut len = m_cstr.as_bytes().len() as i32;

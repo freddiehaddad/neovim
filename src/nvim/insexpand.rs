@@ -3241,7 +3241,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 }
 
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_arg);
+    let mut buf = crate::globals::BufPtr::from(&*buf_arg);
     if flag == b'w' as i32 {
         if g_st().curbuf == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
             INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::curwin_ptr()));
@@ -3251,16 +3251,13 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
         loop {
             let wp = INSEXPAND.with(|s| s.next_buf_wp.get());
             let next_wp = if !wp.w_next.is_null() {
-                wp.w_next.as_ptr()
+                wp.w_next
             } else {
-                g_st().firstwin.as_ptr()
+                g_st().firstwin
             };
-            INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::WinPtr::new(next_wp)));
+            INSEXPAND.with(|s| s.next_buf_wp.set(next_wp));
             if next_wp == curwin_ptr()
-                || ({
-                    let nw = crate::globals::GraphPtr::of(next_wp).borrow_mut();
-                    !nw.buf_mut().b_scanned && nw.w_config.focusable
-                })
+                || (!next_wp.buf_mut().b_scanned && next_wp.w_config.focusable)
             {
                 break;
             }
@@ -3955,13 +3952,13 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         && (what_flag & (CI_WHAT_ITEMS | CI_WHAT_SELECTED | CI_WHAT_MATCHES | CI_WHAT_COMPLETED))
             != 0
     {
-        let mut li = crate::globals::GraphPtr::<TvList>::NULL;
+        let mut li = crate::eval::typval::ListId::NULL;
         let mut selected_idx: i32 = -1;
         let has_items = (what_flag & CI_WHAT_ITEMS) != 0;
         let has_matches = (what_flag & CI_WHAT_MATCHES) != 0;
         let has_completed = (what_flag & CI_WHAT_COMPLETED) != 0;
         if has_items || has_matches {
-            li = crate::globals::GraphPtr::<TvList>::of(tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST));
+            li = crate::eval::typval::ListId::from(tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST));
             let key = if has_matches && !has_items {
                 c"matches"
             } else {

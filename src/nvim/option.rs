@@ -2976,15 +2976,14 @@ pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
         return None;
     }
-    let win = args.os_win.as_ptr();
+    let win = args.os_win;
     let tab = if win == curwin_ptr() {
-        g_st().curtab.as_ptr()
+        g_st().curtab
     } else {
-        win_find_tabpage(crate::globals::GraphPtr::of(win).borrow())
-            .map_or(ptr::null_mut(), ptr::from_mut)
+        crate::globals::TabpagePtr::from(win_find_tabpage(win.borrow()))
     };
-    for wp in for_all_windows_in_tab_ptr(crate::globals::GraphPtr::of(tab).borrow()) {
-        if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw {
+    for wp in for_all_windows_in_tab_ptr(tab.borrow()) {
+        if wp != win && wp.w_onebuf_opt.wo_pvw {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
     }

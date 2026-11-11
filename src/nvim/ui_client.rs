@@ -137,7 +137,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
     let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
-    let mut opts = Dict::from_slice(&mut opts_items[..0]);
+    let mut opts = Dict::from_buf(&mut opts_items);
     let mut put_opt = |k: &std::ffi::CStr, v: Object| {
         *opts.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(k)),

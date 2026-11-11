@@ -1357,74 +1357,70 @@ pub fn decor_redraw_col_impl(
 
     for i in 0..cur_end {
         let index = (&state.ranges_i)[i as usize];
-        let slot = crate::globals::GraphPtr::<DecorRangeSlot>::of(
-            &raw mut (&mut state.slots)[index as usize],
-        )
-        .as_ptr();
-        let r = crate::globals::GraphPtr::of(slot).borrow_mut().range_mut();
-
         let keep: bool;
-        if r.end_row < row || (r.end_row == row && r.end_col <= col) {
-            keep = r.start_row >= row && decor_virt_pos(r);
-        } else {
-            keep = true;
+        {
+            let r = (&mut state.slots)[index as usize].range_mut();
+            if r.end_row < row || (r.end_row == row && r.end_col <= col) {
+                keep = r.start_row >= row && decor_virt_pos(r);
+            } else {
+                keep = true;
 
-            if r.end_row == row && r.end_col > col {
-                col_last = col_last.min(r.end_col - 1);
-            }
+                if r.end_row == row && r.end_col > col {
+                    col_last = col_last.min(r.end_col - 1);
+                }
 
-            if r.attr_id > 0 {
-                attr = hl_combine_attr(attr, r.attr_id);
-                if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
-                    hl_eol_attr = hl_combine_attr(hl_eol_attr, r.attr_id);
+                if r.attr_id > 0 {
+                    attr = hl_combine_attr(attr, r.attr_id);
+                    if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
+                        hl_eol_attr = hl_combine_attr(hl_eol_attr, r.attr_id);
+                    }
+                }
+
+                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
+                    conceal = 1;
+                    if !r.owned {
+                        conceal_slot_i = index;
+                    }
+                    if r.start_row == row
+                        && r.start_col == col
+                        && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0
+                    {
+                        conceal = 2;
+                        conceal_char = r.data.sh().text[0];
+                        col_last = col_last.min(r.start_col);
+                        conceal_attr = r.attr_id;
+                    }
+                }
+
+                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
+                    conceal = 0;
+                    if !r.owned {
+                        conceal_slot_i = -1;
+                    }
+                }
+
+                if r.data.is_sh() {
+                    if (r.data.sh().flags & K_SHSPELL_ON) != 0 {
+                        spell = K_TRUE;
+                    } else if (r.data.sh().flags & K_SHSPELL_OFF) != 0 {
+                        spell = K_FALSE;
+                    }
+                    if let Some(ref url) = r.data.sh().url {
+                        attr = hl_add_url(attr, url);
+                    }
                 }
             }
 
-            if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
-                conceal = 1;
-                if !r.owned {
-                    conceal_slot_i = index;
-                }
-                if r.start_row == row
-                    && r.start_col == col
-                    && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0
-                {
-                    conceal = 2;
-                    conceal_char = r.data.sh().text[0];
-                    col_last = col_last.min(r.start_col);
-                    conceal_attr = r.attr_id;
-                }
+            if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
+                decor_init_draw_col(win_col, hidden, &mut *r);
             }
-
-            if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
-                conceal = 0;
-                if !r.owned {
-                    conceal_slot_i = -1;
-                }
-            }
-
-            if r.data.is_sh() {
-                if (r.data.sh().flags & K_SHSPELL_ON) != 0 {
-                    spell = K_TRUE;
-                } else if (r.data.sh().flags & K_SHSPELL_OFF) != 0 {
-                    spell = K_FALSE;
-                }
-                if let Some(ref url) = r.data.sh().url {
-                    attr = hl_add_url(attr, url);
-                }
-            }
-        }
-
-        if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
-            decor_init_draw_col(win_col, hidden, &mut *r);
         }
 
         if keep {
             (&mut state.ranges_i)[new_cur_end as usize] = index;
             new_cur_end += 1;
         } else {
-            *crate::globals::GraphPtr::of(slot).borrow_mut() =
-                DecorRangeSlot::Free(state.free_slot_i);
+            (&mut state.slots)[index as usize] = DecorRangeSlot::Free(state.free_slot_i);
             state.free_slot_i = index;
         }
     }
