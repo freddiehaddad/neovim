@@ -2400,7 +2400,7 @@ pub fn highlight_changed() {
             if hlf == HLF_MSG {
                 g_st().clear_cmdline.set(true);
                 let attrs = syn_attr2entry(g_st().highlight_attr[hlf].get());
-                g_st().msg_grid.blending = attrs.hl_blend > -1;
+                g_st().msg_grid.blending.set(attrs.hl_blend > -1);
             }
             ui_call_hl_group_set(
                 cstr_as_string(Some(name_cstr)),

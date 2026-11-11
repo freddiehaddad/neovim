@@ -411,18 +411,18 @@ fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
     let size = schar_get(&mut buf, curwin_mut().w_p_fcs_chars.msgsep);
     ui_call_msg_set_pos(
-        g_st().msg_grid.handle as Integer,
+        g_st().msg_grid.handle.get() as Integer,
         row as Integer,
         scrolled,
         NvimString::from_bytes_len(&buf, size),
-        g_st().msg_grid.zindex as Integer,
-        g_st().msg_grid.comp_index as Integer,
+        g_st().msg_grid.zindex.get() as Integer,
+        g_st().msg_grid.comp_index.get() as Integer,
     );
-    g_st().msg_grid.pending_comp_index_update = false;
+    g_st().msg_grid.pending_comp_index_update.set(false);
 }
 
 pub fn msg_grid_set_pos(row: i32, scrolled: bool) {
-    if !g_st().msg_grid.throttled {
+    if !g_st().msg_grid.throttled.get() {
         ui_ext_msg_set_pos(row, scrolled);
         MSG_STATE.with(|s| s.msg_grid_pos_at_flush.set(row));
     }
@@ -442,8 +442,8 @@ pub fn msg_grid_validate() {
     let max_rows = g_st().rows_global.get() - opt_vars().p_ch.get() as i32;
     let msg_grid_empty = !crate::grid::grid_allocated(&g_st().msg_grid);
     if should_alloc
-        && (g_st().msg_grid.rows != g_st().rows_global.get()
-            || g_st().msg_grid.cols != g_st().columns_global.get()
+        && (g_st().msg_grid.rows.get() != g_st().rows_global.get()
+            || g_st().msg_grid.cols.get() != g_st().columns_global.get()
             || msg_grid_empty)
     {
         grid_alloc(
@@ -453,7 +453,7 @@ pub fn msg_grid_validate() {
             false,
             true,
         );
-        g_st().msg_grid.zindex = K_ZINDEX_MESSAGES;
+        g_st().msg_grid.zindex.set(K_ZINDEX_MESSAGES);
 
         g_st().msg_grid.dirty_col = vec![0; g_st().rows_global.get() as usize];
 
@@ -463,32 +463,32 @@ pub fn msg_grid_validate() {
         } else {
             (max_rows - g_st().msg_scrolled.get()).max(0)
         };
-        g_st().msg_grid.throttled = false; // don't throttle in 'cmdheight' area
+        g_st().msg_grid.throttled.set(false); // don't throttle in 'cmdheight' area
         msg_grid_set_pos(pos, g_st().msg_scrolled.get() != 0);
         ui_comp_put_grid(
             &mut g_st().msg_grid,
             pos,
             0,
-            g_st().msg_grid.rows,
-            g_st().msg_grid.cols,
+            g_st().msg_grid.rows.get(),
+            g_st().msg_grid.cols.get(),
             false,
             true,
         );
         ui_call_grid_resize(
-            g_st().msg_grid.handle as Integer,
-            g_st().msg_grid.cols as Integer,
-            g_st().msg_grid.rows as Integer,
+            g_st().msg_grid.handle.get() as Integer,
+            g_st().msg_grid.cols.get() as Integer,
+            g_st().msg_grid.rows.get() as Integer,
         );
 
         g_st().msg_scrolled_at_flush.set(g_st().msg_scrolled.get());
-        g_st().msg_grid.mouse_enabled = false;
+        g_st().msg_grid.mouse_enabled.set(false);
         g_st().msg_grid_adj.target.set(crate::grid::GridTarget::Msg);
     } else if !should_alloc && !msg_grid_empty {
         ui_comp_remove_grid(&mut g_st().msg_grid);
         grid_free(&mut g_st().msg_grid);
         g_st().msg_grid.dirty_col = Vec::new();
-        ui_call_grid_destroy(g_st().msg_grid.handle as Integer);
-        g_st().msg_grid.throttled = false;
+        ui_call_grid_destroy(g_st().msg_grid.handle.get() as Integer);
+        g_st().msg_grid.throttled.set(false);
         g_st().msg_grid_adj.row_offset.set(0);
         g_st()
             .msg_grid_adj
@@ -3008,7 +3008,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
 
 pub fn msg_line_flush() {
     if g_st().cmdmsg_rl.get() {
-        grid_line_mirror(g_st().msg_grid.cols);
+        grid_line_mirror(g_st().msg_grid.cols.get());
     }
     grid_line_flush_if_valid_row();
 }
@@ -3018,7 +3018,7 @@ pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
         col = g_st().columns_global.get() - 1 - col;
     }
     let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-    ui_grid_cursor_goto(grid.handle, row, col);
+    ui_grid_cursor_goto(grid.handle.get(), row, col);
 }
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
@@ -3050,7 +3050,7 @@ pub fn msg_do_throttle() -> bool {
 /// Scroll the screen up one line for displaying the next message line.
 pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     if may_throttle && msg_do_throttle() {
-        g_st().msg_grid.throttled = true;
+        g_st().msg_grid.throttled.set(true);
     }
     g_st().msg_did_scroll.set(true);
     if g_st().msg_grid_pos.get() > 0 {
@@ -3060,7 +3060,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
             grid_clear_line(
                 &mut g_st().msg_grid,
                 g_st().msg_grid.line_offset[0],
-                g_st().msg_grid.cols,
+                g_st().msg_grid.cols.get(),
                 false,
             );
         }
@@ -3069,14 +3069,14 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
             &mut g_st().msg_grid,
             0,
             1,
-            g_st().msg_grid.rows,
+            g_st().msg_grid.rows.get(),
             0,
-            g_st().msg_grid.cols,
+            g_st().msg_grid.cols.get(),
         );
-        for i in 0..(g_st().msg_grid.rows - 1) as usize {
+        for i in 0..(g_st().msg_grid.rows.get() - 1) as usize {
             g_st().msg_grid.dirty_col[i] = g_st().msg_grid.dirty_col[i + 1];
         }
-        g_st().msg_grid.dirty_col[(g_st().msg_grid.rows - 1) as usize] = 0;
+        g_st().msg_grid.dirty_col[(g_st().msg_grid.rows.get() - 1) as usize] = 0;
     }
 
     grid_clear(
@@ -3091,13 +3091,13 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 
 /// Send throttled message output to UI clients
 pub fn msg_scroll_flush() {
-    if g_st().msg_grid.throttled {
-        g_st().msg_grid.throttled = false;
+    if g_st().msg_grid.throttled.get() {
+        g_st().msg_grid.throttled.set(false);
         let pos_delta =
             MSG_STATE.with(|s| s.msg_grid_pos_at_flush.get()) - g_st().msg_grid_pos.get();
         assert!(pos_delta >= 0);
         let delta = (g_st().msg_scrolled.get() - g_st().msg_scrolled_at_flush.get())
-            .min(g_st().msg_grid.rows);
+            .min(g_st().msg_grid.rows.get());
 
         if pos_delta > 0 {
             ui_ext_msg_set_pos(g_st().msg_grid_pos.get(), true);
@@ -3108,7 +3108,7 @@ pub fn msg_scroll_flush() {
 
         if to_scroll > 0 && g_st().msg_grid_pos.get() == 0 {
             ui_call_grid_scroll(
-                g_st().msg_grid.handle as Integer,
+                g_st().msg_grid.handle.get() as Integer,
                 0,
                 g_st().rows_global.get() as Integer,
                 0,
@@ -3127,7 +3127,7 @@ pub fn msg_scroll_flush() {
                 false,
                 0,
                 g_st().msg_grid.dirty_col[row as usize],
-                g_st().msg_grid.cols,
+                g_st().msg_grid.cols.get(),
                 hl_attr(HLF_MSG),
                 false,
             );
@@ -3143,19 +3143,19 @@ pub fn msg_reset_scroll() {
     if ui_has(K_UIMESSAGES) {
         return;
     }
-    g_st().msg_grid.throttled = false;
+    g_st().msg_grid.throttled.set(false);
     msg_grid_set_pos(
         g_st().rows_global.get() - opt_vars().p_ch.get() as i32,
         false,
     );
     g_st().clear_cmdline.set(true);
     if crate::grid::grid_allocated(&g_st().msg_grid) {
-        let limit = msg_scrollsize().min(g_st().msg_grid.rows);
+        let limit = msg_scrollsize().min(g_st().msg_grid.rows.get());
         for i in 0..limit {
             grid_clear_line(
                 &mut g_st().msg_grid,
                 g_st().msg_grid.line_offset[i as usize],
-                g_st().msg_grid.cols,
+                g_st().msg_grid.cols.get(),
                 false,
             );
         }
@@ -3168,9 +3168,9 @@ pub fn msg_reset_scroll() {
 pub fn msg_ui_refresh() {
     if ui_has(K_UIMULTIGRID) && crate::grid::grid_allocated(&g_st().msg_grid) {
         ui_call_grid_resize(
-            g_st().msg_grid.handle as Integer,
-            g_st().msg_grid.cols as Integer,
-            g_st().msg_grid.rows as Integer,
+            g_st().msg_grid.handle.get() as Integer,
+            g_st().msg_grid.cols.get() as Integer,
+            g_st().msg_grid.rows.get() as Integer,
         );
         ui_ext_msg_set_pos(g_st().msg_grid_pos.get(), g_st().msg_scrolled.get() != 0);
     }
@@ -3179,7 +3179,7 @@ pub fn msg_ui_refresh() {
 pub fn msg_ui_flush() {
     if ui_has(K_UIMULTIGRID)
         && crate::grid::grid_allocated(&g_st().msg_grid)
-        && g_st().msg_grid.pending_comp_index_update
+        && g_st().msg_grid.pending_comp_index_update.get()
     {
         ui_ext_msg_set_pos(g_st().msg_grid_pos.get(), g_st().msg_scrolled.get() != 0);
     }
@@ -3656,7 +3656,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                 while toscroll > 0
                     && let Some(last_idx) = mp_last
                 {
-                    if msg_do_throttle() && !g_st().msg_grid.throttled {
+                    if msg_do_throttle() && !g_st().msg_grid.throttled.get() {
                         g_st()
                             .msg_scrolled_at_flush
                             .set(g_st().msg_scrolled_at_flush.get() - (1));

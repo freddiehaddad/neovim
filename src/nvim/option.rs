@@ -2374,8 +2374,9 @@ pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
 }
 
 pub fn check_blending(wp: &mut WinInfoInfo) {
-    wp.w_grid_alloc.blending =
-        wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.shadow);
+    wp.w_grid_alloc
+        .blending
+        .set(wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.shadow));
 }
 
 /// Handle setting 'winhighlight' in window "wp".
@@ -7124,7 +7125,9 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
     check_signcolumn(None, Some(&mut *wp));
-    wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl.get() > 0;
+    wp.w_grid_alloc
+        .blending
+        .set(wp.w_onebuf_opt.wo_winbl.get() > 0);
 }
 
 #[inline]

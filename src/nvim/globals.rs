@@ -1976,29 +1976,8 @@ pub fn has_redir_fd() -> bool {
 pub fn has_scriptout() -> bool {
     g_st().scriptout.is_some()
 }
-pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
-    handle: 0,
-    target_kind: GridTarget::None,
-    chars: Vec::new(),
-    attrs: Vec::new(),
-    vcols: Vec::new(),
-    line_offset: Vec::new(),
-    dirty_col: Vec::new(),
-    rows: 0,
-    cols: 0,
-    valid: false,
-    throttled: false,
-    blending: false,
-    mouse_enabled: true,
-    zindex: 0,
-    comp_row: 0,
-    comp_col: 0,
-    comp_width: 0,
-    comp_height: 0,
-    comp_index: 0,
-    comp_disabled: false,
-    pending_comp_index_update: true,
-};
+#[allow(clippy::declare_interior_mutable_const)]
+pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid::with_target(GridTarget::None);
 pub const UI_EXT_NAMES: [&std::ffi::CStr; 10] = [
     c"ext_cmdline",
     c"ext_popupmenu",

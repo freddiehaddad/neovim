@@ -1599,11 +1599,11 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
     wp.w_pos_changed.set(false);
     if !wp.w_floating.get() {
         if ui_has(K_UIMULTIGRID) {
-            wp.w_grid_alloc.comp_col = wp.w_wincol.get();
-            wp.w_grid_alloc.comp_row = wp.w_winrow.get();
+            wp.w_grid_alloc.comp_col.set(wp.w_wincol.get());
+            wp.w_grid_alloc.comp_row.set(wp.w_winrow.get());
         }
         ui_call_win_pos(
-            Integer::from(wp.w_grid_alloc.handle),
+            Integer::from(wp.w_grid_alloc.handle.get()),
             wp.handle,
             Integer::from(wp.w_winrow.get()),
             Integer::from(wp.w_wincol.get()),
@@ -1615,9 +1615,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
 
     let c = &wp.w_config;
     if !c.external {
-        let mut grid_comp_row = g_st().default_grid.comp_row;
-        let mut grid_comp_col = g_st().default_grid.comp_col;
-        let mut grid_handle = g_st().default_grid.handle;
+        let mut grid_comp_row = g_st().default_grid.comp_row.get();
+        let mut grid_comp_col = g_st().default_grid.comp_col.get();
+        let mut grid_handle = g_st().default_grid.handle.get();
         let mut row = c.row;
         let mut col = c.col;
         if c.relative == K_FLOAT_RELATIVE_WINDOW {
@@ -1636,9 +1636,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 let mut col_off: i32 = 0;
                 win_grid_alloc(&mut *win);
                 let g = grid_adjust(&mut win.w_grid, &mut row_off, &mut col_off);
-                grid_comp_row = g.comp_row;
-                grid_comp_col = g.comp_col;
-                grid_handle = g.handle;
+                grid_comp_row = g.comp_row.get();
+                grid_comp_col = g.comp_col.get();
+                grid_handle = g.handle.get();
                 row += f64::from(row_off);
                 col += f64::from(col_off);
                 if c.bufpos.lnum >= 0 {
@@ -1667,12 +1667,12 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             row += f64::from(tabline_height());
         }
 
-        let resort =
-            wp.w_grid_alloc.comp_index != 0 && wp.w_grid_alloc.zindex != wp.w_config.zindex;
-        let raise = resort && wp.w_grid_alloc.zindex < wp.w_config.zindex;
-        wp.w_grid_alloc.zindex = wp.w_config.zindex;
+        let resort = wp.w_grid_alloc.comp_index.get() != 0
+            && wp.w_grid_alloc.zindex.get() != wp.w_config.zindex;
+        let raise = resort && wp.w_grid_alloc.zindex.get() < wp.w_config.zindex;
+        wp.w_grid_alloc.zindex.set(wp.w_config.zindex);
         if resort {
-            ui_comp_layers_adjust(wp.w_grid_alloc.comp_index, raise);
+            ui_comp_layers_adjust(wp.w_grid_alloc.comp_index.get(), raise);
         }
         let valid = wp.w_redr_type.get() == 0 || ui_has(K_UIMULTIGRID);
         if !valid && !validate {
@@ -1719,33 +1719,33 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             if ui_has(K_UIMULTIGRID) {
                 let anchor = cstr_as_string(Some(FLOAT_ANCHOR_STR[c.anchor as usize]));
                 ui_call_win_float_pos(
-                    Integer::from(wp.w_grid_alloc.handle),
+                    Integer::from(wp.w_grid_alloc.handle.get()),
                     wp.handle,
                     anchor,
                     Integer::from(grid_handle),
                     row,
                     col,
                     c.mouse,
-                    Integer::from(wp.w_grid_alloc.zindex),
-                    wp.w_grid_alloc.comp_index as Integer,
+                    Integer::from(wp.w_grid_alloc.zindex.get()),
+                    wp.w_grid_alloc.comp_index.get() as Integer,
                     Integer::from(wp.w_winrow.get()),
                     Integer::from(wp.w_wincol.get()),
                 );
             }
-            ui_check_cursor_grid(wp.w_grid_alloc.handle);
-            wp.w_grid_alloc.mouse_enabled = wp.w_config.mouse;
+            ui_check_cursor_grid(wp.w_grid_alloc.handle.get());
+            wp.w_grid_alloc.mouse_enabled.set(wp.w_config.mouse);
             if !valid {
-                wp.w_grid_alloc.valid = false;
+                wp.w_grid_alloc.valid.set(false);
                 redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             }
         } else {
             if ui_has(K_UIMULTIGRID) {
-                ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
+                ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle.get()));
             }
             ui_comp_remove_grid(&mut wp.w_grid_alloc);
         }
     } else {
-        ui_call_win_external_pos(Integer::from(wp.w_grid_alloc.handle), wp.handle);
+        ui_call_win_external_pos(Integer::from(wp.w_grid_alloc.handle.get()), wp.handle);
     }
 }
 
@@ -1817,7 +1817,7 @@ pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
             ev_botline = line_count;
         }
         ui_call_win_viewport(
-            Integer::from(wp.w_grid_alloc.handle),
+            Integer::from(wp.w_grid_alloc.handle.get()),
             wp.handle,
             Integer::from(wp.w_topline.get() - 1),
             Integer::from(ev_botline),
@@ -2154,7 +2154,7 @@ pub fn win_split_ins(
         if ui_has(K_UIMULTIGRID) {
             wp.w_pos_changed.set(true);
         } else {
-            ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
+            ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle.get()));
             win_free_grid(&mut *wp, true);
         }
 
@@ -3691,7 +3691,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     let was_floating = win.borrow_mut().w_floating.get();
     if ui_has(K_UIMULTIGRID) {
-        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle));
+        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle.get()));
     }
 
     if win.borrow_mut().w_floating.get() {
@@ -4008,7 +4008,7 @@ pub fn win_close_othertab(
     }
 
     if ui_has(K_UIMULTIGRID) {
-        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle));
+        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle.get()));
     }
     if win.borrow_mut().w_floating.get() {
         ui_comp_remove_grid(&mut win.borrow_mut().w_grid_alloc);
@@ -6048,7 +6048,10 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
     new_wp.handle = WIN_STATE.with(|s| s.last_win_id.get());
     g_st().window_handles.insert(new_wp.handle, new_wp.into());
 
-    new_wp.w_grid_alloc.target_kind = GridTarget::Win(new_wp.handle);
+    new_wp
+        .w_grid_alloc
+        .target_kind
+        .set(GridTarget::Win(new_wp.handle));
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 
     new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static();
@@ -6204,8 +6207,8 @@ impl Drop for WinInfoInfo {
 }
 
 pub fn win_free_grid(wp: &mut WinInfoInfo, reinit: bool) {
-    if wp.w_grid_alloc.handle != 0 && ui_has(K_UIMULTIGRID) {
-        ui_call_grid_destroy(Integer::from(wp.w_grid_alloc.handle));
+    if wp.w_grid_alloc.handle.get() != 0 && ui_has(K_UIMULTIGRID) {
+        ui_call_grid_destroy(Integer::from(wp.w_grid_alloc.handle.get()));
     }
     grid_free(&mut wp.w_grid_alloc);
     if reinit {
@@ -7526,7 +7529,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
 
     if ui_has(K_UIMULTIGRID) {
         ui_call_win_viewport_margins(
-            Integer::from(wp.w_grid_alloc.handle),
+            Integer::from(wp.w_grid_alloc.handle.get()),
             wp.handle,
             Integer::from(wp.w_winrow_off.get()),
             Integer::from(wp.w_border_adj[2].get()),
@@ -8210,16 +8213,16 @@ pub fn win_ui_flush(validate: bool) {
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {
-            if (wp.w_pos_changed.get() || wp.w_grid_alloc.pending_comp_index_update)
+            if (wp.w_pos_changed.get() || wp.w_grid_alloc.pending_comp_index_update.get())
                 && !wp.w_grid_alloc.chars.is_empty()
             {
                 if g_st().curtab.get() == tp {
                     ui_ext_win_position(wp, validate);
                 } else {
-                    ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
+                    ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle.get()));
                     wp.w_pos_changed.set(false);
                 }
-                wp.w_grid_alloc.pending_comp_index_update = false;
+                wp.w_grid_alloc.pending_comp_index_update.set(false);
             }
             if g_st().curtab.get() == tp {
                 ui_ext_win_viewport(wp);

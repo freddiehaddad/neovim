@@ -6545,8 +6545,8 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
 fn screenchar_adjust(row: &mut i32, col: &mut i32) -> &'static ScreenGrid {
     msg_scroll_flush();
     let grid = ui_comp_get_grid_at_coord(*row, *col);
-    *row -= grid.comp_row;
-    *col -= grid.comp_col;
+    *row -= grid.comp_row.get();
+    *col -= grid.comp_col.get();
     grid
 }
 
@@ -6557,7 +6557,7 @@ pub fn f_screenattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     let grid = screenchar_adjust(&mut row, &mut col);
 
-    let c = if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
+    let c = if row < 0 || row >= grid.rows.get() || col < 0 || col >= grid.cols.get() {
         -1
     } else {
         let line_off = grid.line_offset[row as usize];
@@ -6574,7 +6574,7 @@ pub fn f_screenchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let grid = screenchar_adjust(&mut row, &mut col);
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(
-        if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
+        if row < 0 || row >= grid.rows.get() || col < 0 || col >= grid.cols.get() {
             -1
         } else {
             Varnumber::from(schar_get_first_codepoint(grid_getchar(
@@ -6592,7 +6592,7 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let grid = screenchar_adjust(&mut row, &mut col);
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
+    if row < 0 || row >= grid.rows.get() || col < 0 || col >= grid.cols.get() {
         return;
     }
 
@@ -6629,7 +6629,7 @@ pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut col = (tv_get_number_chk(&argvars[1], None) as i32) - 1;
 
     let grid = screenchar_adjust(&mut row, &mut col);
-    if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
+    if row < 0 || row >= grid.rows.get() || col < 0 || col >= grid.cols.get() {
         return;
     }
 

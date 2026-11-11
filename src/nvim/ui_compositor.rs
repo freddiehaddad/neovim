@@ -151,28 +151,28 @@ pub fn ui_comp_should_draw() -> bool {
 pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
     let size = layers_len();
     let layer = layer_mut(layer_idx);
-    let layer_target = layer.target_kind;
+    let layer_target = layer.target_kind.get();
 
     if raise {
         while layer_idx < size - 1 && layer.zindex > layer_mut(layer_idx + 1).zindex {
             let next = layer_mut(layer_idx + 1);
-            with_comp(|c| c.layers.borrow_mut()[layer_idx] = next.target_kind);
-            next.comp_index = layer_idx;
-            next.pending_comp_index_update = true;
+            with_comp(|c| c.layers.borrow_mut()[layer_idx] = next.target_kind.get());
+            next.comp_index.set(layer_idx);
+            next.pending_comp_index_update.set(true);
             layer_idx += 1;
         }
     } else {
-        while layer_idx > 0 && layer.zindex < layer_mut(layer_idx - 1).zindex {
+        while layer_idx > 0 && layer.zindex.get() < layer_mut(layer_idx - 1).zindex.get() {
             let prev = layer_mut(layer_idx - 1);
-            with_comp(|c| c.layers.borrow_mut()[layer_idx] = prev.target_kind);
-            prev.comp_index = layer_idx;
-            prev.pending_comp_index_update = true;
+            with_comp(|c| c.layers.borrow_mut()[layer_idx] = prev.target_kind.get());
+            prev.comp_index.set(layer_idx);
+            prev.pending_comp_index_update.set(true);
             layer_idx -= 1;
         }
     }
     with_comp(|c| c.layers.borrow_mut()[layer_idx] = layer_target);
-    layer.comp_index = layer_idx;
-    layer.pending_comp_index_update = true;
+    layer.comp_index.set(layer_idx);
+    layer.pending_comp_index_update.set(true);
 }
 
 /// Places `grid` at `(col, row)` position with `(width * height)` size (`ui_comp_put_grid`).
@@ -186,50 +186,50 @@ pub fn ui_comp_put_grid(
     on_top: bool,
 ) -> bool {
     let moved: bool;
-    grid.pending_comp_index_update = true;
+    grid.pending_comp_index_update.set(true);
 
-    if grid.comp_index != 0 {
-        moved = (row != grid.comp_row) || (col != grid.comp_col);
+    if grid.comp_index.get() != 0 {
+        moved = (row != grid.comp_row.get()) || (col != grid.comp_col.get());
         if ui_comp_should_draw() {
-            grid.comp_disabled = true;
+            grid.comp_disabled.set(true);
             compose_area(
-                grid.comp_row as Integer,
+                grid.comp_row.get() as Integer,
                 row as Integer,
-                grid.comp_col as Integer,
-                (grid.comp_col + grid.comp_width) as Integer,
+                grid.comp_col.get() as Integer,
+                (grid.comp_col.get() + grid.comp_width.get()) as Integer,
             );
-            if grid.comp_col < col {
+            if grid.comp_col.get() < col {
                 compose_area(
-                    row.max(grid.comp_row) as Integer,
-                    (row + height).min(grid.comp_row + grid.comp_height) as Integer,
-                    grid.comp_col as Integer,
+                    row.max(grid.comp_row.get()) as Integer,
+                    (row + height).min(grid.comp_row.get() + grid.comp_height.get()) as Integer,
+                    grid.comp_col.get() as Integer,
                     col as Integer,
                 );
             }
-            if col + width < grid.comp_col + grid.comp_width {
+            if col + width < grid.comp_col.get() + grid.comp_width.get() {
                 compose_area(
-                    row.max(grid.comp_row) as Integer,
-                    (row + height).min(grid.comp_row + grid.comp_height) as Integer,
+                    row.max(grid.comp_row.get()) as Integer,
+                    (row + height).min(grid.comp_row.get() + grid.comp_height.get()) as Integer,
                     (col + width) as Integer,
-                    (grid.comp_col + grid.comp_width) as Integer,
+                    (grid.comp_col.get() + grid.comp_width.get()) as Integer,
                 );
             }
             compose_area(
                 (row + height) as Integer,
-                (grid.comp_row + grid.comp_height) as Integer,
-                grid.comp_col as Integer,
-                (grid.comp_col + grid.comp_width) as Integer,
+                (grid.comp_row.get() + grid.comp_height.get()) as Integer,
+                grid.comp_col.get() as Integer,
+                (grid.comp_col.get() + grid.comp_width.get()) as Integer,
             );
-            grid.comp_disabled = false;
+            grid.comp_disabled.set(false);
         }
-        grid.comp_row = row;
-        grid.comp_col = col;
+        grid.comp_row.set(row);
+        grid.comp_col.set(col);
     } else {
         moved = true;
         debug_assert!(!with_comp(|c| c
             .layers
             .borrow()
-            .contains(&grid.target_kind)));
+            .contains(&grid.target_kind.get())));
 
         let mut insert_at = layers_len();
         while insert_at > 0 && layer_mut(insert_at - 1).zindex > grid.zindex {
@@ -238,7 +238,7 @@ pub fn ui_comp_put_grid(
 
         if !(curwin_ptr()).is_null()
             && with_comp(|c| {
-                c.layers.borrow()[insert_at - 1] == curwin_mut().w_grid_alloc.target_kind
+                c.layers.borrow()[insert_at - 1] == curwin_mut().w_grid_alloc.target_kind.get()
             })
             && layer_mut(insert_at - 1).zindex == grid.zindex
             && !on_top
@@ -247,29 +247,29 @@ pub fn ui_comp_put_grid(
         }
         let len = with_comp(|c| {
             let mut layers = c.layers.borrow_mut();
-            layers.insert(insert_at, grid.target_kind);
+            layers.insert(insert_at, grid.target_kind.get());
             layers.len()
         });
         for idx in (insert_at + 1)..len {
             let g = layer_mut(idx);
-            g.comp_index = idx;
-            g.pending_comp_index_update = true;
+            g.comp_index.set(idx);
+            g.pending_comp_index_update.set(true);
         }
 
-        grid.comp_row = row;
-        grid.comp_col = col;
-        grid.comp_index = insert_at;
-        grid.pending_comp_index_update = true;
+        grid.comp_row.set(row);
+        grid.comp_col.set(col);
+        grid.comp_index.set(insert_at);
+        grid.pending_comp_index_update.set(true);
     }
 
-    grid.comp_height = height;
-    grid.comp_width = width;
+    grid.comp_height.set(height);
+    grid.comp_width.set(width);
     if moved && valid && ui_comp_should_draw() {
         compose_area(
-            grid.comp_row as Integer,
-            (grid.comp_row + grid.rows) as Integer,
-            grid.comp_col as Integer,
-            (grid.comp_col + grid.cols) as Integer,
+            grid.comp_row.get() as Integer,
+            (grid.comp_row.get() + grid.rows.get()) as Integer,
+            grid.comp_col.get() as Integer,
+            (grid.comp_col.get() + grid.cols.get()) as Integer,
         );
     }
     moved
@@ -277,17 +277,17 @@ pub fn ui_comp_put_grid(
 
 pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
-    if grid.comp_index == 0 {
+    if grid.comp_index.get() == 0 {
         return;
     }
 
     with_comp(|c| {
-        if c.curgrid.get() == grid.target_kind {
+        if c.curgrid.get() == grid.target_kind.get() {
             c.curgrid.set(GridTarget::Default);
         }
     });
 
-    let removed_idx = grid.comp_index;
+    let removed_idx = grid.comp_index.get();
     let len = with_comp(|c| {
         let mut layers = c.layers.borrow_mut();
         layers.remove(removed_idx);
@@ -295,23 +295,23 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     });
     for idx in removed_idx..len {
         let g = layer_mut(idx);
-        g.comp_index = idx;
-        g.pending_comp_index_update = true;
+        g.comp_index.set(idx);
+        g.pending_comp_index_update.set(true);
     }
-    grid.comp_index = 0;
-    grid.pending_comp_index_update = true;
+    grid.comp_index.set(0);
+    grid.pending_comp_index_update.set(true);
 
     ui_comp_compose_grid(grid);
 }
 
 pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
-    if with_comp(|c| c.curgrid_mut().handle == handle) {
+    if with_comp(|c| c.curgrid_mut().handle.get() == handle) {
         return true;
     }
     for idx in 0..layers_len() {
         let g = layer_mut(idx);
-        if g.handle == handle {
-            with_comp(|c| c.curgrid.set(g.target_kind));
+        if g.handle.get() == handle {
+            with_comp(|c| c.curgrid.set(g.target_kind.get()));
             return true;
         }
     }
@@ -319,23 +319,25 @@ pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
 }
 
 pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
-    let old_index = grid.comp_index;
+    let old_index = grid.comp_index.get();
     for i in old_index..new_index {
         let next = layer_mut(i + 1);
-        with_comp(|c| c.layers.borrow_mut()[i] = next.target_kind);
-        next.comp_index = i;
-        next.pending_comp_index_update = true;
+        with_comp(|c| c.layers.borrow_mut()[i] = next.target_kind.get());
+        next.comp_index.set(i);
+        next.pending_comp_index_update.set(true);
     }
-    with_comp(|c| c.layers.borrow_mut()[new_index] = grid.target_kind);
-    grid.comp_index = new_index;
-    grid.pending_comp_index_update = true;
+    with_comp(|c| c.layers.borrow_mut()[new_index] = grid.target_kind.get());
+    grid.comp_index.set(new_index);
+    grid.pending_comp_index_update.set(true);
     for idx in old_index..new_index {
         let grid2 = layer_mut(idx);
-        let startcol = grid.comp_col.max(grid2.comp_col);
-        let endcol = (grid.comp_col + grid.cols).min(grid2.comp_col + grid2.cols);
+        let startcol = grid.comp_col.get().max(grid2.comp_col.get());
+        let endcol =
+            (grid.comp_col.get() + grid.cols.get()).min(grid2.comp_col.get() + grid2.cols.get());
         compose_area(
-            grid.comp_row.max(grid2.comp_row) as Integer,
-            (grid.comp_row + grid.rows).min(grid2.comp_row + grid2.rows) as Integer,
+            grid.comp_row.get().max(grid2.comp_row.get()) as Integer,
+            (grid.comp_row.get() + grid.rows.get()).min(grid2.comp_row.get() + grid2.rows.get())
+                as Integer,
             startcol as Integer,
             endcol as Integer,
         );
@@ -347,20 +349,21 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
         return;
     }
     let curgrid = with_comp(UiCompositorState::curgrid_mut);
-    let cursor_row = curgrid.comp_row + (r as i32);
-    let cursor_col = curgrid.comp_col + (c as i32);
+    let cursor_row = curgrid.comp_row.get() + (r as i32);
+    let cursor_col = curgrid.comp_col.get() + (c as i32);
 
     if with_comp(|c| c.curgrid.get() != GridTarget::Default) {
         let mut new_index = layers_len() - 1;
-        while new_index > 1 && layer_mut(new_index).zindex > curgrid.zindex {
+        while new_index > 1 && layer_mut(new_index).zindex.get() > curgrid.zindex.get() {
             new_index -= 1;
         }
-        if curgrid.comp_index < new_index {
+        if curgrid.comp_index.get() < new_index {
             ui_comp_raise_grid(curgrid, new_index);
         }
     }
 
-    if cursor_col >= g_st().default_grid.cols || cursor_row >= g_st().default_grid.rows {
+    if cursor_col >= g_st().default_grid.cols.get() || cursor_row >= g_st().default_grid.rows.get()
+    {
         return;
     }
     ui_composed_call_grid_cursor_goto(1, cursor_row as Integer, cursor_col as Integer);
@@ -369,11 +372,11 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
 pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid> {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
-        if g.mouse_enabled
-            && row >= g.comp_row
-            && row < g.comp_row + g.rows
-            && col >= g.comp_col
-            && col < g.comp_col + g.cols
+        if g.mouse_enabled.get()
+            && row >= g.comp_row.get()
+            && row < g.comp_row.get() + g.rows.get()
+            && col >= g.comp_col.get()
+            && col < g.comp_col.get() + g.cols.get()
         {
             return Some(g);
         }
@@ -381,11 +384,11 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid
     if ui_has(K_UIMULTIGRID) {
         for wp in for_all_windows_mut() {
             let grid = &mut wp.w_grid_alloc;
-            if grid.mouse_enabled
+            if grid.mouse_enabled.get()
                 && row >= wp.w_winrow.get()
-                && row < wp.w_winrow.get() + grid.rows
+                && row < wp.w_winrow.get() + grid.rows.get()
                 && col >= wp.w_wincol.get()
-                && col < wp.w_wincol.get() + grid.cols
+                && col < wp.w_wincol.get() + grid.cols.get()
             {
                 return Some(grid);
             }
@@ -398,10 +401,10 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid
 pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
-        if row >= g.comp_row
-            && row < g.comp_row + g.rows
-            && col >= g.comp_col
-            && col < g.comp_col + g.cols
+        if row >= g.comp_row.get()
+            && row < g.comp_row.get() + g.rows.get()
+            && col >= g.comp_col.get()
+            && col < g.comp_col.get() + g.cols.get()
         {
             return g;
         }
@@ -409,10 +412,10 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid 
 
     for wp in for_all_windows_mut() {
         let grid = &mut wp.w_grid_alloc;
-        if row >= grid.comp_row
-            && row < grid.comp_row + grid.rows
-            && col >= grid.comp_col
-            && col < grid.comp_col + grid.cols
+        if row >= grid.comp_row.get()
+            && row < grid.comp_row.get() + grid.rows.get()
+            && col >= grid.comp_col.get()
+            && col < grid.comp_col.get() + grid.cols.get()
             && !wp.w_config.hide
         {
             return grid;
@@ -429,7 +432,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         startcol -= 1;
         skipstart = 1;
     }
-    if endcol < (g_st().default_grid.cols as Integer) && (flags & K_LINE_FLAG_INVALID) != 0 {
+    if endcol < (g_st().default_grid.cols.get() as Integer) && (flags & K_LINE_FLAG_INVALID) != 0 {
         endcol += 1;
         skipend = 1;
     }
@@ -458,26 +461,26 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
             let mut until: i32 = 0;
             for idx in 0..c.layers.borrow().len() {
                 let g = layer_mut(idx);
-                let grid_width = g.cols.min(g.comp_width);
-                let grid_height = g.rows.min(g.comp_height);
-                if (g.comp_row as Integer) > row
-                    || row >= (g.comp_row + grid_height) as Integer
-                    || g.comp_disabled
+                let grid_width = g.cols.get().min(g.comp_width.get());
+                let grid_height = g.rows.get().min(g.comp_height.get());
+                if (g.comp_row.get() as Integer) > row
+                    || row >= (g.comp_row.get() + grid_height) as Integer
+                    || g.comp_disabled.get()
                 {
                     continue;
                 }
-                if g.comp_col <= col && col < g.comp_col + grid_width {
+                if g.comp_col.get() <= col && col < g.comp_col.get() + grid_width {
                     grid = Some(g);
-                    until = g.comp_col + grid_width;
-                } else if g.comp_col > col {
-                    until = until.min(g.comp_col);
+                    until = g.comp_col.get() + grid_width;
+                } else if g.comp_col.get() > col {
+                    until = until.min(g.comp_col.get());
                 }
             }
             until = until.min(endcol as i32);
 
             debug_assert!(grid.is_some());
             debug_assert!(until > col);
-            debug_assert!(until <= g_st().default_grid.cols);
+            debug_assert!(until <= g_st().default_grid.cols.get());
             let n = (until - col) as usize;
 
             if row == (msg_sep_row as Integer)
@@ -492,12 +495,12 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 }
             } else {
                 let g = grid.unwrap();
-                let off =
-                    g.line_offset[(row as i32 - g.comp_row) as usize] + (col - g.comp_col) as usize;
+                let off = g.line_offset[(row as i32 - g.comp_row.get()) as usize]
+                    + (col - g.comp_col.get()) as usize;
                 let dst_idx = (col - startcol as i32) as usize;
                 lbuf[dst_idx..dst_idx + n].copy_from_slice(&g.chars[off..off + n]);
                 abuf[dst_idx..dst_idx + n].copy_from_slice(&g.attrs[off..off + n]);
-                if g.comp_col + g.cols > until && g.chars[off + n] == 0 {
+                if g.comp_col.get() + g.cols.get() > until && g.chars[off + n] == 0 {
                     lbuf[(until - 1 - startcol as i32) as usize] = schar_from_ascii(b' ');
                     if (col as Integer) == startcol && n == 1 {
                         skipstart = 0;
@@ -505,7 +508,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 }
             }
 
-            if grid.unwrap().blending {
+            if grid.unwrap().blending.get() {
                 let mut i = col - (startcol as i32);
                 let limit = until - (startcol as i32);
                 let end_rel = (endcol - startcol) as i32;
@@ -551,7 +554,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
 
         if !grid.is_some_and(|g| {
             ptr::eq(g, &raw const g_st().default_grid)
-                || (g.comp_col == 0 && g.cols == g_st().columns_global.get())
+                || (g.comp_col.get() == 0 && g.cols.get() == g_st().columns_global.get())
         }) {
             flags &= !K_LINE_FLAG_WRAP;
         }
@@ -593,8 +596,8 @@ fn compose_debug(
         return;
     }
 
-    endrow = endrow.min(g_st().default_grid.rows as Integer);
-    endcol = endcol.min(g_st().default_grid.cols as Integer);
+    endrow = endrow.min(g_st().default_grid.rows.get() as Integer);
+    endcol = endcol.min(g_st().default_grid.cols.get() as Integer);
     let attr = syn_id2attr(syn_id);
 
     if delay {
@@ -642,8 +645,8 @@ fn compose_area(startrow: Integer, mut endrow: Integer, startcol: Integer, mut e
         with_comp(|c| c.dbghl_recompose.get()),
         true,
     );
-    endrow = endrow.min(g_st().default_grid.rows as Integer);
-    endcol = endcol.min(g_st().default_grid.cols as Integer);
+    endrow = endrow.min(g_st().default_grid.rows.get() as Integer);
+    endcol = endcol.min(g_st().default_grid.cols.get() as Integer);
     if endcol <= startcol {
         return;
     }
@@ -656,10 +659,10 @@ fn compose_area(startrow: Integer, mut endrow: Integer, startcol: Integer, mut e
 pub fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
     if ui_comp_should_draw() {
         compose_area(
-            grid.comp_row as Integer,
-            (grid.comp_row + grid.rows) as Integer,
-            grid.comp_col as Integer,
-            (grid.comp_col + grid.cols) as Integer,
+            grid.comp_row.get() as Integer,
+            (grid.comp_row.get() + grid.rows.get()) as Integer,
+            grid.comp_col.get() as Integer,
+            (grid.comp_col.get() + grid.cols.get()) as Integer,
         );
     }
 }
@@ -680,29 +683,29 @@ pub fn ui_comp_raw_line(
     }
 
     let curgrid = with_comp(UiCompositorState::curgrid_mut);
-    row += curgrid.comp_row as Integer;
-    startcol += curgrid.comp_col as Integer;
-    endcol += curgrid.comp_col as Integer;
-    clearcol += curgrid.comp_col as Integer;
+    row += curgrid.comp_row.get() as Integer;
+    startcol += curgrid.comp_col.get() as Integer;
+    endcol += curgrid.comp_col.get() as Integer;
+    clearcol += curgrid.comp_col.get() as Integer;
     if with_comp(|c| c.curgrid.get() != GridTarget::Default) {
         flags &= !K_LINE_FLAG_WRAP;
     }
 
     debug_assert!(endcol <= clearcol);
 
-    if row >= g_st().default_grid.rows as Integer {
+    if row >= g_st().default_grid.rows.get() as Integer {
         return;
     }
-    if clearcol > g_st().default_grid.cols as Integer {
-        if startcol >= g_st().default_grid.cols as Integer {
+    if clearcol > g_st().default_grid.cols.get() as Integer {
+        if startcol >= g_st().default_grid.cols.get() as Integer {
             return;
         }
-        clearcol = g_st().default_grid.cols as Integer;
+        clearcol = g_st().default_grid.cols.get() as Integer;
         endcol = endcol.min(clearcol);
     }
 
     let covered = curgrid_covered_above(row as i32, row as i32, startcol as i32, clearcol as i32);
-    if (flags & K_LINE_FLAG_INVALID) != 0 || covered || curgrid.blending {
+    if (flags & K_LINE_FLAG_INVALID) != 0 || covered || curgrid.blending.get() {
         compose_debug(
             row,
             row + 1,
@@ -757,8 +760,8 @@ pub fn ui_comp_msg_set_pos(
     _zindex: Integer,
     _compindex: Integer,
 ) {
-    g_st().msg_grid.pending_comp_index_update = true;
-    g_st().msg_grid.comp_row = row as i32;
+    g_st().msg_grid.pending_comp_index_update.set(true);
+    g_st().msg_grid.comp_row.set(row as i32);
     if scrolled && row > 0 {
         with_comp(|c| {
             c.msg_sep_row.set((row as i32) - 1);
@@ -778,14 +781,14 @@ pub fn ui_comp_msg_set_pos(
             (msg_current_row - 1).max(0) as Integer,
             row,
             0,
-            g_st().default_grid.cols as Integer,
+            g_st().default_grid.cols.get() as Integer,
         );
     } else if row < (msg_current_row as Integer)
         && ui_comp_should_draw()
         && (msg_current_row < g_st().rows_global.get() || (scrolled && !msg_was_scrolled))
     {
         let delta = msg_current_row - (row as i32);
-        if g_st().msg_grid.blending {
+        if g_st().msg_grid.blending.get() {
             let first_row = ((row as i32) - if scrolled { 1 } else { 0 }).max(0);
             compose_area(
                 first_row as Integer,
@@ -818,19 +821,23 @@ pub fn ui_comp_msg_set_pos(
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
 fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
-    let (start_idx, msg_was_scrolled) =
-        with_comp(|c| (c.curgrid_mut().comp_index + 1, c.msg_was_scrolled.get()));
+    let (start_idx, msg_was_scrolled) = with_comp(|c| {
+        (
+            c.curgrid_mut().comp_index.get() + 1,
+            c.msg_was_scrolled.get(),
+        )
+    });
     for idx in start_idx..layers_len() {
         let g = layer_mut(idx);
-        let grid_top = g.comp_row
+        let grid_top = g.comp_row.get()
             - if ptr::eq(g, &raw const g_st().msg_grid) && msg_was_scrolled {
                 1
             } else {
                 0
             };
-        let grid_bot = g.comp_row + g.comp_height - 1;
-        let grid_left = g.comp_col;
-        let grid_right = g.comp_col + g.comp_width - 1;
+        let grid_bot = g.comp_row.get() + g.comp_height.get() - 1;
+        let grid_left = g.comp_col.get();
+        let grid_right = g.comp_col.get() + g.comp_width.get() - 1;
 
         if right >= grid_left && left <= grid_right && bot >= grid_top && top <= grid_bot {
             return true;
@@ -852,13 +859,13 @@ pub fn ui_comp_grid_scroll(
         return;
     }
     let curgrid = with_comp(UiCompositorState::curgrid_mut);
-    top += curgrid.comp_row as Integer;
-    bot += curgrid.comp_row as Integer;
-    left += curgrid.comp_col as Integer;
-    right += curgrid.comp_col as Integer;
+    top += curgrid.comp_row.get() as Integer;
+    bot += curgrid.comp_row.get() as Integer;
+    left += curgrid.comp_col.get() as Integer;
+    right += curgrid.comp_col.get() as Integer;
     let covered = curgrid_covered_above(top as i32, bot as i32, left as i32, right as i32);
 
-    if covered || curgrid.blending {
+    if covered || curgrid.blending.get() {
         compose_debug(
             top,
             bot,
@@ -871,8 +878,8 @@ pub fn ui_comp_grid_scroll(
         let end_r = (bot - rows.max(0)) as i32;
         for r in start_r..end_r {
             let cg = with_comp(UiCompositorState::curgrid_mut);
-            let off = cg.line_offset[(r - cg.comp_row) as usize] + (left as usize)
-                - (cg.comp_col as usize);
+            let off = cg.line_offset[(r - cg.comp_row.get()) as usize] + (left as usize)
+                - (cg.comp_col.get() as usize);
             if cg.attrs[off] >= 0 {
                 compose_line(r as Integer, left, right, 0);
             }

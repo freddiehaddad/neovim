@@ -2475,7 +2475,7 @@ pub fn nvim_inspect_cell(
     err: &mut Error,
 ) -> Array {
     let mut ret = Array::new();
-    let g: &ScreenGrid = if grid == Integer::from(g_st().pum_grid.handle) {
+    let g: &ScreenGrid = if grid == Integer::from(g_st().pum_grid.handle.get()) {
         &g_st().pum_grid
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
@@ -2494,7 +2494,11 @@ pub fn nvim_inspect_cell(
         &g_st().default_grid
     };
 
-    if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
+    if row < 0
+        || row >= Integer::from(g.rows.get())
+        || col < 0
+        || col >= Integer::from(g.cols.get())
+    {
         return ret;
     }
     ret = arena_array(arena, 3);
@@ -3127,7 +3131,14 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     let cwin = if !win.is_null() { win } else { curwin_ptr() };
-    if opts.cursor && cwin.w_grid.target.get().opt().is_none_or(|g| !g.valid) {
+    if opts.cursor
+        && cwin
+            .w_grid
+            .target
+            .get()
+            .opt()
+            .is_none_or(|g| !g.valid.get())
+    {
         opts.flush = true;
     }
 

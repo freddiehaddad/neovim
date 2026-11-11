@@ -553,7 +553,7 @@ pub fn pum_display(
         if let Some(target_win) = target_win.opt() {
             PUM.with(|s| {
                 s.anchor_grid
-                    .set(target_win.w_grid.target.get().borrow().handle)
+                    .set(target_win.w_grid.target.get().borrow().handle.get())
             });
 
             pum_win_row += target_win.w_grid.row_offset.get();
@@ -661,11 +661,14 @@ pub fn pum_display(
         }
     }
 
-    g_st().pum_grid.zindex = if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-        K_ZINDEX_CMDLINE_POPUP_MENU
-    } else {
-        K_ZINDEX_POPUP_MENU
-    };
+    g_st()
+        .pum_grid
+        .zindex
+        .set(if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+            K_ZINDEX_CMDLINE_POPUP_MENU
+        } else {
+            K_ZINDEX_POPUP_MENU
+        });
     pum_redraw();
 }
 
@@ -919,7 +922,10 @@ pub fn pum_redraw() {
             col_off += 1;
         }
     }
-    g_st().pum_grid.blending = opt_vars().p_pb.get() > 0 || fconfig.shadow;
+    g_st()
+        .pum_grid
+        .blending
+        .set(opt_vars().p_pb.get() > 0 || fconfig.shadow);
     grid_assign_handle(&mut g_st().pum_grid);
 
     PUM.with(|s| s.left_col.set(PUM.with(|s| s.col.get()) - col_off));
@@ -938,8 +944,8 @@ pub fn pum_redraw() {
     g_st().must_redraw_pum.set(false);
 
     if !crate::grid::grid_allocated(&g_st().pum_grid)
-        || g_st().pum_grid.rows != PUM.with(|s| s.height.get()) + border_width
-        || g_st().pum_grid.cols != grid_width + border_width
+        || g_st().pum_grid.rows.get() != PUM.with(|s| s.height.get()) + border_width
+        || g_st().pum_grid.cols.get() != grid_width + border_width
     {
         grid_alloc(
             &mut g_st().pum_grid,
@@ -949,9 +955,9 @@ pub fn pum_redraw() {
             false,
         );
         ui_call_grid_resize(
-            i64::from(g_st().pum_grid.handle),
-            i64::from(g_st().pum_grid.cols),
-            i64::from(g_st().pum_grid.rows),
+            i64::from(g_st().pum_grid.handle.get()),
+            i64::from(g_st().pum_grid.cols.get()),
+            i64::from(g_st().pum_grid.rows.get()),
         );
     } else if invalid_grid {
         grid_invalidate(&mut g_st().pum_grid);
@@ -1639,8 +1645,8 @@ pub fn pum_check_clear() {
         } else {
             ui_comp_remove_grid(&mut g_st().pum_grid);
             if ui_has(K_UIMULTIGRID) {
-                ui_call_win_close(i64::from(g_st().pum_grid.handle));
-                ui_call_grid_destroy(i64::from(g_st().pum_grid.handle));
+                ui_call_win_close(i64::from(g_st().pum_grid.handle.get()));
+                ui_call_grid_destroy(i64::from(g_st().pum_grid.handle.get()));
             }
             grid_free(&mut g_st().pum_grid);
         }
@@ -1751,7 +1757,7 @@ fn pum_position_at_mouse(min_width: i32) {
                 .max(wp.w_wincol.get() + wp.w_view_width.get());
         }
     }
-    if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {
+    if g_st().pum_grid.handle.get() != 0 && grid == g_st().pum_grid.handle.get() {
         row += PUM.with(|s| s.row.get());
         col += PUM.with(|s| s.left_col.get());
     } else {
@@ -1838,7 +1844,7 @@ fn pum_select_mouse_pos() {
         mouse_find_win_outer(&mut grid, &mut row, &mut col);
     }
 
-    if grid == g_st().pum_grid.handle {
+    if grid == g_st().pum_grid.handle.get() {
         let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
         let item = row - border_offset;
         PUM.with(|s| {
@@ -1939,7 +1945,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     loop {
         PUM.with(|s| s.is_visible.set(true));
         PUM.with(|s| s.is_drawn.set(true));
-        g_st().pum_grid.zindex = K_ZINDEX_CMDLINE_POPUP_MENU;
+        g_st().pum_grid.zindex.set(K_ZINDEX_CMDLINE_POPUP_MENU);
         pum_redraw();
         setcursor_mayforce(curwin_mut(), true);
 
@@ -2011,7 +2017,7 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
         if ui_has(K_UIMULTIGRID) {
             g_st()
                 .mouse_grid
-                .set(curwin_mut().w_grid.target.get().borrow().handle);
+                .set(curwin_mut().w_grid.target.get().borrow().handle.get());
         } else if curwin_mut().w_grid.target.get() != crate::grid::GridTarget::Default {
             g_st().mouse_grid.set(0);
             g_st()
@@ -2033,8 +2039,8 @@ pub fn pum_pos_ui_flush(force: bool) {
         || (ui_has(K_UIMULTIGRID)
             && PUM.with(|s| s.is_drawn.get())
             && !PUM.with(|s| s.external.get())
-            && g_st().pum_grid.handle != 0
-            && g_st().pum_grid.pending_comp_index_update)
+            && g_st().pum_grid.handle.get() != 0
+            && g_st().pum_grid.pending_comp_index_update.get())
     {
         let anchor = if PUM.with(|s| s.above.get()) {
             c"SW"
@@ -2047,18 +2053,18 @@ pub fn pum_pos_ui_flush(force: bool) {
             0
         };
         ui_call_win_float_pos(
-            i64::from(g_st().pum_grid.handle),
+            i64::from(g_st().pum_grid.handle.get()),
             -1,
             cstr_as_string(Some(anchor)),
             i64::from(PUM.with(|s| s.anchor_grid.get())),
             f64::from(PUM.with(|s| s.row.get()) - row_off - PUM.with(|s| s.win_row_offset.get())),
             f64::from(PUM.with(|s| s.left_col.get()) - PUM.with(|s| s.win_col_offset.get())),
             false,
-            i64::from(g_st().pum_grid.zindex),
-            g_st().pum_grid.comp_index as i64,
-            i64::from(g_st().pum_grid.comp_row),
-            i64::from(g_st().pum_grid.comp_col),
+            i64::from(g_st().pum_grid.zindex.get()),
+            g_st().pum_grid.comp_index.get() as i64,
+            i64::from(g_st().pum_grid.comp_row.get()),
+            i64::from(g_st().pum_grid.comp_col.get()),
         );
-        g_st().pum_grid.pending_comp_index_update = false;
+        g_st().pum_grid.pending_comp_index_update.set(false);
     }
 }

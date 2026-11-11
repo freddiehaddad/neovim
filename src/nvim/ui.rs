@@ -172,7 +172,7 @@ fn ui_rcs() -> Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
 }
 
 pub fn ui_init() {
-    g_st().default_grid.handle = 1;
+    g_st().default_grid.handle.set(1);
     g_st()
         .msg_grid_adj
         .target
@@ -539,7 +539,7 @@ pub fn ui_line(
     clearattr: i32,
     wrap: bool,
 ) {
-    debug_assert!(0 <= row && row < grid.rows);
+    debug_assert!(0 <= row && row < grid.rows.get());
     let mut flags = if wrap { K_LINE_FLAG_WRAP } else { 0 };
     if startcol == 0 && invalid_row {
         flags |= K_LINE_FLAG_INVALID;
@@ -549,7 +549,7 @@ pub fn ui_line(
 
     let off = grid.line_offset[row as usize] + startcol as usize;
     ui_call_raw_line(
-        Integer::from(grid.handle),
+        Integer::from(grid.handle.get()),
         Integer::from(row),
         Integer::from(startcol),
         Integer::from(endcol),
@@ -562,9 +562,9 @@ pub fn ui_line(
 
     if opt_vars().p_wd.get() != 0 && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_LINE) != 0 {
         ui_call_grid_cursor_goto(
-            Integer::from(grid.handle),
+            Integer::from(grid.handle.get()),
             Integer::from(row),
-            Integer::from(clearcol.min(grid.cols - 1)),
+            Integer::from(clearcol.min(grid.cols.get() - 1)),
         );
         ui_call_flush();
         os_sleep(opt_vars().p_wd.get().unsigned_abs());
@@ -780,7 +780,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
     !ptr::eq(top_grid, &raw const curwin_mut().w_grid_alloc)
         && !ptr::eq(top_grid, &raw const g_st().default_grid)
-        && top_grid.zindex >= curwin_mut().w_grid_alloc.zindex + 50
+        && top_grid.zindex.get() >= curwin_mut().w_grid_alloc.zindex.get() + 50
 }
 
 pub fn ui_has(ext: UIExtension) -> bool {

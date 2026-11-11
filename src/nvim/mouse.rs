@@ -1629,8 +1629,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
 
         if grid == 0 {
-            row -= curwin_mut().w_grid_alloc.comp_row + curwin_mut().w_grid.row_offset.get();
-            col -= curwin_mut().w_grid_alloc.comp_col + curwin_mut().w_grid.col_offset.get();
+            row -= curwin_mut().w_grid_alloc.comp_row.get() + curwin_mut().w_grid.row_offset.get();
+            col -= curwin_mut().w_grid_alloc.comp_col.get() + curwin_mut().w_grid.col_offset.get();
         } else if grid != DEFAULT_GRID_HANDLE {
             row -= curwin_mut().w_grid.row_offset.get();
             col -= curwin_mut().w_grid.col_offset.get();
@@ -2030,7 +2030,7 @@ fn mouse_find_grid_win(
     rowp: &mut i32,
     colp: &mut i32,
 ) -> Option<&'static mut WinInfoInfo> {
-    if *gridp == g_st().msg_grid.handle {
+    if *gridp == g_st().msg_grid.handle.get() {
         *rowp += g_st().msg_grid_pos.get();
         *gridp = DEFAULT_GRID_HANDLE;
     } else if *gridp > 1 {
@@ -2045,16 +2045,16 @@ fn mouse_find_grid_win(
     } else if *gridp == 0 {
         if let Some(grid) = ui_comp_mouse_focus(*rowp, *colp) {
             if ptr::eq(grid, &raw const g_st().pum_grid) {
-                *gridp = grid.handle;
-                *rowp -= grid.comp_row;
-                *colp -= grid.comp_col;
+                *gridp = grid.handle.get();
+                *rowp -= grid.comp_row.get();
+                *colp -= grid.comp_col.get();
                 return None;
             } else {
                 for wp in for_all_windows_mut() {
                     if !ptr::eq(&raw const wp.w_grid_alloc, grid) {
                         continue;
                     }
-                    *gridp = grid.handle;
+                    *gridp = grid.handle.get();
                     *rowp -= wp.w_winrow.get() + wp.w_grid.row_offset.get();
                     *colp -= wp.w_wincol.get() + wp.w_grid.col_offset.get();
                     return Some(wp);
@@ -2182,12 +2182,12 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     else {
         return;
     };
-    if gp.handle != click_grid || gp.chars.is_empty() {
+    if gp.handle.get() != click_grid || gp.chars.is_empty() {
         return;
     }
     click_row += start_row;
     click_col += start_col;
-    if click_row < 0 || click_row >= gp.rows || click_col < 0 || click_col >= gp.cols {
+    if click_row < 0 || click_row >= gp.rows.get() || click_col < 0 || click_col >= gp.cols.get() {
         return;
     }
 

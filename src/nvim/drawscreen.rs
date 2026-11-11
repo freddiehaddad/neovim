@@ -291,8 +291,8 @@ pub fn default_grid_alloc() -> bool {
     }
 
     if (grid_allocated(&g_st().default_grid)
-        && g_st().rows_global.get() == g_st().default_grid.rows
-        && g_st().columns_global.get() == g_st().default_grid.cols)
+        && g_st().rows_global.get() == g_st().default_grid.rows.get()
+        && g_st().columns_global.get() == g_st().default_grid.cols.get())
         || g_st().rows_global.get() == 0
         || g_st().columns_global.get() == 0
     {
@@ -311,9 +311,15 @@ pub fn default_grid_alloc() -> bool {
     stl_clear_click_defs(&mut g_st().tab_page_click_defs);
     stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().columns_global.get());
 
-    g_st().default_grid.comp_height = g_st().rows_global.get();
-    g_st().default_grid.comp_width = g_st().columns_global.get();
-    g_st().default_grid.handle = DEFAULT_GRID_HANDLE;
+    g_st()
+        .default_grid
+        .comp_height
+        .set(g_st().rows_global.get());
+    g_st()
+        .default_grid
+        .comp_width
+        .set(g_st().columns_global.get());
+    g_st().default_grid.handle.set(DEFAULT_GRID_HANDLE);
 
     ds_st(|st| st.default_grid_resizing.set(false));
     true
@@ -326,11 +332,11 @@ pub fn screenclear() {
         return;
     }
 
-    for i in 0..g_st().default_grid.rows {
+    for i in 0..g_st().default_grid.rows.get() {
         grid_clear_line(
             &mut g_st().default_grid,
             g_st().default_grid.line_offset[i as usize],
-            g_st().default_grid.cols,
+            g_st().default_grid.cols.get(),
             true,
         );
     }
@@ -577,7 +583,7 @@ pub fn update_screen() -> bool {
         g_st().msg_scrolled_at_flush.set(0);
     }
 
-    if type_ >= UPD_CLEAR || !g_st().default_grid.valid {
+    if type_ >= UPD_CLEAR || !g_st().default_grid.valid.get() {
         ui_comp_set_screen_valid(false);
     }
 
@@ -585,17 +591,17 @@ pub fn update_screen() -> bool {
         g_st().clear_cmdline.set(true);
         let valid = (g_st().rows_global.get() - msg_scrollsize()).max(0);
         if grid_allocated(&g_st().msg_grid) {
-            let limit = msg_scrollsize().min(g_st().msg_grid.rows);
+            let limit = msg_scrollsize().min(g_st().msg_grid.rows.get());
             for i in 0..limit {
                 grid_clear_line(
                     &mut g_st().msg_grid,
                     g_st().msg_grid.line_offset[i as usize],
-                    g_st().msg_grid.cols,
+                    g_st().msg_grid.cols.get(),
                     OptInt::from(i) < opt_vars().p_ch.get(),
                 );
             }
         }
-        g_st().msg_grid.throttled = false;
+        g_st().msg_grid.throttled.set(false);
         let mut was_invalidated = false;
 
         if type_ == UPD_NOT_VALID && !ui_has(K_UIMULTIGRID) && g_st().msg_scrolled.get() != 0 {
@@ -657,9 +663,9 @@ pub fn update_screen() -> bool {
         }
         type_ = UPD_NOT_VALID;
         g_st().must_redraw.set(0);
-    } else if !g_st().default_grid.valid {
+    } else if !g_st().default_grid.valid.get() {
         grid_invalidate(&mut g_st().default_grid);
-        g_st().default_grid.valid = true;
+        g_st().default_grid.valid.set(true);
     }
 
     if type_ == UPD_NOT_VALID && g_st().clear_cmdline.get() && !ui_has(K_UIMESSAGES) {
@@ -864,7 +870,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
         }
 
         if let Some(grid) = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut row, &mut col) {
-            ui_grid_cursor_goto(grid.handle, row, col);
+            ui_grid_cursor_goto(grid.handle.get(), row, col);
         }
     }
 }
@@ -2458,7 +2464,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         for n in 0..g_st().win_extmark_arr.len() {
             let item = g_st().win_extmark_arr.as_slice()[n];
             ui_call_win_extmark(
-                Integer::from(wp.w_grid_alloc.handle),
+                Integer::from(wp.w_grid_alloc.handle.get()),
                 wp.handle,
                 Integer::from(item.ns_id),
                 item.mark_id as Integer,
@@ -2512,8 +2518,8 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
     let mut row_off: i32 = 0;
     let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
-    let checked_width = (grid.cols - col).min(wp.w_view_width.get());
-    let checked_height = (grid.rows - row_off).min(wp.w_view_height.get());
+    let checked_width = (grid.cols.get() - col).min(wp.w_view_width.get());
+    let checked_height = (grid.rows.get() - row_off).min(wp.w_view_height.get());
 
     if checked_width <= 0 || row + line_count.abs() >= checked_height {
         return;
@@ -2689,7 +2695,7 @@ pub fn set_must_redraw(type_: i32) {
 pub fn screen_invalidate_highlights() {
     for wp in for_all_windows_ptr() {
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
-        wp.w_grid_alloc.valid = false;
+        wp.w_grid_alloc.valid.set(false);
     }
 }
 
