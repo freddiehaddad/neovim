@@ -42,7 +42,7 @@ use crate::globals::*;
 #[cfg(debug_assertions)]
 use crate::grid::schar_get;
 use crate::grid::{
-    GridView, Schar, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_cells, schar_from_ascii,
+    Schar, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_cells, schar_from_ascii,
     schar_from_char, schar_from_cluster, schar_get_adv, schar_get_ascii, schar_get_first_codepoint,
     schar_invisible, schar_len,
 };
@@ -1452,7 +1452,6 @@ pub fn win_line(
     spv: &mut Spellvars,
     foldinfo: Foldinfo,
 ) -> i32 {
-    let grid = crate::globals::GraphPtr::<GridView>::from_ref(&wp.w_grid);
     let view_width = wp.w_view_width;
     let view_height = wp.w_view_height;
 
@@ -1951,12 +1950,10 @@ pub fn win_line(
             extra_check = true;
         }
         if wp.w_p_lcs_chars.trail != 0 {
+            let ptr_bytes = ptr_cstr!(ptr).to_bytes();
             trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
             while trailcol > 0
-                && ascii_iswhite(
-                    *crate::globals::GraphPtr::of(ptr.wrapping_add((trailcol - 1) as usize))
-                        .borrow(),
-                )
+                && ascii_iswhite(ptr_bytes.get((trailcol - 1) as usize).copied().unwrap_or(0))
             {
                 trailcol -= 1;
             }
@@ -2142,21 +2139,16 @@ pub fn win_line(
                 if virt_rows_todo > 0 {
                     let target_row = total_virt_rows - virt_rows_todo;
                     while (virt_line_index as usize) < virt_lines.len() {
-                        let vl_ptr = &raw const virt_lines[virt_line_index as usize];
-                        let line_rows = decor_virt_line_rows(
-                            &mut *wp,
-                            crate::globals::GraphPtr::of(vl_ptr).borrow(),
-                            0,
-                            None,
-                        );
+                        let vl = &virt_lines[virt_line_index as usize];
+                        let line_rows = decor_virt_line_rows(&mut *wp, vl, 0, None);
                         if target_row < virt_line_start_row + line_rows {
                             has_virt_line = true;
 
-                            virt_line_flags = crate::globals::GraphPtr::of(vl_ptr).borrow().flags;
+                            virt_line_flags = vl.flags;
 
                             decor_virt_line_rows(
                                 &mut *wp,
-                                crate::globals::GraphPtr::of(vl_ptr).borrow(),
+                                vl,
                                 target_row - virt_line_start_row,
                                 Some(&mut virt_line_skip_cells),
                             );
@@ -3791,7 +3783,7 @@ pub fn win_line(
             if wrap {
                 let mut current_row = wlv.row;
                 let mut dummy_col: i32 = 0;
-                let current_grid = grid_adjust(grid.borrow_mut(), &mut current_row, &mut dummy_col);
+                let current_grid = grid_adjust(&mut wp.w_grid, &mut current_row, &mut dummy_col);
 
                 let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                 current_grid.attrs[next_row_off] = -1;
@@ -3858,8 +3850,6 @@ fn wlv_put_linebuf(
     bg_attr: i32,
     mut flags: i32,
 ) {
-    let grid = crate::globals::GraphPtr::<GridView>::from_ref(&wp.w_grid);
-
     let mut startcol: i32 = 0;
     let mut clear_width = if clear_end { wp.w_view_width } else { endcol };
 
@@ -3903,7 +3893,7 @@ fn wlv_put_linebuf(
 
     let mut row = wlv.row;
     let mut coloff: i32 = 0;
-    let g = grid_adjust(grid.borrow_mut(), &mut row, &mut coloff);
+    let g = grid_adjust(&mut wp.w_grid, &mut row, &mut coloff);
     grid_put_linebuf(
         g,
         row,

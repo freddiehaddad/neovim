@@ -27,8 +27,8 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BCO_ENTER, BCO_NOHELP, BLN_LISTED, BLN_NEW, BLN_NOOPT, Bufref, DOBUF_FIRST, DOBUF_GOTO,
-    FileBuf, buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid,
-    do_buffer, read_buffer_into, set_bufref,
+    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid, do_buffer,
+    read_buffer_into, set_bufref,
 };
 use crate::channel::{
     TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
@@ -463,13 +463,16 @@ pub fn nvim_set_hl(
 
     let update =
         (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0 && val.update;
-    let mut base = crate::globals::GraphPtr::<HlAttrs>::NULL;
     let mut base_attrs = HlAttrs::default();
-    if update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs) {
-        base = crate::globals::GraphPtr::<HlAttrs>::of(&mut base_attrs);
-    }
+    let has_base = update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs);
 
-    let attrs = dict2hlattrs(val, true, Some(&mut link_id), base.opt(), err);
+    let attrs = dict2hlattrs(
+        val,
+        true,
+        Some(&mut link_id),
+        has_base.then_some(&base_attrs),
+        err,
+    );
     if !error_set(err) {
         let save_current_sctx = api_set_sctx(channel_id);
         ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
@@ -3023,7 +3026,7 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     let mut win = crate::globals::WinPtr::NULL;
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
         win = find_window_by_handle(opts.win, err);
@@ -3042,7 +3045,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             );
             return;
         }
-        buf = crate::globals::GraphPtr::from(find_buffer_by_handle(opts.buf, err));
+        buf = crate::globals::BufPtr::from(find_buffer_by_handle(opts.buf, err));
         if error_set(err) {
             return;
         }

@@ -102,7 +102,7 @@ impl Drop for UIEventCallback {
 }
 
 struct UiState {
-    uis: std::cell::RefCell<Vec<crate::globals::GraphPtr<RemoteUI>>>,
+    uis: std::cell::RefCell<Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>>>,
     ui_ext: std::cell::Cell<[bool; K_UIEXT_COUNT]>,
     ui_mode_idx: std::cell::Cell<i32>,
     cursor_row: std::cell::Cell<i32>,
@@ -167,9 +167,8 @@ fn ui_state<R>(f: impl FnOnce(&UiState) -> R) -> R {
 }
 
 #[inline]
-fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    let ptrs = ui_state(|st| st.uis.borrow().clone());
-    ptrs.into_iter().map(|p| p.borrow_mut())
+fn ui_rcs() -> Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
+    ui_state(|st| st.uis.borrow().clone())
 }
 
 pub fn ui_init() {
@@ -193,7 +192,8 @@ pub fn ui_rgb_attached() -> bool {
     if opt_vars().p_tgc {
         return true;
     }
-    for ui in ui_iter_mut() {
+    for ui_rc in ui_rcs() {
+        let ui = ui_rc.borrow();
         let is_tui = ui.stdin_tty || ui.stdout_tty;
         if !is_tui && ui.rgb {
             return true;
@@ -203,7 +203,8 @@ pub fn ui_rgb_attached() -> bool {
 }
 
 pub fn ui_gui_attached() -> bool {
-    for ui in ui_iter_mut() {
+    for ui_rc in ui_rcs() {
+        let ui = ui_rc.borrow();
         let is_tui = ui.stdin_tty || ui.stdout_tty;
         if !is_tui {
             return true;
@@ -213,8 +214,8 @@ pub fn ui_gui_attached() -> bool {
 }
 
 pub fn ui_override() -> bool {
-    for ui in ui_iter_mut() {
-        if ui.r#override {
+    for ui_rc in ui_rcs() {
+        if ui_rc.borrow().r#override {
             return true;
         }
     }
@@ -235,7 +236,8 @@ pub fn ui_refresh() {
     let active = ui_active() != 0;
     let mut ext_widgets = [active; K_UIEXT_COUNT];
     let inclusive = ui_override();
-    for ui in ui_iter_mut() {
+    for ui_rc in ui_rcs() {
+        let ui = ui_rc.borrow();
         width = width.min(ui.width);
         height = height.min(ui.height);
         for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
@@ -303,8 +305,8 @@ pub fn ui_refresh() {
 
 pub fn ui_pum_get_height() -> i32 {
     let mut pum_height: i32 = 0;
-    for ui in ui_iter_mut() {
-        let ui_pum_height = ui.pum_nlines;
+    for ui_rc in ui_rcs() {
+        let ui_pum_height = ui_rc.borrow().pum_nlines;
         if ui_pum_height != 0 {
             pum_height = if pum_height != 0 {
                 pum_height.min(ui_pum_height)
@@ -317,7 +319,8 @@ pub fn ui_pum_get_height() -> i32 {
 }
 
 pub fn ui_pum_get_pos(pwidth: &mut f64, pheight: &mut f64, prow: &mut f64, pcol: &mut f64) -> bool {
-    for ui in ui_iter_mut() {
+    for ui_rc in ui_rcs() {
+        let ui = ui_rc.borrow();
         if !ui.pum_pos {
             continue;
         }
@@ -414,8 +417,9 @@ pub fn vim_beep(val: u32) {
 }
 
 pub fn do_autocmd_uienter_all() {
-    for ui in ui_iter_mut() {
-        do_autocmd_uienter(ui.channel_id, true);
+    for ui_rc in ui_rcs() {
+        let chan_id = ui_rc.borrow().channel_id;
+        do_autocmd_uienter(chan_id, true);
     }
 }
 
@@ -423,17 +427,21 @@ pub fn ui_can_attach_more() -> bool {
     ui_state(|st| st.uis.borrow().len()) < MAX_UI_COUNT
 }
 
-pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
+pub fn ui_attach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid: u64) {
     if ui_state(|st| st.uis.borrow().len()) >= MAX_UI_COUNT {
         std::process::abort();
     }
-    if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] && g_st().ui_client_channel_id == 0
     {
-        ui_comp_attach(ui);
+        let mut ui = ui_rc.borrow_mut();
+        if !ui.ui_ext[K_UIMULTIGRID]
+            && !ui.ui_ext[K_UIFLOAT_DEBUG]
+            && g_st().ui_client_channel_id == 0
+        {
+            ui_comp_attach(&mut ui);
+        }
     }
 
-    let ui_ptr = crate::globals::GraphPtr::from(&mut *ui);
-    ui_state(|st| st.uis.borrow_mut().push(ui_ptr));
+    ui_state(|st| st.uis.borrow_mut().push(std::rc::Rc::clone(ui_rc)));
     ui_refresh_options();
     resettitle();
 
@@ -442,29 +450,35 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
         ui_call_chdir(NvimString::from_bytes(cwd_bytes));
     }
 
-    for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
-        ui_set_ext_option(ui, i as UIExtension, ui.ui_ext[i]);
+    let ui_ext = ui_rc.borrow().ui_ext;
+    for (i, &ext_val) in ui_ext
+        .iter()
+        .enumerate()
+        .take(K_UIEXT_COUNT)
+        .skip(K_UIGLOBAL_COUNT)
+    {
+        ui_set_ext_option(ui_rc, i as UIExtension, ext_val);
     }
 
     let mut sent = false;
-    if ui.ui_ext[K_UIHL_STATE] {
+    if ui_ext[K_UIHL_STATE] {
         sent = highlight_use_hlstate();
     }
     if !sent {
-        ui_send_all_hls(ui);
+        ui_send_all_hls(&mut ui_rc.borrow_mut());
     }
     ui_refresh();
 
     do_autocmd_uienter(chanid, true);
 }
 
-pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
+pub fn ui_detach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid: u64) {
     let is_empty = ui_state(|st| {
         let mut uis = st.uis.borrow_mut();
         if uis.len() > MAX_UI_COUNT {
             std::process::abort();
         }
-        let Some(shift_index) = uis.iter().position(|&u| u == ui) else {
+        let Some(shift_index) = uis.iter().position(|u| std::rc::Rc::ptr_eq(u, ui_rc)) else {
             std::process::abort();
         };
         uis.remove(shift_index);
@@ -475,14 +489,21 @@ pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
         ui_schedule_refresh();
     }
 
-    if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] {
-        ui_comp_detach(ui);
+    {
+        let mut ui = ui_rc.borrow_mut();
+        if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] {
+            ui_comp_detach(&mut ui);
+        }
     }
 
     do_autocmd_uienter(chanid, false);
 }
 
-pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
+pub fn ui_set_ext_option(
+    ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>,
+    ext: UIExtension,
+    active: bool,
+) {
     let idx = ext as usize;
     if idx < K_UIGLOBAL_COUNT {
         ui_refresh();
@@ -490,7 +511,11 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
     }
     let name = UI_EXT_NAMES[idx];
     if name.to_bytes().first() != Some(&b'_') || active {
-        remote_ui_option_set(ui, cstr_as_string(Some(name)), boolean_obj(active));
+        remote_ui_option_set(
+            &mut ui_rc.borrow_mut(),
+            cstr_as_string(Some(name)),
+            boolean_obj(active),
+        );
     }
     if idx == K_UITERM_COLORS {
         ui_default_colors_set();
@@ -757,7 +782,8 @@ pub fn ui_has(ext: UIExtension) -> bool {
 pub fn ui_array(arena: &mut Arena) -> Array {
     let mut all_uis = arena_array(arena, ui_state(|st| st.uis.borrow().len()));
 
-    for ui in ui_iter_mut() {
+    for ui_rc in ui_rcs() {
+        let ui = ui_rc.borrow();
         let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
         let mut put_info = |k: &std::ffi::CStr, v: Object| {
             *info.next_slot_mut() = KeyValuePair {
@@ -907,8 +933,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     ctx_free(&mut ctx);
 
     if !handled {
-        for ui in ui_iter_mut() {
-            remote_ui_event(ui, name, args);
+        for ui_rc in ui_rcs() {
+            remote_ui_event(&mut ui_rc.borrow_mut(), name, args);
         }
     }
 }
@@ -1035,7 +1061,8 @@ const fn tab_obj(t: ObjHandle) -> Object {
 macro_rules! ui_call_loop {
     ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {{
         let mut any_call = false;
-        for $ui in ui_iter_mut() {
+        for ui_rc in ui_rcs() {
+            let $ui = &mut *ui_rc.borrow_mut();
             if $cond {
                 $call;
                 any_call = true;

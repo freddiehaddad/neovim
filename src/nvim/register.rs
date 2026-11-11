@@ -1575,7 +1575,6 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         let Some(spec_vec) = spec else {
             return;
         };
-        insert_string.data = crate::globals::GraphPtr::new(spec_vec.as_ptr().cast_mut());
         insert_string_owned = Some(spec_vec);
     }
 
@@ -1585,12 +1584,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         return;
     }
 
-    if !insert_string.data.is_null() {
-        insert_string.size = insert_string.cstr_bytes().len();
+    if let Some(ref mut spec_buf) = insert_string_owned {
+        let spec_len = crate::memory::bytes_until_nul(spec_buf).len();
         y_type = MotionType::MtCharWise;
         if regname == i32::from(b'=') {
-            let spec_len = insert_string.size;
-            let spec_buf = insert_string_owned.as_mut().unwrap();
             let mut start = 0usize;
             loop {
                 if let Some(rel_nl) = spec_buf[start..spec_len].iter().position(|&b| b == b'\n') {
@@ -1616,7 +1613,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
             }
             y_size = expr_y_array.len();
             y_array = &expr_y_array;
+            insert_string = NvimString::from_bytes_len(spec_buf, spec_len);
         } else {
+            insert_string = NvimString::from_bytes_len(spec_buf, spec_len);
             y_size = 1;
             y_array = std::slice::from_ref(&insert_string);
         }
