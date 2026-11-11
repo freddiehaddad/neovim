@@ -279,64 +279,6 @@ unsafe extern "C" {
     pub fn pthread_exit(retval: *mut c_void) -> !;
 }
 
-#[repr(C)]
-pub struct OptKeySet {
-    pub is_set_: u64,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct KeySetLink {
-    pub str: Option<&'static std::ffi::CStr>,
-    pub ptr_off: usize,
-    pub key_type: i32,
-    pub opt_index: i32,
-    pub is_hlgroup: bool,
-}
-
-impl KeySetLink {
-    #[inline]
-    pub fn mark_set<T>(&self, retval: &mut T) {
-        if self.opt_index >= 0 {
-            let ks = std::ptr::from_mut(retval).cast::<OptKeySet>();
-            unsafe {
-                (*ks).is_set_ |= 1u64 << (self.opt_index as u32);
-            }
-        }
-    }
-
-    #[inline]
-    pub fn is_field_set<T>(&self, value: &T) -> bool {
-        if self.opt_index >= 0 {
-            let ks = std::ptr::from_ref(value).cast::<OptKeySet>();
-            unsafe { ((*ks).is_set_ & (1u64 << (self.opt_index as u32))) != 0 }
-        } else {
-            true
-        }
-    }
-
-    #[inline]
-    pub fn field_mut<'a, T, F>(&self, retval: &'a mut T) -> &'a mut F {
-        unsafe {
-            &mut *std::ptr::from_mut(retval)
-                .cast::<u8>()
-                .wrapping_add(self.ptr_off)
-                .cast::<F>()
-        }
-    }
-
-    #[inline]
-    pub fn field_copy<T, F: Clone>(&self, value: &T) -> F {
-        unsafe {
-            (*std::ptr::from_ref(value)
-                .cast::<u8>()
-                .wrapping_add(self.ptr_off)
-                .cast::<F>())
-            .clone()
-        }
-    }
-}
-
 #[inline]
 pub fn lua_push_bytes(lstate: *mut lua_State, bytes: &[u8]) {
     unsafe {

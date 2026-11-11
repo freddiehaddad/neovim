@@ -838,9 +838,9 @@ pub fn additional_data_take(ad: &mut AdditionalDataBuilder) -> Option<Additional
 }
 
 /// Unpack a msgpack map into a `KeySet` struct (`unpack_keydict`).
-pub fn unpack_keydict<T>(
+pub fn unpack_keydict<T: crate::api::private::validate::KeyDict>(
     retval: &mut T,
-    hashy: FieldHashfn,
+    hashy: FieldHashfn<T>,
     ad: &mut AdditionalDataBuilder,
     buf: &mut &[u8],
     error: &mut Option<std::ffi::CString>,
@@ -903,11 +903,11 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            *field.field_mut::<T, Boolean>(retval) = (cur_byte & 0x01) != 0;
+            *field.field_mut::<Boolean>(retval) = (cur_byte & 0x01) != 0;
 
             *buf = &buf[1..];
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            if !unpack_integer(buf, field.field_mut::<T, Integer>(retval)) {
+            if !unpack_integer(buf, field.field_mut::<Integer>(retval)) {
                 *error = alloc_key_error(key, b" key value which is not an integer");
                 return false;
             }
@@ -918,14 +918,14 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            *field.field_mut::<T, NvimString>(retval) = val;
+            *field.field_mut::<NvimString>(retval) = val;
         } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
             let len = unpack_array(buf);
             if len < 0 {
                 *error = alloc_key_error(key, b" key with non-array value");
                 return false;
             }
-            let a = field.field_mut::<T, StringArray>(retval);
+            let a = field.field_mut::<StringArray>(retval);
             a.reserve(len as usize);
             for _ in 0..(len as usize) {
                 let item = unpack_string(buf);

@@ -52,7 +52,8 @@ pub struct NluaRefState {
     pub ref_count: i32,
 }
 
-pub type FieldHashfn = Option<fn(key: &[u8]) -> Option<&'static KeySetLink>>;
+pub use crate::api::private::validate::{KeyDict, KeyField, KeySetLink};
+pub type FieldHashfn<T> = Option<fn(key: &[u8]) -> Option<&'static KeySetLink<T>>>;
 
 #[derive(Clone, Copy)]
 struct LuaTableProps {
@@ -1603,10 +1604,10 @@ pub fn nlua_init_types(lstate: *mut lua_State) {
 }
 
 /// Lua-specific variant of `api_dict_to_keydict` (`nlua_pop_keydict`).
-pub fn nlua_pop_keydict<T>(
+pub fn nlua_pop_keydict<T: KeyDict>(
     lstate: *mut lua_State,
     retval: &mut T,
-    hashy: FieldHashfn,
+    hashy: FieldHashfn<T>,
     err_opt: &mut Option<&'static std::ffi::CStr>,
     arena: &mut Arena,
     err: &mut Error,
@@ -1614,10 +1615,10 @@ pub fn nlua_pop_keydict<T>(
     nlua_pop_keydict_opt(lstate, retval, hashy, err_opt, Some(arena), err);
 }
 
-pub fn nlua_pop_keydict_opt<T>(
+pub fn nlua_pop_keydict_opt<T: KeyDict>(
     lstate: *mut lua_State,
     retval: &mut T,
-    hashy: FieldHashfn,
+    hashy: FieldHashfn<T>,
     err_opt: &mut Option<&'static std::ffi::CStr>,
     mut arena: Option<&mut Arena>,
     err: &mut Error,
@@ -1648,42 +1649,41 @@ pub fn nlua_pop_keydict_opt<T>(
         field.mark_set(retval);
 
         if field.key_type == (ObjectType::ObjectTypeNil as i32) {
-            *field.field_mut::<T, Object>(retval) =
+            *field.field_mut::<Object>(retval) =
                 nlua_pop_object_opt(lstate, true, arena.as_deref_mut(), err);
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
             if field.is_hlgroup && lua_type_safe(lstate, -1) == LUA_TSTRING {
                 let name_bytes = lua_tolstring_bytes(lstate, -1);
                 lua_pop(lstate, 1);
-                *field.field_mut::<T, Integer>(retval) = if !name_bytes.is_empty() {
+                *field.field_mut::<Integer>(retval) = if !name_bytes.is_empty() {
                     syn_check_group(name_bytes) as Integer
                 } else {
                     0
                 };
             } else {
-                *field.field_mut::<T, Integer>(retval) =
+                *field.field_mut::<Integer>(retval) =
                     nlua_pop_integer(lstate, &mut dummy_arena, err);
             }
         } else if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
-            *field.field_mut::<T, Boolean>(retval) = nlua_pop_boolean_strict(lstate, err);
+            *field.field_mut::<Boolean>(retval) = nlua_pop_boolean_strict(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
-            *field.field_mut::<T, NvimString>(retval) =
+            *field.field_mut::<NvimString>(retval) =
                 nlua_pop_string_opt(lstate, arena.as_deref_mut(), err);
         } else if field.key_type == (ObjectType::ObjectTypeFloat as i32) {
-            *field.field_mut::<T, Float>(retval) = nlua_pop_float(lstate, &mut dummy_arena, err);
+            *field.field_mut::<Float>(retval) = nlua_pop_float(lstate, &mut dummy_arena, err);
         } else if field.key_type == (ObjectType::ObjectTypeBuffer as i32)
             || field.key_type == (ObjectType::ObjectTypeWindow as i32)
             || field.key_type == (ObjectType::ObjectTypeTabpage as i32)
         {
-            *field.field_mut::<T, ObjHandle>(retval) =
-                nlua_pop_handle(lstate, &mut dummy_arena, err);
+            *field.field_mut::<ObjHandle>(retval) = nlua_pop_handle(lstate, &mut dummy_arena, err);
         } else if field.key_type == (ObjectType::ObjectTypeArray as i32) {
-            *field.field_mut::<T, Array>(retval) =
+            *field.field_mut::<Array>(retval) =
                 nlua_pop_array_opt(lstate, arena.as_deref_mut(), err);
         } else if field.key_type == (ObjectType::ObjectTypeDict as i32) {
-            *field.field_mut::<T, Dict>(retval) =
+            *field.field_mut::<Dict>(retval) =
                 nlua_pop_dict_opt(lstate, false, arena.as_deref_mut(), err);
         } else if field.key_type == (ObjectType::ObjectTypeLuaRef as i32) {
-            *field.field_mut::<T, LuaRef>(retval) = nlua_pop_lua_ref(lstate, &mut dummy_arena, err);
+            *field.field_mut::<LuaRef>(retval) = nlua_pop_lua_ref(lstate, &mut dummy_arena, err);
         } else {
             std::process::abort();
         }
@@ -1697,7 +1697,7 @@ pub fn nlua_pop_keydict_opt<T>(
 }
 
 /// Push a `KeySet` struct as a Lua table (`nlua_push_keydict`).
-pub fn nlua_push_keydict<T>(lstate: *mut lua_State, value: &T, table: &[KeySetLink]) {
+pub fn nlua_push_keydict<T: KeyDict>(lstate: *mut lua_State, value: &T, table: &[KeySetLink<T>]) {
     lua_createtable_safe(lstate, 0, 0);
     for field in table {
         let Some(field_str) = field.str else {
@@ -1709,30 +1709,27 @@ pub fn nlua_push_keydict<T>(lstate: *mut lua_State, value: &T, table: &[KeySetLi
 
         lua_pushstring(lstate, field_str);
         if field.key_type == (ObjectType::ObjectTypeNil as i32) {
-            let mut obj = field.field_copy::<T, Object>(value);
+            let mut obj = field.field_copy::<Object>(value);
             nlua_push_object(lstate, &mut obj, 0);
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            lua_pushinteger_safe(lstate, field.field_copy::<T, Integer>(value) as lua_Integer);
+            lua_pushinteger_safe(lstate, field.field_copy::<Integer>(value) as lua_Integer);
         } else if field.key_type == (ObjectType::ObjectTypeBuffer as i32)
             || field.key_type == (ObjectType::ObjectTypeWindow as i32)
             || field.key_type == (ObjectType::ObjectTypeTabpage as i32)
         {
-            lua_pushinteger_safe(
-                lstate,
-                field.field_copy::<T, ObjHandle>(value) as lua_Integer,
-            );
+            lua_pushinteger_safe(lstate, field.field_copy::<ObjHandle>(value) as lua_Integer);
         } else if field.key_type == (ObjectType::ObjectTypeFloat as i32) {
-            lua_pushnumber_safe(lstate, field.field_copy::<T, Float>(value));
+            lua_pushnumber_safe(lstate, field.field_copy::<Float>(value));
         } else if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
-            lua_pushboolean_safe(lstate, field.field_copy::<T, Boolean>(value));
+            lua_pushboolean_safe(lstate, field.field_copy::<Boolean>(value));
         } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
-            nlua_push_string(lstate, field.field_copy::<T, NvimString>(value), 0);
+            nlua_push_string(lstate, field.field_copy::<NvimString>(value), 0);
         } else if field.key_type == (ObjectType::ObjectTypeArray as i32) {
-            nlua_push_array(lstate, field.field_copy::<T, Array>(value), 0);
+            nlua_push_array(lstate, field.field_copy::<Array>(value), 0);
         } else if field.key_type == (ObjectType::ObjectTypeDict as i32) {
-            nlua_push_dict(lstate, field.field_copy::<T, Dict>(value), 0);
+            nlua_push_dict(lstate, field.field_copy::<Dict>(value), 0);
         } else if field.key_type == (ObjectType::ObjectTypeLuaRef as i32) {
-            nlua_pushref(lstate, field.field_copy::<T, LuaRef>(value));
+            nlua_pushref(lstate, field.field_copy::<LuaRef>(value));
         } else {
             std::process::abort();
         }

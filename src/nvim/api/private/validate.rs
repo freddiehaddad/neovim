@@ -740,6 +740,119 @@ impl KeyValuePair {
     }
 }
 
+pub trait KeyDict: 'static {
+    fn is_set_mask(&self) -> u64;
+    fn mark_set_bit(&mut self, bit: u32);
+}
+
+pub enum KeyField<T: 'static> {
+    None,
+    Object(fn(&T) -> &Object, fn(&mut T) -> &mut Object),
+    Integer(fn(&T) -> &i64, fn(&mut T) -> &mut i64),
+    Float(fn(&T) -> &f64, fn(&mut T) -> &mut f64),
+    Boolean(fn(&T) -> &bool, fn(&mut T) -> &mut bool),
+    String(fn(&T) -> &NvimString, fn(&mut T) -> &mut NvimString),
+    Array(fn(&T) -> &Array, fn(&mut T) -> &mut Array),
+    Dict(fn(&T) -> &Dict, fn(&mut T) -> &mut Dict),
+    I32(fn(&T) -> &i32, fn(&mut T) -> &mut i32),
+    StringArray(
+        fn(&T) -> &Vec<NvimString>,
+        fn(&mut T) -> &mut Vec<NvimString>,
+    ),
+}
+
+impl<T: 'static> Clone for KeyField<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: 'static> Copy for KeyField<T> {}
+
+pub trait KeyFieldType<T: 'static>: Clone {
+    fn get_ref<'a>(field: &KeyField<T>, target: &'a T) -> &'a Self;
+    fn get_mut<'a>(field: &KeyField<T>, target: &'a mut T) -> &'a mut Self;
+}
+
+macro_rules! impl_key_field_type {
+    ($ty:ty, $variant:ident) => {
+        impl<T: 'static> KeyFieldType<T> for $ty {
+            #[inline]
+            fn get_ref<'a>(field: &KeyField<T>, target: &'a T) -> &'a Self {
+                match *field {
+                    KeyField::$variant(get, _) => get(target),
+                    _ => unreachable!(),
+                }
+            }
+
+            #[inline]
+            fn get_mut<'a>(field: &KeyField<T>, target: &'a mut T) -> &'a mut Self {
+                match *field {
+                    KeyField::$variant(_, get_mut) => get_mut(target),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    };
+}
+
+impl_key_field_type!(Object, Object);
+impl_key_field_type!(i64, Integer);
+impl_key_field_type!(f64, Float);
+impl_key_field_type!(bool, Boolean);
+impl_key_field_type!(NvimString, String);
+impl_key_field_type!(Array, Array);
+impl_key_field_type!(Dict, Dict);
+impl_key_field_type!(i32, I32);
+impl_key_field_type!(Vec<NvimString>, StringArray);
+
+#[repr(C)]
+pub struct KeySetLink<T: 'static> {
+    pub str: Option<&'static std::ffi::CStr>,
+    pub field: KeyField<T>,
+    pub key_type: i32,
+    pub opt_index: i32,
+    pub is_hlgroup: bool,
+}
+
+impl<T: 'static> Clone for KeySetLink<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: 'static> Copy for KeySetLink<T> {}
+
+impl<T: KeyDict> KeySetLink<T> {
+    #[inline]
+    pub fn mark_set(&self, retval: &mut T) {
+        if self.opt_index >= 0 {
+            retval.mark_set_bit(self.opt_index as u32);
+        }
+    }
+
+    #[inline]
+    pub fn is_field_set(&self, value: &T) -> bool {
+        if self.opt_index >= 0 {
+            (value.is_set_mask() & (1u64 << (self.opt_index as u32))) != 0
+        } else {
+            true
+        }
+    }
+
+    #[inline]
+    pub fn field_mut<'a, F: KeyFieldType<T>>(&self, retval: &'a mut T) -> &'a mut F {
+        F::get_mut(&self.field, retval)
+    }
+
+    #[inline]
+    pub fn field_copy<F: KeyFieldType<T>>(&self, value: &T) -> F {
+        F::get_ref(&self.field, value).clone()
+    }
+}
+
 pub const fn object_typename(t: ObjectType) -> &'static str {
     match t {
         ObjectType::ObjectTypeUnset => "unset",

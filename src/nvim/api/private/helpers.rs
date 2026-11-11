@@ -1049,9 +1049,9 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     hl_msg
 }
 
-pub fn api_dict_to_keydict<T>(
+pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
     retval: &mut T,
-    hashy: FieldHashfn,
+    hashy: FieldHashfn<T>,
     mut dict: Dict,
     err: &mut Error,
 ) -> bool {
@@ -1080,7 +1080,7 @@ pub fn api_dict_to_keydict<T>(
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
         match field_type {
-            ObjectType::ObjectTypeNil => *field.field_mut::<T, Object>(retval) = value.clone(),
+            ObjectType::ObjectTypeNil => *field.field_mut::<Object>(retval) = value.clone(),
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
@@ -1091,7 +1091,7 @@ pub fn api_dict_to_keydict<T>(
                         }
                     }
 
-                    *field.field_mut::<T, Integer>(retval) = Integer::from(hl_id);
+                    *field.field_mut::<Integer>(retval) = Integer::from(hl_id);
                 } else {
                     if value.obj_type != ObjectType::ObjectTypeInteger {
                         api_err_exp(
@@ -1103,11 +1103,11 @@ pub fn api_dict_to_keydict<T>(
                         return false;
                     }
 
-                    *field.field_mut::<T, Integer>(retval) = value.data.integer();
+                    *field.field_mut::<Integer>(retval) = value.data.integer();
                 }
             }
             ObjectType::ObjectTypeFloat => {
-                let val = field.field_mut::<T, Float>(retval);
+                let val = field.field_mut::<Float>(retval);
                 if value.obj_type == ObjectType::ObjectTypeInteger {
                     *val = value.data.integer() as Float;
                 } else if value.obj_type == ObjectType::ObjectTypeFloat {
@@ -1123,7 +1123,7 @@ pub fn api_dict_to_keydict<T>(
                 }
             }
             ObjectType::ObjectTypeBoolean => {
-                *field.field_mut::<T, Boolean>(retval) =
+                *field.field_mut::<Boolean>(retval) =
                     api_object_to_bool(value.clone(), field_name, false, err);
 
                 if error_set(err) {
@@ -1141,7 +1141,7 @@ pub fn api_dict_to_keydict<T>(
                     return false;
                 }
 
-                *field.field_mut::<T, NvimString>(retval) = value.data.string();
+                *field.field_mut::<NvimString>(retval) = value.data.string();
             }
             ObjectType::ObjectTypeArray => {
                 if value.obj_type != ObjectType::ObjectTypeArray {
@@ -1154,10 +1154,10 @@ pub fn api_dict_to_keydict<T>(
                     return false;
                 }
 
-                *field.field_mut::<T, Array>(retval) = value.data.array();
+                *field.field_mut::<Array>(retval) = value.data.array();
             }
             ObjectType::ObjectTypeDict => {
-                let val = field.field_mut::<T, Dict>(retval);
+                let val = field.field_mut::<Dict>(retval);
                 if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
                     *val = Dict::new();
                 } else if value.obj_type == ObjectType::ObjectTypeDict {
@@ -1176,7 +1176,7 @@ pub fn api_dict_to_keydict<T>(
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => {
                 if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
-                    *field.field_mut::<T, ObjHandle>(retval) = value.data.integer() as ObjHandle;
+                    *field.field_mut::<ObjHandle>(retval) = value.data.integer() as ObjHandle;
                 } else {
                     api_err_exp(
                         err,
@@ -1203,9 +1203,9 @@ pub fn api_dict_to_keydict<T>(
     true
 }
 
-pub fn api_keydict_to_dict<T>(
+pub fn api_keydict_to_dict<T: crate::api::private::validate::KeyDict>(
     value: &T,
-    table: &[KeySetLink],
+    table: &[KeySetLink<T>],
     max_size: usize,
     arena: &mut Arena,
 ) -> Dict {
@@ -1221,36 +1221,36 @@ pub fn api_keydict_to_dict<T>(
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         let val = match field_type {
-            ObjectType::ObjectTypeNil => field.field_copy::<T, Object>(value),
+            ObjectType::ObjectTypeNil => field.field_copy::<Object>(value),
             ObjectType::ObjectTypeInteger => Object {
                 obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(field.field_copy::<T, Integer>(value)),
+                data: ObjectData::Integer(field.field_copy::<Integer>(value)),
             },
             ObjectType::ObjectTypeFloat => Object {
                 obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(field.field_copy::<T, Float>(value)),
+                data: ObjectData::Floating(field.field_copy::<Float>(value)),
             },
             ObjectType::ObjectTypeBoolean => Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(field.field_copy::<T, Boolean>(value)),
+                data: ObjectData::Boolean(field.field_copy::<Boolean>(value)),
             },
             ObjectType::ObjectTypeString => Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(field.field_copy::<T, NvimString>(value)),
+                data: ObjectData::String(field.field_copy::<NvimString>(value)),
             },
             ObjectType::ObjectTypeArray => Object {
                 obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(field.field_copy::<T, Array>(value)),
+                data: ObjectData::Array(field.field_copy::<Array>(value)),
             },
             ObjectType::ObjectTypeDict => Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(field.field_copy::<T, Dict>(value)),
+                data: ObjectData::Dict(field.field_copy::<Dict>(value)),
             },
             ObjectType::ObjectTypeBuffer
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => Object {
                 obj_type: field_type,
-                data: ObjectData::Integer(Integer::from(field.field_copy::<T, ObjHandle>(value))),
+                data: ObjectData::Integer(Integer::from(field.field_copy::<ObjHandle>(value))),
             },
             ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
             ObjectType::ObjectTypeUnset => std::process::abort(),
@@ -1274,7 +1274,10 @@ pub fn api_luarefs_free_object(value: Object) {
     }
 }
 
-pub fn api_luarefs_free_keydict<T>(dict: &T, table: &[KeySetLink]) {
+pub fn api_luarefs_free_keydict<T: crate::api::private::validate::KeyDict>(
+    dict: &T,
+    table: &[KeySetLink<T>],
+) {
     for field in table {
         if field.str.is_none() {
             break;
@@ -1282,11 +1285,9 @@ pub fn api_luarefs_free_keydict<T>(dict: &T, table: &[KeySetLink]) {
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         match field_type {
-            ObjectType::ObjectTypeNil => {
-                api_luarefs_free_object(field.field_copy::<T, Object>(dict))
-            }
-            ObjectType::ObjectTypeLuaRef => api_free_luaref(field.field_copy::<T, LuaRef>(dict)),
-            ObjectType::ObjectTypeDict => api_luarefs_free_dict(field.field_copy::<T, Dict>(dict)),
+            ObjectType::ObjectTypeNil => api_luarefs_free_object(field.field_copy::<Object>(dict)),
+            ObjectType::ObjectTypeLuaRef => api_free_luaref(field.field_copy::<LuaRef>(dict)),
+            ObjectType::ObjectTypeDict => api_luarefs_free_dict(field.field_copy::<Dict>(dict)),
             _ => {}
         }
     }
