@@ -213,7 +213,11 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     };
     let mut watcher = Box::new(SocketWatcher::new());
     let endpoint = addr_gen.as_deref().unwrap_or(addr);
-    let mut result = socket_watcher_init(&mut g_st().main_loop, &mut watcher, endpoint);
+    let mut result = socket_watcher_init(
+        crate::event::r#loop::main_loop_ptr(),
+        &mut watcher,
+        endpoint,
+    );
     drop(addr_gen);
     if result < 0 {
         return result;

@@ -3416,7 +3416,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
-    if g_st().main_loop.closing {
+    if crate::event::r#loop::main_loop_ptr().closing {
         time_watcher_stop(tw);
         time_watcher_close(tw);
     }
@@ -3447,7 +3447,11 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     };
     let mut tw = Box::new(TimeWatcher::new());
 
-    time_watcher_init(&mut g_st().main_loop, &mut tw, TimeWatcherData::WaitDummy);
+    time_watcher_init(
+        crate::event::r#loop::main_loop_ptr(),
+        &mut tw,
+        TimeWatcherData::WaitDummy,
+    );
 
     time_watcher_start(&mut tw, interval as u64, interval as u64);
 
@@ -3477,11 +3481,11 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         || g_st().got_int.get())
         && !expired
     {
-        let events = loop_queues(&mut g_st().main_loop).events;
+        let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
-            loop_poll_events(&mut g_st().main_loop, remaining);
+            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -4644,7 +4648,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let args = argvars[0].vval.v_list();
     let len = tv_list_len(args.opt()) as usize;
     let mut jobs: Vec<Option<u64>> = vec![None; len];
-    let waiting_jobs = multiqueue_new(Some(&mut g_st().main_loop));
+    let waiting_jobs = multiqueue_new(Some(crate::event::r#loop::main_loop_ptr()));
 
     for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.opt())).enumerate() {
         let tv = arg.tv();
@@ -4726,7 +4730,9 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         multiqueue_replace_parent(
             events.borrow_mut(),
-            loop_queues(&mut g_st().main_loop).events.borrow_mut(),
+            loop_queues(crate::event::r#loop::main_loop_ptr())
+                .events
+                .borrow_mut(),
         );
 
         let status = job.uv.proc_.status;

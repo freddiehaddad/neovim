@@ -50,6 +50,15 @@ impl Loop {
     }
 }
 
+#[repr(transparent)]
+struct MainLoopCell(std::cell::UnsafeCell<Loop>);
+
+// SAFETY: Cross-thread access to `MAIN_LOOP` (`thread_events` and `async_`)
+// is synchronized by `loop_.mutex` (`uv_mutex_lock` / `uv_mutex_unlock`).
+unsafe impl Sync for MainLoopCell {}
+
+static MAIN_LOOP: MainLoopCell = MainLoopCell(std::cell::UnsafeCell::new(Loop::new()));
+
 #[inline]
 pub fn loop_queues(_loop: &mut Loop) -> &'static mut Loop {
     main_loop_ptr()
@@ -57,12 +66,12 @@ pub fn loop_queues(_loop: &mut Loop) -> &'static mut Loop {
 
 #[inline]
 pub fn main_loop_ptr() -> &'static mut Loop {
-    &mut crate::globals::g_st().borrow_mut().main_loop
+    unsafe { &mut *MAIN_LOOP.0.get() }
 }
 
 #[inline]
 pub fn main_loop_events() -> MultiQueue {
-    crate::globals::g_st().main_loop.events
+    main_loop_ptr().events
 }
 
 #[inline]

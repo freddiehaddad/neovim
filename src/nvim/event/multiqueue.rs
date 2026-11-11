@@ -389,7 +389,7 @@ pub fn multiqueue_get(this: MultiQueue) -> Event {
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
 pub fn multiqueue_put_event(this: MultiQueue, event: Event) {
     if multiqueue_push(this, event) {
-        crate::event::r#loop::loop_on_put(&mut crate::globals::g_st().main_loop);
+        crate::event::r#loop::loop_on_put(crate::event::r#loop::main_loop_ptr());
     }
 }
 

@@ -10399,7 +10399,7 @@ fn ex_connect(eap: &mut Exarg) {
         addr = crate::strings::OwnedSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
     } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
         && !crate::event::socket::socket_alive(
-            &mut g_st().main_loop,
+            crate::event::r#loop::main_loop_ptr(),
             is_tcp,
             addr.as_cstr(),
             &mut error,
@@ -11026,7 +11026,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     }
 
     ui_flush();
-    let events = loop_queues(&mut g_st().main_loop).events;
+    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
     let timeout_ms = msec;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -11035,7 +11035,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
-            loop_poll_events(&mut g_st().main_loop, remaining);
+            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;

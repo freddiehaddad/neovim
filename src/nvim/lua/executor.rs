@@ -605,7 +605,7 @@ extern "C-unwind" fn nlua_fast_cfpcall(
         }
 
         let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
-        let queues = loop_queues(&mut g_st().main_loop);
+        let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
         put_event(
             queues.events.opt_mut(),
             Event::NluaLuvError {
@@ -667,7 +667,7 @@ fn nlua_luv_thread_common_cfpcall(
                 K_THREAD
             },
         };
-        loop_schedule_deferred(&mut g_st().main_loop, ev);
+        loop_schedule_deferred(crate::event::r#loop::main_loop_ptr(), ev);
         lua_pop(lstate, 1);
         -status
     } else {
@@ -760,13 +760,13 @@ extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
     }
 
     lua_pushnil_safe(lstate);
-    if g_st().main_loop.closing {
+    if crate::event::r#loop::main_loop_ptr().closing {
         lua_push_bytes(lstate, b"main loop is closing");
         return 2;
     }
 
     let cb = nlua_ref_global(lstate, 1);
-    let queues = loop_queues(&mut g_st().main_loop);
+    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
     put_event(
         queues.events.opt_mut(),
         Event::NluaSchedule {
@@ -782,7 +782,7 @@ extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
     let timeout = luaL_checkinteger_safe(lstate, 1) as i64;
     let fast_only = lua_toboolean_safe(lstate, 2);
 
-    let queues = loop_queues(&mut g_st().main_loop);
+    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
     let loop_events = if fast_only {
         queues.fast_events
     } else {
@@ -791,7 +791,7 @@ extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
     if !loop_events.is_null() && !multiqueue_empty(loop_events) {
         multiqueue_process_events(loop_events);
     } else {
-        loop_poll_events(&mut g_st().main_loop, timeout);
+        loop_poll_events(crate::event::r#loop::main_loop_ptr(), timeout);
     }
 
     0
@@ -944,7 +944,7 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
     luv_init_vim(
         lstate,
         is_thread,
-        &mut g_st().main_loop,
+        crate::event::r#loop::main_loop_ptr(),
         nlua_fast_cfpcall,
         nlua_luv_thread_cfpcall,
         nlua_luv_thread_cb_cfpcall,
@@ -1290,9 +1290,12 @@ extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     lua_pop(lstate, 1);
 
     if is_thread {
-        loop_schedule_deferred(&mut g_st().main_loop, Event::NluaPrint(msg_str));
+        loop_schedule_deferred(
+            crate::event::r#loop::main_loop_ptr(),
+            Event::NluaPrint(msg_str),
+        );
     } else if NLUA_STATE.with(|s| s.in_fast_callback.get()) != 0 {
-        let queues = loop_queues(&mut g_st().main_loop);
+        let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
         put_event(queues.events.opt_mut(), Event::NluaPrint(msg_str));
     } else {
         nlua_print_event(msg_str);

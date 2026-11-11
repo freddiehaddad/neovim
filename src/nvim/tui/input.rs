@@ -810,7 +810,7 @@ pub(crate) fn tinput_read_cb(bytes: &[u8], tui: &mut TUIData, eof: bool) -> usiz
     tinput_flush(&mut tui.input);
 
     if eof {
-        loop_schedule_fast(&mut g_st().main_loop, Event::TInputDone);
+        loop_schedule_fast(crate::event::r#loop::main_loop_ptr(), Event::TInputDone);
         return consumed;
     }
 

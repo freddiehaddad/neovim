@@ -1498,7 +1498,7 @@ fn event_name2nr_hash(s: &[u8]) -> isize {
 }
 
 pub fn autocmd_init() {
-    let events = loop_queues(&mut g_st().main_loop).events;
+    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
     g_st().deferred_events = multiqueue_new_child(events);
 }
 
@@ -3821,7 +3821,9 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
         AU_STATE.with(|s| s.pending_vimresume.set(K_TRUE));
     } else if !suspend && AU_STATE.with(|s| s.pending_vimresume.get()) == K_TRUE {
         AU_STATE.with(|s| s.pending_vimresume.set(K_NONE));
-        let events = loop_queues(&mut g_st().main_loop).events.borrow_mut();
+        let events = loop_queues(crate::event::r#loop::main_loop_ptr())
+            .events
+            .borrow_mut();
         multiqueue_put_event(events, Event::AutoCmdVimResume);
     }
 }

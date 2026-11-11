@@ -481,7 +481,7 @@ fn refresh_timer_events_mut() -> MultiQueue {
 
 #[inline]
 fn main_loop_events_mut() -> MultiQueue {
-    loop_queues(&mut g_st().main_loop).events
+    loop_queues(crate::event::r#loop::main_loop_ptr()).events
 }
 
 #[inline]
@@ -728,11 +728,11 @@ fn on_apc(frag: VTermStringFragment, term_id: Option<&mut TermId>) -> i32 {
 }
 
 pub fn terminal_init() {
-    let events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
+    let events = multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop_ptr()).events);
     REFRESH_TIMER.with(|cell| {
         let mut timer = cell.borrow_mut();
         time_watcher_init(
-            &mut g_st().main_loop,
+            crate::event::r#loop::main_loop_ptr(),
             &mut timer,
             TimeWatcherData::TerminalRefresh,
         );

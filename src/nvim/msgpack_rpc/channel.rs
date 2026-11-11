@@ -243,7 +243,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 }
 
 pub fn rpc_init() {
-    let qc = loop_queues(&mut g_st().main_loop);
+    let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
     g_st().ch_before_blocking_events = multiqueue_new_child(qc.events);
 }
 
@@ -341,7 +341,7 @@ pub fn rpc_send_call(
         if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
             multiqueue_process_events(ev_ptr.borrow_mut());
         } else {
-            loop_poll_events(&mut g_st().main_loop, remaining);
+            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((crate::os::time::os_hrtime() - start) / 1_000_000) as i64;
@@ -765,7 +765,7 @@ pub fn rpc_close(channel: &mut Channel) {
     channel.rpc.closed.set(true);
 
     {
-        let qc = loop_queues(&mut g_st().main_loop);
+        let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
         multiqueue_put_event(qc.fast_events.borrow_mut(), Event::RpcClose(channel.id));
     }
 }

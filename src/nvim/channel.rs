@@ -328,7 +328,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     };
     assert!(id <= (i64::MAX as u64));
 
-    let qc = loop_queues(&mut g_st().main_loop);
+    let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
     let chan = Box::new(Channel {
         id,
         refcount: 1,
@@ -379,7 +379,7 @@ pub fn channel_decref(chan: &mut Channel) {
 
     chan.refcount -= 1;
     if chan.refcount == 0 {
-        let qc = loop_queues(&mut g_st().main_loop);
+        let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
         multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.id));
     }
 }
@@ -410,7 +410,7 @@ fn channel_destroy_early(chan: &mut Channel) {
         std::process::abort();
     }
 
-    let qc = loop_queues(&mut g_st().main_loop);
+    let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
     multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFreeBox(boxed));
 }
 
@@ -580,7 +580,7 @@ pub fn channel_connect(
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
     let chan_id = channel.id;
     let connected = socket_connect(
-        &mut g_st().main_loop,
+        crate::event::r#loop::main_loop_ptr(),
         &mut channel.socket,
         tcp,
         address,
@@ -662,9 +662,13 @@ pub fn channel_from_stdio(
         let _ = dup2(STDERR_FILENO, STDIN_FILENO);
     }
 
-    rstream_init_fd(&mut g_st().main_loop, &mut channel.stdio_in, stdin_dup_fd);
+    rstream_init_fd(
+        crate::event::r#loop::main_loop_ptr(),
+        &mut channel.stdio_in,
+        stdin_dup_fd,
+    );
     wstream_init_fd(
-        &mut g_st().main_loop,
+        crate::event::r#loop::main_loop_ptr(),
         &mut channel.stdio_out,
         stdout_dup_fd,
         0,
@@ -1041,7 +1045,7 @@ pub fn channel_term_close(chan: &mut Channel) {
 pub fn channel_event(chan: &mut Channel, event: AuEvent) {
     if has_event(event) {
         channel_incref(chan);
-        let qc = loop_queues(&mut g_st().main_loop);
+        let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
         multiqueue_put_event(
             qc.events.borrow_mut(),
             Event::ChannelSetInfo {

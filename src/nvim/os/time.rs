@@ -126,7 +126,7 @@ pub fn os_realtime() -> i64 {
 
 /// Millisecond-resolution monotonic loop time (`os_now`).
 pub fn os_now() -> u64 {
-    unsafe { uv_now((&raw const g_st().main_loop).cast()) }
+    unsafe { uv_now(std::ptr::from_ref(crate::event::r#loop::main_loop_ptr()).cast()) }
 }
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
@@ -145,7 +145,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
         if cond {
             break;
         }
-        loop_poll_events(&mut g_st().main_loop, remaining);
+        loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             expired = remaining <= 0;

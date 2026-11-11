@@ -138,17 +138,17 @@ pub fn signal_init() {
 
     SIG_WATCHERS.with(|cell| {
         let mut s = cell.borrow_mut();
-        signal_watcher_init(&mut g_st().main_loop, &mut s.spipe);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.shup);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.sint);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.squit);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.sterm);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.ststp);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.spipe);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.shup);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.sint);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.squit);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.sterm);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.ststp);
         #[cfg(target_os = "linux")]
-        signal_watcher_init(&mut g_st().main_loop, &mut s.spwr);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.spwr);
         #[cfg(unix)]
-        signal_watcher_init(&mut g_st().main_loop, &mut s.susr1);
-        signal_watcher_init(&mut g_st().main_loop, &mut s.swinch);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.susr1);
+        signal_watcher_init(crate::event::r#loop::main_loop_ptr(), &mut s.swinch);
     });
     signal_start();
 }

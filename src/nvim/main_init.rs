@@ -309,9 +309,9 @@ fn strnicmp_ascii(a: &[u8], b: &[u8]) -> bool {
 }
 
 pub fn event_init() {
-    loop_init(&mut g_st().main_loop);
+    loop_init(crate::event::r#loop::main_loop_ptr());
     env_init();
-    let queues = loop_queues(&mut g_st().main_loop);
+    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
     g_st().resize_events = multiqueue_new_child(queues.events);
 
     autocmd_init();
@@ -323,21 +323,21 @@ pub fn event_init() {
 }
 
 fn event_teardown() -> bool {
-    let queues = loop_queues(&mut g_st().main_loop);
+    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
     if queues.events.is_null() {
         return true;
     }
 
     multiqueue_process_events(queues.events.borrow_mut());
-    loop_poll_events(&mut g_st().main_loop, 0);
+    loop_poll_events(crate::event::r#loop::main_loop_ptr(), 0);
     server_teardown();
     channel_teardown();
-    proc_teardown(&mut g_st().main_loop);
+    proc_teardown(crate::event::r#loop::main_loop_ptr());
     timer_teardown();
     signal_teardown();
     terminal_teardown();
 
-    loop_close(&mut g_st().main_loop, true)
+    loop_close(crate::event::r#loop::main_loop_ptr(), true)
 }
 
 fn early_init(paramp: &mut Mparm) {

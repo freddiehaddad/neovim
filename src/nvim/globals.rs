@@ -44,8 +44,6 @@ pub(crate) const DFLT_ROWS: i32 = 24;
 pub(crate) const DFLT_COLS: i32 = 80;
 pub(crate) const PROF_NONE: i32 = 0;
 
-use crate::event::r#loop::Loop;
-
 #[repr(transparent)]
 struct GlobalState<T>(std::cell::UnsafeCell<T>);
 
@@ -64,7 +62,6 @@ impl<T> GlobalState<T> {
 }
 
 pub struct EditorState {
-    pub main_loop: Loop,
     pub g_stats: NvimStats,
     pub rows_global: std::cell::Cell<i32>,
     pub columns_global: std::cell::Cell<i32>,
@@ -399,7 +396,6 @@ pub struct EditorState {
 impl EditorState {
     pub const fn new() -> Self {
         Self {
-            main_loop: Loop::new(),
             g_stats: NvimStats {
                 fsync: 0,
                 redraw: 0,

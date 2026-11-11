@@ -350,7 +350,7 @@ pub fn tui_start(
         tui.startup_delay_timer.start(after_startup_cb, 100, 0);
     });
 
-    loop_poll_events(&mut g_st().main_loop, 1);
+    loop_poll_events(crate::event::r#loop::main_loop_ptr(), 1);
     crate::ui_client::with_tui(|tui| {
         *width = tui.width;
         *height = tui.height;
@@ -1001,7 +1001,11 @@ fn tui_terminal_start(tui: &mut TUIData) {
     tui.print_attr_id = -1;
     terminfo_start(tui);
     if !tui.input.has_loop {
-        tinput_init(&mut tui.input, &mut g_st().main_loop, &tui.ti);
+        tinput_init(
+            &mut tui.input,
+            crate::event::r#loop::main_loop_ptr(),
+            &tui.ti,
+        );
     }
     tui_guess_size(tui);
     tinput_start(&mut tui.input);

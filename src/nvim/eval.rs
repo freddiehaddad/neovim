@@ -5134,11 +5134,12 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     {
         let mut watcher = timer.watcher.borrow_mut();
         time_watcher_init(
-            &mut g_st().main_loop,
+            crate::event::r#loop::main_loop_ptr(),
             &mut watcher,
             TimeWatcherData::EvalTimer(timer_id),
         );
-        watcher.events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
+        watcher.events =
+            multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop_ptr()).events);
         watcher.blockable = true;
         time_watcher_start(&mut watcher, timeout as u64, timeout as u64);
     }

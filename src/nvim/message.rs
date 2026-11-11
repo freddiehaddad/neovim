@@ -1281,7 +1281,10 @@ pub fn msg_semsg_event(s: std::ffi::CString) {
 }
 
 pub fn msg_schedule_semsg_cstr(s: &std::ffi::CStr) {
-    loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsg(s.to_owned()));
+    loop_schedule_deferred(
+        crate::event::r#loop::main_loop_ptr(),
+        Event::MsgSemsg(s.to_owned()),
+    );
 }
 
 pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
@@ -1290,7 +1293,7 @@ pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
 
 pub fn msg_schedule_semsg_multiline_cstr(s: &std::ffi::CStr) {
     loop_schedule_deferred(
-        &mut g_st().main_loop,
+        crate::event::r#loop::main_loop_ptr(),
         Event::MsgSemsgMultiline(s.to_owned()),
     );
 }
