@@ -301,7 +301,7 @@ pub fn default_grid_alloc() -> bool {
     }
 
     grid_alloc(
-        &mut g_st().default_grid,
+        &g_st().default_grid,
         g_st().rows_global.get(),
         g_st().columns_global.get(),
         true,
@@ -333,9 +333,10 @@ pub fn screenclear() {
     }
 
     for i in 0..g_st().default_grid.rows.get() {
+        let off = g_st().default_grid.line_offset.borrow()[i as usize];
         grid_clear_line(
-            &mut g_st().default_grid,
-            g_st().default_grid.line_offset[i as usize],
+            &g_st().default_grid,
+            off,
             g_st().default_grid.cols.get(),
             true,
         );
@@ -375,7 +376,7 @@ pub fn screenclear() {
         && msg_use_grid()
         && grid_allocated(&g_st().msg_grid)
     {
-        grid_invalidate(&mut g_st().msg_grid);
+        grid_invalidate(&g_st().msg_grid);
         msg_grid_validate();
         ds_st(|st| st.msg_grid_invalid.set(false));
         g_st().clear_cmdline.set(true);
@@ -593,9 +594,10 @@ pub fn update_screen() -> bool {
         if grid_allocated(&g_st().msg_grid) {
             let limit = msg_scrollsize().min(g_st().msg_grid.rows.get());
             for i in 0..limit {
+                let off = g_st().msg_grid.line_offset.borrow()[i as usize];
                 grid_clear_line(
-                    &mut g_st().msg_grid,
-                    g_st().msg_grid.line_offset[i as usize],
+                    &g_st().msg_grid,
+                    off,
                     g_st().msg_grid.cols.get(),
                     OptInt::from(i) < opt_vars().p_ch.get(),
                 );
@@ -608,9 +610,10 @@ pub fn update_screen() -> bool {
             was_invalidated = ui_comp_set_screen_valid(false);
             let mut i = valid;
             while i < g_st().rows_global.get() - (opt_vars().p_ch.get() as i32) {
+                let off = g_st().default_grid.line_offset.borrow()[i as usize];
                 grid_clear_line(
-                    &mut g_st().default_grid,
-                    g_st().default_grid.line_offset[i as usize],
+                    &g_st().default_grid,
+                    off,
                     g_st().columns_global.get(),
                     false,
                 );
@@ -664,7 +667,7 @@ pub fn update_screen() -> bool {
         type_ = UPD_NOT_VALID;
         g_st().must_redraw.set(0);
     } else if !g_st().default_grid.valid.get() {
-        grid_invalidate(&mut g_st().default_grid);
+        grid_invalidate(&g_st().default_grid);
         g_st().default_grid.valid.set(true);
     }
 
@@ -721,7 +724,7 @@ pub fn update_screen() -> bool {
     }
 
     for wp in for_all_windows_ptr() {
-        if !(wp.w_config.hide && !wp.w_grid_alloc.chars.is_empty()) {
+        if !(wp.w_config.hide && !wp.w_grid_alloc.chars.borrow().is_empty()) {
             update_window_hl(&mut *wp, type_ >= UPD_NOT_VALID || hl_changed);
 
             let buf = wp.buf_mut();
@@ -742,7 +745,7 @@ pub fn update_screen() -> bool {
     g_st().screen_search_hl.rm.free_prog();
 
     for wp in for_all_windows_ptr() {
-        if wp.w_config.hide && !wp.w_grid_alloc.chars.is_empty() {
+        if wp.w_config.hide && !wp.w_grid_alloc.chars.borrow().is_empty() {
             if wp == curwin_ptr() && global_stl_height() > 0 {
                 win_redr_status(&mut *wp);
             }
@@ -752,9 +755,9 @@ pub fn update_screen() -> bool {
 
         if wp.w_redr_type.get() == UPD_CLEAR
             && wp.w_floating.get()
-            && !wp.w_grid_alloc.chars.is_empty()
+            && !wp.w_grid_alloc.chars.borrow().is_empty()
         {
-            grid_invalidate(&mut wp.w_grid_alloc);
+            grid_invalidate(&wp.w_grid_alloc);
             wp.w_redr_type.set(UPD_NOT_VALID);
         }
 

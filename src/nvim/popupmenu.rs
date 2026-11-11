@@ -948,7 +948,7 @@ pub fn pum_redraw() {
         || g_st().pum_grid.cols.get() != grid_width + border_width
     {
         grid_alloc(
-            &mut g_st().pum_grid,
+            &g_st().pum_grid,
             PUM.with(|s| s.height.get()) + border_width,
             grid_width + border_width,
             !invalid_grid,
@@ -960,7 +960,7 @@ pub fn pum_redraw() {
             i64::from(g_st().pum_grid.rows.get()),
         );
     } else if invalid_grid {
-        grid_invalidate(&mut g_st().pum_grid);
+        grid_invalidate(&g_st().pum_grid);
     }
     if ui_has(K_UIMULTIGRID) {
         pum_pos_ui_flush(true);
@@ -997,7 +997,7 @@ pub fn pum_redraw() {
         let mut attr = win_hl_attr(curwin_mut(), hlf);
         attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
 
-        screengrid_line_start(&mut g_st().pum_grid, row, 0);
+        screengrid_line_start(&g_st().pum_grid, row, 0);
 
         if extra_space {
             if PUM.with(|s| s.rl.get()) {
@@ -1648,7 +1648,7 @@ pub fn pum_check_clear() {
                 ui_call_win_close(i64::from(g_st().pum_grid.handle.get()));
                 ui_call_grid_destroy(i64::from(g_st().pum_grid.handle.get()));
             }
-            grid_free(&mut g_st().pum_grid);
+            grid_free(&g_st().pum_grid);
         }
         PUM.with(|s| s.is_drawn.set(false));
         PUM.with(|s| s.external.set(false));

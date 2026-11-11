@@ -2035,7 +2035,7 @@ fn mouse_find_grid_win(
         *gridp = DEFAULT_GRID_HANDLE;
     } else if *gridp > 1 {
         if let Some(wp) = get_win_by_grid_handle(*gridp)
-            && !wp.w_grid_alloc.chars.is_empty()
+            && !wp.w_grid_alloc.chars.borrow().is_empty()
             && !(wp.w_floating.get() && !wp.w_config.mouse)
         {
             *rowp = (*rowp - wp.w_grid.row_offset.get()).min(wp.w_view_height.get() - 1);
@@ -2182,7 +2182,7 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     else {
         return;
     };
-    if gp.handle.get() != click_grid || gp.chars.is_empty() {
+    if gp.handle.get() != click_grid || gp.chars.borrow().is_empty() {
         return;
     }
     click_row += start_row;
@@ -2191,8 +2191,8 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
         return;
     }
 
-    let off = gp.line_offset[click_row as usize] + click_col as usize;
-    let col_from_screen = gp.vcols[off];
+    let off = gp.line_offset.borrow()[click_row as usize] + click_col as usize;
+    let col_from_screen = gp.vcols.borrow()[off];
 
     if col_from_screen >= 0 {
         *vcolp = col_from_screen;

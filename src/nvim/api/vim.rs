@@ -2481,7 +2481,7 @@ pub fn nvim_inspect_cell(
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
             wp.as_deref()
-                .is_some_and(|w| !w.w_grid_alloc.chars.is_empty()),
+                .is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
             c"grid handle",
             grid,
             err,
@@ -2502,9 +2502,9 @@ pub fn nvim_inspect_cell(
         return ret;
     }
     ret = arena_array(arena, 3);
-    let off = g.line_offset[row as usize] + (col as usize);
+    let off = g.line_offset.borrow()[row as usize] + (col as usize);
     let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-    let sc_len = schar_get(&mut sc_buf, g.chars[off]);
+    let sc_len = schar_get(&mut sc_buf, g.chars.borrow()[off]);
     add_c(
         &mut ret,
         string_obj(crate::api::private::helpers::arena_bytes(
@@ -2512,7 +2512,7 @@ pub fn nvim_inspect_cell(
             &sc_buf[..sc_len],
         )),
     );
-    let attr = g.attrs[off];
+    let attr = g.attrs.borrow()[off];
     add_c(
         &mut ret,
         dict_obj(hl_get_attr_by_id(Integer::from(attr), true, arena, err)),

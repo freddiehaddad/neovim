@@ -1627,7 +1627,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             if !win.is_null() {
                 let win = win.borrow_mut();
                 if win.w_pos_changed.get()
-                    && !win.w_grid_alloc.chars.is_empty()
+                    && !win.w_grid_alloc.chars.borrow().is_empty()
                     && win_valid(Some(&*win))
                 {
                     ui_ext_win_position(&mut *win, validate);
@@ -6210,7 +6210,7 @@ pub fn win_free_grid(wp: &mut WinInfoInfo, reinit: bool) {
     if wp.w_grid_alloc.handle.get() != 0 && ui_has(K_UIMULTIGRID) {
         ui_call_grid_destroy(Integer::from(wp.w_grid_alloc.handle.get()));
     }
-    grid_free(&mut wp.w_grid_alloc);
+    grid_free(&wp.w_grid_alloc);
     if reinit {
         wp.w_grid_alloc = ScreenGrid::with_target(GridTarget::Win(wp.handle));
     }
@@ -8214,7 +8214,7 @@ pub fn win_ui_flush(validate: bool) {
             tp.tp_firstwin.get().as_ptr()
         }) {
             if (wp.w_pos_changed.get() || wp.w_grid_alloc.pending_comp_index_update.get())
-                && !wp.w_grid_alloc.chars.is_empty()
+                && !wp.w_grid_alloc.chars.borrow().is_empty()
             {
                 if g_st().curtab.get() == tp {
                     ui_ext_win_position(wp, validate);

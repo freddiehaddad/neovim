@@ -447,7 +447,7 @@ pub fn msg_grid_validate() {
             || msg_grid_empty)
     {
         grid_alloc(
-            &mut g_st().msg_grid,
+            &g_st().msg_grid,
             g_st().rows_global.get(),
             g_st().columns_global.get(),
             false,
@@ -455,7 +455,7 @@ pub fn msg_grid_validate() {
         );
         g_st().msg_grid.zindex.set(K_ZINDEX_MESSAGES);
 
-        g_st().msg_grid.dirty_col = vec![0; g_st().rows_global.get() as usize];
+        *g_st().msg_grid.dirty_col.borrow_mut() = vec![0; g_st().rows_global.get() as usize];
 
         // Tricky: allow resize while pager or ex mode is active
         let pos = if (g_st().state_global.get() & MODE_ASKMORE) != 0 {
@@ -485,8 +485,8 @@ pub fn msg_grid_validate() {
         g_st().msg_grid_adj.target.set(crate::grid::GridTarget::Msg);
     } else if !should_alloc && !msg_grid_empty {
         ui_comp_remove_grid(&mut g_st().msg_grid);
-        grid_free(&mut g_st().msg_grid);
-        g_st().msg_grid.dirty_col = Vec::new();
+        grid_free(&g_st().msg_grid);
+        *g_st().msg_grid.dirty_col.borrow_mut() = Vec::new();
         ui_call_grid_destroy(g_st().msg_grid.handle.get() as Integer);
         g_st().msg_grid.throttled.set(false);
         g_st().msg_grid_adj.row_offset.set(0);
@@ -3058,25 +3058,29 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 
         if zerocmd && crate::grid::grid_allocated(&g_st().msg_grid) {
             grid_clear_line(
-                &mut g_st().msg_grid,
-                g_st().msg_grid.line_offset[0],
+                &g_st().msg_grid,
+                g_st().msg_grid.line_offset.borrow()[0],
                 g_st().msg_grid.cols.get(),
                 false,
             );
         }
     } else {
         grid_del_lines(
-            &mut g_st().msg_grid,
+            &g_st().msg_grid,
             0,
             1,
             g_st().msg_grid.rows.get(),
             0,
             g_st().msg_grid.cols.get(),
         );
-        for i in 0..(g_st().msg_grid.rows.get() - 1) as usize {
-            g_st().msg_grid.dirty_col[i] = g_st().msg_grid.dirty_col[i + 1];
+        {
+            let rows = g_st().msg_grid.rows.get();
+            let mut dc = g_st().borrow().msg_grid.dirty_col.borrow_mut();
+            for i in 0..(rows - 1) as usize {
+                dc[i] = dc[i + 1];
+            }
+            dc[(rows - 1) as usize] = 0;
         }
-        g_st().msg_grid.dirty_col[(g_st().msg_grid.rows.get() - 1) as usize] = 0;
     }
 
     grid_clear(
@@ -3121,17 +3125,18 @@ pub fn msg_scroll_flush() {
         for i in (g_st().rows_global.get() - delta.max(1)).max(0)..g_st().rows_global.get() {
             let row = i - g_st().msg_grid_pos.get();
             assert!(row >= 0);
+            let dirty = g_st().msg_grid.dirty_col.borrow()[row as usize];
             ui_line(
-                &mut g_st().msg_grid,
+                &g_st().msg_grid,
                 row,
                 false,
                 0,
-                g_st().msg_grid.dirty_col[row as usize],
+                dirty,
                 g_st().msg_grid.cols.get(),
                 hl_attr(HLF_MSG),
                 false,
             );
-            g_st().msg_grid.dirty_col[row as usize] = 0;
+            g_st().msg_grid.dirty_col.borrow_mut()[row as usize] = 0;
         }
     }
     g_st().msg_scrolled_at_flush.set(g_st().msg_scrolled.get());
@@ -3152,12 +3157,8 @@ pub fn msg_reset_scroll() {
     if crate::grid::grid_allocated(&g_st().msg_grid) {
         let limit = msg_scrollsize().min(g_st().msg_grid.rows.get());
         for i in 0..limit {
-            grid_clear_line(
-                &mut g_st().msg_grid,
-                g_st().msg_grid.line_offset[i as usize],
-                g_st().msg_grid.cols.get(),
-                false,
-            );
+            let off = g_st().msg_grid.line_offset.borrow()[i as usize];
+            grid_clear_line(&g_st().msg_grid, off, g_st().msg_grid.cols.get(), false);
         }
     }
     g_st().msg_scrolled.set(0);

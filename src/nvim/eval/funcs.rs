@@ -6560,8 +6560,8 @@ pub fn f_screenattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let c = if row < 0 || row >= grid.rows.get() || col < 0 || col >= grid.cols.get() {
         -1
     } else {
-        let line_off = grid.line_offset[row as usize];
-        grid.attrs[line_off + (col as usize)]
+        let line_off = grid.line_offset.borrow()[row as usize];
+        grid.attrs.borrow()[line_off + (col as usize)]
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(c));
 }

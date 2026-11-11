@@ -1490,7 +1490,7 @@ fn ins_ctrl_v() {
 }
 
 pub fn edit_putchar(c: i32, highlight: bool) {
-    if curwin_mut().w_grid_alloc.chars.is_empty()
+    if curwin_mut().w_grid_alloc.chars.borrow().is_empty()
         && !crate::grid::grid_allocated(&g_st().default_grid)
     {
         return;

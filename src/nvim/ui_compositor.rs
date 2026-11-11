@@ -439,9 +439,9 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
 
     let mut col = startcol as i32;
     let mut grid: Option<&'static ScreenGrid> = None;
-    let line_off = g_st().default_grid.line_offset[row as usize] + (startcol as usize);
-    let bg_line = &g_st().default_grid.chars[line_off..];
-    let bg_attrs = &g_st().default_grid.attrs[line_off..];
+    let line_off = g_st().default_grid.line_offset.borrow()[row as usize] + (startcol as usize);
+    let bg_line = g_st().default_grid.chars.borrow()[line_off..].to_vec();
+    let bg_attrs = g_st().default_grid.attrs.borrow()[line_off..].to_vec();
     let (msg_sep_row, msg_sep_char, chk_width, chk_height) = with_comp(|c| {
         (
             c.msg_sep_row.get(),
@@ -495,12 +495,14 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 }
             } else {
                 let g = grid.unwrap();
-                let off = g.line_offset[(row as i32 - g.comp_row.get()) as usize]
+                let off = g.line_offset.borrow()[(row as i32 - g.comp_row.get()) as usize]
                     + (col - g.comp_col.get()) as usize;
                 let dst_idx = (col - startcol as i32) as usize;
-                lbuf[dst_idx..dst_idx + n].copy_from_slice(&g.chars[off..off + n]);
-                abuf[dst_idx..dst_idx + n].copy_from_slice(&g.attrs[off..off + n]);
-                if g.comp_col.get() + g.cols.get() > until && g.chars[off + n] == 0 {
+                let g_chars = g.chars.borrow();
+                let g_attrs = g.attrs.borrow();
+                lbuf[dst_idx..dst_idx + n].copy_from_slice(&g_chars[off..off + n]);
+                abuf[dst_idx..dst_idx + n].copy_from_slice(&g_attrs[off..off + n]);
+                if g.comp_col.get() + g.cols.get() > until && g_chars[off + n] == 0 {
                     lbuf[(until - 1 - startcol as i32) as usize] = schar_from_ascii(b' ');
                     if (col as Integer) == startcol && n == 1 {
                         skipstart = 0;
@@ -878,9 +880,9 @@ pub fn ui_comp_grid_scroll(
         let end_r = (bot - rows.max(0)) as i32;
         for r in start_r..end_r {
             let cg = with_comp(UiCompositorState::curgrid_mut);
-            let off = cg.line_offset[(r - cg.comp_row.get()) as usize] + (left as usize)
+            let off = cg.line_offset.borrow()[(r - cg.comp_row.get()) as usize] + (left as usize)
                 - (cg.comp_col.get() as usize);
-            if cg.attrs[off] >= 0 {
+            if cg.attrs.borrow()[off] >= 0 {
                 compose_line(r as Integer, left, right, 0);
             }
         }

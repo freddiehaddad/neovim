@@ -3815,8 +3815,8 @@ pub fn win_line(
                 let mut dummy_col: i32 = 0;
                 let current_grid = grid_adjust(&mut wp.w_grid, &mut current_row, &mut dummy_col);
 
-                let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
-                current_grid.attrs[next_row_off] = -1;
+                let next_row_off = current_grid.line_offset.borrow()[(current_row + 1) as usize];
+                current_grid.attrs.borrow_mut()[next_row_off] = -1;
             }
 
             wlv.boguscols = 0;

@@ -530,7 +530,7 @@ pub fn ui_set_ext_option(
 }
 
 pub fn ui_line(
-    grid: &mut ScreenGrid,
+    grid: &ScreenGrid,
     row: i32,
     invalid_row: bool,
     startcol: i32,
@@ -547,7 +547,9 @@ pub fn ui_line(
 
     ui_may_set_default_colors();
 
-    let off = grid.line_offset[row as usize] + startcol as usize;
+    let off = grid.line_offset.borrow()[row as usize] + startcol as usize;
+    let chars_slice = grid.chars.borrow()[off..].to_vec();
+    let attrs_slice = grid.attrs.borrow()[off..].to_vec();
     ui_call_raw_line(
         Integer::from(grid.handle.get()),
         Integer::from(row),
@@ -556,8 +558,8 @@ pub fn ui_line(
         Integer::from(clearcol),
         Integer::from(clearattr),
         flags,
-        &grid.chars[off..],
-        &grid.attrs[off..],
+        &chars_slice,
+        &attrs_slice,
     );
 
     if opt_vars().p_wd.get() != 0 && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_LINE) != 0 {
