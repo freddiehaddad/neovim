@@ -277,7 +277,7 @@ pub struct EditorState {
     pub redir_fd: Option<crate::os::fs::CFile>,
     pub redir_reg: i32,
     pub redir_vname: bool,
-    pub capture_ga: GraphPtr<Vec<u8>>,
+    pub capture_ga: Option<Vec<u8>>,
     pub langmap_mapchar: [u8; 256],
     pub save_p_ls: i32,
     pub save_p_wmh: i32,
@@ -361,7 +361,6 @@ pub struct EditorState {
     pub ns_hl_fast: NS,
     pub ns_hl_active: NS,
     pub hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>>,
-    pub nlua_global_refs: GraphPtr<NluaRefState>,
     pub nlua_disable_preload: bool,
     pub tslua_query_parse_count: u64,
     pub repeat_luamap: i32,
@@ -710,7 +709,7 @@ impl EditorState {
             redir_fd: None,
             redir_reg: 0,
             redir_vname: false,
-            capture_ga: GraphPtr::NULL,
+            capture_ga: None,
             langmap_mapchar: [0; 256],
             save_p_ls: -1,
             save_p_wmh: -1,
@@ -827,7 +826,6 @@ impl EditorState {
             ns_hl_fast: -1,
             ns_hl_active: 0,
             hl_attr_active: None,
-            nlua_global_refs: GraphPtr::NULL,
             nlua_disable_preload: false,
             tslua_query_parse_count: 0,
             repeat_luamap: 0,
@@ -1835,8 +1833,8 @@ pub fn prevwin_mut() -> &'static mut WinInfoInfo {
 }
 
 #[inline(always)]
-pub fn nlua_global_refs_mut() -> &'static mut NluaRefState {
-    g_st().nlua_global_refs.borrow_mut()
+pub fn nlua_global_refs() -> NluaRefState {
+    crate::lua::executor::nlua_global_refs()
 }
 #[cfg(test)]
 mod tests {

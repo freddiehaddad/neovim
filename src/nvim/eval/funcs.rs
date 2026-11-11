@@ -2064,11 +2064,12 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     let save_emsg_silent = g_st().emsg_silent;
     let save_emsg_noredir = g_st().emsg_noredir;
     let save_redir_off = g_st().redir_off;
-    let save_capture_ga = g_st().capture_ga;
+    let save_capture_ga = g_st().capture_ga.take();
     let save_msg_col = g_st().msg_col;
     let mut echo_output = false;
 
     if check_secure() {
+        g_st().capture_ga = save_capture_ga;
         return;
     }
 
@@ -2076,6 +2077,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     if argvars[off + 1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
         let Some(s) = tv_get_string_buf_chk(&argvars[off + 1], &mut buf) else {
+            g_st().capture_ga = save_capture_ga;
             return;
         };
         if s.to_bytes().is_empty() {
@@ -2092,8 +2094,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_silent += 1;
     }
 
-    let mut capture_local: Vec<u8> = Vec::new();
-    g_st().capture_ga = crate::globals::GraphPtr::from(&mut capture_local);
+    g_st().capture_ga = Some(Vec::new());
     g_st().redir_off = false;
     if !echo_output {
         g_st().msg_col = 0;
@@ -2123,9 +2124,9 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         g_st().msg_col = save_msg_col;
     }
 
+    let capture_local =
+        std::mem::replace(&mut g_st().capture_ga, save_capture_ga).unwrap_or_default();
     crate::eval::typval::tv_set_bytes(&mut *rettv, &capture_local);
-
-    g_st().capture_ga = save_capture_ga;
 }
 
 /// "execute(command)" function

@@ -307,6 +307,7 @@ pub(crate) struct LuaExecutorState {
     in_fast_callback: std::cell::Cell<i32>,
     global_lstate: std::cell::Cell<*mut lua_State>,
     require_ref: std::cell::Cell<LuaRef>,
+    global_refs: std::cell::Cell<NluaRefState>,
 }
 
 impl LuaExecutorState {
@@ -316,6 +317,11 @@ impl LuaExecutorState {
             in_fast_callback: std::cell::Cell::new(0),
             global_lstate: std::cell::Cell::new(ptr::null_mut()),
             require_ref: std::cell::Cell::new(LUA_REFNIL),
+            global_refs: std::cell::Cell::new(NluaRefState {
+                nil_ref: LUA_NOREF,
+                empty_dict_ref: LUA_NOREF,
+                ref_count: 0,
+            }),
         }
     }
 }
@@ -867,19 +873,15 @@ extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
     getout(status);
 }
 
-fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> &'static mut NluaRefState {
-    let ref_state = lua_newuserdata_typed(
+fn nlua_new_ref_state(lstate: *mut lua_State) -> &'static mut NluaRefState {
+    lua_newuserdata_typed(
         lstate,
         NluaRefState {
             nil_ref: LUA_NOREF,
             empty_dict_ref: LUA_NOREF,
             ref_count: 0,
         },
-    );
-    if !is_thread {
-        g_st().nlua_global_refs = crate::globals::GraphPtr::from(&mut *ref_state);
-    }
-    ref_state
+    )
 }
 
 fn nlua_get_ref_state(lstate: *mut lua_State) -> &'static mut NluaRefState {
@@ -897,12 +899,17 @@ pub fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
     nlua_get_ref_state(lstate).empty_dict_ref
 }
 
+#[inline]
+pub fn nlua_global_refs() -> NluaRefState {
+    NLUA_STATE.with(|s| s.global_refs.get())
+}
+
 pub fn nlua_get_global_ref_count() -> i32 {
-    crate::globals::nlua_global_refs_mut().ref_count
+    nlua_global_refs().ref_count
 }
 
 fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
-    let ref_state = nlua_new_ref_state(lstate, is_thread);
+    let ref_state = nlua_new_ref_state(lstate);
     lua_setfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
 
     lua_pushboolean_safe(lstate, is_thread);
@@ -931,6 +938,9 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
     lua_pushcfunction_safe(lstate, nlua_empty_dict_tostring);
     lua_setfield(lstate, -2, c"__tostring");
     ref_state.empty_dict_ref = nlua_ref(lstate, ref_state, -1);
+    if !is_thread {
+        NLUA_STATE.with(|s| s.global_refs.set(*ref_state));
+    }
     lua_pushvalue_safe(lstate, -1);
     lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.empty_dict");
     lua_setfield(lstate, -2, c"_empty_dict_mt");
@@ -1599,7 +1609,12 @@ pub fn nlua_ref(lstate: *mut lua_State, ref_state: &mut NluaRefState, index: i32
 }
 
 pub fn nlua_ref_global(lstate: *mut lua_State, index: i32) -> LuaRef {
-    nlua_ref(lstate, g_st().nlua_global_refs.borrow_mut(), index)
+    NLUA_STATE.with(|s| {
+        let mut refs = s.global_refs.get();
+        let r = nlua_ref(lstate, &mut refs, index);
+        s.global_refs.set(refs);
+        r
+    })
 }
 
 pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: LuaRef) {
@@ -1610,7 +1625,11 @@ pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: Lu
 }
 
 pub fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
-    nlua_unref(lstate, g_st().nlua_global_refs.borrow_mut(), ref_);
+    NLUA_STATE.with(|s| {
+        let mut refs = s.global_refs.get();
+        nlua_unref(lstate, &mut refs, ref_);
+        s.global_refs.set(refs);
+    });
 }
 
 pub fn api_free_luaref(ref_: LuaRef) {

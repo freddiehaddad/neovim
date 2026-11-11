@@ -4468,16 +4468,12 @@ pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>)
         if let Some(ht_ref) = ht
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
-            let ht_ptr = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
             let len = namelen
                 .saturating_sub((varname.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize));
             let varname_bytes = varname.to_bytes();
-            let idx = hash_find_len_idx(
-                ht_ptr.borrow(),
-                &varname_bytes[..len.min(varname_bytes.len())],
-            );
-            if !hashitem_empty(&ht_ptr.borrow().as_slice()[idx]) {
-                *pht = Some(ht_ptr.borrow_mut());
+            let idx = hash_find_len_idx(&*ht_ref, &varname_bytes[..len.min(varname_bytes.len())]);
+            if !hashitem_empty(&ht_ref.as_slice()[idx]) {
+                *pht = Some(ht_ref);
                 found_idx = Some(idx);
                 break;
             }

@@ -116,11 +116,13 @@ pub fn exec_impl(
 ) -> NvimString {
     let save_msg_silent = g_st().msg_silent;
     let save_redir_off = g_st().redir_off;
-    let save_capture_ga = g_st().capture_ga;
+    let mut save_capture_ga = g_st().capture_ga.take();
     let save_msg_col = g_st().msg_col;
     let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
-        g_st().capture_ga = crate::globals::GraphPtr::from(&mut capture_local);
+        g_st().capture_ga = Some(Vec::new());
+    } else {
+        g_st().capture_ga = save_capture_ga.take();
     }
 
     let mut tstate = TryState::new();
@@ -134,7 +136,8 @@ pub fn exec_impl(
     let save_current_sctx = api_set_sctx(channel_id);
     do_source_str(src.as_cstr(), c"nvim_exec2()");
     if opts.output {
-        g_st().capture_ga = save_capture_ga;
+        capture_local =
+            std::mem::replace(&mut g_st().capture_ga, save_capture_ga).unwrap_or_default();
         g_st().msg_silent = save_msg_silent;
         g_st().redir_off = save_redir_off;
         g_st().msg_col = save_msg_col;

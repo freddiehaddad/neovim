@@ -307,7 +307,7 @@ pub struct Forinfo {
     fi_source: ForSource,
 }
 
-pub type HtStack = Vec<crate::globals::GraphPtr<Hashtab>>;
+pub type HtStack = Vec<crate::eval::typval::DictId>;
 pub type ListStack = Vec<crate::eval::typval::ListId>;
 
 #[repr(C)]
@@ -4262,10 +4262,19 @@ pub fn set_ref_in_ht(
     let mut abort = false;
     let mut ht_stack: HtStack = Vec::new();
 
-    let mut cur_ht = crate::globals::GraphPtr::from(ht_ref);
-    loop {
-        if !abort {
-            for (_, di) in cur_ht.borrow_mut().iter_items_mut() {
+    for (_, di) in ht_ref.iter_items_mut() {
+        abort = abort
+            || set_ref_in_item(
+                &mut di.di_tv,
+                copy_id,
+                Some(&mut ht_stack),
+                list_stack.as_deref_mut(),
+            );
+    }
+
+    while let Some(next_d) = ht_stack.pop() {
+        if !abort && let Some(d_ref) = next_d.opt_mut() {
+            for (_, di) in d_ref.dv_hashtab.iter_items_mut() {
                 abort = abort
                     || set_ref_in_item(
                         &mut di.di_tv,
@@ -4275,11 +4284,6 @@ pub fn set_ref_in_ht(
                     );
             }
         }
-
-        let Some(next_ht) = ht_stack.pop() else {
-            break;
-        };
-        cur_ht = next_ht;
     }
 
     abort
@@ -4334,7 +4338,7 @@ fn set_ref_in_item_dict(
         return set_ref_in_ht(Some(&mut dd.unwrap().dv_hashtab), copy_id, list_stack);
     };
 
-    ht_stack_ref.push((&mut dd.as_deref_mut().unwrap().dv_hashtab).into());
+    ht_stack_ref.push(dd.as_deref().unwrap().dv_id);
 
     for watcher in &mut dd.unwrap().watchers {
         set_ref_in_callback(

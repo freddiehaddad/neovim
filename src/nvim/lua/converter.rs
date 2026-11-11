@@ -45,6 +45,7 @@ std::thread_local! {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct NluaRefState {
     pub nil_ref: LuaRef,
     pub empty_dict_ref: LuaRef,
@@ -217,10 +218,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
     {
         ret.table_type = ObjectType::ObjectTypeArray;
         if tsize == 0 && lua_getmetatable_safe(lstate, -1) {
-            nlua_pushref(
-                lstate,
-                crate::globals::nlua_global_refs_mut().empty_dict_ref,
-            );
+            nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
             if lua_rawequal_safe(lstate, -2, -1) {
                 ret.table_type = ObjectType::ObjectTypeDict;
             }
@@ -474,7 +472,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                 cur.tv_mut(ret_tv).v_type = VarType::VarFunc;
             }
             LUA_TUSERDATA => {
-                nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
                 let is_nil = lua_rawequal_safe(lstate, -2, -1);
                 lua_pop(lstate, 1);
                 if is_nil {
@@ -514,7 +512,7 @@ fn lua_conv_nil(lstate: *mut lua_State) {
     if TYPVAL_CONV_SPECIAL.get() {
         lua_pushnil_safe(lstate);
     } else {
-        nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
+        nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
     }
 }
 
@@ -524,10 +522,7 @@ fn lua_conv_empty_dict(lstate: *mut lua_State) {
         nlua_create_typed_table(lstate, 0, 0, ObjectType::ObjectTypeDict);
     } else {
         lua_createtable_safe(lstate, 0, 0);
-        nlua_pushref(
-            lstate,
-            crate::globals::nlua_global_refs_mut().empty_dict_ref,
-        );
+        nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
         let _ = lua_setmetatable_safe(lstate, -2);
     }
 }
@@ -1011,10 +1006,7 @@ pub fn nlua_push_boolean(lstate: *mut lua_State, b: Boolean, _flags: i32) {
 pub fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
     lua_createtable_safe(lstate, 0, dict.size as i32);
     if dict.size == 0 {
-        nlua_pushref(
-            lstate,
-            crate::globals::nlua_global_refs_mut().empty_dict_ref,
-        );
+        nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
         let _ = lua_setmetatable_safe(lstate, -2);
     }
     for item in dict.as_mut_slice() {
@@ -1045,7 +1037,7 @@ pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
             if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                 lua_pushnil_safe(lstate);
             } else {
-                nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
             }
         }
         ObjectType::ObjectTypeLuaRef => {
@@ -1495,7 +1487,7 @@ pub fn nlua_pop_object_opt(
                 }
             }
             LUA_TUSERDATA => {
-                nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
                 let is_nil = lua_rawequal_safe(lstate, -2, -1);
                 lua_pop(lstate, 1);
                 if is_nil {

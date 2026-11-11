@@ -3939,8 +3939,8 @@ fn redir_write(str_: &[u8], maxlen: isize) {
         if redirecting() != 0 {
             if !matches!(slice[0], b'\n' | b'\r') {
                 while MSG_STATE.with(|s| s.redir_col.get()) < g_st().msg_col {
-                    if !g_st().capture_ga.is_null() {
-                        g_st().capture_ga.push(b' ');
+                    if let Some(ref mut cap) = g_st().capture_ga {
+                        cap.push(b' ');
                     }
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, b" ", 1, true);
@@ -3959,8 +3959,10 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             }
 
             let len = slice.len();
-            if !g_st().capture_ga.is_null() && len > 0 {
-                g_st().capture_ga.extend_from_slice(slice);
+            if len > 0
+                && let Some(ref mut cap) = g_st().capture_ga
+            {
+                cap.extend_from_slice(slice);
             }
             if g_st().redir_reg != 0 {
                 write_reg_contents(g_st().redir_reg, slice, len as isize, true);
@@ -3972,7 +3974,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             for &b in slice {
                 if g_st().redir_reg == 0
                     && !g_st().redir_vname
-                    && g_st().capture_ga.is_null()
+                    && g_st().capture_ga.is_none()
                     && let Some(ref rf) = g_st().redir_fd
                 {
                     rf.putc(i32::from(b));
@@ -4005,7 +4007,7 @@ pub fn redirecting() -> i32 {
             || !opt_vars().p_vfile.is_empty()
             || g_st().redir_reg != 0
             || g_st().redir_vname
-            || !g_st().capture_ga.is_null(),
+            || g_st().capture_ga.is_some(),
     )
 }
 
