@@ -119,7 +119,7 @@ pub struct Stream {
     pub close_console: bool,
     pub internal_data: StreamInternalData,
     pub pending_reqs: usize,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
     pub notify_write: bool,
     pub curmem: usize,
     pub maxmem: usize,
@@ -139,7 +139,7 @@ impl Stream {
             close_console: false,
             internal_data: StreamInternalData::NONE,
             pending_reqs: 0,
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
             notify_write: false,
             curmem: 0,
             maxmem: 0,
@@ -245,7 +245,7 @@ pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_u
     stream.notify_write = false;
     stream.is_rstream = false;
     stream.closed = false;
-    stream.events = crate::globals::GraphPtr::NULL;
+    stream.events = MultiQueue::NULL;
 }
 
 pub fn stream_may_close(stream: &mut Stream) {

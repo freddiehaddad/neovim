@@ -180,8 +180,7 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
 unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     let mut req_buf = [0u64; 128];
     let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
-    let stream = *crate::globals::GraphPtr::of(handle.cast::<*mut RStream>()).borrow();
-    let stream = crate::globals::GraphPtr::of(stream).borrow_mut();
+    let stream = unsafe { &mut **handle.cast::<*mut RStream>() };
 
     let space = rstream_space(&mut *stream);
     let write_pos = stream.write_pos;
@@ -214,23 +213,22 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
 }
 
 pub fn read_event(stream_in: &mut RStream) {
-    let mut stream = crate::globals::GraphPtr::<RStream>::from_ref(stream_in);
+    let stream = &raw mut *stream_in;
     unsafe {
-        stream.pending_read = false;
-        let available = rstream_available(stream.borrow_mut());
-        let read_ptr = stream.buffer.as_ptr().wrapping_add(stream.read_pos);
+        (*stream).pending_read = false;
+        let available = rstream_available(&mut *stream);
+        let read_ptr = (*stream).buffer.as_ptr().wrapping_add((*stream).read_pos);
         let bytes = std::slice::from_raw_parts(read_ptr, available);
-        if let Some(consumed) = stream
-            .s
-            .cb_data
-            .call_read_cb(stream.s.fd, bytes, stream.did_eof)
-        {
+        let fd = (*stream).s.fd;
+        let eof = (*stream).did_eof;
+        let cb_data = (*stream).s.cb_data;
+        if let Some(consumed) = cb_data.call_read_cb(fd, bytes, eof) {
             assert!(consumed <= available);
-            rstream_consume(stream.borrow_mut(), consumed);
+            rstream_consume(&mut *stream, consumed);
         }
-        stream.s.pending_reqs -= 1;
-        if stream.s.closed && stream.s.pending_reqs == 0 {
-            stream_close_handle(&mut stream.s);
+        (*stream).s.pending_reqs -= 1;
+        if (*stream).s.closed && (*stream).s.pending_reqs == 0 {
+            stream_close_handle(&mut (*stream).s);
         }
     }
 }
@@ -284,7 +282,7 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
 pub(crate) fn rstream_close_cb(s: &mut Stream) {
     let stream = (&raw mut *s).cast::<RStream>();
     assert!(!stream.is_null());
-    crate::globals::GraphPtr::of(stream).borrow_mut().buffer = Vec::new();
+    unsafe { (*stream).buffer = Vec::new() };
 }
 
 pub fn rstream_may_close(stream: &mut RStream) {

@@ -1498,8 +1498,8 @@ fn event_name2nr_hash(s: &[u8]) -> isize {
 }
 
 pub fn autocmd_init() {
-    let events = loop_queues(&mut g_st().main_loop).events.borrow_mut();
-    g_st().deferred_events = crate::globals::GraphPtr::from(multiqueue_new_child(events));
+    let events = loop_queues(&mut g_st().main_loop).events;
+    g_st().deferred_events = multiqueue_new_child(events);
 }
 
 pub fn autocmd_free_all_mem() {

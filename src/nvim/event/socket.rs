@@ -77,7 +77,7 @@ pub struct SocketWatcher {
     pub addr: [u8; ADDRESS_MAX_SIZE],
     pub uv: UvSocketHandle,
     pub tcp_addrinfo: *mut addrinfo,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
 }
 
 impl SocketWatcher {
@@ -86,7 +86,7 @@ impl SocketWatcher {
             addr: [0; ADDRESS_MAX_SIZE],
             uv: UvSocketHandle([0; 640]),
             tcp_addrinfo: ptr::null_mut(),
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
         }
     }
 
@@ -256,7 +256,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     unsafe {
         *(&raw mut watcher.uv).cast::<*mut SocketWatcher>() = (&raw mut *watcher);
     }
-    watcher.events = crate::globals::GraphPtr::NULL;
+    watcher.events = MultiQueue::NULL;
 
     0
 }
@@ -277,7 +277,7 @@ pub fn socket_alive(
     }
 
     let mut closed = false;
-    let closed_ptr = crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
+    let closed_ptr = &raw mut closed;
     stream.s.internal_data = StreamInternalData::Closed(closed_ptr.into());
     stream_may_close(&mut stream.s);
     poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
@@ -351,8 +351,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         // Close and reinit the pipe handle before retrying bind
                         let uv_loop = uv_handle_get_loop(uv_ptr.cast());
                         let mut closed = false;
-                        let closed_ptr =
-                            crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
+                        let closed_ptr = &raw mut closed;
                         *uv_ptr.cast::<*mut bool>() = closed_ptr;
                         uv_close(uv_ptr.cast(), Some(early_server_close_cb));
                         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
@@ -484,11 +483,11 @@ pub fn socket_connect(
         let mut status: i32 = 1;
         let mut req = UvConnectReq([0; 512]);
         let req_ptr = (&raw mut req).cast::<uv_connect_t>();
-        let status_ptr = crate::globals::GraphPtr::<i32>::of(&raw mut status).as_ptr();
-        let closed_ptr = crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
+        let status_ptr = &raw mut status;
+        let closed_ptr = &raw mut closed;
         *req_ptr.cast::<*mut i32>() = status_ptr;
 
-        let s_ptr = crate::globals::GraphPtr::<Stream>::of(&raw mut stream.s).as_ptr();
+        let s_ptr = &raw mut stream.s;
         let uv_ptr: *mut c_void = (&raw mut (*s_ptr).uv).cast();
         let fields = s_ptr;
 

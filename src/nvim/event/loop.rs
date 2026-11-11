@@ -14,9 +14,9 @@ use std::ptr;
 #[repr(C)]
 pub struct Loop {
     pub uv: [u64; 192],
-    pub events: crate::globals::GraphPtr<MultiQueue>,
-    pub thread_events: crate::globals::GraphPtr<MultiQueue>,
-    pub fast_events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
+    pub thread_events: MultiQueue,
+    pub fast_events: MultiQueue,
     pub children: Vec<crate::globals::GraphPtr<crate::event::proc::Proc>>,
     pub children_watcher: [u64; 40],
     pub children_kill_timer: [u64; 32],
@@ -33,9 +33,9 @@ impl Loop {
     pub const fn new() -> Self {
         Self {
             uv: [0; 192],
-            events: crate::globals::GraphPtr::NULL,
-            thread_events: crate::globals::GraphPtr::NULL,
-            fast_events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
+            thread_events: MultiQueue::NULL,
+            fast_events: MultiQueue::NULL,
             children: Vec::new(),
             children_watcher: [0; 40],
             children_kill_timer: [0; 32],
@@ -62,8 +62,8 @@ pub fn main_loop_ptr() -> &'static mut Loop {
 }
 
 #[inline]
-pub fn main_loop_events() -> &'static mut MultiQueue {
-    crate::globals::g_st().main_loop.events.borrow_mut()
+pub fn main_loop_events() -> MultiQueue {
+    crate::globals::g_st().main_loop.events
 }
 
 #[inline]
@@ -106,10 +106,9 @@ pub fn loop_init(loop_: &mut Loop) {
         *uv_ptr.cast::<*mut Loop>() = &raw mut *loop_;
 
         loop_.children.clear();
-        loop_.events = crate::globals::GraphPtr::from(multiqueue_new(Some(&mut *loop_)));
-        loop_.fast_events =
-            crate::globals::GraphPtr::from(multiqueue_new_child(loop_.events.borrow_mut()));
-        loop_.thread_events = crate::globals::GraphPtr::from(multiqueue_new(None));
+        loop_.events = multiqueue_new(Some(&mut *loop_));
+        loop_.fast_events = multiqueue_new_child(loop_.events);
+        loop_.thread_events = multiqueue_new(None);
 
         uv_mutex_init(loop_mutex(loop_));
         uv_async_init(uv_ptr, loop_async(loop_), Some(async_cb));

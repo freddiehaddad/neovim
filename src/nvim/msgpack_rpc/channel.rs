@@ -148,7 +148,7 @@ impl Drop for RpcState {
 pub struct Channel {
     pub id: u64,
     pub refcount: usize,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
     pub streamtype: ChannelStreamType,
     pub uv: LibuvProc,
     pub socket: RStream,
@@ -173,8 +173,8 @@ pub struct Channel {
 
 impl Channel {
     #[inline]
-    pub fn events_mut(&self) -> &'static mut MultiQueue {
-        self.events.borrow_mut()
+    pub fn events_mut(&self) -> MultiQueue {
+        self.events
     }
 
     #[inline]
@@ -247,8 +247,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     let qc = loop_queues(&mut g_st().main_loop);
-    g_st().ch_before_blocking_events =
-        crate::globals::GraphPtr::from(multiqueue_new_child(qc.events.borrow_mut()));
+    g_st().ch_before_blocking_events = multiqueue_new_child(qc.events);
 }
 
 pub fn rpc_start(channel: &mut Channel) {

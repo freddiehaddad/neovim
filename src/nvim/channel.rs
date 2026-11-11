@@ -336,7 +336,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     let chan = Box::into_raw(Box::new(Channel {
         id,
         refcount: 1,
-        events: crate::globals::GraphPtr::from(multiqueue_new_child(qc.events.borrow_mut())),
+        events: multiqueue_new_child(qc.events),
         streamtype: r#type,
         uv: crate::event::proc::LibuvProc::new(),
         socket: RStream::new(),

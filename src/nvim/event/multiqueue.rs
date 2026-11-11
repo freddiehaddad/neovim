@@ -168,22 +168,52 @@ impl Event {
     }
 }
 
-enum QueueEntry {
-    Event(Event),
-    Child(crate::globals::GraphPtr<MultiQueue>),
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MultiQueue(u32);
+
+impl MultiQueue {
+    pub const NULL: Self = Self(0);
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline(always)]
+    pub const fn borrow(self) -> Self {
+        self
+    }
+
+    #[inline(always)]
+    pub const fn borrow_mut(self) -> Self {
+        self
+    }
+
+    #[inline(always)]
+    pub const fn opt(self) -> Option<Self> {
+        if self.0 == 0 { None } else { Some(self) }
+    }
+
+    #[inline(always)]
+    pub const fn opt_mut(self) -> Option<Self> {
+        self.opt()
+    }
 }
 
-#[repr(C)]
-pub struct MultiQueue {
-    parent: crate::globals::GraphPtr<MultiQueue>,
+enum QueueEntry {
+    Event(Event),
+    Child(MultiQueue),
+}
+
+struct MultiQueueInner {
+    parent: MultiQueue,
     items: VecDeque<QueueEntry>,
-    notify_loop: crate::globals::GraphPtr<crate::event::r#loop::Loop>,
+    notify_main_loop: bool,
     size: usize,
-    arena_idx: usize,
 }
 
 struct MultiQueueState {
-    arena: Vec<Option<Box<MultiQueue>>>,
+    arena: Vec<Option<MultiQueueInner>>,
     free_slots: Vec<usize>,
 }
 
@@ -202,117 +232,125 @@ thread_local! {
     };
 }
 
-fn multiqueue_new_inner(
-    parent: Option<&mut MultiQueue>,
-    notify_loop: Option<&mut crate::event::r#loop::Loop>,
-) -> &'static mut MultiQueue {
-    let mut mq = Box::new(MultiQueue {
-        parent: crate::globals::GraphPtr::from(parent),
+fn multiqueue_new_inner(parent: MultiQueue, notify_main_loop: bool) -> MultiQueue {
+    let mq = MultiQueueInner {
+        parent,
         items: VecDeque::new(),
-        notify_loop: crate::globals::GraphPtr::from(notify_loop),
+        notify_main_loop,
         size: 0,
-        arena_idx: 0,
-    });
-    let mq_ptr = crate::globals::GraphPtr::from(&mut *mq);
+    };
     MQ_STATE.with(|cell| {
         let mut st = cell.borrow_mut();
         if let Some(idx) = st.free_slots.pop() {
-            mq.arena_idx = idx;
             st.arena[idx] = Some(mq);
+            MultiQueue((idx + 1) as u32)
         } else {
             let idx = st.arena.len();
-            mq.arena_idx = idx;
             st.arena.push(Some(mq));
+            MultiQueue((idx + 1) as u32)
         }
-    });
-    mq_ptr.borrow_mut()
+    })
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-pub fn multiqueue_new(
-    notify_loop: Option<&mut crate::event::r#loop::Loop>,
-) -> &'static mut MultiQueue {
-    multiqueue_new_inner(None, notify_loop)
+pub fn multiqueue_new(notify_loop: Option<&mut crate::event::r#loop::Loop>) -> MultiQueue {
+    multiqueue_new_inner(MultiQueue::NULL, notify_loop.is_some())
 }
 
 /// Create a new child `MultiQueue` attached to `parent` (`multiqueue_new_child`).
-pub fn multiqueue_new_child(parent: &mut MultiQueue) -> &'static mut MultiQueue {
-    assert!(parent.parent.is_null());
-    parent.size = parent.size.wrapping_add(1);
-    multiqueue_new_inner(Some(parent), None)
-}
-
-impl Drop for MultiQueue {
-    fn drop(&mut self) {
-        let self_ptr = crate::globals::GraphPtr::<MultiQueue>::of(&self)
-            .as_ptr()
-            .cast_const();
-        if !self.parent.is_null() && !self.items.is_empty() {
-            self.parent
-                .items
-                .retain(|entry| !matches!(entry, &QueueEntry::Child(child) if child == self_ptr));
-        }
-    }
+pub fn multiqueue_new_child(parent: MultiQueue) -> MultiQueue {
+    MQ_STATE.with(|cell| {
+        let mut st = cell.borrow_mut();
+        let p = st.arena[(parent.0 - 1) as usize].as_mut().unwrap();
+        assert!(p.parent.is_null());
+        p.size = p.size.wrapping_add(1);
+    });
+    multiqueue_new_inner(parent, false)
 }
 
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
-pub fn multiqueue_free(this: &mut MultiQueue) {
-    let idx = this.arena_idx;
+pub fn multiqueue_free(this: MultiQueue) {
+    if this.is_null() {
+        return;
+    }
+    let idx = (this.0 - 1) as usize;
     let removed = MQ_STATE.with(|cell| {
         let mut st = cell.borrow_mut();
-        st.free_slots.push(idx);
-        st.arena[idx].take()
+        let removed = st.arena[idx].take();
+        if let Some(ref q) = removed {
+            st.free_slots.push(idx);
+            if !q.parent.is_null()
+                && !q.items.is_empty()
+                && let Some(Some(parent)) = st.arena.get_mut((q.parent.0 - 1) as usize)
+            {
+                parent
+                    .items
+                    .retain(|entry| !matches!(entry, &QueueEntry::Child(child) if child == this));
+            }
+        }
+        removed
     });
     drop(removed);
 }
 
-fn multiqueue_remove(this: &mut MultiQueue) -> Event {
+fn multiqueue_remove(this: MultiQueue) -> Event {
     assert!(!multiqueue_empty(this));
-    {
-        let q = this;
-        let entry = q.items.pop_front().unwrap();
-        q.size = q.size.wrapping_sub(1);
+    MQ_STATE.with(|cell| {
+        let mut st = cell.borrow_mut();
+        let (entry, parent) = {
+            let q = st.arena[(this.0 - 1) as usize].as_mut().unwrap();
+            let entry = q.items.pop_front().unwrap();
+            q.size = q.size.wrapping_sub(1);
+            (entry, q.parent)
+        };
         match entry {
             QueueEntry::Child(linked) => {
-                assert!(q.parent.is_null());
-                let linked_ref = linked.borrow_mut();
-                assert!(!multiqueue_empty(linked_ref));
+                assert!(parent.is_null());
+                let linked_ref = st.arena[(linked.0 - 1) as usize].as_mut().unwrap();
+                assert!(!linked_ref.items.is_empty());
                 match linked_ref.items.pop_front().unwrap() {
                     QueueEntry::Event(ev) => ev,
                     QueueEntry::Child(_) => unreachable!(),
                 }
             }
             QueueEntry::Event(ev) => {
-                let q_ptr = crate::globals::GraphPtr::<MultiQueue>::from_ref(&*q);
-                if let Some(parent) = q.parent.opt_mut()
-                    && let Some(pos) = parent
+                if !parent.is_null()
+                    && let Some(Some(parent_q)) = st.arena.get_mut((parent.0 - 1) as usize)
+                    && let Some(pos) = parent_q
                         .items
                         .iter()
-                        .position(|e| matches!(e, &QueueEntry::Child(child) if child == q_ptr))
+                        .position(|e| matches!(e, &QueueEntry::Child(child) if child == this))
                 {
-                    parent.items.remove(pos);
+                    parent_q.items.remove(pos);
                 }
                 ev
             }
         }
-    }
+    })
 }
 
-fn multiqueue_push(this: &mut MultiQueue, event: Event) {
-    let q = this;
-    let q_ptr = crate::globals::GraphPtr::<MultiQueue>::from_ref(&*q);
-    q.items.push_back(QueueEntry::Event(event));
-    if let Some(parent) = q.parent.opt_mut() {
-        parent.items.push_back(QueueEntry::Child(q_ptr));
-    }
-    q.size = q.size.wrapping_add(1);
+fn multiqueue_push(this: MultiQueue, event: Event) -> bool {
+    MQ_STATE.with(|cell| {
+        let mut st = cell.borrow_mut();
+        let parent = {
+            let q = st.arena[(this.0 - 1) as usize].as_mut().unwrap();
+            q.items.push_back(QueueEntry::Event(event));
+            q.size = q.size.wrapping_add(1);
+            q.parent
+        };
+        if !parent.is_null()
+            && let Some(Some(parent_q)) = st.arena.get_mut((parent.0 - 1) as usize)
+        {
+            parent_q.items.push_back(QueueEntry::Child(this));
+            parent_q.notify_main_loop
+        } else {
+            false
+        }
+    })
 }
 
 /// Remove the next item and return its `Event` (`multiqueue_get`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
+pub fn multiqueue_get(this: MultiQueue) -> Event {
     if multiqueue_empty(this) {
         Event::nil()
     } else {
@@ -321,16 +359,14 @@ pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
 }
 
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
-pub fn multiqueue_put_event(this: &mut MultiQueue, event: Event) {
-    multiqueue_push(this, event);
-    let parent = this.parent;
-    if let Some(notify_loop) = parent.opt_mut().and_then(|p| p.notify_loop.opt_mut()) {
-        crate::event::r#loop::loop_on_put(notify_loop);
+pub fn multiqueue_put_event(this: MultiQueue, event: Event) {
+    if multiqueue_push(this, event) {
+        crate::event::r#loop::loop_on_put(&mut crate::globals::g_st().main_loop);
     }
 }
 
 /// Move all events from `src` to `dest` (`multiqueue_move_events`).
-pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
+pub fn multiqueue_move_events(dest: MultiQueue, src: MultiQueue) {
     while !multiqueue_empty(src) {
         let event = multiqueue_get(src);
         multiqueue_put_event(dest, event);
@@ -338,7 +374,7 @@ pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
 }
 
 /// Process all events in `this` (`multiqueue_process_events`).
-pub fn multiqueue_process_events(this: &mut MultiQueue) {
+pub fn multiqueue_process_events(this: MultiQueue) {
     while !multiqueue_empty(this) {
         let event = multiqueue_remove(this);
         event.dispatch();
@@ -346,27 +382,47 @@ pub fn multiqueue_process_events(this: &mut MultiQueue) {
 }
 
 /// Remove all events from `this` without invoking handlers (`multiqueue_purge_events`).
-pub fn multiqueue_purge_events(this: &mut MultiQueue) {
+pub fn multiqueue_purge_events(this: MultiQueue) {
     while !multiqueue_empty(this) {
         let _ = multiqueue_remove(this);
     }
 }
 
 /// Return true if `this` has no queued items (`multiqueue_empty`).
-pub fn multiqueue_empty(this: &MultiQueue) -> bool {
-    std::mem::ManuallyDrop::new(unsafe { std::ptr::read_volatile(&raw const this.items) })
-        .is_empty()
+pub fn multiqueue_empty(this: MultiQueue) -> bool {
+    if this.is_null() {
+        return true;
+    }
+    MQ_STATE.with(|cell| {
+        cell.borrow()
+            .arena
+            .get((this.0 - 1) as usize)
+            .and_then(Option::as_ref)
+            .is_none_or(|q| q.items.is_empty())
+    })
 }
 
 /// Replace the parent of an empty queue `this` (`multiqueue_replace_parent`).
-pub fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
+pub fn multiqueue_replace_parent(this: MultiQueue, new_parent: MultiQueue) {
     assert!(multiqueue_empty(this));
-    this.parent = crate::globals::GraphPtr::from(new_parent);
+    MQ_STATE.with(|cell| {
+        let mut st = cell.borrow_mut();
+        st.arena[(this.0 - 1) as usize].as_mut().unwrap().parent = new_parent;
+    });
 }
 
 /// Return the size counter of `this` (`multiqueue_size`).
-pub fn multiqueue_size(this: &MultiQueue) -> usize {
-    this.size
+pub fn multiqueue_size(this: MultiQueue) -> usize {
+    if this.is_null() {
+        return 0;
+    }
+    MQ_STATE.with(|cell| {
+        cell.borrow()
+            .arena
+            .get((this.0 - 1) as usize)
+            .and_then(Option::as_ref)
+            .map_or(0, |q| q.size)
+    })
 }
 
 /// Create a shared one-shot multicast event cell (`event_create_oneshot`).
@@ -381,8 +437,8 @@ mod tests {
     #[test]
     fn parent_and_child_interleaved_ordering() {
         let parent = multiqueue_new(None);
-        let c1 = multiqueue_new_child(&mut *parent);
-        let c2 = multiqueue_new_child(&mut *parent);
+        let c1 = multiqueue_new_child(parent);
+        let c2 = multiqueue_new_child(parent);
 
         let make_ev = Event::Test;
         let ev_val = |ev: Event| match ev {
@@ -390,30 +446,30 @@ mod tests {
             _ => panic!("expected Event::Test"),
         };
 
-        multiqueue_put_event(&mut *c1, make_ev(11));
-        multiqueue_put_event(&mut *c2, make_ev(21));
-        multiqueue_put_event(&mut *c1, make_ev(12));
-        assert_eq!(multiqueue_size(&*c1), 2);
-        assert_eq!(multiqueue_size(&*c2), 1);
+        multiqueue_put_event(c1, make_ev(11));
+        multiqueue_put_event(c2, make_ev(21));
+        multiqueue_put_event(c1, make_ev(12));
+        assert_eq!(multiqueue_size(c1), 2);
+        assert_eq!(multiqueue_size(c2), 1);
 
         // Pop from c2 first; should also unlink from parent.
-        assert_eq!(ev_val(multiqueue_get(&mut *c2)), 21);
-        assert_eq!(multiqueue_size(&*c2), 0);
+        assert_eq!(ev_val(multiqueue_get(c2)), 21);
+        assert_eq!(multiqueue_size(c2), 0);
 
         // Remaining in parent should be 11 then 12.
-        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 11);
-        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 12);
-        assert!(multiqueue_empty(&*parent));
+        assert_eq!(ev_val(multiqueue_get(parent)), 11);
+        assert_eq!(ev_val(multiqueue_get(parent)), 12);
+        assert!(multiqueue_empty(parent));
 
         // Child free unlinks remaining events from parent.
-        let c3 = multiqueue_new_child(&mut *parent);
-        multiqueue_put_event(&mut *c1, make_ev(101));
-        multiqueue_put_event(&mut *c2, make_ev(201));
-        multiqueue_put_event(&mut *c3, make_ev(301));
+        let c3 = multiqueue_new_child(parent);
+        multiqueue_put_event(c1, make_ev(101));
+        multiqueue_put_event(c2, make_ev(201));
+        multiqueue_put_event(c3, make_ev(301));
         multiqueue_free(c2);
-        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 101);
-        assert_eq!(ev_val(multiqueue_get(&mut *c3)), 301);
-        assert!(multiqueue_empty(&*parent));
+        assert_eq!(ev_val(multiqueue_get(parent)), 101);
+        assert_eq!(ev_val(multiqueue_get(c3)), 301);
+        assert!(multiqueue_empty(parent));
 
         multiqueue_free(c1);
         multiqueue_free(c3);

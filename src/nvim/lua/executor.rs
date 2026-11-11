@@ -357,7 +357,7 @@ use crate::version::MAIN_EXITFREE;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[inline]
-fn put_event(mq: Option<&mut MultiQueue>, ev: Event) {
+fn put_event(mq: Option<MultiQueue>, ev: Event) {
     if let Some(mq) = mq {
         multiqueue_put_event(mq, ev);
     }
@@ -788,8 +788,8 @@ extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
     } else {
         queues.events
     };
-    if !loop_events.is_null() && !multiqueue_empty(&loop_events) {
-        multiqueue_process_events(loop_events.borrow_mut());
+    if !loop_events.is_null() && !multiqueue_empty(loop_events) {
+        multiqueue_process_events(loop_events);
     } else {
         loop_poll_events(&mut g_st().main_loop, timeout);
     }

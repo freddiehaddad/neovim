@@ -168,7 +168,7 @@ pub fn input_get(
     mut out_buf: Option<&mut [u8]>,
     ms: i32,
     tb_change_cnt: i32,
-    events: Option<&MultiQueue>,
+    events: Option<MultiQueue>,
 ) -> i32 {
     if out_buf.as_ref().is_some_and(|s| s.is_empty()) {
         out_buf = None;
@@ -242,9 +242,7 @@ pub fn input_get(
             }
             reset_cursorhold_wait(tb_change_cnt);
             if trigger_cursorhold() && !typebuf_changed(tb_change_cnt) {
-                create_cursorhold_event(
-                    events.is_some_and(|ev| std::ptr::eq(ev, main_loop_events())),
-                );
+                create_cursorhold_event(events == Some(main_loop_events()));
             } else {
                 before_blocking();
                 inbuf_poll(-1, events);
@@ -613,7 +611,7 @@ pub fn input_blocking() -> bool {
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
-fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
+fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     if os_input_ready(events_opt) {
         return true;
     }
@@ -627,10 +625,10 @@ fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
         prof_input_start();
     }
 
-    if !events_opt.is_some_and(|ev| std::ptr::eq(ev, main_loop_events())) {
+    if events_opt != Some(main_loop_events()) {
         // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
         osi_st(|st| st.blocking.set(true));
-        multiqueue_process_events(g_st().ch_before_blocking_events.borrow_mut());
+        multiqueue_process_events(g_st().ch_before_blocking_events);
     }
 
     // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
@@ -735,12 +733,12 @@ fn push_event_key(buf: &mut [u8]) -> i32 {
 }
 
 /// Check if there's pending input already in typebuf or `events`
-pub fn os_input_ready(events: Option<&MultiQueue>) -> bool {
+pub fn os_input_ready(events: Option<MultiQueue>) -> bool {
     g_st().typebuf_was_filled || input_available() != 0 || pending_events(events)
 }
 
-fn pending_events(events: Option<&MultiQueue>) -> bool {
-    events.is_some() && !multiqueue_empty(events.unwrap())
+fn pending_events(events: Option<MultiQueue>) -> bool {
+    events.is_some_and(|ev| !multiqueue_empty(ev))
 }
 
 #[cfg(test)]

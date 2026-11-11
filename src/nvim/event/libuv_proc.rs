@@ -197,19 +197,17 @@ fn libuv_proc_stdio(
 
 /// @returns zero on success, or negative error code
 pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
-    let proc_ = crate::globals::GraphPtr::<Proc>::of(&raw mut uvproc.proc_).as_ptr();
-    let proc_ = crate::globals::GraphPtr::of(proc_).borrow_mut();
     let uv: *mut uv_handle_t = (&raw mut uvproc.uv).cast();
 
     #[cfg(windows)]
     {
-        if os_shell_is_cmdexe(&proc_.argv.as_slice()[0]) {
+        if os_shell_is_cmdexe(&uvproc.proc_.argv.as_slice()[0]) {
             uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
-            crate::memory::cstring_modify(&mut proc_.argv[0], |b| {
+            crate::memory::cstring_modify(&mut uvproc.proc_.argv[0], |b| {
                 path_to_backslash(b);
             });
         }
-        if proc_.detach {
+        if uvproc.proc_.detach {
             uvproc.uvopts.flags |= UV_PROCESS_DETACHED;
         }
     }
@@ -218,18 +216,20 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         uvproc.uvopts.flags |= UV_PROCESS_DETACHED;
     }
 
-    uvproc.args_ptrs = proc_
+    uvproc.args_ptrs = uvproc
+        .proc_
         .argv
         .iter()
         .map(|s| s.as_ptr().cast_mut().cast())
         .chain(std::iter::once(ptr::null_mut()))
         .collect();
-    uvproc.uvopts.file = proc_get_exepath(&*proc_).as_ptr().cast();
+    uvproc.uvopts.file = proc_get_exepath(&uvproc.proc_).as_ptr().cast();
     uvproc.uvopts.args = uvproc.args_ptrs.as_mut_ptr();
     uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
     uvproc.uvopts.exit_cb = Some(exit_cb);
-    uvproc.uvopts.cwd = proc_
+    uvproc.uvopts.cwd = uvproc
+        .proc_
         .cwd
         .as_ref()
         .map_or(ptr::null(), |s| s.as_ptr().cast());
@@ -247,11 +247,11 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         uvproc.uvstdio[3].flags = UV_INHERIT_FD;
     }
     unsafe {
-        *uv.cast::<*mut Proc>() = proc_;
+        *uv.cast::<*mut Proc>() = &raw mut uvproc.proc_;
     }
 
-    if !proc_.env.is_null() {
-        uvproc.env_vec = tv_dict_to_env(proc_.env.opt());
+    if !uvproc.proc_.env.is_null() {
+        uvproc.env_vec = tv_dict_to_env(uvproc.proc_.env.opt());
         uvproc.env_ptrs = uvproc
             .env_vec
             .iter()
@@ -264,46 +264,48 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     }
 
     let mut to_close = [-1_i32; 3];
+    let overlapped = uvproc.proc_.overlapped;
+    let stdio_noinherit = uvproc.proc_.stdio_noinherit;
 
-    if !proc_.r#in.closed {
+    if !uvproc.proc_.r#in.closed {
         libuv_proc_stdio(
             &mut *uvproc,
             0,
             true,
-            proc_.overlapped,
-            proc_.stdio_noinherit,
+            overlapped,
+            stdio_noinherit,
             &mut to_close,
         );
     }
 
-    if !proc_.out.s.closed {
+    if !uvproc.proc_.out.s.closed {
         libuv_proc_stdio(
             &mut *uvproc,
             1,
             false,
-            proc_.overlapped,
+            overlapped,
             true,
             &mut to_close,
         );
     }
 
-    if !proc_.err.s.closed {
+    if !uvproc.proc_.err.s.closed {
         libuv_proc_stdio(
             &mut *uvproc,
             2,
             false,
-            proc_.overlapped,
-            proc_.stdio_noinherit,
+            overlapped,
+            stdio_noinherit,
             &mut to_close,
         );
-    } else if proc_.fwd_err {
+    } else if uvproc.proc_.fwd_err {
         uvproc.uvstdio[2].flags = UV_INHERIT_FD;
         uvproc.uvstdio[2].data.fd = STDERR_FILENO;
     }
 
     let status = unsafe {
         uv_spawn(
-            proc_.loop_.as_ptr().cast(),
+            uvproc.proc_.loop_.as_ptr().cast(),
             uv.cast(),
             &raw const uvproc.uvopts,
         )
@@ -313,7 +315,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         uvproc.env_vec.clear();
         uvproc.uvopts.env = ptr::null_mut();
     } else {
-        proc_.pid = unsafe { uv_process_get_pid(uv.cast()) };
+        uvproc.proc_.pid = unsafe { uv_process_get_pid(uv.cast()) };
     }
 
     for fd in to_close {

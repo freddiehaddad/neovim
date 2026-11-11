@@ -49,7 +49,7 @@ pub struct Proc {
     pub overlapped: bool,
     pub fwd_err: bool,
     pub stdio_noinherit: bool,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
     pub width: u16,
     pub height: u16,
     #[cfg(unix)]
@@ -87,7 +87,7 @@ impl Proc {
             overlapped: false,
             fwd_err: false,
             stdio_noinherit: false,
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
             width: 0,
             height: 0,
             #[cfg(unix)]
@@ -144,7 +144,7 @@ pub fn libuv_proc_uv(proc_: &mut Proc) -> &mut uv_handle_t {
 }
 
 #[inline]
-fn loop_process_events(loop_in: &mut Loop, multiqueue: Option<&mut MultiQueue>, timeout: i64) {
+fn loop_process_events(loop_in: &mut Loop, multiqueue: Option<MultiQueue>, timeout: i64) {
     let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
     unsafe {
         if let Some(multiqueue) = multiqueue
@@ -160,19 +160,18 @@ fn loop_process_events(loop_in: &mut Loop, multiqueue: Option<&mut MultiQueue>, 
 #[inline]
 fn loop_process_events_until<F: FnMut() -> bool>(
     loop_in: &mut Loop,
-    multiqueue_in: Option<&mut MultiQueue>,
+    multiqueue: Option<MultiQueue>,
     timeout: i64,
     mut cond: F,
 ) {
     let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
-    let multiqueue = crate::globals::GraphPtr::from(multiqueue_in);
     let timeout_ms = timeout;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
     while !cond() && !expired {
         unsafe {
-            loop_process_events(&mut *loop_, multiqueue.as_mut(), remaining);
+            loop_process_events(&mut *loop_, multiqueue, remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -303,9 +302,9 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>) -> i32 {
+pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> i32 {
     let proc_ = crate::globals::GraphPtr::<Proc>::of(proc_in).as_ptr();
-    let mut events = crate::globals::GraphPtr::from(events_in);
+    let mut events = events_in.unwrap_or(MultiQueue::NULL);
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
@@ -320,7 +319,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>
         (*proc_).refcount += 1;
         loop_process_events_until(
             (*proc_).loop_.borrow_mut(),
-            events.as_mut(),
+            events.opt_mut(),
             i64::from(ms),
             || {
                 ptr::read_volatile(&raw const g_st().got_int)
@@ -332,11 +331,14 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>
             g_st().got_int = false;
             proc_stop(&mut *proc_);
             if ms == -1 {
-                loop_process_events_until((*proc_).loop_.borrow_mut(), events.as_mut(), -1, || {
-                    ptr::read_volatile(&raw const (*proc_).refcount) == 1
-                });
+                loop_process_events_until(
+                    (*proc_).loop_.borrow_mut(),
+                    events.opt_mut(),
+                    -1,
+                    || ptr::read_volatile(&raw const (*proc_).refcount) == 1,
+                );
             } else {
-                loop_process_events((*proc_).loop_.borrow_mut(), events.as_mut(), 0);
+                loop_process_events((*proc_).loop_.borrow_mut(), events.opt_mut(), 0);
             }
 
             (*proc_).status = -2;
@@ -572,15 +574,12 @@ pub fn exit_on_closed_chan(status: i32) {
 pub(crate) fn on_proc_exit(proc_: &mut Proc) {
     let qc = loop_queues(proc_.loop_.borrow_mut());
     let queue = if !proc_.events.is_null() {
-        proc_.events.as_ptr()
+        proc_.events
     } else {
-        qc.events.as_ptr()
+        qc.events
     };
     if !queue.is_null() {
-        multiqueue_put_event(
-            crate::globals::GraphPtr::of(queue).borrow_mut(),
-            Event::ProcCloseHandles(proc_.into()),
-        );
+        multiqueue_put_event(queue, Event::ProcCloseHandles(proc_.into()));
     } else {
         proc_close_handles(proc_);
     }

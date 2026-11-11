@@ -804,8 +804,8 @@ fn do_os_system(
     proc_.err.s.fd = STDERR_FILENO;
 
     let qc = loop_queues(&mut *mloop);
-    let events = multiqueue_new_child(qc.events.borrow_mut());
-    proc_.events = crate::globals::GraphPtr::from(&mut *events);
+    let events = multiqueue_new_child(qc.events);
+    proc_.events = events;
     proc_.argv = argv;
 
     'end: {
@@ -867,7 +867,7 @@ fn do_os_system(
             *out = buf;
         }
 
-        debug_assert!(multiqueue_empty(&*events));
+        debug_assert!(multiqueue_empty(events));
     }
 
     multiqueue_free(events);

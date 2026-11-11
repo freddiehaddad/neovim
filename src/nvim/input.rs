@@ -2988,7 +2988,7 @@ pub fn fix_input_buffer(buf: &mut [u8], mut len: i32) -> i32 {
 }
 
 /// Get a key stroke directly from the user.
-pub fn get_keystroke(events: Option<&MultiQueue>) -> i32 {
+pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
     let mut buf: Vec<u8> = vec![0; 150];
     let mut buflen: i32 = 150;
     let mut len: i32 = 0;

@@ -4662,9 +4662,9 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if chan.uv.proc_.status < 0 {
                 let events = chan.events;
 
-                multiqueue_process_events(events.borrow_mut());
+                multiqueue_process_events(events);
 
-                multiqueue_replace_parent(events.borrow_mut(), &mut *waiting_jobs);
+                multiqueue_replace_parent(events, waiting_jobs);
             }
         }
     }
@@ -4693,7 +4693,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let Some(job) = crate::msgpack_rpc::channel::find_channel_opt(id) else {
             continue;
         };
-        let status = proc_wait(&mut job.uv.proc_, remaining, Some(&mut *waiting_jobs));
+        let status = proc_wait(&mut job.uv.proc_, remaining, Some(waiting_jobs));
         if status < 0 {
             break;
         }

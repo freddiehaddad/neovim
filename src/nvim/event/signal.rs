@@ -10,7 +10,7 @@ use crate::event::time::loop_fast_events;
 pub struct SignalWatcher {
     pub uv: [u64; 40],
     pub data: crate::globals::GraphPtr<crate::tui::tui::TUIData>,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
     pub signum: i32,
 }
 
@@ -19,7 +19,7 @@ impl SignalWatcher {
         Self {
             uv: [0; 40],
             data: crate::globals::GraphPtr::NULL,
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
             signum: 0,
         }
     }
@@ -36,7 +36,7 @@ pub fn signal_watcher_init(loop_: &mut Loop, watcher: &mut SignalWatcher) {
         uv_signal_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut SignalWatcher>() = watcher;
         watcher.data = crate::globals::GraphPtr::NULL;
-        watcher.events = crate::globals::GraphPtr::from(loop_fast_events(loop_));
+        watcher.events = loop_fast_events(loop_);
         watcher.signum = 0;
     }
 }

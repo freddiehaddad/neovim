@@ -281,7 +281,7 @@ struct TermPending {
     resize: bool,
     cursor: bool,
     send: Option<std::rc::Rc<std::cell::RefCell<Vec<u8>>>>,
-    events: crate::globals::GraphPtr<MultiQueue>,
+    events: MultiQueue,
 }
 
 impl TermPending {
@@ -290,7 +290,7 @@ impl TermPending {
             resize: false,
             cursor: false,
             send: None,
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
         }
     }
 }
@@ -342,8 +342,8 @@ impl Terminal {
     }
 
     #[inline]
-    fn pending_events_mut(&self) -> &'static mut MultiQueue {
-        self.pending.events.borrow_mut()
+    fn pending_events_mut(&self) -> MultiQueue {
+        self.pending.events
     }
 }
 
@@ -352,7 +352,7 @@ impl Drop for Terminal {
         if let Some(events) = self.pending.events.opt_mut() {
             multiqueue_free(events);
         }
-        self.pending.events = crate::globals::GraphPtr::NULL;
+        self.pending.events = MultiQueue::NULL;
     }
 }
 
@@ -412,13 +412,13 @@ const fn vterm_key_function(n: i32) -> VTermKey {
 }
 
 #[inline]
-fn refresh_timer_events_mut() -> &'static mut MultiQueue {
-    REFRESH_TIMER.with(|cell| cell.borrow().events).borrow_mut()
+fn refresh_timer_events_mut() -> MultiQueue {
+    REFRESH_TIMER.with(|cell| cell.borrow().events)
 }
 
 #[inline]
-fn main_loop_events_mut() -> &'static mut MultiQueue {
-    loop_queues(&mut g_st().main_loop).events.borrow_mut()
+fn main_loop_events_mut() -> MultiQueue {
+    loop_queues(&mut g_st().main_loop).events
 }
 
 #[inline]
@@ -653,9 +653,7 @@ fn on_apc(frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
 }
 
 pub fn terminal_init() {
-    let events = crate::globals::GraphPtr::from(multiqueue_new_child(
-        loop_queues(&mut g_st().main_loop).events.borrow_mut(),
-    ));
+    let events = multiqueue_new_child(loop_queues(&mut g_st().main_loop).events);
     REFRESH_TIMER.with(|cell| {
         let mut timer = cell.borrow_mut();
         time_watcher_init(
@@ -790,7 +788,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
     term_ref.invalid_start = 0;
     term_ref.invalid_end = i32::from(opts.height);
 
-    term_ref.pending.events = crate::globals::GraphPtr::from(multiqueue_new(None));
+    term_ref.pending.events = multiqueue_new(None);
 
     if (buf.b_ml.ml_flags & ML_EMPTY) == 0 {
         let line_count = buf.b_ml.ml_line_count;

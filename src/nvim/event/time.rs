@@ -17,7 +17,7 @@ pub enum TimeWatcherData {
 pub struct TimeWatcher {
     pub uv: [u64; 32],
     pub data: TimeWatcherData,
-    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub events: MultiQueue,
     pub blockable: bool,
 }
 
@@ -26,7 +26,7 @@ impl TimeWatcher {
         Self {
             uv: [0; 32],
             data: TimeWatcherData::None,
-            events: crate::globals::GraphPtr::NULL,
+            events: MultiQueue::NULL,
             blockable: false,
         }
     }
@@ -39,8 +39,8 @@ impl Default for TimeWatcher {
 }
 
 #[inline]
-pub fn loop_fast_events(loop_: &mut Loop) -> Option<&'static mut MultiQueue> {
-    loop_.fast_events.opt_mut()
+pub fn loop_fast_events(loop_: &mut Loop) -> MultiQueue {
+    loop_.fast_events
 }
 
 pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: TimeWatcherData) {
@@ -48,7 +48,7 @@ pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: Time
         uv_timer_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut TimeWatcher>() = watcher;
         watcher.data = data;
-        watcher.events = crate::globals::GraphPtr::from(loop_fast_events(loop_));
+        watcher.events = loop_fast_events(loop_);
         watcher.blockable = false;
     }
 }
@@ -79,17 +79,14 @@ pub fn time_watcher_close(watcher: &mut TimeWatcher) {
     }
 }
 
-pub fn time_event(watcher_in: &mut TimeWatcher) {
-    let watcher = crate::globals::GraphPtr::<TimeWatcher>::of(watcher_in).as_ptr();
-    unsafe {
-        match (*watcher).data {
-            TimeWatcherData::None => {}
-            TimeWatcherData::EvalTimer(timer_id) => {
-                crate::eval::timer_due_cb(&mut *watcher, timer_id);
-            }
-            TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(&mut *watcher),
-            TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
+pub fn time_event(watcher: &mut TimeWatcher) {
+    match watcher.data {
+        TimeWatcherData::None => {}
+        TimeWatcherData::EvalTimer(timer_id) => {
+            crate::eval::timer_due_cb(watcher, timer_id);
         }
+        TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(watcher),
+        TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
     }
 }
 
@@ -107,16 +104,13 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
     }
 }
 
-pub fn close_event(watcher_in: &mut TimeWatcher) {
-    let watcher = crate::globals::GraphPtr::<TimeWatcher>::of(watcher_in).as_ptr();
-    unsafe {
-        match (*watcher).data {
-            TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}
-            TimeWatcherData::EvalTimer(timer_id) => {
-                crate::eval::timer_close_cb(&mut *watcher, timer_id);
-            }
-            TimeWatcherData::WaitDummy => drop(Box::from_raw(watcher)),
+pub fn close_event(watcher: &mut TimeWatcher) {
+    match watcher.data {
+        TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}
+        TimeWatcherData::EvalTimer(timer_id) => {
+            crate::eval::timer_close_cb(watcher, timer_id);
         }
+        TimeWatcherData::WaitDummy => drop(unsafe { Box::from_raw(std::ptr::from_mut(watcher)) }),
     }
 }
 
