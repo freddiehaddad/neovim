@@ -1,7 +1,7 @@
 //! VTerm unit-test callback and inspection harness (`test/unit/fixtures/vterm_test.c`).
 #![forbid(unsafe_code)]
 
-use crate::terminal::Terminal;
+use crate::terminal::TermId;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
 use std::io::Write;
 use std::sync::Mutex;
@@ -81,7 +81,6 @@ struct VTermTestState {
     want_state_scrollback: bool,
     want_screen_scrollback: bool,
     state_pen: StatePenRecord,
-    test_vt: Option<Box<std::cell::UnsafeCell<crate::vterm::mouse::VTerm>>>,
 }
 
 impl VTermTestState {
@@ -112,7 +111,6 @@ impl VTermTestState {
                 foreground: VTermColor { bytes: [0; 4] },
                 background: VTermColor { bytes: [0; 4] },
             },
-            test_vt: None,
         }
     }
 }
@@ -120,6 +118,8 @@ impl VTermTestState {
 std::thread_local! {
     static VT_TEST_STATE: std::cell::RefCell<VTermTestState> =
         const { std::cell::RefCell::new(VTermTestState::new()) };
+    static TEST_VT: std::cell::RefCell<Option<crate::vterm::mouse::VTerm>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -284,7 +284,7 @@ pub fn parser_sos<T>(frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
 pub fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
-    _user: Option<&mut Terminal>,
+    _user: Option<&mut TermId>,
 ) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "selection-set mask={mask:04X} ");
@@ -300,7 +300,7 @@ pub fn selection_set(
     1
 }
 
-pub fn selection_query(mask: VTermSelectionMask, _user: Option<&mut Terminal>) -> i32 {
+pub fn selection_query(mask: VTermSelectionMask, _user: Option<&mut TermId>) -> i32 {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
@@ -544,7 +544,7 @@ pub fn state_sb_clear(_user: Option<&mut VTermScreen>) -> i32 {
     0
 }
 
-pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
+pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut TermId>) -> i32 {
     if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 1;
     }
@@ -564,7 +564,7 @@ pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut Terminal
     1
 }
 
-pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
+pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut TermId>) -> i32 {
     if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 0;
     }
@@ -583,7 +583,7 @@ pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut Termi
     1
 }
 
-pub fn screen_sb_clear(_user: Option<&mut Terminal>) -> i32 {
+pub fn screen_sb_clear(_user: Option<&mut TermId>) -> i32 {
     if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 1;
     }
@@ -591,7 +591,7 @@ pub fn screen_sb_clear(_user: Option<&mut Terminal>) -> i32 {
     0
 }
 
-pub fn term_output(s: &[u8], _user: Option<&mut Terminal>) {
+pub fn term_output(s: &[u8], _user: Option<&mut TermId>) {
     let mut out = b"output ".to_vec();
     for (i, &b) in s.iter().enumerate() {
         let sep = if i + 1 < s.len() { "," } else { "\n" };
@@ -859,10 +859,9 @@ mod tests {
     use crate::vterm::keyboard::{
         VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_KP_0, VTERM_KEY_NONE,
         VTERM_KEY_TAB, VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_SHIFT, VTermEncodingInstance,
-        VTermKey, VTermModifier, vterm_keyboard_end_paste, vterm_keyboard_key,
-        vterm_keyboard_start_paste, vterm_keyboard_unichar,
+        VTermKey, VTermModifier, vterm_keyboard_key, vterm_keyboard_unichar,
     };
-    use crate::vterm::mouse::{VTerm, vterm_mouse_button, vterm_mouse_move};
+    use crate::vterm::mouse::{vterm_mouse_button, vterm_mouse_move};
     use crate::vterm::parser::{
         VTermParserCallbacks, vterm_input_write, vterm_parser_set_callbacks,
     };
@@ -873,14 +872,11 @@ mod tests {
         vterm_screen_reset, vterm_screen_set_callbacks,
     };
     use crate::vterm::state::{
-        VTermSelectionCallbacks, VTermStateFallbacks, vterm_obtain_state, vterm_state_focus_in,
-        vterm_state_focus_out, vterm_state_get_lineinfo, vterm_state_reset,
-        vterm_state_set_callbacks, vterm_state_set_selection_callbacks,
+        VTermSelectionCallbacks, VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo,
+        vterm_state_reset, vterm_state_set_callbacks, vterm_state_set_selection_callbacks,
         vterm_state_set_unrecognised_fallbacks,
     };
-    use crate::vterm::vterm::{
-        vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
-    };
+    use crate::vterm::vterm::{vterm_new, vterm_output_set_callback, vterm_set_size};
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -985,10 +981,50 @@ mod tests {
         r: bool,
     }
 
-    fn init() -> &'static mut VTerm {
+    #[derive(Clone, Copy)]
+    struct TestVt;
+
+    impl TestVt {
+        fn cols(self) -> i32 {
+            TEST_VT.with_borrow(|vt| vt.as_ref().unwrap().cols)
+        }
+    }
+
+    fn vterm_set_utf8(_vt: TestVt, is_utf8: i32) {
+        TEST_VT.with_borrow_mut(|vt| {
+            crate::vterm::vterm::vterm_set_utf8(vt.as_mut().unwrap(), is_utf8);
+        });
+    }
+
+    fn vterm_keyboard_start_paste(_vt: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            crate::vterm::keyboard::vterm_keyboard_start_paste(vt.as_mut().unwrap());
+        });
+    }
+
+    fn vterm_keyboard_end_paste(_vt: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            crate::vterm::keyboard::vterm_keyboard_end_paste(vt.as_mut().unwrap());
+        });
+    }
+
+    fn vterm_state_focus_in(_state: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            crate::vterm::state::vterm_state_focus_in(vt.as_mut().unwrap().state_mut());
+        });
+    }
+
+    fn vterm_state_focus_out(_state: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            crate::vterm::state::vterm_state_focus_out(vt.as_mut().unwrap().state_mut());
+        });
+    }
+
+    fn init() -> TestVt {
         crate::option_vars::opt_vars().p_emoji = true;
-        let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
-        let vt = crate::globals::GraphPtr::of(cell.get()).borrow_mut();
+        let mut vt = vterm_new(25, 80);
+        vterm_output_set_callback(&mut vt, Some(term_output), None);
+        crate::vterm::vterm::vterm_set_utf8(&mut vt, 1);
         VT_TEST_STATE.with_borrow_mut(|st| {
             st.state_pos = VTermPos { row: 0, col: 0 };
             st.want_state_putglyph = false;
@@ -999,75 +1035,88 @@ mod tests {
             st.want_state_settermprop = false;
             st.want_state_scrollback = false;
             st.want_screen_scrollback = false;
-            st.test_vt = Some(cell);
         });
-        vterm_output_set_callback(vt, Some(term_output), None);
-        vterm_set_utf8(vt, 1);
-        vt
+        TEST_VT.with_borrow_mut(|slot| *slot = Some(vt));
+        TestVt
     }
 
-    fn vterm_free(_vt: &mut VTerm) {
-        VT_TEST_STATE.with_borrow_mut(|st| st.test_vt = None);
+    fn vterm_free(_vt: TestVt) {
+        TEST_VT.with_borrow_mut(|slot| *slot = None);
     }
 
-    fn wantparser(vt: &mut VTerm) {
-        vterm_parser_set_callbacks(vt, Some(&PARSER_CBS));
+    fn wantparser(_vt: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_parser_set_callbacks(vt.as_mut().unwrap(), Some(&PARSER_CBS));
+        });
     }
 
-    fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
-        let state = vterm_obtain_state(vt);
-        vterm_state_set_callbacks(state, Some(&STATE_CBS));
-        vterm_state_set_selection_callbacks(state, Some(&SELECTION_CBS), None, 16);
-        vterm_state_set_bold_highbright(state, 1);
-        vterm_state_reset(state, 1);
-
+    fn wantstate(_vt: TestVt, opts: StateOpts) -> TestVt {
         let fb = opts.f.then_some(&FALLBACK_CBS);
+        TEST_VT.with_borrow_mut(|vt| {
+            let state = vterm_obtain_state(vt.as_mut().unwrap());
+            vterm_state_set_callbacks(state, Some(&STATE_CBS));
+            vterm_state_set_selection_callbacks(state, Some(&SELECTION_CBS), None, 16);
+            vterm_state_set_bold_highbright(state, 1);
+            vterm_state_reset(state, 1);
+        });
         VT_TEST_STATE.with_borrow_mut(|st| {
             st.want_state_scrollback = opts.b;
             st.want_state_erase = opts.e;
         });
-        vterm_state_set_unrecognised_fallbacks(state, fb, None);
+        TEST_VT.with_borrow_mut(|vt| {
+            let state = vterm_obtain_state(vt.as_mut().unwrap());
+            vterm_state_set_unrecognised_fallbacks(state, fb, None);
+        });
         VT_TEST_STATE.with_borrow_mut(|st| {
             st.want_state_putglyph = opts.g;
             st.want_state_moverect = opts.m;
             st.want_state_settermprop = opts.p;
             st.want_state_scrollrect = opts.s;
         });
-        state
+        TestVt
     }
 
-    fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
-        let screen = vterm_obtain_screen(vt);
-        vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), None);
-        if opts.a {
-            vterm_screen_enable_altscreen(screen, 1);
-        }
+    fn wantscreen(_vt: TestVt, opts: ScreenOpts) -> TestVt {
         VT_TEST_STATE.with_borrow_mut(|st| {
             st.want_screen_scrollback = opts.b;
             st.want_state_movecursor = opts.c;
             st.want_state_moverect = opts.m;
             st.want_state_settermprop = opts.p;
         });
-        if opts.r {
-            vterm_screen_enable_reflow(screen, true);
-        }
-        screen
+        TEST_VT.with_borrow_mut(|vt| {
+            let screen = vterm_obtain_screen(vt.as_mut().unwrap());
+            vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), None);
+            if opts.a {
+                vterm_screen_enable_altscreen(screen, 1);
+            }
+            if opts.r {
+                vterm_screen_enable_reflow(screen, true);
+            }
+        });
+        TestVt
     }
 
-    fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
-        if let Some(state) = state {
-            vterm_state_reset(state, 1);
+    fn reset(state: Option<TestVt>, screen: Option<TestVt>) {
+        if state.is_some() {
             let mut pos = VTermPos { row: 0, col: 0 };
-            vterm_state_get_cursorpos(state, &mut pos);
+            TEST_VT.with_borrow_mut(|vt| {
+                let state = vt.as_mut().unwrap().state_mut();
+                vterm_state_reset(state, 1);
+                vterm_state_get_cursorpos(state, &mut pos);
+            });
             VT_TEST_STATE.with_borrow_mut(|st| st.state_pos = pos);
         }
-        if let Some(screen) = screen {
-            vterm_screen_reset(screen, 1);
+        if screen.is_some() {
+            TEST_VT.with_borrow_mut(|vt| {
+                vterm_screen_reset(vt.as_mut().unwrap(), 1);
+            });
         }
     }
 
-    fn push(input: &[u8], vt: &mut VTerm) {
-        vterm_input_write(vt, input);
+    fn push(input: &[u8], _vt: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_input_write(vt.as_mut().unwrap(), input);
+        });
     }
 
     fn expect(expected: &[u8]) {
@@ -1094,20 +1143,23 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&actual), exp);
     }
 
-    fn cursor(row: i32, col: i32, state: &VTermStateFull) {
+    fn cursor(row: i32, col: i32, _state: TestVt) {
         let mut pos = VTermPos { row: 0, col: 0 };
-        vterm_state_get_cursorpos(state, &mut pos);
+        TEST_VT.with_borrow(|vt| {
+            vterm_state_get_cursorpos(vt.as_ref().unwrap().state_ref(), &mut pos);
+        });
         assert_eq!((pos.row, pos.col), (row, col));
     }
 
-    fn lineinfo(row: i32, exp_dwl: bool, exp_dhl: bool, exp_cont: bool, state: &VTermStateFull) {
-        let info = vterm_state_get_lineinfo(state, row);
+    fn lineinfo(row: i32, exp_dwl: bool, exp_dhl: bool, exp_cont: bool, _state: TestVt) {
+        let info = TEST_VT
+            .with_borrow(|vt| vterm_state_get_lineinfo(vt.as_ref().unwrap().state_ref(), row));
         assert_eq!(info.doublewidth() == 1, exp_dwl);
         assert_eq!(info.doubleheight() == 1, exp_dhl);
         assert_eq!(info.continuation(), exp_cont);
     }
 
-    fn pen(attribute: &str, expected: i32, state: &VTermStateFull) {
+    fn pen(attribute: &str, expected: i32, _state: TestVt) {
         let attr = match attribute {
             "bold" => VTERM_ATTR_BOLD,
             "underline" => VTERM_ATTR_UNDERLINE,
@@ -1120,12 +1172,16 @@ mod tests {
             _ => unreachable!(),
         };
         let mut val = VTermValue::Boolean(0);
-        vterm_state_get_penattr(state, attr, &mut val);
+        TEST_VT.with_borrow(|vt| {
+            vterm_state_get_penattr(vt.as_ref().unwrap().state_ref(), attr, &mut val);
+        });
         assert_eq!(val.boolean(), expected);
     }
 
-    fn resize(rows: i32, cols: i32, vt: &mut VTerm) {
-        vterm_set_size(vt, rows, cols);
+    fn resize(rows: i32, cols: i32, _vt: TestVt) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_set_size(vt.as_mut().unwrap(), rows, cols);
+        });
     }
 
     fn screen_chars(
@@ -1134,7 +1190,7 @@ mod tests {
         end_row: i32,
         end_col: i32,
         expected: &[u8],
-        screen: &VTermScreen,
+        _screen: TestVt,
     ) {
         let rect = VTermRect {
             start_row,
@@ -1142,9 +1198,13 @@ mod tests {
             end_row,
             end_col,
         };
-        let len = vterm_screen_get_text(screen, None, rect);
-        let mut buf = vec![0u8; len];
-        vterm_screen_get_text(screen, Some(&mut buf), rect);
+        let buf = TEST_VT.with_borrow(|vt| {
+            let screen = vt.as_ref().unwrap().screen_ref();
+            let len = vterm_screen_get_text(screen, None, rect);
+            let mut buf = vec![0u8; len];
+            vterm_screen_get_text(screen, Some(&mut buf), rect);
+            buf
+        });
         assert_eq!(buf, expected);
     }
 
@@ -1154,7 +1214,7 @@ mod tests {
         end_row: i32,
         end_col: i32,
         expected: &[u8],
-        screen: &VTermScreen,
+        _screen: TestVt,
     ) {
         let rect = VTermRect {
             start_row,
@@ -1162,9 +1222,13 @@ mod tests {
             end_row,
             end_col,
         };
-        let len = vterm_screen_get_text(screen, None, rect);
-        let mut buf = vec![0u8; len];
-        vterm_screen_get_text(screen, Some(&mut buf), rect);
+        let buf = TEST_VT.with_borrow(|vt| {
+            let screen = vt.as_ref().unwrap().screen_ref();
+            let len = vterm_screen_get_text(screen, None, rect);
+            let mut buf = vec![0u8; len];
+            vterm_screen_get_text(screen, Some(&mut buf), rect);
+            buf
+        });
         let mut actual = String::new();
         for (i, &b) in buf.iter().enumerate() {
             if i > 0 {
@@ -1176,16 +1240,18 @@ mod tests {
         assert_eq!(actual.as_bytes(), expected);
     }
 
-    fn screen_row(row: i32, expected: &[u8], screen: &VTermScreen, end_col: i32) {
+    fn screen_row(row: i32, expected: &[u8], screen: TestVt, end_col: i32) {
         screen_chars(row, 0, row + 1, end_col, expected, screen);
     }
 
-    fn screen_cell(row: i32, col: i32, expected: &[u8], screen: &mut VTermScreen) {
+    fn screen_cell(row: i32, col: i32, expected: &[u8], _screen: TestVt) {
         use std::fmt::Write as _;
         {
             let pos = VTermPos { row, col };
             let mut cell = VTermScreenCell::default();
-            vterm_screen_get_cell(screen, pos, &mut cell);
+            TEST_VT.with_borrow(|vt| {
+                vterm_screen_get_cell(vt.as_ref().unwrap().screen_ref(), pos, &mut cell);
+            });
 
             let mut buf = [0u8; 32];
             schar_get_bytes(&mut buf, cell.schar);
@@ -1244,11 +1310,15 @@ mod tests {
                 let _ = write!(actual, "dhl-{} ", if dhl == 2 { "bottom" } else { "top" });
             }
             actual.push_str("fg=");
-            vterm_screen_convert_color_to_rgb(screen, &mut cell.fg);
+            TEST_VT.with_borrow(|vt| {
+                vterm_screen_convert_color_to_rgb(vt.as_ref().unwrap(), &mut cell.fg);
+            });
             print_color(&cell.fg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
             actual.push_str(" bg=");
-            vterm_screen_convert_color_to_rgb(screen, &mut cell.bg);
+            TEST_VT.with_borrow(|vt| {
+                vterm_screen_convert_color_to_rgb(vt.as_ref().unwrap(), &mut cell.bg);
+            });
             print_color(&cell.bg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
 
@@ -1256,18 +1326,28 @@ mod tests {
         }
     }
 
-    fn screen_eol(row: i32, col: i32, expected: i32, screen: &VTermScreen) {
-        assert_eq!(vterm_screen_is_eol(screen, VTermPos { row, col }), expected);
+    fn screen_eol(row: i32, col: i32, expected: i32, _screen: TestVt) {
+        let actual = TEST_VT.with_borrow(|vt| {
+            vterm_screen_is_eol(vt.as_ref().unwrap().screen_ref(), VTermPos { row, col })
+        });
+        assert_eq!(actual, expected);
     }
 
-    fn screen_attrs_extent(row: i32, col: i32, expected: &[u8], screen: &VTermScreen) {
+    fn screen_attrs_extent(row: i32, col: i32, expected: &[u8], _screen: TestVt) {
         let mut rect = VTermRect {
             start_row: 0,
             end_row: 0,
             start_col: 0,
             end_col: -1,
         };
-        vterm_screen_get_attrs_extent(screen, &mut rect, VTermPos { row, col }, 1);
+        TEST_VT.with_borrow(|vt| {
+            vterm_screen_get_attrs_extent(
+                vt.as_ref().unwrap().screen_ref(),
+                &mut rect,
+                VTermPos { row, col },
+                1,
+            );
+        });
         let actual = format!(
             "{},{}-{},{}",
             rect.start_row, rect.start_col, rect.end_row, rect.end_col
@@ -1303,19 +1383,30 @@ mod tests {
         }
     }
 
-    fn mousemove(row: i32, col: i32, vt: &mut VTerm, mod_: VTermModifier) {
-        vterm_mouse_move(vt, row, col, mod_);
+    fn mousemove(row: i32, col: i32, _vt: TestVt, mod_: VTermModifier) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_mouse_move(vt.as_mut().unwrap(), row, col, mod_);
+        });
     }
 
-    fn mousebtn(press: u8, button: i32, vt: &mut VTerm, mod_: VTermModifier) {
-        vterm_mouse_button(vt, button, press == b'd' || press == b'D', mod_);
+    fn mousebtn(press: u8, button: i32, _vt: TestVt, mod_: VTermModifier) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_mouse_button(
+                vt.as_mut().unwrap(),
+                button,
+                press == b'd' || press == b'D',
+                mod_,
+            );
+        });
     }
 
-    fn inchar(c: u32, vt: &mut VTerm, mod_: VTermModifier) {
-        vterm_keyboard_unichar(vt, c, mod_);
+    fn inchar(c: u32, _vt: TestVt, mod_: VTermModifier) {
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_keyboard_unichar(vt.as_mut().unwrap(), c, mod_);
+        });
     }
 
-    fn inkey(input_key: &str, vt: &mut VTerm, mod_: VTermModifier) {
+    fn inkey(input_key: &str, _vt: TestVt, mod_: VTermModifier) {
         const VTERM_KEY_ESCAPE: VTermKey = 4;
         const VTERM_KEY_UP: VTermKey = 5;
         const VTERM_KEY_DEL: VTermKey = 10;
@@ -1330,7 +1421,9 @@ mod tests {
             "kp0" => VTERM_KEY_KP_0,
             _ => VTERM_KEY_NONE,
         };
-        vterm_keyboard_key(vt, key, mod_);
+        TEST_VT.with_borrow_mut(|vt| {
+            vterm_keyboard_key(vt.as_mut().unwrap(), key, mod_);
+        });
     }
 
     #[test]
@@ -4073,60 +4166,60 @@ mod tests {
         reset(Some(state), Some(screen));
         reset(Some(state), Some(screen));
         push(b"AAAAAAAAAAAA", vt);
-        screen_row(0, b"AAAAAAAAAA", screen, vt.cols);
-        screen_row(1, b"AA", screen, vt.cols);
+        screen_row(0, b"AAAAAAAAAA", screen, vt.cols());
+        screen_row(1, b"AA", screen, vt.cols());
         lineinfo(1, false, false, true, state);
         cursor(1, 2, state);
         resize(5, 15, vt);
-        screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols);
+        screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols());
         lineinfo(1, false, false, false, state);
         cursor(0, 12, state);
         resize(5, 20, vt);
-        screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols);
+        screen_row(0, b"AAAAAAAAAAAA", screen, vt.cols());
         lineinfo(1, false, false, false, state);
         cursor(0, 12, state);
         reset(Some(state), Some(screen));
         resize(5, 10, vt);
         push(b"ABCDEFGHI", vt);
-        screen_row(0, b"ABCDEFGHI", screen, vt.cols);
+        screen_row(0, b"ABCDEFGHI", screen, vt.cols());
         lineinfo(1, false, false, false, state);
         cursor(0, 9, state);
         resize(5, 8, vt);
-        screen_row(1, b"I", screen, vt.cols);
+        screen_row(1, b"I", screen, vt.cols());
         lineinfo(1, false, false, true, state);
         cursor(1, 1, state);
         resize(5, 6, vt);
-        screen_row(0, b"ABCDEF", screen, vt.cols);
-        screen_row(1, b"GHI", screen, vt.cols);
+        screen_row(0, b"ABCDEF", screen, vt.cols());
+        screen_row(1, b"GHI", screen, vt.cols());
         lineinfo(1, false, false, true, state);
         cursor(1, 3, state);
         reset(Some(state), Some(screen));
         resize(5, 10, vt);
         push(b"PROMPT GOES HERE\r\n> \r\n\r\nPROMPT GOES HERE\r\n> ", vt);
-        screen_row(0, b"> ", screen, vt.cols);
-        screen_row(2, b"PROMPT GOE", screen, vt.cols);
-        screen_row(3, b"S HERE", screen, vt.cols);
+        screen_row(0, b"> ", screen, vt.cols());
+        screen_row(2, b"PROMPT GOE", screen, vt.cols());
+        screen_row(3, b"S HERE", screen, vt.cols());
         lineinfo(3, false, false, true, state);
-        screen_row(4, b"> ", screen, vt.cols);
+        screen_row(4, b"> ", screen, vt.cols());
         cursor(4, 2, state);
         resize(5, 11, vt);
-        screen_row(0, b"> ", screen, vt.cols);
-        screen_row(2, b"PROMPT GOES", screen, vt.cols);
-        screen_row(3, b" HERE", screen, vt.cols);
+        screen_row(0, b"> ", screen, vt.cols());
+        screen_row(2, b"PROMPT GOES", screen, vt.cols());
+        screen_row(3, b" HERE", screen, vt.cols());
         lineinfo(3, false, false, true, state);
-        screen_row(4, b"> ", screen, vt.cols);
+        screen_row(4, b"> ", screen, vt.cols());
         cursor(4, 2, state);
         resize(5, 12, vt);
-        screen_row(0, b"> ", screen, vt.cols);
-        screen_row(2, b"PROMPT GOES ", screen, vt.cols);
-        screen_row(3, b"HERE", screen, vt.cols);
+        screen_row(0, b"> ", screen, vt.cols());
+        screen_row(2, b"PROMPT GOES ", screen, vt.cols());
+        screen_row(3, b"HERE", screen, vt.cols());
         lineinfo(3, false, false, true, state);
-        screen_row(4, b"> ", screen, vt.cols);
+        screen_row(4, b"> ", screen, vt.cols());
         cursor(4, 2, state);
         resize(5, 16, vt);
-        screen_row(0, b"> ", screen, vt.cols);
+        screen_row(0, b"> ", screen, vt.cols());
         lineinfo(3, false, false, false, state);
-        screen_row(3, b"> ", screen, vt.cols);
+        screen_row(3, b"> ", screen, vt.cols());
         cursor(3, 2, state);
         reset(Some(state), Some(screen));
         resize(5, 5, vt);
@@ -4137,20 +4230,20 @@ mod tests {
         reset(Some(state), Some(screen));
         resize(4, 4, vt);
         push(b"ABCD\r\nX", vt);
-        screen_row(0, b"ABCD", screen, vt.cols);
-        screen_row(1, b"X", screen, vt.cols);
+        screen_row(0, b"ABCD", screen, vt.cols());
+        screen_row(1, b"X", screen, vt.cols());
         cursor(1, 1, state);
         resize(4, 5, vt);
-        screen_row(0, b"ABCD", screen, vt.cols);
-        screen_row(1, b"X", screen, vt.cols);
+        screen_row(0, b"ABCD", screen, vt.cols());
+        screen_row(1, b"X", screen, vt.cols());
         cursor(1, 1, state);
         reset(Some(state), Some(screen));
         resize(4, 4, vt);
         push(b"ABCD\r\nX", vt);
         cursor(1, 1, state);
         resize(3, 4, vt);
-        screen_row(0, b"ABCD", screen, vt.cols);
-        screen_row(1, b"X", screen, vt.cols);
+        screen_row(0, b"ABCD", screen, vt.cols());
+        screen_row(1, b"X", screen, vt.cols());
         cursor(1, 1, state);
         resize(5, 10, vt);
         vterm_free(vt);

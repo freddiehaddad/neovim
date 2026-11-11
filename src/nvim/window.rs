@@ -3362,9 +3362,9 @@ fn close_last_window_tabpage(
     let save_lastused = g_st().lastused_tabpage.as_ptr();
 
     let term = if !win.borrow_mut().w_buffer.is_null() {
-        win.borrow_mut().buf_mut().terminal.as_ptr()
+        win.borrow_mut().buf_mut().terminal
     } else {
-        ptr::null_mut()
+        crate::terminal::TermId::NULL
     };
     if !term.is_null() {
         free_buf = false;

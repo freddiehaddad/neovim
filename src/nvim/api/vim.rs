@@ -1560,7 +1560,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     channel_incref(chan);
 
-    chan.term = crate::globals::GraphPtr::from(terminal_alloc(b, topts));
+    chan.term = terminal_alloc(b, topts);
 
     terminal_open(chan.term.borrow_mut(), b);
 

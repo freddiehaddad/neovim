@@ -163,7 +163,7 @@ pub struct Channel {
     pub addr: Option<std::ffi::CString>,
     pub trust: bool,
     pub rpc: RpcState,
-    pub term: crate::globals::GraphPtr<crate::terminal::Terminal>,
+    pub term: crate::terminal::TermId,
     pub on_data: CallbackReader,
     pub on_stderr: CallbackReader,
     pub on_exit: Callback,
@@ -180,8 +180,8 @@ impl Channel {
     }
 
     #[inline]
-    pub fn term_mut(&self) -> &'static mut crate::terminal::Terminal {
-        self.term.borrow_mut()
+    pub fn term_mut(&self) -> crate::terminal::TermId {
+        self.term
     }
 
     #[inline]

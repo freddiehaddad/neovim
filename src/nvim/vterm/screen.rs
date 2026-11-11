@@ -1,9 +1,9 @@
 //! VTerm screen buffer and damage management (`src/nvim/vterm/screen.c`).
 #![forbid(unsafe_code)]
 
-use crate::terminal::Terminal;
-use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, VTermColor, VTermStateFull};
-use crate::vterm::mouse::{VTerm, VTermPos};
+use crate::terminal::TermId;
+use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, VTermColor};
+use crate::vterm::mouse::{VTerm, VTermOutput, VTermPos};
 use crate::vterm::pen::{
     VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
@@ -12,8 +12,8 @@ use crate::vterm::pen::{
     VTermValue,
 };
 use crate::vterm::state::{
-    VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
-    vterm_state_set_callbacks, vterm_state_set_unrecognised_fallbacks,
+    VTermStateFallbacks, vterm_obtain_state, vterm_state_reset, vterm_state_set_callbacks,
+    vterm_state_set_unrecognised_fallbacks,
 };
 use crate::vterm::vterm::{vterm_get_size, vterm_scroll_rect};
 
@@ -353,26 +353,27 @@ pub struct VTermStateFields {
     pub lineinfos: [Vec<VTermLineInfo>; 2],
 }
 
-pub type VTermSbPushLineFn = fn(cells: &[VTermScreenCell], user: Option<&mut Terminal>) -> i32;
-pub type VTermSbPopLineFn = fn(cells: &mut [VTermScreenCell], user: Option<&mut Terminal>) -> i32;
+pub type VTermSbPushLineFn = fn(cells: &[VTermScreenCell], user: Option<&mut TermId>) -> i32;
+pub type VTermSbPopLineFn = fn(cells: &mut [VTermScreenCell], user: Option<&mut TermId>) -> i32;
 
 #[repr(C)]
 pub struct VTermScreenCallbacks {
-    pub damage: Option<fn(rect: VTermRect, user: Option<&mut Terminal>) -> i32>,
-    pub moverect: Option<crate::vterm::pen::VTermMoveRectFn<Terminal>>,
-    pub movecursor: Option<crate::vterm::pen::VTermMoveCursorFn<Terminal>>,
-    pub settermprop: Option<crate::vterm::pen::VTermSetTermPropFn<Terminal>>,
-    pub bell: Option<fn(user: Option<&mut Terminal>) -> i32>,
-    pub resize: Option<crate::vterm::parser::VTermResizeFn<Terminal>>,
-    pub theme: Option<fn(dark: &mut bool, user: Option<&mut Terminal>) -> i32>,
+    pub damage: Option<fn(rect: VTermRect, user: Option<&mut TermId>) -> i32>,
+    pub moverect: Option<crate::vterm::pen::VTermMoveRectFn<TermId>>,
+    pub movecursor: Option<crate::vterm::pen::VTermMoveCursorFn<TermId>>,
+    pub settermprop: Option<crate::vterm::pen::VTermSetTermPropFn<TermId>>,
+    pub bell: Option<fn(user: Option<&mut TermId>) -> i32>,
+    pub resize: Option<crate::vterm::parser::VTermResizeFn<TermId>>,
+    pub theme: Option<fn(dark: &mut bool, user: Option<&mut TermId>) -> i32>,
     pub sb_pushline: Option<VTermSbPushLineFn>,
     pub sb_popline: Option<VTermSbPopLineFn>,
-    pub sb_clear: Option<fn(user: Option<&mut Terminal>) -> i32>,
+    pub sb_clear: Option<fn(user: Option<&mut TermId>) -> i32>,
 }
 
 #[repr(C)]
 pub struct VTermScreen {
-    pub vt: crate::globals::GraphPtr<VTerm>,
+    pub out: std::rc::Rc<std::cell::Cell<VTermOutput>>,
+    pub lineinfos: std::rc::Rc<std::cell::RefCell<[Vec<VTermLineInfo>; 2]>>,
     pub callbacks: Option<&'static VTermScreenCallbacks>,
     pub damage_merge: VTermDamageSize,
     pub damaged: VTermRect,
@@ -390,18 +391,15 @@ pub struct VTermScreen {
 
 impl VTermScreen {
     #[inline]
-    pub fn vt_mut(&self) -> &'static mut VTerm {
-        self.vt.borrow_mut()
+    pub fn term_opt(&self) -> Option<TermId> {
+        self.out.get().outdata.opt()
     }
 
     #[inline]
-    pub fn state_mut(&self) -> &'static mut VTermStateFull {
-        self.vt_mut().state_mut_opt().unwrap()
-    }
-
-    #[inline]
-    pub fn term_opt(&self) -> Option<&'static mut Terminal> {
-        self.vt_mut().term_opt()
+    pub fn set_outdata(&self, outdata: TermId) {
+        let mut o = self.out.get();
+        o.outdata = outdata;
+        self.out.set(o);
     }
 
     #[inline]
@@ -503,7 +501,7 @@ fn damagerect(screen: &mut VTermScreen, rect: VTermRect) {
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.damage
     {
-        cb(emit, screen.term_opt());
+        cb(emit, screen.term_opt().as_mut());
     }
 }
 
@@ -564,7 +562,10 @@ fn sb_pushline_from_row(screen: &mut VTermScreen, row: i32) {
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.sb_pushline
     {
-        cb(&screen.sb_buffer[..screen.cols as usize], screen.term_opt());
+        cb(
+            &screen.sb_buffer[..screen.cols as usize],
+            screen.term_opt().as_mut(),
+        );
     }
 }
 
@@ -614,7 +615,7 @@ fn moverect_user(dest: VTermRect, src: VTermRect, screen: Option<&mut VTermScree
             vterm_screen_flush_damage(screen);
         }
 
-        if cb(dest, src, screen.term_opt()) != 0 {
+        if cb(dest, src, screen.term_opt().as_mut()) != 0 {
             return 1;
         }
     }
@@ -627,11 +628,10 @@ fn moverect_user(dest: VTermRect, src: VTermRect, screen: Option<&mut VTermScree
 fn erase_internal(rect: VTermRect, selective: i32, screen: Option<&mut VTermScreen>) -> i32 {
     let screen = screen.unwrap();
     let mut row = rect.start_row;
-    let state = screen.state_mut();
     let pen_fg = screen.pen.fg;
     let pen_bg = screen.pen.bg;
-    while row < state.rows && row < rect.end_row {
-        let info = vterm_state_get_lineinfo(state, row);
+    while row < screen.rows && row < rect.end_row {
+        let info = screen.lineinfos.borrow()[screen.bufidx][row as usize];
 
         for col in rect.start_col..rect.end_col {
             let Some(cell) = screen.cell_mut(row, col) else {
@@ -776,7 +776,7 @@ fn movecursor(
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.movecursor
     {
-        return cb(pos, oldpos, visible, screen.term_opt());
+        return cb(pos, oldpos, visible, screen.term_opt().as_mut());
     }
     0
 }
@@ -874,7 +874,7 @@ fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: Option<&mut VTermS
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.settermprop
     {
-        return cb(prop, val, screen.term_opt());
+        return cb(prop, val, screen.term_opt().as_mut());
     }
 
     1
@@ -885,7 +885,7 @@ fn bell(screen: Option<&mut VTermScreen>) -> i32 {
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.bell
     {
-        return cb(screen.term_opt());
+        return cb(screen.term_opt().as_mut());
     }
     0
 }
@@ -1098,8 +1098,12 @@ fn resize_buffer(
         && let Some(sb_popline) = callbacks.sb_popline
     {
         while new_row >= 0 {
-            let term_opt = screen.term_opt();
-            if sb_popline(&mut screen.sb_buffer[..old_cols as usize], term_opt) == 0 {
+            let mut term_opt = screen.term_opt();
+            if sb_popline(
+                &mut screen.sb_buffer[..old_cols as usize],
+                term_opt.as_mut(),
+            ) == 0
+            {
                 break;
             }
 
@@ -1220,7 +1224,7 @@ fn resize(
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.resize
     {
-        return cb(new_rows, new_cols, screen.term_opt());
+        return cb(new_rows, new_cols, screen.term_opt().as_mut());
     }
 
     1
@@ -1231,7 +1235,7 @@ fn theme(dark: &mut bool, screen: Option<&mut VTermScreen>) -> i32 {
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.theme
     {
-        return cb(dark, screen.term_opt());
+        return cb(dark, screen.term_opt().as_mut());
     }
     1
 }
@@ -1280,7 +1284,7 @@ fn sb_clear(screen: Option<&mut VTermScreen>) -> i32 {
     let screen = screen.unwrap();
     if let Some(callbacks) = screen.callbacks
         && let Some(cb) = callbacks.sb_clear
-        && cb(screen.term_opt()) != 0
+        && cb(screen.term_opt().as_mut()) != 0
     {
         return 1;
     }
@@ -1314,7 +1318,8 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     vterm_get_size(vt, &mut rows, &mut cols);
 
     let mut screen = Box::new(VTermScreen {
-        vt: vt.into(),
+        out: vt.out.clone(),
+        lineinfos: vt.state.as_ref().unwrap().lineinfos.clone(),
         callbacks: None,
         damage_merge: VTERM_DAMAGE_CELL,
         damaged: VTermRect {
@@ -1349,11 +1354,14 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     Some(screen)
 }
 
-pub fn vterm_screen_reset(screen: &mut VTermScreen, hard: i32) {
-    screen.damaged.start_row = -1;
-    screen.pending_scrollrect.start_row = -1;
-    vterm_state_reset(screen.state_mut(), hard);
-    vterm_screen_flush_damage(screen);
+pub fn vterm_screen_reset(vt: &mut VTerm, hard: i32) {
+    {
+        let screen = vt.screen_mut();
+        screen.damaged.start_row = -1;
+        screen.pending_scrollrect.start_row = -1;
+    }
+    vterm_state_reset(vt.state_mut(), hard);
+    vterm_screen_flush_damage(vt.screen_mut());
 }
 
 pub fn vterm_screen_get_cell(
@@ -1405,11 +1413,13 @@ pub fn vterm_screen_get_cell(
     1
 }
 
-pub fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
-    if vt.screen.is_none() {
-        vt.screen = screen_new(vt);
-        if vt.screen.is_some() {
-            vterm_state_set_callbacks(vt.state.as_deref_mut().unwrap(), Some(&STATE_CBS));
+pub fn vterm_obtain_screen(vt: &mut VTerm) -> &mut VTermScreen {
+    if vt.screen_mut_opt().is_none() {
+        let screen = screen_new(vt);
+        let state = vt.state.as_deref_mut().unwrap();
+        state.screen = screen;
+        if state.screen.is_some() {
+            vterm_state_set_callbacks(state, Some(&STATE_CBS));
         }
     }
     vt.screen_mut_opt().unwrap()
@@ -1421,9 +1431,8 @@ pub fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool) {
 
 pub fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: i32) {
     if screen.buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
-        let mut rows: i32 = 0;
-        let mut cols: i32 = 0;
-        vterm_get_size(screen.vt_mut(), &mut rows, &mut cols);
+        let rows = screen.rows;
+        let cols = screen.cols;
 
         screen.buffers[BUFIDX_ALTSCREEN] = alloc_buffer(screen, rows, cols);
     }
@@ -1432,20 +1441,20 @@ pub fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: i32) {
 pub fn vterm_screen_set_callbacks(
     screen: &mut VTermScreen,
     callbacks: Option<&'static VTermScreenCallbacks>,
-    user: Option<&mut Terminal>,
+    user: Option<TermId>,
 ) {
     screen.callbacks = callbacks;
     if let Some(user) = user {
-        screen.vt_mut().outdata = user.into();
+        screen.set_outdata(user);
     }
 }
 
 pub fn vterm_screen_set_unrecognised_fallbacks(
-    screen: &mut VTermScreen,
+    vt: &mut VTerm,
     fallbacks: Option<&'static VTermStateFallbacks>,
-    user: Option<&mut Terminal>,
+    user: Option<TermId>,
 ) {
-    vterm_state_set_unrecognised_fallbacks(screen.state_mut(), fallbacks, user);
+    vterm_state_set_unrecognised_fallbacks(vt.state_mut(), fallbacks, user);
 }
 
 pub fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
@@ -1466,7 +1475,7 @@ pub fn vterm_screen_flush_damage(screen: &mut VTermScreen) {
         if let Some(callbacks) = screen.callbacks
             && let Some(cb) = callbacks.damage
         {
-            cb(screen.damaged, screen.term_opt());
+            cb(screen.damaged, screen.term_opt().as_mut());
         }
 
         screen.damaged.start_row = -1;
@@ -1479,8 +1488,8 @@ pub fn vterm_screen_set_damage_merge(screen: &mut VTermScreen, size: VTermDamage
 }
 
 #[cfg(test)]
-pub fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut VTermColor) {
-    crate::vterm::pen::vterm_state_convert_color_to_rgb(screen.state_mut(), col);
+pub fn vterm_screen_convert_color_to_rgb(vt: &VTerm, col: &mut VTermColor) {
+    crate::vterm::pen::vterm_state_convert_color_to_rgb(vt.state_ref(), col);
 }
 
 pub fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {

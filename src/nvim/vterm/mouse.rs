@@ -3,7 +3,7 @@
 
 use crate::math::xctz;
 use crate::mbyte::utf_char2slice;
-use crate::terminal::Terminal;
+use crate::terminal::TermId;
 use crate::vterm::keyboard::{C1_CSI, VTermModifier, VTermStateFull};
 use crate::vterm::vterm::{VTermOutputCallback, vterm_push_output_ctrl_bytes};
 
@@ -124,37 +124,69 @@ impl Default for VTermParser {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct VTermOutput {
+    pub mode: u32,
+    pub outfunc: VTermOutputCallback,
+    pub outdata: TermId,
+}
+
+impl VTermOutput {
+    pub const fn new() -> Self {
+        Self {
+            mode: 0,
+            outfunc: None,
+            outdata: TermId::NULL,
+        }
+    }
+}
+
+pub trait VTermOut {
+    fn vterm_out(&self) -> &std::cell::Cell<VTermOutput>;
+}
+
+impl VTermOut for std::cell::Cell<VTermOutput> {
+    #[inline]
+    fn vterm_out(&self) -> &std::cell::Cell<VTermOutput> {
+        self
+    }
+}
+
 #[repr(C)]
 pub struct VTerm {
     pub rows: i32,
     pub cols: i32,
-    pub mode: u32,
+    pub out: std::rc::Rc<std::cell::Cell<VTermOutput>>,
     pub parser: VTermParser,
-    pub outfunc: VTermOutputCallback,
-    pub outdata: crate::globals::GraphPtr<Terminal>,
-    pub screen: Option<Box<crate::vterm::screen::VTermScreen>>,
     pub state: Option<Box<VTermStateFull>>,
 }
 
+impl VTermOut for VTerm {
+    #[inline]
+    fn vterm_out(&self) -> &std::cell::Cell<VTermOutput> {
+        &self.out
+    }
+}
+
 impl VTerm {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             rows: 0,
             cols: 0,
-            mode: 0,
+            out: std::rc::Rc::new(std::cell::Cell::new(VTermOutput::new())),
             parser: VTermParser::new(),
-            outfunc: None,
-            outdata: crate::globals::GraphPtr::NULL,
-            screen: None,
             state: None,
         }
     }
 
     #[inline]
-    pub fn state_mut_opt(&mut self) -> Option<&'static mut VTermStateFull> {
-        self.state
-            .as_deref_mut()
-            .map(|s| crate::globals::GraphPtr::from(&*s).borrow_mut())
+    pub fn mode(&self) -> u32 {
+        self.out.get().mode
+    }
+
+    #[inline]
+    pub fn state_mut_opt(&mut self) -> Option<&mut VTermStateFull> {
+        self.state.as_deref_mut()
     }
 
     #[inline]
@@ -163,25 +195,30 @@ impl VTerm {
     }
 
     #[inline]
-    pub fn screen_mut_opt(&mut self) -> Option<&'static mut crate::vterm::screen::VTermScreen> {
-        self.screen
-            .as_deref_mut()
-            .map(|s| crate::globals::GraphPtr::from(&*s).borrow_mut())
+    pub fn state_mut(&mut self) -> &mut VTermStateFull {
+        self.state.as_deref_mut().unwrap()
     }
 
     #[inline]
-    pub fn term_opt(&self) -> Option<&'static mut Terminal> {
-        self.outdata.opt_mut()
+    pub fn screen_mut_opt(&mut self) -> Option<&mut crate::vterm::screen::VTermScreen> {
+        self.state
+            .as_deref_mut()
+            .and_then(|s| s.screen.as_deref_mut())
     }
 
     #[inline]
     pub fn screen_ref(&self) -> &crate::vterm::screen::VTermScreen {
-        self.screen.as_deref().unwrap()
+        self.state.as_deref().unwrap().screen.as_deref().unwrap()
     }
 
     #[inline]
     pub fn screen_mut(&mut self) -> &mut crate::vterm::screen::VTermScreen {
-        self.screen.as_deref_mut().unwrap()
+        self.state
+            .as_deref_mut()
+            .unwrap()
+            .screen
+            .as_deref_mut()
+            .unwrap()
     }
 }
 

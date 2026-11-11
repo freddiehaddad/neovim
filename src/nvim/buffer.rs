@@ -110,7 +110,7 @@ use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl_slice;
 use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
-use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
+use crate::terminal::{TermId, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
 use crate::version::min_vim_version;
@@ -442,7 +442,7 @@ pub struct FileBuf {
     pub b_prompt_start: Fmark,
     pub b_s: Synblock,
     pub b_signcols: BufSigncols,
-    pub terminal: crate::globals::GraphPtr<Terminal>,
+    pub terminal: TermId,
     pub additional_data: Option<crate::search::AdditionalData>,
     pub b_mapped_ctrl_c: i32,
     pub b_marktree: crate::marktree::MarkTree,
@@ -463,13 +463,13 @@ pub struct FileBuf {
 
 impl FileBuf {
     #[inline]
-    pub fn terminal_mut(&self) -> &'static mut Terminal {
-        self.terminal.borrow_mut()
+    pub fn terminal_mut(&self) -> TermId {
+        self.terminal
     }
 
     #[inline]
-    pub fn terminal_opt(&self) -> Option<&'static mut Terminal> {
-        self.terminal.opt_mut()
+    pub fn terminal_opt(&self) -> Option<TermId> {
+        self.terminal.opt()
     }
 
     pub const fn new() -> Self {
@@ -740,7 +740,7 @@ impl FileBuf {
                 count: [0; 9],
                 autom: false,
             },
-            terminal: crate::globals::GraphPtr::NULL,
+            terminal: TermId::NULL,
             additional_data: None,
             b_mapped_ctrl_c: 0,
             b_marktree: crate::marktree::MarkTree::new(),
@@ -3729,7 +3729,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         }
         let buf = crate::globals::GraphPtr::of(buf_ptr).borrow_mut();
         let is_terminal = !buf.terminal.is_null();
-        let job_running = buf.terminal_opt().is_some_and(|t| terminal_running(t));
+        let job_running = buf.terminal_opt().is_some_and(terminal_running);
 
         if (!buf.b_p_bl
             && !eap.forceit

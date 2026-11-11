@@ -1,8 +1,8 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 #![forbid(unsafe_code)]
 
-use crate::terminal::Terminal;
-use crate::vterm::mouse::VTerm;
+use crate::terminal::TermId;
+use crate::vterm::mouse::{VTerm, VTermOut};
 use crate::vterm::parser::NORMAL;
 use crate::vterm::pen::{
     VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
@@ -14,7 +14,7 @@ use crate::vterm::pen::{
 use crate::vterm::screen::VTermScreen;
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
-pub type VTermOutputCallback = Option<fn(s: &[u8], user: Option<&mut Terminal>)>;
+pub type VTermOutputCallback = Option<fn(s: &[u8], user: Option<&mut TermId>)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub fn vterm_new(rows: i32, cols: i32) -> VTerm {
@@ -24,8 +24,6 @@ pub fn vterm_new(rows: i32, cols: i32) -> VTerm {
     vt.parser.state = NORMAL;
     vt.parser.callbacks = None;
     vt.parser.emit_nul = false;
-    vt.outfunc = None;
-    vt.outdata = crate::globals::GraphPtr::NULL;
     vt
 }
 
@@ -50,30 +48,32 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: i32, cols: i32) {
 }
 
 pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: i32) {
+    let mut o = vt.out.get();
     if is_utf8 != 0 {
-        vt.mode |= VT_MODE_UTF8;
+        o.mode |= VT_MODE_UTF8;
     } else {
-        vt.mode &= !VT_MODE_UTF8;
+        o.mode &= !VT_MODE_UTF8;
+    }
+    vt.out.set(o);
+}
+
+pub fn vterm_output_set_callback(vt: &mut VTerm, func: VTermOutputCallback, user: Option<TermId>) {
+    let mut o = vt.out.get();
+    o.outfunc = func;
+    o.outdata = user.unwrap_or(TermId::NULL);
+    vt.out.set(o);
+}
+
+pub fn vterm_push_output_bytes_slice(vt: &impl VTermOut, payload: &[u8]) {
+    let o = vt.vterm_out().get();
+    if let Some(func) = o.outfunc {
+        let mut tid = o.outdata;
+        func(payload, (!tid.is_null()).then_some(&mut tid));
     }
 }
 
-pub fn vterm_output_set_callback(
-    vt: &mut VTerm,
-    func: VTermOutputCallback,
-    user: Option<&mut Terminal>,
-) {
-    vt.outfunc = func;
-    vt.outdata = user.into();
-}
-
-pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
-    if let Some(func) = vt.outfunc {
-        func(payload, vt.term_opt());
-    }
-}
-
-pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
-    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
+pub fn vterm_push_output_ctrl_bytes(vt: &impl VTermOut, ctrl: u8, payload: &[u8]) {
+    let ctrl8bit = (vt.vterm_out().get().mode & VT_MODE_CTRL8BIT) != 0;
     let mut buf = Vec::with_capacity(2 + payload.len());
     if ctrl >= 0x80 && !ctrl8bit {
         buf.push(0x1b);
@@ -85,8 +85,8 @@ pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
     vterm_push_output_bytes_slice(vt, &buf);
 }
 
-pub fn vterm_push_output_str_bytes(vt: &mut VTerm, ctrl: u8, term: bool, payload: &[u8]) {
-    let ctrl8bit = (vt.mode & VT_MODE_CTRL8BIT) != 0;
+pub fn vterm_push_output_str_bytes(vt: &impl VTermOut, ctrl: u8, term: bool, payload: &[u8]) {
+    let ctrl8bit = (vt.vterm_out().get().mode & VT_MODE_CTRL8BIT) != 0;
     let mut buf = Vec::with_capacity(4 + payload.len());
     if ctrl != 0 {
         if ctrl >= 0x80 && !ctrl8bit {

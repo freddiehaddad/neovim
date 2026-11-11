@@ -117,14 +117,13 @@ fn do_control(vt: &mut VTerm, control: u8) {
 }
 
 fn do_csi(vt: &mut VTerm, command: u8) {
-    let state = vt.state_mut_opt();
     if let Some(callbacks) = vt.parser.callbacks
         && let Some(cb) = callbacks.csi
     {
         let leader = &vt.parser.csi.leader[..vt.parser.csi.leaderlen as usize];
         let args = &vt.parser.csi.args[..vt.parser.csi.argi as usize];
         let intermed = &vt.parser.intermed[..vt.parser.intermedlen as usize];
-        cb(leader, args, intermed, command, state);
+        cb(leader, args, intermed, command, vt.state.as_deref_mut());
     }
 }
 
@@ -144,7 +143,7 @@ fn do_escape(vt: &mut VTerm, command: u8) {
 fn string_fragment(vt: &mut VTerm, bytes: &[u8], final_: bool, terminator: VTermTerminator) {
     let frag = VTermStringFragment::new(bytes, vt.parser.string_initial, final_, terminator);
     let callbacks = vt.parser.callbacks;
-    let state = vt.state_mut_opt();
+    let state = vt.state.as_deref_mut();
 
     match vt.parser.state {
         OSC => {
@@ -199,7 +198,7 @@ pub fn vterm_input_write(vt: &mut VTerm, bytes: &[u8]) -> usize {
 
     while pos < len {
         let mut c = bytes[pos];
-        let mut c1_allowed = (vt.mode & 0x01) == 0;
+        let mut c1_allowed = (vt.mode() & 0x01) == 0;
 
         if c == 0x00 || c == 0x7f {
             // NUL, DEL

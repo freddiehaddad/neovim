@@ -349,7 +349,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         addr: None,
         trust: true,
         rpc: RpcState::new(),
-        term: crate::globals::GraphPtr::NULL,
+        term: crate::terminal::TermId::NULL,
         on_data: CallbackReader::none(),
         on_stderr: CallbackReader::none(),
         on_exit: Callback::NONE,
@@ -940,7 +940,7 @@ pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
     buf.b_p_channel = chan.id as OptInt;
     channel_incref(&mut *chan);
     {
-        chan.term = crate::globals::GraphPtr::from(terminal_alloc(buf, topts));
+        chan.term = terminal_alloc(buf, topts);
     }
 }
 

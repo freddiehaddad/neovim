@@ -2,9 +2,9 @@
 #![forbid(unsafe_code)]
 
 use crate::mbyte::utf_char2slice;
-use crate::terminal::Terminal;
+use crate::terminal::TermId;
 pub use crate::vterm::encoding::VTermEncodingInstance;
-use crate::vterm::mouse::{VTerm, VTermPos};
+use crate::vterm::mouse::{VTerm, VTermOut, VTermOutput, VTermPos};
 use crate::vterm::screen::VTermScreen;
 use crate::vterm::vterm::{vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes};
 
@@ -80,7 +80,8 @@ pub struct VTermKeyEncodingStack {
 
 #[repr(C)]
 pub struct VTermStateFull {
-    pub vt: crate::globals::GraphPtr<VTerm>,
+    pub out: std::rc::Rc<std::cell::Cell<VTermOutput>>,
+    pub screen: Option<Box<VTermScreen>>,
     pub callbacks: Option<&'static crate::vterm::pen::VTermStateCallbacks>,
     pub fallbacks: Option<&'static crate::vterm::state::VTermStateFallbacks>,
     pub rows: i32,
@@ -92,7 +93,7 @@ pub struct VTermStateFull {
     pub scrollregion_left: i32,
     pub scrollregion_right: i32,
     pub tabstops: Vec<u8>,
-    pub lineinfos: [Vec<crate::vterm::screen::VTermLineInfo>; 2],
+    pub lineinfos: std::rc::Rc<std::cell::RefCell<[Vec<crate::vterm::screen::VTermLineInfo>; 2]>>,
     pub mouse_col: i32,
     pub mouse_row: i32,
     pub mouse_buttons: i32,
@@ -122,40 +123,75 @@ pub struct VTermStateFull {
     pub key_encoding_stacks: [VTermKeyEncodingStack; 2],
 }
 
+impl VTermOut for VTermStateFull {
+    #[inline]
+    fn vterm_out(&self) -> &std::cell::Cell<VTermOutput> {
+        &self.out
+    }
+}
+
 impl VTermStateFull {
     #[inline]
-    pub fn vt_mut(&self) -> &'static mut VTerm {
-        self.vt.borrow_mut()
+    pub fn vt_mut(&self) -> &std::cell::Cell<VTermOutput> {
+        &self.out
     }
 
     #[inline]
-    pub fn screen_opt(&self) -> Option<&'static mut VTermScreen> {
-        self.vt_mut().screen_mut_opt()
+    pub fn vt_mode(&self) -> u32 {
+        self.out.get().mode
     }
 
     #[inline]
-    pub fn term_opt(&self) -> Option<&'static mut Terminal> {
-        self.vt_mut().term_opt()
+    pub fn set_vt_mode(&self, mode: u32) {
+        let mut o = self.out.get();
+        o.mode = mode;
+        self.out.set(o);
     }
 
     #[inline]
-    pub fn lineinfo(&self) -> &[crate::vterm::screen::VTermLineInfo] {
-        let idx = if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {
+    pub fn set_outdata(&self, outdata: TermId) {
+        let mut o = self.out.get();
+        o.outdata = outdata;
+        self.out.set(o);
+    }
+
+    #[inline]
+    pub fn screen_opt(&mut self) -> Option<&mut VTermScreen> {
+        self.screen.as_deref_mut()
+    }
+
+    #[inline]
+    pub fn term_opt(&self) -> Option<TermId> {
+        self.out.get().outdata.opt()
+    }
+
+    #[inline]
+    pub fn bufidx(&self) -> usize {
+        if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {
             BUFIDX_ALTSCREEN
         } else {
             BUFIDX_PRIMARY
-        };
-        &self.lineinfos[idx]
+        }
     }
 
     #[inline]
-    pub fn lineinfo_mut(&mut self) -> &mut [crate::vterm::screen::VTermLineInfo] {
-        let idx = if (self.mode & MODE_ALT_SCREEN_BIT) != 0 {
-            BUFIDX_ALTSCREEN
-        } else {
-            BUFIDX_PRIMARY
-        };
-        &mut self.lineinfos[idx]
+    pub fn lineinfo_at(&self, row: usize) -> crate::vterm::screen::VTermLineInfo {
+        self.lineinfos.borrow()[self.bufidx()][row]
+    }
+
+    #[inline]
+    pub fn set_lineinfo_at(&self, row: usize, info: crate::vterm::screen::VTermLineInfo) {
+        self.lineinfos.borrow_mut()[self.bufidx()][row] = info;
+    }
+
+    #[inline]
+    pub fn with_lineinfo_mut<R>(
+        &self,
+        f: impl FnOnce(&mut [crate::vterm::screen::VTermLineInfo]) -> R,
+    ) -> R {
+        let idx = self.bufidx();
+        let mut li = self.lineinfos.borrow_mut();
+        f(&mut li[idx])
     }
 }
 
