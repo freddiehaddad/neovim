@@ -2296,36 +2296,44 @@ fn restore_se_z(savep: &SaveSe, no: usize, is_end: bool) {
 #[inline(always)]
 fn save_se_m(savep: &mut SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
-        let slice = if is_end {
-            RE_STATE.with(|s| s.rex.endpos_slice_mut())
-        } else {
-            RE_STATE.with(|s| s.rex.startpos_slice_mut())
-        };
-        save_se_multi(savep, &mut slice[no]);
+        RE_STATE.with(|s| {
+            let cell = if is_end {
+                &s.rex.rmm_endpos[no]
+            } else {
+                &s.rex.rmm_startpos[no]
+            };
+            let mut pos = cell.get();
+            save_se_multi(savep, &mut pos);
+            cell.set(pos);
+        });
     } else {
-        let pp = if is_end {
-            &mut RE_STATE.with(|s| s.rex.match_mut()).endp[no]
-        } else {
-            &mut RE_STATE.with(|s| s.rex.match_mut()).startp[no]
-        };
-        savep.se_u.ptr = *pp;
-        *pp = RE_STATE.with(|s| s.rex.input.get());
+        RE_STATE.with(|s| {
+            let cell = if is_end {
+                &s.rex.rm_endp[no]
+            } else {
+                &s.rex.rm_startp[no]
+            };
+            savep.se_u.ptr = cell.get();
+            cell.set(s.rex.input.get());
+        });
     }
 }
 
 #[inline(always)]
 fn restore_se_m(savep: &SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
-        let slice = if is_end {
-            RE_STATE.with(|s| s.rex.endpos_slice_mut())
-        } else {
-            RE_STATE.with(|s| s.rex.startpos_slice_mut())
-        };
-        slice[no] = savep.se_u.pos();
+        RE_STATE.with(|s| {
+            let cell = if is_end {
+                &s.rex.rmm_endpos[no]
+            } else {
+                &s.rex.rmm_startpos[no]
+            };
+            cell.set(savep.se_u.pos());
+        });
     } else if is_end {
-        RE_STATE.with(|s| s.rex.match_mut()).endp[no] = savep.se_u.ptr;
+        RE_STATE.with(|s| s.rex.rm_endp[no].set(savep.se_u.ptr));
     } else {
-        RE_STATE.with(|s| s.rex.match_mut()).startp[no] = savep.se_u.ptr;
+        RE_STATE.with(|s| s.rex.rm_startp[no].set(savep.se_u.ptr));
     }
 }
 
@@ -2342,7 +2350,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 while *count < maxcount {
                     let b0 = (*scan).first_byte();
                     if b0 == NUL {
-                        if !re_s.rex.reg_match.get().is_null()
+                        if re_s.rex.has_match.get()
                             || !with_nl(op)
                             || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                             || re_s.rex.reg_line_lbr.get()
@@ -2380,7 +2388,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     let step = utfc_ptr2len(scan) as usize;
                     scan = scan.wrapping_add(step);
                 }
-                if !re_s.rex.reg_match.get().is_null()
+                if re_s.rex.has_match.get()
                     || !with_nl(op)
                     || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                     || re_s.rex.reg_line_lbr.get()
@@ -2405,7 +2413,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     let step = utfc_ptr2len(scan) as usize;
                     scan = scan.wrapping_add(step);
                 } else if b0 == NUL {
-                    if !re_s.rex.reg_match.get().is_null()
+                    if re_s.rex.has_match.get()
                         || !with_nl(op)
                         || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                         || re_s.rex.reg_line_lbr.get()
@@ -2436,7 +2444,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     let step = utfc_ptr2len(scan) as usize;
                     scan = scan.wrapping_add(step);
                 } else if b0 == NUL {
-                    if !re_s.rex.reg_match.get().is_null()
+                    if re_s.rex.has_match.get()
                         || !with_nl(op)
                         || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                         || re_s.rex.reg_line_lbr.get()
@@ -2465,7 +2473,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     let step = utfc_ptr2len(scan) as usize;
                     scan = scan.wrapping_add(step);
                 } else if b0 == NUL {
-                    if !re_s.rex.reg_match.get().is_null()
+                    if re_s.rex.has_match.get()
                         || !with_nl(op)
                         || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                         || re_s.rex.reg_line_lbr.get()
@@ -2491,7 +2499,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             while count < maxcount {
                 let b0 = (scan).first_byte();
                 if b0 == NUL {
-                    if !re_s.rex.reg_match.get().is_null()
+                    if re_s.rex.has_match.get()
                         || !with_nl(op)
                         || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                         || re_s.rex.reg_line_lbr.get()
@@ -2593,7 +2601,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             while count < maxcount {
                 let b0 = (scan).first_byte();
                 if b0 == NUL {
-                    if !re_s.rex.reg_match.get().is_null()
+                    if re_s.rex.has_match.get()
                         || !with_nl(op)
                         || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                         || re_s.rex.reg_line_lbr.get()
@@ -2629,7 +2637,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 if !((b0 == NUL
                     && re_s.rex.lnum.get() <= re_s.rex.reg_maxline.get()
                     && !re_s.rex.reg_line_lbr.get()
-                    && re_s.rex.reg_match.get().is_null())
+                    && !re_s.rex.has_match.get())
                     || (b0 == b'\n' && re_s.rex.reg_line_lbr.get()))
                 {
                     break;
@@ -2722,18 +2730,20 @@ fn save_subexpr(bp: &mut Regbehind) {
         return;
     }
     if reg_multi() {
-        let startpos = RE_STATE.with(|s| s.rex.startpos_slice_mut());
-        let endpos = RE_STATE.with(|s| s.rex.endpos_slice_mut());
-        for i in 0..NSUBEXP {
-            bp.save_start[i].se_u = crate::regexp::RegPos::from_pos(startpos[i]);
-            bp.save_end[i].se_u = crate::regexp::RegPos::from_pos(endpos[i]);
-        }
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                bp.save_start[i].se_u =
+                    crate::regexp::RegPos::from_pos(s.rex.rmm_startpos[i].get());
+                bp.save_end[i].se_u = crate::regexp::RegPos::from_pos(s.rex.rmm_endpos[i].get());
+            }
+        });
     } else {
-        let m = RE_STATE.with(|s| s.rex.match_mut());
-        for i in 0..NSUBEXP {
-            bp.save_start[i].se_u.ptr = m.startp[i];
-            bp.save_end[i].se_u.ptr = m.endp[i];
-        }
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                bp.save_start[i].se_u.ptr = s.rex.rm_startp[i].get();
+                bp.save_end[i].se_u.ptr = s.rex.rm_endp[i].get();
+            }
+        });
     }
 }
 
@@ -2743,18 +2753,19 @@ fn restore_subexpr(bp: &mut Regbehind) {
         return;
     }
     if reg_multi() {
-        let startpos = RE_STATE.with(|s| s.rex.startpos_slice_mut());
-        let endpos = RE_STATE.with(|s| s.rex.endpos_slice_mut());
-        for i in 0..NSUBEXP {
-            startpos[i] = bp.save_start[i].se_u.pos();
-            endpos[i] = bp.save_end[i].se_u.pos();
-        }
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.rex.rmm_startpos[i].set(bp.save_start[i].se_u.pos());
+                s.rex.rmm_endpos[i].set(bp.save_end[i].se_u.pos());
+            }
+        });
     } else {
-        let m = RE_STATE.with(|s| s.rex.match_mut());
-        for i in 0..NSUBEXP {
-            m.startp[i] = bp.save_start[i].se_u.ptr;
-            m.endp[i] = bp.save_end[i].se_u.ptr;
-        }
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.rex.rm_startp[i].set(bp.save_start[i].se_u.ptr);
+                s.rex.rm_endp[i].set(bp.save_end[i].se_u.ptr);
+            }
+        });
     }
 }
 
@@ -2817,7 +2828,7 @@ fn regmatch_inner(
 
                 if !re_s.rex.reg_line_lbr.get()
                     && with_nl(op)
-                    && re_s.rex.reg_match.get().is_null()
+                    && !re_s.rex.has_match.get()
                     && input_byte() == NUL
                     && re_s.rex.lnum.get() <= re_s.rex.reg_maxline.get()
                 {
@@ -2843,8 +2854,7 @@ fn regmatch_inner(
                         RE_BOF => {
                             if re_s.rex.lnum.get() != 0
                                 || re_s.rex.input.get().addr() != re_s.rex.line.get().addr()
-                                || (re_s.rex.reg_match.get().is_null()
-                                    && re_s.rex.reg_firstlnum.get() > 1)
+                                || (!re_s.rex.has_match.get() && re_s.rex.reg_firstlnum.get() > 1)
                             {
                                 status = RegAction::NoMatch;
                             }
@@ -2868,7 +2878,7 @@ fn regmatch_inner(
                             let opnd = operand_idx(scan_idx);
                             let mark = i32::from(prog[opnd]);
                             let cmp = i32::from(prog[opnd + 1]);
-                            let col = if re_s.rex.reg_match.get().is_null() {
+                            let col = if !re_s.rex.has_match.get() {
                                 re_s.rex.input_off()
                             } else {
                                 0
@@ -2880,7 +2890,7 @@ fn regmatch_inner(
                                 K_MARK_BUF_LOCAL,
                                 mark,
                             );
-                            if re_s.rex.reg_match.get().is_null() {
+                            if !re_s.rex.has_match.get() {
                                 let cur_lnum = re_s.rex.lnum.get();
                                 re_s.rex.load_line(cur_lnum);
                                 RE_STATE.with(|s| {
@@ -2928,7 +2938,7 @@ fn regmatch_inner(
                             }
                         }
                         RE_LNUM => {
-                            if !re_s.rex.reg_match.get().is_null()
+                            if re_s.rex.has_match.get()
                                 || !re_num_cmp(
                                     (re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get()) as u32,
                                     prog,
@@ -2949,12 +2959,12 @@ fn regmatch_inner(
                             } else {
                                 re_s.rex.win_mut()
                             };
-                            let mut lnum = if re_s.rex.reg_match.get().is_null() {
+                            let mut lnum = if !re_s.rex.has_match.get() {
                                 re_s.rex.reg_firstlnum.get() + re_s.rex.lnum.get()
                             } else {
                                 1
                             };
-                            if re_s.rex.reg_match.get().is_null()
+                            if !re_s.rex.has_match.get()
                                 && (lnum <= 0 || lnum > wp.buf_mut().b_ml.ml_line_count)
                             {
                                 lnum = 1;
@@ -3406,9 +3416,9 @@ fn regmatch_inner(
                             let no = (op - BACKREF) as usize;
                             let mut len: i32 = 0;
                             cleanup_subexpr();
-                            if !re_s.rex.reg_match.get().is_null() {
-                                let start_no = re_s.rex.match_mut().startp[no];
-                                let end_no = re_s.rex.match_mut().endp[no];
+                            if re_s.rex.has_match.get() {
+                                let start_no = re_s.rex.rm_startp[no].get();
+                                let end_no = re_s.rex.rm_endp[no].get();
                                 if !start_no.is_null() && !end_no.is_null() {
                                     len = end_no.offset_from(start_no) as i32;
 
@@ -3422,8 +3432,8 @@ fn regmatch_inner(
                                     }
                                 }
                             } else {
-                                let spos = re_s.rex.startpos_slice_mut()[no];
-                                let epos = re_s.rex.endpos_slice_mut()[no];
+                                let spos = re_s.rex.rmm_startpos[no].get();
+                                let epos = re_s.rex.rmm_endpos[no].get();
                                 if spos.lnum >= 0 && epos.lnum >= 0 {
                                     if spos.lnum == re_s.rex.lnum.get()
                                         && epos.lnum == re_s.rex.lnum.get()
@@ -3630,7 +3640,7 @@ fn regmatch_inner(
                             }
                         }
                         BHPOS => {
-                            if re_s.rex.reg_match.get().is_null() {
+                            if !re_s.rex.has_match.get() {
                                 let bpos = re_s.behind_pos.get().rs_u.pos();
                                 if bpos.col != re_s.rex.input_col()
                                     || bpos.lnum != re_s.rex.lnum.get()
@@ -3645,7 +3655,7 @@ fn regmatch_inner(
                         }
                         NEWL => {
                             if (c != NUL as i32
-                                || !re_s.rex.reg_match.get().is_null()
+                                || re_s.rex.has_match.get()
                                 || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
                                 || re_s.rex.reg_line_lbr.get())
                                 && (c != b'\n' as i32 || !re_s.rex.reg_line_lbr.get())
@@ -3825,7 +3835,7 @@ fn regmatch_inner(
                         } else {
                             let mut no = true;
                             let limit = operand_min(prog, rp.rs_scan.unwrap());
-                            if re_s.rex.reg_match.get().is_null() {
+                            if !re_s.rex.has_match.get() {
                                 let rp_pos = rp.rs_un.regsave().rs_u.pos();
                                 let bpos = re_s.behind_pos.get().rs_u.pos();
                                 if limit > 0
@@ -4034,26 +4044,25 @@ fn regtry(
         }
 
         cleanup_subexpr();
-        if re_s.rex.reg_match.get().is_null() {
-            let startpos = re_s.rex.startpos_slice_mut();
-            let endpos = re_s.rex.endpos_slice_mut();
-            if startpos[0].lnum < 0 {
-                startpos[0].lnum = 0;
-                startpos[0].col = col;
+        if !re_s.rex.has_match.get() {
+            if re_s.rex.rmm_startpos[0].get().lnum < 0 {
+                re_s.rex.rmm_startpos[0].set(Lpos { lnum: 0, col });
             }
-            if endpos[0].lnum < 0 {
-                endpos[0].lnum = re_s.rex.lnum.get();
-                endpos[0].col = re_s.rex.input_col();
+            let end0 = re_s.rex.rmm_endpos[0].get();
+            if end0.lnum < 0 {
+                re_s.rex.rmm_endpos[0].set(Lpos {
+                    lnum: re_s.rex.lnum.get(),
+                    col: re_s.rex.input_col(),
+                });
             } else {
-                re_s.rex.lnum.set(endpos[0].lnum);
+                re_s.rex.lnum.set(end0.lnum);
             }
         } else {
-            let m = re_s.rex.match_mut();
-            if m.startp[0].is_null() {
-                m.startp[0] = re_s.rex.line.get().wrapping_add(col as usize);
+            if re_s.rex.rm_startp[0].get().is_null() {
+                re_s.rex.rm_startp[0].set(re_s.rex.line.get().wrapping_add(col as usize));
             }
-            if m.endp[0].is_null() {
-                m.endp[0] = re_s.rex.input.get();
+            if re_s.rex.rm_endp[0].get().is_null() {
+                re_s.rex.rm_endp[0].set(re_s.rex.input.get());
             }
         }
 
@@ -4063,7 +4072,7 @@ fn regtry(
             cleanup_zsubexpr();
             let mut extmatch = RegExtmatch::default();
             for i in 0..NSUBEXP {
-                if re_s.rex.reg_match.get().is_null() {
+                if !re_s.rex.has_match.get() {
                     let sz = RE_STATE.with(|s| s.reg_startzpos[i].get());
                     let ez = RE_STATE.with(|s| s.reg_endzpos[i].get());
                     if sz.lnum >= 0
@@ -4109,14 +4118,8 @@ fn bt_regexec_both(
             }
         });
 
-        if re_s.rex.reg_match.get().is_null() {
+        if !re_s.rex.has_match.get() {
             line = reg_line_from_opt_cstr(reg_getline(0));
-            re_s.rex.reg_startpos.set(crate::globals::GraphPtr::from(
-                &mut re_s.rex.mmatch_mut().startpos,
-            ));
-            re_s.rex.reg_endpos.set(crate::globals::GraphPtr::from(
-                &mut re_s.rex.mmatch_mut().endpos,
-            ));
         }
         if line.is_null() {
             iemsg(tr(E_NULL));
@@ -4283,20 +4286,19 @@ fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
 
     if retval > 0 {
         if reg_multi() {
-            let start = RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[0];
-            let end = RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[0];
+            let start = RE_STATE.with(|s| s.rex.rmm_startpos[0].get());
+            let end = RE_STATE.with(|s| s.rex.rmm_endpos[0].get());
             if end.lnum < start.lnum || (end.lnum == start.lnum && end.col < start.col) {
-                RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[0] = start;
+                RE_STATE.with(|s| s.rex.rmm_endpos[0].set(start));
             }
-            RE_STATE.with(|s| s.rex.mmatch_mut()).rmm_matchcol = col;
+            RE_STATE.with(|s| s.rex.rmm_matchcol.set(col));
         } else {
-            if RE_STATE.with(|s| s.rex.match_mut()).endp[0]
-                .before(RE_STATE.with(|s| s.rex.match_mut()).startp[0])
-            {
-                RE_STATE.with(|s| s.rex.match_mut()).endp[0] =
-                    RE_STATE.with(|s| s.rex.match_mut()).startp[0];
+            let start = RE_STATE.with(|s| s.rex.rm_startp[0].get());
+            let end = RE_STATE.with(|s| s.rex.rm_endp[0].get());
+            if end.before(start) {
+                RE_STATE.with(|s| s.rex.rm_endp[0].set(start));
             }
-            RE_STATE.with(|s| s.rex.match_mut()).rm_matchcol = col;
+            RE_STATE.with(|s| s.rex.rm_matchcol.set(col));
         }
     }
 
@@ -4311,25 +4313,22 @@ pub(super) fn bt_regexec_nl(
     line_lbr: bool,
 ) -> i32 {
     RE_STATE.with(|s| {
-        s.rex
-            .reg_match
-            .set(crate::globals::GraphPtr::from(&mut *rmp))
-    });
-    RE_STATE.with(|s| s.rex.reg_mmatch.set(crate::globals::GraphPtr::NULL));
-    RE_STATE.with(|s| s.rex.reg_maxline.set(0));
-    RE_STATE.with(|s| s.rex.reg_line_lbr.set(line_lbr));
-    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
-    RE_STATE.with(|s| s.rex.reg_win.set(crate::globals::WinPtr::NULL));
-    RE_STATE.with(|s| s.rex.reg_ic.set(rmp.rm_ic));
-    RE_STATE.with(|s| s.rex.reg_icombine.set(false));
-    RE_STATE.with(|s| {
+        s.rex.load_match(rmp);
+        s.rex.reg_maxline.set(0);
+        s.rex.reg_line_lbr.set(line_lbr);
+        s.rex.reg_buf.set(g_st().curbuf);
+        s.rex.reg_win.set(crate::globals::WinPtr::NULL);
+        s.rex.reg_ic.set(rmp.rm_ic);
+        s.rex.reg_icombine.set(false);
         s.rex
             .reg_nobreak
-            .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0)
+            .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0);
+        s.rex.reg_maxcol.set(0);
     });
-    RE_STATE.with(|s| s.rex.reg_maxcol.set(0));
 
-    bt_regexec_both(prog, line, col, None, None)
+    let res = bt_regexec_both(prog, line, col, None, None);
+    RE_STATE.with(|s| s.rex.save_match(rmp));
+    res
 }
 
 pub(super) fn bt_regexec_multi(
@@ -4343,7 +4342,9 @@ pub(super) fn bt_regexec_multi(
     timed_out: Option<&mut i32>,
 ) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
-    bt_regexec_both(prog, None, col, tm, timed_out)
+    let res = bt_regexec_both(prog, None, col, tm, timed_out);
+    RE_STATE.with(|s| s.rex.save_mmatch(rmp));
+    res
 }
 
 fn re_num_cmp(val: u32, prog: &[u8], scan: usize) -> bool {

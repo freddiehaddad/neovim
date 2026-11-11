@@ -1204,10 +1204,15 @@ impl Default for ParseState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regexec {
-    pub reg_match: crate::globals::GraphPtr<Regmatch>,
-    pub reg_mmatch: crate::globals::GraphPtr<Regmmatch>,
-    pub reg_startpos: crate::globals::GraphPtr<[Lpos; NSUBEXP]>,
-    pub reg_endpos: crate::globals::GraphPtr<[Lpos; NSUBEXP]>,
+    pub has_match: bool,
+    pub has_mmatch: bool,
+    pub bt_magic_wrong: bool,
+    pub rm_startp: [RegLineSlice; NSUBEXP],
+    pub rm_endp: [RegLineSlice; NSUBEXP],
+    pub rm_matchcol: Colnr,
+    pub rmm_startpos: [Lpos; NSUBEXP],
+    pub rmm_endpos: [Lpos; NSUBEXP],
+    pub rmm_matchcol: Colnr,
     pub reg_win: crate::globals::WinPtr,
     pub reg_buf: crate::globals::BufPtr,
     pub reg_firstlnum: Linenr,
@@ -1233,10 +1238,15 @@ pub(super) struct Regexec {
 impl Regexec {
     pub(super) const fn new() -> Self {
         Self {
-            reg_match: crate::globals::GraphPtr::NULL,
-            reg_mmatch: crate::globals::GraphPtr::NULL,
-            reg_startpos: crate::globals::GraphPtr::NULL,
-            reg_endpos: crate::globals::GraphPtr::NULL,
+            has_match: false,
+            has_mmatch: false,
+            bt_magic_wrong: false,
+            rm_startp: [REG_LINE_NULL; NSUBEXP],
+            rm_endp: [REG_LINE_NULL; NSUBEXP],
+            rm_matchcol: 0,
+            rmm_startpos: [Lpos::new(); NSUBEXP],
+            rmm_endpos: [Lpos::new(); NSUBEXP],
+            rmm_matchcol: 0,
             reg_win: crate::globals::WinPtr::NULL,
             reg_buf: crate::globals::BufPtr::NULL,
             reg_firstlnum: 0,
@@ -1270,8 +1280,11 @@ impl Default for Regexec {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regsubmatch {
-    pub sm_match: crate::globals::GraphPtr<Regmatch>,
-    pub sm_mmatch: crate::globals::GraphPtr<Regmmatch>,
+    pub sm_has_match: bool,
+    pub sm_startp: [RegLineSlice; NSUBEXP],
+    pub sm_endp: [RegLineSlice; NSUBEXP],
+    pub sm_startpos: [Lpos; NSUBEXP],
+    pub sm_endpos: [Lpos; NSUBEXP],
     pub sm_firstlnum: Linenr,
     pub sm_maxline: Linenr,
     pub sm_line_lbr: i32,
@@ -1280,8 +1293,11 @@ pub(super) struct Regsubmatch {
 impl Regsubmatch {
     pub(super) const fn new() -> Self {
         Self {
-            sm_match: crate::globals::GraphPtr::NULL,
-            sm_mmatch: crate::globals::GraphPtr::NULL,
+            sm_has_match: false,
+            sm_startp: [REG_LINE_NULL; NSUBEXP],
+            sm_endp: [REG_LINE_NULL; NSUBEXP],
+            sm_startpos: [Lpos::new(); NSUBEXP],
+            sm_endpos: [Lpos::new(); NSUBEXP],
             sm_firstlnum: 0,
             sm_maxline: 0,
             sm_line_lbr: 0,
@@ -1562,10 +1578,15 @@ impl RegLineSlots {
 }
 
 pub(super) struct RegexecState {
-    pub reg_match: std::cell::Cell<crate::globals::GraphPtr<Regmatch>>,
-    pub reg_mmatch: std::cell::Cell<crate::globals::GraphPtr<Regmmatch>>,
-    pub reg_startpos: std::cell::Cell<crate::globals::GraphPtr<[Lpos; NSUBEXP]>>,
-    pub reg_endpos: std::cell::Cell<crate::globals::GraphPtr<[Lpos; NSUBEXP]>>,
+    pub has_match: std::cell::Cell<bool>,
+    pub has_mmatch: std::cell::Cell<bool>,
+    pub bt_magic_wrong: std::cell::Cell<bool>,
+    pub rm_startp: [std::cell::Cell<RegLineSlice>; NSUBEXP],
+    pub rm_endp: [std::cell::Cell<RegLineSlice>; NSUBEXP],
+    pub rm_matchcol: std::cell::Cell<Colnr>,
+    pub rmm_startpos: [std::cell::Cell<Lpos>; NSUBEXP],
+    pub rmm_endpos: [std::cell::Cell<Lpos>; NSUBEXP],
+    pub rmm_matchcol: std::cell::Cell<Colnr>,
     pub reg_win: std::cell::Cell<crate::globals::WinPtr>,
     pub reg_buf: std::cell::Cell<crate::globals::BufPtr>,
     pub reg_firstlnum: std::cell::Cell<Linenr>,
@@ -1591,10 +1612,15 @@ pub(super) struct RegexecState {
 impl RegexecState {
     const fn new() -> Self {
         Self {
-            reg_match: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
-            reg_mmatch: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
-            reg_startpos: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
-            reg_endpos: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            has_match: std::cell::Cell::new(false),
+            has_mmatch: std::cell::Cell::new(false),
+            bt_magic_wrong: std::cell::Cell::new(false),
+            rm_startp: [const { std::cell::Cell::new(REG_LINE_NULL) }; NSUBEXP],
+            rm_endp: [const { std::cell::Cell::new(REG_LINE_NULL) }; NSUBEXP],
+            rm_matchcol: std::cell::Cell::new(0),
+            rmm_startpos: [const { std::cell::Cell::new(Lpos::new()) }; NSUBEXP],
+            rmm_endpos: [const { std::cell::Cell::new(Lpos::new()) }; NSUBEXP],
+            rmm_matchcol: std::cell::Cell::new(0),
             reg_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
             reg_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
             reg_firstlnum: std::cell::Cell::new(0),
@@ -1618,12 +1644,77 @@ impl RegexecState {
         }
     }
 
+    #[inline(always)]
+    pub fn startp_arr(&self) -> [RegLineSlice; NSUBEXP] {
+        std::array::from_fn(|i| self.rm_startp[i].get())
+    }
+
+    #[inline(always)]
+    pub fn endp_arr(&self) -> [RegLineSlice; NSUBEXP] {
+        std::array::from_fn(|i| self.rm_endp[i].get())
+    }
+
+    #[inline(always)]
+    pub fn startpos_arr(&self) -> [Lpos; NSUBEXP] {
+        std::array::from_fn(|i| self.rmm_startpos[i].get())
+    }
+
+    #[inline(always)]
+    pub fn endpos_arr(&self) -> [Lpos; NSUBEXP] {
+        std::array::from_fn(|i| self.rmm_endpos[i].get())
+    }
+
+    #[inline(always)]
+    pub fn load_match(&self, rmp: &Regmatch) {
+        self.has_match.set(true);
+        self.has_mmatch.set(false);
+        for i in 0..NSUBEXP {
+            self.rm_startp[i].set(rmp.startp[i]);
+            self.rm_endp[i].set(rmp.endp[i]);
+        }
+        self.rm_matchcol.set(rmp.rm_matchcol);
+    }
+
+    #[inline(always)]
+    pub fn save_match(&self, rmp: &mut Regmatch) {
+        for i in 0..NSUBEXP {
+            rmp.startp[i] = self.rm_startp[i].get();
+            rmp.endp[i] = self.rm_endp[i].get();
+        }
+        rmp.rm_matchcol = self.rm_matchcol.get();
+    }
+
+    #[inline(always)]
+    pub fn load_mmatch(&self, rmp: &Regmmatch) {
+        self.has_match.set(false);
+        self.has_mmatch.set(true);
+        for i in 0..NSUBEXP {
+            self.rmm_startpos[i].set(rmp.startpos[i]);
+            self.rmm_endpos[i].set(rmp.endpos[i]);
+        }
+        self.rmm_matchcol.set(rmp.rmm_matchcol);
+    }
+
+    #[inline(always)]
+    pub fn save_mmatch(&self, rmp: &mut Regmmatch) {
+        for i in 0..NSUBEXP {
+            rmp.startpos[i] = self.rmm_startpos[i].get();
+            rmp.endpos[i] = self.rmm_endpos[i].get();
+        }
+        rmp.rmm_matchcol = self.rmm_matchcol.get();
+    }
+
     pub(super) fn snapshot(&self) -> Regexec {
         Regexec {
-            reg_match: self.reg_match.get(),
-            reg_mmatch: self.reg_mmatch.get(),
-            reg_startpos: self.reg_startpos.get(),
-            reg_endpos: self.reg_endpos.get(),
+            has_match: self.has_match.get(),
+            has_mmatch: self.has_mmatch.get(),
+            bt_magic_wrong: self.bt_magic_wrong.get(),
+            rm_startp: self.startp_arr(),
+            rm_endp: self.endp_arr(),
+            rm_matchcol: self.rm_matchcol.get(),
+            rmm_startpos: self.startpos_arr(),
+            rmm_endpos: self.endpos_arr(),
+            rmm_matchcol: self.rmm_matchcol.get(),
             reg_win: self.reg_win.get(),
             reg_buf: self.reg_buf.get(),
             reg_firstlnum: self.reg_firstlnum.get(),
@@ -1648,10 +1739,17 @@ impl RegexecState {
     }
 
     pub(super) fn restore(&self, snap: &Regexec) {
-        self.reg_match.set(snap.reg_match);
-        self.reg_mmatch.set(snap.reg_mmatch);
-        self.reg_startpos.set(snap.reg_startpos);
-        self.reg_endpos.set(snap.reg_endpos);
+        self.has_match.set(snap.has_match);
+        self.has_mmatch.set(snap.has_mmatch);
+        self.bt_magic_wrong.set(snap.bt_magic_wrong);
+        for i in 0..NSUBEXP {
+            self.rm_startp[i].set(snap.rm_startp[i]);
+            self.rm_endp[i].set(snap.rm_endp[i]);
+            self.rmm_startpos[i].set(snap.rmm_startpos[i]);
+            self.rmm_endpos[i].set(snap.rmm_endpos[i]);
+        }
+        self.rm_matchcol.set(snap.rm_matchcol);
+        self.rmm_matchcol.set(snap.rmm_matchcol);
         self.reg_win.set(snap.reg_win);
         self.reg_buf.set(snap.reg_buf);
         self.reg_firstlnum.set(snap.reg_firstlnum);
@@ -1675,14 +1773,6 @@ impl RegexecState {
     }
 
     #[inline(always)]
-    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        self.reg_mmatch.get().borrow_mut()
-    }
-    #[inline(always)]
-    pub fn match_mut(&self) -> &'static mut Regmatch {
-        self.reg_match.get().borrow_mut()
-    }
-    #[inline(always)]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
         self.reg_buf.get().borrow_mut()
     }
@@ -1701,14 +1791,6 @@ impl RegexecState {
     #[inline(always)]
     pub fn input_off(&self) -> usize {
         self.input.get().offset_from(self.line.get())
-    }
-    #[inline(always)]
-    pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {
-        self.reg_startpos.get().borrow_mut()
-    }
-    #[inline(always)]
-    pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
-        self.reg_endpos.get().borrow_mut()
     }
 }
 
@@ -1947,7 +2029,7 @@ pub(super) const fn toggle_magic(x: i32) -> i32 {
 
 #[inline(always)]
 pub(super) fn reg_multi() -> bool {
-    RE_STATE.with(|s| s.rex.reg_match.get()).is_null()
+    !RE_STATE.with(|s| s.rex.has_match.get())
 }
 
 /// Return NOT_MULTI if c is not a "multi" operator.
@@ -2849,12 +2931,7 @@ pub(super) fn reg_match_visual() -> bool {
 }
 
 pub(super) fn prog_magic_wrong() -> bool {
-    let prog = if reg_multi() {
-        &RE_STATE.with(|s| s.rex.mmatch_mut()).regprog
-    } else {
-        &RE_STATE.with(|s| s.rex.match_mut()).regprog
-    };
-    if prog.bt_magic_wrong() {
+    if RE_STATE.with(|s| s.rex.bt_magic_wrong.get()) {
         emsg(tr(E_RE_CORR));
         return true;
     }
@@ -2867,14 +2944,19 @@ pub(super) fn cleanup_subexpr() {
     }
     if reg_multi() {
         let uninit_pos = Lpos { lnum: -1, col: -1 };
-        RE_STATE
-            .with(|s| s.rex.startpos_slice_mut())
-            .fill(uninit_pos);
-        RE_STATE.with(|s| s.rex.endpos_slice_mut()).fill(uninit_pos);
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.rex.rmm_startpos[i].set(uninit_pos);
+                s.rex.rmm_endpos[i].set(uninit_pos);
+            }
+        });
     } else {
-        let m = RE_STATE.with(|s| s.rex.match_mut());
-        m.startp.fill(REG_LINE_NULL);
-        m.endp.fill(REG_LINE_NULL);
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.rex.rm_startp[i].set(REG_LINE_NULL);
+                s.rex.rm_endp[i].set(REG_LINE_NULL);
+            }
+        });
     }
     RE_STATE.with(|s| s.rex.need_clear_subexpr.set(false));
 }
@@ -3196,8 +3278,8 @@ pub(crate) fn fill_submatch_list(
 
     let mut li = listarg.vval.v_list().lv_first;
     for i in 0..10 {
-        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[i];
-        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[i];
+        let s = RE_STATE.with(|s| s.rsm.get()).sm_startp[i];
+        let e = RE_STATE.with(|s| s.rsm.get()).sm_endp[i];
         let li_mut = li.borrow_mut();
         if s.is_null() || e.is_null() {
             tv_set_string(&mut li_mut.li_tv, None);
@@ -3228,11 +3310,9 @@ pub fn vim_regsub(
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
     RE_STATE.with(|s| {
-        s.rex
-            .reg_match
-            .set(crate::globals::GraphPtr::from(&mut *rmp))
+        s.rex.load_match(rmp);
+        s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
-    RE_STATE.with(|s| s.rex.reg_mmatch.set(crate::globals::GraphPtr::NULL));
     RE_STATE.with(|s| s.rex.reg_maxline.set(0));
     RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
     RE_STATE.with(|s| s.rex.reg_line_lbr.set(true));
@@ -3261,11 +3341,9 @@ pub fn vim_regsub_multi(
     }
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    RE_STATE.with(|s| s.rex.reg_match.set(crate::globals::GraphPtr::NULL));
     RE_STATE.with(|s| {
-        s.rex
-            .reg_mmatch
-            .set(crate::globals::GraphPtr::from(&mut *rmp))
+        s.rex.load_mmatch(rmp);
+        s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
     RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
     RE_STATE.with(|s| s.rex.reg_firstlnum.set(lnum));
@@ -3342,11 +3420,14 @@ fn vim_regsub_both(
             RE_STATE.with(|s| s.can_f_submatch.set(true));
             RE_STATE.with(|s| {
                 s.rsm.set(Regsubmatch {
-                    sm_match: RE_STATE.with(|s| s.rex.reg_match.get()),
-                    sm_mmatch: RE_STATE.with(|s| s.rex.reg_mmatch.get()),
-                    sm_firstlnum: RE_STATE.with(|s| s.rex.reg_firstlnum.get()),
-                    sm_maxline: RE_STATE.with(|s| s.rex.reg_maxline.get()),
-                    sm_line_lbr: i32::from(RE_STATE.with(|s| s.rex.reg_line_lbr.get())),
+                    sm_has_match: s.rex.has_match.get(),
+                    sm_startp: s.rex.startp_arr(),
+                    sm_endp: s.rex.endp_arr(),
+                    sm_startpos: s.rex.startpos_arr(),
+                    sm_endpos: s.rex.endpos_arr(),
+                    sm_firstlnum: s.rex.reg_firstlnum.get(),
+                    sm_maxline: s.rex.reg_maxline.get(),
+                    sm_line_lbr: i32::from(s.rex.reg_line_lbr.get()),
                 });
             });
 
@@ -3577,28 +3658,23 @@ fn vim_regsub_both(
             } else {
                 let mut s: RegLineSlice;
                 if reg_multi() {
-                    clnum = RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].lnum;
-                    if clnum < 0
-                        || RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum < 0
-                    {
+                    let spos = RE_STATE.with(|s| s.rex.rmm_startpos[no as usize].get());
+                    let epos = RE_STATE.with(|s| s.rex.rmm_endpos[no as usize].get());
+                    clnum = spos.lnum;
+                    if clnum < 0 || epos.lnum < 0 {
                         s = REG_LINE_NULL;
                     } else {
                         let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum));
-                        s = line_ptr.wrapping_add(
-                            RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col
-                                as usize,
-                        );
-                        if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum == clnum {
-                            len = RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].col
-                                - RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col;
+                        s = line_ptr.wrapping_add(spos.col as usize);
+                        if epos.lnum == clnum {
+                            len = epos.col - spos.col;
                         } else {
-                            len = reg_getline_len(clnum)
-                                - RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col;
+                            len = reg_getline_len(clnum) - spos.col;
                         }
                     }
                 } else {
-                    let start_no = RE_STATE.with(|s| s.rex.match_mut()).startp[no as usize];
-                    let end_no = RE_STATE.with(|s| s.rex.match_mut()).endp[no as usize];
+                    let start_no = RE_STATE.with(|s| s.rex.rm_startp[no as usize].get());
+                    let end_no = RE_STATE.with(|s| s.rex.rm_endp[no as usize].get());
                     if start_no.is_null() || end_no.is_null() {
                         s = REG_LINE_NULL;
                     } else {
@@ -3610,9 +3686,8 @@ fn vim_regsub_both(
                     loop {
                         if len == 0 {
                             if reg_multi() {
-                                if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum
-                                    == clnum
-                                {
+                                let epos = RE_STATE.with(|s| s.rex.rmm_endpos[no as usize].get());
+                                if epos.lnum == clnum {
                                     break;
                                 }
                                 if let Some(ref mut out) = dest_slice {
@@ -3625,11 +3700,8 @@ fn vim_regsub_both(
                                 dst_off += 1;
                                 clnum += 1;
                                 s = reg_line_from_opt_cstr(reg_getline(clnum));
-                                if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum
-                                    == clnum
-                                {
-                                    len = RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize]
-                                        .col;
+                                if epos.lnum == clnum {
+                                    len = epos.col;
                                 } else {
                                     len = reg_getline_len(clnum);
                                 }
@@ -3714,16 +3786,16 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
     }
     let no = no as usize;
 
-    if RE_STATE.with(|s| s.rsm.get()).sm_match.is_null() {
-        let mut lnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].lnum;
-        let end_lnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].lnum;
+    let rsm = RE_STATE.with(|s| s.rsm.get());
+    if !rsm.sm_has_match {
+        let mut lnum = rsm.sm_startpos[no].lnum;
+        let end_lnum = rsm.sm_endpos[no].lnum;
         if lnum < 0 || end_lnum < 0 {
             return None;
         }
         let first_line = reg_getline_submatch_slice(lnum)?;
-        let scol = (RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].col as usize)
-            .min(first_line.len());
-        let ecol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].col as usize;
+        let scol = (rsm.sm_startpos[no].col as usize).min(first_line.len());
+        let ecol = rsm.sm_endpos[no].col as usize;
         let mut buf: Vec<u8> = Vec::new();
         if end_lnum == lnum {
             let end_idx = ecol.min(first_line.len());
@@ -3743,8 +3815,8 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
         }
         Some(crate::memory::bytes_to_cstring(&buf))
     } else {
-        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[no];
-        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[no];
+        let s = rsm.sm_startp[no];
+        let e = rsm.sm_endp[no];
         if s.is_null() || e.is_null() {
             None
         } else {
@@ -3759,16 +3831,17 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
     }
     let no = no as usize;
     let list: &'static mut TvList;
+    let rsm = RE_STATE.with(|s| s.rsm.get());
 
-    if RE_STATE.with(|s| s.rsm.get()).sm_match.is_null() {
-        let slnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].lnum;
-        let elnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].lnum;
+    if !rsm.sm_has_match {
+        let slnum = rsm.sm_startpos[no].lnum;
+        let elnum = rsm.sm_endpos[no].lnum;
         if slnum < 0 || elnum < 0 {
             return None;
         }
 
-        let scol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].col;
-        let ecol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].col;
+        let scol = rsm.sm_startpos[no].col;
+        let ecol = rsm.sm_endpos[no].col;
 
         list = tv_list_alloc((elnum - slnum + 1) as isize);
 
@@ -3793,8 +3866,8 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
             );
         }
     } else {
-        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[no];
-        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[no];
+        let s = rsm.sm_startp[no];
+        let e = rsm.sm_endp[no];
         if s.is_null() || e.is_null() {
             return None;
         }
@@ -3816,12 +3889,10 @@ pub(super) fn init_regexec_multi(
     let rmm_ic = rmp.rmm_ic;
     let nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     let maxcol = rmp.rmm_maxcol;
-    let rmp_ptr = crate::globals::GraphPtr::from(&mut *rmp);
     let buf_ptr = crate::globals::BufPtr::from(buf);
     let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     RE_STATE.with(|s| {
-        s.rex.reg_match.set(crate::globals::GraphPtr::NULL);
-        s.rex.reg_mmatch.set(rmp_ptr);
+        s.rex.load_mmatch(rmp);
         s.rex.reg_buf.set(buf_ptr);
         s.rex.reg_win.set(win_ptr);
         s.rex.reg_firstlnum.set(lnum);
@@ -4156,9 +4227,6 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    RE_STATE.with(|s| s.rex.reg_startpos.set(crate::globals::GraphPtr::NULL));
-    RE_STATE.with(|s| s.rex.reg_endpos.set(crate::globals::GraphPtr::NULL));
-
     let mut result = exec_regmatch_nl(rmp, line, col, nl);
     rmp.regprog.set_re_in_use(false);
 
@@ -4333,17 +4401,6 @@ impl RegexpState {
         });
         self.regparse_off.set(self.regparse_off.get() + adv);
         res
-    }
-}
-
-impl Regsubmatch {
-    #[inline(always)]
-    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        self.sm_mmatch.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn match_mut(&self) -> &'static mut Regmatch {
-        self.sm_match.borrow_mut()
     }
 }
 
