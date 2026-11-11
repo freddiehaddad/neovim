@@ -48,18 +48,18 @@ pub fn buf_updates_register(
 
     if channel_id == LUA_INTERNAL_CALL {
         let utf_sizes = cb.utf_sizes;
-        buf.update_callbacks.push(cb);
+        buf.update_callbacks.borrow_mut().push(cb);
         if utf_sizes {
             buf.update_need_codepoints.set(true);
         }
         return true;
     }
 
-    if buf.update_channels.contains(&channel_id) {
+    if buf.update_channels.borrow().contains(&channel_id) {
         return true;
     }
 
-    buf.update_channels.push(channel_id);
+    buf.update_channels.borrow_mut().push(channel_id);
 
     if send_buffer {
         let line_count = buf.b_ml.ml_line_count.get() as usize;
@@ -99,7 +99,7 @@ pub fn buf_updates_register(
 }
 
 pub fn buf_updates_active(buf: &mut FileBuf) -> bool {
-    !buf.update_channels.is_empty() || !buf.update_callbacks.is_empty()
+    !buf.update_channels.borrow().is_empty() || !buf.update_callbacks.borrow().is_empty()
 }
 
 pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
@@ -109,34 +109,37 @@ pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
 }
 
 pub fn buf_updates_unregister(buf: &mut FileBuf, channelid: u64) {
-    let size = buf.update_channels.len();
+    let size = buf.update_channels.borrow().len();
     if size == 0 {
         return;
     }
 
-    buf.update_channels.retain(|&id| id != channelid);
-    if buf.update_channels.len() < size {
+    buf.update_channels
+        .borrow_mut()
+        .retain(|&id| id != channelid);
+    if buf.update_channels.borrow().len() < size {
         buf_updates_send_end(buf, channelid);
-        if buf.update_channels.is_empty() {
-            buf.update_channels = Vec::new();
+        if buf.update_channels.borrow().is_empty() {
+            *buf.update_channels.borrow_mut() = Vec::new();
         }
     }
 }
 
 pub fn buf_free_callbacks(buf: &mut FileBuf) {
-    buf.update_channels = Vec::new();
-    buf.update_callbacks = Vec::new();
+    *buf.update_channels.borrow_mut() = Vec::new();
+    *buf.update_callbacks.borrow_mut() = Vec::new();
 }
 
 pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
-    for channelid in std::mem::take(&mut buf.update_channels) {
+    let channels = std::mem::take(&mut *buf.update_channels.borrow_mut());
+    for channelid in channels {
         buf_updates_send_end(buf, channelid);
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.len() {
-        let on_reload = buf.update_callbacks.as_slice()[i].on_reload;
-        let on_detach = buf.update_callbacks.as_slice()[i].on_detach;
+    while i < buf.update_callbacks.borrow().len() {
+        let on_reload = buf.update_callbacks.borrow().as_slice()[i].on_reload;
+        let on_detach = buf.update_callbacks.borrow().as_slice()[i].on_detach;
         let mut thecb = LUA_NOREF;
         let mut keep = false;
 
@@ -166,11 +169,11 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.remove(i);
+            buf.update_callbacks.borrow_mut().remove(i);
         }
     }
-    if buf.update_callbacks.is_empty() {
-        buf.update_callbacks = Vec::new();
+    if buf.update_callbacks.borrow().is_empty() {
+        *buf.update_callbacks.borrow_mut() = Vec::new();
     }
 }
 
@@ -194,7 +197,7 @@ pub fn buf_updates_send_changes(
 
     let mut arena = ARENA_EMPTY;
     let mut linedata = Array::new();
-    if num_added > 0 && !buf.update_channels.is_empty() {
+    if num_added > 0 && !buf.update_channels.borrow().is_empty() {
         linedata = arena_array(&mut arena, num_added as usize);
         buf_collect_lines(
             buf,
@@ -208,7 +211,8 @@ pub fn buf_updates_send_changes(
         );
     }
 
-    for &channelid in &buf.update_channels {
+    let channels = buf.update_channels.borrow().clone();
+    for &channelid in &channels {
         let mut items = [
             buffer_obj(buf.b_fnum.get()),
             if send_tick {
@@ -243,10 +247,10 @@ pub fn buf_updates_send_changes(
     arena_mem_free(arena_finish(&mut arena));
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.len() {
-        let on_lines = buf.update_callbacks.as_slice()[i].on_lines;
-        let preview = buf.update_callbacks.as_slice()[i].preview;
-        let utf_sizes = buf.update_callbacks.as_slice()[i].utf_sizes;
+    while i < buf.update_callbacks.borrow().len() {
+        let on_lines = buf.update_callbacks.borrow().as_slice()[i].on_lines;
+        let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
+        let utf_sizes = buf.update_callbacks.borrow().as_slice()[i].utf_sizes;
         let mut keep = true;
         if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
             let mut items = [
@@ -277,7 +281,7 @@ pub fn buf_updates_send_changes(
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.remove(i);
+            buf.update_callbacks.borrow_mut().remove(i);
         }
     }
 }
@@ -299,9 +303,9 @@ pub fn buf_updates_send_splice(
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.len() {
-        let on_bytes = buf.update_callbacks.as_slice()[i].on_bytes;
-        let preview = buf.update_callbacks.as_slice()[i].preview;
+    while i < buf.update_callbacks.borrow().len() {
+        let on_bytes = buf.update_callbacks.borrow().as_slice()[i].on_bytes;
+        let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
         let mut keep = true;
         if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
             let mut items = [
@@ -331,20 +335,21 @@ pub fn buf_updates_send_splice(
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.remove(i);
+            buf.update_callbacks.borrow_mut().remove(i);
         }
     }
 }
 
 pub fn buf_updates_changedtick(buf: &mut FileBuf) {
-    for idx in 0..buf.update_channels.len() {
-        let channel_id = buf.update_channels[idx];
+    let len = buf.update_channels.borrow().len();
+    for idx in 0..len {
+        let channel_id = buf.update_channels.borrow()[idx];
         buf_updates_changedtick_single(buf, channel_id);
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.len() {
-        let on_changedtick = buf.update_callbacks.as_slice()[i].on_changedtick;
+    while i < buf.update_callbacks.borrow().len() {
+        let on_changedtick = buf.update_callbacks.borrow().as_slice()[i].on_changedtick;
         let mut keep = true;
         if on_changedtick != LUA_NOREF {
             let mut items = [
@@ -372,7 +377,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.remove(i);
+            buf.update_callbacks.borrow_mut().remove(i);
         }
     }
 }

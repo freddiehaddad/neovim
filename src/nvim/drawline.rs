@@ -549,7 +549,7 @@ fn draw_virt_text_item(
         let cli = utf_cluster_info(ci);
         let mut draw_cells = cli.cells;
         if ci.chr.value == i32::from(TAB) {
-            draw_cells = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array);
+            draw_cells = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow());
         }
         if skip_cells > 0 {
             skip_cells -= draw_cells;
@@ -2935,7 +2935,7 @@ pub fn win_line(
                                     wlv.n_extra = tabstop_padding(
                                         wlv.vcol + wlv.extconceal_off,
                                         wp.buf_mut().b_p_ts.get(),
-                                        &wp.buf_mut().b_p_vts_array,
+                                        &wp.buf_mut().b_p_vts_array.borrow(),
                                     ) - 1;
                                 }
                                 wlv.sc_extra = schar_from_ascii(if mb_off > 0 {
@@ -3072,7 +3072,7 @@ pub fn win_line(
                         tab_len = tabstop_padding(
                             vcol_adjusted,
                             wp.buf_mut().b_p_ts.get(),
-                            &wp.buf_mut().b_p_vts_array,
+                            &wp.buf_mut().b_p_vts_array.borrow(),
                         ) - 1;
 
                         if !wp.w_onebuf_opt.wo_lbr.get() || !wp.w_onebuf_opt.wo_list.get() {

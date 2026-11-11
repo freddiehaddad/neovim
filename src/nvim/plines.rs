@@ -164,7 +164,7 @@ pub fn win_chartabsize(
             && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0)
         {
             let buf = wp.buf_mut();
-            return tabstop_padding(col, buf.b_p_ts.get(), &buf.b_p_vts_array);
+            return tabstop_padding(col, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow());
         }
         crate::mbyte::ptr2cells(p)
     })
@@ -228,7 +228,7 @@ pub fn init_charsize_arg<'a>(
 
     if lnum > 0
         && marktree_itr_get_filter(
-            &wp.buf_mut().b_marktree,
+            &wp.buf_mut().b_marktree.borrow(),
             lnum - 1,
             0,
             lnum,
@@ -284,7 +284,7 @@ pub fn init_charsize_arg_skip_cur_text<'a>(
 ) -> CSType {
     let mut cstype = init_charsize_arg(csarg, wp, 0, line);
     csarg.skip_cur_text = true;
-    if lnum > 0 && wp.buf_mut().b_marktree.meta_root[K_MTMETA_INLINE] > 0 {
+    if lnum > 0 && wp.buf_mut().b_marktree.borrow().meta_root[K_MTMETA_INLINE] > 0 {
         csarg.virt_row = lnum - 1;
         cstype = K_CHARSIZE_REGULAR;
     }
@@ -299,7 +299,7 @@ fn inline_virt_text_width(
 ) -> i32 {
     let mut width: i32 = 0;
     loop {
-        let mark = marktree_itr_current(&wp.buf_mut().b_marktree, iter);
+        let mark = marktree_itr_current(&wp.buf_mut().b_marktree.borrow(), iter);
         if mark.pos.row != row || mark.pos.col > col {
             break;
         } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
@@ -317,7 +317,13 @@ fn inline_virt_text_width(
                 },
             );
         }
-        marktree_itr_next_filter(&wp.buf_mut().b_marktree, iter, row + 1, 0, &INLINE_FILTER);
+        marktree_itr_next_filter(
+            &wp.buf_mut().b_marktree.borrow(),
+            iter,
+            row + 1,
+            0,
+            &INLINE_FILTER,
+        );
     }
     width
 }
@@ -457,7 +463,7 @@ pub fn charsize_regular(
         let mut size: i32;
         let mut is_doublewidth = false;
         if use_tabstop {
-            size = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array);
+            size = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow());
         } else if cur_bytes.is_empty() {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
@@ -471,7 +477,7 @@ pub fn charsize_regular(
             let mut tab_size = size;
             let col = cur_off as i32;
             loop {
-                let mark = marktree_itr_current(&buf.b_marktree, &csarg.iter);
+                let mark = marktree_itr_current(&buf.b_marktree.borrow(), &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
@@ -495,7 +501,7 @@ pub fn charsize_regular(
                                     tab_size = tabstop_padding(
                                         vcol + size,
                                         buf.b_p_ts.get(),
-                                        &buf.b_p_vts_array,
+                                        &buf.b_p_vts_array.borrow(),
                                     );
                                     size += tab_size;
                                 }
@@ -504,7 +510,7 @@ pub fn charsize_regular(
                     );
                 }
                 marktree_itr_next_filter(
-                    &(*wp).buf_mut().b_marktree,
+                    &(*wp).buf_mut().b_marktree.borrow(),
                     &mut csarg.iter,
                     csarg.virt_row + 1,
                     0,
@@ -682,7 +688,7 @@ pub fn charsize_regular(
                 let col = s_off as i32;
                 if has_virt < 0 {
                     has_virt = i32::from(marktree_itr_get_filter(
-                        &buf.b_marktree,
+                        &buf.b_marktree.borrow(),
                         csarg.virt_row,
                         col,
                         csarg.virt_row + 1,
@@ -702,7 +708,11 @@ pub fn charsize_regular(
                 let raw_w = if csarg.extconceal.is_none() {
                     0
                 } else if s_first == TAB && csarg.use_tabstop {
-                    tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts.get(), &buf.b_p_vts_array)
+                    tabstop_padding(
+                        raw_vcol2 + virt_width,
+                        buf.b_p_ts.get(),
+                        &buf.b_p_vts_array.borrow(),
+                    )
                 } else {
                     win_chartabsize(&mut *wp, s_bytes, raw_vcol2)
                 };
@@ -773,7 +783,11 @@ fn charsize_fast_impl(
     mb_width: i32,
 ) -> CharSize {
     if cur_char == TAB && use_tabstop {
-        let width = tabstop_padding(vcol, wp.buf_mut().b_p_ts.get(), &wp.buf_mut().b_p_vts_array);
+        let width = tabstop_padding(
+            vcol,
+            wp.buf_mut().b_p_ts.get(),
+            &wp.buf_mut().b_p_vts_array.borrow(),
+        );
         CharSize {
             width,
             body: width,
@@ -832,7 +846,7 @@ pub fn charsize_nowrap(
     mb_width: i32,
 ) -> i32 {
     if cur_char == TAB && use_tabstop {
-        tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array)
+        tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
     } else if cur_char < 0 {
         K_INVALID_BYTE_CELLS
     } else {
@@ -1298,7 +1312,7 @@ pub fn getvcols(
 
 pub fn win_may_fill(wp: &mut WinInfoInfo) -> bool {
     (wp.w_onebuf_opt.wo_diff.get() && diffopt_filler())
-        || wp.buf_mut().b_marktree.meta_root[K_MTMETA_LINES] != 0
+        || wp.buf_mut().b_marktree.borrow().meta_root[K_MTMETA_LINES] != 0
 }
 
 pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {

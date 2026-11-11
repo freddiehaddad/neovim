@@ -352,7 +352,7 @@ pub fn nvim_parse_cmd(
             Some((c.uc_name.clone(), c.uc_def))
         })
     } else if ea.cmdidx == Cmdidx::CmdUserBuf {
-        let c = &curbuf_mut().b_ucmds[ea.useridx as usize];
+        let c = &curbuf_mut().b_ucmds.borrow()[ea.useridx as usize];
         Some((c.uc_name.clone(), c.uc_def))
     } else {
         None
@@ -1332,10 +1332,11 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         };
         if let Some(i) = b
             .b_ucmds
+            .borrow()
             .iter()
             .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
         {
-            let _ = b.b_ucmds.remove(i);
+            let _ = b.b_ucmds.borrow_mut().remove(i);
             true
         } else {
             false

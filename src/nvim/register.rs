@@ -1254,14 +1254,14 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_start = oap.start;
-        curbuf_mut().b_op_end = oap.end;
+        curbuf_mut().b_op_start.set(oap.start);
+        curbuf_mut().b_op_end.set(oap.end);
         if yank_type == MotionType::MtLineWise {
-            curbuf_mut().b_op_start.col = 0;
-            curbuf_mut().b_op_end.col = MAXCOL;
+            curbuf_mut().b_op_start.set_col(0);
+            curbuf_mut().b_op_end.set_col(MAXCOL);
         }
         if yank_type == MotionType::MtCharWise && !oap.inclusive {
-            decl(&mut curbuf_mut().b_op_end);
+            curbuf_mut().b_op_end.update_mut(decl);
         }
     }
 }
@@ -1467,16 +1467,16 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     let reg_y_array: Vec<NvimString>;
     let mut y_allocated = true;
     let mut nr_lines: Linenr = 0;
-    let orig_start = curbuf_mut().b_op_start;
-    let orig_end = curbuf_mut().b_op_end;
+    let orig_start = curbuf_mut().b_op_start.get();
+    let orig_end = curbuf_mut().b_op_end.get();
     let cur_ve_flags = get_ve_flags(curwin_mut());
 
     if ins_compl_preinsert_effect() {
         ins_compl_delete(false);
     }
 
-    curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
-    curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
+    curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
+    curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
 
     if regname == i32::from(b'.') && reg.is_none() {
         let non_linewise_vis = g_st().visual_global.borrow().active
@@ -1705,11 +1705,13 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 buf_updates_send_changes(curbuf_mut(), curwin_mut().w_cursor.get().lnum, 1, 1);
             }
             if (flags & PUT_LINE_FORWARD) != 0 {
-                curwin_mut().w_cursor.set(curbuf_mut().b_visual.vi_end);
+                curwin_mut()
+                    .w_cursor
+                    .set(curbuf_mut().b_visual.borrow().vi_end);
                 dir = FORWARD;
             }
-            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
-            curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
+            curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
+            curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
         }
 
         if (flags & PUT_LINE) != 0 {
@@ -1759,7 +1761,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
             } else {
                 curwin_mut().w_cursor.set_lnum(lnum);
             }
-            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
+            curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
         } else if !u_save_cursor() {
             break 'end;
         }
@@ -1769,7 +1771,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let viscol = getviscol();
                 let ts = curbuf_mut().b_p_ts.get();
                 let cond = if dir == FORWARD {
-                    tabstop_padding(viscol, ts, &curbuf_mut().b_p_vts_array) != 1
+                    tabstop_padding(viscol, ts, &curbuf_mut().b_p_vts_array.borrow()) != 1
                 } else {
                     curwin_mut().w_cursor.get().coladd > 0
                 };
@@ -1995,19 +1997,23 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 curbuf_mut(),
                 lnum,
                 0,
-                curbuf_mut().b_op_start.lnum + (y_size as Linenr) - nr_lines,
+                curbuf_mut().b_op_start.get().lnum + (y_size as Linenr) - nr_lines,
                 nr_lines,
                 true,
             );
 
-            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
-            curbuf_mut().b_op_start.lnum = lnum;
+            curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
+            curbuf_mut().b_op_start.set_lnum(lnum);
 
-            curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.get().lnum - 1;
-            curbuf_mut().b_op_end.col = (bd.textcol + (totlen as Colnr) - 1).max(0);
-            curbuf_mut().b_op_end.coladd = 0;
+            curbuf_mut()
+                .b_op_end
+                .set_lnum(curwin_mut().w_cursor.get().lnum - 1);
+            curbuf_mut()
+                .b_op_end
+                .set_col((bd.textcol + (totlen as Colnr) - 1).max(0));
+            curbuf_mut().b_op_end.set_coladd(0);
             if (flags & PUT_CURSEND) != 0 {
-                curwin_mut().w_cursor.set(curbuf_mut().b_op_end);
+                curwin_mut().w_cursor.set(curbuf_mut().b_op_end.get());
                 curwin_mut().w_cursor.add_col(1);
 
                 let len = get_cursor_line_len();
@@ -2027,10 +2033,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     col += bytelen;
                     if yanklen != 0 {
                         curwin_mut().w_cursor.add_col(bytelen);
-                        curbuf_mut().b_op_end.col += bytelen;
+                        curbuf_mut().b_op_end.add_col(bytelen);
                     }
                 }
-                curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
+                curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
             } else if dir == BACKWARD {
                 lnum -= 1;
             }
@@ -2044,9 +2050,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 if g_st().visual_global.borrow().active {
                     end_lnum = curbuf_mut()
                         .b_visual
+                        .borrow()
                         .vi_end
                         .lnum
-                        .max(curbuf_mut().b_visual.vi_start.lnum);
+                        .max(curbuf_mut().b_visual.borrow().vi_start.lnum);
                     if end_lnum > start_lnum {
                         let mut pos = CursorPos {
                             lnum,
@@ -2129,8 +2136,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     }
                 }
 
-                curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
-                curbuf_mut().b_op_end.col -= first_byte_off;
+                curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
+                curbuf_mut().b_op_end.sub_col(first_byte_off);
 
                 if totlen != 0 && (g_st().restart_edit.get() != 0 || (flags & PUT_CURSEND) != 0) {
                     curwin_mut().w_cursor.add_col(1);
@@ -2265,9 +2272,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 }
 
                 if y_type == MotionType::MtLineWise {
-                    curbuf_mut().b_op_start.col = 0;
+                    curbuf_mut().b_op_start.set_col(0);
                     if dir == FORWARD {
-                        curbuf_mut().b_op_start.lnum += 1;
+                        curbuf_mut().b_op_start.add_lnum(1);
                     }
                 }
 
@@ -2277,7 +2284,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     K_EXTMARK_NOOP
                 };
                 mark_adjust(
-                    curbuf_mut().b_op_start.lnum + Linenr::from(y_type == MotionType::MtCharWise),
+                    curbuf_mut().b_op_start.get().lnum
+                        + Linenr::from(y_type == MotionType::MtCharWise),
                     MAXLNUM,
                     nr_lines,
                     0,
@@ -2296,25 +2304,27 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 } else {
                     changed_lines(
                         curbuf_mut(),
-                        curbuf_mut().b_op_start.lnum,
+                        curbuf_mut().b_op_start.get().lnum,
                         0,
-                        curbuf_mut().b_op_start.lnum,
+                        curbuf_mut().b_op_start.get().lnum,
                         nr_lines,
                         true,
                     );
                 }
 
-                curbuf_mut().b_op_end.lnum = new_lnum;
+                curbuf_mut().b_op_end.set_lnum(new_lnum);
                 let last_item = &y_array[y_size - 1];
                 col = ((last_item.size as Colnr) - lendiff).max(0);
                 if col > 1 {
-                    curbuf_mut().b_op_end.col = col - 1;
+                    curbuf_mut().b_op_end.set_col(col - 1);
                     if last_item.size > 0 {
-                        curbuf_mut().b_op_end.col -=
-                            crate::mbyte::utf_head_off(last_item.as_bytes(), last_item.size - 1);
+                        curbuf_mut().b_op_end.sub_col(crate::mbyte::utf_head_off(
+                            last_item.as_bytes(),
+                            last_item.size - 1,
+                        ));
                     }
                 } else {
-                    curbuf_mut().b_op_end.col = 0;
+                    curbuf_mut().b_op_end.set_col(0);
                 }
 
                 if (flags & PUT_CURSLINE) != 0 {
@@ -2333,9 +2343,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     } else {
                         curwin_mut().w_cursor.set_lnum(new_lnum);
                         curwin_mut().w_cursor.set_col(col);
-                        curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
+                        curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
                         if col > 1 {
-                            curbuf_mut().b_op_end.col = col - 1;
+                            curbuf_mut().b_op_end.set_col(col - 1);
                         }
                     }
                 } else if y_type == MotionType::MtLineWise {
@@ -2365,8 +2375,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0 {
-        curbuf_mut().b_op_start = orig_start;
-        curbuf_mut().b_op_end = orig_end;
+        curbuf_mut().b_op_start.set(orig_start);
+        curbuf_mut().b_op_end.set(orig_end);
     }
 
     if has_event(EVENT_TEXTPUTPOST) {

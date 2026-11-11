@@ -317,7 +317,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
         }
         reset_fmark(
-            &mut buf.b_last_change,
+            &mut buf.b_last_change.borrow_mut(),
             CursorPos {
                 lnum,
                 col,
@@ -333,7 +333,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             let add = if buf.b_changelistlen.get() == 0 {
                 true
             } else {
-                let p = &buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize].mark;
+                let p = &buf.b_changelist.borrow()[(buf.b_changelistlen.get() - 1) as usize].mark;
                 if p.lnum != lnum {
                     true
                 } else {
@@ -349,7 +349,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
                 if buf.b_changelistlen.get() == JUMPLISTSIZE {
                     buf.b_changelistlen.set(JUMPLISTSIZE - 1);
-                    buf.b_changelist.rotate_left(1);
+                    buf.b_changelist.borrow_mut().rotate_left(1);
                     for_all_tab_windows(|wp| {
                         if wp.w_buffer.get() == (&raw mut *buf) && wp.w_changelistidx.get() > 0 {
                             wp.w_changelistidx.set(wp.w_changelistidx.get() - (1));
@@ -366,7 +366,8 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                 buf.b_changelistlen.set(buf.b_changelistlen.get() + (1));
             }
         }
-        buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize] = buf.b_last_change.clone();
+        buf.b_changelist.borrow_mut()[(buf.b_changelistlen.get() - 1) as usize] =
+            buf.b_last_change.borrow().clone();
         if curwin_mut().w_buffer.get() == (&raw mut *buf) {
             curwin_mut().w_changelistidx.set(buf.b_changelistlen.get());
         }
@@ -531,7 +532,7 @@ pub fn deleted_lines_mark(lnum: Linenr, count: i32) {
 
 /// Marks the area to be redrawn after a change.
 pub fn changed_lines_redraw_buf(buf: &mut FileBuf, lnum: Linenr, mut lnume: Linenr, xtra: Linenr) {
-    if xtra != 0 && buf.b_marktree.n_keys > 0 {
+    if xtra != 0 && buf.b_marktree.borrow().n_keys > 0 {
         lnume += 1 + i32::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
     }
 
@@ -992,7 +993,7 @@ pub fn open_line(
         newindent = indent_size_ts(
             saved_line_bytes,
             curbuf_mut().b_p_ts.get(),
-            &curbuf_mut().b_p_vts_array,
+            &curbuf_mut().b_p_vts_array.borrow(),
         );
         if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
             newindent = second_line_indent;
@@ -1459,7 +1460,7 @@ pub fn open_line(
                     newindent = indent_size_ts(
                         crate::memory::bytes_until_nul(&allocated_vec[leader_idx..]),
                         curbuf_mut().b_p_ts.get(),
-                        &curbuf_mut().b_p_vts_array,
+                        &curbuf_mut().b_p_vts_array.borrow(),
                     );
                 }
 
@@ -1598,7 +1599,7 @@ pub fn open_line(
 
     if dir == BACKWARD {
         if bt_prompt(Some(crate::globals::curbuf_mut()))
-            && curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.mark.lnum
+            && curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.borrow().mark.lnum
         {
             let prompt_line_cstr = ml_get(curwin_mut().w_cursor.get().lnum);
             let prompt_line_bytes = prompt_line_cstr.to_bytes();

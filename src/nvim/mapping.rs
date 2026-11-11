@@ -345,7 +345,7 @@ static E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT: &CStr =
 static E_ILLEGAL_MAP_MODE_STRING_STR: &CStr = c"E1276: Illegal map mode string: '%s'";
 
 #[inline]
-const fn map_hash(mode: i32, c1: u8) -> usize {
+pub const fn map_hash(mode: i32, c1: u8) -> usize {
     if (mode & (MODE_NORMAL | MODE_VISUAL | MODE_SELECT | MODE_OP_PENDING | MODE_TERMINAL)) != 0 {
         c1 as usize
     } else {
@@ -362,11 +362,6 @@ pub fn with_maphash_list<R>(state: i32, c: i32, f: impl FnOnce(&[Mapblock]) -> R
     MAP_TABLES.with(|cell| f(cell.borrow().maphash[idx].as_slice()))
 }
 
-/// Get the buffer-local hashed map list for "state" and first character "c".
-pub fn get_buf_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
-    curbuf_mut().b_maphash[map_hash(state, c as u8)].as_slice()
-}
-
 #[inline]
 fn with_map_tables_mut<R>(
     buf: &mut FileBuf,
@@ -376,12 +371,12 @@ fn with_map_tables_mut<R>(
 ) -> R {
     if is_abbrev {
         if local {
-            f(std::slice::from_mut(&mut buf.b_first_abbr))
+            f(std::slice::from_mut(&mut *buf.b_first_abbr.borrow_mut()))
         } else {
             MAP_TABLES.with(|cell| f(std::slice::from_mut(&mut cell.borrow_mut().first_abbr)))
         }
     } else if local {
-        f(&mut buf.b_maphash)
+        f(&mut *buf.b_maphash.borrow_mut())
     } else {
         MAP_TABLES.with(|cell| f(&mut cell.borrow_mut().maphash))
     }
@@ -395,12 +390,12 @@ fn with_map_buckets<R>(
 ) -> R {
     if is_abbrev {
         if let Some(buf) = buf {
-            f(std::slice::from_ref(&buf.b_first_abbr))
+            f(std::slice::from_ref(&*buf.b_first_abbr.borrow()))
         } else {
             MAP_TABLES.with(|cell| f(std::slice::from_ref(&cell.borrow().first_abbr)))
         }
     } else if let Some(buf) = buf {
-        f(&buf.b_maphash)
+        f(&*buf.b_maphash.borrow())
     } else {
         MAP_TABLES.with(|cell| f(&cell.borrow().maphash))
     }
@@ -430,10 +425,10 @@ pub fn map_luaid_get(n: i32) -> LuaRef {
     });
     for fb in for_all_buffers_mut() {
         if luaref.is_none() {
-            luaref = map_luaid_scan(&fb.b_maphash, n);
+            luaref = map_luaid_scan(&*fb.b_maphash.borrow(), n);
         }
         if luaref.is_none() {
-            luaref = map_luaid_scan(std::slice::from_ref(&fb.b_first_abbr), n);
+            luaref = map_luaid_scan(std::slice::from_ref(&*fb.b_first_abbr.borrow()), n);
         }
     }
     luaref.unwrap_or(LUA_NOREF)
@@ -795,7 +790,7 @@ fn map_add(
 
         if is_abbr {
             if local {
-                buf.b_first_abbr.insert(0, mp);
+                buf.b_first_abbr.borrow_mut().insert(0, mp);
             } else {
                 MAP_TABLES.with(|cell| cell.borrow_mut().first_abbr.insert(0, mp));
             }
@@ -805,7 +800,7 @@ fn map_add(
                 mp.m_keys.to_bytes().first().copied().unwrap_or(0),
             );
             if local {
-                (&mut buf.b_maphash)[n].insert(0, mp);
+                (&mut buf.b_maphash.borrow_mut())[n].insert(0, mp);
             } else {
                 MAP_TABLES.with(|cell| cell.borrow_mut().maphash[n].insert(0, mp));
             }
@@ -1648,7 +1643,12 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         let mp_opt: Option<MatchedMap> = MAP_TABLES.with(|cell| {
             let tables = cell.borrow();
             let first_abbr_slice = tables.first_abbr.as_slice();
-            for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
+            for cand in curbuf_mut()
+                .b_first_abbr
+                .borrow()
+                .iter()
+                .chain(first_abbr_slice)
+            {
                 let mut qlen = cand.m_keylen;
                 let mut q_vec: Vec<u8>;
                 let mut q_bytes = cand.m_keys.as_bytes_with_nul();

@@ -1565,15 +1565,17 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
             idx = MENU_INDEX_VISUAL;
 
             let tpos: CursorPos;
-            if curbuf_mut().b_visual.vi_start.lnum == eap.line1
-                && curbuf_mut().b_visual.vi_end.lnum == eap.line2
+            if curbuf_mut().b_visual.borrow().vi_start.lnum == eap.line1
+                && curbuf_mut().b_visual.borrow().vi_end.lnum == eap.line2
             {
-                g_st().visual_global.borrow_mut().mode = curbuf_mut().b_visual.vi_mode;
-                tpos = curbuf_mut().b_visual.vi_end;
-                curwin_mut().w_cursor.set(curbuf_mut().b_visual.vi_start);
+                g_st().visual_global.borrow_mut().mode = curbuf_mut().b_visual.borrow().vi_mode;
+                tpos = curbuf_mut().b_visual.borrow().vi_end;
+                curwin_mut()
+                    .w_cursor
+                    .set(curbuf_mut().b_visual.borrow().vi_start);
                 curwin_mut()
                     .w_curswant
-                    .set(curbuf_mut().b_visual.vi_curswant);
+                    .set(curbuf_mut().b_visual.borrow().vi_curswant);
             } else {
                 g_st().visual_global.borrow_mut().mode = b'V' as i32;
                 curwin_mut().w_cursor.set_lnum(eap.line1);

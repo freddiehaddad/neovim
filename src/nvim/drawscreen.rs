@@ -1227,22 +1227,24 @@ pub fn comp_col() {
 fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
     let buf = wp.buf_mut();
 
-    if !buf.b_signcols.autom
+    if !buf.b_signcols.autom.get()
         && (!wp.w_onebuf_opt.wo_stc.is_empty()
             || (wp.w_maxscwidth.get() > 1 && wp.w_minscwidth.get() != wp.w_maxscwidth.get()))
     {
-        buf.b_signcols.autom = true;
+        buf.b_signcols.autom.set(true);
         let last_line = buf.b_ml.ml_line_count.get() - 1;
         buf_signcols_count_range(buf, 0, last_line, MAXLNUM, K_FALSE);
     }
 
-    while buf.b_signcols.max > 0 && buf.b_signcols.count[(buf.b_signcols.max - 1) as usize] == 0 {
-        buf.b_signcols.max -= 1;
+    while buf.b_signcols.max.get() > 0
+        && buf.b_signcols.count[(buf.b_signcols.max.get() - 1) as usize].get() == 0
+    {
+        buf.b_signcols.max.set(buf.b_signcols.max.get() - 1);
     }
 
-    let mut width = wp.w_maxscwidth.get().min(buf.b_signcols.max);
-    let rebuild_stc =
-        buf.b_signcols.max != buf.b_signcols.last_max && !wp.w_onebuf_opt.wo_stc.is_empty();
+    let mut width = wp.w_maxscwidth.get().min(buf.b_signcols.max.get());
+    let rebuild_stc = buf.b_signcols.max.get() != buf.b_signcols.last_max.get()
+        && !wp.w_onebuf_opt.wo_stc.is_empty();
 
     if rebuild_stc {
         wp.w_nrwidth_line_count.set(0);
@@ -1553,7 +1555,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             redraw_later(Some(&mut *win), UPD_NOT_VALID);
         }
     }
-    buf.b_signcols.last_max = buf.b_signcols.max;
+    buf.b_signcols.last_max.set(buf.b_signcols.max.get());
 
     validate_virtcol(wp);
     type_ = wp.w_redr_type.get();

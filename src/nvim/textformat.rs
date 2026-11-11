@@ -836,7 +836,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_start = oap.start;
+        curbuf_mut().b_op_start.set(oap.start);
     }
 
     if keep_cursor {
@@ -854,7 +854,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     msgmore(old_line_count);
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
+        curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
     }
 
     if keep_cursor {

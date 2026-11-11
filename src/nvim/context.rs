@@ -335,14 +335,14 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     }
 
     if (flags & K_CTX_VISUAL) != 0 {
-        ctx.visual = curbuf_mut().b_visual;
+        ctx.visual = *curbuf_mut().b_visual.borrow();
         ctx.visual_mode_eval = curbuf_mut().b_visual_mode_eval.get();
     }
     if (flags & K_CTX_MARKS) != 0 {
-        ctx.op_start = curbuf_mut().b_op_start;
-        ctx.op_end = curbuf_mut().b_op_end;
-        ctx.last_change = curbuf_mut().b_last_change.clone();
-        ctx.last_insert = curbuf_mut().b_last_insert.clone();
+        ctx.op_start = curbuf_mut().b_op_start.get();
+        ctx.op_end = curbuf_mut().b_op_end.get();
+        ctx.last_change = curbuf_mut().b_last_change.borrow().clone();
+        ctx.last_insert = curbuf_mut().b_last_insert.borrow().clone();
     }
     if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
         let mut pos_marks = ctx.pos_marks;
@@ -450,14 +450,14 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
             extmark_get_pos(&mut *buf, ctx_marks_ns(), pos_marks[i], pos_ref);
         }
         if (flags & K_CTX_VISUAL) != 0 {
-            buf.b_visual = ctx.visual;
+            *buf.b_visual.borrow_mut() = ctx.visual;
             buf.b_visual_mode_eval.set(ctx.visual_mode_eval);
         }
         if (flags & K_CTX_MARKS) != 0 {
-            buf.b_op_start = ctx.op_start;
-            buf.b_op_end = ctx.op_end;
-            buf.b_last_change = ctx.last_change.clone();
-            buf.b_last_insert = ctx.last_insert.clone();
+            buf.b_op_start.set(ctx.op_start);
+            buf.b_op_end.set(ctx.op_end);
+            *buf.b_last_change.borrow_mut() = ctx.last_change.clone();
+            *buf.b_last_insert.borrow_mut() = ctx.last_insert.clone();
         }
     }
 

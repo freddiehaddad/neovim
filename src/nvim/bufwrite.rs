@@ -483,8 +483,8 @@ fn buf_write_do_autocmds(
         if let Some(b) = buf.opt_mut()
             && (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0
         {
-            b.b_op_start = orig_start;
-            b.b_op_end = orig_end;
+            b.b_op_start.set(orig_start);
+            b.b_op_end.set(orig_end);
         }
 
         g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
@@ -1163,13 +1163,13 @@ pub fn buf_write(
 
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
-    let orig_start = buf.b_op_start;
-    let orig_end = buf.b_op_end;
+    let orig_start = buf.b_op_start.get();
+    let orig_end = buf.b_op_end.get();
 
-    buf.b_op_start.lnum = start;
-    buf.b_op_start.col = 0;
-    buf.b_op_end.lnum = end;
-    buf.b_op_end.col = 0;
+    buf.b_op_start.set_lnum(start);
+    buf.b_op_start.set_col(0);
+    buf.b_op_end.set_lnum(end);
+    buf.b_op_end.set_col(0);
 
     let mut bufref = Bufref {
         br_buf: buf,
@@ -1216,8 +1216,8 @@ pub fn buf_write(
     let ffname = ffname_copy.as_deref();
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0 {
-        buf.b_op_start = orig_start;
-        buf.b_op_end = orig_end;
+        buf.b_op_start.set(orig_start);
+        buf.b_op_end.set(orig_end);
     }
 
     g_st()

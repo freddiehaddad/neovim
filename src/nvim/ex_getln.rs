@@ -3108,8 +3108,8 @@ fn cmdpreview_prepare() -> CpInfo {
                 cp_bufinfo.buf = crate::globals::BufPtr::new(buf);
                 cp_bufinfo.save_b_p_ma = buf.b_p_ma.get();
                 cp_bufinfo.save_b_changed = buf.b_changed.get();
-                cp_bufinfo.save_b_op_start = buf.b_op_start;
-                cp_bufinfo.save_b_op_end = buf.b_op_end;
+                cp_bufinfo.save_b_op_start = buf.b_op_start.get();
+                cp_bufinfo.save_b_op_end = buf.b_op_end.get();
                 u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
                 cpinfo.buf_info.push(cp_bufinfo);
             }
@@ -3160,8 +3160,8 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
         u_rollback(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
 
-        buf.b_op_start = cp_bufinfo.save_b_op_start;
-        buf.b_op_end = cp_bufinfo.save_b_op_end;
+        buf.b_op_start.set(cp_bufinfo.save_b_op_start);
+        buf.b_op_end.set(cp_bufinfo.save_b_op_end);
         buf.b_p_ma.set(cp_bufinfo.save_b_p_ma);
     }
 

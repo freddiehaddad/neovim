@@ -648,7 +648,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
                 - tabstop_at(
                     get_nolist_virtcol(),
                     curbuf_mut().b_p_ts.get(),
-                    &curbuf_mut().b_p_vts_array,
+                    &curbuf_mut().b_p_vts_array.borrow(),
                     false,
                 )
             && curwin_mut().w_wrow.get()
@@ -1575,11 +1575,12 @@ fn init_prompt(cmdchar_todo: i32) {
     let prompt_bytes = prompt.to_bytes();
     let prompt_len = prompt_bytes.len() as Colnr;
 
-    if curbuf_mut().b_prompt_start.mark.lnum < 1
-        || curbuf_mut().b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
+    if curbuf_mut().b_prompt_start.borrow().mark.lnum < 1
+        || curbuf_mut().b_prompt_start.borrow().mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
     {
-        curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut()
+        curbuf_mut().b_prompt_start.borrow_mut().mark.lnum = curbuf_mut()
             .b_prompt_start
+            .borrow()
             .mark
             .lnum
             .min(curbuf_mut().b_ml.ml_line_count.get())
@@ -1592,12 +1593,12 @@ fn init_prompt(cmdchar_todo: i32) {
             .w_cursor
             .get()
             .lnum
-            .max(curbuf_mut().b_prompt_start.mark.lnum),
+            .max(curbuf_mut().b_prompt_start.borrow().mark.lnum),
     );
-    let prompt_lnum = curbuf_mut().b_prompt_start.mark.lnum;
+    let prompt_lnum = curbuf_mut().b_prompt_start.borrow().mark.lnum;
     let text_bytes = crate::memline::ml_get_slice(prompt_lnum);
     let text_len = text_bytes.len() as Colnr;
-    let mark_col = curbuf_mut().b_prompt_start.mark.col;
+    let mark_col = curbuf_mut().b_prompt_start.borrow().mark.col;
 
     if prompt_lnum == curwin_mut().w_cursor.get().lnum
         && (mark_col < prompt_len
@@ -1606,45 +1607,52 @@ fn init_prompt(cmdchar_todo: i32) {
     {
         if text_bytes.is_empty() {
             ml_replace(
-                curbuf_mut().b_prompt_start.mark.lnum,
+                curbuf_mut().b_prompt_start.borrow().mark.lnum,
                 prompt.to_bytes(),
                 true,
             );
-            inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
+            inserted_bytes(
+                curbuf_mut().b_prompt_start.borrow().mark.lnum,
+                0,
+                0,
+                prompt_len,
+            );
         } else {
             let lnum = curbuf_mut().b_ml.ml_line_count.get();
             ml_append(lnum, prompt.to_bytes(), 0, false);
             appended_lines_mark(lnum, 1);
-            curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count.get();
+            curbuf_mut().b_prompt_start.borrow_mut().mark.lnum =
+                curbuf_mut().b_ml.ml_line_count.get();
             curbuf_mut().b_prompt_append_new_line.set(true);
             u_clearallandblockfree(curbuf_mut());
         }
-        curbuf_mut().b_prompt_start.mark.col = prompt_len;
+        curbuf_mut().b_prompt_start.borrow_mut().mark.col = prompt_len;
         curwin_mut()
             .w_cursor
             .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
         coladvance(curwin_mut(), MAXCOL);
     }
 
-    if g_st().ins_global.borrow().start_orig.lnum != curbuf_mut().b_prompt_start.mark.lnum
-        || g_st().ins_global.borrow().start_orig.col != curbuf_mut().b_prompt_start.mark.col
+    if g_st().ins_global.borrow().start_orig.lnum != curbuf_mut().b_prompt_start.borrow().mark.lnum
+        || g_st().ins_global.borrow().start_orig.col
+            != curbuf_mut().b_prompt_start.borrow().mark.col
     {
         set_insstart(
-            curbuf_mut().b_prompt_start.mark.lnum,
-            curbuf_mut().b_prompt_start.mark.col,
+            curbuf_mut().b_prompt_start.borrow().mark.lnum,
+            curbuf_mut().b_prompt_start.borrow().mark.col,
         );
     }
 
     if cmdchar_todo == b'A' as i32 {
         coladvance(curwin_mut(), MAXCOL);
     }
-    if curbuf_mut().b_prompt_start.mark.lnum == curwin_mut().w_cursor.get().lnum {
+    if curbuf_mut().b_prompt_start.borrow().mark.lnum == curwin_mut().w_cursor.get().lnum {
         curwin_mut().w_cursor.set_col(
             curwin_mut()
                 .w_cursor
                 .get()
                 .col
-                .max(curbuf_mut().b_prompt_start.mark.col),
+                .max(curbuf_mut().b_prompt_start.borrow().mark.col),
         );
     }
     check_cursor(curwin_mut());
@@ -1652,9 +1660,9 @@ fn init_prompt(cmdchar_todo: i32) {
 
 /// Return true if the cursor is in the editable position of the prompt line.
 pub fn prompt_curpos_editable() -> bool {
-    curwin_mut().w_cursor.get().lnum > curbuf_mut().b_prompt_start.mark.lnum
-        || (curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.mark.lnum
-            && curwin_mut().w_cursor.get().col >= curbuf_mut().b_prompt_start.mark.col)
+    curwin_mut().w_cursor.get().lnum > curbuf_mut().b_prompt_start.borrow().mark.lnum
+        || (curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.borrow().mark.lnum
+            && curwin_mut().w_cursor.get().col >= curbuf_mut().b_prompt_start.borrow().mark.col)
 }
 
 fn set_insstart(lnum: Linenr, col: Colnr) {
@@ -2269,9 +2277,13 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
     g_st().ins_global.borrow_mut().can_si_back = false;
 
     if let Some(end_pos) = end_insert_pos {
-        curbuf_mut().b_op_start = g_st().ins_global.borrow().start;
-        curbuf_mut().b_op_start_orig = g_st().ins_global.borrow().start_orig;
-        curbuf_mut().b_op_end = end_pos;
+        curbuf_mut()
+            .b_op_start
+            .set(g_st().ins_global.borrow().start);
+        curbuf_mut()
+            .b_op_start_orig
+            .set(g_st().ins_global.borrow().start_orig);
+        curbuf_mut().b_op_end.set(end_pos);
     }
 }
 
@@ -2879,7 +2891,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPJUMPS) == 0 {
         let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
         reset_fmark(
-            &mut curbuf_mut().b_last_insert,
+            &mut curbuf_mut().b_last_insert.borrow_mut(),
             curwin_mut().w_cursor.get(),
             curbuf_mut().b_fnum.get(),
             view,
@@ -3219,7 +3231,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
         if mode == BACKSPACE_CHAR
             && ((opt_vars().p_sta.get() && in_indent)
-                || ((get_sts_value() != 0 || tabstop_count(&curbuf_mut().b_p_vsts_array) != 0)
+                || ((get_sts_value() != 0
+                    || tabstop_count(&curbuf_mut().b_p_vsts_array.borrow()) != 0)
                     && curwin_mut().w_cursor.get().col > 0
                     && {
                         let prev_b = crate::cursor::get_cursor_line_slice()
@@ -3261,7 +3274,11 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
             if opt_vars().p_sta.get() && in_indent {
                 want_vcol -= want_vcol % (get_sw_value(curbuf_mut()) as Colnr);
             } else {
-                want_vcol = tabstop_start(want_vcol, get_sts_value(), &curbuf_mut().b_p_vsts_array);
+                want_vcol = tabstop_start(
+                    want_vcol,
+                    get_sts_value(),
+                    &curbuf_mut().b_p_vsts_array.borrow(),
+                );
             }
 
             loop {
@@ -3651,12 +3668,13 @@ fn ins_tab() -> bool {
     if !curbuf_mut().b_p_et.get()
         && !(opt_vars().p_sta.get()
             && ind
-            && ((tabstop_count(&curbuf_mut().b_p_vts_array) > 1)
-                || (tabstop_count(&curbuf_mut().b_p_vts_array) == 1
-                    && tabstop_first(&curbuf_mut().b_p_vts_array) != get_sw_value(curbuf_mut()))
-                || (tabstop_count(&curbuf_mut().b_p_vts_array) == 0
+            && ((tabstop_count(&curbuf_mut().b_p_vts_array.borrow()) > 1)
+                || (tabstop_count(&curbuf_mut().b_p_vts_array.borrow()) == 1
+                    && tabstop_first(&curbuf_mut().b_p_vts_array.borrow())
+                        != get_sw_value(curbuf_mut()))
+                || (tabstop_count(&curbuf_mut().b_p_vts_array.borrow()) == 0
                     && curbuf_mut().b_p_ts.get() != i64::from(get_sw_value(curbuf_mut())))))
-        && tabstop_count(&curbuf_mut().b_p_vsts_array) == 0
+        && tabstop_count(&curbuf_mut().b_p_vsts_array.borrow()) == 0
         && get_sts_value() == 0
     {
         return true;
@@ -3675,17 +3693,19 @@ fn ins_tab() -> bool {
     let mut temp: i32 = if opt_vars().p_sta.get() && ind {
         let sw = get_sw_value(curbuf_mut());
         sw - (get_nolist_virtcol() % sw)
-    } else if tabstop_count(&curbuf_mut().b_p_vsts_array) > 0 || curbuf_mut().b_p_sts.get() != 0 {
+    } else if tabstop_count(&curbuf_mut().b_p_vsts_array.borrow()) > 0
+        || curbuf_mut().b_p_sts.get() != 0
+    {
         tabstop_padding(
             get_nolist_virtcol(),
             i64::from(get_sts_value()),
-            &curbuf_mut().b_p_vsts_array,
+            &curbuf_mut().b_p_vsts_array.borrow(),
         )
     } else {
         tabstop_padding(
             get_nolist_virtcol(),
             curbuf_mut().b_p_ts.get(),
-            &curbuf_mut().b_p_vts_array,
+            &curbuf_mut().b_p_vts_array.borrow(),
         )
     };
 
@@ -3705,7 +3725,7 @@ fn ins_tab() -> bool {
     }
 
     if !curbuf_mut().b_p_et.get()
-        && (tabstop_count(&curbuf_mut().b_p_vsts_array) > 0
+        && (tabstop_count(&curbuf_mut().b_p_vsts_array.borrow()) > 0
             || get_sts_value() > 0
             || (opt_vars().p_sta.get() && ind))
     {

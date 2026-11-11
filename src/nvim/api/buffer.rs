@@ -1596,7 +1596,7 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"virt_blocks",
-        integer_obj(b.b_marktree.meta_root[K_MTMETA_LINES] as Integer),
+        integer_obj(b.b_marktree.borrow().meta_root[K_MTMETA_LINES] as Integer),
     );
     put_c(
         &mut rv,

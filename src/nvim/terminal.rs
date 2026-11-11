@@ -1174,15 +1174,23 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 
     let term_buf_handle = with_term(s.term, |t| t.buf_handle);
     if let Some(wp) = handle_get_window_opt(s.save_curwin_handle) {
-        let mut winopts: Option<&mut Winopt> = None;
+        let mut restore_winopts = |winopts: &Winopt| {
+            if let Some(saved) = s.save_w_p_culopt.take() {
+                winopts.wo_culopt.set_option_cstr(saved.as_c_str());
+            }
+            winopts.wo_cul.set(s.save_w_p_cul);
+            winopts.wo_cuc.set(s.save_w_p_cuc);
+            winopts.wo_so.set(s.save_w_p_so);
+            winopts.wo_siso.set(s.save_w_p_siso);
+        };
         if wp.buf_mut().b_fnum.get() != term_buf_handle {
             if let Some(buf) = handle_get_buffer_opt(term_buf_handle) {
-                for wip in &mut buf.b_wininfo {
+                for wip in &mut *buf.b_wininfo.borrow_mut() {
                     if !wip.wi_win.is_null()
                         && wip.wi_win.handle == s.save_curwin_handle
                         && wip.wi_optset
                     {
-                        winopts = Some(&mut wip.wi_opt);
+                        restore_winopts(&wip.wi_opt);
                         break;
                     }
                 }
@@ -1198,17 +1206,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                 }
             }
             wp.w_p_culopt_flags.set(s.save_w_p_culopt_flags);
-            winopts = Some(&mut wp.w_onebuf_opt);
-        }
-
-        if let Some(winopts) = winopts {
-            if let Some(saved) = s.save_w_p_culopt.take() {
-                winopts.wo_culopt.set_option_cstr(saved.as_c_str());
-            }
-            winopts.wo_cul.set(s.save_w_p_cul);
-            winopts.wo_cuc.set(s.save_w_p_cuc);
-            winopts.wo_so.set(s.save_w_p_so);
-            winopts.wo_siso.set(s.save_w_p_siso);
+            restore_winopts(&wp.w_onebuf_opt);
         }
     }
 
@@ -2726,11 +2724,11 @@ fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
         }
     }
 
-    if ml_end == buf.b_last_cursor.mark.lnum + added {
-        buf.b_last_cursor.mark.lnum = ml_end;
+    if ml_end == buf.b_last_cursor.borrow().mark.lnum + added {
+        buf.b_last_cursor.borrow_mut().mark.lnum = ml_end;
     }
 
-    for wip in &mut buf.b_wininfo {
+    for wip in &mut *buf.b_wininfo.borrow_mut() {
         if ml_end == wip.wi_mark.mark.lnum + added {
             wip.wi_mark.mark.lnum = ml_end;
         }

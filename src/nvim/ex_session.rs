@@ -604,6 +604,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             {
                 let lnum = buf
                     .b_wininfo
+                    .borrow()
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))

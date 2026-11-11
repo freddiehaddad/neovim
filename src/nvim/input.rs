@@ -45,8 +45,8 @@ use crate::keycodes::{
 };
 use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
-    MAXMAPLEN, MatchedMap, REMAP_NONE, REMAP_YES, Typebuf, eval_map_expr, get_buf_maphash_list,
-    langmap_adjust_mb, map_luaid_get, with_maphash_list,
+    MAXMAPLEN, MatchedMap, REMAP_NONE, REMAP_YES, Typebuf, eval_map_expr, langmap_adjust_mb,
+    map_hash, map_luaid_get, with_maphash_list,
 };
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info,
@@ -2270,10 +2270,9 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
 
         mp = None;
         with_maphash_list(local_state, tb_b1, |global_list| {
-            for cand in get_buf_maphash_list(local_state, tb_b1)
-                .iter()
-                .chain(global_list)
-            {
+            let buf_maphash = curbuf_mut().b_maphash.borrow();
+            let buf_list = buf_maphash[map_hash(local_state, tb_b1 as u8)].as_slice();
+            for cand in buf_list.iter().chain(global_list) {
                 let m_keys_slice = cand.m_keys.as_bytes();
                 let mut key_iter: &[u8] = m_keys_slice;
 

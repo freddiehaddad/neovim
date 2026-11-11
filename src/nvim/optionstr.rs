@@ -1576,10 +1576,10 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
         let next_prompt = CursorPos {
             lnum: buf.b_ml.ml_line_count.get(),
-            col: buf.b_prompt_start.mark.col,
+            col: buf.b_prompt_start.borrow().mark.col,
             coladd: 0,
         };
-        buf.b_prompt_start = Fmark {
+        *buf.b_prompt_start.borrow_mut() = Fmark {
             mark: next_prompt,
             fnum: 0,
             timestamp: 0,
@@ -2940,12 +2940,13 @@ pub fn did_set_vartabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
     let win = args.win_mut();
     let soft = args.os_idx == K_OPT_VARSOFTTABSTOP;
-    let array = if soft {
-        &mut buf.b_p_vsts_array
+    let mut array = if soft {
+        buf.b_p_vsts_array.borrow_mut()
     } else {
-        &mut buf.b_p_vts_array
+        buf.b_p_vts_array.borrow_mut()
     };
     *array = args.os_prep.take_tabstop();
+    drop(array);
     if !soft && foldmethod_is_indent(win) {
         fold_update_all(win);
     }

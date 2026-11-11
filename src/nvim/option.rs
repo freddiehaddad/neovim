@@ -2248,12 +2248,12 @@ fn didset_options2() {
     }
     tabstop_set(
         curbuf_mut().b_p_vsts.as_bytes(),
-        &mut curbuf_mut().b_p_vsts_array,
+        &mut curbuf_mut().b_p_vsts_array.borrow_mut(),
         None,
     );
     tabstop_set(
         curbuf_mut().b_p_vts.as_bytes(),
-        &mut curbuf_mut().b_p_vts_array,
+        &mut curbuf_mut().b_p_vts_array.borrow_mut(),
         None,
     );
 }
@@ -2958,7 +2958,7 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             buf.b_p_ai.set(false);
             buf.b_p_et.set(false);
             buf.b_p_vsts.clear_option_str();
-            buf.b_p_vsts_array.clear();
+            buf.b_p_vsts_array.borrow_mut().clear();
         }
 
         opt_vars().p_sm.set(false);
@@ -2987,9 +2987,13 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
                 .as_deref()
                 .map_or_else(OptString::new, OptString::from_cstr);
             if !buf.b_p_vsts.is_empty() {
-                tabstop_set(buf.b_p_vsts.as_bytes(), &mut buf.b_p_vsts_array, None);
+                tabstop_set(
+                    buf.b_p_vsts.as_bytes(),
+                    &mut buf.b_p_vsts_array.borrow_mut(),
+                    None,
+                );
             } else {
-                buf.b_p_vsts_array.clear();
+                buf.b_p_vsts_array.borrow_mut().clear();
             }
         }
 
@@ -7254,9 +7258,13 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_vsts.set_option_cstr(opt_vars().p_vsts.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_empty() {
-                tabstop_set(opt_vars().p_vsts.as_bytes(), &mut buf.b_p_vsts_array, None);
+                tabstop_set(
+                    opt_vars().p_vsts.as_bytes(),
+                    &mut buf.b_p_vsts_array.borrow_mut(),
+                    None,
+                );
             } else {
-                buf.b_p_vsts_array.clear();
+                buf.b_p_vsts_array.borrow_mut().clear();
             }
             buf.b_p_vsts_nopaste
                 .set(P_VSTS_NOPASTE.with(|cell| cell.borrow().clone()));
@@ -7378,11 +7386,15 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_isk = save_p_isk;
                 if !opt_vars().p_vts.is_null()
                     && !opt_vars().p_vts.is_empty()
-                    && buf.b_p_vts_array.is_empty()
+                    && buf.b_p_vts_array.borrow().is_empty()
                 {
-                    tabstop_set(opt_vars().p_vts.as_bytes(), &mut buf.b_p_vts_array, None);
+                    tabstop_set(
+                        opt_vars().p_vts.as_bytes(),
+                        &mut buf.b_p_vts_array.borrow_mut(),
+                        None,
+                    );
                 } else {
-                    buf.b_p_vts_array.clear();
+                    buf.b_p_vts_array.borrow_mut().clear();
                 }
             } else {
                 buf.b_p_isk = opt_vars().p_isk.clone();
@@ -7394,11 +7406,15 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
                 if !opt_vars().p_vts.is_null()
                     && !opt_vars().p_vts.is_empty()
-                    && buf.b_p_vts_array.is_empty()
+                    && buf.b_p_vts_array.borrow().is_empty()
                 {
-                    tabstop_set(opt_vars().p_vts.as_bytes(), &mut buf.b_p_vts_array, None);
+                    tabstop_set(
+                        opt_vars().p_vts.as_bytes(),
+                        &mut buf.b_p_vts_array.borrow_mut(),
+                        None,
+                    );
                 } else {
-                    buf.b_p_vts_array.clear();
+                    buf.b_p_vts_array.borrow_mut().clear();
                 }
                 buf.b_help.set(false);
                 if buf.b_p_bt.first_byte() == b'h' {

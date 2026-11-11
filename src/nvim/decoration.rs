@@ -754,8 +754,8 @@ pub fn buf_remove_decor_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: &DecorSi
             buf_signcols_count_range(&mut *buf, row1, row2, -1, K_FALSE);
         } else {
             may_force_numberwidth_recompute(&mut *buf, true);
-            buf.b_signcols.count[0] = 0;
-            buf.b_signcols.max = 0;
+            buf.b_signcols.count[0].set(0);
+            buf.b_signcols.max.set(0);
         }
     }
 }
@@ -920,9 +920,9 @@ pub fn next_virt_text_chunk<'a>(
 
 pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> Option<DecorVirtId> {
     let mut itr = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
+    marktree_itr_get(&buf.b_marktree.borrow(), row, 0, &mut itr);
     loop {
-        let mark = marktree_itr_current(&buf.b_marktree, &itr);
+        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
         if mark.pos.row < 0 || mark.pos.row > row {
             break;
         } else if !mt_invalid(mark) {
@@ -938,7 +938,7 @@ pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> Option<De
                 return Some(id);
             }
         }
-        marktree_itr_next(&buf.b_marktree, &mut itr);
+        marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
     }
     None
 }
@@ -954,7 +954,7 @@ pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool 
     state.future_begin = 0;
     state.new_range_ordering = 0;
 
-    wp.buf_mut().b_marktree.n_keys != 0
+    wp.buf_mut().b_marktree.borrow().n_keys != 0
 }
 
 pub fn decor_virt_pos(decor: &DecorRange) -> bool {
@@ -973,12 +973,17 @@ pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorS
     state.top_row = top_row;
     state.itr_valid = true;
 
-    if !marktree_itr_get_overlap(&wp.buf_mut().b_marktree, top_row, 0, &mut state.itr) {
+    if !marktree_itr_get_overlap(
+        &wp.buf_mut().b_marktree.borrow(),
+        top_row,
+        0,
+        &mut state.itr,
+    ) {
         return false;
     }
     let mut pair: MTPair = MTPair::new();
 
-    while marktree_itr_step_overlap(&wp.buf_mut().b_marktree, &mut state.itr, &mut pair) {
+    while marktree_itr_step_overlap(&wp.buf_mut().b_marktree.borrow(), &mut state.itr, &mut pair) {
         let m = pair.start;
         if mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp) {
             continue;
@@ -1026,7 +1031,7 @@ pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: i32, state: &mut DecorState)
     if state.row == -1 {
         decor_redraw_start(wp, row, state);
     } else if !state.itr_valid {
-        marktree_itr_get(&wp.buf_mut().b_marktree, row, 0, &mut state.itr);
+        marktree_itr_get(&wp.buf_mut().b_marktree.borrow(), row, 0, &mut state.itr);
         state.itr_valid = true;
     }
 
@@ -1044,7 +1049,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = marktree_itr_current(&state.win.w_buffer.get().b_marktree, &state.itr);
+    let k = marktree_itr_current(&state.win.w_buffer.get().b_marktree.borrow(), &state.itr);
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1276,12 +1281,17 @@ pub fn decor_redraw_col_impl(
     let mut col_last = max_col_last;
 
     if !state.itr_valid {
-        marktree_itr_get(&buf.b_marktree, row, state.col_last + 1, &mut state.itr);
+        marktree_itr_get(
+            &buf.b_marktree.borrow(),
+            row,
+            state.col_last + 1,
+            &mut state.itr,
+        );
         state.itr_valid = true;
     }
 
     loop {
-        let mark = marktree_itr_current(&buf.b_marktree, &state.itr);
+        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &state.itr);
         if mark.pos.row < 0 || mark.pos.row > row {
             break;
         } else if mark.pos.row == row && mark.pos.col > col {
@@ -1291,7 +1301,7 @@ pub fn decor_redraw_col_impl(
 
         if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, &mut *wp)
         {
-            let endpos = marktree_get_altpos(&buf.b_marktree, mark, None);
+            let endpos = marktree_get_altpos(&buf.b_marktree.borrow(), mark, None);
             decor_range_add_from_inline(
                 state,
                 mark.pos.row,
@@ -1305,7 +1315,7 @@ pub fn decor_redraw_col_impl(
             );
         }
 
-        marktree_itr_next(&buf.b_marktree, &mut state.itr);
+        marktree_itr_next(&buf.b_marktree.borrow(), &mut state.itr);
     }
 
     let mut count = state.ranges_i.len() as i32;
@@ -1462,7 +1472,7 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
 
     let mut pair: MTPair = MTPair::new();
     let mut itr = MarkTreeIter::new();
-    let b = &(*wp).buf_mut().b_marktree;
+    let b = &(*wp).buf_mut().b_marktree.borrow();
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
         if !mt_invalid(pair.start)
@@ -1559,7 +1569,7 @@ pub fn decor_redraw_signs(
     let mut num_text: i32 = 0;
     let mut itr = MarkTreeIter::new();
     let mut signs: Vec<SignItem> = Vec::new();
-    let b = &buf.b_marktree;
+    let b = &buf.b_marktree.borrow();
 
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
@@ -1653,14 +1663,14 @@ pub fn buf_signcols_count_range(
     add: i32,
     clear: TriState,
 ) {
-    if !buf.b_signcols.autom || row2 < row1 || buf_meta_total(buf, K_MTMETA_SIGN_TEXT) == 0 {
+    if !buf.b_signcols.autom.get() || row2 < row1 || buf_meta_total(buf, K_MTMETA_SIGN_TEXT) == 0 {
         return;
     }
 
     let mut count = vec![0_i32; (row2 + 1 - row1) as usize];
     let mut itr = MarkTreeIter::new();
     let mut pair: MTPair = MTPair::new();
-    let b = &buf.b_marktree;
+    let b = &buf.b_marktree.borrow();
 
     marktree_itr_get_overlap(b, row1, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
@@ -1691,13 +1701,15 @@ pub fn buf_signcols_count_range(
     for &c_val in &count {
         let prevwidth = SIGN_SHOW_MAX.min(c_val - add);
         if clear != K_NONE && prevwidth > 0 {
-            buf.b_signcols.count[(prevwidth - 1) as usize] -= 1;
+            let cell = &buf.b_signcols.count[(prevwidth - 1) as usize];
+            cell.set(cell.get() - 1);
         }
         let width = SIGN_SHOW_MAX.min(c_val);
         if clear != K_TRUE && width > 0 {
-            buf.b_signcols.count[(width - 1) as usize] += 1;
-            if width > buf.b_signcols.max {
-                buf.b_signcols.max = width;
+            let cell = &buf.b_signcols.count[(width - 1) as usize];
+            cell.set(cell.get() + 1);
+            if width > buf.b_signcols.max.get() {
+                buf.b_signcols.max.set(width);
             }
         }
     }
@@ -1783,7 +1795,7 @@ pub fn decor_virt_line_rows(
         while off < bytes.len() {
             let bytes_to_next_char = utfc_slice2len(&bytes[off..]);
             let cells = if bytes[off] == b'\t' {
-                tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array)
+                tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
             } else {
                 utf_ptr2cells(&bytes[off..])
             };
@@ -1817,7 +1829,7 @@ pub fn decor_virt_lines(
     }
 
     let mut itr = MarkTreeIter::new();
-    let b = &buf.b_marktree;
+    let b = &buf.b_marktree.borrow();
     if !marktree_itr_get_filter(
         b,
         (start_row - 1).max(0),

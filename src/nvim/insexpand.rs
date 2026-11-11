@@ -350,12 +350,12 @@ enum CptFuncSource {
 }
 
 impl CptFuncSource {
-    fn as_mut(self) -> Option<&'static mut Callback> {
+    fn as_mut(self) -> Option<Callback> {
         match self {
             Self::None => None,
-            Self::Ofu => Some(&mut curbuf_mut().b_p_ofu),
-            Self::Cfu => Some(&mut curbuf_mut().b_p_cfu),
-            Self::CptCb(idx) => curbuf_mut().b_p_cpt_cb.get_mut(idx),
+            Self::Ofu => Some(curbuf_mut().b_p_ofu.clone()),
+            Self::Cfu => Some(curbuf_mut().b_p_cfu.clone()),
+            Self::CptCb(idx) => curbuf_mut().b_p_cpt_cb.borrow().get(idx).cloned(),
         }
     }
 }
@@ -3367,7 +3367,7 @@ pub fn set_buflocal_cpt_callbacks(buf: Option<&mut FileBuf>) {
         return;
     };
     CPT_CB.with(|c| {
-        copy_cpt_callbacks(&mut buf.b_p_cpt_cb, &mut c.borrow_mut());
+        copy_cpt_callbacks(&mut buf.b_p_cpt_cb.borrow_mut(), &mut c.borrow_mut());
     });
 }
 
@@ -3411,7 +3411,10 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
     }
 
     if (opt_flags & OPT_GLOBAL) == 0 {
-        parse_cpt_callbacks(curbuf_mut().b_p_cpt.as_cstr(), &mut curbuf_mut().b_p_cpt_cb);
+        parse_cpt_callbacks(
+            curbuf_mut().b_p_cpt.as_cstr(),
+            &mut curbuf_mut().b_p_cpt_cb.borrow_mut(),
+        );
     }
 
     if (opt_flags & OPT_LOCAL) != 0 {
@@ -3426,7 +3429,10 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
     }
 
     CPT_CB.with(|c| {
-        copy_cpt_callbacks(&mut c.borrow_mut(), &mut curbuf_mut().b_p_cpt_cb);
+        copy_cpt_callbacks(
+            &mut c.borrow_mut(),
+            &mut curbuf_mut().b_p_cpt_cb.borrow_mut(),
+        );
     });
     true
 }
@@ -5026,7 +5032,7 @@ fn get_callback_if_cpt_func(p: &CStr, idx: i32) -> CptFuncSource {
     if p_bytes.first() == Some(&b'F') {
         let next = p_bytes.get(1).copied().unwrap_or(0);
         if next != b',' && next != 0 {
-            let cbs = &curbuf_mut().b_p_cpt_cb;
+            let cbs = &curbuf_mut().b_p_cpt_cb.borrow();
             if idx < 0 || (idx as usize) >= cbs.len() {
                 return CptFuncSource::None;
             }
@@ -5066,7 +5072,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
         }
         CTRL_X_FUNCTION => {
             if ctrl_x_mode_normal() {
-                if let Some(cb) = st.func_cb.as_mut() {
+                if let Some(ref cb) = st.func_cb.as_mut() {
                     get_cpt_func_completion_matches(cb);
                 }
             } else {
@@ -5170,7 +5176,7 @@ fn prepare_cpt_compl_funcs() {
             break;
         }
 
-        if let Some(cb) = get_callback_if_cpt_func(p_cstr, idx).as_mut() {
+        if let Some(ref cb) = get_callback_if_cpt_func(p_cstr, idx).as_mut() {
             let mut startcol: i32 = 0;
             if !get_userdefined_compl_info(
                 curwin_mut().w_cursor.get().col,
@@ -6386,7 +6392,7 @@ fn set_compl_globals(mut startcol: i32, curs_col: Colnr, is_cpt_compl: bool) {
 
 fn get_userdefined_compl_info(
     curs_col: Colnr,
-    cb_opt: Option<&mut Callback>,
+    cb_opt: Option<&Callback>,
     startcol: Option<&mut i32>,
 ) -> bool {
     let save_state = g_st().state_global.get();
@@ -7233,7 +7239,7 @@ fn remove_old_matches() {
     });
 }
 
-fn get_cpt_func_completion_matches(cb: &mut Callback) {
+fn get_cpt_func_completion_matches(cb: &Callback) {
     let src_idx = INSEXPAND.with(|s| s.cpt_sources_index.get()) as usize;
     let cpt_src = cpt_source_at(src_idx);
     let startcol = cpt_src.cs_startcol;
@@ -7286,9 +7292,10 @@ fn cpt_compl_refresh() {
             if src != CptFuncSource::None {
                 remove_old_matches();
                 let mut startcol: i32 = 0;
+                let cb_opt = src.as_mut();
                 let ret = get_userdefined_compl_info(
                     curwin_mut().w_cursor.get().col,
-                    src.as_mut(),
+                    cb_opt.as_ref(),
                     Some(&mut startcol),
                 );
                 if !ret {
@@ -7301,7 +7308,7 @@ fn cpt_compl_refresh() {
                     startcol = curwin_mut().w_cursor.get().col;
                 }
                 with_cpt_source_mut(src_idx, |s| s.cs_startcol = startcol);
-                if ret && let Some(cb) = src.as_mut() {
+                if ret && let Some(ref cb) = cb_opt {
                     compl_source_start_timer(INSEXPAND.with(|s| s.cpt_sources_index.get()));
                     get_cpt_func_completion_matches(cb);
                 }

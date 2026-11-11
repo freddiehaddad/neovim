@@ -4120,8 +4120,9 @@ pub fn garbage_collect(testing: bool) -> bool {
             abort = abort || set_ref_in_callback(&buf.b_p_tsrfu, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_p_tfu, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_p_ffu, copy_id, None, None);
-            if !abort && !buf.b_p_cpt_cb.is_empty() {
-                abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copy_id);
+            if !abort && !buf.b_p_cpt_cb.borrow().is_empty() {
+                abort =
+                    abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb.borrow_mut(), copy_id);
             }
         }
     }
@@ -6742,8 +6743,8 @@ pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
     if !bt_prompt(Some(&*buf)) {
         return None;
     }
-    let lnum_start = buf.b_prompt_start.mark.lnum;
-    let mark_col = buf.b_prompt_start.mark.col;
+    let lnum_start = buf.b_prompt_start.borrow().mark.lnum;
+    let mark_col = buf.b_prompt_start.borrow().mark.col;
     let lnum_last = buf.b_ml.ml_line_count.get();
 
     let mut text = crate::memline::ml_get_buf_slice(buf, lnum_start);

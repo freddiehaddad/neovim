@@ -458,10 +458,12 @@ pub fn readfile(
             }
 
             if !filtering && !read_stdin && !read_buffer {
-                orig_start = curbuf_mut().b_op_start;
+                orig_start = curbuf_mut().b_op_start.get();
 
-                curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
-                curbuf_mut().b_op_start.col = 0;
+                curbuf_mut()
+                    .b_op_start
+                    .set_lnum(if from == 0 { 1 } else { from });
+                curbuf_mut().b_op_start.set_col(0);
 
                 let sfname_opt = sfname;
                 if newfile {
@@ -509,7 +511,7 @@ pub fn readfile(
                     break 'theend;
                 }
 
-                curbuf_mut().b_op_start = orig_start;
+                curbuf_mut().b_op_start.set(orig_start);
 
                 if (flags & READ_NOFILE) != 0 {
                     retval = None;
@@ -802,9 +804,11 @@ pub fn readfile(
 
             g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
-            orig_start = curbuf_mut().b_op_start;
-            curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
-            curbuf_mut().b_op_start.col = 0;
+            orig_start = curbuf_mut().b_op_start.get();
+            curbuf_mut()
+                .b_op_start
+                .set_lnum(if from == 0 { 1 } else { from });
+            curbuf_mut().b_op_start.set_col(0);
 
             let mut try_mac = i32::from(crate::strings::vim_haschr(
                 opt_vars().p_ffs.as_cstr(),
@@ -879,7 +883,7 @@ pub fn readfile(
                     opt_vars().p_ffs.as_cstr(),
                     b'x' as i32,
                 ));
-                curbuf_mut().b_op_start = orig_start;
+                curbuf_mut().b_op_start.set(orig_start);
 
                 if g_st().msg_scrolled.get() == n {
                     g_st().msg_scroll.set(m);
@@ -2224,10 +2228,10 @@ pub fn readfile(
                 beginline(BL_WHITE | BL_FIX);
 
                 if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-                    curbuf_mut().b_op_start.lnum = from + 1;
-                    curbuf_mut().b_op_start.col = 0;
-                    curbuf_mut().b_op_end.lnum = from + linecnt;
-                    curbuf_mut().b_op_end.col = 0;
+                    curbuf_mut().b_op_start.set_lnum(from + 1);
+                    curbuf_mut().b_op_start.set_col(0);
+                    curbuf_mut().b_op_end.set_lnum(from + linecnt);
+                    curbuf_mut().b_op_end.set_col(0);
                 }
             }
             g_st().msg_scroll.set(msg_save);

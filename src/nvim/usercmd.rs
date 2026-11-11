@@ -256,7 +256,7 @@ pub fn find_ucmd(
     let cmd_all = eap.cmd.as_bytes();
     let cmd_bytes = &cmd_all[..(len.max(0) as usize).min(cmd_all.len())];
     with_ucmds(|global_ucmds| {
-        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds;
+        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds.borrow();
         loop {
             let mut j: i32 = 0;
             while (j as usize) < gap.len() {
@@ -444,10 +444,10 @@ pub fn expand_user_command_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
 pub fn get_user_commands(xp: &mut ExpandCtx, mut idx: i32) -> Option<&CStr> {
     let buf = prevwin_curwin().buf_mut();
-    let b_len = buf.b_ucmds.len() as i32;
+    let b_len = buf.b_ucmds.borrow().len() as i32;
 
     if idx < b_len {
-        return Some(buf.b_ucmds[idx as usize].uc_name.as_c_str());
+        return Some(xp.set_item(buf.b_ucmds.borrow()[idx as usize].uc_name.clone()));
     }
 
     idx -= b_len;
@@ -456,7 +456,7 @@ pub fn get_user_commands(xp: &mut ExpandCtx, mut idx: i32) -> Option<&CStr> {
         if idx < u_len {
             let name = &u[idx as usize].uc_name;
 
-            for cmd in &buf.b_ucmds {
+            for cmd in &*buf.b_ucmds.borrow() {
                 if name.as_bytes() == cmd.uc_name.as_bytes() {
                     return Some(c"");
                 }
@@ -474,8 +474,8 @@ pub fn get_user_command_name(idx: i32, cmdidx: Cmdidx) -> Option<CString> {
     }
     if cmdidx == Cmdidx::CmdUserBuf {
         let buf = prevwin_curwin().buf_mut();
-        if idx >= 0 && (idx as usize) < buf.b_ucmds.len() {
-            return Some(buf.b_ucmds[idx as usize].uc_name.clone());
+        if idx >= 0 && (idx as usize) < buf.b_ucmds.borrow().len() {
+            return Some(buf.b_ucmds.borrow()[idx as usize].uc_name.clone());
         }
     }
     None
@@ -583,7 +583,7 @@ fn uc_list(name_prefix: &[u8]) {
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds;
+        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds.borrow();
         loop {
             let mut i: i32 = 0;
             while (i as usize) < gap.len() {
@@ -1119,7 +1119,7 @@ pub fn uc_add_command(
     };
 
     if (flags & UC_BUFFER) != 0 {
-        insert_into(&mut curbuf_mut().b_ucmds)
+        insert_into(&mut curbuf_mut().b_ucmds.borrow_mut())
     } else {
         with_ucmds_mut(insert_into)
     }
@@ -1199,7 +1199,7 @@ pub fn ex_command(eap: &mut Exarg) {
 pub fn ex_comclear(_eap: &mut Exarg) {
     with_ucmds_mut(Vec::clear);
     if !g_st().curbuf.get().is_null() {
-        curbuf_mut().b_ucmds.clear();
+        curbuf_mut().b_ucmds.borrow_mut().clear();
     }
 }
 
@@ -1229,7 +1229,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
         }
     };
 
-    if find_and_remove(&mut curbuf_mut().b_ucmds) {
+    if find_and_remove(&mut curbuf_mut().b_ucmds.borrow_mut()) {
         return;
     }
     if !buffer_only && with_ucmds_mut(find_and_remove) {
@@ -1660,7 +1660,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                 )
             })
         } else {
-            let c = &prevwin_curwin().buf_mut().b_ucmds[eap.useridx as usize];
+            let c = &prevwin_curwin().buf_mut().b_ucmds.borrow()[eap.useridx as usize];
             (
                 c.uc_name.clone(),
                 c.uc_rep.as_bytes().to_vec(),
@@ -1767,7 +1767,8 @@ fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
 /// defined globally if `buf` is NULL (`commands_array`).
 pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
     with_ucmds(|u| {
-        let gap: &[Ucmd] = buf.map_or(u, |buf| &buf.b_ucmds);
+        let buf_ucmds = buf.map(|b| b.b_ucmds.borrow());
+        let gap: &[Ucmd] = buf_ucmds.as_deref().map_or(u, Vec::as_slice);
 
         let mut rv = arena_dict(arena, gap.len());
         for cmd in gap {

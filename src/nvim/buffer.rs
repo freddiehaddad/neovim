@@ -161,12 +161,12 @@ impl Default for Bufref {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct BufSigncols {
-    pub max: i32,
-    pub last_max: i32,
-    pub count: [i32; 9],
-    pub autom: bool,
+    pub max: std::cell::Cell<i32>,
+    pub last_max: std::cell::Cell<i32>,
+    pub count: [std::cell::Cell<i32>; 9],
+    pub autom: std::cell::Cell<bool>,
 }
 
 #[repr(C)]
@@ -224,7 +224,7 @@ pub struct FileBuf {
     pub b_mod_top: std::cell::Cell<i32>,
     pub b_mod_bot: std::cell::Cell<i32>,
     pub b_mod_xlines: std::cell::Cell<i32>,
-    pub b_wininfo: Vec<WinInfo>,
+    pub b_wininfo: std::cell::RefCell<Vec<WinInfo>>,
     pub b_mod_tick_syn: std::cell::Cell<u64>,
     pub b_mod_tick_decor: std::cell::Cell<u64>,
     pub b_mtime: std::cell::Cell<i64>,
@@ -234,29 +234,29 @@ pub struct FileBuf {
     pub b_orig_size: std::cell::Cell<u64>,
     pub b_orig_mode: std::cell::Cell<i32>,
     pub b_last_used: std::cell::Cell<i64>,
-    pub b_namedm: [Fmark; 26],
-    pub b_visual: crate::normal::Visualinfo,
+    pub b_namedm: std::cell::RefCell<[Fmark; 26]>,
+    pub b_visual: std::cell::RefCell<crate::normal::Visualinfo>,
     pub b_visual_mode_eval: std::cell::Cell<i32>,
-    pub b_last_cursor: Fmark,
-    pub b_last_insert: Fmark,
-    pub b_last_change: Fmark,
-    pub b_changelist: [Fmark; 100],
+    pub b_last_cursor: std::cell::RefCell<Fmark>,
+    pub b_last_insert: std::cell::RefCell<Fmark>,
+    pub b_last_change: std::cell::RefCell<Fmark>,
+    pub b_changelist: std::cell::RefCell<[Fmark; 100]>,
     pub b_changelistlen: std::cell::Cell<i32>,
     pub b_new_change: std::cell::Cell<bool>,
     pub b_chartab: std::cell::Cell<[u64; 4]>,
-    pub b_maphash: [Vec<crate::mapping::Mapblock>; 256],
-    pub b_first_abbr: Vec<crate::mapping::Mapblock>,
-    pub b_ucmds: Vec<crate::usercmd::Ucmd>,
-    pub b_op_start: CursorPos,
-    pub b_op_start_orig: CursorPos,
-    pub b_op_end: CursorPos,
+    pub b_maphash: std::cell::RefCell<[Vec<crate::mapping::Mapblock>; 256]>,
+    pub b_first_abbr: std::cell::RefCell<Vec<crate::mapping::Mapblock>>,
+    pub b_ucmds: std::cell::RefCell<Vec<crate::usercmd::Ucmd>>,
+    pub b_op_start: std::cell::Cell<CursorPos>,
+    pub b_op_start_orig: std::cell::Cell<CursorPos>,
+    pub b_op_end: std::cell::Cell<CursorPos>,
     pub b_marks_read: std::cell::Cell<bool>,
     pub b_modified_was_set: std::cell::Cell<bool>,
     pub b_did_filetype: std::cell::Cell<bool>,
     pub b_keep_filetype: std::cell::Cell<bool>,
     pub b_au_did_filetype: std::cell::Cell<bool>,
-    pub b_u_headers: Vec<crate::undo::UHeader>,
-    pub b_u_free_headers: Vec<usize>,
+    pub b_u_headers: std::cell::RefCell<Vec<crate::undo::UHeader>>,
+    pub b_u_free_headers: std::cell::RefCell<Vec<usize>>,
     pub b_u_oldhead: std::cell::Cell<Option<usize>>,
     pub b_u_newhead: std::cell::Cell<Option<usize>>,
     pub b_u_curhead: std::cell::Cell<Option<usize>>,
@@ -274,7 +274,7 @@ pub struct FileBuf {
     pub b_p_iminsert: std::cell::Cell<i64>,
     pub b_p_imsearch: std::cell::Cell<i64>,
     pub b_kmap_state: std::cell::Cell<i16>,
-    pub b_kmap_ga: Vec<crate::digraph::Kmap>,
+    pub b_kmap_ga: std::cell::RefCell<Vec<crate::digraph::Kmap>>,
     pub b_p_initialized: std::cell::Cell<bool>,
     pub b_p_script_ctx: [std::cell::Cell<crate::runtime::Sctx>; 93],
     pub b_p_ac: std::cell::Cell<Option<bool>>,
@@ -304,7 +304,7 @@ pub struct FileBuf {
     #[cfg(windows)]
     pub b_p_csl: crate::option_vars::OptString,
     pub b_p_cpt_flags: std::cell::Cell<u32>,
-    pub b_p_cpt_cb: Vec<crate::eval::typval::Callback>,
+    pub b_p_cpt_cb: std::cell::RefCell<Vec<crate::eval::typval::Callback>>,
     pub b_p_cfu: crate::eval::typval::Callback,
     pub b_p_ofu: crate::eval::typval::Callback,
     pub b_p_tfu: crate::eval::typval::Callback,
@@ -363,10 +363,10 @@ pub struct FileBuf {
     pub b_p_wm_nobin: std::cell::Cell<i64>,
     pub b_p_wm_nopaste: std::cell::Cell<i64>,
     pub b_p_vsts: crate::option_vars::OptString,
-    pub b_p_vsts_array: Vec<i32>,
+    pub b_p_vsts_array: std::cell::RefCell<Vec<i32>>,
     pub b_p_vsts_nopaste: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub b_p_vts: crate::option_vars::OptString,
-    pub b_p_vts_array: Vec<i32>,
+    pub b_p_vts_array: std::cell::RefCell<Vec<i32>>,
     pub b_p_keymap: crate::option_vars::OptString,
     pub b_p_gefm: crate::option_vars::OptString,
     pub b_p_gp: crate::option_vars::OptString,
@@ -439,18 +439,18 @@ pub struct FileBuf {
     pub b_prompt_interrupt: crate::eval::typval::Callback,
     pub b_prompt_append_new_line: std::cell::Cell<bool>,
     pub b_prompt_insert: std::cell::Cell<i32>,
-    pub b_prompt_start: Fmark,
+    pub b_prompt_start: std::cell::RefCell<Fmark>,
     pub b_s: std::rc::Rc<Synblock>,
     pub b_signcols: BufSigncols,
     pub terminal: std::cell::Cell<TermId>,
-    pub additional_data: Option<crate::search::AdditionalData>,
+    pub additional_data: std::cell::RefCell<Option<crate::search::AdditionalData>>,
     pub b_mapped_ctrl_c: std::cell::Cell<i32>,
-    pub b_marktree: crate::marktree::MarkTree,
-    pub b_extmark_ns: std::collections::BTreeMap<u32, u32>,
+    pub b_marktree: std::cell::RefCell<crate::marktree::MarkTree>,
+    pub b_extmark_ns: std::cell::RefCell<std::collections::BTreeMap<u32, u32>>,
     pub b_conceal_providers: std::cell::Cell<i32>,
     pub b_prev_line_count: std::cell::Cell<i32>,
-    pub update_channels: Vec<u64>,
-    pub update_callbacks: Vec<BufUpdateCallbacks>,
+    pub update_channels: std::cell::RefCell<Vec<u64>>,
+    pub update_callbacks: std::cell::RefCell<Vec<BufUpdateCallbacks>>,
     pub update_need_codepoints: std::cell::Cell<bool>,
     pub deleted_bytes: std::cell::Cell<usize>,
     pub deleted_bytes2: std::cell::Cell<usize>,
@@ -512,7 +512,7 @@ impl FileBuf {
             b_mod_top: std::cell::Cell::new(0),
             b_mod_bot: std::cell::Cell::new(0),
             b_mod_xlines: std::cell::Cell::new(0),
-            b_wininfo: Vec::new(),
+            b_wininfo: std::cell::RefCell::new(Vec::new()),
             b_mod_tick_syn: std::cell::Cell::new(0),
             b_mod_tick_decor: std::cell::Cell::new(0),
             b_mtime: std::cell::Cell::new(0),
@@ -522,34 +522,34 @@ impl FileBuf {
             b_orig_size: std::cell::Cell::new(0),
             b_orig_mode: std::cell::Cell::new(0),
             b_last_used: std::cell::Cell::new(0),
-            b_namedm: [const { Fmark::ZERO }; 26],
-            b_visual: crate::normal::Visualinfo {
+            b_namedm: std::cell::RefCell::new([const { Fmark::ZERO }; 26]),
+            b_visual: std::cell::RefCell::new(crate::normal::Visualinfo {
                 vi_start: ZERO_POS,
                 vi_end: ZERO_POS,
                 vi_mode: 0,
                 vi_curswant: 0,
-            },
+            }),
             b_visual_mode_eval: std::cell::Cell::new(0),
-            b_last_cursor: Fmark::ZERO,
-            b_last_insert: Fmark::ZERO,
-            b_last_change: Fmark::ZERO,
-            b_changelist: [const { Fmark::ZERO }; 100],
+            b_last_cursor: std::cell::RefCell::new(Fmark::ZERO),
+            b_last_insert: std::cell::RefCell::new(Fmark::ZERO),
+            b_last_change: std::cell::RefCell::new(Fmark::ZERO),
+            b_changelist: std::cell::RefCell::new([const { Fmark::ZERO }; 100]),
             b_changelistlen: std::cell::Cell::new(0),
             b_new_change: std::cell::Cell::new(false),
             b_chartab: std::cell::Cell::new([0; 4]),
-            b_maphash: [const { Vec::new() }; 256],
-            b_first_abbr: Vec::new(),
-            b_ucmds: Vec::new(),
-            b_op_start: ZERO_POS,
-            b_op_start_orig: ZERO_POS,
-            b_op_end: ZERO_POS,
+            b_maphash: std::cell::RefCell::new([const { Vec::new() }; 256]),
+            b_first_abbr: std::cell::RefCell::new(Vec::new()),
+            b_ucmds: std::cell::RefCell::new(Vec::new()),
+            b_op_start: std::cell::Cell::new(ZERO_POS),
+            b_op_start_orig: std::cell::Cell::new(ZERO_POS),
+            b_op_end: std::cell::Cell::new(ZERO_POS),
             b_marks_read: std::cell::Cell::new(false),
             b_modified_was_set: std::cell::Cell::new(false),
             b_did_filetype: std::cell::Cell::new(false),
             b_keep_filetype: std::cell::Cell::new(false),
             b_au_did_filetype: std::cell::Cell::new(false),
-            b_u_headers: Vec::new(),
-            b_u_free_headers: Vec::new(),
+            b_u_headers: std::cell::RefCell::new(Vec::new()),
+            b_u_free_headers: std::cell::RefCell::new(Vec::new()),
             b_u_oldhead: std::cell::Cell::new(None),
             b_u_newhead: std::cell::Cell::new(None),
             b_u_curhead: std::cell::Cell::new(None),
@@ -567,7 +567,7 @@ impl FileBuf {
             b_p_iminsert: std::cell::Cell::new(0),
             b_p_imsearch: std::cell::Cell::new(0),
             b_kmap_state: std::cell::Cell::new(0),
-            b_kmap_ga: Vec::new(),
+            b_kmap_ga: std::cell::RefCell::new(Vec::new()),
             b_p_initialized: std::cell::Cell::new(false),
             b_p_script_ctx: [const { std::cell::Cell::new(ZERO_SCTX) }; 93],
             b_p_ac: std::cell::Cell::new(Some(false)),
@@ -597,7 +597,7 @@ impl FileBuf {
             #[cfg(windows)]
             b_p_csl: crate::option_vars::OptString::new(),
             b_p_cpt_flags: std::cell::Cell::new(0),
-            b_p_cpt_cb: Vec::new(),
+            b_p_cpt_cb: std::cell::RefCell::new(Vec::new()),
             b_p_cfu: crate::eval::typval::Callback::NONE,
             b_p_ofu: crate::eval::typval::Callback::NONE,
             b_p_tfu: crate::eval::typval::Callback::NONE,
@@ -656,10 +656,10 @@ impl FileBuf {
             b_p_wm_nobin: std::cell::Cell::new(0),
             b_p_wm_nopaste: std::cell::Cell::new(0),
             b_p_vsts: crate::option_vars::OptString::new(),
-            b_p_vsts_array: Vec::new(),
+            b_p_vsts_array: std::cell::RefCell::new(Vec::new()),
             b_p_vsts_nopaste: crate::globals::CloneCell::new(None),
             b_p_vts: crate::option_vars::OptString::new(),
-            b_p_vts_array: Vec::new(),
+            b_p_vts_array: std::cell::RefCell::new(Vec::new()),
             b_p_keymap: crate::option_vars::OptString::new(),
             b_p_gefm: crate::option_vars::OptString::new(),
             b_p_gp: crate::option_vars::OptString::new(),
@@ -732,23 +732,23 @@ impl FileBuf {
             b_prompt_interrupt: crate::eval::typval::Callback::NONE,
             b_prompt_append_new_line: std::cell::Cell::new(false),
             b_prompt_insert: std::cell::Cell::new(0),
-            b_prompt_start: Fmark::ZERO,
+            b_prompt_start: std::cell::RefCell::new(Fmark::ZERO),
             b_s: std::rc::Rc::new(Synblock::new()),
             b_signcols: BufSigncols {
-                max: 0,
-                last_max: 0,
-                count: [0; 9],
-                autom: false,
+                max: std::cell::Cell::new(0),
+                last_max: std::cell::Cell::new(0),
+                count: [const { std::cell::Cell::new(0) }; 9],
+                autom: std::cell::Cell::new(false),
             },
             terminal: std::cell::Cell::new(TermId::NULL),
-            additional_data: None,
+            additional_data: std::cell::RefCell::new(None),
             b_mapped_ctrl_c: std::cell::Cell::new(0),
-            b_marktree: crate::marktree::MarkTree::new(),
-            b_extmark_ns: std::collections::BTreeMap::new(),
+            b_marktree: std::cell::RefCell::new(crate::marktree::MarkTree::new()),
+            b_extmark_ns: std::cell::RefCell::new(std::collections::BTreeMap::new()),
             b_conceal_providers: std::cell::Cell::new(0),
             b_prev_line_count: std::cell::Cell::new(0),
-            update_channels: Vec::new(),
-            update_callbacks: Vec::new(),
+            update_channels: std::cell::RefCell::new(Vec::new()),
+            update_callbacks: std::cell::RefCell::new(Vec::new()),
             update_need_codepoints: std::cell::Cell::new(false),
             deleted_bytes: std::cell::Cell::new(0),
             deleted_bytes2: std::cell::Cell::new(0),
@@ -947,7 +947,7 @@ pub fn buf_get_changedtick(buf: &FileBuf) -> Varnumber {
 
 #[inline]
 pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
-    b.b_marktree.meta_root[m]
+    b.b_marktree.borrow().meta_root[m]
 }
 
 #[inline]
@@ -1850,14 +1850,14 @@ impl Drop for FileBuf {
         self.b_start_fenc.set(None);
         self.b_localdir.set(None);
         self.b_prevdir.set(None);
-        self.additional_data = None;
+        *self.additional_data.borrow_mut() = None;
         self.b_prompt_text.set(None);
         callback_free(&self.b_prompt_callback);
         callback_free(&self.b_prompt_interrupt);
-        clear_fmark(&mut self.b_last_cursor, 0);
-        clear_fmark(&mut self.b_last_insert, 0);
-        clear_fmark(&mut self.b_last_change, 0);
-        clear_fmark(&mut self.b_prompt_start, 0);
+        clear_fmark(&mut self.b_last_cursor.borrow_mut(), 0);
+        clear_fmark(&mut self.b_last_insert.borrow_mut(), 0);
+        clear_fmark(&mut self.b_last_change.borrow_mut(), 0);
+        clear_fmark(&mut self.b_prompt_start.borrow_mut(), 0);
         self.b_changelistlen.set(0);
         if let Some(cdi) = self.changedtick_di.opt() {
             crate::eval::typval::tv_dict_item_free_slot(cdi);
@@ -1889,17 +1889,17 @@ fn free_buffer(buf: &mut FileBuf) {
     aubuflocal_remove(buf_ref);
 
     if g_st().autocmd_busy.get() {
-        buf_ref.additional_data = None;
+        *buf_ref.additional_data.borrow_mut() = None;
         buf_ref.b_prompt_text.set(None);
         callback_free(&buf_ref.b_prompt_callback);
         callback_free(&buf_ref.b_prompt_interrupt);
-        clear_fmark(&mut buf_ref.b_last_cursor, 0);
-        clear_fmark(&mut buf_ref.b_last_insert, 0);
-        clear_fmark(&mut buf_ref.b_last_change, 0);
-        clear_fmark(&mut buf_ref.b_prompt_start, 0);
+        clear_fmark(&mut buf_ref.b_last_cursor.borrow_mut(), 0);
+        clear_fmark(&mut buf_ref.b_last_insert.borrow_mut(), 0);
+        clear_fmark(&mut buf_ref.b_last_change.borrow_mut(), 0);
+        clear_fmark(&mut buf_ref.b_prompt_start.borrow_mut(), 0);
         buf_ref.b_changelistlen.set(0);
-        buf_ref.b_namedm.fill(Fmark::new());
-        buf_ref.b_changelist.fill(Fmark::new());
+        buf_ref.b_namedm.borrow_mut().fill(Fmark::new());
+        buf_ref.b_changelist.borrow_mut().fill(Fmark::new());
 
         g_st()
             .au_pending_free_buf
@@ -1915,7 +1915,7 @@ fn free_buffer(buf: &mut FileBuf) {
 }
 
 fn clear_wininfo(buf: &mut FileBuf) {
-    buf.b_wininfo.clear();
+    buf.b_wininfo.borrow_mut().clear();
 }
 
 fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
@@ -1932,7 +1932,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
         buf_init_changedtick(buf);
     }
-    buf.b_ucmds.clear();
+    buf.b_ucmds.borrow_mut().clear();
     extmark_free_all(buf);
     mc_buf_free(buf);
     buf.b_conceal_providers.set(0);
@@ -2932,7 +2932,7 @@ pub fn buflist_new(
     }
 
     clear_wininfo(buf_ref);
-    buf_ref.b_wininfo.push(WinInfo::new());
+    buf_ref.b_wininfo.borrow_mut().push(WinInfo::new());
 
     if buf == g_st().curbuf.get() {
         free_buffer_stuff(buf_ref, K_BFF_INIT_CHANGEDTICK);
@@ -2969,10 +2969,13 @@ pub fn buflist_new(
         buf_copy_options(buf_ref, BCO_ALWAYS);
     }
 
-    let curwin_info = &mut buf_ref.b_wininfo[0];
-    curwin_info.wi_mark = INIT_FMARK;
-    curwin_info.wi_mark.mark.lnum = lnum;
-    curwin_info.wi_win = crate::globals::curwin_ptr();
+    {
+        let mut wininfo = buf_ref.b_wininfo.borrow_mut();
+        let curwin_info = &mut wininfo[0];
+        curwin_info.wi_mark = INIT_FMARK;
+        curwin_info.wi_mark.mark.lnum = lnum;
+        curwin_info.wi_win = crate::globals::curwin_ptr();
+    }
 
     buf_ref.b_fname.set(BufFname::Short);
     if !file_id_valid {
@@ -2990,8 +2993,8 @@ pub fn buflist_new(
     clrallmarks(buf_ref, 0);
     fmarks_check_names(buf_ref);
     buf_ref.b_p_bl.set((flags & BLN_LISTED) != 0);
-    buf_ref.update_channels.clear();
-    buf_ref.update_callbacks.clear();
+    buf_ref.update_channels.borrow_mut().clear();
+    buf_ref.update_callbacks.borrow_mut().clear();
     if (flags & BLN_DUMMY) == 0 {
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, buf.opt_mut());
@@ -3015,8 +3018,8 @@ pub fn buflist_new(
     buf_ref.b_prompt_callback = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_interrupt = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_text.set(None);
-    buf_ref.b_prompt_start = INIT_FMARK;
-    buf_ref.b_prompt_start.mark.col = 2;
+    *buf_ref.b_prompt_start.borrow_mut() = INIT_FMARK;
+    buf_ref.b_prompt_start.borrow_mut().mark.col = 2;
     buf_ref.b_prompt_append_new_line.set(true);
 
     Some(buf_ref)
@@ -3056,11 +3059,11 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_isk.clear_option_str();
     buf.b_p_vsts.clear_option_str();
     buf.b_p_vsts_nopaste.set(None);
-    buf.b_p_vsts_array = Vec::new();
+    *buf.b_p_vsts_array.borrow_mut() = Vec::new();
     buf.b_p_vts.clear_option_str();
-    buf.b_p_vts_array = Vec::new();
+    *buf.b_p_vts_array.borrow_mut() = Vec::new();
     buf.b_p_keymap.clear_option_str();
-    buf.b_kmap_ga.clear();
+    buf.b_kmap_ga.borrow_mut().clear();
     buf.b_p_com.clear_option_str();
     buf.b_p_cms.clear_option_str();
     buf.b_p_nf.clear_option_str();
@@ -3085,7 +3088,7 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     callback_free(&buf.b_p_cfu);
     callback_free(&buf.b_p_ofu);
     callback_free(&buf.b_p_tsrfu);
-    clear_cpt_callbacks(&mut buf.b_p_cpt_cb);
+    clear_cpt_callbacks(&mut buf.b_p_cpt_cb.borrow_mut());
     buf.b_p_gefm.clear_option_str();
     buf.b_p_gp.clear_option_str();
     buf.b_p_mp.clear_option_str();
@@ -3567,8 +3570,8 @@ pub fn buflist_setfpos(
     copy_options: bool,
 ) {
     let win = crate::globals::WinPtr::from(win_opt.as_deref_mut());
-    let mut wip = if let Some(i) = buf.b_wininfo.iter().position(|w| w.wi_win == win) {
-        let mut wip = buf.b_wininfo.remove(i);
+    let mut wip = if let Some(i) = buf.b_wininfo.borrow().iter().position(|w| w.wi_win == win) {
+        let mut wip = buf.b_wininfo.borrow_mut().remove(i);
         if copy_options && wip.wi_optset {
             clear_winopt(&wip.wi_opt);
             wip.wi_folds.clear();
@@ -3600,7 +3603,7 @@ pub fn buflist_setfpos(
         }
     }
 
-    buf.b_wininfo.insert(0, wip);
+    buf.b_wininfo.borrow_mut().insert(0, wip);
 }
 
 fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
@@ -3617,13 +3620,14 @@ fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
 }
 
 fn find_wininfo(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     need_options: bool,
     skip_diff_buffer: bool,
-) -> Option<&mut WinInfo> {
-    let buf_ptr = crate::globals::BufPtr::from(&*buf);
+) -> Option<std::cell::RefMut<'_, WinInfo>> {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     let pos = buf
         .b_wininfo
+        .borrow()
         .iter()
         .position(|wip| {
             wip.wi_win == curwin_ptr()
@@ -3632,17 +3636,19 @@ fn find_wininfo(
         })
         .or_else(|| {
             if skip_diff_buffer {
-                buf.b_wininfo.iter().position(|wip| {
+                buf.b_wininfo.borrow().iter().position(|wip| {
                     !wininfo_other_tab_diff(wip)
                         && (!need_options
                             || wip.wi_optset
                             || wip.win_opt().is_some_and(|w| w.w_buffer.get() == buf_ptr))
                 })
             } else {
-                (!buf.b_wininfo.is_empty()).then_some(0)
+                (!buf.b_wininfo.borrow().is_empty()).then_some(0)
             }
         })?;
-    Some(&mut buf.b_wininfo[pos])
+    Some(std::cell::RefMut::map(buf.b_wininfo.borrow_mut(), |v| {
+        &mut v[pos]
+    }))
 }
 
 /// Reset the local window options to the values last used in this window.
@@ -3697,16 +3703,16 @@ pub fn get_winopts(buf: &mut FileBuf) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-pub fn buflist_findfmark(buf: &mut FileBuf) -> &Fmark {
+pub fn buflist_findfmark(buf: &FileBuf) -> Fmark {
     if let Some(wip) = find_wininfo(buf, false, false) {
-        &wip.wi_mark
+        wip.wi_mark.clone()
     } else {
-        &NO_POSITION
+        NO_POSITION
     }
 }
 
 /// Find the lnum for the buffer `buf` for the current window.
-pub fn buflist_findlnum(buf: &mut FileBuf) -> Linenr {
+pub fn buflist_findlnum(buf: &FileBuf) -> Linenr {
     buflist_findfmark(buf).mark.lnum
 }
 
@@ -3847,7 +3853,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 if g_st().curbuf.get() == buf {
                     i64::from(curwin_mut().w_cursor.get().lnum)
                 } else {
-                    i64::from(buflist_findlnum(&mut *buf))
+                    i64::from(buflist_findlnum(&*buf))
                 },
             );
         }

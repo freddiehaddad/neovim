@@ -2847,10 +2847,19 @@ pub(super) fn reg_match_visual() -> bool {
             wp.w_curswant.get(),
         )
     } else {
-        let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
-            (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)
+        let (t, mut b) = if lt(
+            curbuf_mut().b_visual.borrow().vi_start,
+            curbuf_mut().b_visual.borrow().vi_end,
+        ) {
+            (
+                curbuf_mut().b_visual.borrow().vi_start,
+                curbuf_mut().b_visual.borrow().vi_end,
+            )
         } else {
-            (curbuf_mut().b_visual.vi_end, curbuf_mut().b_visual.vi_start)
+            (
+                curbuf_mut().b_visual.borrow().vi_end,
+                curbuf_mut().b_visual.borrow().vi_start,
+            )
         };
         if b.lnum > curbuf_mut().b_ml.ml_line_count.get() {
             b.lnum = curbuf_mut().b_ml.ml_line_count.get();
@@ -2858,8 +2867,8 @@ pub(super) fn reg_match_visual() -> bool {
         (
             t,
             b,
-            curbuf_mut().b_visual.vi_mode,
-            curbuf_mut().b_visual.vi_curswant,
+            curbuf_mut().b_visual.borrow().vi_mode,
+            curbuf_mut().b_visual.borrow().vi_curswant,
         )
     };
 

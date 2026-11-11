@@ -93,7 +93,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
 
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 fn find_win_for_curbuf() {
-    for wip in &curbuf_mut().b_wininfo {
+    for wip in &*curbuf_mut().b_wininfo.borrow() {
         if wip
             .win_opt()
             .is_some_and(|w| w.w_buffer.get() == g_st().curbuf.get())
@@ -292,7 +292,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
         return;
     }
 
-    let prompt_line = buf.b_prompt_start.mark.lnum;
+    let prompt_line = buf.b_prompt_start.borrow().mark.lnum;
     let above_prompt = prompt_line - 1;
     if above_prompt <= buf.b_p_scbk.get() as Linenr {
         return;
@@ -343,7 +343,7 @@ pub fn prompt_invoke_callback() {
     appended_lines_mark(lnum, 1);
     curwin_mut().w_cursor.set_lnum(lnum + 1);
     curwin_mut().w_cursor.set_col(0);
-    curbuf_mut().b_prompt_start.mark.lnum = lnum + 1;
+    curbuf_mut().b_prompt_start.borrow_mut().mark.lnum = lnum + 1;
 
     if curbuf_mut().b_prompt_callback.cb_type() != K_CALLBACK_NONE_CONST {
         let mut rettv = TypVal {
@@ -372,7 +372,7 @@ pub fn prompt_invoke_callback() {
 
     u_clearallandblockfree(curbuf_mut());
 
-    curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count.get();
+    curbuf_mut().b_prompt_start.borrow_mut().mark.lnum = curbuf_mut().b_ml.ml_line_count.get();
     curbuf_mut().b_prompt_append_new_line.set(true);
 
     prompt_trim_scrollback(curbuf_mut());
@@ -415,7 +415,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         return;
     }
 
-    let lnum = (buf.b_prompt_start.mark.lnum - 1).max(0);
+    let lnum = (buf.b_prompt_start.borrow().mark.lnum - 1).max(0);
     let lines = &mut argvars[1];
     let mut did_concat = false;
 
@@ -977,11 +977,12 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     let new_prompt_len = new_prompt.to_bytes().len() as i32;
 
     if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
-        if buf.b_prompt_start.mark.lnum < 1
-            || buf.b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
+        if buf.b_prompt_start.borrow().mark.lnum < 1
+            || buf.b_prompt_start.borrow().mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
         {
-            buf.b_prompt_start.mark.lnum = buf
+            buf.b_prompt_start.borrow_mut().mark.lnum = buf
                 .b_prompt_start
+                .borrow()
                 .mark
                 .lnum
                 .min(buf.b_ml.ml_line_count.get())
@@ -989,8 +990,8 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             curbuf_mut().b_prompt_append_new_line.set(true);
         }
 
-        let prompt_lno = buf.b_prompt_start.mark.lnum;
-        let mark_col = buf.b_prompt_start.mark.col;
+        let prompt_lno = buf.b_prompt_start.borrow().mark.lnum;
+        let mark_col = buf.b_prompt_start.borrow().mark.col;
         let old_prompt = buf_prompt_text(&*buf).to_owned();
         let old_prompt_bytes = old_prompt.to_bytes();
         let old_prompt_len = old_prompt_bytes.len() as i32;
@@ -1045,5 +1046,5 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
 
     buf.b_prompt_text
         .set(Some(crate::option_vars::intern_opt_cstr(&new_prompt)));
-    buf.b_prompt_start.mark.col = new_prompt_len as Colnr;
+    buf.b_prompt_start.borrow_mut().mark.col = new_prompt_len as Colnr;
 }

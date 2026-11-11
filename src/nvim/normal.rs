@@ -2528,7 +2528,7 @@ pub fn end_visual_mode() {
     setmouse();
     g_st().mouse_dragging.set(0);
 
-    curbuf_mut().b_visual = visualinfo();
+    *curbuf_mut().b_visual.borrow_mut() = visualinfo();
     curbuf_mut()
         .b_visual_mode_eval
         .set(g_st().visual_global.borrow().mode);
@@ -2561,7 +2561,7 @@ pub fn reset_visual() {
 pub fn restore_visual_mode() {
     let orig = norm_st(|st| st.visual_mode_orig.replace(NUL as i32));
     if orig != NUL as i32 {
-        curbuf_mut().b_visual.vi_mode = orig;
+        curbuf_mut().b_visual.borrow_mut().vi_mode = orig;
     }
 }
 
@@ -5638,7 +5638,7 @@ fn nv_replace(cap: &mut Cmdarg) {
             redo_append_char(had_ctrl_v);
         }
 
-        curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
+        curbuf_mut().b_op_start.set(curwin_mut().w_cursor.get());
         let old_state = g_st().state_global.get();
 
         if cap.nchar_len > 0 {
@@ -5669,7 +5669,7 @@ fn nv_replace(cap: &mut Cmdarg) {
         }
         curwin_mut().w_cursor.sub_col(1);
         mb_adjust_cursor();
-        curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
+        curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
         curwin_mut().w_set_curswant.set(true);
         set_last_insert(cap.nchar);
     }
@@ -5854,10 +5854,10 @@ fn n_swapchar(cap: &mut Cmdarg) {
             0,
             true,
         );
-        curbuf_mut().b_op_start = startpos;
-        curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
-        if curbuf_mut().b_op_end.col > 0 {
-            curbuf_mut().b_op_end.col -= 1;
+        curbuf_mut().b_op_start.set(startpos);
+        curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
+        if curbuf_mut().b_op_end.get().col > 0 {
+            curbuf_mut().b_op_end.sub_col(1);
         }
     }
 }
@@ -6226,17 +6226,17 @@ fn nv_suspend(cap: &mut Cmdarg) {
 }
 
 fn nv_gv_cmd(cap: &mut Cmdarg) {
-    if curbuf_mut().b_visual.vi_start.lnum == 0
-        || curbuf_mut().b_visual.vi_start.lnum > curbuf_mut().b_ml.ml_line_count.get()
-        || curbuf_mut().b_visual.vi_end.lnum == 0
+    if curbuf_mut().b_visual.borrow().vi_start.lnum == 0
+        || curbuf_mut().b_visual.borrow().vi_start.lnum > curbuf_mut().b_ml.ml_line_count.get()
+        || curbuf_mut().b_visual.borrow().vi_end.lnum == 0
     {
         beep_flush();
         return;
     }
 
-    let prev = curbuf_mut().b_visual;
+    let prev = *curbuf_mut().b_visual.borrow();
     if g_st().visual_global.borrow().active {
-        curbuf_mut().b_visual = visualinfo();
+        *curbuf_mut().b_visual.borrow_mut() = visualinfo();
         curbuf_mut()
             .b_visual_mode_eval
             .set(g_st().visual_global.borrow().mode);
@@ -6437,8 +6437,10 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_gi_cmd(cap: &mut Cmdarg) {
-    if curbuf_mut().b_last_insert.mark.lnum != 0 {
-        curwin_mut().w_cursor.set(curbuf_mut().b_last_insert.mark);
+    if curbuf_mut().b_last_insert.borrow().mark.lnum != 0 {
+        curwin_mut()
+            .w_cursor
+            .set(curbuf_mut().b_last_insert.borrow().mark);
         check_cursor_lnum(curwin_mut());
         let i = get_cursor_line_len();
         if curwin_mut().w_cursor.get().col > i {
@@ -7401,10 +7403,10 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
     }
 
     if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
-        if curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.mark.lnum {
+        if curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.borrow().mark.lnum {
             curwin_mut()
                 .w_cursor
-                .set_col(curbuf_mut().b_prompt_start.mark.col);
+                .set_col(curbuf_mut().b_prompt_start.borrow().mark.col);
             cap.cmdchar = b'P' as i32;
         } else {
             clearopbeep(&mut cap.oap);
@@ -7498,9 +7500,9 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         }
         dir = BACKWARD;
         if (g_st().visual_global.borrow().mode != b'V' as i32
-            && curwin_mut().w_cursor.get().col < curbuf_mut().b_op_start.col)
+            && curwin_mut().w_cursor.get().col < curbuf_mut().b_op_start.get().col)
             || (g_st().visual_global.borrow().mode == b'V' as i32
-                && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_op_start.lnum)
+                && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_op_start.get().lnum)
         {
             dir = FORWARD;
         }
@@ -7519,10 +7521,10 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         if save_fen {
             curwin_mut().w_onebuf_opt.wo_fen.set(true);
         }
-        curbuf_mut().b_visual.vi_start = curbuf_mut().b_op_start;
-        curbuf_mut().b_visual.vi_end = curbuf_mut().b_op_end;
+        curbuf_mut().b_visual.borrow_mut().vi_start = curbuf_mut().b_op_start.get();
+        curbuf_mut().b_visual.borrow_mut().vi_end = curbuf_mut().b_op_end.get();
         if opt_vars().p_sel.first_byte() == b'e' {
-            inc(&mut curbuf_mut().b_visual.vi_end);
+            inc(&mut curbuf_mut().b_visual.borrow_mut().vi_end);
         }
     }
 
@@ -7549,7 +7551,7 @@ fn nv_open(cap: &mut Cmdarg) {
     } else if g_st().visual_global.borrow().active {
         v_swap_corners(cap.cmdchar);
     } else if bt_prompt(Some(crate::globals::curbuf_mut()))
-        && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_prompt_start.mark.lnum
+        && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_prompt_start.borrow().mark.lnum
     {
         clearopbeep(&mut cap.oap);
     } else {

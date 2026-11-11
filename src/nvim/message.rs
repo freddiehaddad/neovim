@@ -2618,7 +2618,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     n_extra = tabstop_padding(
                         col,
                         curbuf_mut().b_p_ts.get(),
-                        &curbuf_mut().b_p_vts_array,
+                        &curbuf_mut().b_p_vts_array.borrow(),
                     ) - 1;
                     if !list {
                         sc = schar_from_ascii(b' ');

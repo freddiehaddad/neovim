@@ -236,7 +236,7 @@ fn buf_mod_sign(
         return 0;
     }
 
-    let mark = marktree_lookup_ns(&buf.b_marktree, ns as u32, *id, false, None);
+    let mark = marktree_lookup_ns(&buf.b_marktree.borrow(), ns as u32, *id, false, None);
     if mark.pos.row >= 0 {
         buf_set_sign(buf, id, group, prio, mark.pos.row + 1, sp);
     }
@@ -248,7 +248,7 @@ fn buf_findsign(buf: &mut FileBuf, id: i32, group: Option<&CStr>) -> i32 {
     if ns < 0 || (group.is_some() && ns == 0) {
         return 0;
     }
-    marktree_lookup_ns(&buf.b_marktree, ns as u32, id as u32, false, None)
+    marktree_lookup_ns(&buf.b_marktree.borrow(), ns as u32, id as u32, false, None)
         .pos
         .row
         + 1
@@ -282,12 +282,12 @@ fn buf_delete_signs(buf: &mut FileBuf, group: Option<&CStr>, id: i32, atlnum: Li
     let mut signs: Vec<MTKey> = Vec::new();
 
     if atlnum > 0 {
-        if !marktree_itr_get_overlap(&buf.b_marktree, row, 0, &mut itr) {
+        if !marktree_itr_get_overlap(&buf.b_marktree.borrow(), row, 0, &mut itr) {
             return false;
         }
 
         let mut pair: MTPair = MTPair::new();
-        while marktree_itr_step_overlap(&buf.b_marktree, &mut itr, &mut pair) {
+        while marktree_itr_step_overlap(&buf.b_marktree.borrow(), &mut itr, &mut pair) {
             if (ns == i64::from(u32::MAX) || ns == i64::from(pair.start.ns))
                 && mt_decor_sign(pair.start)
             {
@@ -295,11 +295,11 @@ fn buf_delete_signs(buf: &mut FileBuf, group: Option<&CStr>, id: i32, atlnum: Li
             }
         }
     } else {
-        marktree_itr_get(&buf.b_marktree, 0, 0, &mut itr);
+        marktree_itr_get(&buf.b_marktree.borrow(), 0, 0, &mut itr);
     }
 
     while itr.x.is_some() {
-        let mark = marktree_itr_current(&buf.b_marktree, &itr);
+        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
         if row != 0 && mark.pos.row > row {
             break;
         }
@@ -310,12 +310,12 @@ fn buf_delete_signs(buf: &mut FileBuf, group: Option<&CStr>, id: i32, atlnum: Li
         {
             if atlnum > 0 {
                 signs.push(mark);
-                marktree_itr_next(&buf.b_marktree, &mut itr);
+                marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
             } else {
                 extmark_del(buf, &mut itr, mark, true);
             }
         } else {
-            marktree_itr_next(&buf.b_marktree, &mut itr);
+            marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
         }
     }
 
@@ -361,7 +361,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         if ns >= 0 {
             let mut itr = MarkTreeIter::new();
             let mut signs: Vec<MTKey> = Vec::new();
-            let b = &buf_ref.b_marktree;
+            let b = &buf_ref.b_marktree.borrow();
             marktree_itr_get(b, 0, 0, &mut itr);
 
             while itr.x.is_some() {
@@ -1127,7 +1127,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> crate::eval::typval::DictId {
 pub fn get_buffer_signs(buf: &mut FileBuf) -> crate::eval::typval::ListId {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let mut itr = MarkTreeIter::new();
-    let b = &buf.b_marktree;
+    let b = &buf.b_marktree.borrow();
     marktree_itr_get(b, 0, 0, &mut itr);
 
     while itr.x.is_some() {
@@ -1163,7 +1163,7 @@ fn sign_get_placed_in_buf(
 
     let mut itr = MarkTreeIter::new();
     let mut signs: Vec<MTKey> = Vec::new();
-    let b = &buf.b_marktree;
+    let b = &buf.b_marktree.borrow();
     marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, &mut itr);
 
     while itr.x.is_some() {

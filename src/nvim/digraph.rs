@@ -2108,7 +2108,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     keymap_unload();
 
     curbuf_mut().b_kmap_state.set(0);
-    curbuf_mut().b_kmap_ga.clear();
+    curbuf_mut().b_kmap_ga.borrow_mut().clear();
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
@@ -2131,13 +2131,18 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
                 std::ffi::CString::new(from_slice),
                 std::ffi::CString::new(to_slice),
             ) {
-                curbuf_mut().b_kmap_ga.push(Kmap { from, to });
+                curbuf_mut().b_kmap_ga.borrow_mut().push(Kmap { from, to });
             }
         }
     }
 
-    for kp in &curbuf_mut().b_kmap_ga {
-        format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
+    let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
+    for idx in 0..kmap_len {
+        {
+            let kmaps = curbuf_mut().b_kmap_ga.borrow();
+            let kp = &kmaps[idx];
+            format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
+        }
         do_map(
             MAPTYPE_MAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2164,8 +2169,13 @@ fn keymap_unload() {
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
-    for entry in &curbuf_mut().b_kmap_ga {
-        format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
+    let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
+    for idx in 0..kmap_len {
+        {
+            let kmaps = curbuf_mut().b_kmap_ga.borrow();
+            let entry = &kmaps[idx];
+            format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
+        }
         do_map(
             MAPTYPE_UNMAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2173,7 +2183,7 @@ fn keymap_unload() {
             false,
         );
     }
-    curbuf_mut().b_kmap_ga.clear();
+    curbuf_mut().b_kmap_ga.borrow_mut().clear();
 
     opt_vars().p_cpo.set(save_cpo);
 

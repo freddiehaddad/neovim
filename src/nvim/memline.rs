@@ -2946,7 +2946,7 @@ pub fn ml_replace_buf_len(
         ml_flush_line(buf, false);
     }
 
-    if !buf.update_callbacks.is_empty() {
+    if !buf.update_callbacks.borrow().is_empty() {
         let old_line = ml_get_buf(buf, lnum).to_bytes().to_vec();
         ml_add_deleted_len_buf(buf, &old_line);
     }

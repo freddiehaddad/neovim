@@ -462,7 +462,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 
     if g_st().visual_global.borrow().active {
         if atom_type == K_AVISUAL_SPAN {
-            curbuf_mut().b_visual = visualinfo();
+            *curbuf_mut().b_visual.borrow_mut() = visualinfo();
             curbuf_mut()
                 .b_visual_mode_eval
                 .set(g_st().visual_global.borrow().mode);
@@ -492,8 +492,8 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         },
     );
 
-    if atom_type == K_AINSERT_SPAN && curbuf_mut().b_last_insert.mark.lnum > 0 {
-        ctx.pos = curbuf_mut().b_last_insert.mark;
+    if atom_type == K_AINSERT_SPAN && curbuf_mut().b_last_insert.borrow().mark.lnum > 0 {
+        ctx.pos = curbuf_mut().b_last_insert.borrow().mark;
     }
     mc_mark_upd(curbuf_mut(), &mut ctx.mark, ctx.pos);
     with_mc(|st| st.mc_cursors.borrow_mut()[cursoridx] = ctx);
@@ -1351,16 +1351,16 @@ pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
         return 0;
     }
     let mut itr: MarkTreeIter = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree, pos.lnum - 1, pos.col, &mut itr);
+    marktree_itr_get(&buf.b_marktree.borrow(), pos.lnum - 1, pos.col, &mut itr);
     loop {
-        let k = marktree_itr_current(&buf.b_marktree, &itr);
+        let k = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
         if k.id == 0 || k.pos.row != pos.lnum - 1 || k.pos.col != pos.col {
             break;
         }
         if k.ns == mc_ns() && !mt_end(k) && k.id != skip {
             return k.id;
         }
-        if !marktree_itr_next(&buf.b_marktree, &mut itr) {
+        if !marktree_itr_next(&buf.b_marktree.borrow(), &mut itr) {
             break;
         }
     }
@@ -1402,10 +1402,10 @@ fn mc_zq_target(
     motion_type: i32,
     ctx_idx: Option<usize>,
 ) -> Visualinfo {
-    let save = curbuf_mut().b_visual;
+    let save = *curbuf_mut().b_visual.borrow();
     let save_mode_eval = curbuf_mut().b_visual_mode_eval.get();
     if !search {
-        curbuf_mut().b_visual = Visualinfo {
+        *curbuf_mut().b_visual.borrow_mut() = Visualinfo {
             vi_start: step,
             vi_end: step,
             vi_curswant: step.col,
@@ -1416,7 +1416,7 @@ fn mc_zq_target(
             },
         };
     } else if mc_zq_step(c"gn\x1b", step).lnum == 0 {
-        curbuf_mut().b_visual = Visualinfo {
+        *curbuf_mut().b_visual.borrow_mut() = Visualinfo {
             vi_start: INIT_POS,
             vi_end: INIT_POS,
             vi_mode: 0,
@@ -1425,13 +1425,13 @@ fn mc_zq_target(
     }
     curbuf_mut()
         .b_visual_mode_eval
-        .set(curbuf_mut().b_visual.vi_mode);
+        .set(curbuf_mut().b_visual.borrow().vi_mode);
     if let Some(idx) = ctx_idx {
         curwin_mut().w_cursor.set(step);
         with_mc(|st| ctx_save(&mut st.mc_cursors.borrow_mut()[idx], K_CTX_VISUAL));
     }
-    let target = curbuf_mut().b_visual;
-    curbuf_mut().b_visual = save;
+    let target = *curbuf_mut().b_visual.borrow();
+    *curbuf_mut().b_visual.borrow_mut() = save;
     curbuf_mut().b_visual_mode_eval.set(save_mode_eval);
     target
 }
@@ -1552,7 +1552,7 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
     }
     let mut primary = origin;
 
-    let mut v = curbuf_mut().b_visual;
+    let mut v = *curbuf_mut().b_visual.borrow();
     let mut bounds = [
         primary,
         CursorPos {
@@ -1653,10 +1653,10 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
             primary = first;
             curwin_mut().w_set_curswant.set(true);
         }
-        curbuf_mut().b_visual = mc_zq_target(primary, search, oap.motion_type, None);
+        *curbuf_mut().b_visual.borrow_mut() = mc_zq_target(primary, search, oap.motion_type, None);
         curbuf_mut()
             .b_visual_mode_eval
-            .set(curbuf_mut().b_visual.vi_mode);
+            .set(curbuf_mut().b_visual.borrow().vi_mode);
         set_no_hlsearch(true);
         redraw_all_later(UPD_SOME_VALID);
     }

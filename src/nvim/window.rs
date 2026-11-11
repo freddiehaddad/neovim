@@ -6152,7 +6152,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
         for buf in for_all_buffers_mut() {
             let mut pos_wip = None;
             let mut pos_null = None;
-            for (i, wip) in buf.b_wininfo.iter().enumerate() {
+            for (i, wip) in buf.b_wininfo.borrow().iter().enumerate() {
                 if wip.wi_win == ptr::from_mut(wp) {
                     pos_wip = Some(i);
                 } else if wip.wi_win.is_null() {
@@ -6161,7 +6161,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
             }
 
             if let Some(pw) = pos_wip {
-                let wip_wp = &mut (&mut buf.b_wininfo)[pw];
+                let wip_wp = &mut (&mut buf.b_wininfo.borrow_mut())[pw];
                 wip_wp.wi_win = crate::globals::WinPtr::NULL;
                 if wp.w_config.borrow().style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
                     clear_winopt(&wip_wp.wi_opt);
@@ -6170,7 +6170,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
                 }
                 if let Some(pn) = pos_null {
                     let pos_delete = pn.max(pw);
-                    buf.b_wininfo.remove(pos_delete);
+                    buf.b_wininfo.borrow_mut().remove(pos_delete);
                 }
             }
         }

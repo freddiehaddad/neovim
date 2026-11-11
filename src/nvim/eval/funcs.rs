@@ -2790,7 +2790,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         curwin_mut().w_changelistidx.get()
     } else {
         let mut idx = buf_ref.b_changelistlen.get();
-        for wip in &buf_ref.b_wininfo {
+        for wip in &*buf_ref.b_wininfo.borrow() {
             if wip.wi_win == curwin_ptr() {
                 idx = wip.wi_changelistidx;
                 break;
@@ -2802,7 +2802,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(changelistindex));
 
     for i in 0..(buf_ref.b_changelistlen.get() as usize) {
-        if buf_ref.b_changelist[i].mark.lnum == 0 {
+        if buf_ref.b_changelist.borrow()[i].mark.lnum == 0 {
             continue;
         }
         let d = tv_dict_alloc();
@@ -2811,18 +2811,18 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         tv_dict_add_nr(
             &d,
             c"lnum",
-            Varnumber::from(buf_ref.b_changelist[i].mark.lnum),
+            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.lnum),
         );
 
         tv_dict_add_nr(
             &d,
             c"col",
-            Varnumber::from(buf_ref.b_changelist[i].mark.col),
+            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.col),
         );
         tv_dict_add_nr(
             &d,
             c"coladd",
-            Varnumber::from(buf_ref.b_changelist[i].mark.coladd),
+            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.coladd),
         );
     }
 }
