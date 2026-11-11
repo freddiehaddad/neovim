@@ -1576,7 +1576,7 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"current_lnum",
-        integer_obj(i64::from(b.b_ml.ml_line_lnum)),
+        integer_obj(i64::from(b.b_ml.ml_line_lnum.get())),
     );
     put_c(
         &mut rv,

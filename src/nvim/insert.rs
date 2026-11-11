@@ -3750,7 +3750,7 @@ fn ins_tab() -> bool {
             let i = cursor_pos.col - fpos.col;
             if i > 0 {
                 if !is_vreplace {
-                    let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
+                    let newp_len = (curbuf_mut().b_ml.ml_line_textlen.get() - i) as usize;
                     let line_slice = curbuf_mut().b_ml.current_line_slice();
                     let col = fpos.col as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
