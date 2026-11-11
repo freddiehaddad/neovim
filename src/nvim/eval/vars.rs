@@ -106,13 +106,56 @@ impl Default for Evalarg {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum LvalTv {
+    #[default]
+    None,
+    DictItem(crate::eval::typval::DictitemId),
+    ListItem(crate::eval::typval::ListitemId),
+}
+
+impl LvalTv {
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    #[inline]
+    pub fn opt(self) -> Option<&'static TypVal> {
+        match self {
+            Self::None => None,
+            Self::DictItem(di) => di.opt().map(|d| &d.di_tv),
+            Self::ListItem(li) => li.opt().map(|l| &l.li_tv),
+        }
+    }
+
+    #[inline]
+    pub fn opt_mut(self) -> Option<&'static mut TypVal> {
+        match self {
+            Self::None => None,
+            Self::DictItem(di) => di.opt_mut().map(|d| &mut d.di_tv),
+            Self::ListItem(li) => li.opt_mut().map(|l| &mut l.li_tv),
+        }
+    }
+
+    #[inline]
+    pub fn borrow(self) -> &'static TypVal {
+        self.opt().expect("null LvalTv")
+    }
+
+    #[inline]
+    pub fn borrow_mut(self) -> &'static mut TypVal {
+        self.opt_mut().expect("null LvalTv")
+    }
+}
+
 #[repr(C)]
 pub struct Lval {
     pub ll_name: Option<std::ffi::CString>,
     pub ll_name_off: usize,
     pub ll_name_len: usize,
     pub ll_exp_name: Option<std::ffi::CString>,
-    pub ll_tv: crate::globals::GraphPtr<TypVal>,
+    pub ll_tv: LvalTv,
     pub ll_li: crate::eval::typval::ListitemId,
     pub ll_list: crate::eval::typval::ListId,
     pub ll_range: bool,
@@ -132,7 +175,7 @@ impl Lval {
             ll_name_off: 0,
             ll_name_len: 0,
             ll_exp_name: None,
-            ll_tv: crate::globals::GraphPtr::NULL,
+            ll_tv: LvalTv::None,
             ll_li: crate::eval::typval::ListitemId::NULL,
             ll_list: crate::eval::typval::ListId::NULL,
             ll_range: false,
@@ -1898,7 +1941,7 @@ fn ex_unletlock(
         if arg.to_bytes().first() == Some(&b'$') {
             let name_start = arg;
             lv.set_ll_name(arg);
-            lv.ll_tv = crate::globals::GraphPtr::NULL;
+            lv.ll_tv = LvalTv::None;
             let mut arg_cstr = &arg[1..];
             if get_env_len(&mut arg_cstr) == 0 {
                 semsg!(gettext(E_INVARG2), name_start);

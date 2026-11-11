@@ -12,9 +12,7 @@ use crate::memory::{Arena, arena_alloc, arena_allocz, arena_finish, arena_mem_fr
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
 };
-use crate::mpack::object::{
-    MpackNode, MpackParser, mpack_parent_node, mpack_parse, mpack_parser_init,
-};
+use crate::mpack::object::{MpackParser, mpack_parse, mpack_parser_init};
 use crate::msgpack_rpc::packer::{EXT_OBJECT_TYPE_SHIFT, Integer};
 use crate::ui_client::{
     UIClientHandler, handle_ui_client_redraw, ui_client_event_grid_line,
@@ -105,13 +103,18 @@ const fn empty_arena() -> Arena {
     Arena::new()
 }
 
-fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
-    let p = parser.data.unpacker();
+struct ApiParseCtx<'a> {
+    arena: &'a mut Arena,
+    result: &'a mut Object,
+    ext_buf: &'a mut [u8; MAX_EXT_LEN],
+}
+
+fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: usize) {
     let mut result: GraphPtr<Object> = GraphPtr::NULL;
     let mut key_location: GraphPtr<NvimString> = GraphPtr::NULL;
 
-    let mut parent = mpack_parent_node(&mut *node);
-    if !parent.is_null() {
+    let (node, mut parent) = parser.node_and_parent_mut(node_idx);
+    if let Some(parent) = parent.as_deref_mut() {
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
                 let obj = parent.data[0].object();
@@ -134,7 +137,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             _ => std::process::abort(),
         }
     } else {
-        result = GraphPtr::from(&mut p.result);
+        result = GraphPtr::from(&mut *p.result);
     }
 
     match node.tok.r#type {
@@ -165,7 +168,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = node.tok.length as usize;
-            let mem = arena_allocz(&mut p.arena, len);
+            let mem = arena_allocz(p.arena, len);
             let s = NvimString {
                 data: mem,
                 size: len,
@@ -184,7 +187,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
         MpackTokenType::MpackTokenChunk => {
-            assert!(!parent.is_null());
+            let parent = parent.unwrap();
             let chunk_len = node.tok.length as usize;
             if parent.tok.r#type == MpackTokenType::MpackTokenStr
                 || parent.tok.r#type == MpackTokenType::MpackTokenBin
@@ -227,8 +230,8 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         }
         MpackTokenType::MpackTokenArray => {
             let len = node.tok.length as usize;
-            let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
-                .cast::<Object>();
+            let items =
+                arena_alloc(p.arena, std::mem::size_of::<Object>() * len, true).cast::<Object>();
 
             *result = Object {
                 obj_type: ObjectType::ObjectTypeArray,
@@ -243,12 +246,8 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         }
         MpackTokenType::MpackTokenMap => {
             let len = node.tok.length as usize;
-            let items = arena_alloc(
-                &mut p.arena,
-                std::mem::size_of::<KeyValuePair>() * len,
-                true,
-            )
-            .cast::<KeyValuePair>();
+            let items = arena_alloc(p.arena, std::mem::size_of::<KeyValuePair>() * len, true)
+                .cast::<KeyValuePair>();
 
             *result = Object {
                 obj_type: ObjectType::ObjectTypeDict,
@@ -265,23 +264,30 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
     }
 }
 
-fn api_parse_exit(_parser: &mut MpackParser, _node: &mut MpackNode) {}
+fn api_parse_exit(_parser: &mut MpackParser, _ctx: &mut ApiParseCtx<'_>, _node_idx: usize) {}
 
-fn parse_nop(_parser: &mut MpackParser, _node: &mut MpackNode) {}
+fn parse_nop(_parser: &mut MpackParser, _ctx: &mut (), _node_idx: usize) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
 pub fn unpack(mut bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
-    unpacker.parser.data = crate::mpack::object::MpackData::Unpacker(GraphPtr::from(&mut unpacker));
     unpacker.arena = *arena;
 
-    let result = mpack_parse(
-        &mut unpacker.parser,
-        &mut bytes,
-        Some(api_parse_enter),
-        Some(api_parse_exit),
-    );
+    let result = {
+        let mut ctx = ApiParseCtx {
+            arena: &mut unpacker.arena,
+            result: &mut unpacker.result,
+            ext_buf: &mut unpacker.ext_buf,
+        };
+        mpack_parse(
+            &mut unpacker.parser,
+            &mut ctx,
+            &mut bytes,
+            Some(api_parse_enter),
+            Some(api_parse_exit),
+        )
+    };
 
     *arena = std::mem::replace(&mut unpacker.arena, empty_arena());
 
@@ -363,9 +369,7 @@ impl Drop for Unpacker {
 }
 
 pub fn unpacker_init(p: &mut Unpacker) {
-    let p_ptr = GraphPtr::from(&mut *p);
     mpack_parser_init(&mut p.parser, 0);
-    p.parser.data = crate::mpack::object::MpackData::Unpacker(p_ptr);
     mpack_tokbuf_init(&mut p.reader);
     p.unpack_error = Error::new();
     p.arena = empty_arena();
@@ -477,7 +481,6 @@ pub fn unpacker_parse_header(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
 
 /// Advance the unpacker state machine (`unpacker_advance`).
 pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
-    p.parser.data = crate::mpack::object::MpackData::Unpacker(GraphPtr::from(&mut *p));
     assert!(p.state >= 0);
     p.has_grid_line_event = false;
     if p.state == 0 {
@@ -529,12 +532,20 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
 
     loop {
         if need_parse {
-            let result = mpack_parse(
-                &mut p.parser,
-                read_buf,
-                Some(api_parse_enter),
-                Some(api_parse_exit),
-            );
+            let result = {
+                let mut ctx = ApiParseCtx {
+                    arena: &mut p.arena,
+                    result: &mut p.result,
+                    ext_buf: &mut p.ext_buf,
+                };
+                mpack_parse(
+                    &mut p.parser,
+                    &mut ctx,
+                    read_buf,
+                    Some(api_parse_enter),
+                    Some(api_parse_exit),
+                )
+            };
             if result == MPACK_EOF {
                 return false;
             } else if result != MPACK_OK {
@@ -813,7 +824,7 @@ pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
 pub fn unpack_skip(buf: &mut &[u8]) -> i32 {
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    mpack_parse(&mut parser, buf, Some(parse_nop), Some(parse_nop))
+    mpack_parse(&mut parser, &mut (), buf, Some(parse_nop), Some(parse_nop))
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).

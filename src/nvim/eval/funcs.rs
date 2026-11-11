@@ -2619,7 +2619,8 @@ pub fn f_garbagecollect(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
 /// "get()" function
 pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tv = crate::globals::GraphPtr::<TypVal>::NULL;
+    let mut tv: Option<&TypVal> = None;
+    let mut found = false;
     let mut what_is_dict = false;
 
     if argvars[0].v_type == VarType::VarBlob {
@@ -2638,7 +2639,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     &blob, idx,
                 )));
 
-                tv = crate::globals::GraphPtr::<TypVal>::from_ref(rettv);
+                found = true;
             }
         }
     } else if argvars[0].v_type == VarType::VarList {
@@ -2650,7 +2651,8 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 tv_get_number_chk(&argvars[1], Some(&mut error)) as i32,
             );
             if !error && let Some(li) = li {
-                tv = crate::globals::GraphPtr::<TypVal>::from_ref(&li.li_tv);
+                tv = Some(&li.li_tv);
+                found = true;
             }
         }
     } else if argvars[0].v_type == VarType::VarDict {
@@ -2658,7 +2660,8 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if !d.is_null()
             && let Some(di) = tv_dict_find(d.opt(), &tv_get_string(&argvars[1]), -1)
         {
-            tv = crate::globals::GraphPtr::<TypVal>::from_ref(&di.di_tv);
+            tv = Some(&di.di_tv);
+            found = true;
         }
     } else if tv_is_func(&argvars[0]) {
         let fref_pt = TvPartial::default();
@@ -2743,12 +2746,12 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         semsg!(gettext(E_LISTDICTBLOBARG), c"get()");
     }
 
-    if tv.is_null() {
+    if !found {
         if argvars[2].v_type != VarType::VarUnknown {
             tv_copy(&argvars[2], rettv);
         }
-    } else {
-        tv_copy(tv.borrow(), rettv);
+    } else if let Some(tv) = tv {
+        tv_copy(tv, rettv);
     }
 }
 
@@ -5623,7 +5626,6 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
     let mut cur_item = tv_initial_value();
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    parser.data = crate::mpack::object::MpackData::Typval(GraphPtr::from(&mut cur_item));
 
     let mut status = MPACK_OK;
     'end: {
@@ -5639,7 +5641,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
 
             let mut parse_slice: &[u8] = &buf[..buf_size];
             while !parse_slice.is_empty() {
-                status = mpack_parse_typval(&mut parser, &mut parse_slice);
+                status = mpack_parse_typval(&mut parser, &mut cur_item, &mut parse_slice);
                 if status == MPACK_OK {
                     tv_list_append_owned_tv(
                         &mut *ret_list,
@@ -6743,42 +6745,30 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
             opt_vars().p_ws = false;
         }
 
-        let skip = crate::globals::GraphPtr::<TypVal>::of(
-            if argvars[3].v_type == VarType::VarUnknown || argvars[4].v_type == VarType::VarUnknown
-            {
-                ptr::null()
-            } else {
-                let s = &raw const argvars[4];
-                if argvars[5].v_type != VarType::VarUnknown {
-                    lnum_stop = tv_get_number_chk(&argvars[5], None) as Linenr;
-                    if lnum_stop < 0 {
-                        semsg!(gettext(E_INVARG2), tv_get_string(&argvars[5]));
+        let skip: Option<&TypVal> = if argvars[3].v_type == VarType::VarUnknown
+            || argvars[4].v_type == VarType::VarUnknown
+        {
+            None
+        } else {
+            if argvars[5].v_type != VarType::VarUnknown {
+                lnum_stop = tv_get_number_chk(&argvars[5], None) as Linenr;
+                if lnum_stop < 0 {
+                    semsg!(gettext(E_INVARG2), tv_get_string(&argvars[5]));
+                    break 'theend;
+                }
+                if argvars[6].v_type != VarType::VarUnknown {
+                    time_limit = tv_get_number_chk(&argvars[6], None);
+                    if time_limit < 0 {
+                        semsg!(gettext(E_INVARG2), tv_get_string(&argvars[6]));
                         break 'theend;
                     }
-                    if argvars[6].v_type != VarType::VarUnknown {
-                        time_limit = tv_get_number_chk(&argvars[6], None);
-                        if time_limit < 0 {
-                            semsg!(gettext(E_INVARG2), tv_get_string(&argvars[6]));
-                            break 'theend;
-                        }
-                    }
                 }
-                s
-            },
-        )
-        .as_ptr()
-        .cast_const();
+            }
+            Some(&argvars[4])
+        };
 
         retval = do_searchpair(
-            &spat,
-            mpat,
-            epat,
-            dir,
-            crate::globals::GraphPtr::of(skip).opt(),
-            flags,
-            match_pos,
-            lnum_stop,
-            time_limit,
+            &spat, mpat, epat, dir, skip, flags, match_pos, lnum_stop, time_limit,
         );
     }
 
@@ -7290,9 +7280,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         regname = b'"';
     }
 
-    let mut regcontents = crate::globals::GraphPtr::<TypVal>::NULL
-        .as_ptr()
-        .cast_const();
+    let mut regcontents: Option<&TypVal> = None;
     let mut pointreg: u8 = 0;
     if argvars[1].v_type == VarType::VarDict {
         let d = argvars[1].vval.v_dict().opt();
@@ -7308,7 +7296,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
 
         if let Some(di) = tv_dict_find(d, c"regcontents", -1) {
-            regcontents = &raw const di.di_tv;
+            regcontents = Some(&di.di_tv);
         }
 
         if let Some(s) = tv_dict_get_string(d, c"regtype") {
@@ -7331,7 +7319,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             pointreg = regname;
         }
     } else {
-        regcontents = (&raw mut argvars[1]);
+        regcontents = Some(&argvars[1]);
     }
 
     let mut set_unnamed = false;
@@ -7357,13 +7345,10 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
 
-    if !regcontents.is_null()
-        && crate::globals::GraphPtr::of(regcontents).borrow().v_type == VarType::VarList
+    if let Some(regcontents_ref) = regcontents
+        && regcontents_ref.v_type == VarType::VarList
     {
-        let ll = crate::globals::GraphPtr::of(regcontents)
-            .borrow_mut()
-            .vval
-            .v_list();
+        let ll = regcontents_ref.vval.v_list();
         let len = tv_list_len(ll.opt()) as usize;
 
         let mut lstval: Vec<std::ffi::CString> = Vec::with_capacity(len);
@@ -7385,7 +7370,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 block_len as Colnr,
             );
         }
-    } else if let Some(regcontents_ref) = crate::globals::GraphPtr::of(regcontents).opt() {
+    } else if let Some(regcontents_ref) = regcontents {
         let Some(strval) = tv_get_string_chk(regcontents_ref) else {
             return;
         };
@@ -8007,9 +7992,9 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut sub: Option<&CStr> = None;
     let flg = tv_get_string_buf_chk(arg3, &mut flagsbuf);
 
-    let mut expr = crate::globals::GraphPtr::<TypVal>::NULL;
+    let mut expr: Option<&TypVal> = None;
     if tv_is_func(arg2) {
-        expr = crate::globals::GraphPtr::<TypVal>::from_ref(&*arg2);
+        expr = Some(&*arg2);
     } else {
         sub = tv_get_string_buf_chk(arg2, &mut subbuf);
     }
@@ -8023,7 +8008,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
-    if sub.is_none() && expr.is_null() {
+    if sub.is_none() && expr.is_none() {
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     } else {
         let sub_res = do_string_sub(
@@ -8031,7 +8016,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             str_.to_bytes().len(),
             pat,
             sub.unwrap_or(c""),
-            expr.opt(),
+            expr,
             flg,
         );
         crate::eval::typval::tv_set_string_len(rettv, Some(sub_res.as_bytes()));

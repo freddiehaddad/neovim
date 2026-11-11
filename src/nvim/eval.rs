@@ -1142,7 +1142,7 @@ fn get_lval_dict_item<'a>(
         return GLV_FAIL;
     }
 
-    lp.ll_tv = crate::globals::GraphPtr::from(&mut lp.ll_di.borrow_mut().di_tv);
+    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(lp.ll_di);
 
     GLV_OK
 }
@@ -1178,7 +1178,7 @@ fn get_lval_blob(
     }
 
     lp.ll_blob = lp.tv_mut().vval.v_blob();
-    lp.ll_tv = crate::globals::GraphPtr::NULL;
+    lp.ll_tv = crate::eval::vars::LvalTv::None;
 
     true
 }
@@ -1220,7 +1220,7 @@ fn get_lval_list(
         }
     }
 
-    lp.ll_tv = crate::globals::GraphPtr::from(tv_list_item_tv(lp.li_mut()));
+    lp.ll_tv = crate::eval::vars::LvalTv::ListItem(lp.ll_li);
 
     true
 }
@@ -1487,7 +1487,7 @@ pub fn get_lval<'a>(
     }
     let v = v?;
 
-    lp.ll_tv = crate::globals::GraphPtr::from(&mut v.di_tv);
+    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(v.di_id);
 
     if tv_is_luafunc(lp.ll_tv.borrow_mut()) {
         return Some(p_cstr);
@@ -1648,11 +1648,12 @@ pub fn set_var_lval(
             }
 
             let di = tv_dict_item_alloc(newkey_cstr);
+            let di_id = di.di_id;
             if !tv_dict_add(lp.tv_mut().vval.v_dict().borrow_mut(), di) {
-                tv_dict_item_free(di);
+                tv_dict_item_free(di_id.borrow_mut());
                 return;
             }
-            lp.ll_tv = crate::globals::GraphPtr::from(&mut di.di_tv);
+            lp.ll_tv = crate::eval::vars::LvalTv::DictItem(di_id);
         } else {
             if watched {
                 tv_copy(lp.ll_tv.borrow(), &mut oldtv);
@@ -1673,7 +1674,7 @@ pub fn set_var_lval(
             if copy {
                 tv_copy(&*rettv, lp.ll_tv.borrow_mut());
             } else {
-                *lp.ll_tv = std::mem::take(rettv);
+                *lp.ll_tv.borrow_mut() = std::mem::take(rettv);
                 lp.tv_mut().v_lock = VAR_UNLOCKED;
             }
         }

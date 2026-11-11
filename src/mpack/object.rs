@@ -1,7 +1,7 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 #![forbid(unsafe_code)]
 
-use crate::globals::{AsGraphPtr, GraphPtr};
+use crate::globals::GraphPtr;
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackSintmax, MpackTokbuf, MpackToken, MpackTokenChunk,
     MpackTokenMap, MpackUint32, mpack_read, mpack_tokbuf_init, mpack_write,
@@ -16,14 +16,13 @@ pub enum MpackData {
     #[default]
     Null,
     Int(MpackSintmax),
-    LmpackUnpacker(GraphPtr<crate::mpack::lmpack::LmpackUnpacker>),
-    LmpackPacker(GraphPtr<crate::mpack::lmpack::Packer>),
-    Typval(GraphPtr<crate::eval::typval::TypVal>),
+    RootTypval,
+    ListItem(crate::eval::typval::ListitemId),
+    MapSlot(usize, usize),
     List(crate::eval::typval::ListId),
     MapPairs(Vec<[crate::eval::typval::TypVal; 2]>),
     OwnedBytes(Vec<u8>),
     NvimString(crate::api::private::validate::NvimString),
-    Unpacker(GraphPtr<crate::msgpack_rpc::unpacker::Unpacker>),
     Object(GraphPtr<crate::api::private::validate::Object>),
 }
 
@@ -37,30 +36,6 @@ impl MpackData {
         match *self {
             Self::Int(i) => i,
             _ => 0,
-        }
-    }
-
-    #[inline]
-    pub fn lmpack_unpacker(&self) -> &'static mut crate::mpack::lmpack::LmpackUnpacker {
-        match *self {
-            Self::LmpackUnpacker(p) => p.borrow_mut(),
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline]
-    pub fn lmpack_packer(&self) -> &'static mut crate::mpack::lmpack::Packer {
-        match *self {
-            Self::LmpackPacker(p) => p.borrow_mut(),
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline]
-    pub fn typval(&self) -> &'static mut crate::eval::typval::TypVal {
-        match *self {
-            Self::Typval(p) => p.borrow_mut(),
-            _ => unreachable!(),
         }
     }
 
@@ -109,14 +84,6 @@ impl MpackData {
         match std::mem::take(self) {
             Self::OwnedBytes(v) => v,
             _ => Vec::new(),
-        }
-    }
-
-    #[inline]
-    pub fn unpacker(&self) -> &'static mut crate::msgpack_rpc::unpacker::Unpacker {
-        match *self {
-            Self::Unpacker(p) => p.borrow_mut(),
-            _ => unreachable!(),
         }
     }
 
@@ -183,19 +150,20 @@ impl MpackParser {
             items: Vec::new(),
         }
     }
-}
 
-pub type MpackWalkCb = Option<fn(w: &mut MpackParser, n: &mut MpackNode)>;
-
-#[inline]
-pub fn mpack_parent_node(n: impl AsGraphPtr<MpackNode>) -> GraphPtr<MpackNode> {
-    let prev = n.into_graph_ptr().wrapping_sub(1);
-    if prev.pos == usize::MAX {
-        GraphPtr::NULL
-    } else {
-        prev
+    #[inline]
+    pub fn node_and_parent_mut(
+        &mut self,
+        node_idx: usize,
+    ) -> (&mut MpackNode, Option<&mut MpackNode>) {
+        let (before, after) = self.items.split_at_mut(node_idx);
+        let node = &mut after[0];
+        let parent = before.last_mut().filter(|p| p.pos != usize::MAX);
+        (node, parent)
     }
 }
+
+pub type MpackWalkCb<C> = Option<fn(w: &mut MpackParser, ctx: &mut C, node_idx: usize)>;
 
 pub fn mpack_parser_init(parser: &mut MpackParser, capacity: MpackUint32) {
     mpack_tokbuf_init(&mut parser.tokbuf);
@@ -222,11 +190,12 @@ pub fn mpack_parser_grow(p: &mut MpackParser) {
     p.capacity = new_capacity;
 }
 
-pub fn mpack_parse_tok(
+pub fn mpack_parse_tok<C: ?Sized>(
     parser: &mut MpackParser,
+    ctx: &mut C,
     tok: MpackToken,
-    enter_cb: MpackWalkCb,
-    exit_cb: MpackWalkCb,
+    enter_cb: MpackWalkCb<C>,
+    exit_cb: MpackWalkCb<C>,
 ) -> i32 {
     if parser.status == MPACK_EXCEPTION {
         return MPACK_EXCEPTION;
@@ -236,10 +205,10 @@ pub fn mpack_parse_tok(
         if mpack_parser_full(parser) {
             return MPACK_NOMEM;
         }
-        let mut n = mpack_parser_push(parser);
-        n.tok = tok;
+        let n_idx = mpack_parser_push(parser);
+        parser.items[n_idx].tok = tok;
         if let Some(cb) = enter_cb {
-            cb(parser, n.borrow_mut());
+            cb(parser, ctx, n_idx);
         }
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
@@ -249,13 +218,9 @@ pub fn mpack_parse_tok(
     }
 
     parser.exiting = 0;
-    loop {
-        let n = mpack_parser_pop(parser);
-        if n.is_null() {
-            break;
-        }
+    while let Some(n_idx) = mpack_parser_pop(parser) {
         if let Some(cb) = exit_cb {
-            cb(parser, n.borrow_mut());
+            cb(parser, ctx, n_idx);
         }
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
@@ -268,11 +233,12 @@ pub fn mpack_parse_tok(
     MPACK_EOF
 }
 
-pub fn mpack_unparse_tok(
+pub fn mpack_unparse_tok<C: ?Sized>(
     parser: &mut MpackParser,
+    ctx: &mut C,
     tok: &mut MpackToken,
-    enter_cb: MpackWalkCb,
-    exit_cb: MpackWalkCb,
+    enter_cb: MpackWalkCb<C>,
+    exit_cb: MpackWalkCb<C>,
 ) -> i32 {
     if parser.status == MPACK_EXCEPTION {
         return MPACK_EXCEPTION;
@@ -282,11 +248,11 @@ pub fn mpack_unparse_tok(
         if mpack_parser_full(parser) {
             return MPACK_NOMEM;
         }
-        let n = mpack_parser_push(parser);
+        let n_idx = mpack_parser_push(parser);
         if let Some(cb) = enter_cb {
-            cb(parser, n.borrow_mut());
+            cb(parser, ctx, n_idx);
         }
-        *tok = n.tok.clone();
+        *tok = parser.items[n_idx].tok.clone();
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
@@ -295,13 +261,9 @@ pub fn mpack_unparse_tok(
     }
 
     parser.exiting = 0;
-    loop {
-        let n = mpack_parser_pop(parser);
-        if n.is_null() {
-            break;
-        }
+    while let Some(n_idx) = mpack_parser_pop(parser) {
         if let Some(cb) = exit_cb {
-            cb(parser, n.borrow_mut());
+            cb(parser, ctx, n_idx);
         }
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
@@ -314,11 +276,12 @@ pub fn mpack_unparse_tok(
     MPACK_EOF
 }
 
-pub fn mpack_parse(
+pub fn mpack_parse<C: ?Sized>(
     parser: &mut MpackParser,
+    ctx: &mut C,
     buf: &mut &[u8],
-    enter_cb: MpackWalkCb,
-    exit_cb: MpackWalkCb,
+    enter_cb: MpackWalkCb<C>,
+    exit_cb: MpackWalkCb<C>,
 ) -> i32 {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
@@ -338,7 +301,7 @@ pub fn mpack_parse(
         }
 
         loop {
-            status = mpack_parse_tok(parser, tok.clone(), enter_cb, exit_cb);
+            status = mpack_parse_tok(parser, ctx, tok.clone(), enter_cb, exit_cb);
             if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
@@ -356,11 +319,12 @@ pub fn mpack_parse(
     status
 }
 
-pub fn mpack_unparse(
+pub fn mpack_unparse<C: ?Sized>(
     parser: &mut MpackParser,
+    ctx: &mut C,
     buf: &mut &mut [u8],
-    enter_cb: MpackWalkCb,
-    exit_cb: MpackWalkCb,
+    enter_cb: MpackWalkCb<C>,
+    exit_cb: MpackWalkCb<C>,
 ) -> i32 {
     let mut status = MPACK_EOF;
     if parser.status == MPACK_EXCEPTION {
@@ -371,7 +335,7 @@ pub fn mpack_unparse(
         let mut tok = MpackToken::new();
 
         if parser.tokbuf.plen == 0 {
-            parser.status = mpack_unparse_tok(parser, &mut tok, enter_cb, exit_cb);
+            parser.status = mpack_unparse_tok(parser, ctx, &mut tok, enter_cb, exit_cb);
         }
 
         if parser.status == MPACK_EXCEPTION {
@@ -399,29 +363,28 @@ const fn mpack_parser_full(parser: &MpackParser) -> bool {
     parser.size == parser.capacity
 }
 
-fn mpack_parser_push(parser: &mut MpackParser) -> GraphPtr<MpackNode> {
+fn mpack_parser_push(parser: &mut MpackParser) -> usize {
     debug_assert!(parser.size < parser.capacity);
     let top_idx = (parser.size as usize) + 1;
-    let mut top = GraphPtr::from(&mut parser.items[top_idx]);
+    let top = &mut parser.items[top_idx];
     top.data[0] = MpackData::Null;
     top.data[1] = MpackData::Null;
     top.pos = 0;
     top.key_visited = 0;
     parser.size += 1;
-    top
+    top_idx
 }
 
-fn mpack_parser_pop(parser: &mut MpackParser) -> GraphPtr<MpackNode> {
+fn mpack_parser_pop(parser: &mut MpackParser) -> Option<usize> {
     debug_assert!(parser.size != 0);
     let top_idx = parser.size as usize;
-    let top = GraphPtr::from(&mut parser.items[top_idx]);
+    let (top, parent) = parser.node_and_parent_mut(top_idx);
 
     if top.tok.r#type > MpackTokenChunk && top.pos < (top.tok.length as usize) {
-        return GraphPtr::NULL;
+        return None;
     }
 
-    let mut parent = mpack_parent_node(top);
-    if !parent.is_null() {
+    if let Some(parent) = parent {
         if top.tok.r#type == MpackTokenChunk {
             parent.pos += top.tok.length as usize;
         } else if parent.tok.r#type == MpackTokenMap {
@@ -435,5 +398,5 @@ fn mpack_parser_pop(parser: &mut MpackParser) -> GraphPtr<MpackNode> {
     }
 
     parser.size -= 1;
-    top
+    Some(top_idx)
 }

@@ -27,9 +27,7 @@ pub(crate) const SURROGATE_LO_END: i32 = 0xDFFF;
 pub(crate) const SURROGATE_FIRST_CHAR: i32 = 0x10000;
 
 use crate::mpack::mpack_core::{MPACK_OK, MpackTokenType};
-use crate::mpack::object::{
-    MpackNode, MpackParser, mpack_parent_node, mpack_parse, mpack_parser_init,
-};
+use crate::mpack::object::{MpackParser, mpack_parse, mpack_parser_init};
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::mpack::conv::{
@@ -959,27 +957,39 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
     }
 }
 
-fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
-    let mut result: crate::globals::GraphPtr<TypVal> = crate::globals::GraphPtr::NULL;
-    let mut parent = mpack_parent_node(&mut *node);
-    if !parent.is_null() {
+fn write_target_tv(
+    parser: &mut MpackParser,
+    root_tv: &mut TypVal,
+    node_idx: usize,
+    target: &MpackData,
+    val: TypVal,
+) {
+    match *target {
+        MpackData::RootTypval => *root_tv = val,
+        MpackData::ListItem(li_id) => li_id.borrow_mut().li_tv = val,
+        MpackData::MapSlot(pos, kv) => {
+            parser.items[node_idx - 1].data[1].map_pairs_mut()[pos][kv] = val;
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn typval_parse_enter(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: usize) {
+    let mut target = MpackData::Null;
+    let (node, mut parent) = parser.node_and_parent_mut(node_idx);
+    if let Some(parent) = parent.as_deref_mut() {
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
                 let list = parent.data[1].list();
-                result = crate::globals::GraphPtr::new(tv_list_append_owned_tv(
-                    &mut *list,
-                    TypVal {
-                        v_type: VarType::VarUnknown,
-                        v_lock: 0,
-                        vval: TypvalVval::Number(0),
-                    },
-                ));
+                let li = crate::eval::typval::tv_list_item_alloc();
+                let li_id = li.li_id;
+                crate::eval::typval::tv_list_append(&mut *list, li);
+                target = MpackData::ListItem(li_id);
             }
             MpackTokenType::MpackTokenMap => {
                 let pos = parent.pos;
                 let key_visited = parent.key_visited as usize;
-                let items = parent.data[1].map_pairs_mut();
-                result = crate::globals::GraphPtr::from(&mut items[pos][key_visited]);
+                target = MpackData::MapSlot(pos, key_visited);
             }
             MpackTokenType::MpackTokenStr
             | MpackTokenType::MpackTokenBin
@@ -989,45 +999,74 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             _ => std::process::abort(),
         }
     } else {
-        result = crate::globals::GraphPtr::from(parser.data.typval());
+        target = MpackData::RootTypval;
     }
 
-    node.data[0] = MpackData::Typval(result);
+    node.data[0] = target.clone();
     node.data[1] = MpackData::Null;
 
     match node.tok.r#type {
         MpackTokenType::MpackTokenNil => {
-            *result = TypVal {
-                v_type: VarType::VarSpecial,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
-            };
+            write_target_tv(
+                parser,
+                root_tv,
+                node_idx,
+                &target,
+                TypVal {
+                    v_type: VarType::VarSpecial,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
+                },
+            );
         }
         MpackTokenType::MpackTokenBoolean => {
             let b = mpack_unpack_boolean(&node.tok);
 
-            *result = TypVal {
-                v_type: VarType::VarBool,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
-            };
+            write_target_tv(
+                parser,
+                root_tv,
+                node_idx,
+                &target,
+                TypVal {
+                    v_type: VarType::VarBool,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
+                },
+            );
         }
         MpackTokenType::MpackTokenSint => {
-            *result = TypVal {
-                v_type: VarType::VarNumber,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(mpack_unpack_sint(&node.tok)),
-            };
+            let sint = mpack_unpack_sint(&node.tok);
+            write_target_tv(
+                parser,
+                root_tv,
+                node_idx,
+                &target,
+                TypVal {
+                    v_type: VarType::VarNumber,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Number(sint),
+                },
+            );
         }
         MpackTokenType::MpackTokenUint => {
-            positive_integer_to_special_typval(result.borrow_mut(), mpack_unpack_uint(&node.tok))
+            let uint = mpack_unpack_uint(&node.tok);
+            let mut tv = TypVal::new();
+            positive_integer_to_special_typval(&mut tv, uint);
+            write_target_tv(parser, root_tv, node_idx, &target, tv);
         }
         MpackTokenType::MpackTokenFloat => {
-            *result = TypVal {
-                v_type: VarType::VarFloat,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Float(mpack_unpack_float_fast(&node.tok)),
-            };
+            let flt = mpack_unpack_float_fast(&node.tok);
+            write_target_tv(
+                parser,
+                root_tv,
+                node_idx,
+                &target,
+                TypVal {
+                    v_type: VarType::VarFloat,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Float(flt),
+                },
+            );
         }
         MpackTokenType::MpackTokenBin
         | MpackTokenType::MpackTokenStr
@@ -1035,6 +1074,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             node.data[1] = MpackData::OwnedBytes(vec![0u8; node.tok.length as usize]);
         }
         MpackTokenType::MpackTokenChunk => {
+            let parent = parent.unwrap();
             let pos = parent.pos;
             let data = parent.data[1].owned_bytes_mut();
             let len = node.tok.length as usize;
@@ -1046,14 +1086,21 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         MpackTokenType::MpackTokenArray => {
             let list = tv_list_alloc(node.tok.length as isize);
             tv_list_ref(Some(&mut *list));
+            let list_id = list.lv_id;
 
-            *result = TypVal {
-                v_type: VarType::VarList,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(list.lv_id),
-            };
+            node.data[1] = MpackData::List(list_id);
 
-            node.data[1] = MpackData::List(list.lv_id);
+            write_target_tv(
+                parser,
+                root_tv,
+                node_idx,
+                &target,
+                TypVal {
+                    v_type: VarType::VarList,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::List(list_id),
+                },
+            );
         }
         MpackTokenType::MpackTokenMap => {
             node.data[1] =
@@ -1079,24 +1126,28 @@ pub fn typval_parser_error_free(p: &mut MpackParser) {
     }
 }
 
-fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
-    let node = &mut *node;
-    match node.tok.r#type {
+fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: usize) {
+    let tok_type = parser.items[node_idx].tok.r#type;
+    let tok_len = parser.items[node_idx].tok.length as usize;
+    match tok_type {
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
-            let result = node.data[0].typval();
-            let bytes = node.data[1].take_owned_bytes();
-            *result = decode_string(&bytes[..node.tok.length as usize], false);
+            let target = parser.items[node_idx].data[0].clone();
+            let bytes = parser.items[node_idx].data[1].take_owned_bytes();
+            let tv = decode_string(&bytes[..tok_len], false);
+            write_target_tv(parser, root_tv, node_idx, &target, tv);
         }
         MpackTokenType::MpackTokenExt => {
-            let result = node.data[0].typval();
-            let bytes = node.data[1].take_owned_bytes();
+            let target = parser.items[node_idx].data[0].clone();
+            let ext_type = parser.items[node_idx].tok.data.ext_type();
+            let bytes = parser.items[node_idx].data[1].take_owned_bytes();
             let list = tv_list_alloc(2);
             tv_list_ref(Some(&mut *list));
-            tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
+            tv_list_append_number(&mut *list, i64::from(ext_type));
             let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
             tv_list_append_list(&mut *list, Some(ext_val_list));
+            let mut tv = TypVal::new();
             create_special_dict(
-                &mut *result,
+                &mut tv,
                 K_MP_EXT,
                 TypVal {
                     v_type: VarType::VarList,
@@ -1104,21 +1155,23 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     vval: TypvalVval::List(list.lv_id),
                 },
             );
-            encode_list_write(Some(&mut *ext_val_list), &bytes[..node.tok.length as usize]);
+            encode_list_write(Some(&mut *ext_val_list), &bytes[..tok_len]);
+            write_target_tv(parser, root_tv, node_idx, &target, tv);
         }
         MpackTokenType::MpackTokenMap => {
-            let result = node.data[0].typval();
-            let mut items = node.data[1].take_map_pairs();
-            let len = node.tok.length as usize;
+            let target = parser.items[node_idx].data[0].clone();
+            let mut items = parser.items[node_idx].data[1].take_map_pairs();
+            let len = tok_len;
             let mut can_be_dict = items[..len].iter().all(|pair| {
                 let key = &pair[0];
                 key.v_type == VarType::VarString && !key.vval.v_string_is_empty()
             });
 
+            let mut tv = TypVal::new();
             if can_be_dict {
                 let dict = tv_dict_alloc();
                 dict.dv_refcount += 1;
-                *result = TypVal {
+                tv = TypVal {
                     v_type: VarType::VarDict,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Dict(dict.dv_id),
@@ -1134,7 +1187,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                                 vval: crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL),
                             };
                         }
-                        tv_clear(&mut *result);
+                        tv_clear(&mut tv);
                         crate::eval::typval::tv_dict_item_free(di);
                         can_be_dict = false;
                         break;
@@ -1148,7 +1201,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     tv_clear(&mut pair[0]);
                 }
             } else {
-                let list = decode_create_map_special_dict(&mut *result, len as isize);
+                let list = decode_create_map_special_dict(&mut tv, len as isize);
                 for pair in &mut items[..len] {
                     let kv_pair = tv_list_alloc(2);
                     tv_list_append_list(&mut *list, Some(kv_pair));
@@ -1156,15 +1209,17 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     tv_list_append_owned_tv(&mut *kv_pair, std::mem::take(&mut pair[1]));
                 }
             }
+            write_target_tv(parser, root_tv, node_idx, &target, tv);
         }
         _ => {}
     }
 }
 
 /// Parse msgpack data into a `TypVal` using `parser` (`mpack_parse_typval`).
-pub fn mpack_parse_typval(parser: &mut MpackParser, buf: &mut &[u8]) -> i32 {
+pub fn mpack_parse_typval(parser: &mut MpackParser, ret: &mut TypVal, buf: &mut &[u8]) -> i32 {
     mpack_parse(
         parser,
+        ret,
         buf,
         Some(typval_parse_enter),
         Some(typval_parse_exit),
@@ -1176,8 +1231,7 @@ pub fn unpack_typval(buf: &mut &[u8], ret: &mut TypVal) -> i32 {
     ret.v_type = VarType::VarUnknown;
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    parser.data = MpackData::Typval(crate::globals::GraphPtr::from(&mut *ret));
-    let status = mpack_parse_typval(&mut parser, buf);
+    let status = mpack_parse_typval(&mut parser, ret, buf);
     if status != MPACK_OK {
         typval_parser_error_free(&mut parser);
         tv_clear(&mut *ret);
