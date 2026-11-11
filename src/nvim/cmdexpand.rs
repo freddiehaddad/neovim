@@ -2478,7 +2478,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                 }
                 g_st().wild_menu_showing = WM_SCROLLED;
             } else {
-                if lastwin_mut().w_status_height == 0 && global_stl_height() == 0 {
+                if lastwin_mut().w_status_height.get() == 0 && global_stl_height() == 0 {
                     g_st().save_p_ls = opt_vars().p_ls.get() as i32;
                     g_st().save_p_wmh = opt_vars().p_wmh.get() as i32;
                     opt_vars().p_ls.set(2);

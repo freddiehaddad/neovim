@@ -2773,7 +2773,7 @@ pub fn utf_find_illegal() {
                         cur_idx += l;
                     }
                 }
-                curwin_mut().w_set_curswant = true;
+                curwin_mut().w_set_curswant.set(true);
                 break 'search;
             }
             idx += len;

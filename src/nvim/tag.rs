@@ -390,8 +390,8 @@ pub fn do_tag(
 ) {
     {
         let orig_curwin_handle = curwin_mut().handle;
-        let mut tagstackidx = curwin_mut().w_tagstackidx;
-        let mut tagstacklen = curwin_mut().w_tagstacklen;
+        let mut tagstackidx = curwin_mut().w_tagstackidx.get();
+        let mut tagstacklen = curwin_mut().w_tagstacklen.get();
         let mut cur_match: i32 = 0;
         let mut cur_fnum = curbuf_mut().b_fnum.get();
         let oldtagstackidx = tagstackidx;
@@ -500,7 +500,7 @@ pub fn do_tag(
 
                         curwin_mut().w_tagstack[tagstackidx as usize].tagname =
                             Some(tag.to_owned());
-                        curwin_mut().w_tagstacklen = tagstacklen;
+                        curwin_mut().w_tagstacklen.set(tagstacklen);
                         save_pos = true;
                     }
 
@@ -547,7 +547,7 @@ pub fn do_tag(
                             curwin_mut().w_cursor.lnum = saved_fmark.mark.lnum;
                         }
                         curwin_mut().w_cursor.col = saved_fmark.mark.col;
-                        curwin_mut().w_set_curswant = true;
+                        curwin_mut().w_set_curswant.set(true);
                         if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 {
                             mark_view_restore(Some(&saved_fmark));
                         }
@@ -638,7 +638,7 @@ pub fn do_tag(
                             mark_view_make(curwin_mut(), curwin_mut().w_cursor);
                     }
 
-                    curwin_mut().w_tagstackidx = tagstackidx;
+                    curwin_mut().w_tagstackidx.set(tagstackidx);
                     if type_ != DT_SELECT && type_ != DT_JUMP {
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_match = cur_match;
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
@@ -897,16 +897,16 @@ pub fn do_tag(
                             gettext(c"E429: File \"%s\" does not exist"),
                             nf.as_deref().unwrap_or(c""),
                         );
-                    } else if use_tagstack && tagstackidx > curwin_mut().w_tagstacklen {
-                        tagstackidx = curwin_mut().w_tagstackidx;
+                    } else if use_tagstack && tagstackidx > curwin_mut().w_tagstacklen.get() {
+                        tagstackidx = curwin_mut().w_tagstackidx.get();
                     }
                 }
                 break;
             }
         }
 
-        if use_tagstack && tagstackidx <= curwin_mut().w_tagstacklen {
-            curwin_mut().w_tagstackidx = tagstackidx;
+        if use_tagstack && tagstackidx <= curwin_mut().w_tagstacklen.get() {
+            curwin_mut().w_tagstackidx.set(tagstackidx);
         }
         g_st().postponed_split = 0;
         g_st().g_do_tagpreview = 0;
@@ -923,7 +923,7 @@ fn select_tag_match(
     name: &std::ffi::CStr,
 ) {
     {
-        let tagstackidx = curwin_mut().w_tagstackidx;
+        let tagstackidx = curwin_mut().w_tagstackidx.get();
 
         let mut items_tv = TypVal {
             v_type: VarType::VarUnknown,
@@ -1109,8 +1109,8 @@ pub fn tag_freematch() {
 
 /// Print the tag stack.
 pub fn do_tags(_eap: &mut Exarg) {
-    let tagstackidx = curwin_mut().w_tagstackidx;
-    let tagstacklen = curwin_mut().w_tagstacklen;
+    let tagstackidx = curwin_mut().w_tagstackidx.get();
+    let tagstacklen = curwin_mut().w_tagstacklen.get();
 
     msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
     for i in 0..tagstacklen {
@@ -1260,12 +1260,12 @@ fn find_tagfunc_tags(
     };
     let mut flag_string = [0u8; 4];
 
-    let tag_idx = if curwin_mut().w_tagstacklen > 0 {
+    let tag_idx = if curwin_mut().w_tagstacklen.get() > 0 {
         Some(
-            if curwin_mut().w_tagstackidx == curwin_mut().w_tagstacklen {
-                (curwin_mut().w_tagstackidx - 1) as usize
+            if curwin_mut().w_tagstackidx.get() == curwin_mut().w_tagstacklen.get() {
+                (curwin_mut().w_tagstackidx.get() - 1) as usize
             } else {
-                curwin_mut().w_tagstackidx as usize
+                curwin_mut().w_tagstackidx.get() as usize
             },
         )
     } else {
@@ -2723,7 +2723,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
         g_st().keep_help_flag = false;
 
         if getfile_result.is_success() {
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
             g_st().postponed_split = 0;
 
             let save_no_hlsearch = g_st().search_global.no_hlsearch;
@@ -3244,12 +3244,16 @@ fn get_tag_details(tag: &mut Taggy, retdict: &TvDict) {
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
 pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &TvDict) {
-    tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen as Varnumber);
-    tv_dict_add_nr(retdict, c"curidx", (wp.w_tagstackidx + 1) as Varnumber);
+    tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen.get() as Varnumber);
+    tv_dict_add_nr(
+        retdict,
+        c"curidx",
+        (wp.w_tagstackidx.get() + 1) as Varnumber,
+    );
     let l = tv_list_alloc(2);
     tv_dict_add_list(retdict, c"items", Some(&l));
 
-    for i in 0..wp.w_tagstacklen as usize {
+    for i in 0..wp.w_tagstacklen.get() as usize {
         let d = tv_dict_alloc();
         tv_list_append_dict(&l, Some(&d));
         get_tag_details(&mut wp.w_tagstack[i], &d);
@@ -3257,18 +3261,18 @@ pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &TvDict) {
 }
 
 fn tagstack_clear(wp: &mut WinInfoInfo) {
-    for i in 0..wp.w_tagstacklen as usize {
+    for i in 0..wp.w_tagstacklen.get() as usize {
         tagstack_clear_entry(&mut wp.w_tagstack[i]);
     }
-    wp.w_tagstacklen = 0;
-    wp.w_tagstackidx = 0;
+    wp.w_tagstacklen.set(0);
+    wp.w_tagstackidx.set(0);
 }
 
 fn tagstack_shift(wp: &mut WinInfoInfo) {
-    let len = wp.w_tagstacklen as usize;
+    let len = wp.w_tagstacklen.get() as usize;
     (&mut wp.w_tagstack)[..len].rotate_left(1);
     tagstack_clear_entry(&mut wp.w_tagstack[len - 1]);
-    wp.w_tagstacklen -= 1;
+    wp.w_tagstacklen.set(wp.w_tagstacklen.get() - (1));
 }
 
 fn tagstack_push_item(
@@ -3280,14 +3284,14 @@ fn tagstack_push_item(
     fnum: i32,
     user_data: Option<std::ffi::CString>,
 ) {
-    let mut idx = wp.w_tagstacklen;
+    let mut idx = wp.w_tagstacklen.get();
 
     if idx >= TAGSTACKSIZE {
         tagstack_shift(wp);
         idx = TAGSTACKSIZE - 1;
     }
 
-    wp.w_tagstacklen += 1;
+    wp.w_tagstacklen.set(wp.w_tagstacklen.get() + (1));
     let entry = &mut wp.w_tagstack[idx as usize];
     entry.tagname = tagname;
     entry.cur_fnum = cur_fnum;
@@ -3342,7 +3346,8 @@ fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
 }
 
 fn tagstack_set_curidx(wp: &mut WinInfoInfo, curidx: i32) {
-    wp.w_tagstackidx = curidx.max(0).min(wp.w_tagstacklen);
+    wp.w_tagstackidx
+        .set(curidx.max(0).min(wp.w_tagstacklen.get()));
 }
 
 /// Set the tag stack entries of the specified window.
@@ -3368,14 +3373,14 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
     }
 
     if action == b't' as i32 {
-        let tagstackidx = wp.w_tagstackidx;
-        let mut tagstacklen = wp.w_tagstacklen;
+        let tagstackidx = wp.w_tagstackidx.get();
+        let mut tagstacklen = wp.w_tagstacklen.get();
 
         while tagstackidx < tagstacklen {
             tagstacklen -= 1;
             tagstack_clear_entry(&mut curwin_mut().w_tagstack[tagstacklen as usize]);
         }
-        wp.w_tagstacklen = tagstacklen;
+        wp.w_tagstacklen.set(tagstacklen);
     }
 
     if l.is_some() {
@@ -3384,7 +3389,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
         }
 
         tagstack_push_items(&mut *wp, l);
-        wp.w_tagstackidx = wp.w_tagstacklen;
+        wp.w_tagstackidx.set(wp.w_tagstacklen.get());
     }
 
     true

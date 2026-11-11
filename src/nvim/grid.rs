@@ -1178,17 +1178,17 @@ pub fn grid_free_all_mem() {
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     wp.w_grid_alloc.target_kind = GridTarget::Win(wp.handle);
 
-    let total_rows = wp.w_height_outer;
-    let total_cols = wp.w_width_outer;
+    let total_rows = wp.w_height_outer.get();
+    let total_cols = wp.w_width_outer.get();
 
-    let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating;
+    let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating.get();
     let has_allocation = !wp.w_grid_alloc.chars.is_empty();
 
-    if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
-        wp.w_lines_valid = 0;
+    if (wp.w_view_height.get() as usize) + 1 > wp.w_lines.len() {
+        wp.w_lines_valid.set(0);
         wp.w_lines.clear();
         wp.w_lines
-            .resize(wp.w_view_height as usize + 1, Wline::default());
+            .resize(wp.w_view_height.get() as usize + 1, Wline::default());
     }
 
     let mut was_resized = false;
@@ -1206,8 +1206,8 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
             false,
         );
         wp.w_grid_alloc.valid = true;
-        if wp.w_floating && wp.w_config.border {
-            wp.w_redr_border = true;
+        if wp.w_floating.get() && wp.w_config.border {
+            wp.w_redr_border.set(true);
         }
         was_resized = true;
     } else if !want_allocation && has_allocation {
@@ -1221,12 +1221,12 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
 
     if want_allocation {
         wp.w_grid.target = GridTarget::Win(wp.handle);
-        wp.w_grid.row_offset = wp.w_winrow_off;
-        wp.w_grid.col_offset = wp.w_wincol_off;
+        wp.w_grid.row_offset = wp.w_winrow_off.get();
+        wp.w_grid.col_offset = wp.w_wincol_off.get();
     } else {
         wp.w_grid.target = GridTarget::Default;
-        wp.w_grid.row_offset = wp.w_winrow + wp.w_winrow_off;
-        wp.w_grid.col_offset = wp.w_wincol + wp.w_wincol_off;
+        wp.w_grid.row_offset = wp.w_winrow.get() + wp.w_winrow_off.get();
+        wp.w_grid.col_offset = wp.w_wincol.get() + wp.w_wincol_off.get();
     }
 
     if (g_st().resizing_screen || was_resized) && want_allocation {

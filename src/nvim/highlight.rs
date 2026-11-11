@@ -586,7 +586,7 @@ pub fn hl_check_ns() -> bool {
 }
 
 pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
-    g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
+    g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl.get());
     hl_check_ns()
 }
 
@@ -651,11 +651,11 @@ pub fn hl_apply_winblend(winbl: i32, mut attr: i32) -> i32 {
 }
 
 pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
-    let ns_id = wp.w_ns_hl;
+    let ns_id = wp.w_ns_hl.get();
 
     update_ns_hl(ns_id);
-    if ns_id != wp.w_ns_hl_active {
-        wp.w_ns_hl_active = ns_id;
+    if ns_id != wp.w_ns_hl_active.get() {
+        wp.w_ns_hl_active.set(ns_id);
 
         wp.w_ns_hl_attr = hl_st(|st| st.ns_hl_attr.borrow().get(&ns_id).cloned());
     }
@@ -669,33 +669,35 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         }
     };
 
-    if wp.w_hl_needs_update == 0 && !invalid {
+    if wp.w_hl_needs_update.get() == 0 && !invalid {
         return;
     }
-    wp.w_hl_needs_update = 0;
+    wp.w_hl_needs_update.set(0);
 
-    let float_win = wp.w_floating && !wp.w_config.external;
+    let float_win = wp.w_floating.get() && !wp.w_config.external;
     if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
-        wp.w_hl_attr_normal = hl_def_get(HLF_NFLOAT);
+        wp.w_hl_attr_normal.set(hl_def_get(HLF_NFLOAT));
     } else if hl_def_get(HLF_NONE) > 0 {
-        wp.w_hl_attr_normal = hl_def_get(HLF_NONE);
+        wp.w_hl_attr_normal.set(hl_def_get(HLF_NONE));
     } else if float_win {
-        wp.w_hl_attr_normal = if hl_attr(HLF_NFLOAT as i32) > 0 {
+        wp.w_hl_attr_normal.set(if hl_attr(HLF_NFLOAT as i32) > 0 {
             hl_attr(HLF_NFLOAT as i32)
         } else {
             g_st().highlight_attr[HLF_NFLOAT]
-        };
+        });
     } else {
-        wp.w_hl_attr_normal = 0;
+        wp.w_hl_attr_normal.set(0);
     }
 
-    if wp.w_floating {
-        wp.w_hl_attr_normal =
-            hl_apply_winblend(wp.w_onebuf_opt.wo_winbl.get() as i32, wp.w_hl_attr_normal);
+    if wp.w_floating.get() {
+        wp.w_hl_attr_normal.set(hl_apply_winblend(
+            wp.w_onebuf_opt.wo_winbl.get() as i32,
+            wp.w_hl_attr_normal.get(),
+        ));
     }
 
     wp.w_config.shadow = false;
-    if wp.w_floating && wp.w_config.border {
+    if wp.w_floating.get() && wp.w_config.border {
         for i in 0..8 {
             let mut attr = hl_def_get(HLF_BORDER);
             if wp.w_config.border_hl_ids[i] != 0 {
@@ -717,14 +719,19 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
     check_blending(&mut *wp);
 
     if hl_def_get(HLF_INACTIVE) == 0 {
-        wp.w_hl_attr_normalnc = hl_combine_attr(hl_attr(HLF_INACTIVE as i32), wp.w_hl_attr_normal);
+        wp.w_hl_attr_normalnc.set(hl_combine_attr(
+            hl_attr(HLF_INACTIVE as i32),
+            wp.w_hl_attr_normal.get(),
+        ));
     } else {
-        wp.w_hl_attr_normalnc = hl_def_get(HLF_INACTIVE);
+        wp.w_hl_attr_normalnc.set(hl_def_get(HLF_INACTIVE));
     }
 
-    if wp.w_floating {
-        wp.w_hl_attr_normalnc =
-            hl_apply_winblend(wp.w_onebuf_opt.wo_winbl.get() as i32, wp.w_hl_attr_normalnc);
+    if wp.w_floating.get() {
+        wp.w_hl_attr_normalnc.set(hl_apply_winblend(
+            wp.w_onebuf_opt.wo_winbl.get() as i32,
+            wp.w_hl_attr_normalnc.get(),
+        ));
     }
 }
 
@@ -760,9 +767,9 @@ pub fn update_ns_hl(ns_id: i32) {
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
     if g_st().ns_hl_fast < 0 {
         let local = if wp == curwin_ptr() {
-            wp.w_hl_attr_normal
+            wp.w_hl_attr_normal.get()
         } else {
-            wp.w_hl_attr_normalnc
+            wp.w_hl_attr_normalnc.get()
         };
         if local != 0 {
             return local;

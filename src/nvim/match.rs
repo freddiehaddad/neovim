@@ -152,16 +152,16 @@ fn match_add(
         return -1;
     }
     if id == -1 {
-        id = wp.w_next_match_id;
-        wp.w_next_match_id += 1;
+        id = wp.w_next_match_id.get();
+        wp.w_next_match_id.set(wp.w_next_match_id.get() + (1));
     } else {
         if wp.w_match_head.iter().any(|cur| cur.mit_id == id) {
             semsg!(gettext(c"E801: ID already taken: %lld"), i64::from(id),);
             return -1;
         }
 
-        if wp.w_next_match_id < id + 100 {
-            wp.w_next_match_id = id + 100;
+        if wp.w_next_match_id.get() < id + 100 {
+            wp.w_next_match_id.set(id + 100);
         }
     }
 
@@ -577,7 +577,7 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
             let mut first_lnum = get_shl(wp, search_hl, match_idx).first_lnum;
             if first_lnum == 0 {
                 first_lnum = lnum;
-                while first_lnum > wp.w_topline {
+                while first_lnum > wp.w_topline.get() {
                     if has_folding(&mut *wp, first_lnum - 1, None, None) {
                         break;
                     }
@@ -851,9 +851,9 @@ pub fn update_search_hl(
 pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
     let mut prevcol = curcol;
     let skip_or_left = if wp.w_onebuf_opt.wo_wrap.get() {
-        wp.w_skipcol
+        wp.w_skipcol.get()
     } else {
-        wp.w_leftcol
+        wp.w_leftcol.get()
     };
     if skip_or_left > prevcol {
         prevcol += 1;

@@ -1019,7 +1019,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
     } else if !only_destroy {
         for wp in for_all_windows_mut() {
             if !wp.w_buffer.is_null() && wp.buf_mut().b_fnum.get() == buf_handle {
-                wp.w_redr_status = true;
+                wp.w_redr_status.set(true);
             }
         }
         pos = with_term_mut(term_id, |term| {
@@ -1107,9 +1107,9 @@ pub fn terminal_check_size(term_id: TermId) {
                 && !wp.w_buffer.is_null()
                 && (*wp).buf_mut().terminal.get() == term_id
             {
-                let win_width = (wp.w_view_width - win_col_off(wp)).max(0) as u16;
+                let win_width = (wp.w_view_width.get() - win_col_off(wp)).max(0) as u16;
                 width = width.max(win_width);
-                height = height.max(wp.w_view_height as u16);
+                height = height.max(wp.w_view_height.get() as u16);
             }
         }
     }
@@ -1135,13 +1135,13 @@ fn set_terminal_winopts(s: &mut TerminalState) {
     s.save_curwin_handle = curwin_mut().handle;
     s.save_w_p_cul = curwin_mut().w_onebuf_opt.wo_cul.get();
     s.save_w_p_culopt = None;
-    s.save_w_p_culopt_flags = curwin_mut().w_p_culopt_flags;
+    s.save_w_p_culopt_flags = curwin_mut().w_p_culopt_flags.get();
     s.save_w_p_cuc = curwin_mut().w_onebuf_opt.wo_cuc.get();
     s.save_w_p_so = curwin_mut().w_onebuf_opt.wo_so.get();
     s.save_w_p_siso = curwin_mut().w_onebuf_opt.wo_siso.get();
 
     if curwin_mut().w_onebuf_opt.wo_cul.get()
-        && (curwin_mut().w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
+        && (curwin_mut().w_p_culopt_flags.get() & K_OPT_CULOPT_FLAG_NUMBER) != 0
     {
         if curwin_mut().w_onebuf_opt.wo_culopt.as_bytes() != b"number" {
             s.save_w_p_culopt = Some(curwin_mut().w_onebuf_opt.wo_culopt.to_owned());
@@ -1150,7 +1150,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
                 .wo_culopt
                 .set_option_cstr(c"number");
         }
-        curwin_mut().w_p_culopt_flags = K_OPT_CULOPT_FLAG_NUMBER;
+        curwin_mut().w_p_culopt_flags.set(K_OPT_CULOPT_FLAG_NUMBER);
     } else {
         curwin_mut().w_onebuf_opt.wo_cul.set(false);
     }
@@ -1162,7 +1162,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
     } else if (curwin_mut().w_onebuf_opt.wo_cul.get()) != s.save_w_p_cul
         || (curwin_mut().w_onebuf_opt.wo_cul.get()
-            && curwin_mut().w_p_culopt_flags != s.save_w_p_culopt_flags)
+            && curwin_mut().w_p_culopt_flags.get() != s.save_w_p_culopt_flags)
     {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }
@@ -1191,12 +1191,12 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                 if s.save_w_p_cuc != wp.w_onebuf_opt.wo_cuc.get() {
                     redraw_later(Some(&mut *wp), UPD_SOME_VALID);
                 } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul.get())
-                    || (s.save_w_p_cul && s.save_w_p_culopt_flags != wp.w_p_culopt_flags)
+                    || (s.save_w_p_cul && s.save_w_p_culopt_flags != wp.w_p_culopt_flags.get())
                 {
                     redraw_later(Some(&mut *wp), UPD_VALID);
                 }
             }
-            wp.w_p_culopt_flags = s.save_w_p_culopt_flags;
+            wp.w_p_culopt_flags.set(s.save_w_p_culopt_flags);
             winopts = Some(&mut wp.w_onebuf_opt);
         }
 
@@ -1322,8 +1322,8 @@ fn terminal_check_cursor() {
         )
     });
     curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.min(lnum_target);
-    let topline = (curbuf_mut().b_ml.ml_line_count - curwin_mut().w_view_height + 1).max(1);
-    if topline != curwin_mut().w_topline {
+    let topline = (curbuf_mut().b_ml.ml_line_count - curwin_mut().w_view_height.get() + 1).max(1);
+    if topline != curwin_mut().w_topline.get() {
         set_topline(curwin_mut(), topline);
     }
     if suspended && (g_st().state_global & MODE_TERMINAL) != 0 {
@@ -2294,12 +2294,12 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
             && forward_mouse
             && (*mouse_win).buf_mut().terminal.get() == term_id
             && row >= 0
-            && (grid > 1 || row + mouse_win.w_winbar_height < mouse_win.w_height)
+            && (grid > 1 || row + mouse_win.w_winbar_height.get() < mouse_win.w_height.get())
             && {
                 offset = win_col_off(mouse_win);
                 col >= offset
             }
-            && (grid > 1 || col < mouse_win.w_width)
+            && (grid > 1 || col < mouse_win.w_width.get())
         {
             let (button, pressed) = match c {
                 K_LEFTDRAG | K_LEFTMOUSE => (1, true),
@@ -2343,7 +2343,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
 
             do_mousescroll(&mut cap);
 
-            curwin_mut().w_redr_status = true;
+            curwin_mut().w_redr_status.set(true);
             set_curwin(save_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
             redraw_later(Some(&mut *mouse_win), UPD_NOT_VALID);
@@ -2450,9 +2450,9 @@ fn refresh_terminal(term_id: TermId) {
             for wp in for_all_windows_in_tab_ptr(&tp) {
                 if !wp.w_buffer.is_null()
                     && (*wp).buf_mut().b_fnum.get() == buf_handle
-                    && wp.w_leftcol != 0
+                    && wp.w_leftcol.get() != 0
                 {
-                    wp.w_leftcol = 0;
+                    wp.w_leftcol.set(0);
                     curs_columns(&mut *wp, true);
                 }
             }
@@ -2703,7 +2703,7 @@ fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
                 let following = ml_end == wp.w_cursor.lnum + added;
                 if following {
                     wp.w_cursor.lnum = ml_end;
-                    set_topline(wp, (wp.w_cursor.lnum - wp.w_view_height + 1).max(1));
+                    set_topline(wp, (wp.w_cursor.lnum - wp.w_view_height.get() + 1).max(1));
                 } else {
                     wp.w_cursor.lnum = wp.w_cursor.lnum.min(ml_end);
                 }

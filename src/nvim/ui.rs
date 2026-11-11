@@ -613,7 +613,7 @@ pub fn ui_flush() {
     }
 
     if (g_st().state_global & MODE_CMDLINE) == 0
-        && curwin_mut().w_floating
+        && curwin_mut().w_floating.get()
         && curwin_mut().w_config.hide
     {
         if !ui_state(|st| st.ui_flush_was_busy.replace(true)) {
@@ -762,13 +762,14 @@ fn ui_cursor_is_behind_floatwin() -> bool {
         return false;
     }
 
-    let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
-    let ccol = curwin_mut().w_wincol
-        + curwin_mut().w_wincol_off
+    let crow =
+        curwin_mut().w_winrow.get() + curwin_mut().w_winrow_off.get() + curwin_mut().w_wrow.get();
+    let ccol = curwin_mut().w_wincol.get()
+        + curwin_mut().w_wincol_off.get()
         + if curwin_mut().w_onebuf_opt.wo_rl.get() {
-            curwin_mut().w_view_width - curwin_mut().w_wcol - 1
+            curwin_mut().w_view_width.get() - curwin_mut().w_wcol.get() - 1
         } else {
-            curwin_mut().w_wcol
+            curwin_mut().w_wcol.get()
         };
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
@@ -849,16 +850,16 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
         return;
     };
 
-    if wp.w_floating {
-        if width != wp.w_width || height != wp.w_height {
+    if wp.w_floating.get() {
+        if width != wp.w_width.get() || height != wp.w_height.get() {
             wp.w_config.width = width.max(1);
             wp.w_config.height = height.max(1);
             let cfg = wp.w_config.clone();
             win_config_float(wp, cfg);
         }
     } else {
-        wp.w_height_request = height.max(0);
-        wp.w_width_request = width.max(0);
+        wp.w_height_request.set(height.max(0));
+        wp.w_width_request.set(width.max(0));
         win_set_inner_size(&mut *wp, true);
     }
 }

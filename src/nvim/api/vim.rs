@@ -496,7 +496,7 @@ pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
         else {
             return 0;
         };
-        Integer::from(win.w_ns_hl)
+        Integer::from(win.w_ns_hl.get())
     } else {
         Integer::from(g_st().ns_hl_global)
     }
@@ -1524,8 +1524,8 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     chan.internal.closed = false;
     let topts = TerminalOptions {
         chan_id: chan.id,
-        width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
-        height: curwin_mut().w_view_height as u16,
+        width: (curwin_mut().w_view_width.get() - win_col_off(curwin_mut())).max(0) as u16,
+        height: curwin_mut().w_view_height.get() as u16,
         force_crlf,
     };
 
@@ -2802,7 +2802,7 @@ pub fn nvim_eval_statusline(
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
             g_st().columns_global
         } else {
-            wp.w_width
+            wp.w_width.get()
         };
 
     result = arena_dict(arena, 3);
@@ -2952,19 +2952,19 @@ pub fn nvim_complete_set(
 
 fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
     if opts.statuscolumn && !wp.w_onebuf_opt.wo_stc.is_empty() {
-        wp.w_nrwidth_line_count = 0;
+        wp.w_nrwidth_line_count.set(0);
         changed_window_setting(&mut *wp);
     }
 
     let old_row_offset = wp.w_grid.row_offset;
     win_grid_alloc(&mut *wp);
 
-    if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
+    if wp.w_lines_valid.get() == 0 || wp.w_grid.row_offset != old_row_offset {
         opts.flush = true;
     }
 
     if opts.flush && (opts.statusline || opts.winbar) {
-        wp.w_redr_status = true;
+        wp.w_redr_status.set(true);
     } else if opts.statusline || opts.winbar {
         win_check_ns_hl(Some(&*wp));
         if opts.winbar {
@@ -3099,7 +3099,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
 
     let mut flush_ui = opts.flush;
     if opts.tabline {
-        if g_st().redraw_tabline && firstwin_mut().w_lines_valid == 0 {
+        if g_st().redraw_tabline && firstwin_mut().w_lines_valid.get() == 0 {
             opts.flush = true;
         } else {
             draw_tabline();

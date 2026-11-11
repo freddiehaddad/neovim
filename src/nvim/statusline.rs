@@ -348,24 +348,24 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
     }
 
     with_stl_state(|st| st.redr_status_busy.set(true));
-    wp.w_redr_status = false;
+    wp.w_redr_status.set(false);
 
     let stl_curwin = ctx_saved_curwin().map_or_else(curwin_ptr, crate::globals::WinPtr::from);
     let is_stl_curwin = stl_curwin == wp;
 
-    if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
+    if wp.w_status_height.get() == 0 && !(is_stl_global && is_stl_curwin) {
         g_st().redraw_cmdline = true;
     } else if !redrawing() {
-        wp.w_redr_status = true;
+        wp.w_redr_status.set(true);
     } else if !wp.w_onebuf_opt.wo_stl.is_empty()
-        || !wp.w_floating
+        || !wp.w_floating.get()
         || (is_stl_global && is_stl_curwin)
     {
         win_redr_stl_expr(Some(wp), false, false, false);
     }
 
     let mut group: Hlf = HLF_C;
-    if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
+    if wp.w_vsep_width.get() != 0 && wp.w_status_height.get() != 0 && redrawing() {
         let fillchar = if stl_connected(wp) {
             fillchar_status(&mut group, wp)
         } else {
@@ -514,7 +514,7 @@ fn win_redr_stl_expr(
     let click_defs_target: ClickDefsTarget;
     let is_stl_global = global_stl_height() > 0;
 
-    let mut grid_target = if !wp.is_null() && wp.w_floating && !is_stl_global {
+    let mut grid_target = if !wp.is_null() && wp.w_floating.get() && !is_stl_global {
         StlGridTarget::WinAlloc(wp)
     } else {
         StlGridTarget::Default
@@ -585,7 +585,7 @@ fn win_redr_stl_expr(
             HLF_WBRNC
         };
         attr = win_hl_attr(&mut *wp_ref, group);
-        maxwidth = wp_ref.w_view_width;
+        maxwidth = wp_ref.w_view_width.get();
         stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs);
         stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs, maxwidth);
         click_defs_target = ClickDefsTarget::Winbar;
@@ -649,21 +649,21 @@ fn win_redr_stl_expr(
             row = g_st().rows_global - (opt_vars().p_ch.get() as i32) - 1;
             col = 0;
             maxwidth = g_st().columns_global;
-        } else if wp_ref.w_status_height == 0 {
+        } else if wp_ref.w_status_height.get() == 0 {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
                 g_st().curbuf = restore_curwin.w_buffer;
             }
             return;
-        } else if wp_ref.w_floating {
-            row = wp_ref.w_winrow_off + wp_ref.w_view_height;
-            col = wp_ref.w_wincol_off;
-            maxwidth = wp_ref.w_view_width;
+        } else if wp_ref.w_floating.get() {
+            row = wp_ref.w_winrow_off.get() + wp_ref.w_view_height.get();
+            col = wp_ref.w_wincol_off.get();
+            maxwidth = wp_ref.w_view_width.get();
         } else {
             row = w_endrow(&*wp_ref);
-            col = wp_ref.w_wincol;
-            maxwidth = wp_ref.w_width;
+            col = wp_ref.w_wincol.get();
+            maxwidth = wp_ref.w_width.get();
         }
 
         fillchar = fillchar_status(&mut group, wp_ref);
@@ -788,7 +788,8 @@ fn win_redr_stl_expr(
 
                 curgroup = -sp_ref.userhl;
             } else {
-                let userhl = if !wp.is_null() && wp != curwin_ptr() && wp.w_status_height != 0 {
+                let userhl = if !wp.is_null() && wp != curwin_ptr() && wp.w_status_height.get() != 0
+                {
                     &g_st().highlight_stlnc
                 } else {
                     &g_st().highlight_user
@@ -831,7 +832,7 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
         return;
     }
 
-    if wp.w_winbar_height == 0 || !redrawing() {
+    if wp.w_winbar_height.get() == 0 || !redrawing() {
         // Do nothing.
     } else if !opt_vars().p_wbr.is_empty() || !wp.w_onebuf_opt.wo_wbr.is_empty() {
         win_redr_stl_expr(Some(wp), true, false, false);
@@ -840,14 +841,14 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
 }
 
 pub fn redraw_ruler() {
-    let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
+    let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height.get() == 0 {
         curwin_mut()
     } else {
         lastwin_nofloating(None)
     };
     let is_stl_global = global_stl_height() > 0;
 
-    let part_of_status = wp.w_status_height != 0 || is_stl_global;
+    let part_of_status = wp.w_status_height.get() != 0 || is_stl_global;
     if !opt_vars().p_ru.get()
         || part_of_status
         || (opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES))
@@ -866,7 +867,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_status_height == 0 && !is_stl_global && g_st().edit_submode.is_some() {
+    if wp.w_status_height.get() == 0 && !is_stl_global && g_st().edit_submode.is_some() {
         return;
     }
 
@@ -2117,7 +2118,7 @@ pub fn build_stl_str_hl_slice(
                     && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
                     && get_vim_var_nr(VV_VIRTNUM) == 0
                 {
-                    if wp.w_maxscwidth == SCL_NUM && stcp_ref.sattrs[0].text[0] != 0 {
+                    if wp.w_maxscwidth.get() == SCL_NUM && stcp_ref.sattrs[0].text[0] != 0 {
                         handle_stcsign = true;
                     } else {
                         let relnum = get_vim_var_nr(VV_RELNUM) as i32;
@@ -2157,7 +2158,7 @@ pub fn build_stl_str_hl_slice(
                 };
             }
             STL_VIRTCOL | STL_VIRTCOL_ALT => {
-                let virtcol = wp.w_virtcol + 1;
+                let virtcol = wp.w_virtcol.get() + 1;
                 let col_1 = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
@@ -2341,7 +2342,7 @@ pub fn build_stl_str_hl_slice(
             let width = if opt == STL_FOLDCOL {
                 i32::from(fdc > 0)
             } else if opt == STL_SIGNCOL {
-                wp.w_scwidth
+                wp.w_scwidth.get()
             } else {
                 1
             };

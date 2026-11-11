@@ -3376,7 +3376,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     };
 
     let old_cursor = curwin_mut().w_cursor;
-    let old_topline = curwin_mut().w_topline;
+    let old_topline = curwin_mut().w_topline.get();
 
     if opt_vars().p_ur.get() < 0
         || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur.get()
@@ -3466,7 +3466,9 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
 
     diff_invalidate(curbuf_mut());
 
-    curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
+    curwin_mut()
+        .w_topline
+        .set(old_topline.min(curbuf_mut().b_ml.ml_line_count));
     curwin_mut().w_cursor = old_cursor;
     check_cursor(curwin_mut());
     update_topline(curwin_mut());

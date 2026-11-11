@@ -1000,33 +1000,34 @@ pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&mut WinInfoInfo>) -> boo
             return true;
         };
         if val_bytes.starts_with(b"no") {
-            wp.w_minscwidth = SCL_NO;
-            wp.w_maxscwidth = SCL_NO;
+            wp.w_minscwidth.set(SCL_NO);
+            wp.w_maxscwidth.set(SCL_NO);
         } else if val_bytes.starts_with(b"nu")
             && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
         {
-            wp.w_minscwidth = SCL_NUM;
-            wp.w_maxscwidth = SCL_NUM;
+            wp.w_minscwidth.set(SCL_NUM);
+            wp.w_maxscwidth.set(SCL_NUM);
         } else if let Some(after) = val_bytes.strip_prefix(b"yes:") {
             let n = i32::from(after.first().copied().unwrap_or(0)) - (b'0' as i32);
-            wp.w_minscwidth = n;
-            wp.w_maxscwidth = n;
+            wp.w_minscwidth.set(n);
+            wp.w_maxscwidth.set(n);
         } else if val_bytes.first() == Some(&b'y') {
-            wp.w_minscwidth = 1;
-            wp.w_maxscwidth = 1;
+            wp.w_minscwidth.set(1);
+            wp.w_maxscwidth.set(1);
         } else if let Some(after) = val_bytes.strip_prefix(b"auto:") {
-            wp.w_minscwidth = 0;
-            wp.w_maxscwidth = i32::from(after.first().copied().unwrap_or(0)) - (b'0' as i32);
+            wp.w_minscwidth.set(0);
+            wp.w_maxscwidth
+                .set(i32::from(after.first().copied().unwrap_or(0)) - (b'0' as i32));
         } else {
-            wp.w_minscwidth = 0;
-            wp.w_maxscwidth = 1;
+            wp.w_minscwidth.set(0);
+            wp.w_maxscwidth.set(1);
         }
-        let scwidth = if wp.w_minscwidth <= 0 {
+        let scwidth = if wp.w_minscwidth.get() <= 0 {
             0
         } else {
-            wp.w_maxscwidth.min(wp.w_scwidth)
+            wp.w_maxscwidth.get().min(wp.w_scwidth.get())
         };
-        wp.w_scwidth = wp.w_minscwidth.max(scwidth);
+        wp.w_scwidth.set(wp.w_minscwidth.get().max(scwidth));
     } else {
         if !val_bytes.starts_with(b"auto:")
             || val_bytes.len() != 8
@@ -1044,14 +1045,14 @@ pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&mut WinInfoInfo>) -> boo
         let Some(wp) = wp else {
             return true;
         };
-        wp.w_minscwidth = min;
-        wp.w_maxscwidth = max;
-        let scwidth = if wp.w_minscwidth <= 0 {
+        wp.w_minscwidth.set(min);
+        wp.w_maxscwidth.set(max);
+        let scwidth = if wp.w_minscwidth.get() <= 0 {
             0
         } else {
-            wp.w_maxscwidth.min(wp.w_scwidth)
+            wp.w_maxscwidth.get().min(wp.w_scwidth.get())
         };
-        wp.w_scwidth = wp.w_minscwidth.max(scwidth);
+        wp.w_scwidth.set(wp.w_minscwidth.get().max(scwidth));
     }
     true
 }
@@ -1530,7 +1531,7 @@ pub fn did_set_breakindentopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_briopt);
     briopt_check(is_local.then_some(&mut *win));
 
-    if is_local && win.w_briopt_list != 0 {
+    if is_local && win.w_briopt_list.get() != 0 {
         redraw_all_later(UPD_NOT_VALID);
     }
 
@@ -1584,8 +1585,8 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             additional_data: None,
         };
     }
-    if win.w_status_height != 0 || global_stl_height() != 0 {
-        win.w_redr_status = true;
+    if win.w_status_height.get() != 0 || global_stl_height() != 0 {
+        win.w_redr_status.set(true);
         redraw_later(Some(win), UPD_VALID);
     }
     buf.b_help.set(buf.b_p_bt.first_byte() == b'h');
@@ -1996,7 +1997,9 @@ pub fn did_set_cursorlineopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if (args.os_flags & OPT_GLOBAL) != 0 {
         return None;
     }
-    args.win_mut().w_p_culopt_flags = args.os_prep.as_flags() as u8;
+    args.win_mut()
+        .w_p_culopt_flags
+        .set(args.os_prep.as_flags() as u8);
     None
 }
 
@@ -2632,8 +2635,8 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&mut *win)) {
         return Some(E_INVARG);
     }
-    if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
-        win.w_nrwidth_line_count = 0;
+    if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth.get() == SCL_NUM {
+        win.w_nrwidth_line_count.set(0);
     }
     None
 }
@@ -2757,8 +2760,8 @@ pub fn did_set_spellsuggest<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_splitkeep<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_mut(&tp) {
-            wp.w_prev_height = wp.w_height;
-            wp.w_prev_winrow = wp.w_winrow;
+            wp.w_prev_height.set(wp.w_height.get());
+            wp.w_prev_winrow.set(wp.w_winrow.get());
         }
     }
     None
@@ -2793,7 +2796,7 @@ fn did_set_statustabline_rulerformat<'a>(
     if rulerformat {
         g_st().ru_wid = 0;
     } else if statuscolumn {
-        args.win_mut().w_nrwidth_line_count = 0;
+        args.win_mut().w_nrwidth_line_count.set(0);
     }
     let is_stl = args.os_idx == K_OPT_STATUSLINE;
 
@@ -2809,7 +2812,7 @@ fn did_set_statustabline_rulerformat<'a>(
 
     if is_stl
         && let Some(win) = args.win_opt()
-        && win.w_floating
+        && win.w_floating.get()
     {
         let cfg = win.w_config.clone();
         win_config_float(win, cfg);
@@ -2977,7 +2980,7 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         }
         if ve.to_bytes() != args.os_oldval.data.string().as_bytes() {
             validate_virtcol(win);
-            let vc = win.w_virtcol;
+            let vc = win.w_virtcol.get();
             coladvance(win, vc);
         }
     }

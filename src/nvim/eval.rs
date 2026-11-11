@@ -5421,12 +5421,16 @@ pub fn var2fpos(
         pos.col = 0;
         if name_bytes.get(1) == Some(&b'0') {
             update_topline(wp);
-            pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
+            pos.lnum = if wp.w_topline.get() > 0 {
+                wp.w_topline.get()
+            } else {
+                1
+            };
             return Some(pos);
         } else if name_bytes.get(1) == Some(&b'$') {
             validate_botline_win(&mut *wp);
-            pos.lnum = if wp.w_botline > 0 {
-                wp.w_botline - 1
+            pos.lnum = if wp.w_botline.get() > 0 {
+                wp.w_botline.get() - 1
             } else {
                 0
             };

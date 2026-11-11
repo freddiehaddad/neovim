@@ -1169,7 +1169,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
     }
 
     if oap.motion_type == MT_BLOCK_WISE {
-        bd.is_max = curwin_mut().w_curswant == MAXCOL;
+        bd.is_max = curwin_mut().w_curswant.get() == MAXCOL;
         while curwin_mut().w_cursor.lnum <= oap.end.lnum {
             curwin_mut().w_cursor.col = 0;
             block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
@@ -1538,7 +1538,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
     let mut ind_pre_vcol: i32 = 0;
     let mut bd = BlockDef::new();
 
-    bd.is_max = curwin_mut().w_curswant == MAXCOL;
+    bd.is_max = curwin_mut().w_curswant.get() == MAXCOL;
 
     curwin_mut().w_cursor.lnum = oap.start.lnum;
     redraw_curbuf_later(UPD_INVERTED);
@@ -1573,7 +1573,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
 
     if oap.op_type == OP_APPEND {
         if oap.motion_type == MT_BLOCK_WISE && curwin_mut().w_cursor.coladd == 0 {
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
             while !crate::cursor::get_cursor_pos_slice().is_empty()
                 && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
             {
@@ -2111,7 +2111,7 @@ pub fn do_join(
         check_cursor_col(curwin_mut());
 
         curwin_mut().w_cursor.coladd = 0;
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
 
     ret
@@ -2123,7 +2123,9 @@ pub fn reset_lbr() -> bool {
         return false;
     }
     curwin_mut().w_onebuf_opt.wo_lbr.set(false);
-    curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+    curwin_mut()
+        .w_valid
+        .set(curwin_mut().w_valid.get() & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL)));
     true
 }
 
@@ -2134,7 +2136,9 @@ pub fn restore_lbr(lbr_saved: bool) {
     }
 
     curwin_mut().w_onebuf_opt.wo_lbr.set(true);
-    curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+    curwin_mut()
+        .w_valid
+        .set(curwin_mut().w_valid.get() & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL)));
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
@@ -2929,7 +2933,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     if visual {
         curwin_mut().w_cursor = save_cursor;
     } else if did_change {
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     } else if virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = save_coladd;
     }
@@ -3044,7 +3048,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 );
                 opt_vars().p_sbr.set(saved_sbr);
                 curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
-                if curwin_mut().w_curswant == MAXCOL {
+                if curwin_mut().w_curswant.get() == MAXCOL {
                     oparg.end_vcol = MAXCOL;
                 }
                 if oparg.end_vcol < oparg.start_vcol {
@@ -3134,7 +3138,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
         let _iobuff_ptr = g_st().iobuff.as_mut_ptr();
         if dict.is_none() {
             if l_visual_active {
-                if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
+                if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant.get() < MAXCOL {
                     let mut min_col = min_pos.col;
                     let mut max_col = max_pos.col;
                     getvcols(
@@ -3190,7 +3194,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 col_print(
                     &mut buf1,
                     curwin_mut().w_cursor.col + 1,
-                    curwin_mut().w_virtcol + 1,
+                    curwin_mut().w_virtcol.get() + 1,
                 );
                 col_print(
                     &mut buf2,
@@ -3415,7 +3419,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
     let mut end: Colnr = 0;
 
     if g_st().visual_global.mode != CTRL_V_CONST
-        || (!initial && oap.end.col < curwin_mut().w_view_width)
+        || (!initial && oap.end.col < curwin_mut().w_view_width.get())
     {
         return;
     }
@@ -3448,7 +3452,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         }
     }
 
-    if curwin_mut().w_curswant == MAXCOL {
+    if curwin_mut().w_curswant.get() == MAXCOL {
         curwin_mut().w_cursor.col = MAXCOL;
         oap.end_vcol = 0;
         curwin_mut().w_cursor.lnum = oap.start.lnum;
@@ -3590,7 +3594,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             oap.end = curwin_mut().w_cursor;
             curwin_mut().w_cursor = oap.start;
 
-            curwin_mut().w_valid &= !VALID_VIRTCOL;
+            curwin_mut()
+                .w_valid
+                .set(curwin_mut().w_valid.get() & (!VALID_VIRTCOL));
         } else {
             if !g_st().visual_global.active && oap.motion_type == MT_LINE_WISE {
                 let mut cur_lnum = curwin_mut().w_cursor.lnum;
@@ -3621,7 +3627,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
             if !gui_yank {
                 g_st().visual_global.resel.mode = g_st().visual_global.mode;
-                if curwin_mut().w_curswant == MAXCOL {
+                if curwin_mut().w_curswant.get() == MAXCOL {
                     g_st().visual_global.resel.vcol = MAXCOL;
                 } else {
                     if g_st().visual_global.mode != CTRL_V_CONST {
@@ -3702,7 +3708,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 oap.end.col += l - 1;
             }
         }
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
 
         oap.empty = oap.motion_type != MT_LINE_WISE
             && ((!oap.inclusive && oap.motion_type != MT_BLOCK_WISE)
@@ -3985,7 +3991,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     || oap.op_type == OP_DELETE)
             {
                 reset_lbr();
-                curwin_mut().w_curswant = old_col;
+                curwin_mut().w_curswant.set(old_col);
                 coladvance(curwin_mut(), old_col);
             }
         } else {

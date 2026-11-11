@@ -1621,7 +1621,7 @@ fn fix_cursor(win: &mut WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
         }
         check_cursor_col(&mut *win);
         changed_cline_bef_curs(win);
-        win.w_valid &= !VALID_BOTLINE_AP;
+        win.w_valid.set(win.w_valid.get() & (!VALID_BOTLINE_AP));
         update_topline(win);
     } else {
         invalidate_botline_win(&mut *win);

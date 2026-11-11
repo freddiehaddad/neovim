@@ -72,10 +72,10 @@ fn write_fmt(fd: &CFile, s: String) -> bool {
 }
 
 fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> bool {
-    let s = if wp.w_curswant == MAXCOL {
+    let s = if wp.w_curswant.get() == MAXCOL {
         format!("{spaces}normal! $\n")
     } else {
-        format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
+        format!("{spaces}normal! 0{}|\n", wp.w_virtcol.get() + 1)
     };
     write_fmt(fd, s)
 }
@@ -89,13 +89,13 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInf
             }
             n += 1;
 
-            if wp.w_height + wp.w_hsep_height + wp.w_status_height
+            if wp.w_height.get() + wp.w_hsep_height.get() + wp.w_status_height.get()
                 < crate::globals::topframe_mut().fr_height.get()
                 && !write_fmt(
                     fd,
                     format!(
                         "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
-                        i64::from(wp.w_height),
+                        i64::from(wp.w_height.get()),
                         i64::from(g_st().rows_global) / 2,
                         i64::from(g_st().rows_global)
                     ),
@@ -104,12 +104,12 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInf
                 return false;
             }
 
-            if wp.w_width < g_st().columns_global
+            if wp.w_width.get() < g_st().columns_global
                 && !write_fmt(
                     fd,
                     format!(
                         "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
-                        i64::from(wp.w_width),
+                        i64::from(wp.w_width.get()),
                         i64::from(g_st().columns_global) / 2,
                         i64::from(g_st().columns_global)
                     ),
@@ -189,7 +189,7 @@ fn ses_do_frame(fr: &Frame) -> bool {
 }
 
 fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
-    if wp.w_floating {
+    if wp.w_floating.get() {
         return 0;
     }
     let buf = wp.buf_mut();
@@ -310,22 +310,22 @@ fn put_view(
     }
 
     let wargcount = crate::arglist::wargcount(&*wp);
-    if wp.w_arg_idx != current_arg_idx
-        && wp.w_arg_idx < wargcount
+    if wp.w_arg_idx.get() != current_arg_idx
+        && wp.w_arg_idx.get() < wargcount
         && ptr::eq(flagp, &opt_vars().ssop_flags)
     {
-        if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx) + 1)) {
+        if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx.get()) + 1)) {
             return false;
         }
         did_next = true;
     }
 
-    if add_edit && (!did_next || wp.w_arg_idx_invalid) {
+    if add_edit && (!did_next || wp.w_arg_idx_invalid.get()) {
         let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
         if bt_help(wp.buf_opt()) {
             let mut curtag: &CStr = c"";
-            if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
-                curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
+            if 0 < wp.w_tagstackidx.get() && wp.w_tagstackidx.get() <= wp.w_tagstacklen.get() {
+                curtag = wp.w_tagstack[(wp.w_tagstackidx.get() - 1) as usize]
                     .tagname
                     .as_deref()
                     .unwrap_or(c"");
@@ -362,8 +362,8 @@ fn put_view(
         }
     }
 
-    if wp.w_alt_fnum != 0
-        && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
+    if wp.w_alt_fnum.get() != 0
+        && let Some(alt) = buflist_findnr(wp.w_alt_fnum.get())
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && !alt.fname_bytes().is_empty()
         && alt.b_p_bl.get()
@@ -412,7 +412,7 @@ fn put_view(
     }
 
     if do_cursor {
-        if wp.w_view_height <= 0 {
+        if wp.w_view_height.get() <= 0 {
             if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.lnum)) {
                 return false;
             }
@@ -421,9 +421,9 @@ fn put_view(
             format!(
                 "let s:l = {} - (({} * winheight(0) + {}) / {})\n",
                 wp.w_cursor.lnum,
-                wp.w_cursor.lnum - wp.w_topline,
-                wp.w_view_height / 2,
-                wp.w_view_height
+                wp.w_cursor.lnum - wp.w_topline.get(),
+                wp.w_view_height.get() / 2,
+                wp.w_view_height.get()
             ),
         ) {
             return false;
@@ -441,15 +441,15 @@ fn put_view(
             if !put_line(fd, c"normal! 0") {
                 return false;
             }
-        } else if !wp.w_onebuf_opt.wo_wrap.get() && wp.w_leftcol > 0 && wp.w_width > 0 {
-            let vcol1 = i64::from(wp.w_virtcol) + 1;
+        } else if !wp.w_onebuf_opt.wo_wrap.get() && wp.w_leftcol.get() > 0 && wp.w_width.get() > 0 {
+            let vcol1 = i64::from(wp.w_virtcol.get()) + 1;
             if !write_fmt(
                 fd,
                 format!(
                     "let s:c = {vcol1} - (({} * winwidth(0) + {}) / {})\nif s:c > 0\n  exe 'normal! ' . s:c . '|zs' . {vcol1} . '|'\nelse\n",
-                    i64::from(wp.w_virtcol - wp.w_leftcol),
-                    i64::from(wp.w_width / 2),
-                    i64::from(wp.w_width),
+                    i64::from(wp.w_virtcol.get() - wp.w_leftcol.get()),
+                    i64::from(wp.w_width.get() / 2),
+                    i64::from(wp.w_width.get()),
                 ),
             ) || !put_view_curpos(fd, &*wp, "  ")
                 || !put_line(fd, c"endif")
@@ -749,7 +749,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     {
                         return false;
                     }
-                    if !wp_ref.w_arg_idx_invalid {
+                    if !wp_ref.w_arg_idx_invalid.get() {
                         edited_win = wp;
                     }
                     break;
@@ -778,7 +778,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) != 0 {
                     nr += 1;
-                } else if !wp_ref.w_floating {
+                } else if !wp_ref.w_floating.get() {
                     restore_size = false;
                 }
                 if curwin_ptr() == wp {
@@ -830,7 +830,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if nr > 1 && !put_line(fd, c"wincmd w") {
                     return false;
                 }
-                next_arg_idx = wp_ref.w_arg_idx;
+                next_arg_idx = wp_ref.w_arg_idx.get();
                 wp = wp_ref.w_next;
             }
 

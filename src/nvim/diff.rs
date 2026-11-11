@@ -694,12 +694,12 @@ pub fn diff_redraw(dofold: bool) {
         if dofold && foldmethod_is_diff(&mut *wp) {
             fold_update_all(&mut *wp);
         }
-        let n = diff_check_fill(wp, wp.w_topline);
-        if (wp != curwin_ptr() && wp.w_topfill > 0) || n > 0 {
-            if wp.w_topfill > n {
-                wp.w_topfill = n.max(0);
-            } else if n > 0 && n > wp.w_topfill {
-                wp.w_topfill = n;
+        let n = diff_check_fill(wp, wp.w_topline.get());
+        if (wp != curwin_ptr() && wp.w_topfill.get() > 0) || n > 0 {
+            if wp.w_topfill.get() > n {
+                wp.w_topfill.set(n.max(0));
+            } else if n > 0 && n > wp.w_topfill.get() {
+                wp.w_topfill.set(n);
                 if wp == curwin_ptr() {
                     used_max_fill_curwin = true;
                 } else if !wp_other.is_null() {
@@ -1374,7 +1374,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
                 diff_get_corresponding_line(old_buf, old_curwin.w_cursor.lnum);
         }
     }
-    scroll_to_fraction(curwin_mut(), curwin_mut().w_height);
+    scroll_to_fraction(curwin_mut(), curwin_mut().w_height.get());
 }
 pub fn ex_diffthis(_eap: &mut Exarg) {
     diff_win_options(curwin_mut(), true);
@@ -1417,7 +1417,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
                 .set(wp.w_onebuf_opt.wo_wrap.get());
         }
         wp.w_onebuf_opt.wo_wrap.set(false);
-        wp.w_skipcol = 0;
+        wp.w_skipcol.set(0);
     }
     if !wp.w_onebuf_opt.wo_diff.get() {
         if wp.w_onebuf_opt.wo_diff_saved.get() {
@@ -1487,7 +1487,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                     && wp.w_onebuf_opt.wo_wrap_save.get()
                 {
                     wp.w_onebuf_opt.wo_wrap.set(true);
-                    wp.w_leftcol = 0;
+                    wp.w_leftcol.set(0);
                 }
                 wp.w_onebuf_opt.wo_fdm.set_option_cstr(
                     if !wp.w_onebuf_opt.wo_fdm_save.is_empty() {
@@ -1518,7 +1518,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                 }
                 fold_update_all(&mut *wp);
             }
-            wp.w_topfill = 0;
+            wp.w_topfill.set(0);
             changed_window_setting(&mut *wp);
             diff_buf_adjust(&mut *wp);
         }
@@ -1993,7 +1993,7 @@ pub fn diff_check_with_linestatus(
     {
         return 0;
     }
-    let should_linematch = lnum >= wp.w_topline && lnum < wp.w_botline && {
+    let should_linematch = lnum >= wp.w_topline.get() && lnum < wp.w_botline.get() && {
         let ct = curtab_mut();
         let diffs = ct.tp_diffs.borrow();
         !diffs[dp_idx].is_linematched
@@ -2173,8 +2173,8 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
     if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    let lnum = fromwin.w_topline;
-    towin.w_topfill = 0;
+    let lnum = fromwin.w_topline.get();
+    towin.w_topfill.set(0);
     let dp_lnum_opt = curtab_mut()
         .tp_diffs
         .borrow()
@@ -2187,36 +2187,39 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
             return;
         }
         let u_toidx = toidx as usize;
-        towin.w_topline = lnum + (dp_lnum[u_toidx] - dp_lnum[u_fromidx]);
+        towin
+            .w_topline
+            .set(lnum + (dp_lnum[u_toidx] - dp_lnum[u_fromidx]));
         if lnum >= dp_lnum[u_fromidx] {
             calculate_topfill_and_topline(
                 u_fromidx,
                 u_toidx,
-                fromwin.w_topline,
-                fromwin.w_topfill,
-                &mut towin.w_topfill,
-                &mut towin.w_topline,
+                fromwin.w_topline.get(),
+                fromwin.w_topfill.get(),
+                &mut towin.w_topfill.get(),
+                &mut towin.w_topline.get(),
             );
         }
     } else {
-        towin.w_topline =
-            towin.buf_mut().b_ml.ml_line_count - (fromwin.buf_mut().b_ml.ml_line_count - lnum);
+        towin.w_topline.set(
+            towin.buf_mut().b_ml.ml_line_count - (fromwin.buf_mut().b_ml.ml_line_count - lnum),
+        );
     }
-    towin.w_botfill = false;
-    if towin.w_topline > towin.buf_mut().b_ml.ml_line_count {
-        towin.w_topline = towin.buf_mut().b_ml.ml_line_count;
-        towin.w_botfill = true;
+    towin.w_botfill.set(false);
+    if towin.w_topline.get() > towin.buf_mut().b_ml.ml_line_count {
+        towin.w_topline.set(towin.buf_mut().b_ml.ml_line_count);
+        towin.w_botfill.set(true);
     }
-    if towin.w_topline < 1 {
-        towin.w_topline = 1;
-        towin.w_topfill = 0;
+    if towin.w_topline.get() < 1 {
+        towin.w_topline.set(1);
+        towin.w_topfill.set(0);
     }
     invalidate_botline_win(&mut *towin);
     changed_line_abv_curs_win(&mut *towin);
     check_topfill(towin, false);
-    let mut topline = towin.w_topline;
+    let mut topline = towin.w_topline.get();
     has_folding(&mut *towin, topline, Some(&mut topline), None);
-    towin.w_topline = topline;
+    towin.w_topline.set(topline);
 }
 fn parse_diffanchors(
     check_only: bool,

@@ -834,8 +834,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     validate_cursor(curwin_mut());
 
     // May redraw the status line to show the cursor position.
-    if opt_vars().p_ru.get() && (curwin_mut().w_status_height > 0 || global_stl_height() > 0) {
-        curwin_mut().w_redr_status = true;
+    if opt_vars().p_ru.get() && (curwin_mut().w_status_height.get() > 0 || global_stl_height() > 0)
+    {
+        curwin_mut().w_redr_status.set(true);
     }
 
     redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
@@ -1169,7 +1170,7 @@ fn command_line_enter(
                     || !opt_vars().p_wbr.is_empty()
                     || !wp.w_onebuf_opt.wo_wbr.is_empty()
                 {
-                    wp.w_redr_status = true;
+                    wp.w_redr_status.set(true);
                     found_one = true;
                 }
             }
@@ -1659,7 +1660,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         return -1; // get another key
     }
 
-    let display_tick_saved: Disptick = curwin_mut().w_display_tick;
+    let display_tick_saved: Disptick = curwin_mut().w_display_tick.get();
     s.c = key;
 
     if get_cmdline_info().cmdbuff_replaced.get() && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
@@ -1683,7 +1684,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         if s.is_state.winid != curwin_mut().handle {
             init_incsearch_state(&mut s.is_state);
         }
-        if curwin_mut().w_display_tick > display_tick_saved && s.is_state.did_incsearch {
+        if curwin_mut().w_display_tick.get() > display_tick_saved && s.is_state.did_incsearch {
             may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
         }
         if get_cmdline_info().cmdbuff_replaced.get() {
@@ -3533,7 +3534,7 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
     if g_st().key_typed {
         m = if !g_st().cmdline_win.is_null() {
             let cw = g_st().cmdline_win.borrow();
-            cw.w_view_width * cw.w_view_height
+            cw.w_view_width.get() * cw.w_view_height.get()
         } else {
             g_st().columns_global * g_st().rows_global
         };
@@ -4547,8 +4548,11 @@ pub fn compute_cmdrow() {
         g_st().cmdline_row = g_st().rows_global - 1;
     } else {
         let wp = lastwin_nofloating(None);
-        g_st().cmdline_row =
-            wp.w_winrow + wp.w_height + wp.w_hsep_height + wp.w_status_height + global_stl_height();
+        g_st().cmdline_row = wp.w_winrow.get()
+            + wp.w_height.get()
+            + wp.w_hsep_height.get()
+            + wp.w_status_height.get()
+            + global_stl_height();
     }
     if g_st().cmdline_row == g_st().rows_global && opt_vars().p_ch.get() > 0 {
         g_st().cmdline_row -= 1;

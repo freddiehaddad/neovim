@@ -1793,7 +1793,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         col = pos.col;
         coladd = pos.coladd;
         if curswant >= 0 {
-            curwin_mut().w_curswant = curswant - 1;
+            curwin_mut().w_curswant.set(curswant - 1);
             set_curswant = false;
         }
     } else if (argvars[0].v_type == VarType::VarNumber || argvars[0].v_type == VarType::VarString)
@@ -1835,7 +1835,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
     check_cursor(curwin_mut());
     mb_adjust_cursor();
 
-    curwin_mut().w_set_curswant = set_curswant;
+    curwin_mut().w_set_curswant.set(set_curswant);
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 }
 
@@ -2778,7 +2778,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let l = tv_list_alloc(buf_ref.b_changelistlen.get() as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(&l));
     let mut changelistindex = if buf == curwin_mut().w_buffer {
-        curwin_mut().w_changelistidx
+        curwin_mut().w_changelistidx.get()
     } else {
         let mut idx = buf_ref.b_changelistlen.get();
         for wip in &buf_ref.b_wininfo {
@@ -2860,9 +2860,9 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     );
     tv_list_append_number(&l, fp.map_or(0, |p| Varnumber::from(p.coladd)));
     if getcurpos {
-        let save_set_curswant = curwin_mut().w_set_curswant;
-        let save_curswant = curwin_mut().w_curswant;
-        let save_virtcol = curwin_mut().w_virtcol;
+        let save_set_curswant = curwin_mut().w_set_curswant.get();
+        let save_curswant = curwin_mut().w_curswant.get();
+        let save_virtcol = curwin_mut().w_virtcol.get();
 
         if wp == curwin_ptr() {
             update_curswant();
@@ -2871,18 +2871,20 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             &l,
             if wp.is_null() {
                 0
-            } else if wp.w_curswant == MAXCOL {
+            } else if wp.w_curswant.get() == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
-                Varnumber::from(wp.w_curswant) + 1
+                Varnumber::from(wp.w_curswant.get()) + 1
             },
         );
 
         if wp == curwin_ptr() && save_set_curswant {
-            curwin_mut().w_set_curswant = save_set_curswant;
-            curwin_mut().w_curswant = save_curswant;
-            curwin_mut().w_virtcol = save_virtcol;
-            curwin_mut().w_valid &= !VALID_VIRTCOL;
+            curwin_mut().w_set_curswant.set(save_set_curswant);
+            curwin_mut().w_curswant.set(save_curswant);
+            curwin_mut().w_virtcol.set(save_virtcol);
+            curwin_mut()
+                .w_valid
+                .set(curwin_mut().w_valid.get() & (!VALID_VIRTCOL));
         }
     }
 }
@@ -2917,11 +2919,14 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     cleanup_jumplist(wp_handle, true);
     let wp = wp_handle.borrow_mut();
 
-    let l = tv_list_alloc(wp.w_jumplistlen as isize);
+    let l = tv_list_alloc(wp.w_jumplistlen.get() as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(&l));
-    tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(wp.w_jumplistidx));
+    tv_list_append_number(
+        rettv.vval.v_list_ref(),
+        Varnumber::from(wp.w_jumplistidx.get()),
+    );
 
-    for i in 0..(wp.w_jumplistlen as usize) {
+    for i in 0..(wp.w_jumplistlen.get() as usize) {
         if wp.w_jumplist[i].fmark.mark.lnum == 0 {
             continue;
         }
@@ -4442,10 +4447,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         detach = false;
         stdin_mode = K_CHANNEL_STDIN_PIPE_CONST;
         if width == 0 {
-            width = (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16;
+            width = (curwin_mut().w_view_width.get() - win_col_off(curwin_mut())).max(0) as u16;
         }
         if height == 0 {
-            height = curwin_mut().w_view_height as u16;
+            height = curwin_mut().w_view_height.get() as u16;
         }
     }
 
@@ -6520,7 +6525,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
         if (flags & SP_NOMOVE) != 0 {
             curwin_mut().w_cursor = save_cursor;
         } else {
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
         }
     }
     opt_vars().p_ws.set(save_p_ws);
@@ -7080,8 +7085,8 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
         curwin_mut().w_cursor.col = pos.col;
         curwin_mut().w_cursor.coladd = pos.coladd;
         if curswant >= 0 {
-            curwin_mut().w_curswant = curswant - 1;
-            curwin_mut().w_set_curswant = false;
+            curwin_mut().w_curswant.set(curswant - 1);
+            curwin_mut().w_set_curswant.set(false);
         }
         check_cursor(curwin_mut());
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -7564,7 +7569,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
             word = get_cursor_pos_ptr();
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
         }
     } else if !curbuf_mut().b_s.b_p_spl.is_empty() {
         let mut capcol: i32 = -1;

@@ -319,10 +319,10 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     }
 
     if (flags & K_CTX_CURSOR) != 0 {
-        ctx.curswant = if curwin_mut().w_set_curswant {
+        ctx.curswant = if curwin_mut().w_set_curswant.get() {
             -1
         } else {
-            curwin_mut().w_curswant
+            curwin_mut().w_curswant.get()
         };
     }
 
@@ -420,10 +420,10 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
         assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b));
         curwin_mut().w_cursor = ctx.pos;
         if ctx.curswant >= 0 {
-            curwin_mut().w_curswant = ctx.curswant;
-            curwin_mut().w_set_curswant = false;
+            curwin_mut().w_curswant.set(ctx.curswant);
+            curwin_mut().w_set_curswant.set(false);
         } else {
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
         }
     }
 
@@ -946,9 +946,9 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             free_dirs,
         );
 
-        if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
-            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
-            curwin_mut().w_topfill = 0;
+        if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count {
+            curwin_mut().w_topline.set(curbuf_mut().b_ml.ml_line_count);
+            curwin_mut().w_topfill.set(0);
         }
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {
         let saved_buf = cs.cs_new_curbuf.br_buf;
@@ -995,7 +995,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         if let Some(wp) = win_find_by_handle(cs.cs_target_win)
             && !equalpos(cs.cs_target_old_pos, wp.w_cursor)
         {
-            wp.w_redr_status = true;
+            wp.w_redr_status.set(true);
         }
         check_cursor(curwin_mut());
         if g_st().visual_global.active {

@@ -2840,7 +2840,7 @@ pub(super) fn reg_match_visual() -> bool {
         } else {
             (wp.w_cursor, g_st().visual_global.start)
         };
-        (t, b, g_st().visual_global.mode, wp.w_curswant)
+        (t, b, g_st().visual_global.mode, wp.w_curswant.get())
     } else {
         let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
             (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)

@@ -1699,7 +1699,7 @@ pub fn do_search(
             setpcmark();
         }
         curwin_mut().w_cursor = pos;
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
 
     if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
@@ -2521,7 +2521,7 @@ pub fn showmatch(c: i32) {
         return;
     };
 
-    if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
+    if lpos.lnum < curwin_mut().w_topline.get() || lpos.lnum >= curwin_mut().w_botline.get() {
         return;
     }
 
@@ -2530,8 +2530,8 @@ pub fn showmatch(c: i32) {
     }
 
     let col_visible = curwin_mut().w_onebuf_opt.wo_wrap.get()
-        || (vcol >= curwin_mut().w_leftcol
-            && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
+        || (vcol >= curwin_mut().w_leftcol.get()
+            && vcol < curwin_mut().w_leftcol.get() + curwin_mut().w_view_width.get());
     if !col_visible {
         return;
     }
@@ -2548,10 +2548,12 @@ pub fn showmatch(c: i32) {
     } else {
         opt_vars().p_siso.get()
     };
-    if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol {
+    if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol.get() {
         g_st().dollar_vcol = -1;
     }
-    curwin_mut().w_virtcol += 1;
+    curwin_mut()
+        .w_virtcol
+        .set(curwin_mut().w_virtcol.get() + (1));
 
     let save_dollar_vcol = g_st().dollar_vcol;
     let save_state = g_st().state_global;
@@ -3848,7 +3850,7 @@ pub fn find_pattern_in_path(
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
                                     curwin_mut().w_cursor.col = startp_idx.unwrap_or(0) as Colnr;
-                                    curwin_mut().w_set_curswant = true;
+                                    curwin_mut().w_set_curswant.set(true);
                                 }
 
                                 if l_g_do_tagpreview != 0

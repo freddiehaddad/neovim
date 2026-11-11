@@ -228,7 +228,7 @@ pub fn changed_lines_invalidate_win(
     } else if wp.w_cursor.lnum == lnum && wp.w_cursor.col >= col {
         changed_cline_bef_curs(wp);
     }
-    if wp.w_botline >= lnum {
+    if wp.w_botline.get() >= lnum {
         if xtra < 0 {
             invalidate_botline_win(&mut *wp);
         } else {
@@ -244,7 +244,7 @@ pub fn changed_lines_invalidate_win(
         lnume += 1;
     }
 
-    let valid_len = wp.w_lines_valid.max(0) as usize;
+    let valid_len = wp.w_lines_valid.get().max(0) as usize;
     for (i, wl) in (&mut wp.w_lines)[..valid_len].iter_mut().enumerate() {
         if wl.wl_valid {
             if wl.wl_lnum >= lnum {
@@ -263,12 +263,13 @@ pub fn changed_lines_invalidate_win(
 }
 
 pub fn changed_topline_skipcol(wp: &mut WinInfoInfo, line1: Linenr, line2: Linenr) {
-    if wp.w_skipcol > 0
-        && wp.w_topline >= line1
-        && wp.w_topline <= line2
-        && linetabsize_disp_eol(wp, wp.w_topline) <= wp.w_skipcol + sms_marker_overlap(wp, -1)
+    if wp.w_skipcol.get() > 0
+        && wp.w_topline.get() >= line1
+        && wp.w_topline.get() <= line2
+        && linetabsize_disp_eol(wp, wp.w_topline.get())
+            <= wp.w_skipcol.get() + sms_marker_overlap(wp, -1)
     {
-        wp.w_skipcol = 0;
+        wp.w_skipcol.set(0);
     }
 }
 
@@ -299,7 +300,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             }
 
             if xtra != 0 {
-                win.w_redr_status = true;
+                win.w_redr_status.set(true);
             }
         }
     }
@@ -307,8 +308,8 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
     if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
         let mut view = INIT_FMARKV;
         if curwin_mut().w_buffer == (&raw mut *buf)
-            && lnum >= curwin_mut().w_topline
-            && lnum <= curwin_mut().w_botline
+            && lnum >= curwin_mut().w_topline.get()
+            && lnum <= curwin_mut().w_botline.get()
         {
             view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
         }
@@ -347,16 +348,16 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                     buf.b_changelistlen.set(JUMPLISTSIZE - 1);
                     buf.b_changelist.rotate_left(1);
                     for_all_tab_windows(|wp| {
-                        if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx > 0 {
-                            wp.w_changelistidx -= 1;
+                        if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx.get() > 0 {
+                            wp.w_changelistidx.set(wp.w_changelistidx.get() - (1));
                         }
                     });
                 }
                 for_all_tab_windows(|wp| {
                     if wp.w_buffer == (&raw mut *buf)
-                        && wp.w_changelistidx == buf.b_changelistlen.get()
+                        && wp.w_changelistidx.get() == buf.b_changelistlen.get()
                     {
-                        wp.w_changelistidx += 1;
+                        wp.w_changelistidx.set(wp.w_changelistidx.get() + (1));
                     }
                 });
                 buf.b_changelistlen.set(buf.b_changelistlen.get() + (1));
@@ -364,7 +365,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
         }
         buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize] = buf.b_last_change.clone();
         if curwin_mut().w_buffer == (&raw mut *buf) {
-            curwin_mut().w_changelistidx = buf.b_changelistlen.get();
+            curwin_mut().w_changelistidx.set(buf.b_changelistlen.get());
         }
     }
 
@@ -374,18 +375,18 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     for_all_tab_windows(|wp| {
         if wp.w_buffer == (&raw mut *buf) {
-            if !g_st().redraw_not_allowed && wp.w_redr_type < UPD_VALID {
-                wp.w_redr_type = UPD_VALID;
+            if !g_st().redraw_not_allowed && wp.w_redr_type.get() < UPD_VALID {
+                wp.w_redr_type.set(UPD_VALID);
             }
 
-            if xtra != 0 && wp.w_redraw_top != 0 {
+            if xtra != 0 && wp.w_redraw_top.get() != 0 {
                 redraw_later(Some(&mut *wp), UPD_NOT_VALID);
             }
 
             let mut last = lnume + xtra - 1;
 
-            if last < wp.w_topline {
-                wp.w_skipcol = 0;
+            if last < wp.w_topline.get() {
+                wp.w_skipcol.set(0);
             }
             changed_topline_skipcol(&mut *wp, lnum, lnume - 1);
 
@@ -393,28 +394,29 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
             let mut folded = has_folding_win(&mut *wp, lnum, Some(&mut lnum), None, false, None);
             if wp.w_cursor.lnum == lnum {
-                wp.w_cline_folded = folded;
+                wp.w_cline_folded.set(folded);
             }
             folded = has_folding_win(&mut *wp, last, None, Some(&mut last), false, None);
             if wp.w_cursor.lnum == last {
-                wp.w_cline_folded = folded;
+                wp.w_cline_folded.set(folded);
             }
 
             changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
 
             if has_any_folding(&mut *wp) != 0 {
-                set_topline(wp, wp.w_topline);
+                set_topline(wp, wp.w_topline.get());
             }
 
             if wp.w_onebuf_opt.wo_rnu.get() && xtra != 0 {
-                wp.w_last_cursor_lnum_rnu = 0;
+                wp.w_last_cursor_lnum_rnu.set(0);
             }
 
-            if wp.w_onebuf_opt.wo_cul.get() && wp.w_last_cursorline >= lnum {
-                if wp.w_last_cursorline < lnume {
-                    wp.w_last_cursorline = 0;
+            if wp.w_onebuf_opt.wo_cul.get() && wp.w_last_cursorline.get() >= lnum {
+                if wp.w_last_cursorline.get() < lnume {
+                    wp.w_last_cursorline.set(0);
                 } else {
-                    wp.w_last_cursorline += xtra;
+                    wp.w_last_cursorline
+                        .set(wp.w_last_cursorline.get() + (xtra));
                 }
             }
         }

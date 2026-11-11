@@ -148,8 +148,8 @@ use crate::strings::ngettext;
 
 /// Copy that folding state from window "wp_from" to window "wp_to".
 pub fn copy_folding_state(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
-    wp_to.w_fold_manual = wp_from.w_fold_manual;
-    wp_to.w_foldinvalid = wp_from.w_foldinvalid;
+    wp_to.w_fold_manual.set(wp_from.w_fold_manual.get());
+    wp_to.w_foldinvalid.set(wp_from.w_foldinvalid.get());
     wp_to.w_folds.clone_from(&wp_from.w_folds);
 }
 
@@ -434,11 +434,11 @@ pub fn new_fold_level() {
 
 fn new_fold_level_win(wp: &mut WinInfoInfo) {
     checkupdate(wp);
-    if wp.w_fold_manual {
+    if wp.w_fold_manual.get() {
         for entry in &mut wp.w_folds {
             entry.fd_flags = FD_LEVEL;
         }
-        wp.w_fold_manual = false;
+        wp.w_fold_manual.set(false);
     }
     changed_window_setting(&mut *wp);
 }
@@ -577,7 +577,7 @@ pub fn fold_create(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPo
             close_fold(start, 1);
         }
         if !use_level {
-            wp.w_fold_manual = true;
+            wp.w_fold_manual.set(true);
         }
 
         changed_window_setting(&mut *wp);
@@ -695,7 +695,7 @@ pub fn delete_fold(
 /// Remove all folding for window "win".
 pub fn clear_folding(win: &mut WinInfoInfo) {
     win.w_folds.clear();
-    win.w_foldinvalid = false;
+    win.w_foldinvalid.set(false);
 }
 
 /// Update folds for changes in the buffer of a window.
@@ -750,7 +750,7 @@ pub fn fold_update_after_insert() {
 
 /// Update all lines in a window for folding.
 pub fn fold_update_all(win: &mut WinInfoInfo) {
-    win.w_foldinvalid = true;
+    win.w_foldinvalid.set(true);
     redraw_later(Some(&mut *win), UPD_NOT_VALID);
 }
 
@@ -871,7 +871,7 @@ pub fn fold_init_win(new_win: &mut WinInfoInfo) {
 
 /// Find an entry in the win->w_lines[] array for buffer line "lnum".
 pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> i32 {
-    let valid_len = win.w_lines_valid.max(0) as usize;
+    let valid_len = win.w_lines_valid.get().max(0) as usize;
     for (i, wl) in (&win.w_lines)[..valid_len].iter().enumerate() {
         if wl.wl_valid {
             if lnum < wl.wl_lnum {
@@ -962,12 +962,12 @@ fn fold_level_win(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
 }
 
 fn checkupdate(wp: &mut WinInfoInfo) {
-    if !wp.w_foldinvalid {
+    if !wp.w_foldinvalid.get() {
         return;
     }
 
     fold_update(wp, 1, MAXLNUM);
-    wp.w_foldinvalid = false;
+    wp.w_foldinvalid.set(false);
 }
 
 fn set_fold_repeat(pos: CursorPos, count: i32, do_open: bool) {
@@ -1082,7 +1082,7 @@ fn set_manual_fold_win(
         level += 1;
     }
     if found_fold {
-        wp.w_fold_manual = true;
+        wp.w_fold_manual.set(true);
         if (done & DONE_ACTION) != 0 {
             changed_window_setting(&mut *wp);
         }
@@ -1675,10 +1675,10 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         return;
     }
 
-    if wp.w_foldinvalid {
+    if wp.w_foldinvalid.get() {
         top = 1;
         bot = wp.buf_mut().b_ml.ml_line_count;
-        wp.w_foldinvalid = false;
+        wp.w_foldinvalid.set(false);
 
         set_small_maybe(&mut wp.w_folds);
     }
@@ -2038,12 +2038,12 @@ fn fold_update_iemsrecurse(
                     fp.fd_top = firstlnum;
                     fp.fd_len = bot - firstlnum + 1;
                     if topflags == FD_OPEN {
-                        flp.wp_mut().w_fold_manual = true;
+                        flp.wp_mut().w_fold_manual.set(true);
                         fp.fd_flags = FD_OPEN;
                     } else if i == 0 {
                         fp.fd_flags = topflags;
                         if topflags != FD_LEVEL {
-                            flp.wp_mut().w_fold_manual = true;
+                            flp.wp_mut().w_fold_manual.set(true);
                         }
                     } else {
                         fp.fd_flags = prev_flags;
@@ -2600,7 +2600,7 @@ pub fn put_folds(fd: &CFile, wp: &mut WinInfoInfo) -> bool {
         return false;
     }
 
-    if wp.w_fold_manual {
+    if wp.w_fold_manual.get() {
         return put_foldopen_recurse(fd, wp, &wp.w_folds, 0);
     }
 

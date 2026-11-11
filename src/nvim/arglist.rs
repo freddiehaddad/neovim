@@ -207,13 +207,13 @@ fn alist_set(al: &std::rc::Rc<Alist>, files: Vec<CString>, use_curbuf: i32) {
 
 /// Add file `fname` to argument list `al` (`alist_add`).
 pub fn alist_add(al: &Alist, ae_fname: CString, set_fnum: i32) {
-    let mut wp = curwin_ptr();
+    let wp = curwin_ptr();
     if !check_arglist_locked() {
         return;
     }
     ARGLIST_LOCKED.set(true);
 
-    wp.w_locked += 1;
+    wp.w_locked.set(wp.w_locked.get() + (1));
 
     let ae_fnum = if set_fnum > 0 {
         buflist_add(
@@ -230,7 +230,7 @@ pub fn alist_add(al: &Alist, ae_fname: CString, set_fnum: i32) {
 
     ARGLIST_LOCKED.set(false);
 
-    wp.w_locked -= 1;
+    wp.w_locked.set(wp.w_locked.get() - (1));
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
@@ -305,12 +305,12 @@ fn alist_check_arg_idx() {
 fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
-        let mut wp = curwin_ptr();
+        let wp = curwin_ptr();
         let al = win_alist_rc(wp.borrow());
         after = after.clamp(0, old_argcount);
         ARGLIST_LOCKED.set(true);
 
-        wp.w_locked += 1;
+        wp.w_locked.set(wp.w_locked.get() + (1));
 
         let count = files.len() as i32;
         let mut new_entries = Vec::with_capacity(files.len());
@@ -326,9 +326,9 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
 
         ARGLIST_LOCKED.set(false);
         {
-            wp.w_locked -= 1;
-            if old_argcount > 0 && wp.w_arg_idx >= after {
-                wp.w_arg_idx += count;
+            wp.w_locked.set(wp.w_locked.get() - (1));
+            if old_argcount > 0 && wp.w_arg_idx.get() >= after {
+                wp.w_arg_idx.set(wp.w_arg_idx.get() + (count));
             }
         }
     }
@@ -368,8 +368,10 @@ fn arglist_del_files(alist_ga: &[CString]) {
                     .al_ga
                     .borrow_mut()
                     .remove(match_idx as usize);
-                if curwin_mut().w_arg_idx > match_idx {
-                    curwin_mut().w_arg_idx -= 1;
+                if curwin_mut().w_arg_idx.get() > match_idx {
+                    curwin_mut()
+                        .w_arg_idx
+                        .set(curwin_mut().w_arg_idx.get() - (1));
                 }
                 match_idx -= 1;
             }
@@ -438,7 +440,7 @@ pub fn set_arglist(str_: &CStr) {
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
 pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
-    let idx = win.w_arg_idx;
+    let idx = win.w_arg_idx.get();
     if idx >= wargcount(&*win) {
         return false;
     }
@@ -459,13 +461,13 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
 pub fn check_arg_idx(win: &mut WinInfoInfo) {
     let wcount = wargcount(&*win);
     if wcount > 1 && !editing_arg_idx(win) {
-        win.w_arg_idx_invalid = true;
+        win.w_arg_idx_invalid.set(true);
         let gcount = gargcount();
-        if win.w_arg_idx != wcount - 1
+        if win.w_arg_idx.get() != wcount - 1
             && !g_st().arg_had_last
             && is_global_alist(&win_alist_rc(&*win))
             && gcount > 0
-            && win.w_arg_idx < gcount
+            && win.w_arg_idx.get() < gcount
         {
             let last_entry = garg_entry((gcount - 1) as usize);
             let buf = win.buf_mut();
@@ -481,8 +483,8 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
             }
         }
     } else {
-        win.w_arg_idx_invalid = false;
-        if win.w_arg_idx == wcount - 1 && is_global_alist(&win_alist_rc(&*win)) {
+        win.w_arg_idx_invalid.set(false);
+        if win.w_arg_idx.get() == wcount - 1 && is_global_alist(&win_alist_rc(&*win)) {
             g_st().arg_had_last = true;
         }
     }
@@ -522,7 +524,7 @@ pub fn ex_args(eap: &mut Exarg) {
             .iter()
             .map(|e| alist_name(e).unwrap_or(c""))
             .collect();
-        list_in_columns(&items, curwin_mut().w_arg_idx);
+        list_in_columns(&items, curwin_mut().w_arg_idx.get());
         return;
     }
 
@@ -546,10 +548,10 @@ pub fn ex_args(eap: &mut Exarg) {
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
 pub fn ex_previous(eap: &mut Exarg) {
     let count = argcount();
-    let target = if curwin_mut().w_arg_idx - eap.line2 >= count {
+    let target = if curwin_mut().w_arg_idx.get() - eap.line2 >= count {
         count - 1
     } else {
-        curwin_mut().w_arg_idx - eap.line2
+        curwin_mut().w_arg_idx.get() - eap.line2
     };
     do_argfile(eap, target);
 }
@@ -569,7 +571,7 @@ pub fn ex_argument(eap: &mut Exarg) {
     let i = if eap.addr_count > 0 {
         eap.line2 - 1
     } else {
-        curwin_mut().w_arg_idx
+        curwin_mut().w_arg_idx.get()
     };
     do_argfile(eap, i);
 }
@@ -577,7 +579,7 @@ pub fn ex_argument(eap: &mut Exarg) {
 /// Edit file `argn` of the argument lists (`do_argfile`).
 pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     let is_split_cmd = eap.cmd.first_byte() == b's';
-    let old_arg_idx = curwin_mut().w_arg_idx;
+    let old_arg_idx = curwin_mut().w_arg_idx.get();
     let count = argcount();
 
     if argn < 0 || argn >= count {
@@ -626,12 +628,12 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         }
     }
 
-    curwin_mut().w_arg_idx = argn;
+    curwin_mut().w_arg_idx.set(argn);
     if argn == argcount() - 1 && is_global_alist(&win_alist_rc(curwin_mut())) {
         g_st().arg_had_last = true;
     }
 
-    let cur_entry = arg_entry(curwin_mut().w_arg_idx as usize);
+    let cur_entry = arg_entry(curwin_mut().w_arg_idx.get() as usize);
     if !do_ecmd(
         0,
         alist_name(&cur_entry),
@@ -645,7 +647,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         }) + (if eap.forceit { ECMD_FORCEIT } else { 0 }),
         Some(curwin_mut()),
     ) {
-        curwin_mut().w_arg_idx = old_arg_idx;
+        curwin_mut().w_arg_idx.set(old_arg_idx);
     } else if eap.cmdidx != Cmdidx::CmdArgdo {
         setmark(b'\'' as i32);
     }
@@ -666,7 +668,7 @@ pub fn ex_next(eap: &mut Exarg) {
             }
             0
         } else {
-            curwin_mut().w_arg_idx + eap.line2
+            curwin_mut().w_arg_idx.get() + eap.line2
         };
         do_argfile(eap, i);
     }
@@ -694,10 +696,12 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
                     .borrow_mut()
                     .remove(j as usize);
 
-                if curwin_mut().w_arg_idx == j {
-                    curwin_mut().w_arg_idx = i;
-                } else if curwin_mut().w_arg_idx > j {
-                    curwin_mut().w_arg_idx -= 1;
+                if curwin_mut().w_arg_idx.get() == j {
+                    curwin_mut().w_arg_idx.set(i);
+                } else if curwin_mut().w_arg_idx.get() > j {
+                    curwin_mut()
+                        .w_arg_idx
+                        .set(curwin_mut().w_arg_idx.get() - (1));
                 }
 
                 j -= 1;
@@ -714,7 +718,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
     let mut i = if eap.addr_count != 0 {
         eap.line2
     } else {
-        curwin_mut().w_arg_idx + 1
+        curwin_mut().w_arg_idx.get() + 1
     };
     let curbuf_is_reusable = curbuf_reusable();
 
@@ -723,7 +727,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
     }
     maketitle();
 
-    if curwin_mut().w_arg_idx == 0
+    if curwin_mut().w_arg_idx.get() == 0
         && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0
         && (curbuf_mut().b_ffname.is_none() || curbuf_is_reusable)
     {
@@ -742,7 +746,7 @@ pub fn ex_argadd(eap: &mut Exarg) {
         if eap.addr_count > 0 {
             eap.line2
         } else {
-            curwin_mut().w_arg_idx + 1
+            curwin_mut().w_arg_idx.get() + 1
         },
         false,
     );
@@ -757,11 +761,11 @@ pub fn ex_argdelete(eap: &mut Exarg) {
 
     if eap.addr_count > 0 || eap.arg.is_empty() {
         if eap.addr_count == 0 {
-            if curwin_mut().w_arg_idx >= argcount() {
+            if curwin_mut().w_arg_idx.get() >= argcount() {
                 emsg(gettext(c"E610: No argument to delete"));
                 return;
             }
-            eap.line1 = curwin_mut().w_arg_idx + 1;
+            eap.line1 = curwin_mut().w_arg_idx.get() + 1;
             eap.line2 = eap.line1;
         } else if eap.line2 > argcount() {
             eap.line2 = argcount();
@@ -782,10 +786,12 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             .al_ga
             .borrow_mut()
             .drain((eap.line1 as usize - 1)..(eap.line2 as usize));
-        if curwin_mut().w_arg_idx >= eap.line2 {
-            curwin_mut().w_arg_idx -= n;
-        } else if curwin_mut().w_arg_idx > eap.line1 {
-            curwin_mut().w_arg_idx = eap.line1;
+        if curwin_mut().w_arg_idx.get() >= eap.line2 {
+            curwin_mut()
+                .w_arg_idx
+                .set(curwin_mut().w_arg_idx.get() - (n));
+        } else if curwin_mut().w_arg_idx.get() > eap.line1 {
+            curwin_mut().w_arg_idx.set(eap.line1);
         }
     } else {
         do_arglist(eap.arg.as_cstr(), AL_DEL, 0, false);
@@ -793,9 +799,9 @@ pub fn ex_argdelete(eap: &mut Exarg) {
 
     let new_len = argcount();
     if new_len == 0 {
-        curwin_mut().w_arg_idx = 0;
-    } else if curwin_mut().w_arg_idx >= new_len {
-        curwin_mut().w_arg_idx = new_len - 1;
+        curwin_mut().w_arg_idx.set(0);
+    } else if curwin_mut().w_arg_idx.get() >= new_len {
+        curwin_mut().w_arg_idx.set(new_len - 1);
     }
 
     maketitle();
@@ -835,19 +841,19 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
     g_st().tabpage_move_disallowed += 1;
     loop {
         let mut tpnext = curtab_mut().tp_next.get();
-        let mut wp = if lastwin_mut().w_floating {
+        let mut wp = if lastwin_mut().w_floating.get() {
             g_st().lastwin
         } else {
             g_st().firstwin
         };
         while !wp.is_null() {
-            let mut wpnext = if wp.w_floating {
-                if !wp.w_prev.is_null() && wp.w_prev.w_floating {
+            let mut wpnext = if wp.w_floating.get() {
+                if !wp.w_prev.is_null() && wp.w_prev.w_floating.get() {
                     wp.w_prev
                 } else {
                     g_st().firstwin
                 }
-            } else if wp.w_next.is_null() || wp.w_next.w_floating {
+            } else if wp.w_next.is_null() || wp.w_next.w_floating.get() {
                 crate::globals::WinPtr::NULL
             } else {
                 wp.w_next
@@ -859,8 +865,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             if buf.b_ffname.is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows.get() > 1
-                        || wp.w_width != g_st().columns_global
-                        || (wp.w_floating && !is_ctx_win(&wp))))
+                        || wp.w_width.get() != g_st().columns_global
+                        || (wp.w_floating.get() && !is_ctx_win(&wp))))
             {
                 i = opened_len;
             } else {
@@ -888,7 +894,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                             aall_ref.opened[i as usize] = weight as u8;
                             if i == 0 {
                                 if !aall_ref.new_curwin.is_null() {
-                                    aall_ref.new_curwin.w_arg_idx = opened_len;
+                                    aall_ref.new_curwin.w_arg_idx.set(opened_len);
                                 }
                                 aall_ref.new_curwin = wp;
                                 aall_ref.new_curtab = g_st().curtab.clone();
@@ -906,7 +912,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 }
             }
 
-            wp.w_arg_idx = i;
+            wp.w_arg_idx.set(i);
 
             if i == opened_len
                 && !aall_ref.keep_tabs
@@ -920,7 +926,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
                     if !win_valid(wp.opt()) || !bufref_valid(Some(&bufref)) {
-                        wp = if lastwin_mut().w_floating {
+                        wp = if lastwin_mut().w_floating.get() {
                             g_st().lastwin
                         } else {
                             g_st().firstwin
@@ -937,7 +943,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     let close_b = !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf);
                     win_close(wp.borrow_mut(), close_b, false);
                     if !win_valid(wpnext.opt()) {
-                        wpnext = if lastwin_mut().w_floating {
+                        wpnext = if lastwin_mut().w_floating.get() {
                             g_st().lastwin
                         } else {
                             g_st().firstwin
@@ -981,13 +987,13 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             g_st().arg_had_last = true;
         }
         if aall.opened[i as usize] > 0 {
-            if curwin_mut().w_arg_idx != i {
+            if curwin_mut().w_arg_idx.get() != i {
                 for wp in for_all_windows_ptr() {
-                    if wp.w_arg_idx == i {
+                    if wp.w_arg_idx.get() == i {
                         if aall.keep_tabs {
                             aall.new_curwin = crate::globals::WinPtr::new(wp);
                             aall.new_curtab = g_st().curtab.clone();
-                        } else if wp.w_floating {
+                        } else if wp.w_floating.get() {
                             break;
                         } else if wp.frame_mut().fr_parent.get()
                             != curwin_mut().frame_mut().fr_parent.get()
@@ -1020,7 +1026,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 g_st().autocmd_no_leave -= 1;
             }
 
-            curwin_mut().w_arg_idx = i;
+            curwin_mut().w_arg_idx.set(i);
             if i == 0 {
                 aall.new_curwin = crate::globals::curwin_ptr();
                 aall.new_curtab = g_st().curtab.clone();
@@ -1177,7 +1183,7 @@ pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// `argidx()` function (`f_argidx`).
 pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(curwin_mut().w_arg_idx as Varnumber);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(curwin_mut().w_arg_idx.get() as Varnumber);
 }
 
 /// `arglistid()` function (`f_arglistid`).

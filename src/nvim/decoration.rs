@@ -703,11 +703,11 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
             tp.tp_firstwin.get().as_ptr()
         }) {
             if wp.w_buffer == buf
-                && wp.w_minscwidth == SCL_NUM
+                && wp.w_minscwidth.get() == SCL_NUM
                 && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
-                && (unplace || wp.w_nrwidth_width < 2)
+                && (unplace || wp.w_nrwidth_width.get() < 2)
             {
-                wp.w_nrwidth_line_count = 0;
+                wp.w_nrwidth_line_count.set(0);
             }
         }
     }
@@ -1590,10 +1590,10 @@ pub fn decor_redraw_signs(
     }
 
     if !signs.is_empty() {
-        let width = if wp.w_minscwidth == SCL_NUM {
+        let width = if wp.w_minscwidth.get() == SCL_NUM {
             1
         } else {
-            wp.w_scwidth
+            wp.w_scwidth.get()
         };
         let len = width.min(num_text);
         let mut idx: usize = 0;
@@ -1756,7 +1756,7 @@ pub fn decor_virt_line_rows(
     if !decor_virt_line_wrap(wp, vl.overflow) {
         return 1;
     }
-    let row_width = wp.w_view_width
+    let row_width = wp.w_view_width.get()
         - if (vl.flags & K_VLLEFTCOL) != 0 {
             0
         } else {

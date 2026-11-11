@@ -794,9 +794,9 @@ pub fn check_auto_format(end_insert: bool) {
 pub fn comp_textwidth(ff: bool) -> i32 {
     let mut textwidth = curbuf_mut().b_p_tw.get() as i32;
     if textwidth == 0 && curbuf_mut().b_p_wm.get() != 0 {
-        textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm.get() as i32;
+        textwidth = curwin_mut().w_view_width.get() - curbuf_mut().b_p_wm.get() as i32;
         textwidth -= win_fdccol_count(curwin_mut());
-        textwidth -= curwin_mut().w_scwidth;
+        textwidth -= curwin_mut().w_scwidth.get();
 
         if curwin_mut().w_onebuf_opt.wo_nu.get() || curwin_mut().w_onebuf_opt.wo_rnu.get() {
             textwidth -= 8;
@@ -804,7 +804,7 @@ pub fn comp_textwidth(ff: bool) -> i32 {
     }
     textwidth = textwidth.max(0);
     if ff && textwidth == 0 {
-        textwidth = (curwin_mut().w_view_width - 1).min(79);
+        textwidth = (curwin_mut().w_view_width.get() - 1).min(79);
     }
     textwidth
 }
@@ -853,11 +853,13 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
 
     if oap.is_visual {
         for wp in for_all_windows_mut() {
-            if wp.w_old_cursor_lnum != 0 {
-                if wp.w_old_cursor_lnum > wp.w_old_visual_lnum {
-                    wp.w_old_cursor_lnum += old_line_count;
+            if wp.w_old_cursor_lnum.get() != 0 {
+                if wp.w_old_cursor_lnum.get() > wp.w_old_visual_lnum.get() {
+                    wp.w_old_cursor_lnum
+                        .set(wp.w_old_cursor_lnum.get() + (old_line_count));
                 } else {
-                    wp.w_old_visual_lnum += old_line_count;
+                    wp.w_old_visual_lnum
+                        .set(wp.w_old_visual_lnum.get() + (old_line_count));
                 }
             }
         }

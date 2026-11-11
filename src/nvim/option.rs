@@ -2362,7 +2362,7 @@ pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
 
 pub fn check_blending(wp: &mut WinInfoInfo) {
     wp.w_grid_alloc.blending =
-        wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating && wp.w_config.shadow);
+        wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.shadow);
 }
 
 /// Handle setting 'winhighlight' in window "wp".
@@ -2378,25 +2378,26 @@ pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -
 
     if p_cstr.to_bytes().is_empty() {
         if let Some(ref mut w) = wp
-            && w.w_ns_hl_winhl > 0
-            && w.w_ns_hl == w.w_ns_hl_winhl
+            && w.w_ns_hl_winhl.get() > 0
+            && w.w_ns_hl.get() == w.w_ns_hl_winhl.get()
         {
-            w.w_ns_hl = 0;
-            w.w_hl_needs_update = 1;
+            w.w_ns_hl.set(0);
+            w.w_hl_needs_update.set(1);
         }
         return true;
     }
 
     let mut ns_hl: i32 = 0;
     if let Some(ref mut w) = wp {
-        if w.w_ns_hl_winhl == 0 {
-            w.w_ns_hl_winhl = nvim_create_namespace(NvimString::new()) as i32;
+        if w.w_ns_hl_winhl.get() == 0 {
+            w.w_ns_hl_winhl
+                .set(nvim_create_namespace(NvimString::new()) as i32);
         } else {
-            with_decor_provider_mut(w.w_ns_hl_winhl, true, |dp| dp.hl_valid += 1);
+            with_decor_provider_mut(w.w_ns_hl_winhl.get(), true, |dp| dp.hl_valid += 1);
         }
-        ns_hl = w.w_ns_hl_winhl;
-        if w.w_ns_hl <= 0 {
-            w.w_ns_hl = w.w_ns_hl_winhl;
+        ns_hl = w.w_ns_hl_winhl.get();
+        if w.w_ns_hl.get() <= 0 {
+            w.w_ns_hl.set(w.w_ns_hl_winhl.get());
         }
     }
 
@@ -2440,7 +2441,7 @@ pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -
     }
 
     if let Some(wp) = wp {
-        wp.w_hl_needs_update = 1;
+        wp.w_hl_needs_update.set(1);
     }
     true
 }
@@ -2758,7 +2759,7 @@ pub fn did_set_follow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_helpheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !firstwin_mut().w_next.is_null()
         && curbuf_mut().b_help.get()
-        && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh.get()
+        && OptInt::from(curwin_mut().w_height.get()) < opt_vars().p_hh.get()
     {
         win_setheight(opt_vars().p_hh.get() as i32);
     }
@@ -2889,7 +2890,7 @@ pub fn did_set_modified<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_number_relativenumber<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     if !win.w_onebuf_opt.wo_stc.is_empty() {
-        win.w_nrwidth_line_count = 0;
+        win.w_nrwidth_line_count.set(0);
     }
     check_signcolumn(None::<&CStr>, Some(win));
     None
@@ -2897,7 +2898,7 @@ pub fn did_set_number_relativenumber<'a>(args: &mut Optset<'a>) -> Option<&'a CS
 
 /// Process the new 'numberwidth' option value.
 pub fn did_set_numberwidth<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    args.win_mut().w_nrwidth_line_count = 0;
+    args.win_mut().w_nrwidth_line_count.set(0);
     None
 }
 
@@ -3072,7 +3073,8 @@ pub fn did_set_scrollbind<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         return None;
     }
     do_check_scrollbind(false);
-    win.w_scbind_pos = get_vtopline(&mut *win);
+    let vtop = get_vtopline(&mut *win);
+    win.w_scbind_pos.set(vtop);
     None
 }
 
@@ -3100,7 +3102,7 @@ pub fn did_set_showtabline<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_smoothscroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     if !win.w_onebuf_opt.wo_sms.get() {
-        win.w_skipcol = 0;
+        win.w_skipcol.set(0);
     }
     None
 }
@@ -3242,7 +3244,7 @@ pub fn did_set_winblend<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         win.w_onebuf_opt
             .wo_winbl
             .set(win.w_onebuf_opt.wo_winbl.get().clamp(0, 100));
-        win.w_hl_needs_update = 1;
+        win.w_hl_needs_update.set(1);
         check_blending(&mut *win);
     }
     None
@@ -3263,7 +3265,7 @@ pub fn did_set_window<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'winheight' value.
 pub fn did_set_winheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !firstwin_mut().w_next.is_null()
-        && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh.get()
+        && OptInt::from(curwin_mut().w_height.get()) < opt_vars().p_wh.get()
     {
         win_setheight(opt_vars().p_wh.get() as i32);
     }
@@ -3273,7 +3275,7 @@ pub fn did_set_winheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'winwidth' option value.
 pub fn did_set_winwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !firstwin_mut().w_next.is_null()
-        && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw.get()
+        && OptInt::from(curwin_mut().w_width.get()) < opt_vars().p_wiw.get()
     {
         win_setwidth(opt_vars().p_wiw.get() as i32);
     }
@@ -3284,9 +3286,9 @@ pub fn did_set_winwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_wrap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     if win.w_onebuf_opt.wo_wrap.get() {
-        win.w_leftcol = 0;
+        win.w_leftcol.set(0);
     } else {
-        win.w_skipcol = 0;
+        win.w_skipcol.set(0);
     }
     None
 }
@@ -3377,7 +3379,8 @@ fn check_num_option_bounds<'a>(
         }
         K_OPT_SCROLL
             if (*newval <= 0
-                || (*newval > OptInt::from(win.w_view_height) && win.w_view_height > 0))
+                || (*newval > OptInt::from(win.w_view_height.get())
+                    && win.w_view_height.get() > 0))
                 && g_st().full_screen =>
         {
             if *newval != 0 {
@@ -5434,7 +5437,7 @@ fn did_set_option<'a>(
     if varp.ptr_eq(&opt_vars().p_mouse) {
         setmouse();
     } else if (varp.ptr_eq(&opt_vars().p_flp) || varp.ptr_eq(&curbuf_mut().b_p_flp))
-        && curwin_mut().w_briopt_list != 0
+        && curwin_mut().w_briopt_list.get() != 0
     {
         redraw_all_later(UPD_NOT_VALID);
     } else if varp.ptr_eq(&opt_vars().p_wbr) || varp.ptr_eq(&curwin_mut().w_onebuf_opt.wo_wbr) {
@@ -5445,11 +5448,11 @@ fn did_set_option<'a>(
         }
     }
 
-    if curwin_mut().w_curswant != MAXCOL
+    if curwin_mut().w_curswant.get() != MAXCOL
         && (opt.flags & (K_OPT_FLAG_CURSWANT | K_OPT_FLAG_REDR_ALL)) != 0
         && (opt.flags & K_OPT_FLAG_HLONLY) == 0
     {
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
 
     check_redraw(opt.flags);
@@ -7079,15 +7082,15 @@ pub fn clear_winopt(wop: &Winopt) {
 
 pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     if wp.w_onebuf_opt.wo_wrap.get() {
-        wp.w_leftcol = 0;
+        wp.w_leftcol.set(0);
     } else {
-        wp.w_skipcol = 0;
+        wp.w_skipcol.set(0);
     }
     check_colorcolumn(None::<&CStr>, Some(&mut *wp));
     briopt_check(Some(&mut *wp));
     let mut culopt_flags: u32 = 0;
     if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt.as_bytes(), &mut culopt_flags) {
-        wp.w_p_culopt_flags = culopt_flags as u8;
+        wp.w_p_culopt_flags.set(culopt_flags as u8);
     }
     let wo_fcs = wp.w_onebuf_opt.wo_fcs.to_owned();
     set_chars_option(wp, &wo_fcs, CharsOption::Fillchars, true, None);

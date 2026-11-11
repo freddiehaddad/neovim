@@ -55,7 +55,7 @@ pub fn win_new_float(
     let wp = if let Some(wp) = wp_opt {
         let wp = crate::globals::WinPtr::from(&*wp).borrow_mut();
         debug_assert!(!last);
-        debug_assert!(!wp.w_floating);
+        debug_assert!(!wp.w_floating.get());
 
         let win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp));
         debug_assert!(!win_tp.is_null());
@@ -126,17 +126,19 @@ pub fn win_new_float(
         }
         wp
     };
-    wp.w_floating = true;
-    wp.w_status_height = if !wp.w_onebuf_opt.wo_stl.is_empty()
-        && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2)
-    {
-        STATUS_HEIGHT
-    } else {
-        0
-    };
-    wp.w_winbar_height = 0;
-    wp.w_hsep_height = 0;
-    wp.w_vsep_width = 0;
+    wp.w_floating.set(true);
+    wp.w_status_height.set(
+        if !wp.w_onebuf_opt.wo_stl.is_empty()
+            && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2)
+        {
+            STATUS_HEIGHT
+        } else {
+            0
+        },
+    );
+    wp.w_winbar_height.set(0);
+    wp.w_hsep_height.set(0);
+    wp.w_vsep_width.set(0);
 
     win_config_float(&mut *wp, fconfig);
     redraw_later(Some(&mut *wp), UPD_VALID);
@@ -193,9 +195,9 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
     }
 
     // statusline: cleared (for floating windows)
-    if wp.w_floating && !wp.w_onebuf_opt.wo_stl.is_empty() {
+    if wp.w_floating.get() && !wp.w_onebuf_opt.wo_stl.is_empty() {
         wp.w_onebuf_opt.wo_stl.clear_option_str();
-        if wp.w_status_height > 0 {
+        if wp.w_status_height.get() > 0 {
             let cfg = wp.w_config.clone();
             win_config_float(&mut *wp, cfg);
         }
@@ -214,20 +216,20 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     // Process statusline changes before applying new height from config
     let show_stl = !wp.w_onebuf_opt.wo_stl.is_empty()
         && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
-    if wp.w_status_height != 0 && !show_stl {
+    if wp.w_status_height.get() != 0 && !show_stl {
         win_remove_status_line(wp, false);
-    } else if wp.w_status_height == 0 && show_stl {
-        wp.w_status_height = STATUS_HEIGHT;
+    } else if wp.w_status_height.get() == 0 && show_stl {
+        wp.w_status_height.set(STATUS_HEIGHT);
     }
 
-    wp.w_width = fconfig.width.max(1);
-    wp.w_height = fconfig.height.max(1);
+    wp.w_width.set(fconfig.width.max(1));
+    wp.w_height.set(fconfig.height.max(1));
 
     if fconfig.relative == K_FLOAT_RELATIVE_CURSOR {
         validate_cursor(curwin_mut());
         fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
-        fconfig.row += curwin_mut().w_wrow as f64;
-        fconfig.col += curwin_mut().w_wcol as f64;
+        fconfig.row += curwin_mut().w_wrow.get() as f64;
+        fconfig.col += curwin_mut().w_wcol.get() as f64;
         fconfig.window = curwin_mut().handle;
     } else if fconfig.relative == K_FLOAT_RELATIVE_MOUSE {
         let mut row = g_st().mouse_row;
@@ -247,7 +249,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
     merge_win_config(&mut wp.w_config, fconfig);
 
-    let has_border = wp.w_floating && wp.w_config.border;
+    let has_border = wp.w_floating.get() && wp.w_config.border;
     for i in 0..4 {
         let new_adj = i32::from(has_border && wp.w_config.border_chars[2 * i + 1][0] != 0);
         if new_adj != wp.w_border_adj[i] {
@@ -262,18 +264,18 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         } else {
             0
         };
-        wp.w_height = wp
-            .w_height
-            .min(g_st().rows_global - win_border_height(wp) - above_ch);
-        wp.w_width = wp.w_width.min(g_st().columns_global - win_border_width(wp));
+        let max_h = g_st().rows_global - win_border_height(wp) - above_ch;
+        wp.w_height.set(wp.w_height.get().min(max_h));
+        let max_w = g_st().columns_global - win_border_width(wp);
+        wp.w_width.set(wp.w_width.get().min(max_w));
     }
 
     win_set_inner_size(wp, true);
     set_must_redraw(UPD_VALID);
-    wp.w_redr_status = wp.w_status_height != 0;
-    wp.w_pos_changed = true;
+    wp.w_redr_status.set(wp.w_status_height.get() != 0);
+    wp.w_pos_changed.set(true);
     if change_external || change_border {
-        wp.w_hl_needs_update = 1;
+        wp.w_hl_needs_update.set(1);
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     }
 
@@ -284,8 +286,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         let mut dummy = error_init();
         let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
         if let Some(parent) = parent.opt_mut() {
-            row += parent.w_winrow;
-            col += parent.w_wincol;
+            row += parent.w_winrow.get();
+            col += parent.w_wincol.get();
             let _ = crate::grid::grid_adjust_opt(&mut parent.w_grid, &mut row, &mut col);
             if wp.w_config.bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
@@ -311,23 +313,23 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             }
         }
         api_clear_error(&mut dummy);
-        wp.w_winrow = row;
-        wp.w_wincol = col;
+        wp.w_winrow.set(row);
+        wp.w_wincol.set(col);
     } else {
-        wp.w_winrow = wp.w_config.row as i32;
-        wp.w_wincol = wp.w_config.col as i32;
+        wp.w_winrow.set(wp.w_config.row as i32);
+        wp.w_wincol.set(wp.w_config.col as i32);
     }
 
     // changing border style while keeping border only requires redrawing border
     if wp.w_config.border {
-        wp.w_redr_border = true;
+        wp.w_redr_border.set(true);
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 }
 
 pub fn win_float_remove(bang: bool, mut count: i32) {
     let mut float_win_arr: Vec<crate::globals::WinPtr> = Vec::new();
-    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
         if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp.get() {
             float_win_arr.push(crate::globals::WinPtr::from(&*wp));
         }
@@ -349,16 +351,16 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
 }
 
 pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
-    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
         if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW && wp.w_config.window == win.handle {
-            wp.w_pos_changed = true;
+            wp.w_pos_changed.set(true);
         }
     }
 }
 
 pub fn win_float_update_statusline() {
-    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
-        let has_status = wp.w_status_height > 0;
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
+        let has_status = wp.w_status_height.get() > 0;
         let should_show = !wp.w_onebuf_opt.wo_stl.is_empty()
             && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
         if should_show != has_status {
@@ -371,13 +373,13 @@ pub fn win_float_update_statusline() {
 pub fn win_float_anchor_laststatus() {
     for win in for_all_windows_mut() {
         if win.w_config.relative == K_FLOAT_RELATIVE_LASTSTATUS {
-            win.w_pos_changed = true;
+            win.w_pos_changed.set(true);
         }
     }
 }
 
 pub fn win_reconfig_floats() {
-    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
+    for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
         let cfg = wp.w_config.clone();
         win_config_float(wp, cfg);
     }
@@ -386,8 +388,8 @@ pub fn win_reconfig_floats() {
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
 pub fn win_float_find(kind: WinKind) -> Option<&'static mut WinInfoInfo> {
     for_all_windows_rev_ptr()
-        .take_while(|wp| wp.w_floating)
-        .find(|wp| wp.w_kind == kind)
+        .take_while(|wp| wp.w_floating.get())
+        .find(|wp| wp.w_kind.get() == kind)
         .map(|v| &mut *v)
 }
 
@@ -444,8 +446,10 @@ fn win_float_special_fail(
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
 pub fn win_float_anchor_preview(wp: &mut WinInfoInfo) {
-    wp.w_wantline = curwin_mut().w_winrow + curwin_mut().w_wrow;
-    wp.w_wantcol = curwin_mut().w_wincol + curwin_mut().w_wcol;
+    wp.w_wantline
+        .set(curwin_mut().w_winrow.get() + curwin_mut().w_wrow.get());
+    wp.w_wantcol
+        .set(curwin_mut().w_wincol.get() + curwin_mut().w_wcol.get());
 }
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
@@ -455,8 +459,8 @@ pub fn win_float_special(
     kind: WinKind,
 ) -> Option<&'static mut WinInfoInfo> {
     let mut config = WIN_CONFIG_INIT;
-    config.col = curwin_mut().w_wcol as f64;
-    config.row = curwin_mut().w_wrow as f64;
+    config.col = curwin_mut().w_wcol.get() as f64;
+    config.row = curwin_mut().w_wrow.get() as f64;
     config.relative = K_FLOAT_RELATIVE_EDITOR;
     config.focusable = false;
     config.mouse = true;
@@ -508,7 +512,7 @@ pub fn win_float_special(
         wp.w_onebuf_opt.wo_crb.set(false);
         win_float_anchor_preview(&mut *wp);
     }
-    wp.w_kind = kind;
+    wp.w_kind.set(kind);
 
     if enter {
         win_enter(wp, false);
@@ -525,7 +529,7 @@ pub fn win_float_close(kind: WinKind) {
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
 pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
-    if wp.w_kind != K_WIN_PREVIEW || !wp.w_floating || wp.w_buffer.is_null() {
+    if wp.w_kind.get() != K_WIN_PREVIEW || !wp.w_floating.get() || wp.w_buffer.is_null() {
         return;
     }
 
@@ -549,8 +553,8 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
     let border_h = win_border_height(&mut *wp);
     let border_w = win_border_width(&mut *wp);
-    let row = wp.w_wantline.max(0).min(g_st().rows_global - 1);
-    let col = wp.w_wantcol.max(0).min(g_st().columns_global - 1);
+    let row = wp.w_wantline.get().max(0).min(g_st().rows_global - 1);
+    let col = wp.w_wantcol.get().max(0).min(g_st().columns_global - 1);
 
     let v: OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
@@ -572,10 +576,10 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     want_w = want_w.min(g_st().columns_global);
 
     if want_h == 0 {
-        let saved_view_width = wp.w_view_width;
-        wp.w_view_width = want_w;
+        let saved_view_width = wp.w_view_width.get();
+        wp.w_view_width.set(want_w);
         want_h = plines_m_win(wp, 1, last, g_st().rows_global).max(1);
-        wp.w_view_width = saved_view_width;
+        wp.w_view_width.set(saved_view_width);
     }
     want_h = want_h.min(g_st().rows_global);
 

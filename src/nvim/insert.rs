@@ -464,7 +464,9 @@ fn insert_enter(s: &mut InsertState) {
     g_st().ins_global.stop_insert_mode = false;
 
     if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
-        curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+        curwin_mut()
+            .w_valid
+            .set(curwin_mut().w_valid.get() & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL)));
     }
 
     if curbuf_mut().b_p_iminsert.get() == B_IMODE_LMAP {
@@ -492,7 +494,7 @@ fn insert_enter(s: &mut InsertState) {
         validate_virtcol(curwin_mut());
         update_curswant();
         if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().ins_global.o_lnum)
-            || curwin_mut().w_curswant > curwin_mut().w_virtcol
+            || curwin_mut().w_curswant.get() > curwin_mut().w_virtcol.get()
         {
             let pos_slice = crate::cursor::get_cursor_pos_slice();
             if !pos_slice.is_empty() {
@@ -592,7 +594,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
     }
 
     if g_st().ins_global.moved == K_INS_NONE {
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
 
     if stuff_empty() {
@@ -621,14 +623,14 @@ fn insert_check(s: &mut InsertState) -> i32 {
         && curwin_mut().w_onebuf_opt.wo_wrap.get()
         && !curwin_mut().w_onebuf_opt.wo_sms.get()
         && !s.did_backspace
-        && curwin_mut().w_topline == s.old_topline
-        && curwin_mut().w_topfill == s.old_topfill
+        && curwin_mut().w_topline.get() == s.old_topline
+        && curwin_mut().w_topfill.get() == s.old_topfill
         && s.count <= 1
     {
-        s.mincol = curwin_mut().w_wcol;
+        s.mincol = curwin_mut().w_wcol.get();
         validate_cursor_col(curwin_mut());
 
-        if curwin_mut().w_wcol
+        if curwin_mut().w_wcol.get()
             < s.mincol
                 - tabstop_at(
                     get_nolist_virtcol(),
@@ -636,14 +638,17 @@ fn insert_check(s: &mut InsertState) -> i32 {
                     &curbuf_mut().b_p_vts_array,
                     false,
                 )
-            && curwin_mut().w_wrow
-                == curwin_mut().w_view_height - 1 - (get_scrolloff_value(curwin_mut()) as i32)
-            && (curwin_mut().w_cursor.lnum != curwin_mut().w_topline || curwin_mut().w_topfill > 0)
+            && curwin_mut().w_wrow.get()
+                == curwin_mut().w_view_height.get() - 1 - (get_scrolloff_value(curwin_mut()) as i32)
+            && (curwin_mut().w_cursor.lnum != curwin_mut().w_topline.get()
+                || curwin_mut().w_topfill.get() > 0)
         {
-            if curwin_mut().w_topfill > 0 {
-                curwin_mut().w_topfill -= 1;
+            if curwin_mut().w_topfill.get() > 0 {
+                curwin_mut()
+                    .w_topfill
+                    .set(curwin_mut().w_topfill.get() - (1));
             } else {
-                let topline = curwin_mut().w_topline;
+                let topline = curwin_mut().w_topline.get();
                 if has_folding(curwin_mut(), topline, None, Some(&mut s.old_topline)) {
                     set_topline(curwin_mut(), s.old_topline + 1);
                 } else {
@@ -676,8 +681,8 @@ fn insert_check(s: &mut InsertState) -> i32 {
     if s.count <= 1 {
         update_curswant();
     }
-    s.old_topline = curwin_mut().w_topline;
-    s.old_topfill = curwin_mut().w_topfill;
+    s.old_topline = curwin_mut().w_topline.get();
+    s.old_topfill = curwin_mut().w_topfill.get();
 
     if s.c != K_EVENT && s.c != K_COMPLETE_DELAY {
         s.lastc = s.c;
@@ -1488,19 +1493,19 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     } else {
         0
     };
-    let pc_row = curwin_mut().w_wrow;
+    let pc_row = curwin_mut().w_wrow.get();
     let mut pc_status = PC_STATUS_UNSET;
     grid_line_start(&mut curwin_mut().w_grid, pc_row);
     let pc_col = if curwin_mut().w_onebuf_opt.wo_rl.get() {
-        let col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
+        let col = curwin_mut().w_view_width.get() - 1 - curwin_mut().w_wcol.get();
         if grid_line_getchar(col, None) == 0 {
             grid_line_put_schar(col - 1, schar_from_ascii(b' '), attr);
-            curwin_mut().w_wcol -= 1;
+            curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() - (1));
             pc_status = PC_STATUS_RIGHT;
         }
         col
     } else {
-        let col = curwin_mut().w_wcol;
+        let col = curwin_mut().w_wcol.get();
         if grid_line_getchar(col + 1, None) == 0 {
             pc_status = PC_STATUS_LEFT;
         }
@@ -1638,7 +1643,7 @@ pub fn edit_unputchar() {
     });
     if pc_status != PC_STATUS_UNSET && pc_row >= 0 {
         if pc_status == PC_STATUS_RIGHT {
-            curwin_mut().w_wcol += 1;
+            curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() + (1));
         }
         if pc_status == PC_STATUS_RIGHT || pc_status == PC_STATUS_LEFT {
             redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
@@ -1662,9 +1667,9 @@ pub fn display_dollar(col_arg: Colnr) {
     let line_slice = crate::cursor::get_cursor_line_slice();
     curwin_mut().w_cursor.col -= crate::mbyte::utf_head_off_slice(line_slice, col as usize);
     curs_columns(curwin_mut(), false);
-    if curwin_mut().w_wcol < curwin_mut().w_view_width {
+    if curwin_mut().w_wcol.get() < curwin_mut().w_view_width.get() {
         edit_putchar(b'$' as i32, false);
-        g_st().dollar_vcol = curwin_mut().w_virtcol;
+        g_st().dollar_vcol = curwin_mut().w_virtcol.get();
     }
     curwin_mut().w_cursor.col = save_col;
 }
@@ -2239,7 +2244,7 @@ pub fn free_last_insert() {
 
 pub fn beginline(flags: i32) {
     if (flags & BL_SOL) != 0 && !opt_vars().p_sol.get() {
-        coladvance(curwin_mut(), curwin_mut().w_curswant);
+        coladvance(curwin_mut(), curwin_mut().w_curswant.get());
     } else {
         curwin_mut().w_cursor.col = 0;
         curwin_mut().w_cursor.coladd = 0;
@@ -2254,7 +2259,7 @@ pub fn beginline(flags: i32) {
                 rem = &rem[1..];
             }
         }
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
     adjust_skipcol();
 }
@@ -2271,7 +2276,7 @@ pub fn oneright() -> bool {
             1
         };
         coladvance(curwin_mut(), getviscol() + step);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
         return prevpos.col != curwin_mut().w_cursor.col
             || prevpos.coladd != curwin_mut().w_cursor.coladd;
     }
@@ -2286,7 +2291,7 @@ pub fn oneright() -> bool {
         return false;
     }
     curwin_mut().w_cursor.col += l;
-    curwin_mut().w_set_curswant = true;
+    curwin_mut().w_set_curswant.set(true);
     adjust_skipcol();
     true
 }
@@ -2316,7 +2321,7 @@ pub fn oneleft() -> bool {
             }
         }
 
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
         adjust_skipcol();
         return true;
     }
@@ -2325,7 +2330,7 @@ pub fn oneleft() -> bool {
         return false;
     }
 
-    curwin_mut().w_set_curswant = true;
+    curwin_mut().w_set_curswant.set(true);
     curwin_mut().w_cursor.col -= 1;
 
     mb_adjust_cursor();
@@ -2370,7 +2375,7 @@ pub fn cursor_up(n: Linenr, upd_topline: bool) -> bool {
         return false;
     }
     cursor_up_inner(curwin_mut(), n, false);
-    coladvance(curwin_mut(), curwin_mut().w_curswant);
+    coladvance(curwin_mut(), curwin_mut().w_curswant.get());
     if upd_topline {
         update_topline(curwin_mut());
     }
@@ -2415,7 +2420,7 @@ pub fn cursor_down(n: i32, upd_topline: bool) -> bool {
         return false;
     }
     cursor_down_inner(curwin_mut(), n, false);
-    coladvance(curwin_mut(), curwin_mut().w_curswant);
+    coladvance(curwin_mut(), curwin_mut().w_curswant.get());
     if upd_topline {
         update_topline(curwin_mut());
     }
@@ -2797,7 +2802,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     }
 
     if g_st().restart_edit == NUL as i32 && temp == curwin_mut().w_cursor.col {
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
@@ -2823,7 +2828,9 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
             }
         } else {
             curwin_mut().w_cursor.col -= 1;
-            curwin_mut().w_valid &= !(VALID_WCOL | VALID_VIRTCOL);
+            curwin_mut()
+                .w_valid
+                .set(curwin_mut().w_valid.get() & (!(VALID_WCOL | VALID_VIRTCOL)));
             mb_adjust_cursor();
         }
     }
@@ -2831,7 +2838,9 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     g_st().state_global = MODE_NORMAL;
     may_trigger_modechanged();
     if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
-        curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+        curwin_mut()
+            .w_valid
+            .set(curwin_mut().w_valid.get() & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL)));
     }
 
     setmouse();
@@ -3300,7 +3309,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
     if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BACKSPACE)
         && g_st().dollar_vcol == -1
     {
-        g_st().dollar_vcol = curwin_mut().w_virtcol;
+        g_st().dollar_vcol = curwin_mut().w_virtcol.get();
     }
 
     if did_backspace {
@@ -3330,7 +3339,7 @@ fn ins_left() {
         start_arrow(Some(tpos), true, K_LEFT);
         curwin_mut().w_cursor.lnum -= 1;
         coladvance(curwin_mut(), MAXCOL);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3348,7 +3357,7 @@ fn ins_home(c: i32) {
     }
     curwin_mut().w_cursor.col = 0;
     curwin_mut().w_cursor.coladd = 0;
-    curwin_mut().w_curswant = 0;
+    curwin_mut().w_curswant.set(0);
     start_arrow(
         Some(tpos),
         true,
@@ -3366,7 +3375,7 @@ fn ins_end(c: i32) {
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
     }
     coladvance(curwin_mut(), MAXCOL);
-    curwin_mut().w_curswant = MAXCOL;
+    curwin_mut().w_curswant.set(MAXCOL);
     start_arrow(
         Some(tpos),
         true,
@@ -3383,7 +3392,7 @@ fn ins_s_left() {
     if curwin_mut().w_cursor.lnum > 1 || curwin_mut().w_cursor.col > 0 {
         start_arrow_with_change(curwin_mut().w_cursor, end_change, K_S_LEFT);
         bck_word(1, false, false);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3398,7 +3407,7 @@ fn ins_right() {
     undisplay_dollar();
     if gchar_cursor() != NUL as i32 || virtual_active(curwin_mut()) {
         start_arrow_with_change(curwin_mut().w_cursor, end_change, K_RIGHT);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
         if virtual_active(curwin_mut()) {
             oneright();
         } else {
@@ -3414,7 +3423,7 @@ fn ins_right() {
         && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
     {
         start_arrow(Some(curwin_mut().w_cursor), true, K_RIGHT);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
         curwin_mut().w_cursor.lnum += 1;
         curwin_mut().w_cursor.col = 0;
     } else {
@@ -3433,7 +3442,7 @@ fn ins_s_right() {
     {
         start_arrow_with_change(curwin_mut().w_cursor, end_change, K_S_RIGHT);
         fwd_word(1, false, false);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3441,8 +3450,8 @@ fn ins_s_right() {
 }
 
 fn ins_up(startcol: bool) {
-    let old_topline = curwin_mut().w_topline;
-    let old_topfill = curwin_mut().w_topfill;
+    let old_topline = curwin_mut().w_topline.get();
+    let old_topfill = curwin_mut().w_topfill.get();
 
     undisplay_dollar();
     let tpos = curwin_mut().w_cursor;
@@ -3450,7 +3459,9 @@ fn ins_up(startcol: bool) {
         if startcol {
             coladvance(curwin_mut(), getvcol_nolist(&mut g_st().ins_global.start));
         }
-        if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
+        if old_topline != curwin_mut().w_topline.get()
+            || old_topfill != curwin_mut().w_topfill.get()
+        {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
         start_arrow(Some(tpos), true, if startcol { b'k' as i32 } else { K_UP });
@@ -3481,8 +3492,8 @@ fn ins_pageup() {
 }
 
 fn ins_down(startcol: bool) {
-    let old_topline = curwin_mut().w_topline;
-    let old_topfill = curwin_mut().w_topfill;
+    let old_topline = curwin_mut().w_topline.get();
+    let old_topfill = curwin_mut().w_topfill.get();
 
     undisplay_dollar();
     let tpos = curwin_mut().w_cursor;
@@ -3490,7 +3501,9 @@ fn ins_down(startcol: bool) {
         if startcol {
             coladvance(curwin_mut(), getvcol_nolist(&mut g_st().ins_global.start));
         }
-        if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
+        if old_topline != curwin_mut().w_topline.get()
+            || old_topfill != curwin_mut().w_topfill.get()
+        {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         }
         start_arrow(
@@ -3858,7 +3871,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     }
 
     validate_virtcol(curwin_mut());
-    let end_vcol = curwin_mut().w_virtcol;
+    let end_vcol = curwin_mut().w_virtcol.get();
     let line_cstr = ml_get(lnum);
 
     let mut csarg = CharsizeArg::new();
@@ -3927,7 +3940,7 @@ pub fn get_nolist_virtcol() -> Colnr {
         return getvcol_nolist(&mut curwin_mut().w_cursor);
     }
     validate_virtcol(curwin_mut());
-    curwin_mut().w_virtcol
+    curwin_mut().w_virtcol.get()
 }
 
 fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {

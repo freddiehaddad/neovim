@@ -4331,13 +4331,13 @@ pub fn goto_byte(cnt: i32) {
     let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as Linenr;
     if lnum < 1 {
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
-        curwin_mut().w_curswant = MAXCOL;
+        curwin_mut().w_curswant.set(MAXCOL);
         coladvance(curwin_mut(), MAXCOL);
     } else {
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = boff as Colnr;
         curwin_mut().w_cursor.coladd = 0;
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
     check_cursor(curwin_mut());
     mb_adjust_cursor();

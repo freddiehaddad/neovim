@@ -5693,7 +5693,7 @@ pub fn get_cmd_default_range(eap: &mut Exarg) -> Linenr {
             .lnum
             .min(curbuf_mut().b_ml.ml_line_count),
         ADDR_WINDOWS => current_win_nr(Some(curwin_mut()), None),
-        ADDR_ARGUMENTS => (curwin_mut().w_arg_idx + 1).min(argcount()),
+        ADDR_ARGUMENTS => (curwin_mut().w_arg_idx.get() + 1).min(argcount()),
         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => curbuf_mut().b_fnum.get(),
         ADDR_TABS => current_tab_nr(Some(&curtab_mut())),
         ADDR_TABS_RELATIVE | ADDR_UNSIGNED => 1,
@@ -7773,7 +7773,7 @@ pub fn get_address(
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
                         ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
-                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
+                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
                         ADDR_TABS => lnum = current_tab_nr(Some(&curtab_mut())),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
@@ -8003,7 +8003,7 @@ pub fn get_address(
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
                         ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
-                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
+                        ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
                         ADDR_TABS => lnum = current_tab_nr(Some(&curtab_mut())),
                         ADDR_TABS_RELATIVE => lnum = 1,
@@ -9002,7 +9002,7 @@ pub fn check_nextcmd(p: &CStr) -> Option<&CStr> {
 
 fn check_more(message: bool, forceit: bool) -> bool {
     let ac = argcount();
-    let n = ac - curwin_mut().w_arg_idx - 1;
+    let n = ac - curwin_mut().w_arg_idx.get() - 1;
 
     if !forceit
         && only_one_window()
@@ -9633,7 +9633,7 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPage
         let _ = emsg(gettext(E_AUTOCMD_CLOSE));
         return;
     }
-    if !win.w_floating && window_layout_locked(Cmdidx::CmdClose) {
+    if !win.w_floating.get() && window_layout_locked(Cmdidx::CmdClose) {
         return;
     }
 
@@ -9737,7 +9737,7 @@ pub fn tabpage_close(forceit: bool) {
     curtab_mut().tp_did_tabclosedpre.set(true);
     let save_curtab = g_st().curtab.clone();
 
-    while curwin_mut().w_floating && {
+    while curwin_mut().w_floating.get() && {
         done += 1;
         done < 1000
     } {
@@ -9837,7 +9837,7 @@ fn ex_hide(eap: &mut Exarg) {
             .map_or(g_st().lastwin, crate::globals::WinPtr::from)
     };
 
-    if !win.w_floating && window_layout_locked(Cmdidx::CmdHide) {
+    if !win.w_floating.get() && window_layout_locked(Cmdidx::CmdHide) {
         return;
     }
 
@@ -10049,7 +10049,7 @@ fn set_browse_edit_arg(eap: &mut Exarg) {
 
 pub fn ex_splitview(eap: &mut Exarg) {
     set_browse_edit_arg(eap);
-    let mut old_curwin = curwin_ptr();
+    let old_curwin = curwin_ptr();
     let mut fname: Option<std::ffi::CString> = None;
     let use_tab = eap.cmdidx == Cmdidx::CmdTabedit
         || eap.cmdidx == Cmdidx::CmdTabfind
@@ -10108,7 +10108,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
                     {
-                        old_curwin.w_alt_fnum = curbuf_mut().b_fnum.get();
+                        old_curwin.w_alt_fnum.set(curbuf_mut().b_fnum.get());
                     }
                 }
             }
@@ -10431,14 +10431,14 @@ fn ex_resize(eap: &mut Exarg) {
     let mut n = crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32;
     if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
-            n += wp.w_width;
+            n += wp.w_width.get();
         } else if n == 0 && eap.arg.is_empty() {
             n = g_st().columns_global;
         }
         win_setwidth_win(n, wp, true);
     } else {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
-            n += wp.w_height;
+            n += wp.w_height.get();
         } else if n == 0 && eap.arg.is_empty() {
             n = g_st().rows_global - 1;
         }
@@ -10522,7 +10522,7 @@ fn ex_edit(eap: &mut Exarg) {
 }
 
 pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
-    let mut old_curwin = crate::globals::WinPtr::from(old_curwin_in);
+    let old_curwin = crate::globals::WinPtr::from(old_curwin_in);
     if (eap.cmdidx == Cmdidx::CmdNew
         || eap.cmdidx == Cmdidx::CmdTabnew
         || eap.cmdidx == Cmdidx::CmdTabedit
@@ -10602,9 +10602,9 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         if let Some(ref cmd) = eap.do_ecmd_cmd {
             do_cmdline_cmd(cmd);
         }
-        let n = curwin_mut().w_arg_idx_invalid;
+        let n = curwin_mut().w_arg_idx_invalid.get();
         check_arg_idx(curwin_mut());
-        if n != curwin_mut().w_arg_idx_invalid {
+        if n != curwin_mut().w_arg_idx_invalid.get() {
             maketitle();
         }
     }
@@ -10617,7 +10617,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
         {
-            old_curwin.w_alt_fnum = curbuf_mut().b_fnum.get();
+            old_curwin.w_alt_fnum.set(curbuf_mut().b_fnum.get());
         }
     }
 }
@@ -10670,10 +10670,10 @@ fn ex_syncbind(_eap: &mut Exarg) {
             } else {
                 scrolldown(&mut *wp, -y, true);
             }
-            wp.w_scbind_pos = vtopline;
+            wp.w_scbind_pos.set(vtopline);
             redraw_later(Some(&mut *wp), UPD_VALID);
             cursor_correct(&mut *wp);
-            wp.w_redr_status = true;
+            wp.w_redr_status.set(true);
         }
     }
 
@@ -11727,7 +11727,7 @@ fn ex_startinsert(eap: &mut Exarg) {
         if eap.cmdidx == Cmdidx::CmdStartinsert {
             g_st().restart_edit = b'i' as i32;
         }
-        curwin_mut().w_curswant = 0;
+        curwin_mut().w_curswant.set(0);
     }
 
     if g_st().visual_global.active {

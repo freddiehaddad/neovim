@@ -2744,8 +2744,8 @@ fn ins_compl_new_leader() {
     ins_compl_insert_bytes(&lead_b[skip..], -1);
     INSEXPAND.with(|s| s.compl_used_match.set(false));
 
-    let save_w_wrow = curwin_mut().w_wrow;
-    let save_w_leftcol = curwin_mut().w_leftcol;
+    let save_w_wrow = curwin_mut().w_wrow.get();
+    let save_w_leftcol = curwin_mut().w_leftcol.get();
     if INSEXPAND.with(|s| s.compl_started.get()) {
         ins_compl_set_original_text(INSEXPAND.with(|s| s.compl_leader.get()).as_bytes());
         if is_cpt_func_refresh_always() {
@@ -3724,8 +3724,8 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     INSEXPAND.with(|s| s.compl_started.set(true));
     INSEXPAND.with(|s| s.compl_used_match.set(true));
     INSEXPAND.with(|s| s.compl_cont_status.set(0));
-    let save_w_wrow = curwin_mut().w_wrow;
-    let save_w_leftcol = curwin_mut().w_leftcol;
+    let save_w_wrow = curwin_mut().w_wrow.get();
+    let save_w_leftcol = curwin_mut().w_leftcol.get();
 
     INSEXPAND.with(|s| s.compl_curr_idx.set(Some(0)));
     let no_select = compl_no_select || compl_longest;
@@ -6843,8 +6843,8 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
     });
     INSEXPAND.with(|s| s.compl_num_bests.set(0));
 
-    let save_w_wrow = curwin_mut().w_wrow;
-    let save_w_leftcol = curwin_mut().w_leftcol;
+    let save_w_wrow = curwin_mut().w_wrow.get();
+    let save_w_leftcol = curwin_mut().w_leftcol.get();
     let n = ins_compl_next(true, ins_compl_key2count(c), insert_match);
 
     if INSEXPAND.with(|s| s.compl_autocomplete.get()) {
@@ -6968,7 +6968,7 @@ fn show_pum(prev_w_wrow: i32, prev_w_leftcol: i32) {
     g_st().redrawing_disabled = 0;
 
     setcursor();
-    if prev_w_wrow != curwin_mut().w_wrow || prev_w_leftcol != curwin_mut().w_leftcol {
+    if prev_w_wrow != curwin_mut().w_wrow.get() || prev_w_leftcol != curwin_mut().w_leftcol.get() {
         ins_compl_del_pum();
     }
 

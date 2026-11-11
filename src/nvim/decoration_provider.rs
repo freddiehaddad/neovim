@@ -293,7 +293,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
     if providers_len() > 0 {
         validate_botline_win(&mut *wp);
     }
-    let botline: Linenr = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
+    let botline: Linenr = wp.w_botline.get().min(wp.buf_mut().b_ml.ml_line_count);
 
     let mut i = 0usize;
     while i < providers_len() {
@@ -314,7 +314,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
             let mut args_buf = [
                 window_obj(wp.handle),
                 buffer_obj(wp.buf_mut().b_fnum.get()),
-                integer_obj((wp.w_topline - 1) as Integer),
+                integer_obj((wp.w_topline.get() - 1) as Integer),
                 integer_obj((botline - 1) as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..4]);

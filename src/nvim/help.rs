@@ -178,8 +178,8 @@ pub fn ex_help(eap: &mut Exarg) {
         } else {
             let mut n = WSP_HELP;
             if g_st().cmdmod.cmod_split == 0
-                && curwin_mut().w_width != g_st().columns_global
-                && curwin_mut().w_width < 80
+                && curwin_mut().w_width.get() != g_st().columns_global
+                && curwin_mut().w_width.get() < 80
             {
                 n |= if opt_vars().p_sb.get() {
                     WSP_BOT
@@ -190,7 +190,7 @@ pub fn ex_help(eap: &mut Exarg) {
             if !win_split(0, n) {
                 early_ret = true;
             } else {
-                if (curwin_mut().w_height as OptInt) < opt_vars().p_hh.get() {
+                if (curwin_mut().w_height.get() as OptInt) < opt_vars().p_hh.get() {
                     win_setheight(opt_vars().p_hh.get() as i32);
                 }
 
@@ -206,7 +206,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 );
 
                 if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                    curwin_mut().w_alt_fnum = alt_fnum;
+                    curwin_mut().w_alt_fnum.set(alt_fnum);
                 }
                 empty_fnum = curbuf_mut().b_fnum.get();
             }
@@ -228,10 +228,10 @@ pub fn ex_help(eap: &mut Exarg) {
         }
 
         if alt_fnum != 0
-            && curwin_mut().w_alt_fnum == empty_fnum
+            && curwin_mut().w_alt_fnum.get() == empty_fnum
             && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
-            curwin_mut().w_alt_fnum = alt_fnum;
+            curwin_mut().w_alt_fnum.set(alt_fnum);
         }
     }
     drop(allocated_arg);

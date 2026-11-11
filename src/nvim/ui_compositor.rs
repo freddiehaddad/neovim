@@ -382,10 +382,10 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid
         for wp in for_all_windows_mut() {
             let grid = &mut wp.w_grid_alloc;
             if grid.mouse_enabled
-                && row >= wp.w_winrow
-                && row < wp.w_winrow + grid.rows
-                && col >= wp.w_wincol
-                && col < wp.w_wincol + grid.cols
+                && row >= wp.w_winrow.get()
+                && row < wp.w_winrow.get() + grid.rows
+                && col >= wp.w_wincol.get()
+                && col < wp.w_wincol.get() + grid.cols
             {
                 return Some(grid);
             }

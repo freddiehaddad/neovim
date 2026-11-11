@@ -1548,7 +1548,9 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
                 g_st().visual_global.mode = curbuf_mut().b_visual.vi_mode;
                 tpos = curbuf_mut().b_visual.vi_end;
                 curwin_mut().w_cursor = curbuf_mut().b_visual.vi_start;
-                curwin_mut().w_curswant = curbuf_mut().b_visual.vi_curswant;
+                curwin_mut()
+                    .w_curswant
+                    .set(curbuf_mut().b_visual.vi_curswant);
             } else {
                 g_st().visual_global.mode = b'V' as i32;
                 curwin_mut().w_cursor.lnum = eap.line1;

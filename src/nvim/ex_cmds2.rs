@@ -568,10 +568,10 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 if i == curwin_argcount() {
                     break;
                 }
-                if curwin_mut().w_arg_idx != i || !editing_arg_idx(curwin_mut()) {
+                if curwin_mut().w_arg_idx.get() != i || !editing_arg_idx(curwin_mut()) {
                     do_argfile(eap, i);
                 }
-                if curwin_mut().w_arg_idx != i {
+                if curwin_mut().w_arg_idx.get() != i {
                     break;
                 }
             } else if eap.cmdidx == Cmdidx::CmdWindo {
@@ -581,7 +581,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 debug_assert!(!wp.is_null());
 
                 let wp_ref = wp.borrow();
-                execute = !wp_ref.w_floating || win_is_focusable(wp_ref);
+                execute = !wp_ref.w_floating.get() || win_is_focusable(wp_ref);
 
                 if execute {
                     win_goto(wp.borrow_mut());
@@ -842,7 +842,7 @@ pub fn ex_drop(eap: &mut Exarg) {
         for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.w_buffer == buf {
                 goto_tabpage_win(&tp, wp);
-                curwin_mut().w_arg_idx = 0;
+                curwin_mut().w_arg_idx.set(0);
                 if !buf_is_changed_fn(curbuf_mut()) {
                     let save_ar = curbuf_mut().b_p_ar.get();
                     curbuf_mut().b_p_ar.set(Some(true));

@@ -774,32 +774,44 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
         wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );
-    wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
-        vr.shift as i32
-    } else {
-        0
-    };
-    wp.as_deref_mut().unwrap().w_briopt_min = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_MIN) {
-        vr.min as i32
-    } else {
-        20
-    };
-    wp.as_deref_mut().unwrap().w_briopt_sbr = has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SBR);
-    wp.as_deref_mut().unwrap().w_briopt_list = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_LIST) {
-        vr.list as i32
-    } else {
-        0
-    };
-    wp.unwrap().w_briopt_vcol = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_COLUMN) {
-        vr.column as i32
-    } else {
-        0
-    };
+    wp.as_deref_mut().unwrap().w_briopt_shift.set(
+        if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
+            vr.shift as i32
+        } else {
+            0
+        },
+    );
+    wp.as_deref_mut()
+        .unwrap()
+        .w_briopt_min
+        .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_MIN) {
+            vr.min as i32
+        } else {
+            20
+        });
+    wp.as_deref_mut()
+        .unwrap()
+        .w_briopt_sbr
+        .set(has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SBR));
+    wp.as_deref_mut().unwrap().w_briopt_list.set(
+        if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_LIST) {
+            vr.list as i32
+        } else {
+            0
+        },
+    );
+    wp.unwrap()
+        .w_briopt_vcol
+        .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_COLUMN) {
+            vr.column as i32
+        } else {
+            0
+        });
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
-    let eff_wwidth = wp.w_view_width - win_col_off(wp) + win_col_off2(wp);
+    let eff_wwidth = wp.w_view_width.get() - win_col_off(wp) + win_col_off2(wp);
     let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.tab1 == 0;
 
     let buf_fnum = wp.buf_mut().b_fnum.get();
@@ -812,7 +824,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
             || st.prev_ts != buf_p_ts
             || st.prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.as_slice()
             || st.prev_tick != buf_tick
-            || st.prev_listopt != wp.w_briopt_list
+            || st.prev_listopt != wp.w_briopt_list.get()
             || st.prev_no_ts != no_ts
             || st.prev_dy_uhex != (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX)
             || st.prev_flp.as_deref() != Some(&flp_val)
@@ -823,7 +835,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     });
     if need_recalc {
         let new_line = std::ffi::CString::new(line_bytes).unwrap_or_default();
-        let new_indent = if wp.w_briopt_vcol == 0 {
+        let new_indent = if wp.w_briopt_vcol.get() == 0 {
             if no_ts {
                 indent_size_no_ts(line_bytes)
             } else {
@@ -840,14 +852,14 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
             st.prev_vts.clone_from(&wp.buf_mut().b_p_vts_array);
             st.prev_indent = new_indent;
             st.prev_tick = buf_tick;
-            st.prev_listopt = wp.w_briopt_list;
+            st.prev_listopt = wp.w_briopt_list.get();
             st.prev_list = 0;
             st.prev_no_ts = no_ts;
             st.prev_dy_uhex = opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX;
             st.prev_flp = Some(new_flp.clone());
         });
 
-        if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
+        if wp.w_briopt_list.get() != 0 && wp.w_briopt_vcol.get() == 0 {
             let mut regmatch = Regmatch::new();
             regmatch.set_prog(vim_regcomp(
                 &new_flp,
@@ -856,8 +868,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = false;
                 if vim_regexec(&mut regmatch, &new_line, 0) {
-                    if wp.w_briopt_list > 0 {
-                        INDENT_STATE.with_borrow_mut(|st| st.prev_list += wp.w_briopt_list);
+                    if wp.w_briopt_list.get() > 0 {
+                        INDENT_STATE.with_borrow_mut(|st| st.prev_list += wp.w_briopt_list.get());
                     } else {
                         let span_vec = regmatch.span_bytes(0);
                         let mut span = span_vec.as_slice();
@@ -875,27 +887,27 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
         }
     }
 
-    let mut bri = if wp.w_briopt_vcol != 0 {
+    let mut bri = if wp.w_briopt_vcol.get() != 0 {
         INDENT_STATE.with_borrow_mut(|st| st.prev_list = 0);
-        wp.w_briopt_vcol
+        wp.w_briopt_vcol.get()
     } else {
-        INDENT_STATE.with_borrow(|st| st.prev_indent) + wp.w_briopt_shift
+        INDENT_STATE.with_borrow(|st| st.prev_indent) + wp.w_briopt_shift.get()
     };
 
     bri += win_col_off2(wp);
 
-    if wp.w_briopt_list > 0 {
+    if wp.w_briopt_list.get() > 0 {
         bri += INDENT_STATE.with_borrow(|st| st.prev_list);
     }
 
-    if wp.w_briopt_sbr {
+    if wp.w_briopt_sbr.get() {
         bri -= vim_strsize(&get_showbreak_value(&*wp));
     }
 
     if bri < 0 {
         bri = 0;
-    } else if bri > eff_wwidth - wp.w_briopt_min {
-        bri = (eff_wwidth - wp.w_briopt_min).max(0);
+    } else if bri > eff_wwidth - wp.w_briopt_min.get() {
+        bri = (eff_wwidth - wp.w_briopt_min.get()).max(0);
     }
 
     bri
@@ -1166,7 +1178,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     } else {
         vcol = get_indent() - vcol;
         let end_vcol: Colnr = vcol.max(0);
-        curwin_mut().w_virtcol = end_vcol;
+        curwin_mut().w_virtcol.set(end_vcol);
 
         new_cursor_col = 0;
         let line_cstr = get_cursor_line_ptr();
@@ -1192,9 +1204,9 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             new_cursor_col = ci.offset_from(line_cstr) as i32;
         }
 
-        if vcol != curwin_mut().w_virtcol {
+        if vcol != curwin_mut().w_virtcol.get() {
             curwin_mut().w_cursor.col = new_cursor_col;
-            let ptrlen = (curwin_mut().w_virtcol - vcol) as usize;
+            let ptrlen = (curwin_mut().w_virtcol.get() - vcol) as usize;
             let mut ptr_vec = vec![b' '; ptrlen + 1];
             ptr_vec[ptrlen] = 0;
             new_cursor_col += ptrlen as i32;
@@ -1206,7 +1218,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
     curwin_mut().w_onebuf_opt.wo_list.set(save_p_list);
     curwin_mut().w_cursor.col = new_cursor_col.max(0);
-    curwin_mut().w_set_curswant = true;
+    curwin_mut().w_set_curswant.set(true);
     changed_cline_bef_curs(curwin_mut());
 
     if (g_st().state_global & MODE_INSERT) != 0 {
@@ -1541,7 +1553,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             return;
         }
     }
-    coladvance(curwin_mut(), curwin_mut().w_curswant);
+    coladvance(curwin_mut(), curwin_mut().w_curswant.get());
 }
 
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
@@ -1554,8 +1566,8 @@ pub fn get_expr_indent() -> i32 {
     let save_sctx = g_st().current_sctx;
 
     let save_pos = curwin_mut().w_cursor;
-    let save_curswant = curwin_mut().w_curswant;
-    let save_set_curswant = curwin_mut().w_set_curswant;
+    let save_curswant = curwin_mut().w_curswant.get();
+    let save_set_curswant = curwin_mut().w_set_curswant.get();
     set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.lnum));
 
     g_st().textlock += 1;
@@ -1569,8 +1581,8 @@ pub fn get_expr_indent() -> i32 {
     let save_state = g_st().state_global;
     g_st().state_global = MODE_INSERT;
     curwin_mut().w_cursor = save_pos;
-    curwin_mut().w_curswant = save_curswant;
-    curwin_mut().w_set_curswant = save_set_curswant;
+    curwin_mut().w_curswant.set(save_curswant);
+    curwin_mut().w_set_curswant.set(save_set_curswant);
     check_cursor(curwin_mut());
     g_st().state_global = save_state;
 

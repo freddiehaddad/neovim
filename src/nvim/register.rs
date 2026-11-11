@@ -1131,7 +1131,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
     if yank_type == MotionType::MtBlockWise {
         newreg.y_width = oap.end_vcol - oap.start_vcol;
 
-        if curwin_mut().w_curswant == MAXCOL && newreg.y_width > 0 {
+        if curwin_mut().w_curswant.get() == MAXCOL && newreg.y_width > 0 {
             newreg.y_width -= 1;
         }
     }
@@ -2334,7 +2334,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         }
 
         msgmore(nr_lines);
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
 
         let len = get_cursor_line_len();
         if curwin_mut().w_cursor.col > len {
@@ -2867,7 +2867,7 @@ pub fn write_reg_contents_ex(
 
     if name == i32::from(b'#') {
         if str_slice.is_empty() {
-            curwin_mut().w_alt_fnum = 0;
+            curwin_mut().w_alt_fnum.set(0);
             return;
         }
 
@@ -2884,7 +2884,7 @@ pub fn write_reg_contents_ex(
         let Some(buf_ref) = buf else {
             return;
         };
-        curwin_mut().w_alt_fnum = buf_ref.b_fnum.get();
+        curwin_mut().w_alt_fnum.set(buf_ref.b_fnum.get());
         return;
     }
 

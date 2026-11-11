@@ -364,7 +364,7 @@ pub fn nvim_open_win(
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
                 break 'cleanup;
-            } else if is_split && parent.w_floating {
+            } else if is_split && parent.w_floating.get() {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -428,9 +428,9 @@ pub fn nvim_open_win(
             if !wp.is_null() {
                 wp.w_config = fconfig.clone();
                 if size > 0 {
-                    if (flags & WSP_VERT) != 0 && wp.w_width != size {
+                    if (flags & WSP_VERT) != 0 && wp.w_width.get() != size {
                         win_setwidth_win(size, wp.borrow_mut(), true);
-                    } else if (flags & WSP_VERT) == 0 && wp.w_height != size {
+                    } else if (flags & WSP_VERT) == 0 && wp.w_height.get() != size {
                         win_setheight_win(size, wp.borrow_mut(), true);
                     }
                 }
@@ -600,7 +600,7 @@ fn win_find_altwin(win: &mut WinInfoInfo, tp: &TabPageInfo) -> Option<&'static m
     } else {
         crate::globals::TabpagePtr::from(tp)
     };
-    if win.w_floating {
+    if win.w_floating.get() {
         Some(win_float_find_altwin(&*win, tp_arg.opt()))
     } else {
         let mut dir: i32 = 0;
@@ -614,7 +614,7 @@ fn win_config_split(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
-    let was_split = !win.w_floating;
+    let was_split = !win.w_floating.get();
     let mask = config.is_set_win_config;
     let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
     let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
@@ -659,7 +659,7 @@ fn win_config_split(
 
         let mut win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(&*win));
         if !parent.is_null() {
-            if parent.w_floating {
+            if parent.w_floating.get() {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -704,7 +704,7 @@ fn win_config_split(
                     );
                     break 'restore_curwin;
                 }
-                if was_split == win.w_floating || parent.w_floating {
+                if was_split == win.w_floating.get() || parent.w_floating.get() {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -947,7 +947,7 @@ fn win_config_float_tp(
             }
         }
 
-        if !win.w_floating {
+        if !win.w_floating.get() {
             if win_new_float(Some(&mut *win), false, fconfig.clone(), err).is_none() {
                 break 'restore_curwin;
             }
@@ -1020,7 +1020,7 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
         return;
     };
 
-    let was_split = !w.w_floating;
+    let was_split = !w.w_floating.get();
     let mask = config.is_set_win_config;
     let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
     let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
@@ -1141,7 +1141,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_STYLE;
     rv.style = cstr_as_string(Some(WIN_STYLE_STR[config.style as usize]));
 
-    if wp.w_floating {
+    if wp.w_floating.get() {
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
         rv.width = i64::from(config.width);
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
@@ -1201,15 +1201,15 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         }
     } else if !config.external {
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
-        rv.width = i64::from(wp.w_width);
+        rv.width = i64::from(wp.w_width.get());
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
-        rv.height = i64::from(wp.w_height);
+        rv.height = i64::from(wp.w_height.get());
         let split = win_split_dir(wp);
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
         rv.split = cstr_as_string(Some(WIN_SPLIT_STR[split as usize]));
     }
 
-    let rel = if wp.w_floating && !config.external {
+    let rel = if wp.w_floating.get() && !config.external {
         FLOAT_RELATIVE_STR[config.relative as usize]
     } else {
         c""
@@ -1512,7 +1512,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
 
 fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err: &mut Error) {
     if let Some(wp) = wp
-        && wp.w_floating
+        && wp.w_floating.get()
     {
         api_set_error!(
             err,
@@ -1720,7 +1720,7 @@ fn parse_win_config(
         if relative_is_win
             || (has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
                 && !is_split
-                && wp.as_ref().is_some_and(|w| w.w_floating)
+                && wp.as_ref().is_some_and(|w| w.w_floating.get())
                 && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
         {
             let Some(target_win) =
@@ -1739,7 +1739,7 @@ fn parse_win_config(
             fconfig.window = target_win.handle;
         } else {
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-                if !is_split && !has_relative && wp.as_ref().is_none_or(|w| !w.w_floating) {
+                if !is_split && !has_relative && wp.as_ref().is_none_or(|w| !w.w_floating.get()) {
                     api_err_required(err, c"non-float with 'win' requires 'split' or 'vertical'");
                     break 'fail;
                 }
@@ -1834,7 +1834,7 @@ fn parse_win_config(
                 }
             }
         } else if !opt_vars().p_winborder.is_empty()
-            && wp.as_ref().is_none_or(|w| !w.w_floating)
+            && wp.as_ref().is_none_or(|w| !w.w_floating.get())
             && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder.as_bytes(), err)
         {
             break 'fail;

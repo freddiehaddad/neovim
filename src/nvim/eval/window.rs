@@ -395,16 +395,20 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typ
     tv_dict_add_nr(&dict, c"tabnr", tpnr as Varnumber);
     tv_dict_add_nr(&dict, c"winnr", winnr as Varnumber);
     tv_dict_add_nr(&dict, c"winid", wp.handle as Varnumber);
-    tv_dict_add_nr(&dict, c"height", wp.w_view_height as Varnumber);
-    tv_dict_add_nr(&dict, c"status_height", wp.w_status_height as Varnumber);
-    tv_dict_add_nr(&dict, c"winrow", (wp.w_winrow + 1) as Varnumber);
-    tv_dict_add_nr(&dict, c"topline", wp.w_topline as Varnumber);
-    tv_dict_add_nr(&dict, c"botline", (wp.w_botline - 1) as Varnumber);
-    tv_dict_add_nr(&dict, c"leftcol", wp.w_leftcol as Varnumber);
-    tv_dict_add_nr(&dict, c"winbar", wp.w_winbar_height as Varnumber);
-    tv_dict_add_nr(&dict, c"width", wp.w_view_width as Varnumber);
+    tv_dict_add_nr(&dict, c"height", wp.w_view_height.get() as Varnumber);
+    tv_dict_add_nr(
+        &dict,
+        c"status_height",
+        wp.w_status_height.get() as Varnumber,
+    );
+    tv_dict_add_nr(&dict, c"winrow", (wp.w_winrow.get() + 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"topline", wp.w_topline.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"botline", (wp.w_botline.get() - 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"leftcol", wp.w_leftcol.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"winbar", wp.w_winbar_height.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"width", wp.w_view_width.get() as Varnumber);
     tv_dict_add_nr(&dict, c"bufnr", wp.buf_mut().b_fnum.get() as Varnumber);
-    tv_dict_add_nr(&dict, c"wincol", (wp.w_wincol + 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"wincol", (wp.w_wincol.get() + 1) as Varnumber);
     tv_dict_add_nr(&dict, c"textoff", win_col_off(wp) as Varnumber);
     tv_dict_add_nr(
         &dict,
@@ -644,7 +648,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
     let Some(wp) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
-    if wp.w_floating {
+    if wp.w_floating.get() {
         return;
     }
     if !win_valid(Some(&*wp)) {
@@ -664,7 +668,7 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
     let Some(wp) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
-    if wp.w_floating {
+    if wp.w_floating.get() {
         return;
     }
     if !win_valid(Some(&*wp)) {
@@ -683,11 +687,12 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let wp = find_win_by_nr_or_id(&argvars[0]);
     tv_list_append_number(
         rettv.vval.v_list_ref(),
-        wp.as_ref().map_or(0, |w| (w.w_winrow + 1) as Varnumber),
+        wp.as_ref()
+            .map_or(0, |w| (w.w_winrow.get() + 1) as Varnumber),
     );
     tv_list_append_number(
         rettv.vval.v_list_ref(),
-        wp.map_or(0, |w| (w.w_wincol + 1) as Varnumber),
+        wp.map_or(0, |w| (w.w_wincol.get() + 1) as Varnumber),
     );
 }
 
@@ -704,7 +709,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         || wp == targetwin
         || !win_valid(wp.opt())
         || !win_valid(targetwin.opt())
-        || targetwin.w_floating
+        || targetwin.w_floating.get()
     {
         emsg(gettext(E_INVALWINDOW));
         return;
@@ -769,7 +774,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         tv_set_string(rettv, Some(c"autocmd"));
     } else if wp.w_onebuf_opt.wo_pvw.get() {
         tv_set_string(rettv, Some(c"preview"));
-    } else if wp.w_floating {
+    } else if wp.w_floating.get() {
         tv_set_string(rettv, Some(c"popup"));
     } else if bt_cmdwin(wp.buf_opt()) {
         tv_set_string(rettv, Some(c"command"));
@@ -806,14 +811,16 @@ pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// `wincol()` function (`f_wincol`).
 pub fn f_wincol(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     validate_cursor(curwin_mut());
-    rettv.vval = crate::eval::typval::TypvalVval::Number((curwin_mut().w_wcol + 1) as Varnumber);
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number((curwin_mut().w_wcol.get() + 1) as Varnumber);
 }
 
 /// `winheight(nr)` function (`f_winheight`).
 pub fn f_winheight(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.w_view_height as Varnumber));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(
+        wp.map_or(-1, |w| w.w_view_height.get() as Varnumber),
+    );
 }
 
 /// `winlayout()` function (`f_winlayout`).
@@ -835,7 +842,8 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `winline()` function (`f_winline`).
 pub fn f_winline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     validate_cursor(curwin_mut());
-    rettv.vval = crate::eval::typval::TypvalVval::Number((curwin_mut().w_wrow + 1) as Varnumber);
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number((curwin_mut().w_wrow.get() + 1) as Varnumber);
 }
 
 /// `winnr()` function (`f_winnr`).
@@ -857,7 +865,8 @@ pub fn f_winrestcmd(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             let _ = write!(
                 &mut buf,
                 ":{winnr}resize {}|vert :{winnr}resize {}|",
-                wp.w_height, wp.w_width
+                wp.w_height.get(),
+                wp.w_width.get()
             );
             winnr += 1;
         }
@@ -883,10 +892,10 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
         curwin_mut().w_cursor.coladd = tv_get_number(&di.tv()) as Colnr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"topline", 7) {
-        let prev_topline = curwin_mut().w_topline;
+        let prev_topline = curwin_mut().w_topline.get();
         set_topline(curwin_mut(), tv_get_number(&di.tv()) as Linenr);
-        if curwin_mut().w_topline != prev_topline {
-            curwin_mut().w_skipcol = 0;
+        if curwin_mut().w_topline.get() != prev_topline {
+            curwin_mut().w_skipcol.set(0);
         }
     }
     let mut vs = Viewstate::default();
@@ -908,11 +917,11 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 
     check_cursor(curwin_mut());
     changed_window_setting(curwin_mut());
-    if curwin_mut().w_topline <= 0 {
-        curwin_mut().w_topline = 1;
+    if curwin_mut().w_topline.get() <= 0 {
+        curwin_mut().w_topline.set(1);
     }
-    if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
-        curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
+    if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count {
+        curwin_mut().w_topline.set(curbuf_mut().b_ml.ml_line_count);
     }
     check_topfill(curwin_mut(), true);
 }
@@ -938,6 +947,7 @@ pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// `winwidth(nr)` function (`f_winwidth`).
 pub fn f_winwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.w_view_width as Varnumber));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(
+        wp.map_or(-1, |w| w.w_view_width.get() as Varnumber),
+    );
 }

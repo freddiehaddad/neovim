@@ -119,7 +119,9 @@ pub fn coladvance_force(wcol: Colnr) -> bool {
     curwin_mut().w_cursor = cursor;
 
     if wcol == MAXCOL {
-        curwin_mut().w_valid &= !VALID_VIRTCOL;
+        curwin_mut()
+            .w_valid
+            .set(curwin_mut().w_valid.get() & (!VALID_VIRTCOL));
     } else {
         set_valid_virtcol(curwin_mut(), wcol);
     }
@@ -133,7 +135,7 @@ pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
     wp.w_cursor = cursor;
 
     if wcol == MAXCOL || !rc {
-        wp.w_valid &= !VALID_VIRTCOL;
+        wp.w_valid.set(wp.w_valid.get() & (!VALID_VIRTCOL));
     } else if crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
         .get(wp.w_cursor.col as usize)
         != Some(&TAB)
@@ -169,18 +171,19 @@ fn coladvance2(
         col = wcol;
 
         if (addspaces || finetune) && !g_st().visual_global.active {
-            wp.w_curswant = linetabsize(wp, pos.lnum) + one_more;
-            if wp.w_curswant > 0 {
-                wp.w_curswant -= 1;
+            let cw = linetabsize(wp, pos.lnum) + one_more;
+            wp.w_curswant.set(cw);
+            if wp.w_curswant.get() > 0 {
+                wp.w_curswant.set(wp.w_curswant.get() - (1));
             }
         }
     } else {
-        let width = wp.w_view_width - win_col_off(wp);
+        let width = wp.w_view_width.get() - win_col_off(wp);
         let mut csize: i32 = 0;
 
         if finetune
             && wp.w_onebuf_opt.wo_wrap.get()
-            && wp.w_view_width != 0
+            && wp.w_view_width.get() != 0
             && wcol >= width
             && width > 0
         {
@@ -285,7 +288,7 @@ fn coladvance2(
             }
         } else {
             let b = wcol - col;
-            if b > 0 && b < (MAXCOL - 2 * wp.w_view_width) {
+            if b > 0 && b < (MAXCOL - 2 * wp.w_view_width.get()) {
                 pos.coladd = b;
             }
             col += b;
@@ -438,27 +441,30 @@ pub fn adjust_cursor_col() {
 
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
 pub fn set_leftcol(leftcol: Colnr) -> bool {
-    if curwin_mut().w_leftcol == leftcol {
+    if curwin_mut().w_leftcol.get() == leftcol {
         return false;
     }
-    curwin_mut().w_leftcol = leftcol;
+    curwin_mut().w_leftcol.set(leftcol);
 
     changed_cline_bef_curs(curwin_mut());
-    let lastcol = i64::from(curwin_mut().w_leftcol) + i64::from(curwin_mut().w_view_width)
+    let lastcol = i64::from(curwin_mut().w_leftcol.get())
+        + i64::from(curwin_mut().w_view_width.get())
         - i64::from(win_col_off(curwin_mut()))
         - 1;
     validate_virtcol(curwin_mut());
 
     let mut retval = false;
     let siso = get_sidescrolloff_value(curwin_mut());
-    if curwin_mut().w_virtcol > (lastcol - siso) as Colnr {
+    if curwin_mut().w_virtcol.get() > (lastcol - siso) as Colnr {
         retval = true;
         coladvance(curwin_mut(), (lastcol - siso) as Colnr);
-    } else if curwin_mut().w_virtcol < (i64::from(curwin_mut().w_leftcol) + siso) as Colnr {
+    } else if curwin_mut().w_virtcol.get()
+        < (i64::from(curwin_mut().w_leftcol.get()) + siso) as Colnr
+    {
         retval = true;
         coladvance(
             curwin_mut(),
-            (i64::from(curwin_mut().w_leftcol) + siso) as Colnr,
+            (i64::from(curwin_mut().w_leftcol.get()) + siso) as Colnr,
         );
     }
 
@@ -477,16 +483,16 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
     if e > lastcol as Colnr {
         retval = true;
         coladvance(curwin_mut(), s - 1);
-    } else if s < curwin_mut().w_leftcol {
+    } else if s < curwin_mut().w_leftcol.get() {
         retval = true;
         if !coladvance(curwin_mut(), e + 1) {
-            curwin_mut().w_leftcol = s;
+            curwin_mut().w_leftcol.set(s);
             changed_cline_bef_curs(curwin_mut());
         }
     }
 
     if retval {
-        curwin_mut().w_set_curswant = true;
+        curwin_mut().w_set_curswant.set(true);
     }
     redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
     retval

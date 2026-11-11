@@ -567,7 +567,9 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         time_msg_if_enabled(c"waiting for UI");
         remote_ui_wait_for_attach();
         time_msg_if_enabled(c"done waiting for UI");
-        firstwin_mut().w_prev_height = firstwin_mut().w_height;
+        firstwin_mut()
+            .w_prev_height
+            .set(firstwin_mut().w_height.get());
     }
 
     set_starting(NO_BUFFERS);
@@ -696,7 +698,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     if params.diff_mode != 0 {
         for wp in win_iter_ptr(curtab_mut().tp_firstwin.get().as_ptr()) {
-            if !wp.w_arg_idx_invalid {
+            if !wp.w_arg_idx_invalid.get() {
                 diff_win_options(&mut *wp, true);
             }
         }
@@ -1905,7 +1907,10 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             parmp.window_count = make_tabpages(parmp.window_count);
             time_msg_if_enabled(c"making tab pages");
-        } else if firstwin_mut().next_opt().is_none_or(|nw| nw.w_floating) {
+        } else if firstwin_mut()
+            .next_opt()
+            .is_none_or(|nw| nw.w_floating.get())
+        {
             parmp.window_count = make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
             time_msg_if_enabled(c"making windows");
         } else {
@@ -1968,7 +1973,7 @@ fn create_windows(parmp: &mut Mparm) {
                         getout(1);
                     }
                     setfname(curbuf_mut(), None, None, false);
-                    curwin_mut().w_arg_idx = -1;
+                    curwin_mut().w_arg_idx.set(-1);
                     g_st().swap_exists_action = SEA_NONE;
                 } else {
                     handle_swap_exists(None);
@@ -2001,14 +2006,14 @@ fn edit_buffers(parmp: &mut Mparm) {
     g_st().autocmd_no_enter += 1;
     g_st().autocmd_no_leave += 1;
 
-    if curwin_mut().w_arg_idx == -1 {
+    if curwin_mut().w_arg_idx.get() == -1 {
         win_close(curwin_mut(), true, false);
         advance = false;
     }
 
     let mut arg_idx: i32 = 1;
     for i in 1..parmp.window_count {
-        if curwin_mut().w_arg_idx == -1 {
+        if curwin_mut().w_arg_idx.get() == -1 {
             arg_idx += 1;
             win_close(curwin_mut(), true, false);
             advance = false;
@@ -2043,7 +2048,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         if ptr::eq(g_st().curbuf.as_ptr(), firstwin_mut().w_buffer.as_ptr())
             || curbuf_mut().b_ffname.is_none()
         {
-            curwin_mut().w_arg_idx = arg_idx;
+            curwin_mut().w_arg_idx.set(arg_idx);
             g_st().swap_exists_did_quit = false;
             let entry_opt = (arg_idx < gargcount()).then(|| garg_entry(arg_idx as usize));
             let fname = entry_opt.as_ref().and_then(|e| alist_name(e));

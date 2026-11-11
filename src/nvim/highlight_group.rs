@@ -2244,7 +2244,7 @@ pub fn syn_ns_id2attr(mut ns_id: i32, mut hl_id: i32, optional: &mut bool) -> i3
 }
 
 pub fn syn_get_final_id(mut hl_id: i32) -> i32 {
-    let mut ns_id = curwin_mut().w_ns_hl_active;
+    let mut ns_id = curwin_mut().w_ns_hl_active.get();
     syn_ns_get_final_id(&mut ns_id, &mut hl_id);
     hl_id
 }

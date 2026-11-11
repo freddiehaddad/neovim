@@ -551,15 +551,15 @@ pub fn charsize_regular(
             && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri.get())
         {
             let mut col_off_prev = win_col_off(wp);
-            let width2 = wp.w_view_width - col_off_prev + win_col_off2(&mut *wp);
+            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(&mut *wp);
             let mut wcol = disp_vcol + col_off_prev;
             let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
 
             let mut head_prev = 0;
-            if wcol >= wp.w_view_width {
-                wcol -= wp.w_view_width;
-                col_off_prev = wp.w_view_width - width2;
+            if wcol >= wp.w_view_width.get() {
+                wcol -= wp.w_view_width.get();
+                col_off_prev = wp.w_view_width.get() - width2;
                 if wcol >= width2 && width2 > 0 {
                     wcol %= width2;
                 }
@@ -587,7 +587,7 @@ pub fn charsize_regular(
                 wcol += col_off_prev;
             }
 
-            if wcol + size > wp.w_view_width {
+            if wcol + size > wp.w_view_width.get() {
                 let mut head_mid = csarg.indent_width;
                 if head_mid == i32::MIN {
                     head_mid = 0;
@@ -600,7 +600,7 @@ pub fn charsize_regular(
                     csarg.indent_width = head_mid;
                 }
                 if head_mid > 0 {
-                    let prev_rem = wp.w_view_width - wcol;
+                    let prev_rem = wp.w_view_width.get() - wcol;
                     let mut width = width2 - head_mid;
                     if width <= 0 {
                         width = 1;
@@ -634,7 +634,7 @@ pub fn charsize_regular(
         let mut need_lbr = false;
         if wp.w_onebuf_opt.wo_lbr.get()
             && wp.w_onebuf_opt.wo_wrap.get()
-            && wp.w_view_width != 0
+            && wp.w_view_width.get() != 0
             && lbr_char > 0
             && lbr_char < 256
             && vim_isbreak(lbr_char)
@@ -653,7 +653,7 @@ pub fn charsize_regular(
             let mut s_off = cur_off;
             let numberextra = win_col_off(wp);
             let col_adj = size - 1;
-            let mut colmax: Colnr = wp.w_view_width - numberextra - col_adj;
+            let mut colmax: Colnr = wp.w_view_width.get() - numberextra - col_adj;
             if disp_vcol >= colmax {
                 colmax += col_adj;
                 let n = colmax + win_col_off2(&mut *wp);
@@ -841,10 +841,10 @@ pub fn charsize_nowrap(
 }
 
 fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
-    if wp.w_view_width == 0 {
+    if wp.w_view_width.get() == 0 {
         return false;
     }
-    let width1 = wp.w_view_width - win_col_off(wp);
+    let width1 = wp.w_view_width.get() - win_col_off(wp);
     if vcol < width1 - 1 {
         return false;
     }
@@ -1313,12 +1313,12 @@ pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bo
     if decor_conceal_line(wp, lnum - 1, false) {
         return 0;
     }
-    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width == 0 || line_folded(&mut *wp, lnum) {
+    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width.get() == 0 || line_folded(&mut *wp, lnum) {
         return 1;
     }
     let lines = plines_win_nofold(&mut *wp, lnum);
-    if limit_winheight && lines > wp.w_view_height {
-        wp.w_view_height
+    if limit_winheight && lines > wp.w_view_height.get() {
+        wp.w_view_height.get()
     } else {
         lines
     }
@@ -1342,7 +1342,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
         col += 1;
     }
 
-    let mut width = wp.w_view_width - win_col_off(wp);
+    let mut width = wp.w_view_width.get() - win_col_off(wp);
     if width <= 0 {
         return 32000;
     }
@@ -1361,7 +1361,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut lines = win_get_fill(wp, lnum);
-    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width == 0 {
+    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width.get() == 0 {
         return lines + 1;
     }
 
@@ -1400,7 +1400,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
         col += (cs.width - hidden - 1).max(0);
     }
 
-    let width = wp.w_view_width - win_col_off(wp);
+    let width = wp.w_view_width.get() - win_col_off(wp);
     if width <= 0 {
         return 9999;
     }
@@ -1425,8 +1425,8 @@ pub fn plines_win_full(
         **p = folded;
     }
 
-    let filler_lines = if lnum == wp.w_topline {
-        wp.w_topfill
+    let filler_lines = if lnum == wp.w_topline.get() {
+        wp.w_topfill.get()
     } else {
         win_get_fill(&mut *wp, lnum)
     };
@@ -1478,7 +1478,7 @@ pub fn win_text_height(
     max: i64,
     vcol_is_disp: bool,
 ) -> i64 {
-    let mut width1 = wp.w_view_width - win_col_off(wp);
+    let mut width1 = wp.w_view_width.get() - win_col_off(wp);
     let mut width2 = width1 + win_col_off2(wp);
     width1 = width1.max(0);
     width2 = width2.max(0);

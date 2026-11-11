@@ -156,7 +156,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     w.w_cursor.coladd = 0;
     check_cursor_col(w);
 
-    w.w_set_curswant = true;
+    w.w_set_curswant.set(true);
 
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
@@ -172,7 +172,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     ctx_restore(&mut switchwin);
 
     redraw_later(Some(&mut *(w)), UPD_VALID);
-    w.w_redr_status = true;
+    w.w_redr_status.set(true);
 }
 
 /// Gets the window height
@@ -186,7 +186,7 @@ pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return 0;
     };
-    i64::from(w.w_height)
+    i64::from(w.w_height.get())
 }
 
 /// Gets the window width
@@ -200,7 +200,7 @@ pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return 0;
     };
-    i64::from(w.w_width)
+    i64::from(w.w_width.get())
 }
 
 /// Gets a window-scoped (w:) variable
@@ -263,8 +263,8 @@ pub fn nvim_win_get_position(win: Window, arena: &mut Arena, err: &mut Error) ->
     let mut rv = Array::new();
     if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
         rv = arena_array(arena, 2);
-        add_c(&mut rv, integer_obj(i64::from(w.w_winrow)));
-        add_c(&mut rv, integer_obj(i64::from(w.w_wincol)));
+        add_c(&mut rv, integer_obj(i64::from(w.w_winrow.get())));
+        add_c(&mut rv, integer_obj(i64::from(w.w_wincol.get())));
     }
     rv
 }
@@ -430,8 +430,8 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
         return;
     }
 
-    w.w_ns_hl = ns_id as i32;
-    w.w_hl_needs_update = 1;
+    w.w_ns_hl.set(ns_id as i32);
+    w.w_hl_needs_update.set(1);
     redraw_later(Some(&mut *(w)), UPD_NOT_VALID);
 }
 

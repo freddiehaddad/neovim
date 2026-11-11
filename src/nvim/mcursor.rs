@@ -1203,7 +1203,7 @@ pub fn mc_vsel_refresh() {
         if r_type == MT_LINE_WISE {
             mc_vsel_mark(s.lnum, 0, e.lnum, ml_get_len(e.lnum));
         } else if r_type == MT_BLOCK_WISE {
-            if curwin_mut().w_curswant == MAXCOL {
+            if curwin_mut().w_curswant.get() == MAXCOL {
                 oa.end_vcol = MAXCOL;
             }
             for lnum in s.lnum..=e.lnum {
@@ -1362,7 +1362,7 @@ pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
 
 fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     curwin_mut().w_cursor = pos;
-    curwin_mut().w_set_curswant = false;
+    curwin_mut().w_set_curswant.set(false);
     g_st().msg_silent += 1;
     g_st().emsg_silent += 1;
     let save_cmod_flags = g_st().cmdmod.cmod_flags;
@@ -1438,7 +1438,7 @@ fn mc_zq_first(
 ) -> bool {
     let start = bounds[0];
     let end_bound = bounds[1];
-    let curswant = curwin_mut().w_curswant;
+    let curswant = curwin_mut().w_curswant.get();
     let mut before = start;
     let bof = dec(&mut before) == -1;
     step.lnum = 0;
@@ -1446,7 +1446,7 @@ fn mc_zq_first(
         let save_ww = opt_vars().p_ww.replace(OptString::from_cstr(c"s,l,>"));
         let s = mc_zq_step(keys, before);
         opt_vars().p_ww.set(save_ww);
-        curwin_mut().w_curswant = curswant;
+        curwin_mut().w_curswant.set(curswant);
         if ltoreq(start, s) && ltoreq(s, end_bound) {
             *step = s;
         }
@@ -1455,14 +1455,14 @@ fn mc_zq_first(
     check_cursor_col(curwin_mut());
     let from = curwin_mut().w_cursor;
     let s = mc_zq_step(keys, from);
-    if s.lnum > from.lnum && !curwin_mut().w_set_curswant {
+    if s.lnum > from.lnum && !curwin_mut().w_set_curswant.get() {
         let mut c = from;
-        getvpos(curwin_mut(), &mut c, curwin_mut().w_curswant);
+        getvpos(curwin_mut(), &mut c, curwin_mut().w_curswant.get());
         if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
             *step = c;
         }
     }
-    curwin_mut().w_curswant = curswant;
+    curwin_mut().w_curswant.set(curswant);
     if step.lnum != 0 {
         return true;
     }
@@ -1487,7 +1487,7 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
     let mut wrapped = false;
     let mut placed: i32 = 0;
     let mut step = first;
-    let curswant = curwin_mut().w_curswant;
+    let curswant = curwin_mut().w_curswant.get();
     while !g_st().got_int {
         mc_zq_target(step, search, motion_type, mc_add(curbuf_mut(), step));
         placed += 1;
@@ -1514,7 +1514,7 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
             break;
         }
     }
-    curwin_mut().w_curswant = curswant;
+    curwin_mut().w_curswant.set(curswant);
     placed
 }
 
@@ -1644,7 +1644,7 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
     if placed > 0 {
         if mc_mark_at(curbuf_mut(), primary, 0) == 0 {
             primary = first;
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
         }
         curbuf_mut().b_visual = mc_zq_target(primary, search, oap.motion_type, None);
         curbuf_mut()

@@ -2711,8 +2711,8 @@ fn jump_to_help_window(qi: &QfInfo, newwin: bool, opened_window: &mut bool) -> b
     } else {
         let mut flags = WSP_HELP;
         if g_st().cmdmod.cmod_split == 0
-            && curwin_mut().w_width != g_st().columns_global
-            && curwin_mut().w_width < 80
+            && curwin_mut().w_width.get() != g_st().columns_global
+            && curwin_mut().w_width.get() < 80
         {
             flags |= WSP_TOP;
         }
@@ -2727,7 +2727,7 @@ fn jump_to_help_window(qi: &QfInfo, newwin: bool, opened_window: &mut bool) -> b
 
         *opened_window = true;
 
-        if i64::from(curwin_mut().w_height) < opt_vars().p_hh.get() {
+        if i64::from(curwin_mut().w_height.get()) < opt_vars().p_hh.get() {
             win_setheight(opt_vars().p_hh.get() as i32);
         }
 
@@ -3066,7 +3066,7 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: 
             } else {
                 curwin_mut().w_cursor.col = qf_col - 1;
             }
-            curwin_mut().w_set_curswant = true;
+            curwin_mut().w_set_curswant.set(true);
             check_cursor(curwin_mut());
         } else {
             beginline(BL_WHITE | BL_FIX);
@@ -3783,11 +3783,14 @@ fn qf_goto_cwindow(qi: &QfInfo, resize: bool, sz: i32, vertsplit: bool) -> bool 
     win_goto(win);
     if resize {
         if vertsplit {
-            if sz != win.w_width {
+            if sz != win.w_width.get() {
                 win_setwidth(sz);
             }
-        } else if sz != win.w_height
-            && (win.w_height + win.w_hsep_height + win.w_status_height + tabline_height()
+        } else if sz != win.w_height.get()
+            && (win.w_height.get()
+                + win.w_hsep_height.get()
+                + win.w_status_height.get()
+                + tabline_height()
                 < g_st().cmdline_row)
         {
             win_setheight(sz);
@@ -3867,7 +3870,7 @@ fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
         qf_set_cwindow_options();
     }
 
-    if g_st().curtab == prevtab && curwin_mut().w_width == g_st().columns_global {
+    if g_st().curtab == prevtab && curwin_mut().w_width.get() == g_st().columns_global {
         win_setheight(height);
     }
     curwin_mut().w_onebuf_opt.wo_wfh.set(true);
@@ -3936,10 +3939,10 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
     curwin_mut().w_cursor.lnum = lnum;
     curwin_mut().w_cursor.col = 0;
     curwin_mut().w_cursor.coladd = 0;
-    curwin_mut().w_curswant = 0;
+    curwin_mut().w_curswant.set(0);
     update_topline(curwin_mut());
     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-    curwin_mut().w_redr_status = true;
+    curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
     g_st().curbuf = curwin_mut().w_buffer;
 }
@@ -3977,8 +3980,8 @@ fn qf_win_pos_update(qi: &QfInfo, old_qf_index: i32) -> bool {
         && qf_index <= win_ref.buf_mut().b_ml.ml_line_count
         && old_qf_index != qf_index
     {
-        win_ref.w_redraw_top = old_qf_index.min(qf_index);
-        win_ref.w_redraw_bot = old_qf_index.max(qf_index);
+        win_ref.w_redraw_top.set(old_qf_index.min(qf_index));
+        win_ref.w_redraw_bot.set(old_qf_index.max(qf_index));
         qf_win_goto(win_ref, qf_index);
     }
     found
@@ -4128,7 +4131,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
     }
 
     if let Some(win) = qf_find_win(qi)
-        && old_line_count < win.w_botline
+        && old_line_count < win.w_botline.get()
     {
         redraw_buf_later(&*buf, UPD_NOT_VALID);
     }
@@ -4292,7 +4295,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(tab_firstwin(&tp)) {
                 if wp.w_buffer == g_st().curbuf {
-                    wp.w_skipcol = 0;
+                    wp.w_skipcol.set(0);
                 }
             }
         }
