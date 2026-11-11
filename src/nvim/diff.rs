@@ -1012,7 +1012,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
             dio_internal: diff_internal(),
         };
         diff_try_update(&mut diffio, idx_orig, eap);
-        curwin_mut().w_valid_cursor.lnum = 0;
+        curwin_mut().w_valid_cursor.set_lnum(0);
     }
     if had_diffs || !curtab_mut().tp_diffs.borrow().is_empty() {
         diff_redraw(true);

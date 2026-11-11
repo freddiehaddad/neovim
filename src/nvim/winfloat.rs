@@ -155,7 +155,7 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
     wp.w_onebuf_opt.wo_list.set(false);
 
     // Hide EOB region: use " " fillchar and cleared highlighting
-    if wp.w_p_fcs_chars.eob != b' ' as u32 {
+    if wp.w_p_fcs_chars.get().eob != b' ' as u32 {
         let old = wp.w_onebuf_opt.wo_fcs.as_bytes();
         if old.is_empty() {
             wp.w_onebuf_opt.wo_fcs.set_option_cstr(c"eob: ");
@@ -199,7 +199,7 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
     if wp.w_floating.get() && !wp.w_onebuf_opt.wo_stl.is_empty() {
         wp.w_onebuf_opt.wo_stl.clear_option_str();
         if wp.w_status_height.get() > 0 {
-            let cfg = wp.w_config.clone();
+            let cfg = wp.w_config.borrow().clone();
             win_config_float(&mut *wp, cfg);
         }
     }
@@ -244,15 +244,15 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         }
     }
 
-    let change_external = fconfig.external != wp.w_config.external;
-    let mut change_border =
-        fconfig.border != wp.w_config.border || fconfig.border_hl_ids != wp.w_config.border_hl_ids;
+    let change_external = fconfig.external != wp.w_config.borrow().external;
+    let mut change_border = fconfig.border != wp.w_config.borrow().border
+        || fconfig.border_hl_ids != wp.w_config.borrow().border_hl_ids;
 
-    merge_win_config(&mut wp.w_config, fconfig);
+    merge_win_config(&mut wp.w_config.borrow_mut(), fconfig);
 
-    let has_border = wp.w_floating.get() && wp.w_config.border;
+    let has_border = wp.w_floating.get() && wp.w_config.borrow().border;
     for i in 0..4 {
-        let new_adj = i32::from(has_border && wp.w_config.border_chars[2 * i + 1][0] != 0);
+        let new_adj = i32::from(has_border && wp.w_config.borrow().border_chars[2 * i + 1][0] != 0);
         if new_adj != wp.w_border_adj[i].get() {
             change_border = true;
             wp.w_border_adj[i].set(new_adj);
@@ -260,7 +260,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     }
 
     if !ui_has(K_UIMULTIGRID) {
-        let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
+        let above_ch = if wp.w_config.borrow().zindex < K_ZINDEX_MESSAGES {
             opt_vars().p_ch.get() as i32
         } else {
             0
@@ -281,20 +281,20 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     }
 
     // compute initial position
-    if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW {
-        let mut row = wp.w_config.row as i32;
-        let mut col = wp.w_config.col as i32;
+    if wp.w_config.borrow().relative == K_FLOAT_RELATIVE_WINDOW {
+        let mut row = wp.w_config.borrow().row as i32;
+        let mut col = wp.w_config.borrow().col as i32;
         let mut dummy = error_init();
-        let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
+        let parent = find_window_by_handle(wp.w_config.borrow().window, &mut dummy);
         if let Some(parent) = parent.opt_mut() {
             row += parent.w_winrow.get();
             col += parent.w_wincol.get();
             let _ = crate::grid::grid_adjust_opt(&parent.w_grid, &mut row, &mut col);
-            if wp.w_config.bufpos.lnum >= 0 {
+            if wp.w_config.borrow().bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
-                    lnum: (wp.w_config.bufpos.lnum + 1)
+                    lnum: (wp.w_config.borrow().bufpos.lnum + 1)
                         .min((*parent).buf_mut().b_ml.ml_line_count.get()),
-                    col: wp.w_config.bufpos.col,
+                    col: wp.w_config.borrow().bufpos.col,
                     coladd: 0,
                 };
                 let mut trow: i32 = 0;
@@ -318,12 +318,12 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         wp.w_winrow.set(row);
         wp.w_wincol.set(col);
     } else {
-        wp.w_winrow.set(wp.w_config.row as i32);
-        wp.w_wincol.set(wp.w_config.col as i32);
+        wp.w_winrow.set(wp.w_config.borrow().row as i32);
+        wp.w_wincol.set(wp.w_config.borrow().col as i32);
     }
 
     // changing border style while keeping border only requires redrawing border
-    if wp.w_config.border {
+    if wp.w_config.borrow().border {
         wp.w_redr_border.set(true);
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
@@ -332,12 +332,12 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 pub fn win_float_remove(bang: bool, mut count: i32) {
     let mut float_win_arr: Vec<crate::globals::WinPtr> = Vec::new();
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
-        if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp.get() {
+        if !wp.w_config.borrow().hide && !wp.w_onebuf_opt.wo_wp.get() {
             float_win_arr.push(crate::globals::WinPtr::from(&*wp));
         }
     }
     if !float_win_arr.is_empty() {
-        float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(w.w_config.zindex));
+        float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(w.w_config.borrow().zindex));
     }
     for mut w in float_win_arr {
         if win_valid(w.opt()) && !win_close(&mut w, false, false) {
@@ -354,7 +354,9 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
 
 pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
-        if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW && wp.w_config.window == win.handle {
+        if wp.w_config.borrow().relative == K_FLOAT_RELATIVE_WINDOW
+            && wp.w_config.borrow().window == win.handle
+        {
             wp.w_pos_changed.set(true);
         }
     }
@@ -366,7 +368,7 @@ pub fn win_float_update_statusline() {
         let should_show = !wp.w_onebuf_opt.wo_stl.is_empty()
             && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
         if should_show != has_status {
-            let cfg = wp.w_config.clone();
+            let cfg = wp.w_config.borrow().clone();
             win_config_float(wp, cfg);
         }
     }
@@ -374,7 +376,7 @@ pub fn win_float_update_statusline() {
 
 pub fn win_float_anchor_laststatus() {
     for win in for_all_windows_mut() {
-        if win.w_config.relative == K_FLOAT_RELATIVE_LASTSTATUS {
+        if win.w_config.borrow().relative == K_FLOAT_RELATIVE_LASTSTATUS {
             win.w_pos_changed.set(true);
         }
     }
@@ -382,7 +384,7 @@ pub fn win_float_anchor_laststatus() {
 
 pub fn win_reconfig_floats() {
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
-        let cfg = wp.w_config.clone();
+        let cfg = wp.w_config.borrow().clone();
         win_config_float(wp, cfg);
     }
 }
@@ -536,21 +538,21 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     }
 
     // Title is the previewed file's name, only known once it is loaded.
-    if wp.w_config.border && wp.buf_mut().fname_opt().is_some() {
+    if wp.w_config.borrow().border && wp.buf_mut().fname_opt().is_some() {
         let mut dirname = [0u8; MAXPATHL];
         os_dirname(&mut dirname);
         shorten_buf_fname(wp.buf_mut(), crate::memory::bytes_as_cstr(&dirname), 0);
 
-        wp.w_config.title_chunks.clear();
+        wp.w_config.borrow_mut().title_chunks.clear();
         let mut err = error_init();
         parse_bordertext(
             cstr_as_obj(wp.buf_mut().fname_opt()),
             K_BORDER_TEXT_TITLE,
-            &mut wp.w_config,
+            &mut wp.w_config.borrow_mut(),
             &mut err,
         );
         api_clear_error(&mut err);
-        wp.w_config.title_pos = K_ALIGN_CENTER;
+        wp.w_config.borrow_mut().title_pos = K_ALIGN_CENTER;
     }
 
     let border_h = win_border_height(&mut *wp);
@@ -601,14 +603,14 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     let max_height = (if below { space_below } else { space_above }) - border_h;
     let max_width = (if right { space_right } else { space_left }) - border_w;
 
-    wp.w_config.height = want_h.min(max_height).max(1);
-    wp.w_config.width = want_w.min(max_width).max(1);
-    wp.w_config.anchor = (if below { 0 } else { K_FLOAT_ANCHOR_SOUTH })
+    wp.w_config.borrow_mut().height = want_h.min(max_height).max(1);
+    wp.w_config.borrow_mut().width = want_w.min(max_width).max(1);
+    wp.w_config.borrow_mut().anchor = (if below { 0 } else { K_FLOAT_ANCHOR_SOUTH })
         | (if right { 0 } else { K_FLOAT_ANCHOR_EAST });
-    wp.w_config.row = (row + if below { 1 } else { 0 }) as f64;
-    wp.w_config.col = (col + if right { 1 } else { 0 }) as f64;
-    wp.w_config.hide = false;
-    let cfg = wp.w_config.clone();
+    wp.w_config.borrow_mut().row = (row + if below { 1 } else { 0 }) as f64;
+    wp.w_config.borrow_mut().col = (col + if right { 1 } else { 0 }) as f64;
+    wp.w_config.borrow_mut().hide = false;
+    let cfg = wp.w_config.borrow().clone();
     win_config_float(&mut *wp, cfg);
 }
 

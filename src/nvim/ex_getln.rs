@@ -860,7 +860,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         curwin_mut().w_cursor = s.search_start;
     } else if found != 0 {
         curwin_mut().w_cursor = end_pos;
-        curwin_mut().w_valid_cursor = end_pos; // mark as valid for cmdline_show redraw
+        curwin_mut().w_valid_cursor.set(end_pos); // mark as valid for cmdline_show redraw
     }
 
     msg_starthere();

@@ -524,7 +524,8 @@ pub fn pum_display(
             } else {
                 g_st().cmdline_row.get()
             };
-            cursor_col = cmdline_win_ref.map_or(0, |cw| cw.w_config._cmdline_offset) + cmd_startcol;
+            cursor_col =
+                cmdline_win_ref.map_or(0, |cw| cw.w_config.borrow()._cmdline_offset) + cmd_startcol;
             cursor_col %=
                 cmdline_win_ref.map_or(g_st().columns_global.get(), |cw| cw.w_view_width.get());
             PUM.with(|s| {
@@ -840,9 +841,9 @@ pub fn pum_redraw() {
     let mut thumb_pos: i32 = 0;
     let mut thumb_height: i32 = 1;
     let fcs_trunc: Schar = if PUM.with(|s| s.rl.get()) {
-        curwin_mut().w_p_fcs_chars.truncrl
+        curwin_mut().w_p_fcs_chars.get().truncrl
     } else {
-        curwin_mut().w_p_fcs_chars.trunc
+        curwin_mut().w_p_fcs_chars.get().trunc
     };
 
     const HLFS_NORM: [Hlf; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
@@ -1329,32 +1330,34 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
 
     let max_extra = right_extra.max(left_extra);
     if max_extra < 10 {
-        wp.w_config.hide = true;
+        wp.w_config.borrow_mut().hide = true;
         return false;
     }
 
     if right_extra > width {
-        wp.w_config.width = width;
-        wp.w_config.col = f64::from(col - 1);
+        wp.w_config.borrow_mut().width = width;
+        wp.w_config.borrow_mut().col = f64::from(col - 1);
     } else if left_extra > width {
-        wp.w_config.width = width;
-        wp.w_config.col = f64::from(PUM.with(|s| s.col.get()) - wp.w_config.width - 1);
+        wp.w_config.borrow_mut().width = width;
+        wp.w_config.borrow_mut().col =
+            f64::from(PUM.with(|s| s.col.get()) - wp.w_config.borrow().width - 1);
     } else {
         let place_in_right = right_extra > left_extra;
-        wp.w_config.width = max_extra;
-        wp.w_config.col = f64::from(if place_in_right {
+        wp.w_config.borrow_mut().width = max_extra;
+        wp.w_config.borrow_mut().col = f64::from(if place_in_right {
             col - 1
         } else {
-            PUM.with(|s| s.col.get()) - wp.w_config.width - 1
+            PUM.with(|s| s.col.get()) - wp.w_config.borrow().width - 1
         });
     }
-    wp.w_config.anchor = 0;
+    wp.w_config.borrow_mut().anchor = 0;
     let count = wp.buf_mut().b_ml.ml_line_count.get();
-    wp.w_view_width.set(wp.w_config.width);
-    wp.w_config.height = plines_m_win(wp, wp.w_topline.get(), count, g_st().rows_global.get());
-    wp.w_config.row = f64::from(PUM.with(|s| s.row.get()));
-    wp.w_config.hide = false;
-    let cfg = wp.w_config.clone();
+    wp.w_view_width.set(wp.w_config.borrow().width);
+    wp.w_config.borrow_mut().height =
+        plines_m_win(wp, wp.w_topline.get(), count, g_st().rows_global.get());
+    wp.w_config.borrow_mut().row = f64::from(PUM.with(|s| s.row.get()));
+    wp.w_config.borrow_mut().hide = false;
+    let cfg = wp.w_config.borrow().clone();
     win_config_float(&mut *wp, cfg);
     true
 }
@@ -1407,8 +1410,8 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             || pum_item(PUM.with(|s| s.selected.get())).pum_info.is_none())
         && let Some(wp) = win_float_find(K_WIN_INFO)
     {
-        wp.w_config.hide = true;
-        let cfg = wp.w_config.clone();
+        wp.w_config.borrow_mut().hide = true;
+        let cfg = wp.w_config.borrow().clone();
         win_config_float(wp, cfg);
     }
 

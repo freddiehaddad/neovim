@@ -2465,7 +2465,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     || jumpidx != curwin_mut().w_jumplistidx.get()
                 {
                     buf = crate::globals::BufPtr::from(buflist_findnr(
-                        curwin_mut().w_jumplist[jumpidx as usize].fmark.fnum,
+                        curwin_mut().w_jumplist.borrow()[jumpidx as usize]
+                            .fmark
+                            .fnum,
                     ));
 
                     if !buf.is_null() {
@@ -3593,7 +3595,7 @@ pub fn buflist_setfpos(
         if copy_options {
             copy_winopt(&w.w_onebuf_opt, &wip.wi_opt);
             wip.wi_fold_manual = w.w_fold_manual.get();
-            wip.wi_folds.clone_from(&w.w_folds);
+            wip.wi_folds.clone_from(&w.w_folds.borrow());
             wip.wi_optset = true;
         }
     }
@@ -3654,24 +3656,25 @@ pub fn get_winopts(buf: &mut FileBuf) {
         && wip.wi_win != curwin_ptr()
         && let Some(wp) = wip.win_opt()
         && wp.w_buffer.get() == buf_ptr
-        && wp.w_config.style != K_WIN_STYLE_MINIMAL
+        && wp.w_config.borrow().style != K_WIN_STYLE_MINIMAL
     {
         copy_winopt(&wp.w_onebuf_opt, &curwin_mut().w_onebuf_opt);
         curwin_mut().w_fold_manual.set(wp.w_fold_manual.get());
         curwin_mut().w_foldinvalid.set(true);
-        curwin_mut().w_folds.clone_from(&wp.w_folds);
+        let wp_folds = wp.w_folds.borrow().clone();
+        *curwin_mut().w_folds.borrow_mut() = wp_folds;
     } else if let Some(wip) = wip.as_deref_mut()
         && wip.wi_optset
         && (wip.wi_win.is_null()
             || wip.wi_win == curwin_ptr()
             || wip
                 .win_opt()
-                .is_some_and(|w| w.w_config.style != K_WIN_STYLE_MINIMAL))
+                .is_some_and(|w| w.w_config.borrow().style != K_WIN_STYLE_MINIMAL))
     {
         copy_winopt(&wip.wi_opt, &curwin_mut().w_onebuf_opt);
         curwin_mut().w_fold_manual.set(wip.wi_fold_manual);
         curwin_mut().w_foldinvalid.set(true);
-        curwin_mut().w_folds.clone_from(&wip.wi_folds);
+        curwin_mut().w_folds.borrow_mut().clone_from(&wip.wi_folds);
     } else {
         copy_winopt(&curwin_mut().w_allbuf_opt, &curwin_mut().w_onebuf_opt);
     }
@@ -3679,7 +3682,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
         curwin_mut().w_changelistidx.set(wip.wi_changelistidx);
     }
 
-    if curwin_mut().w_config.style == K_WIN_STYLE_MINIMAL {
+    if curwin_mut().w_config.borrow().style == K_WIN_STYLE_MINIMAL {
         didset_window_options(curwin_mut(), false);
         win_set_minimal_style(curwin_mut());
     }

@@ -218,7 +218,7 @@ pub fn changed_lines_invalidate_win(
 ) {
     if wp.w_cursor.lnum <= lnum {
         let i = find_wl_entry(&mut *wp, lnum);
-        if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines)[i as usize].wl_lnum {
+        if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines.borrow())[i as usize].wl_lnum {
             changed_line_abv_curs_win(&mut *wp);
         }
     }
@@ -245,7 +245,10 @@ pub fn changed_lines_invalidate_win(
     }
 
     let valid_len = wp.w_lines_valid.get().max(0) as usize;
-    for (i, wl) in (&mut wp.w_lines)[..valid_len].iter_mut().enumerate() {
+    for (i, wl) in (&mut wp.w_lines.borrow_mut())[..valid_len]
+        .iter_mut()
+        .enumerate()
+    {
         if wl.wl_valid {
             if wl.wl_lnum >= lnum {
                 if i == 0 || wl.wl_lnum < lnume {

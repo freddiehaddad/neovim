@@ -3280,7 +3280,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             };
             INSEXPAND.with(|s| s.next_buf_wp.set(next_wp));
             if next_wp == curwin_ptr()
-                || (!next_wp.buf_mut().b_scanned.get() && next_wp.w_config.focusable)
+                || (!next_wp.buf_mut().b_scanned.get() && next_wp.w_config.borrow().focusable)
             {
                 break;
             }

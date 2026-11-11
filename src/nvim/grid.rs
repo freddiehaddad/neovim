@@ -1215,10 +1215,11 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating.get();
     let has_allocation = !wp.w_grid_alloc.chars.borrow().is_empty();
 
-    if (wp.w_view_height.get() as usize) + 1 > wp.w_lines.len() {
+    if (wp.w_view_height.get() as usize) + 1 > wp.w_lines.borrow().len() {
         wp.w_lines_valid.set(0);
-        wp.w_lines.clear();
+        wp.w_lines.borrow_mut().clear();
         wp.w_lines
+            .borrow_mut()
             .resize(wp.w_view_height.get() as usize + 1, Wline::default());
     }
 
@@ -1231,7 +1232,7 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
         let is_valid = wp.w_grid_alloc.valid.get();
         grid_alloc(&wp.w_grid_alloc, total_rows, total_cols, is_valid, false);
         wp.w_grid_alloc.valid.set(true);
-        if wp.w_floating.get() && wp.w_config.border {
+        if wp.w_floating.get() && wp.w_config.borrow().border {
             wp.w_redr_border.set(true);
         }
         was_resized = true;

@@ -294,7 +294,7 @@ fn get_lcs_ext(wp: &mut WinInfoInfo) -> Schar {
         return schar_from_ascii(b'>');
     }
     if wp.w_onebuf_opt.wo_list.get() {
-        wp.w_p_lcs_chars.ext
+        wp.w_p_lcs_chars.borrow().ext
     } else {
         0
     }
@@ -719,9 +719,9 @@ fn draw_foldcolumn(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
 #[inline]
 fn foldcolumn_sep_char(first_level: i32, i: i32, wp: &mut WinInfoInfo) -> Schar {
     if first_level == 1 {
-        wp.w_p_fcs_chars.foldsep
-    } else if wp.w_p_fcs_chars.foldinner != 0 {
-        wp.w_p_fcs_chars.foldinner
+        wp.w_p_fcs_chars.get().foldsep
+    } else if wp.w_p_fcs_chars.get().foldinner != 0 {
+        wp.w_p_fcs_chars.get().foldinner
     } else if first_level + i <= 9 {
         schar_from_ascii(b'0' + (first_level + i) as u8)
     } else {
@@ -751,9 +751,9 @@ pub fn fill_foldcolumn(
         if i >= level {
             symbol = schar_from_ascii(b' ');
         } else if i == closedcol - 1 && closed {
-            symbol = wp.w_p_fcs_chars.foldclosed;
+            symbol = wp.w_p_fcs_chars.get().foldclosed;
         } else if foldinfo.fi_lnum == lnum && first_level + i >= foldinfo.fi_low_level {
-            symbol = wp.w_p_fcs_chars.foldopen;
+            symbol = wp.w_p_fcs_chars.get().foldopen;
         } else {
             symbol = foldcolumn_sep_char(first_level, i, wp);
         }
@@ -1144,7 +1144,7 @@ fn handle_showbreak_and_filler(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_
     if wlv.filler_todo > wlv.filler_lines - wlv.n_virt_lines {
         draw_col_fill(wlv, schar_from_ascii(b' '), remaining, 0);
     } else if wlv.filler_todo > 0 {
-        let c = wp.w_p_fcs_chars.diff;
+        let c = wp.w_p_fcs_chars.get().diff;
         draw_col_fill(wlv, c, remaining, win_hl_attr(&mut *wp, HLF_DED));
     }
 
@@ -1438,14 +1438,17 @@ fn win_line_skip_columns(
                     || (prev_idx > 0 && line_bytes.get(prev_idx - 1) == Some(&b' ')));
             if !*in_multispace {
                 *multispace_pos = 0;
-            } else if ci_off >= leadcol as usize && !wp.w_p_lcs_chars.multispace.is_empty() {
+            } else if ci_off >= leadcol as usize && !wp.w_p_lcs_chars.borrow().multispace.is_empty()
+            {
                 *multispace_pos += 1;
-                if *multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
+                if *multispace_pos >= wp.w_p_lcs_chars.borrow().multispace.len() {
                     *multispace_pos = 0;
                 }
-            } else if ci_off < leadcol as usize && !wp.w_p_lcs_chars.leadmultispace.is_empty() {
+            } else if ci_off < leadcol as usize
+                && !wp.w_p_lcs_chars.borrow().leadmultispace.is_empty()
+            {
                 *multispace_pos += 1;
-                if *multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
+                if *multispace_pos >= wp.w_p_lcs_chars.borrow().leadmultispace.len() {
                     *multispace_pos = 0;
                 }
             }
@@ -1639,6 +1642,7 @@ pub fn win_line(
 
     let mut decor_provider_end_col: i32 = 0;
     let mut check_decor_providers = false;
+    let cc_cols_vec: Vec<i32>;
 
     if col_rows == 0 && draw_text {
         extra_check = wp.w_onebuf_opt.wo_lbr.get();
@@ -1664,14 +1668,13 @@ pub fn win_line(
 
         check_decor_providers = true;
 
-        wlv.color_cols = if !wp.buf_mut().terminal.get().is_null() || wp.w_p_cc_cols.is_empty() {
-            &[]
-        } else {
-            crate::globals::WinPtr::from_ref(wp)
-                .borrow()
-                .w_p_cc_cols
-                .as_slice()
-        };
+        wlv.color_cols =
+            if !wp.buf_mut().terminal.get().is_null() || wp.w_p_cc_cols.borrow().is_empty() {
+                &[]
+            } else {
+                cc_cols_vec = wp.w_p_cc_cols.borrow().clone();
+                cc_cols_vec.as_slice()
+            };
         let hlc = vcol_hlc(&wlv);
         advance_color_col(&mut wlv, hlc);
 
@@ -1992,20 +1995,20 @@ pub fn win_line(
     let mut leadcol: Colnr = 0;
 
     let mut lcs_eol_todo = true;
-    let lcs_eol = wp.w_p_lcs_chars.eol;
-    let mut lcs_prec_todo = wp.w_p_lcs_chars.prec;
+    let lcs_eol = wp.w_p_lcs_chars.borrow().eol;
+    let mut lcs_prec_todo = wp.w_p_lcs_chars.borrow().prec;
 
     if wp.w_onebuf_opt.wo_list.get() && !has_foldtext && draw_text {
-        if wp.w_p_lcs_chars.space != 0
-            || !wp.w_p_lcs_chars.multispace.is_empty()
-            || !wp.w_p_lcs_chars.leadmultispace.is_empty()
-            || wp.w_p_lcs_chars.trail != 0
-            || wp.w_p_lcs_chars.lead != 0
-            || wp.w_p_lcs_chars.nbsp != 0
+        if wp.w_p_lcs_chars.borrow().space != 0
+            || !wp.w_p_lcs_chars.borrow().multispace.is_empty()
+            || !wp.w_p_lcs_chars.borrow().leadmultispace.is_empty()
+            || wp.w_p_lcs_chars.borrow().trail != 0
+            || wp.w_p_lcs_chars.borrow().lead != 0
+            || wp.w_p_lcs_chars.borrow().nbsp != 0
         {
             extra_check = true;
         }
-        if wp.w_p_lcs_chars.trail != 0 {
+        if wp.w_p_lcs_chars.borrow().trail != 0 {
             let ptr_bytes = ptr_cstr!(ptr).to_bytes();
             trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
             while trailcol > 0
@@ -2015,9 +2018,9 @@ pub fn win_line(
             }
             trailcol += ((ptr as isize) - (line as isize)) as Colnr;
         }
-        if wp.w_p_lcs_chars.lead != 0
-            || !wp.w_p_lcs_chars.leadmultispace.is_empty()
-            || wp.w_p_lcs_chars.leadtab1 != 0
+        if wp.w_p_lcs_chars.borrow().lead != 0
+            || !wp.w_p_lcs_chars.borrow().leadmultispace.is_empty()
+            || wp.w_p_lcs_chars.borrow().leadtab1 != 0
         {
             let ptr_bytes = ptr_cstr!(ptr).to_bytes();
             let rem = crate::charset::skipwhite_slice(ptr_bytes);
@@ -2528,7 +2531,7 @@ pub fn win_line(
                     || (ptr_byte!(ptr) == 0
                         && (!wp.w_onebuf_opt.wo_list.get() || !lcs_eol_todo || lcs_eol == 0)))
             {
-                wlv.sc_extra = wp.w_p_fcs_chars.fold;
+                wlv.sc_extra = wp.w_p_fcs_chars.get().fold;
                 wlv.sc_final = 0;
                 wlv.n_extra = view_width - wlv.col;
                 search_attr = 0;
@@ -2939,7 +2942,7 @@ pub fn win_line(
                                         if !extconceal && !wp.w_onebuf_opt.wo_list.get() {
                                             tab_absorb_extconceal(&mut wlv);
                                         } else if !extconceal
-                                            && wp.w_p_lcs_chars.tab1 != 0
+                                            && wp.w_p_lcs_chars.borrow().tab1 != 0
                                             && wlv.extconceal_off > 0
                                         {
                                             wlv.n_extra += wlv.extconceal_off;
@@ -2967,25 +2970,27 @@ pub fn win_line(
 
                     if wp.w_onebuf_opt.wo_list.get()
                         && ((((mb_c == 160 && mb_l == 2) || (mb_c == 0x202f && mb_l == 3))
-                            && wp.w_p_lcs_chars.nbsp != 0)
+                            && wp.w_p_lcs_chars.borrow().nbsp != 0)
                             || (mb_c == b' ' as i32
                                 && mb_l == 1
-                                && (wp.w_p_lcs_chars.space != 0
-                                    || (in_multispace && !wp.w_p_lcs_chars.multispace.is_empty()))
+                                && (wp.w_p_lcs_chars.borrow().space != 0
+                                    || (in_multispace
+                                        && !wp.w_p_lcs_chars.borrow().multispace.is_empty()))
                                 && (((ptr as isize) - (line as isize)) as Colnr) >= leadcol
                                 && (((ptr as isize) - (line as isize)) as Colnr) <= trailcol))
                     {
-                        if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
-                            mb_schar = wp.w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                        if in_multispace && !wp.w_p_lcs_chars.borrow().multispace.is_empty() {
+                            mb_schar =
+                                wp.w_p_lcs_chars.borrow().multispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
+                            if multispace_pos >= wp.w_p_lcs_chars.borrow().multispace.len() {
                                 multispace_pos = 0;
                             }
                         } else {
                             mb_schar = if mb_c == b' ' as i32 {
-                                wp.w_p_lcs_chars.space
+                                wp.w_p_lcs_chars.borrow().space
                             } else {
-                                wp.w_p_lcs_chars.nbsp
+                                wp.w_p_lcs_chars.borrow().nbsp
                             };
                         }
                         wlv.n_attr = 1;
@@ -3004,23 +3009,24 @@ pub fn win_line(
                         if leadcol != 0
                             && in_multispace
                             && ptr < line.cast_const().wrapping_add(leadcol as usize)
-                            && !wp.w_p_lcs_chars.leadmultispace.is_empty()
+                            && !wp.w_p_lcs_chars.borrow().leadmultispace.is_empty()
                         {
-                            mb_schar = wp.w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
+                            mb_schar =
+                                wp.w_p_lcs_chars.borrow().leadmultispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
+                            if multispace_pos >= wp.w_p_lcs_chars.borrow().leadmultispace.len() {
                                 multispace_pos = 0;
                             }
                         } else if ptr > line.cast_const().wrapping_add(trailcol as usize)
-                            && wp.w_p_lcs_chars.trail != 0
+                            && wp.w_p_lcs_chars.borrow().trail != 0
                         {
-                            mb_schar = wp.w_p_lcs_chars.trail;
+                            mb_schar = wp.w_p_lcs_chars.borrow().trail;
                         } else if ptr < line.cast_const().wrapping_add(leadcol as usize)
-                            && wp.w_p_lcs_chars.lead != 0
+                            && wp.w_p_lcs_chars.borrow().lead != 0
                         {
-                            mb_schar = wp.w_p_lcs_chars.lead;
-                        } else if leadcol != 0 && wp.w_p_lcs_chars.space != 0 {
-                            mb_schar = wp.w_p_lcs_chars.space;
+                            mb_schar = wp.w_p_lcs_chars.borrow().lead;
+                        } else if leadcol != 0 && wp.w_p_lcs_chars.borrow().space != 0 {
+                            mb_schar = wp.w_p_lcs_chars.borrow().space;
                         }
 
                         wlv.n_attr = 1;
@@ -3032,20 +3038,20 @@ pub fn win_line(
 
                 if unprintable_ascii {
                     if mb_c == i32::from(TAB)
-                        && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0)
+                        && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0)
                     {
                         let mut tab_len: i32;
                         let mut vcol_adjusted = wlv.vcol;
-                        let mut lcs_tab1 = wp.w_p_lcs_chars.tab1;
-                        let mut lcs_tab2 = wp.w_p_lcs_chars.tab2;
-                        let mut lcs_tab3 = wp.w_p_lcs_chars.tab3;
+                        let mut lcs_tab1 = wp.w_p_lcs_chars.borrow().tab1;
+                        let mut lcs_tab2 = wp.w_p_lcs_chars.borrow().tab2;
+                        let mut lcs_tab3 = wp.w_p_lcs_chars.borrow().tab3;
                         if wp.w_onebuf_opt.wo_list.get()
-                            && wp.w_p_lcs_chars.leadtab1 != 0
+                            && wp.w_p_lcs_chars.borrow().leadtab1 != 0
                             && ptr < line.cast_const().wrapping_add(leadcol as usize)
                         {
-                            lcs_tab1 = wp.w_p_lcs_chars.leadtab1;
-                            lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
-                            lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
+                            lcs_tab1 = wp.w_p_lcs_chars.borrow().leadtab1;
+                            lcs_tab2 = wp.w_p_lcs_chars.borrow().leadtab2;
+                            lcs_tab3 = wp.w_p_lcs_chars.borrow().leadtab3;
                         }
                         if wlv.vcol == prefix_vcol + prefix_width && wp.w_onebuf_opt.wo_wrap.get() {
                             vcol_adjusted = prefix_vcol;
@@ -3118,7 +3124,7 @@ pub fn win_line(
                             }
                             if wlv.n_extra == tab_len + vc_saved
                                 && wp.w_onebuf_opt.wo_list.get()
-                                && wp.w_p_lcs_chars.tab1 != 0
+                                && wp.w_p_lcs_chars.borrow().tab1 != 0
                             {
                                 tab_len += vc_saved;
                             }
@@ -3166,8 +3172,8 @@ pub fn win_line(
                             }
                             wlv.n_extra = 0;
                         }
-                        if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol > 0 {
-                            mb_schar = wp.w_p_lcs_chars.eol;
+                        if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol > 0 {
+                            mb_schar = wp.w_p_lcs_chars.borrow().eol;
                         } else {
                             mb_schar = schar_from_ascii(b' ');
                         }
@@ -3378,7 +3384,7 @@ pub fn win_line(
                     wlv.n_extra = 1;
                     wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
                 }
-                mb_schar = wp.w_p_lcs_chars.prec;
+                mb_schar = wp.w_p_lcs_chars.borrow().prec;
                 mb_schar_width = schar_get_single_width(mb_schar);
                 saved_attr3 = wlv.char_attr;
                 wlv.char_attr = win_hl_attr(&mut *wp, HLF_AT);
@@ -3795,7 +3801,9 @@ pub fn win_line(
             && (wlv.col <= leftcols_width
                 || ptr_byte!(ptr) != 0
                 || wlv.filler_todo > 0
-                || (wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
+                || (wp.w_onebuf_opt.wo_list.get()
+                    && wp.w_p_lcs_chars.borrow().eol != 0
+                    && lcs_eol_todo)
                 || (wlv.n_extra != 0
                     && (wlv.sc_extra != 0
                         || wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())))
@@ -3901,7 +3909,7 @@ pub fn win_line(
             win_line_start(wp, &mut wlv);
             draw_cols = true;
 
-            lcs_prec_todo = wp.w_p_lcs_chars.prec;
+            lcs_prec_todo = wp.w_p_lcs_chars.borrow().prec;
             if wlv.filler_todo <= 0 {
                 wlv.need_showbreak = true;
             }
@@ -3954,7 +3962,7 @@ fn wlv_put_linebuf(
     if wlv.row == 0
         && wp.w_skipcol.get() > 0
         && get_showbreak_value(&*wp).is_empty()
-        && !(wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.prec != 0)
+        && !(wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().prec != 0)
     {
         let mut off: i32 = 0;
         if wp.w_onebuf_opt.wo_nu.get() && wp.w_onebuf_opt.wo_rnu.get() {

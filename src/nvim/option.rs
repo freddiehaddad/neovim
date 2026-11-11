@@ -2376,9 +2376,9 @@ pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
 }
 
 pub fn check_blending(wp: &mut WinInfoInfo) {
-    wp.w_grid_alloc
-        .blending
-        .set(wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.shadow));
+    wp.w_grid_alloc.blending.set(
+        wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.borrow().shadow),
+    );
 }
 
 /// Handle setting 'winhighlight' in window "wp".

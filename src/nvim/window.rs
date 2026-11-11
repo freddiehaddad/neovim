@@ -131,12 +131,12 @@ pub(crate) const VALID_BOTLINE_AP: i32 = 0x40;
 pub(crate) const K_WIN_OPT_COUNT: usize = 53;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PosSave {
-    pub w_topline_save: i32,
-    pub w_topline_corr: i32,
-    pub w_cursor_save: CursorPos,
-    pub w_cursor_corr: CursorPos,
+    pub w_topline_save: std::cell::Cell<i32>,
+    pub w_topline_corr: std::cell::Cell<i32>,
+    pub w_cursor_save: std::cell::Cell<CursorPos>,
+    pub w_cursor_corr: std::cell::Cell<CursorPos>,
 }
 
 #[repr(C)]
@@ -317,7 +317,7 @@ pub struct WinInfoInfo {
     pub w_ns_hl_winhl: std::cell::Cell<i32>,
     pub w_ns_hl_active: std::cell::Cell<i32>,
     pub w_ns_hl_attr: crate::globals::CloneCell<Option<std::rc::Rc<crate::highlight::NSHlAttr>>>,
-    pub w_ns_set: std::collections::BTreeSet<u32>,
+    pub w_ns_set: std::cell::RefCell<std::collections::BTreeSet<u32>>,
     pub w_hl_id_normal: std::cell::Cell<i32>,
     pub w_hl_attr_normal: std::cell::Cell<i32>,
     pub w_hl_attr_normalnc: std::cell::Cell<i32>,
@@ -339,8 +339,8 @@ pub struct WinInfoInfo {
     pub w_old_visual_col: std::cell::Cell<i32>,
     pub w_old_curswant: std::cell::Cell<i32>,
     pub w_last_cursor_lnum_rnu: std::cell::Cell<i32>,
-    pub w_p_lcs_chars: LcsChars,
-    pub w_p_fcs_chars: FcsChars,
+    pub w_p_lcs_chars: std::cell::RefCell<LcsChars>,
+    pub w_p_fcs_chars: std::cell::Cell<FcsChars>,
     pub w_topline: std::cell::Cell<i32>,
     pub w_topline_was_set: std::cell::Cell<bool>,
     pub w_topfill: std::cell::Cell<i32>,
@@ -379,7 +379,7 @@ pub struct WinInfoInfo {
     pub w_height_outer: std::cell::Cell<i32>,
     pub w_width_outer: std::cell::Cell<i32>,
     pub w_valid: std::cell::Cell<i32>,
-    pub w_valid_cursor: CursorPos,
+    pub w_valid_cursor: std::cell::Cell<CursorPos>,
     pub w_valid_leftcol: std::cell::Cell<i32>,
     pub w_valid_skipcol: std::cell::Cell<i32>,
     pub w_viewport_invalid: std::cell::Cell<bool>,
@@ -398,8 +398,8 @@ pub struct WinInfoInfo {
     pub w_empty_rows: std::cell::Cell<i32>,
     pub w_filler_rows: std::cell::Cell<i32>,
     pub w_lines_valid: std::cell::Cell<i32>,
-    pub w_lines: Vec<crate::grid::Wline>,
-    pub w_folds: Vec<FoldEntry>,
+    pub w_lines: std::cell::RefCell<Vec<crate::grid::Wline>>,
+    pub w_folds: std::cell::RefCell<Vec<FoldEntry>>,
     pub w_fold_manual: std::cell::Cell<bool>,
     pub w_foldinvalid: std::cell::Cell<bool>,
     pub w_nrwidth: std::cell::Cell<i32>,
@@ -414,7 +414,7 @@ pub struct WinInfoInfo {
     pub w_redr_border: std::cell::Cell<bool>,
     pub w_redr_statuscol: std::cell::Cell<bool>,
     pub w_display_tick: std::cell::Cell<u64>,
-    pub w_stl_cursor: CursorPos,
+    pub w_stl_cursor: std::cell::Cell<CursorPos>,
     pub w_stl_virtcol: std::cell::Cell<i32>,
     pub w_stl_topline: std::cell::Cell<i32>,
     pub w_stl_line_count: std::cell::Cell<i32>,
@@ -423,7 +423,7 @@ pub struct WinInfoInfo {
     pub w_stl_recording: std::cell::Cell<i32>,
     pub w_stl_state: std::cell::Cell<i32>,
     pub w_stl_visual_mode: std::cell::Cell<i32>,
-    pub w_stl_visual_pos: CursorPos,
+    pub w_stl_visual_pos: std::cell::Cell<CursorPos>,
     pub w_alt_fnum: std::cell::Cell<i32>,
     pub w_alist: crate::globals::CloneCell<Option<std::rc::Rc<crate::arglist::Alist>>>,
     pub w_arg_idx: std::cell::Cell<i32>,
@@ -432,7 +432,7 @@ pub struct WinInfoInfo {
     pub w_prevdir: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub w_onebuf_opt: Winopt,
     pub w_allbuf_opt: Winopt,
-    pub w_p_cc_cols: Vec<i32>,
+    pub w_p_cc_cols: std::cell::RefCell<Vec<i32>>,
     pub w_p_culopt_flags: std::cell::Cell<u8>,
     pub w_briopt_min: std::cell::Cell<i32>,
     pub w_briopt_shift: std::cell::Cell<i32>,
@@ -441,15 +441,15 @@ pub struct WinInfoInfo {
     pub w_briopt_vcol: std::cell::Cell<i32>,
     pub w_scbind_pos: std::cell::Cell<i32>,
     pub w_winvar: crate::eval::typval::DictitemId,
-    pub w_pcmark: CursorPos,
-    pub w_prev_pcmark: CursorPos,
-    pub w_jumplist: [crate::mark::Xfmark; 100],
+    pub w_pcmark: std::cell::Cell<CursorPos>,
+    pub w_prev_pcmark: std::cell::Cell<CursorPos>,
+    pub w_jumplist: std::cell::RefCell<[crate::mark::Xfmark; 100]>,
     pub w_jumplistlen: std::cell::Cell<i32>,
     pub w_jumplistidx: std::cell::Cell<i32>,
     pub w_changelistidx: std::cell::Cell<i32>,
-    pub w_match_head: Vec<crate::r#match::Matchitem>,
+    pub w_match_head: std::cell::RefCell<Vec<crate::r#match::Matchitem>>,
     pub w_next_match_id: std::cell::Cell<i32>,
-    pub w_tagstack: [crate::tag::Taggy; 20],
+    pub w_tagstack: std::cell::RefCell<[crate::tag::Taggy; 20]>,
     pub w_tagstackidx: std::cell::Cell<i32>,
     pub w_tagstacklen: std::cell::Cell<i32>,
     pub w_grid: GridView,
@@ -457,7 +457,7 @@ pub struct WinInfoInfo {
     pub w_pos_changed: std::cell::Cell<bool>,
     pub w_floating: std::cell::Cell<bool>,
     pub w_kind: std::cell::Cell<i32>,
-    pub w_config: WinConfig,
+    pub w_config: std::cell::RefCell<WinConfig>,
     pub w_fraction: std::cell::Cell<i32>,
     pub w_prev_fraction_row: std::cell::Cell<i32>,
     pub w_nrwidth_line_count: std::cell::Cell<i32>,
@@ -465,9 +465,9 @@ pub struct WinInfoInfo {
     pub w_nrwidth_width: std::cell::Cell<i32>,
     pub w_llist: crate::globals::CloneCell<crate::quickfix::QfInfoId>,
     pub w_llist_ref: crate::globals::CloneCell<crate::quickfix::QfInfoId>,
-    pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
-    pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
-    pub w_statuscol_click_defs: std::collections::BTreeMap<i32, StcClicks>,
+    pub w_status_click_defs: std::cell::RefCell<Vec<crate::mouse::StlClickDefinition>>,
+    pub w_winbar_click_defs: std::cell::RefCell<Vec<crate::mouse::StlClickDefinition>>,
+    pub w_statuscol_click_defs: std::cell::RefCell<std::collections::BTreeMap<i32, StcClicks>>,
 }
 
 impl WinInfoInfo {
@@ -515,7 +515,7 @@ impl WinInfoInfo {
             w_ns_hl_winhl: std::cell::Cell::new(0),
             w_ns_hl_active: std::cell::Cell::new(0),
             w_ns_hl_attr: crate::globals::CloneCell::new(None),
-            w_ns_set: std::collections::BTreeSet::new(),
+            w_ns_set: std::cell::RefCell::new(std::collections::BTreeSet::new()),
             w_hl_id_normal: std::cell::Cell::new(0),
             w_hl_attr_normal: std::cell::Cell::new(0),
             w_hl_attr_normalnc: std::cell::Cell::new(0),
@@ -541,8 +541,8 @@ impl WinInfoInfo {
             w_old_visual_col: std::cell::Cell::new(0),
             w_old_curswant: std::cell::Cell::new(0),
             w_last_cursor_lnum_rnu: std::cell::Cell::new(0),
-            w_p_lcs_chars: LcsChars::new(),
-            w_p_fcs_chars: FcsChars {
+            w_p_lcs_chars: std::cell::RefCell::new(LcsChars::new()),
+            w_p_fcs_chars: std::cell::Cell::new(FcsChars {
                 stl: 0,
                 stlnc: 0,
                 wbr: 0,
@@ -564,7 +564,7 @@ impl WinInfoInfo {
                 lastline: 0,
                 trunc: 0,
                 truncrl: 0,
-            },
+            }),
             w_topline: std::cell::Cell::new(1),
             w_topline_was_set: std::cell::Cell::new(false),
             w_topfill: std::cell::Cell::new(0),
@@ -590,10 +590,10 @@ impl WinInfoInfo {
             w_hsep_height: std::cell::Cell::new(0),
             w_vsep_width: std::cell::Cell::new(0),
             w_save_cursor: PosSave {
-                w_topline_save: 0,
-                w_topline_corr: 0,
-                w_cursor_save: ZERO_POS,
-                w_cursor_corr: ZERO_POS,
+                w_topline_save: std::cell::Cell::new(0),
+                w_topline_corr: std::cell::Cell::new(0),
+                w_cursor_save: std::cell::Cell::new(ZERO_POS),
+                w_cursor_corr: std::cell::Cell::new(ZERO_POS),
             },
             w_do_win_fix_cursor: std::cell::Cell::new(false),
             w_wantline: std::cell::Cell::new(0),
@@ -608,7 +608,7 @@ impl WinInfoInfo {
             w_height_outer: std::cell::Cell::new(0),
             w_width_outer: std::cell::Cell::new(0),
             w_valid: std::cell::Cell::new(0),
-            w_valid_cursor: ZERO_POS,
+            w_valid_cursor: std::cell::Cell::new(ZERO_POS),
             w_valid_leftcol: std::cell::Cell::new(0),
             w_valid_skipcol: std::cell::Cell::new(0),
             w_viewport_invalid: std::cell::Cell::new(true),
@@ -627,8 +627,8 @@ impl WinInfoInfo {
             w_empty_rows: std::cell::Cell::new(0),
             w_filler_rows: std::cell::Cell::new(0),
             w_lines_valid: std::cell::Cell::new(0),
-            w_lines: Vec::new(),
-            w_folds: Vec::new(),
+            w_lines: std::cell::RefCell::new(Vec::new()),
+            w_folds: std::cell::RefCell::new(Vec::new()),
             w_fold_manual: std::cell::Cell::new(false),
             w_foldinvalid: std::cell::Cell::new(false),
             w_nrwidth: std::cell::Cell::new(0),
@@ -643,7 +643,7 @@ impl WinInfoInfo {
             w_redr_border: std::cell::Cell::new(false),
             w_redr_statuscol: std::cell::Cell::new(false),
             w_display_tick: std::cell::Cell::new(0),
-            w_stl_cursor: ZERO_POS,
+            w_stl_cursor: std::cell::Cell::new(ZERO_POS),
             w_stl_virtcol: std::cell::Cell::new(0),
             w_stl_topline: std::cell::Cell::new(0),
             w_stl_line_count: std::cell::Cell::new(0),
@@ -652,7 +652,7 @@ impl WinInfoInfo {
             w_stl_recording: std::cell::Cell::new(0),
             w_stl_state: std::cell::Cell::new(0),
             w_stl_visual_mode: std::cell::Cell::new(0),
-            w_stl_visual_pos: ZERO_POS,
+            w_stl_visual_pos: std::cell::Cell::new(ZERO_POS),
             w_alt_fnum: std::cell::Cell::new(0),
             w_alist: crate::globals::CloneCell::new(None),
             w_arg_idx: std::cell::Cell::new(0),
@@ -661,7 +661,7 @@ impl WinInfoInfo {
             w_prevdir: crate::globals::CloneCell::new(None),
             w_onebuf_opt: Winopt::ZERO,
             w_allbuf_opt: Winopt::ZERO,
-            w_p_cc_cols: Vec::new(),
+            w_p_cc_cols: std::cell::RefCell::new(Vec::new()),
             w_p_culopt_flags: std::cell::Cell::new(0),
             w_briopt_min: std::cell::Cell::new(0),
             w_briopt_shift: std::cell::Cell::new(0),
@@ -670,15 +670,15 @@ impl WinInfoInfo {
             w_briopt_vcol: std::cell::Cell::new(0),
             w_scbind_pos: std::cell::Cell::new(1),
             w_winvar: crate::eval::typval::DictitemId::NULL,
-            w_pcmark: ZERO_POS,
-            w_prev_pcmark: ZERO_POS,
-            w_jumplist: [const { crate::mark::Xfmark::ZERO }; 100],
+            w_pcmark: std::cell::Cell::new(ZERO_POS),
+            w_prev_pcmark: std::cell::Cell::new(ZERO_POS),
+            w_jumplist: std::cell::RefCell::new([const { crate::mark::Xfmark::ZERO }; 100]),
             w_jumplistlen: std::cell::Cell::new(0),
             w_jumplistidx: std::cell::Cell::new(0),
             w_changelistidx: std::cell::Cell::new(0),
-            w_match_head: Vec::new(),
+            w_match_head: std::cell::RefCell::new(Vec::new()),
             w_next_match_id: std::cell::Cell::new(0),
-            w_tagstack: [const { crate::tag::Taggy::ZERO }; 20],
+            w_tagstack: std::cell::RefCell::new([const { crate::tag::Taggy::ZERO }; 20]),
             w_tagstackidx: std::cell::Cell::new(0),
             w_tagstacklen: std::cell::Cell::new(0),
             w_grid: GridView {
@@ -690,7 +690,7 @@ impl WinInfoInfo {
             w_pos_changed: std::cell::Cell::new(false),
             w_floating: std::cell::Cell::new(false),
             w_kind: std::cell::Cell::new(K_WIN_NORMAL),
-            w_config: WIN_CONFIG_INIT,
+            w_config: std::cell::RefCell::new(WIN_CONFIG_INIT),
             w_fraction: std::cell::Cell::new(0),
             w_prev_fraction_row: std::cell::Cell::new(0),
             w_nrwidth_line_count: std::cell::Cell::new(0),
@@ -698,9 +698,9 @@ impl WinInfoInfo {
             w_nrwidth_width: std::cell::Cell::new(0),
             w_llist: crate::globals::CloneCell::new(crate::quickfix::QfInfoId::NULL),
             w_llist_ref: crate::globals::CloneCell::new(crate::quickfix::QfInfoId::NULL),
-            w_status_click_defs: Vec::new(),
-            w_winbar_click_defs: Vec::new(),
-            w_statuscol_click_defs: std::collections::BTreeMap::new(),
+            w_status_click_defs: std::cell::RefCell::new(Vec::new()),
+            w_winbar_click_defs: std::cell::RefCell::new(Vec::new()),
+            w_statuscol_click_defs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
         }
     }
 
@@ -1611,7 +1611,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
         return;
     }
 
-    let c = &wp.w_config;
+    let c = wp.w_config.borrow().clone();
     if !c.external {
         let mut grid_comp_row = g_st().default_grid.comp_row.get();
         let mut grid_comp_col = g_st().default_grid.comp_col.get();
@@ -1666,9 +1666,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
         }
 
         let resort = wp.w_grid_alloc.comp_index.get() != 0
-            && wp.w_grid_alloc.zindex.get() != wp.w_config.zindex;
-        let raise = resort && wp.w_grid_alloc.zindex.get() < wp.w_config.zindex;
-        wp.w_grid_alloc.zindex.set(wp.w_config.zindex);
+            && wp.w_grid_alloc.zindex.get() != wp.w_config.borrow().zindex;
+        let raise = resort && wp.w_grid_alloc.zindex.get() < wp.w_config.borrow().zindex;
+        wp.w_grid_alloc.zindex.set(wp.w_config.borrow().zindex);
         if resort {
             ui_comp_layers_adjust(wp.w_grid_alloc.comp_index.get(), raise);
         }
@@ -1683,7 +1683,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
 
         let mut comp_row = (row as i32) - if south { wp.w_height_outer.get() } else { 0 };
         let mut comp_col = (col as i32) - if east { wp.w_width_outer.get() } else { 0 };
-        let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
+        let above_ch = if wp.w_config.borrow().zindex < K_ZINDEX_MESSAGES {
             opt_vars().p_ch.get() as i32
         } else {
             0
@@ -1731,7 +1731,8 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 );
             }
             ui_check_cursor_grid(wp.w_grid_alloc.handle.get());
-            wp.w_grid_alloc.mouse_enabled.set(wp.w_config.mouse);
+            let mouse_en = wp.w_config.borrow().mouse;
+            wp.w_grid_alloc.mouse_enabled.set(mouse_en);
             if !valid {
                 wp.w_grid_alloc.valid.set(false);
                 redraw_later(Some(&mut *wp), UPD_NOT_VALID);
@@ -2156,7 +2157,7 @@ pub fn win_split_ins(
             win_free_grid(&mut *wp, true);
         }
 
-        if wp.w_config.external {
+        if wp.w_config.borrow().external {
             for tp in for_all_tabpages_ptr() {
                 if g_st().curtab.get() != tp && tp.tp_curwin.get() == wp {
                     tp.tp_curwin.set(tp.tp_firstwin.get());
@@ -2167,7 +2168,7 @@ pub fn win_split_ins(
         wp.w_floating.set(false);
         new_frame(&mut *wp);
 
-        clear_float_config(&mut wp.w_config, true);
+        clear_float_config(&mut wp.w_config.borrow_mut(), true);
         for c in &wp.w_border_adj {
             c.set(0);
         }
@@ -2472,8 +2473,8 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_topline.set(oldp.w_topline.get());
     newp.w_topfill.set(oldp.w_topfill.get());
     newp.w_leftcol.set(oldp.w_leftcol.get());
-    newp.w_pcmark = oldp.w_pcmark;
-    newp.w_prev_pcmark = oldp.w_prev_pcmark;
+    newp.w_pcmark.set(oldp.w_pcmark.get());
+    newp.w_prev_pcmark.set(oldp.w_prev_pcmark.get());
     newp.w_alt_fnum.set(oldp.w_alt_fnum.get());
     newp.w_wrow.set(oldp.w_wrow.get());
     newp.w_fraction.set(oldp.w_fraction.get());
@@ -2498,7 +2499,7 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     }
 
     for i in 0..oldp.w_tagstacklen.get() as usize {
-        newp.w_tagstack[i] = oldp.w_tagstack[i].clone();
+        newp.w_tagstack.borrow_mut()[i] = oldp.w_tagstack.borrow()[i].clone();
     }
     newp.w_tagstackidx.set(oldp.w_tagstackidx.get());
     newp.w_tagstacklen.set(oldp.w_tagstacklen.get());
@@ -3279,10 +3280,10 @@ pub fn win_init_empty(wp: &mut WinInfoInfo) {
     wp.w_cursor.col = 0;
     wp.w_curswant.set(0);
     wp.w_cursor.coladd = 0;
-    wp.w_pcmark.lnum = 1;
-    wp.w_pcmark.col = 0;
-    wp.w_prev_pcmark.lnum = 0;
-    wp.w_prev_pcmark.col = 0;
+    wp.w_pcmark.set_lnum(1);
+    wp.w_pcmark.set_col(0);
+    wp.w_prev_pcmark.set_lnum(0);
+    wp.w_prev_pcmark.set_col(0);
     wp.w_topline.set(1);
     wp.w_topfill.set(0);
     wp.w_botline.set(2);
@@ -3698,7 +3699,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         ui_comp_remove_grid(&win.borrow_mut().w_grid_alloc);
 
         debug_assert!(!g_st().first_tabpage.get().is_null());
-        if win.borrow_mut().w_config.external {
+        if win.borrow_mut().w_config.borrow().external {
             for tp in for_all_tabpages_ptr() {
                 if g_st().curtab.get() != tp && tp.tp_curwin.get() == win {
                     tp.tp_curwin.set(tp.tp_firstwin.get());
@@ -5447,7 +5448,7 @@ fn enter_tabpage(
 fn tabpage_check_windows(old_curtab: &TabPageInfo) {
     for wp in win_iter_ptr(old_curtab.tp_firstwin.get().as_ptr()) {
         if wp.w_floating.get() {
-            if wp.w_config.external {
+            if wp.w_config.borrow().external {
                 win_remove(&mut *wp, Some(old_curtab));
                 win_append(Some(lastwin_nofloating(None)), &mut *wp, None);
             } else {
@@ -5458,8 +5459,10 @@ fn tabpage_check_windows(old_curtab: &TabPageInfo) {
     }
 
     for wp2 in for_all_windows_mut() {
-        if wp2.w_floating.get() && !wp2.w_config.external {
-            win_config_float(wp2, wp2.w_config.clone());
+        let is_non_ext_float = wp2.w_floating.get() && !wp2.w_config.borrow().external;
+        if is_non_ext_float {
+            let cfg = wp2.w_config.borrow().clone();
+            win_config_float(wp2, cfg);
         }
         wp2.w_pos_changed.set(true);
     }
@@ -6107,13 +6110,13 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
 
         block_autocmds();
 
-        wp.w_ns_set.clear();
+        wp.w_ns_set.borrow_mut().clear();
 
         clear_winopt(&wp.w_onebuf_opt);
         clear_winopt(&wp.w_allbuf_opt);
 
-        wp.w_p_lcs_chars.multispace = Vec::new();
-        wp.w_p_lcs_chars.leadmultispace = Vec::new();
+        wp.w_p_lcs_chars.borrow_mut().multispace = Vec::new();
+        wp.w_p_lcs_chars.borrow_mut().leadmultispace = Vec::new();
 
         vars_clear(&(*wp).w_vars().dv_hashtab);
         unref_var_dict(&(*wp).w_vars());
@@ -6127,20 +6130,20 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
             }
         }
 
-        wp.w_lines.clear();
+        wp.w_lines.borrow_mut().clear();
 
         for i in 0..wp.w_tagstacklen.get() as usize {
-            tagstack_clear_entry(&mut wp.w_tagstack[i]);
+            tagstack_clear_entry(&mut wp.w_tagstack.borrow_mut()[i]);
         }
         wp.w_tagstacklen.set(0);
 
         wp.w_localdir.set(None);
         wp.w_prevdir.set(None);
 
-        stl_clear_click_defs(&mut wp.w_status_click_defs);
-        stl_clear_click_defs(&mut wp.w_winbar_click_defs);
+        stl_clear_click_defs(&mut wp.w_status_click_defs.borrow_mut());
+        stl_clear_click_defs(&mut wp.w_winbar_click_defs.borrow_mut());
 
-        for (_, lnum_click_defs) in std::mem::take(&mut wp.w_statuscol_click_defs) {
+        for (_, lnum_click_defs) in std::mem::take(&mut *wp.w_statuscol_click_defs.borrow_mut()) {
             for (_, mut row_click_defs) in lnum_click_defs {
                 stl_clear_click_defs(&mut row_click_defs);
             }
@@ -6160,7 +6163,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
             if let Some(pw) = pos_wip {
                 let wip_wp = &mut (&mut buf.b_wininfo)[pw];
                 wip_wp.wi_win = crate::globals::WinPtr::NULL;
-                if wp.w_config.style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
+                if wp.w_config.borrow().style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
                     clear_winopt(&wip_wp.wi_opt);
                     wip_wp.wi_folds.clear();
                     wip_wp.wi_optset = false;
@@ -6172,14 +6175,14 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
             }
         }
 
-        wp.w_config.title_chunks.clear();
-        wp.w_config.footer_chunks.clear();
+        wp.w_config.borrow_mut().title_chunks.clear();
+        wp.w_config.borrow_mut().footer_chunks.clear();
 
         clear_matches(&mut *wp);
         free_jumplist(&mut *wp);
         qf_free_all(Some(&mut *wp));
 
-        wp.w_p_cc_cols.clear();
+        wp.w_p_cc_cols.borrow_mut().clear();
 
         win_free_grid(&mut *wp, false);
 
@@ -6199,7 +6202,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
 impl Drop for WinInfoInfo {
     fn drop(&mut self) {
         for i in 0..self.w_tagstacklen.get() as usize {
-            tagstack_clear_entry(&mut self.w_tagstack[i]);
+            tagstack_clear_entry(&mut self.w_tagstack.borrow_mut()[i]);
         }
         self.w_tagstacklen.set(0);
 
@@ -6704,7 +6707,7 @@ pub fn win_comp_pos() -> i32 {
     frame_comp_pos(&topframe_mut(), &mut row, &mut col);
 
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating.get()) {
-        if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW {
+        if wp.w_config.borrow().relative == K_FLOAT_RELATIVE_WINDOW {
             wp.w_pos_changed.set(true);
         }
     }
@@ -6755,8 +6758,9 @@ pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool)
     height = height.max(min_wmh + win.w_winbar_height.get());
 
     if win.w_floating.get() {
-        win.w_config.height = height.max(1);
-        win_config_float(win, win.w_config.clone());
+        win.w_config.borrow_mut().height = height.max(1);
+        let cfg = win.w_config.borrow().clone();
+        win_config_float(win, cfg);
         redraw_later(Some(&mut *win), UPD_VALID);
     } else {
         frame_setheight(
@@ -6916,8 +6920,9 @@ pub fn win_setwidth_win(mut width: i32, wp: &mut WinInfoInfo, from_left: bool) {
         width = 0;
     }
     if wp.w_floating.get() {
-        wp.w_config.width = width;
-        win_config_float(wp, wp.w_config.clone());
+        wp.w_config.borrow_mut().width = width;
+        let cfg = wp.w_config.borrow().clone();
+        win_config_float(wp, cfg);
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     } else {
         frame_setwidth(&wp.frame_mut(), width + wp.w_vsep_width.get(), from_left);
@@ -7677,8 +7682,8 @@ pub fn win_remove_status_line(wp: &mut WinInfoInfo, add_hsep: bool) {
     }
     comp_col();
 
-    stl_clear_click_defs(&mut wp.w_status_click_defs);
-    wp.w_status_click_defs = Vec::new();
+    stl_clear_click_defs(&mut wp.w_status_click_defs.borrow_mut());
+    *wp.w_status_click_defs.borrow_mut() = Vec::new();
 }
 
 fn find_horizontally_resizable_frame(fr: &Frame) -> Option<crate::globals::FramePtr> {
@@ -7783,8 +7788,8 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
         win_set_inner_size(wp, valid_cursor);
 
         if winbar_height == 0 {
-            stl_clear_click_defs(&mut wp.w_winbar_click_defs);
-            wp.w_winbar_click_defs = Vec::new();
+            stl_clear_click_defs(&mut wp.w_winbar_click_defs.borrow_mut());
+            *wp.w_winbar_click_defs.borrow_mut() = Vec::new();
         }
     }
 
@@ -7927,8 +7932,8 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
         }) {
             if (do_curwin || wp != curwin_ptr()) && g_st().curbuf.get() == wp.w_buffer.get() {
                 if !nested {
-                    wp.w_save_cursor.w_cursor_save = wp.w_cursor;
-                    wp.w_save_cursor.w_topline_save = wp.w_topline.get();
+                    wp.w_save_cursor.w_cursor_save.set(wp.w_cursor);
+                    wp.w_save_cursor.w_topline_save.set(wp.w_topline.get());
                 }
 
                 let mut need_adjust = wp.w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get();
@@ -7936,7 +7941,7 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
                     wp.w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
                 }
                 if need_adjust || !nested {
-                    wp.w_save_cursor.w_cursor_corr = wp.w_cursor;
+                    wp.w_save_cursor.w_cursor_corr.set(wp.w_cursor);
                 }
 
                 need_adjust = wp.w_topline.get() > curbuf_mut().b_ml.ml_line_count.get();
@@ -7944,7 +7949,7 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
                     wp.w_topline.set(curbuf_mut().b_ml.ml_line_count.get());
                 }
                 if need_adjust || !nested {
-                    wp.w_save_cursor.w_topline_corr = wp.w_topline.get();
+                    wp.w_save_cursor.w_topline_corr.set(wp.w_topline.get());
                 }
             }
         }
@@ -7967,17 +7972,17 @@ pub fn reset_lnums() {
             tp.tp_firstwin.get().as_ptr()
         }) {
             if g_st().curbuf.get() == wp.w_buffer.get() {
-                if equalpos(wp.w_save_cursor.w_cursor_corr, wp.w_cursor)
-                    && wp.w_save_cursor.w_cursor_save.lnum != 0
+                if equalpos(wp.w_save_cursor.w_cursor_corr.get(), wp.w_cursor)
+                    && wp.w_save_cursor.w_cursor_save.get().lnum != 0
                 {
-                    wp.w_cursor = wp.w_save_cursor.w_cursor_save;
+                    wp.w_cursor = wp.w_save_cursor.w_cursor_save.get();
                 }
-                if wp.w_save_cursor.w_topline_corr == wp.w_topline.get()
-                    && wp.w_save_cursor.w_topline_save != 0
+                if wp.w_save_cursor.w_topline_corr.get() == wp.w_topline.get()
+                    && wp.w_save_cursor.w_topline_save.get() != 0
                 {
-                    wp.w_topline.set(wp.w_save_cursor.w_topline_save);
+                    wp.w_topline.set(wp.w_save_cursor.w_topline_save.get());
                 }
-                if wp.w_save_cursor.w_topline_save > wp.buf_mut().b_ml.ml_line_count.get() {
+                if wp.w_save_cursor.w_topline_save.get() > wp.buf_mut().b_ml.ml_line_count.get() {
                     wp.w_valid.set(wp.w_valid.get() & (!VALID_TOPLINE));
                 }
             }
@@ -8178,12 +8183,13 @@ pub fn check_colorcolumn(
     }
 
     if let Some(wp) = wp {
-        wp.w_p_cc_cols.clear();
+        let mut cc = wp.w_p_cc_cols.borrow_mut();
+        cc.clear();
         if count > 0 {
             color_cols[..count].sort_unstable();
-            wp.w_p_cc_cols.extend_from_slice(&color_cols[..count]);
-            wp.w_p_cc_cols.dedup();
-            wp.w_p_cc_cols.push(-1);
+            cc.extend_from_slice(&color_cols[..count]);
+            cc.dedup();
+            cc.push(-1);
         }
     }
 
@@ -8254,7 +8260,7 @@ pub fn lastwin_nofloating(tp: Option<&TabPageInfo>) -> &'static mut WinInfoInfo 
 }
 
 pub fn win_is_focusable(wp: &WinInfoInfo) -> bool {
-    wp.w_config.focusable && !wp.w_config.hide
+    wp.w_config.borrow().focusable && !wp.w_config.borrow().hide
 }
 
 impl Frame {

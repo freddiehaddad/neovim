@@ -111,7 +111,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
         && wp.w_skipcol.get() == 0
         && !win_may_fill(wp)
         && wp.w_lines_valid.get() > 0
-        && (&wp.w_lines)[0].wl_lnum <= wp.w_topline.get();
+        && (&wp.w_lines.borrow())[0].wl_lnum <= wp.w_topline.get();
 
     let (mut lnum, mut done) = if (wp.w_valid.get() & VALID_CROW) != 0 {
         (wp.w_cursor.lnum, wp.w_cline_row.get())
@@ -121,7 +121,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
 
     let mut i: i32 = 0;
     if use_cache {
-        while i < wp.w_lines_valid.get() && (&wp.w_lines)[i as usize].wl_lnum < lnum {
+        while i < wp.w_lines_valid.get() && (&wp.w_lines.borrow())[i as usize].wl_lnum < lnum {
             i += 1;
         }
     }
@@ -129,7 +129,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
     while lnum <= wp.buf_mut().b_ml.ml_line_count.get() {
         let mut valid = false;
         if use_cache && i < wp.w_lines_valid.get() {
-            let wl = (&wp.w_lines)[i as usize];
+            let wl = (&wp.w_lines.borrow())[i as usize];
             if wl.wl_lnum < lnum || !wl.wl_valid {
                 i += 1;
                 continue;
@@ -143,7 +143,7 @@ fn comp_botline(wp: &mut WinInfoInfo) {
         let mut last = lnum;
         let mut folded = false;
         let n = if valid {
-            let wl = (&wp.w_lines)[i as usize];
+            let wl = (&wp.w_lines.borrow())[i as usize];
             folded = wl.wl_folded;
             last = wl.wl_lastlnum;
             i32::from(wl.wl_size)
@@ -230,7 +230,7 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
         return 0;
     }
 
-    if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.prec != 0 {
+    if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().prec != 0 {
         return 1;
     }
 
@@ -541,7 +541,7 @@ pub fn check_cursor_moved(wp: &mut WinInfoInfo) {
     if (&raw mut *wp) == curwin_ptr() {
         conceal_check_visual();
     }
-    if wp.w_cursor.lnum != wp.w_valid_cursor.lnum {
+    if wp.w_cursor.lnum != wp.w_valid_cursor.get().lnum {
         wp.w_valid.set(
             wp.w_valid.get()
                 & (!(VALID_WROW
@@ -553,11 +553,11 @@ pub fn check_cursor_moved(wp: &mut WinInfoInfo) {
         );
 
         if (&raw mut *wp) == curwin_ptr()
-            && wp.w_valid_cursor.lnum > 0
+            && wp.w_valid_cursor.get().lnum > 0
             && wp.w_onebuf_opt.wo_cole.get() >= 1
             && !conceal_cursor_line(wp)
         {
-            let old = wp.w_valid_cursor.lnum;
+            let old = wp.w_valid_cursor.get().lnum;
             let new = wp.w_cursor.lnum;
             if decor_conceal_line(wp, new - 1, true) || decor_conceal_line(wp, old - 1, true) {
                 changed_window_setting(wp);
@@ -566,7 +566,7 @@ pub fn check_cursor_moved(wp: &mut WinInfoInfo) {
                 conceal_reveal_changed(wp, new, new);
             }
         }
-        wp.w_valid_cursor = wp.w_cursor;
+        wp.w_valid_cursor.set(wp.w_cursor);
         wp.w_valid_leftcol.set(wp.w_leftcol.get());
         wp.w_valid_skipcol.set(wp.w_skipcol.get());
         wp.w_viewport_invalid.set(true);
@@ -581,18 +581,18 @@ pub fn check_cursor_moved(wp: &mut WinInfoInfo) {
                     | VALID_BOTLINE
                     | VALID_BOTLINE_AP),
         );
-        wp.w_valid_cursor = wp.w_cursor;
+        wp.w_valid_cursor.set(wp.w_cursor);
         wp.w_valid_leftcol.set(wp.w_leftcol.get());
         wp.w_valid_skipcol.set(wp.w_skipcol.get());
-    } else if wp.w_cursor.col != wp.w_valid_cursor.col
+    } else if wp.w_cursor.col != wp.w_valid_cursor.get().col
         || wp.w_leftcol.get() != wp.w_valid_leftcol.get()
-        || wp.w_cursor.coladd != wp.w_valid_cursor.coladd
+        || wp.w_cursor.coladd != wp.w_valid_cursor.get().coladd
     {
         wp.w_valid
             .set(wp.w_valid.get() & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL)));
-        wp.w_valid_cursor.col = wp.w_cursor.col;
+        wp.w_valid_cursor.set_col(wp.w_cursor.col);
         wp.w_valid_leftcol.set(wp.w_leftcol.get());
-        wp.w_valid_cursor.coladd = wp.w_cursor.coladd;
+        wp.w_valid_cursor.set_coladd(wp.w_cursor.coladd);
         wp.w_viewport_invalid.set(true);
     }
 }
@@ -734,14 +734,14 @@ pub fn validate_cursor(wp: &mut WinInfoInfo) {
 fn curs_rows(wp: &mut WinInfoInfo) {
     let all_invalid = !redrawing()
         || wp.w_lines_valid.get() == 0
-        || (&wp.w_lines)[0].wl_lnum > wp.w_topline.get();
+        || (&wp.w_lines.borrow())[0].wl_lnum > wp.w_topline.get();
     let mut i: i32 = 0;
     wp.w_cline_row.set(0);
     let mut lnum = wp.w_topline.get();
     while lnum < wp.w_cursor.lnum {
         let mut valid = false;
         if !all_invalid && i < wp.w_lines_valid.get() {
-            let wl = (&wp.w_lines)[i as usize];
+            let wl = (&wp.w_lines.borrow())[i as usize];
             if wl.wl_lnum < lnum || !wl.wl_valid {
                 i += 1;
                 continue;
@@ -758,7 +758,7 @@ fn curs_rows(wp: &mut WinInfoInfo) {
             }
         }
         if valid && (lnum != wp.w_topline.get() || (wp.w_skipcol.get() == 0 && !win_may_fill(wp))) {
-            let wl = (&wp.w_lines)[i as usize];
+            let wl = (&wp.w_lines.borrow())[i as usize];
             lnum = wl.wl_lastlnum + 1;
             if lnum > wp.w_cursor.lnum {
                 i += 1;
@@ -785,8 +785,8 @@ fn curs_rows(wp: &mut WinInfoInfo) {
         if all_invalid
             || i == wp.w_lines_valid.get()
             || (i < wp.w_lines_valid.get()
-                && (!(&wp.w_lines)[i as usize].wl_valid
-                    || (&wp.w_lines)[i as usize].wl_lnum != wp.w_cursor.lnum))
+                && (!(&wp.w_lines.borrow())[i as usize].wl_valid
+                    || (&wp.w_lines.borrow())[i as usize].wl_lnum != wp.w_cursor.lnum))
         {
             let mut cline_folded = wp.w_cline_folded.get();
             let cline_height = plines_win_full(
@@ -805,7 +805,7 @@ fn curs_rows(wp: &mut WinInfoInfo) {
             let folded = has_folding(wp, cursor_lnum, None, None);
             wp.w_cline_folded.set(folded);
         } else {
-            let wl = (&wp.w_lines)[i as usize];
+            let wl = (&wp.w_lines.borrow())[i as usize];
             wp.w_cline_height.set(i32::from(wl.wl_size));
             wp.w_cline_folded.set(wl.wl_folded);
         }

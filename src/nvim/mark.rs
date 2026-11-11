@@ -332,9 +332,9 @@ pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmar
     if c == b'\'' as i32 || c == b'`' as i32 {
         if ptr::eq(pos, &raw const curwin_mut().w_cursor) {
             setpcmark();
-            curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
+            curwin_mut().w_prev_pcmark.set(curwin_mut().w_pcmark.get());
         } else {
-            curwin_mut().w_pcmark = *pos;
+            curwin_mut().w_pcmark.set(*pos);
         }
         return true;
     }
@@ -403,14 +403,14 @@ pub fn mark_jumplist_forget_file(wp: &mut WinInfoInfo, fnum: i32) {
     let mut i = wp.w_jumplistlen.get() - 1;
     while i >= 0 {
         let idx = i as usize;
-        if wp.w_jumplist[idx].fmark.fnum == fnum {
-            free_xfmark(&mut wp.w_jumplist[idx]);
+        if wp.w_jumplist.borrow()[idx].fmark.fnum == fnum {
+            free_xfmark(&mut wp.w_jumplist.borrow_mut()[idx]);
             if wp.w_jumplistidx.get() > i {
                 wp.w_jumplistidx.set(wp.w_jumplistidx.get() - (1));
             }
             let old_len = wp.w_jumplistlen.get() as usize;
-            (&mut wp.w_jumplist)[idx..old_len].rotate_left(1);
-            wp.w_jumplist[old_len - 1] = Xfmark::ZERO;
+            (&mut wp.w_jumplist.borrow_mut())[idx..old_len].rotate_left(1);
+            wp.w_jumplist.borrow_mut()[old_len - 1] = Xfmark::ZERO;
             wp.w_jumplistlen.set(wp.w_jumplistlen.get() - (1));
         }
         i -= 1;
@@ -424,10 +424,10 @@ pub fn mark_forget_file(wp: &mut WinInfoInfo, fnum: i32) {
     let mut i = wp.w_tagstacklen.get() - 1;
     while i >= 0 {
         let idx = i as usize;
-        if wp.w_tagstack[idx].fmark.fnum == fnum {
+        if wp.w_tagstack.borrow()[idx].fmark.fnum == fnum {
             let old_len = wp.w_tagstacklen.get() as usize;
-            (&mut wp.w_tagstack)[idx..old_len].rotate_left(1);
-            wp.w_tagstack[old_len - 1] = crate::tag::Taggy::ZERO;
+            (&mut wp.w_tagstack.borrow_mut())[idx..old_len].rotate_left(1);
+            wp.w_tagstack.borrow_mut()[old_len - 1] = crate::tag::Taggy::ZERO;
             if wp.w_tagstackidx.get() > i {
                 wp.w_tagstackidx.set(wp.w_tagstackidx.get() - (1));
             }
@@ -447,11 +447,11 @@ pub fn setpcmark() {
         return;
     }
 
-    curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
-    curwin_mut().w_pcmark = curwin_mut().w_cursor;
+    curwin_mut().w_prev_pcmark.set(curwin_mut().w_pcmark.get());
+    curwin_mut().w_pcmark.set(curwin_mut().w_cursor);
 
-    if curwin_mut().w_pcmark.lnum == 0 {
-        curwin_mut().w_pcmark.lnum = 1;
+    if curwin_mut().w_pcmark.get().lnum == 0 {
+        curwin_mut().w_pcmark.set_lnum(1);
     }
 
     if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_STACK) != 0
@@ -467,28 +467,34 @@ pub fn setpcmark() {
         .set(curwin_mut().w_jumplistlen.get() + (1));
     if curwin_mut().w_jumplistlen.get() > JUMPLISTSIZE {
         curwin_mut().w_jumplistlen.set(JUMPLISTSIZE);
-        free_xfmark(&mut curwin_mut().w_jumplist[0]);
-        (&mut curwin_mut().w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
+        free_xfmark(&mut curwin_mut().w_jumplist.borrow_mut()[0]);
+        (&mut curwin_mut().w_jumplist.borrow_mut())[..JUMPLISTSIZE as usize].rotate_left(1);
     }
     curwin_mut()
         .w_jumplistidx
         .set(curwin_mut().w_jumplistlen.get());
     let idx = (curwin_mut().w_jumplistlen.get() - 1) as usize;
-    let pcmark = curwin_mut().w_pcmark;
+    let pcmark = curwin_mut().w_pcmark.get();
     let fnum = curbuf_mut().b_fnum.get();
     let view = mark_view_make(curwin_mut(), pcmark);
-    set_xfmark(&mut curwin_mut().w_jumplist[idx], pcmark, fnum, view, None);
+    set_xfmark(
+        &mut curwin_mut().w_jumplist.borrow_mut()[idx],
+        pcmark,
+        fnum,
+        view,
+        None,
+    );
 }
 
 /// Check previous context mark (`checkpcmark`).
 pub fn checkpcmark() {
-    if curwin_mut().w_prev_pcmark.lnum != 0
-        && (equalpos(curwin_mut().w_pcmark, curwin_mut().w_cursor)
-            || curwin_mut().w_pcmark.lnum == 0)
+    if curwin_mut().w_prev_pcmark.get().lnum != 0
+        && (equalpos(curwin_mut().w_pcmark.get(), curwin_mut().w_cursor)
+            || curwin_mut().w_pcmark.get().lnum == 0)
     {
-        curwin_mut().w_pcmark = curwin_mut().w_prev_pcmark;
+        curwin_mut().w_pcmark.set(curwin_mut().w_prev_pcmark.get());
     }
-    curwin_mut().w_prev_pcmark.lnum = 0;
+    curwin_mut().w_prev_pcmark.set_lnum(0);
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
@@ -519,15 +525,15 @@ pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<Fmark
         win.w_jumplistidx.set(win.w_jumplistidx.get() + (count));
 
         let idx = win.w_jumplistidx.get() as usize;
-        if win.w_jumplist[idx].fmark.fnum == 0 {
-            fname2fnum(&win.w_jumplist[idx]);
+        if win.w_jumplist.borrow()[idx].fmark.fnum == 0 {
+            fname2fnum(&win.w_jumplist.borrow()[idx]);
         }
-        let fnum = win.w_jumplist[idx].fmark.fnum;
+        let fnum = win.w_jumplist.borrow()[idx].fmark.fnum;
         if fnum != curbuf_mut().b_fnum.get() && buflist_findnr(fnum).is_none() {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return Some(win.w_jumplist[idx].fmark.clone());
+        return Some(win.w_jumplist.borrow()[idx].fmark.clone());
     }
 }
 
@@ -625,7 +631,7 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Op
     } else if name == b'<' as i32 || name == b'>' as i32 {
         mark_get_visual(buf, name)
     } else if name == b'\'' as i32 || name == b'`' as i32 {
-        Some(pos_to_mark(buf, None, win.w_pcmark))
+        Some(pos_to_mark(buf, None, win.w_pcmark.get()))
     } else if name == b'"' as i32 {
         buf.b_last_cursor.fnum = fnum;
         Some(buf.b_last_cursor.clone())
@@ -886,7 +892,7 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
 
     for wp in win_iter_mut(first_win_in_tab(&curtab_mut())) {
         for i in 0..(wp.w_jumplistlen.get() as usize) {
-            fmarks_check_one(&mut wp.w_jumplist[i], &name, buf);
+            fmarks_check_one(&mut wp.w_jumplist.borrow_mut()[i], &name, buf);
         }
     }
 }
@@ -1149,8 +1155,8 @@ pub fn ex_jumps(_eap: &mut Exarg) {
     let mut i: i32 = 0;
     while i < curwin_mut().w_jumplistlen.get() && !g_st().got_int.get() {
         let idx = i as usize;
-        if curwin_mut().w_jumplist[idx].fmark.mark.lnum != 0 {
-            let mut name = fm_getname(&mut curwin_mut().w_jumplist[idx].fmark, 16);
+        if curwin_mut().w_jumplist.borrow()[idx].fmark.mark.lnum != 0 {
+            let mut name = fm_getname(&mut curwin_mut().w_jumplist.borrow_mut()[idx].fmark, 16);
 
             if name.is_none() && i == curwin_mut().w_jumplistidx.get() {
                 name = Some(c"-invalid-".to_owned());
@@ -1174,15 +1180,15 @@ pub fn ex_jumps(_eap: &mut Exarg) {
                 ' '
             };
             let dist = (i - curwin_mut().w_jumplistidx.get()).abs();
-            let lnum = curwin_mut().w_jumplist[idx].fmark.mark.lnum;
-            let col = curwin_mut().w_jumplist[idx].fmark.mark.col;
+            let lnum = curwin_mut().w_jumplist.borrow()[idx].fmark.mark.lnum;
+            let col = curwin_mut().w_jumplist.borrow()[idx].fmark.mark.col;
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
             crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.as_bytes());
 
             msg_outtrans(g_st().iobuff_cstr(), 0, false);
             msg_outtrans(
                 &name_cstr,
-                if curwin_mut().w_jumplist[idx].fmark.fnum == curbuf_mut().b_fnum.get() {
+                if curwin_mut().w_jumplist.borrow()[idx].fmark.fnum == curbuf_mut().b_fnum.get() {
                     HLF_D
                 } else {
                     0
@@ -1460,20 +1466,12 @@ pub fn mark_adjust_buf(
     }
 
     if curwin_mut().w_buffer.get() == buf {
-        one_adjust(
-            &mut curwin_mut().w_pcmark.lnum,
-            line1,
-            line2,
-            amount,
-            amount_after,
-        );
-        one_adjust(
-            &mut curwin_mut().w_prev_pcmark.lnum,
-            line1,
-            line2,
-            amount,
-            amount_after,
-        );
+        curwin_mut().w_pcmark.update_mut(|p| {
+            one_adjust(&mut p.lnum, line1, line2, amount, amount_after);
+        });
+        curwin_mut().w_prev_pcmark.update_mut(|p| {
+            one_adjust(&mut p.lnum, line1, line2, amount, amount_after);
+        });
 
         if g_st().saved_cursor.get().lnum != 0 {
             let mut sc = g_st().saved_cursor.get();
@@ -1486,9 +1484,9 @@ pub fn mark_adjust_buf(
         for win in win_iter_ptr(first_win_in_tab(&tab)) {
             if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
                 for i in 0..(win.w_jumplistlen.get() as usize) {
-                    if win.w_jumplist[i].fmark.fnum == fnum {
+                    if win.w_jumplist.borrow()[i].fmark.fnum == fnum {
                         one_adjust_nodel(
-                            &mut win.w_jumplist[i].fmark.mark.lnum,
+                            &mut win.w_jumplist.borrow_mut()[i].fmark.mark.lnum,
                             line1,
                             line2,
                             amount,
@@ -1501,9 +1499,9 @@ pub fn mark_adjust_buf(
             if win.w_buffer.get() == buf {
                 if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
                     for i in 0..(win.w_tagstacklen.get() as usize) {
-                        if win.w_tagstack[i].fmark.fnum == fnum {
+                        if win.w_tagstack.borrow()[i].fmark.fnum == fnum {
                             one_adjust_nodel(
-                                &mut win.w_tagstack[i].fmark.mark.lnum,
+                                &mut win.w_tagstack.borrow_mut()[i].fmark.mark.lnum,
                                 line1,
                                 line2,
                                 amount,
@@ -1699,22 +1697,12 @@ pub fn mark_col_adjust(
         spaces_removed,
     );
 
-    col_adjust(
-        &mut curwin_mut().w_pcmark,
-        lnum,
-        mincol,
-        lnum_amount,
-        col_amount,
-        spaces_removed,
-    );
-    col_adjust(
-        &mut curwin_mut().w_prev_pcmark,
-        lnum,
-        mincol,
-        lnum_amount,
-        col_amount,
-        spaces_removed,
-    );
+    curwin_mut().w_pcmark.update_mut(|p| {
+        col_adjust(p, lnum, mincol, lnum_amount, col_amount, spaces_removed);
+    });
+    curwin_mut().w_prev_pcmark.update_mut(|p| {
+        col_adjust(p, lnum, mincol, lnum_amount, col_amount, spaces_removed);
+    });
     {
         let mut sc = g_st().saved_cursor.get();
         col_adjust(
@@ -1730,9 +1718,9 @@ pub fn mark_col_adjust(
 
     for win in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
         for i in 0..(win.w_jumplistlen.get() as usize) {
-            if win.w_jumplist[i].fmark.fnum == fnum {
+            if win.w_jumplist.borrow()[i].fmark.fnum == fnum {
                 col_adjust(
-                    &mut win.w_jumplist[i].fmark.mark,
+                    &mut win.w_jumplist.borrow_mut()[i].fmark.mark,
                     lnum,
                     mincol,
                     lnum_amount,
@@ -1744,9 +1732,9 @@ pub fn mark_col_adjust(
 
         if win.w_buffer.get() == g_st().curbuf.get() {
             for i in 0..(win.w_tagstacklen.get() as usize) {
-                if win.w_tagstack[i].fmark.fnum == fnum {
+                if win.w_tagstack.borrow()[i].fmark.fnum == fnum {
                     col_adjust(
-                        &mut win.w_tagstack[i].fmark.mark,
+                        &mut win.w_tagstack.borrow_mut()[i].fmark.mark,
                         lnum,
                         mincol,
                         lnum_amount,
@@ -1775,8 +1763,10 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
     if loadfiles {
         let len = wp.w_jumplistlen.get() as usize;
         for i in 0..len {
-            if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
-                fname2fnum(&wp.w_jumplist[i]);
+            if wp.w_jumplist.borrow()[i].fmark.fnum == 0
+                && wp.w_jumplist.borrow()[i].fmark.mark.lnum != 0
+            {
+                fname2fnum(&wp.w_jumplist.borrow()[i]);
             }
         }
     }
@@ -1791,9 +1781,10 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
         let mut i = from + 1;
         while i < wp.w_jumplistlen.get() {
             let i_u = i as usize;
-            if wp.w_jumplist[i_u].fmark.fnum == wp.w_jumplist[from_u].fmark.fnum
-                && wp.w_jumplist[from_u].fmark.fnum != 0
-                && wp.w_jumplist[i_u].fmark.mark.lnum == wp.w_jumplist[from_u].fmark.mark.lnum
+            if wp.w_jumplist.borrow()[i_u].fmark.fnum == wp.w_jumplist.borrow()[from_u].fmark.fnum
+                && wp.w_jumplist.borrow()[from_u].fmark.fnum != 0
+                && wp.w_jumplist.borrow()[i_u].fmark.mark.lnum
+                    == wp.w_jumplist.borrow()[from_u].fmark.mark.lnum
             {
                 break;
             }
@@ -1809,10 +1800,10 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
         };
 
         if mustfree {
-            wp.w_jumplist[from_u].fname = None;
+            wp.w_jumplist.borrow_mut()[from_u].fname = None;
         } else {
             if to != from {
-                wp.w_jumplist[to as usize] = wp.w_jumplist[from_u].clone();
+                wp.w_jumplist.borrow_mut()[to as usize] = wp.w_jumplist.borrow()[from_u].clone();
             }
             to += 1;
         }
@@ -1825,10 +1816,10 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
     if loadfiles && wp.w_jumplistlen.get() != 0 && wp.w_jumplistidx.get() == wp.w_jumplistlen.get()
     {
         let last_idx = (wp.w_jumplistlen.get() - 1) as usize;
-        if wp.w_jumplist[last_idx].fmark.fnum == curbuf_mut().b_fnum.get()
-            && wp.w_jumplist[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
+        if wp.w_jumplist.borrow()[last_idx].fmark.fnum == curbuf_mut().b_fnum.get()
+            && wp.w_jumplist.borrow()[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
         {
-            wp.w_jumplist[last_idx].fname = None;
+            wp.w_jumplist.borrow_mut()[last_idx].fname = None;
             wp.w_jumplistlen.set(wp.w_jumplistlen.get() - (1));
             wp.w_jumplistidx.set(wp.w_jumplistidx.get() - (1));
         }
@@ -1838,7 +1829,7 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
 /// Copy the jumplist from window `from` to window `to` (`copy_jumplist`).
 pub fn copy_jumplist(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     for i in 0..(from.w_jumplistlen.get() as usize) {
-        to.w_jumplist[i] = from.w_jumplist[i].clone();
+        to.w_jumplist.borrow_mut()[i] = from.w_jumplist.borrow()[i].clone();
     }
     to.w_jumplistlen.set(from.w_jumplistlen.get());
     to.w_jumplistidx.set(from.w_jumplistidx.get());
@@ -1855,7 +1846,7 @@ pub fn mark_jumplist_iter(
         return None;
     }
     let idx = iter.unwrap_or(0);
-    *fm = win.w_jumplist[idx].clone();
+    *fm = win.w_jumplist.borrow()[idx].clone();
     if idx + 1 >= win.w_jumplistlen.get() as usize {
         None
     } else {
@@ -1981,7 +1972,7 @@ pub fn mark_set_local(name: u8, buf: &mut FileBuf, fm: Fmark, update: bool) -> b
 /// Free items in the jumplist of window `wp` (`free_jumplist`).
 pub fn free_jumplist(wp: &mut WinInfoInfo) {
     for i in 0..(wp.w_jumplistlen.get() as usize) {
-        free_xfmark(&mut wp.w_jumplist[i]);
+        free_xfmark(&mut wp.w_jumplist.borrow_mut()[i]);
     }
     wp.w_jumplistlen.set(0);
 }
@@ -2076,7 +2067,7 @@ pub fn get_buf_local_marks(buf: &FileBuf, l: &TvList) {
     add_mark(
         l,
         c"''",
-        &curwin_mut().w_pcmark,
+        &curwin_mut().w_pcmark.get(),
         curbuf_mut().b_fnum.get(),
         None,
     );

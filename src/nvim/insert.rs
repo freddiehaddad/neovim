@@ -3199,8 +3199,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
         {
             *inserted_space_p = 0;
 
-            let use_ts =
-                !curwin_mut().w_onebuf_opt.wo_list.get() || curwin_mut().w_p_lcs_chars.tab1 != 0;
+            let use_ts = !curwin_mut().w_onebuf_opt.wo_list.get()
+                || curwin_mut().w_p_lcs_chars.borrow().tab1 != 0;
             let line_cstr = get_cursor_line_ptr();
             let cursor_col = curwin_mut().w_cursor.col as usize;
 

@@ -2825,7 +2825,7 @@ fn did_set_statustabline_rulerformat<'a>(
         && let Some(win) = args.win_opt()
         && win.w_floating.get()
     {
-        let cfg = win.w_config.clone();
+        let cfg = win.w_config.borrow().clone();
         win_config_float(win, cfg);
     }
 
@@ -3802,9 +3802,9 @@ pub fn set_chars_option<'a>(
 
     if apply {
         if what == CharsOption::Listchars {
-            wp.w_p_lcs_chars = lcs_chars;
+            *wp.w_p_lcs_chars.borrow_mut() = lcs_chars;
         } else {
-            wp.w_p_fcs_chars = fcs_chars;
+            wp.w_p_fcs_chars.set(fcs_chars);
         }
     }
 

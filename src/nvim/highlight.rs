@@ -675,7 +675,7 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
     }
     wp.w_hl_needs_update.set(0);
 
-    let float_win = wp.w_floating.get() && !wp.w_config.external;
+    let float_win = wp.w_floating.get() && !wp.w_config.borrow().external;
     if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
         wp.w_hl_attr_normal.set(hl_def_get(HLF_NFLOAT));
     } else if hl_def_get(HLF_NONE) > 0 {
@@ -697,23 +697,23 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         ));
     }
 
-    wp.w_config.shadow = false;
-    if wp.w_floating.get() && wp.w_config.border {
+    wp.w_config.borrow_mut().shadow = false;
+    if wp.w_floating.get() && wp.w_config.borrow().border {
         for i in 0..8 {
             let mut attr = hl_def_get(HLF_BORDER);
-            if wp.w_config.border_hl_ids[i] != 0 {
+            if wp.w_config.borrow().border_hl_ids[i] != 0 {
                 attr = hl_get_ui_attr(
                     ns_id,
                     HLF_BORDER as i32,
-                    wp.w_config.border_hl_ids[i],
+                    wp.w_config.borrow().border_hl_ids[i],
                     false,
                 );
             }
             attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl.get() as i32, attr);
             if syn_attr2entry(attr).hl_blend > 0 {
-                wp.w_config.shadow = true;
+                wp.w_config.borrow_mut().shadow = true;
             }
-            wp.w_config.border_attr[i] = attr;
+            wp.w_config.borrow_mut().border_attr[i] = attr;
         }
     }
 

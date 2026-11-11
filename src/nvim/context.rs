@@ -742,7 +742,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
             .window_handles
             .borrow_mut()
             .insert(cw_win.handle, cw_win.into());
-        let cfg = cw_win.w_config.clone();
+        let cfg = cw_win.w_config.borrow().clone();
         win_config_float(cw_win, cfg);
     }
 

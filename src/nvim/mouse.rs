@@ -850,7 +850,7 @@ pub fn do_mouse(
             return false;
         };
 
-        let mut click_defs: Option<&[StlClickDefinition]> = if in_status_line {
+        let mut click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
             let stl_wp: &WinInfoInfo = if in_global_statusline {
                 curwin_mut()
             } else {
@@ -859,19 +859,19 @@ pub fn do_mouse(
             if in_global_statusline {
                 click_col = g_st().mouse_col.get();
             }
-            if click_col >= stl_wp.w_status_click_defs.len() as i32 {
+            if click_col >= stl_wp.w_status_click_defs.borrow().len() as i32 {
                 return false;
             }
-            if stl_wp.w_status_click_defs.is_empty() {
+            if stl_wp.w_status_click_defs.borrow().is_empty() {
                 None
             } else {
-                Some(stl_wp.w_status_click_defs.as_slice())
+                Some(stl_wp.w_status_click_defs.borrow().clone())
             }
         } else if in_winbar {
-            if wp.w_winbar_click_defs.is_empty() {
+            if wp.w_winbar_click_defs.borrow().is_empty() {
                 None
             } else {
-                Some(wp.w_winbar_click_defs.as_slice())
+                Some(wp.w_winbar_click_defs.borrow().clone())
             }
         } else {
             None
@@ -885,18 +885,20 @@ pub fn do_mouse(
             let virtnum = get_vim_var_nr(VV_VIRTNUM) as i32;
             let Some(row_click_defs) = wp
                 .w_statuscol_click_defs
+                .borrow()
                 .get(&lnum)
                 .and_then(|m| m.get(&virtnum))
+                .cloned()
             else {
                 return false;
             };
             if click_col >= row_click_defs.len() as i32 {
                 return false;
             }
-            click_defs = Some(row_click_defs.as_slice());
+            click_defs = Some(row_click_defs);
         }
 
-        if let Some(click_defs) = click_defs {
+        if let Some(ref click_defs) = click_defs {
             match click_defs[click_col as usize].type_ {
                 K_STL_CLICK_DISABLED => {
                     if in_statuscol
@@ -2044,7 +2046,7 @@ fn mouse_find_grid_win(
     } else if *gridp > 1 {
         if let Some(wp) = get_win_by_grid_handle(*gridp)
             && !wp.w_grid_alloc.chars.borrow().is_empty()
-            && !(wp.w_floating.get() && !wp.w_config.mouse)
+            && !(wp.w_floating.get() && !wp.w_config.borrow().mouse)
         {
             *rowp = (*rowp - wp.w_grid.row_offset.get()).min(wp.w_view_height.get() - 1);
             *colp = (*colp - wp.w_grid.col_offset.get()).min(wp.w_view_width.get() - 1);

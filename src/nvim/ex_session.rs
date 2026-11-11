@@ -323,13 +323,13 @@ fn put_view(
     if add_edit && (!did_next || wp.w_arg_idx_invalid.get()) {
         let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
         if bt_help(wp.buf_opt()) {
-            let mut curtag: &CStr = c"";
+            let mut curtag_owned: Option<std::ffi::CString> = None;
             if 0 < wp.w_tagstackidx.get() && wp.w_tagstackidx.get() <= wp.w_tagstacklen.get() {
-                curtag = wp.w_tagstack[(wp.w_tagstackidx.get() - 1) as usize]
+                curtag_owned = wp.w_tagstack.borrow()[(wp.w_tagstackidx.get() - 1) as usize]
                     .tagname
-                    .as_deref()
-                    .unwrap_or(c"");
+                    .clone();
             }
+            let curtag: &CStr = curtag_owned.as_deref().unwrap_or(c"");
 
             if !put_line(fd, c"enew | setl bt=help")
                 || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))

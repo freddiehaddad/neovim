@@ -369,7 +369,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
         let fillchar = if stl_connected(wp) {
             fillchar_status(&mut group, wp)
         } else {
-            wp.w_p_fcs_chars.vert
+            wp.w_p_fcs_chars.get().vert
         };
         let attr = win_hl_attr(&mut *wp, group);
         grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
@@ -520,7 +520,7 @@ fn win_redr_stl_expr(
         StlGridTarget::Default
     };
 
-    if !is_stl_global && !wp.is_null() && wp.w_config.hide {
+    if !is_stl_global && !wp.is_null() && wp.w_config.borrow().hide {
         return;
     }
 
@@ -577,7 +577,7 @@ fn win_redr_stl_expr(
             return;
         }
 
-        fillchar = wp_ref.w_p_fcs_chars.wbr;
+        fillchar = wp_ref.w_p_fcs_chars.get().wbr;
         group = if wp == curwin_ptr() {
             HLF_WBR
         } else {
@@ -585,8 +585,8 @@ fn win_redr_stl_expr(
         };
         attr = win_hl_attr(&mut *wp_ref, group);
         maxwidth = wp_ref.w_view_width.get();
-        stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs);
-        stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs, maxwidth);
+        stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut());
+        stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut(), maxwidth);
         click_defs_target = ClickDefsTarget::Winbar;
     } else if draw_ruler && ui_event {
         stl_cstr = opt_vars().p_ruf.as_cstr().to_owned();
@@ -667,8 +667,8 @@ fn win_redr_stl_expr(
 
         fillchar = fillchar_status(&mut group, wp_ref);
         attr = win_hl_attr(wp_ref, group);
-        stl_clear_click_defs(&mut wp_ref.w_status_click_defs);
-        stl_alloc_click_defs(&mut wp_ref.w_status_click_defs, maxwidth);
+        stl_clear_click_defs(&mut wp_ref.w_status_click_defs.borrow_mut());
+        stl_alloc_click_defs(&mut wp_ref.w_status_click_defs.borrow_mut(), maxwidth);
         click_defs_target = ClickDefsTarget::Status;
     }
 
@@ -702,8 +702,12 @@ fn win_redr_stl_expr(
                 let defs = tab_defs_guard.as_deref_mut().unwrap();
                 (defs.len() >= maxwidth_u).then(|| &mut defs[..maxwidth_u])
             }
-            ClickDefsTarget::Winbar => Some(&mut wp.borrow_mut().w_winbar_click_defs[..maxwidth_u]),
-            ClickDefsTarget::Status => Some(&mut wp.borrow_mut().w_status_click_defs[..maxwidth_u]),
+            ClickDefsTarget::Winbar => {
+                Some(&mut wp.borrow_mut().w_winbar_click_defs.borrow_mut()[..maxwidth_u])
+            }
+            ClickDefsTarget::Status => {
+                Some(&mut wp.borrow_mut().w_status_click_defs.borrow_mut()[..maxwidth_u])
+            }
         };
         with_stl_state(|st| {
             stl_fill_click_defs(
@@ -846,7 +850,7 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
 }
 
 pub fn redraw_ruler() {
-    let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height.get() == 0 {
+    let wp = if !curwin_mut().w_config.borrow().hide && curwin_mut().w_status_height.get() == 0 {
         curwin_mut()
     } else {
         lastwin_nofloating(None)
@@ -884,10 +888,10 @@ pub fn redraw_ruler() {
 pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
     if (&raw mut *wp) == curwin_ptr() {
         *group = HLF_S;
-        wp.w_p_fcs_chars.stl
+        wp.w_p_fcs_chars.get().stl
     } else {
         *group = HLF_SNC;
-        wp.w_p_fcs_chars.stlnc
+        wp.w_p_fcs_chars.get().stlnc
     }
 }
 
@@ -1251,7 +1255,8 @@ pub fn build_statuscol_str(
 
         let tabtab = st.stl_tabtab_vec.borrow();
         if tabtab.first().is_some_and(|r| r.start_off.is_some()) {
-            let clicks = wp.w_statuscol_click_defs.entry(lnum).or_default();
+            let mut status_defs = wp.w_statuscol_click_defs.borrow_mut();
+            let clicks = status_defs.entry(lnum).or_default();
             let click_defs = clicks.entry(virtnum).or_default();
             stl_clear_click_defs(click_defs);
             let cdp = stl_alloc_click_defs(click_defs, width);

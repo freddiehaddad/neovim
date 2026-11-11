@@ -1243,7 +1243,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         for tab in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tab) {
                 if win.w_buffer.get() == g_st().curbuf.get() {
-                    fold_move_range(&mut win.w_folds, line1, line2, dest);
+                    fold_move_range(&mut win.w_folds.borrow_mut(), line1, line2, dest);
                 }
             }
         }
@@ -1258,7 +1258,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         for tab in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tab) {
                 if win.w_buffer.get() == g_st().curbuf.get() {
-                    fold_move_range(&mut win.w_folds, dest + 1, line1 - 1, line2);
+                    fold_move_range(&mut win.w_folds.borrow_mut(), dest + 1, line1 - 1, line2);
                 }
             }
         }
@@ -2866,8 +2866,8 @@ pub fn do_ecmd(
                 g_st().au_new_curbuf.set(save_au_new_curbuf);
             }
 
-            curwin_mut().w_pcmark.lnum = 1;
-            curwin_mut().w_pcmark.col = 0;
+            curwin_mut().w_pcmark.set_lnum(1);
+            curwin_mut().w_pcmark.set_col(0);
         } else {
             if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 || !check_fname() {
                 break 'theend;

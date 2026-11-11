@@ -2797,7 +2797,7 @@ pub fn nvim_eval_statusline(
         set_vim_var_nr(VV_VIRTNUM, 0);
     } else if fillchar == 0 && !opts.use_tabline {
         if opts.use_winbar {
-            fillchar = wp.w_p_fcs_chars.wbr;
+            fillchar = wp.w_p_fcs_chars.get().wbr;
         } else {
             let mut group: Hlf = 0;
             fillchar = fillchar_status(&mut group, wp.borrow_mut());

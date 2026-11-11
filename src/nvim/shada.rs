@@ -1501,7 +1501,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 } else {
                     let mut i = curwin_mut().w_jumplistlen.get();
                     while i > 0 {
-                        let jl_entry = &curwin_mut().w_jumplist[(i - 1) as usize];
+                        let jl_entry = &curwin_mut().w_jumplist.borrow()[(i - 1) as usize];
                         if jl_entry.fmark.timestamp <= cur_entry.timestamp {
                             if marks_equal(jl_entry.fmark.mark, fm_mark)
                                 && (if buf_fnum == 0 {
@@ -1517,15 +1517,15 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         i -= 1;
                     }
                     if i > 0 && curwin_mut().w_jumplistlen.get() == (JUMPLISTSIZE as i32) {
-                        free_xfmark(&mut curwin_mut().w_jumplist[0]);
+                        free_xfmark(&mut curwin_mut().w_jumplist.borrow_mut()[0]);
                     }
                     i = marklist_insert(
-                        &mut curwin_mut().w_jumplist,
+                        &mut curwin_mut().w_jumplist.borrow_mut(),
                         curwin_mut().w_jumplistlen.get(),
                         i,
                     );
                     if i != -1 {
-                        curwin_mut().w_jumplist[i as usize] = fm;
+                        curwin_mut().w_jumplist.borrow_mut()[i as usize] = fm;
                         if curwin_mut().w_jumplistlen.get() < (JUMPLISTSIZE as i32) {
                             curwin_mut()
                                 .w_jumplistlen
@@ -3998,7 +3998,7 @@ fn shada_init_jumps(
             siemsg!(
                 c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)",
                 jump_iter.unwrap_or(0),
-                curwin_mut().w_jumplist.as_ptr().addr(),
+                curwin_mut().w_jumplist.borrow().as_ptr().addr(),
                 curwin_mut().w_jumplistlen.get(),
             );
             if jump_iter.is_none() {

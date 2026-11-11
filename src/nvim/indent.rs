@@ -820,7 +820,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     let eff_wwidth = wp.w_view_width.get() - win_col_off(wp) + win_col_off2(wp);
-    let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.tab1 == 0;
+    let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().tab1 == 0;
 
     let buf_fnum = wp.buf_mut().b_fnum.get();
     let buf_p_ts = wp.buf_mut().b_p_ts.get();

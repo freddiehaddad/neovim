@@ -621,7 +621,7 @@ pub fn ui_flush() {
 
     if (g_st().state_global.get() & MODE_CMDLINE) == 0
         && curwin_mut().w_floating.get()
-        && curwin_mut().w_config.hide
+        && curwin_mut().w_config.borrow().hide
     {
         if !ui_state(|st| st.ui_flush_was_busy.replace(true)) {
             ui_call_busy_start();
@@ -859,9 +859,9 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
 
     if wp.w_floating.get() {
         if width != wp.w_width.get() || height != wp.w_height.get() {
-            wp.w_config.width = width.max(1);
-            wp.w_config.height = height.max(1);
-            let cfg = wp.w_config.clone();
+            wp.w_config.borrow_mut().width = width.max(1);
+            wp.w_config.borrow_mut().height = height.max(1);
+            let cfg = wp.w_config.borrow().clone();
             win_config_float(wp, cfg);
         }
     } else {

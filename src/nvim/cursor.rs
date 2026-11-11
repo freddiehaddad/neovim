@@ -45,6 +45,41 @@ impl CursorPos {
     }
 }
 
+pub trait CursorPosCellExt {
+    fn set_lnum(&self, v: Linenr);
+    fn set_col(&self, v: Colnr);
+    fn set_coladd(&self, v: Colnr);
+    fn update_mut<R>(&self, f: impl FnOnce(&mut CursorPos) -> R) -> R;
+}
+
+impl CursorPosCellExt for std::cell::Cell<CursorPos> {
+    #[inline(always)]
+    fn set_lnum(&self, v: Linenr) {
+        let mut p = self.get();
+        p.lnum = v;
+        self.set(p);
+    }
+    #[inline(always)]
+    fn set_col(&self, v: Colnr) {
+        let mut p = self.get();
+        p.col = v;
+        self.set(p);
+    }
+    #[inline(always)]
+    fn set_coladd(&self, v: Colnr) {
+        let mut p = self.get();
+        p.coladd = v;
+        self.set(p);
+    }
+    #[inline(always)]
+    fn update_mut<R>(&self, f: impl FnOnce(&mut CursorPos) -> R) -> R {
+        let mut p = self.get();
+        let r = f(&mut p);
+        self.set(p);
+        r
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Lpos {

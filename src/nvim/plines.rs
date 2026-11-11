@@ -161,7 +161,7 @@ pub fn win_chartabsize(
 ) -> i32 {
     p.with_cluster_bytes(|p| {
         if p.first().copied() == Some(TAB as u8)
-            && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0)
+            && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0)
         {
             let buf = wp.buf_mut();
             return tabstop_padding(col, buf.b_p_ts.get(), &buf.b_p_vts_array);
@@ -186,7 +186,7 @@ pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
             1
         } else {
             0
@@ -223,7 +223,7 @@ pub fn init_charsize_arg<'a>(
     csarg.virt_row = -1;
     csarg.skip_cur_text = false;
     csarg.indent_width = i32::MIN;
-    csarg.use_tabstop = !wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0;
+    csarg.use_tabstop = !wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0;
     csarg.extconceal = None;
 
     if lnum > 0
@@ -452,7 +452,7 @@ pub fn charsize_regular(
 
         let disp_vcol = vcol - csarg.extconceal_off;
 
-        let has_lcs_eol = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0;
+        let has_lcs_eol = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0;
 
         let mut size: i32;
         let mut is_doublewidth = false;
@@ -894,7 +894,7 @@ pub fn linetabsize_disp(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 /// Like linetabsize_disp(), but counts the size of 'listchars' "eol".
 pub fn linetabsize_disp_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize_disp(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
             1
         } else {
             0
@@ -1338,7 +1338,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
         i64::from(linesize_regular(&mut csarg, 0, MAXCOL))
     };
 
-    if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
+    if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
         col += 1;
     }
 

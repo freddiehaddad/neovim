@@ -426,7 +426,7 @@ pub fn nvim_open_win(
                 }
             });
             if !wp.is_null() {
-                wp.w_config = fconfig.clone();
+                *wp.w_config.borrow_mut() = fconfig.clone();
                 if size > 0 {
                     if (flags & WSP_VERT) != 0 && wp.w_width.get() != size {
                         win_setwidth_win(size, wp.borrow_mut(), true);
@@ -901,7 +901,7 @@ fn win_config_split(
     if !was_split {
         clear_float_config(fconfig, false);
     }
-    merge_win_config(&mut win.w_config, fconfig.clone());
+    merge_win_config(&mut win.w_config.borrow_mut(), fconfig.clone());
     true
 }
 
@@ -1042,8 +1042,8 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
     let mask = config.is_set_win_config;
     let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
     let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
-    let old_style = w.w_config.style;
-    let mut fconfig = w.w_config.clone();
+    let old_style = w.w_config.borrow().style;
+    let mut fconfig = w.w_config.borrow().clone();
 
     let to_split = config.relative.size == 0
         && !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) && config.external)
@@ -1148,7 +1148,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         return rv;
     };
 
-    let config = &wp.w_config;
+    let config = &wp.w_config.borrow();
 
     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE;
     rv.focusable = config.focusable;
@@ -1909,7 +1909,7 @@ fn parse_win_config(
     merge_win_config(
         fconfig,
         if let Some(wp) = wp {
-            wp.w_config.clone()
+            wp.w_config.borrow().clone()
         } else {
             WIN_CONFIG_INIT
         },

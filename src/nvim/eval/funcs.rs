@@ -2936,7 +2936,7 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     );
 
     for i in 0..(wp.w_jumplistlen.get() as usize) {
-        if wp.w_jumplist[i].fmark.mark.lnum == 0 {
+        if wp.w_jumplist.borrow()[i].fmark.mark.lnum == 0 {
             continue;
         }
         let d = tv_dict_alloc();
@@ -2944,16 +2944,24 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         tv_dict_add_nr(
             &d,
             c"lnum",
-            Varnumber::from(wp.w_jumplist[i].fmark.mark.lnum),
+            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.lnum),
         );
-        tv_dict_add_nr(&d, c"col", Varnumber::from(wp.w_jumplist[i].fmark.mark.col));
+        tv_dict_add_nr(
+            &d,
+            c"col",
+            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.col),
+        );
         tv_dict_add_nr(
             &d,
             c"coladd",
-            Varnumber::from(wp.w_jumplist[i].fmark.mark.coladd),
+            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.coladd),
         );
-        tv_dict_add_nr(&d, c"bufnr", Varnumber::from(wp.w_jumplist[i].fmark.fnum));
-        if let Some(ref fname) = wp.w_jumplist[i].fname {
+        tv_dict_add_nr(
+            &d,
+            c"bufnr",
+            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.fnum),
+        );
+        if let Some(ref fname) = wp.w_jumplist.borrow()[i].fname {
             tv_dict_add_str(&d, c"filename", Some(fname.as_c_str()));
         }
     }
@@ -8162,10 +8170,10 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         if (syntax_flags & HL_CONCEAL) != 0 && curwin_mut().w_onebuf_opt.wo_cole.get() < 3 {
             let mut cchar = schar_from_char(syn_get_sub_char());
             if cchar == 0 && curwin_mut().w_onebuf_opt.wo_cole.get() == 1 {
-                cchar = if curwin_mut().w_p_lcs_chars.conceal == 0 {
+                cchar = if curwin_mut().w_p_lcs_chars.borrow().conceal == 0 {
                     b' ' as Schar
                 } else {
-                    curwin_mut().w_p_lcs_chars.conceal
+                    curwin_mut().w_p_lcs_chars.borrow().conceal
                 };
             }
             if cchar != 0 {

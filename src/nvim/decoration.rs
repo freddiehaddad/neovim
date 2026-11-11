@@ -831,8 +831,8 @@ pub fn conceal_replacement(wp: &WinInfoInfo, is_start: bool, cchar: Schar) -> Sc
     if cchar != 0 {
         return cchar;
     }
-    if wp.w_p_lcs_chars.conceal != 0 {
-        wp.w_p_lcs_chars.conceal
+    if wp.w_p_lcs_chars.borrow().conceal != 0 {
+        wp.w_p_lcs_chars.borrow().conceal
     } else {
         schar_from_ascii(b' ')
     }

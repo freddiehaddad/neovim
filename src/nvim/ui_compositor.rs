@@ -416,7 +416,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static ScreenGrid {
             && row < grid.comp_row.get() + grid.rows.get()
             && col >= grid.comp_col.get()
             && col < grid.comp_col.get() + grid.cols.get()
-            && !wp.w_config.hide
+            && !wp.w_config.borrow().hide
         {
             return grid;
         }
