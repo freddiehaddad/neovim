@@ -848,7 +848,7 @@ pub fn get_lambda_tv(
         fp.uf_varargs.set(1);
         fp.uf_flags.set(flags);
         fp.uf_calls.set(0);
-        let mut sctx = g_st().current_sctx;
+        let mut sctx = g_st().current_sctx.get();
         sctx.sc_lnum += sourcing_lnum() - newlines_len;
         fp.uf_script_ctx.set(sctx);
 
@@ -1065,13 +1065,13 @@ fn fname_trans_sid<'a>(
     fname_buf[..4].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR, 0]);
     let mut fname_buflen = 3usize;
     if eval_fname_sid(name_bytes) {
-        if g_st().current_sctx.sc_sid <= 0 {
+        if g_st().current_sctx.get().sc_sid <= 0 {
             *error = FCERR_SCRIPT;
         } else {
             fname_buflen += format_to_buf!(
                 &mut fname_buf[fname_buflen..FLEN_FIXED + 1],
                 c"%d_",
-                g_st().current_sctx.sc_sid,
+                g_st().current_sctx.get().sc_sid,
             ) as usize;
         }
     }
@@ -1682,8 +1682,8 @@ pub fn call_user_func(
         script_prof_save(&mut wait_start);
     }
 
-    let save_current_sctx = g_st().current_sctx;
-    g_st().current_sctx = fp.uf_script_ctx.get();
+    let save_current_sctx = g_st().current_sctx.get();
+    g_st().current_sctx.set(fp.uf_script_ctx.get());
     let save_did_emsg = g_st().did_emsg.get();
     g_st().did_emsg.set(0);
 
@@ -1800,7 +1800,7 @@ pub fn call_user_func(
 
     let _ = estack_len_before;
     estack_pop();
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
     if do_profiling_yes {
         script_prof_restore(&wait_start);
     }
@@ -2610,11 +2610,12 @@ pub fn trans_function_name(
             .is_some_and(|s| eval_fname_sid(s.as_bytes()))
             || eval_fname_sid(pp.to_bytes())
         {
-            if g_st().current_sctx.sc_sid <= 0 {
+            if g_st().current_sctx.get().sc_sid <= 0 {
                 emsg(gettext(E_USINGSID));
                 return None;
             }
-            sid_buflen = format_to_buf!(&mut sid_buf, c"%d_", g_st().current_sctx.sc_sid) as usize;
+            sid_buflen =
+                format_to_buf!(&mut sid_buf, c"%d_", g_st().current_sctx.get().sc_sid) as usize;
             lead += sid_buflen as i32;
         }
     } else if (flags & TFN_INT) == 0
@@ -2666,12 +2667,12 @@ pub fn get_scriptlocal_funcname(funcname: Option<&CStr>) -> Option<std::ffi::CSt
         bytes.strip_prefix(b"<SID>")?
     };
 
-    if !crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
+    if !crate::runtime::script_id_valid(g_st().current_sctx.get().sc_sid) {
         emsg(gettext(E_USINGSID));
         return None;
     }
 
-    let prefix = format!("<SNR>{}_", g_st().current_sctx.sc_sid);
+    let prefix = format!("<SNR>{}_", g_st().current_sctx.get().sc_sid);
     let mut newname = Vec::with_capacity(prefix.len() + rest.len());
     newname.extend_from_slice(prefix.as_bytes());
     newname.extend_from_slice(rest);
@@ -3400,8 +3401,8 @@ pub fn ex_function(eap: &mut Exarg) {
         if !fp.is_null() {
             let fp_ref = fp.unwrap_rc();
             if !eap.forceit
-                && (fp_ref.uf_script_ctx.get().sc_sid != g_st().current_sctx.sc_sid
-                    || fp_ref.uf_script_ctx.get().sc_seq == g_st().current_sctx.sc_seq)
+                && (fp_ref.uf_script_ctx.get().sc_sid != g_st().current_sctx.get().sc_sid
+                    || fp_ref.uf_script_ctx.get().sc_seq == g_st().current_sctx.get().sc_seq)
             {
                 emsg_funcname(E_FUNCEXTS, name_cstr);
                 errret_keep!();
@@ -3537,7 +3538,7 @@ pub fn ex_function(eap: &mut Exarg) {
     }
     fp.uf_flags.set(flags);
     fp.uf_calls.set(0);
-    let mut sctx = g_st().current_sctx;
+    let mut sctx = g_st().current_sctx.get();
     sctx.sc_lnum += sourcing_lnum_top;
     nlua_set_sctx(&mut sctx);
     fp.uf_script_ctx.set(sctx);
@@ -4702,7 +4703,7 @@ pub fn register_luafunc(ref_: LuaRef) -> std::ffi::CString {
     fp.uf_varargs.set(1);
     fp.uf_flags.set(FC_LUAREF);
     fp.uf_calls.set(0);
-    fp.uf_script_ctx.set(g_st().current_sctx);
+    fp.uf_script_ctx.set(g_st().current_sctx.get());
     fp.uf_luaref.set(ref_);
 
     func_hashtab_add(&fp);

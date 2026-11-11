@@ -2763,7 +2763,9 @@ pub fn do_ecmd(
                     new_name = Some(f.to_owned());
                 }
                 let save_au_new_curbuf = g_st().au_new_curbuf.get();
-                set_bufref(&mut g_st().au_new_curbuf.get(), buf.opt_mut());
+                let mut new_curbuf = save_au_new_curbuf;
+                set_bufref(&mut new_curbuf, buf.opt_mut());
+                g_st().au_new_curbuf.set(new_curbuf);
                 apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
 
                 if !bufref_valid(Some(&g_st().au_new_curbuf.get())) {

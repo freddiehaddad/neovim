@@ -1066,8 +1066,8 @@ pub fn uc_add_command(
 
             if cmp == 0 {
                 if !force
-                    && (gap[i].uc_script_ctx.sc_sid != g_st().current_sctx.sc_sid
-                        || gap[i].uc_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
+                    && (gap[i].uc_script_ctx.sc_sid != g_st().current_sctx.get().sc_sid
+                        || gap[i].uc_script_ctx.sc_seq == g_st().current_sctx.get().sc_seq)
                 {
                     let name_cstr = CString::new(name_prefix).unwrap_or_default();
                     semsg!(
@@ -1108,7 +1108,7 @@ pub fn uc_add_command(
         cmd.uc_argt = argt;
         cmd.uc_def = def;
         cmd.uc_compl = context;
-        cmd.uc_script_ctx = g_st().current_sctx;
+        cmd.uc_script_ctx = g_st().current_sctx.get();
         cmd.uc_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&mut cmd.uc_script_ctx);
         cmd.uc_compl_arg = compl_arg;
@@ -1736,12 +1736,16 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     buf_vec.extend_from_slice(rem);
     buf_vec.push(0);
 
-    let mut save_current_sctx = g_st().current_sctx;
+    let mut save_current_sctx = g_st().current_sctx.get();
     let mut restore_current_sctx = false;
     if (uc_argt & EX_KEEPSCRIPT) == 0 {
         restore_current_sctx = true;
-        save_current_sctx = g_st().current_sctx;
-        g_st().current_sctx.sc_sid = uc_script_ctx.sc_sid;
+        save_current_sctx = g_st().current_sctx.get();
+        {
+            let mut v = g_st().current_sctx.get();
+            v.sc_sid = uc_script_ctx.sc_sid;
+            g_st().current_sctx.set(v);
+        }
     }
     do_cmdline(
         Some(crate::memory::bytes_as_cstr(&buf_vec)),
@@ -1750,7 +1754,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     );
 
     if restore_current_sctx {
-        g_st().current_sctx = save_current_sctx;
+        g_st().current_sctx.set(save_current_sctx);
     }
 
     0

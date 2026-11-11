@@ -4801,10 +4801,22 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
 
         if linecopy_vec[s_idx] != 0 {
             let secure_save = g_st().secure.get();
-            let save_current_sctx = g_st().current_sctx;
-            g_st().current_sctx.sc_sid = SID_MODELINE;
-            g_st().current_sctx.sc_seq = 0;
-            g_st().current_sctx.sc_lnum = lnum;
+            let save_current_sctx = g_st().current_sctx.get();
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_sid = SID_MODELINE;
+                g_st().current_sctx.set(v);
+            }
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_seq = 0;
+                g_st().current_sctx.set(v);
+            }
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_lnum = lnum;
+                g_st().current_sctx.set(v);
+            }
             g_st().secure.set(1);
 
             retval = do_set(
@@ -4813,7 +4825,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
             );
 
             g_st().secure.set(secure_save);
-            g_st().current_sctx = save_current_sctx;
+            g_st().current_sctx.set(save_current_sctx);
             if !retval {
                 break;
             }

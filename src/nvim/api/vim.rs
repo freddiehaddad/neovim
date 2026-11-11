@@ -476,7 +476,7 @@ pub fn nvim_set_hl(
     if !error_set(err) {
         let save_current_sctx = api_set_sctx(channel_id);
         ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
-        g_st().current_sctx = save_current_sctx;
+        g_st().current_sctx.set(save_current_sctx);
     }
 }
 

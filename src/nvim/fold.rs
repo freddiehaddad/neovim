@@ -1495,11 +1495,13 @@ pub fn get_foldtext(
 
         if !got_fdt_error {
             let save_curwin = curwin_ptr();
-            let saved_sctx = g_st().current_sctx;
+            let saved_sctx = g_st().current_sctx.get();
 
             set_curwin(&raw mut *wp);
             g_st().curbuf.set(wp.w_buffer.get());
-            g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get();
+            g_st()
+                .current_sctx
+                .set(wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get());
 
             g_st().emsg_off.set(g_st().emsg_off.get() + (1));
 
@@ -1525,7 +1527,7 @@ pub fn get_foldtext(
 
             set_curwin(save_curwin);
             g_st().curbuf.set(curwin_mut().w_buffer.get());
-            g_st().current_sctx = saved_sctx;
+            g_st().current_sctx.set(saved_sctx);
         }
         let _ = got_fdt_error;
         let wp_ptr = crate::globals::WinPtr::from(&mut *wp);

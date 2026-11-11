@@ -1040,7 +1040,7 @@ pub fn do_mouse(
         );
 
         if g_st().restart_edit.get() != 0 {
-            g_st().where_paste_started = curwin_mut().w_cursor;
+            g_st().where_paste_started.set(curwin_mut().w_cursor);
         }
         do_put(
             regname,

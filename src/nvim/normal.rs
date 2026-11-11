@@ -2372,13 +2372,13 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
     if !g_st().finish_op.get()
         && has_event(EVENT_CURSORMOVED)
         && (g_st().last_cursormoved_win.get() != curwin_ptr()
-            || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
+            || !equalpos(g_st().last_cursormoved.get(), curwin_mut().w_cursor))
     {
         apply_autocmds(EVENT_CURSORMOVED, None, None, false, curbuf_opt_mut());
         g_st()
             .last_cursormoved_win
             .set(crate::globals::curwin_ptr());
-        g_st().last_cursormoved = curwin_mut().w_cursor;
+        g_st().last_cursormoved.set(curwin_mut().w_cursor);
     }
 }
 
@@ -2761,7 +2761,9 @@ fn unshift_special(cap: &mut Cmdarg) {
         K_S_END => K_END,
         c => c,
     };
-    cap.cmdchar = simplify_key(cap.cmdchar, &mut g_st().mod_mask.get());
+    let mut mm = g_st().mod_mask.get();
+    cap.cmdchar = simplify_key(cap.cmdchar, &mut mm);
+    g_st().mod_mask.set(mm);
 }
 
 pub fn may_clear_cmdline() {

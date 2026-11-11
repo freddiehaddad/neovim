@@ -2149,12 +2149,20 @@ fn exe_pre_commands(parmp: &mut Mparm) {
 
     curwin_mut().w_cursor.lnum = 0;
     estack_push(ETYPE_ARGS, Some(gettext(c"pre-vimrc command line")), 0);
-    g_st().current_sctx.sc_sid = SID_CMDARG;
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_sid = SID_CMDARG;
+        g_st().current_sctx.set(v);
+    }
     for cmd in &parmp.pre_commands {
         do_cmdline_cmd(cmd);
     }
     estack_pop();
-    g_st().current_sctx.sc_sid = 0;
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_sid = 0;
+        g_st().current_sctx.set(v);
+    }
     time_msg_if_enabled(c"--cmd commands");
 }
 
@@ -2164,14 +2172,26 @@ fn exe_commands(parmp: &mut Mparm) {
         curwin_mut().w_cursor.lnum = 0;
     }
     estack_push(ETYPE_ARGS, Some(c"command line"), 0);
-    g_st().current_sctx.sc_sid = SID_CARG;
-    g_st().current_sctx.sc_seq = 0;
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_sid = SID_CARG;
+        g_st().current_sctx.set(v);
+    }
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_seq = 0;
+        g_st().current_sctx.set(v);
+    }
     let cmds = std::mem::take(&mut parmp.commands);
     for cmd in &cmds {
         do_cmdline_cmd(cmd);
     }
     estack_pop();
-    g_st().current_sctx.sc_sid = 0;
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_sid = 0;
+        g_st().current_sctx.set(v);
+    }
     if curwin_mut().w_cursor.lnum == 0 {
         curwin_mut().w_cursor.lnum = 1;
     }
@@ -2359,14 +2379,26 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
     };
 
     estack_push(ETYPE_ENV, Some(env), 0);
-    let save_current_sctx = g_st().current_sctx;
-    g_st().current_sctx.sc_sid = SID_ENV;
-    g_st().current_sctx.sc_seq = 0;
-    g_st().current_sctx.sc_lnum = 0;
+    let save_current_sctx = g_st().current_sctx.get();
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_sid = SID_ENV;
+        g_st().current_sctx.set(v);
+    }
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_seq = 0;
+        g_st().current_sctx.set(v);
+    }
+    {
+        let mut v = g_st().current_sctx.get();
+        v.sc_lnum = 0;
+        g_st().current_sctx.set(v);
+    }
     do_cmdline_cmd(&initstr);
 
     estack_pop();
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
 
     true
 }

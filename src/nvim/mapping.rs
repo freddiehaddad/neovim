@@ -737,7 +737,7 @@ fn map_add(
                 sc_chan: 0,
             }
         } else {
-            let mut ctx = g_st().current_sctx;
+            let mut ctx = g_st().current_sctx.get();
             ctx.sc_lnum += sourcing_lnum();
             nlua_set_sctx(&mut ctx);
             ctx
@@ -1043,7 +1043,7 @@ fn buf_do_map(
                                             mp.m_simplified = i32::from(keyround1_simplified);
                                             mp.m_expr = u8::from(args.expr);
                                             mp.m_replace_keycodes = args.replace_keycodes;
-                                            mp.m_script_ctx = g_st().current_sctx;
+                                            mp.m_script_ctx = g_st().current_sctx.get();
                                             mp.m_script_ctx.sc_lnum += sourcing_lnum();
                                             nlua_set_sctx(&mut mp.m_script_ctx);
                                             mp.m_desc = args.desc.clone();
@@ -3008,7 +3008,7 @@ pub fn modify_keymap(
         }
     }
 
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
     nlua_clear_ref(&mut parsed_args.rhs_lua);
 }
 

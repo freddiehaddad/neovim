@@ -454,8 +454,8 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-    if g_st().current_sctx.sc_sid > 0 {
-        with_script_item(g_st().current_sctx.sc_sid, |si| si.sn_pr_force)
+    if g_st().current_sctx.get().sc_sid > 0 {
+        with_script_item(g_st().current_sctx.get().sc_sid, |si| si.sn_pr_force)
     } else {
         false
     }
@@ -719,8 +719,8 @@ pub fn profile_init(si: &mut Scriptitem) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub fn script_prof_save(tm: &mut Proftime) {
     {
-        if script_id_valid(g_st().current_sctx.sc_sid) {
-            with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+        if script_id_valid(g_st().current_sctx.get().sc_sid) {
+            with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
                 if si.sn_prof_on {
                     let prev_nest = si.sn_pr_nest;
                     si.sn_pr_nest += 1;
@@ -738,11 +738,11 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-    if !script_id_valid(g_st().current_sctx.sc_sid) {
+    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
         return;
     }
 
-    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on {
             si.sn_pr_nest -= 1;
             if si.sn_pr_nest == 0 {
@@ -832,11 +832,11 @@ pub fn profile_dump() {
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-    if !script_id_valid(g_st().current_sctx.sc_sid) {
+    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
         return;
     }
     let slnum = sourcing_lnum();
-    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && slnum >= 1 {
             si.sn_prl_idx = slnum - 1;
             if si.sn_prl_ga.len() < slnum as usize {
@@ -859,10 +859,10 @@ pub fn script_line_start() {
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-    if !script_id_valid(g_st().current_sctx.sc_sid) {
+    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 {
             si.sn_prl_execed = 1;
         }
@@ -871,10 +871,10 @@ pub fn script_line_exec() {
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-    if !script_id_valid(g_st().current_sctx.sc_sid) {
+    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
             if si.sn_prl_execed != 0 {
                 let prl_idx = si.sn_prl_idx as usize;

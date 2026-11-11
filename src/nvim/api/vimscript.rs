@@ -142,7 +142,7 @@ pub fn exec_impl(
         g_st().redir_off.set(save_redir_off);
         g_st().msg_col.set(save_msg_col);
     }
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
     try_leave(&tstate, err);
 
     if !error_set(err) && opts.output && capture_local.len() > 1 {
@@ -285,7 +285,7 @@ fn call_function_impl(
         &mut vim_args,
         &mut funcexe,
     );
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
     try_leave(&tstate, err);
 
     if !error_set(err) {

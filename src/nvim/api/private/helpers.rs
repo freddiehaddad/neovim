@@ -269,7 +269,7 @@ pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
 pub fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
     let save_current_sctx = api_set_sctx(channel_id);
     f();
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
 }
 
 #[inline]
@@ -1391,16 +1391,32 @@ pub fn get_default_stl_hl(
 }
 
 pub fn api_set_sctx(channel_id: u64) -> Sctx {
-    let old_current_sctx = g_st().current_sctx;
+    let old_current_sctx = g_st().current_sctx.get();
     if channel_id != VIML_INTERNAL_CALL {
-        g_st().current_sctx.sc_lnum = 0;
+        {
+            let mut v = g_st().current_sctx.get();
+            v.sc_lnum = 0;
+            g_st().current_sctx.set(v);
+        }
         if channel_id == LUA_INTERNAL_CALL {
-            if !script_is_lua(g_st().current_sctx.sc_sid) {
-                g_st().current_sctx.sc_sid = SID_LUA;
+            if !script_is_lua(g_st().current_sctx.get().sc_sid) {
+                {
+                    let mut v = g_st().current_sctx.get();
+                    v.sc_sid = SID_LUA;
+                    g_st().current_sctx.set(v);
+                }
             }
         } else {
-            g_st().current_sctx.sc_sid = SID_API_CLIENT;
-            g_st().current_sctx.sc_chan = channel_id;
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_sid = SID_API_CLIENT;
+                g_st().current_sctx.set(v);
+            }
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_chan = channel_id;
+                g_st().current_sctx.set(v);
+            }
         }
     }
     old_current_sctx

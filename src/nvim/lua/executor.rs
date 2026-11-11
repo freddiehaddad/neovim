@@ -1484,7 +1484,7 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
             &mut funcexe,
         );
         try_leave(&tstate, &mut err);
-        g_st().current_sctx = save_current_sctx;
+        g_st().current_sctx.set(save_current_sctx);
 
         if !error_set(&err) {
             nlua_push_typval(lstate, &mut rettv, 0);

@@ -5353,7 +5353,7 @@ where
     let ccline = &*ccline_rc;
     let mut keep: u8 = 0;
     let mut args: [TypVal; 4] = [const { TypVal::new() }; 4];
-    let save_current_sctx = g_st().current_sctx;
+    let save_current_sctx = g_st().current_sctx.get();
 
     let Some(arg_cstr) = xp.xp_arg.as_deref().filter(|s| !s.to_bytes().is_empty()) else {
         return default;
@@ -5376,11 +5376,11 @@ where
     args[1].vval = crate::eval::typval::TypvalVval::from_opt_cstr(xp.xp_line.as_opt_cstr());
     args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from(xp.xp_col));
 
-    g_st().current_sctx = xp.xp_script_ctx;
+    g_st().current_sctx.set(xp.xp_script_ctx);
 
     let ret = user_expand_func(arg_cstr, 3, &mut args);
 
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
     if !ccline.cmdbuff_vec.borrow().is_empty() {
         ccline.cmdbuff_vec.borrow_mut()[ccline.cmdlen.get() as usize] = keep;
     }

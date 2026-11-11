@@ -1975,8 +1975,8 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
     } else if argvars[0].v_type != VarType::VarBlob
         && !(argvars[0].v_type == VarType::VarString
-            && (script_is_lua(g_st().current_sctx.sc_sid)
-                || g_st().current_sctx.sc_sid == SID_API_CLIENT))
+            && (script_is_lua(g_st().current_sctx.get().sc_sid)
+                || g_st().current_sctx.get().sc_sid == SID_API_CLIENT))
     {
         semsg!(
             gettext(E_INVARG2),

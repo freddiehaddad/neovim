@@ -435,7 +435,11 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
         && lnum <= curwin_mut().w_cursor.lnum
         && lnume + xtra.abs() > curwin_mut().w_cursor.lnum
     {
-        g_st().last_cursormoved.lnum = 0;
+        {
+            let mut v = g_st().last_cursormoved.get();
+            v.lnum = 0;
+            g_st().last_cursormoved.set(v);
+        }
     }
 }
 

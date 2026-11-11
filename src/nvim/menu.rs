@@ -1535,7 +1535,7 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
         } else if (get_real_state() & MODE_VISUAL) != 0 {
             idx = MENU_INDEX_VISUAL;
         } else if ((g_st().state_global.get() & MODE_INSERT) != 0 || g_st().restart_edit.get() != 0)
-            && g_st().current_sctx.sc_sid == 0
+            && g_st().current_sctx.get().sc_sid == 0
         {
             idx = MENU_INDEX_INSERT;
         } else if eap.addr_count != 0 {
@@ -1584,7 +1584,7 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
     if let Some(ref cmd_str) = menu.strings[u_idx]
         && (menu.modes & (1 << idx)) != 0
     {
-        if g_st().current_sctx.sc_sid != 0 {
+        if g_st().current_sctx.get().sc_sid != 0 {
             let mut save_state = SaveState::new();
             g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() + (1));
             save_current_state(&mut save_state);

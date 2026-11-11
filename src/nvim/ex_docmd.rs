@@ -9974,7 +9974,7 @@ fn ex_wrongmodifier(eap: &mut Exarg) {
 }
 
 fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::typval::ListId> {
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
 
     let mut args = [
         TypVal {
@@ -9997,13 +9997,13 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
     g_st().textlock.set(g_st().textlock.get() + (1));
 
     let ctx = get_option_sctx(K_OPT_FINDFUNC);
-    g_st().current_sctx = ctx;
+    g_st().current_sctx.set(ctx);
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();
     let retval = callback_call(cb, 2, &mut args, &mut rettv);
 
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
     g_st().textlock.set(g_st().textlock.get() - (1));
 
     let mut retlist: Option<crate::eval::typval::ListId> = None;
@@ -12250,7 +12250,7 @@ pub fn eval_vars(
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_SFLNUM => {
-                let sflnum = g_st().current_sctx.sc_lnum + sourcing_lnum();
+                let sflnum = g_st().current_sctx.get().sc_lnum + sourcing_lnum();
                 if sflnum == 0 {
                     *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM,
@@ -12261,11 +12261,11 @@ pub fn eval_vars(
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_SID => {
-                if g_st().current_sctx.sc_sid <= 0 {
+                if g_st().current_sctx.get().sc_sid <= 0 {
                     *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_USINGSID)));
                     return None;
                 }
-                let _ = format_to_buf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
+                let _ = format_to_buf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.get().sc_sid);
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             _ => {

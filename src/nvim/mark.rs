@@ -1481,14 +1481,10 @@ pub fn mark_adjust_buf(
             amount_after,
         );
 
-        if g_st().saved_cursor.lnum != 0 {
-            one_adjust_nodel(
-                &mut g_st().saved_cursor.lnum,
-                line1,
-                line2,
-                amount,
-                amount_after,
-            );
+        if g_st().saved_cursor.get().lnum != 0 {
+            let mut sc = g_st().saved_cursor.get();
+            one_adjust_nodel(&mut sc.lnum, line1, line2, amount, amount_after);
+            g_st().saved_cursor.set(sc);
         }
     }
 
@@ -1723,14 +1719,18 @@ pub fn mark_col_adjust(
         col_amount,
         spaces_removed,
     );
-    col_adjust(
-        &mut g_st().saved_cursor,
-        lnum,
-        mincol,
-        lnum_amount,
-        col_amount,
-        spaces_removed,
-    );
+    {
+        let mut sc = g_st().saved_cursor.get();
+        col_adjust(
+            &mut sc,
+            lnum,
+            mincol,
+            lnum_amount,
+            col_amount,
+            spaces_removed,
+        );
+        g_st().saved_cursor.set(sc);
+    }
 
     for win in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
         for i in 0..(win.w_jumplistlen.get() as usize) {

@@ -784,14 +784,14 @@ pub fn eval_charconvert(
     fname_from: &CStr,
     fname_to: &CStr,
 ) -> bool {
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
 
     set_vim_var_string(VV_CC_FROM, Some(enc_from), -1);
     set_vim_var_string(VV_CC_TO, Some(enc_to), -1);
     set_vim_var_string(VV_FNAME_IN, Some(fname_from), -1);
     set_vim_var_string(VV_FNAME_OUT, Some(fname_to), -1);
     let ctx = get_option_sctx(K_OPT_CHARCONVERT);
-    g_st().current_sctx = ctx;
+    g_st().current_sctx.set(ctx);
 
     let mut err = false;
     let mut tv: TypVal = TypVal::new();
@@ -809,19 +809,19 @@ pub fn eval_charconvert(
     set_vim_var_string(VV_CC_TO, None, -1);
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
 
     !err
 }
 
 pub fn eval_diff(origfile: &CStr, newfile: &CStr, outfile: &CStr) {
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
     set_vim_var_string(VV_FNAME_IN, Some(origfile), -1);
     set_vim_var_string(VV_FNAME_NEW, Some(newfile), -1);
     set_vim_var_string(VV_FNAME_OUT, Some(outfile), -1);
 
     let ctx = get_option_sctx(K_OPT_DIFFEXPR);
-    g_st().current_sctx = ctx;
+    g_st().current_sctx.set(ctx);
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -832,17 +832,17 @@ pub fn eval_diff(origfile: &CStr, newfile: &CStr, outfile: &CStr) {
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_NEW, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
 }
 
 pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
     set_vim_var_string(VV_FNAME_IN, Some(origfile), -1);
     set_vim_var_string(VV_FNAME_DIFF, Some(difffile), -1);
     set_vim_var_string(VV_FNAME_OUT, Some(outfile), -1);
 
     let ctx = get_option_sctx(K_OPT_PATCHEXPR);
-    g_st().current_sctx = ctx;
+    g_st().current_sctx.set(ctx);
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -853,7 +853,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_DIFF, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
 }
 
 /// Evaluate an expression to a list with suggestions.
@@ -862,7 +862,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     let mut rettv: TypVal = TypVal::new();
     let mut list = crate::eval::typval::ListId::NULL;
     let mut p = crate::charset::skipwhite(expr);
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
 
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_string(VV_VAL, Some(badword), -1);
@@ -870,7 +870,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
         g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     }
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
-    g_st().current_sctx = ctx;
+    g_st().current_sctx.set(ctx);
 
     let r = may_call_simple_func(p, &mut rettv)
         .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));
@@ -887,7 +887,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     }
     get_vim_var_tv(VV_VAL).clear_tv();
     restore_vimvar(VV_VAL, &mut save_val);
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
 
     if list.is_null() { None } else { Some(list) }
 }
@@ -948,9 +948,9 @@ fn list_vim_vars(first: &mut i32) {
 
 /// List script-local variables, if there is a script.
 fn list_script_vars(first: &mut i32) {
-    if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
+    if crate::runtime::script_id_valid(g_st().current_sctx.get().sc_sid) {
         list_hashtable_vars(
-            &script_vars_dict(g_st().current_sctx.sc_sid).dv_hashtab,
+            &script_vars_dict(g_st().current_sctx.get().sc_sid).dv_hashtab,
             c"s:",
             false as i32,
             &mut *first,
@@ -2692,7 +2692,7 @@ pub fn find_var_in_ht(
 ) -> Option<crate::eval::typval::DictitemId> {
     if varname_len == 0 {
         let id = match htname as u8 {
-            b's' => script_item_vars(g_st().current_sctx.sc_sid).0,
+            b's' => script_item_vars(g_st().current_sctx.get().sc_sid).0,
             b'g' => get_globvars_var(),
             b'v' => get_vimvars_var(),
             b'b' => curbuf_mut().b_bufvar.clone(),
@@ -2777,16 +2777,18 @@ fn find_var_ht_dict<'a>(
         b'v' => dict_ptr = get_vimvar_dict(),
         b'a' => dict_ptr = get_funccal_args_dict().unwrap_or(crate::eval::typval::DictId::NULL),
         b'l' => dict_ptr = get_funccal_local_dict().unwrap_or(crate::eval::typval::DictId::NULL),
-        b's' if (g_st().current_sctx.sc_sid > 0
-            || g_st().current_sctx.sc_sid == SID_STR
-            || g_st().current_sctx.sc_sid == SID_LUA)
-            && g_st().current_sctx.sc_sid <= crate::runtime::script_items_len() =>
+        b's' if (g_st().current_sctx.get().sc_sid > 0
+            || g_st().current_sctx.get().sc_sid == SID_STR
+            || g_st().current_sctx.get().sc_sid == SID_LUA)
+            && g_st().current_sctx.get().sc_sid <= crate::runtime::script_items_len() =>
         {
-            nlua_set_sctx(&mut g_st().current_sctx);
-            if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
-                new_script_item(None, &mut g_st().current_sctx.sc_sid);
+            let mut sctx = g_st().current_sctx.get();
+            nlua_set_sctx(&mut sctx);
+            if sctx.sc_sid == SID_STR || sctx.sc_sid == SID_LUA {
+                new_script_item(None, &mut sctx.sc_sid);
             }
-            dict_ptr = script_item_vars(g_st().current_sctx.sc_sid).1;
+            g_st().current_sctx.set(sctx);
+            dict_ptr = script_item_vars(sctx.sc_sid).1;
         }
         _ => {}
     }

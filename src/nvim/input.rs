@@ -3075,7 +3075,10 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
     }
 
     g_st().mapped_ctrl_c.set(save_mapped_ctrl_c);
-    merge_modifiers(n, &mut g_st().mod_mask.get())
+    let mut mm = g_st().mod_mask.get();
+    let res = merge_modifiers(n, &mut mm);
+    g_st().mod_mask.set(mm);
+    res
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.

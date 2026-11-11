@@ -396,8 +396,8 @@ fn insert_enter(s: &mut InsertState) {
         }
     }
 
-    if g_st().where_paste_started.lnum != 0 {
-        g_st().ins_global.start = g_st().where_paste_started;
+    if g_st().where_paste_started.get().lnum != 0 {
+        g_st().ins_global.start = g_st().where_paste_started.get();
     } else {
         g_st().ins_global.start = curwin_mut().w_cursor;
         if s.startln != 0 {
@@ -488,7 +488,7 @@ fn insert_enter(s: &mut InsertState) {
     g_st().ins_global.revins_scol = -1;
 
     if g_st().restart_edit.get() != 0 && stuff_empty() {
-        g_st().ins_global.moved = if g_st().where_paste_started.lnum == 0 {
+        g_st().ins_global.moved = if g_st().where_paste_started.get().lnum == 0 {
             K_INS_JUMP
         } else {
             K_INS_NONE
@@ -519,7 +519,11 @@ fn insert_enter(s: &mut InsertState) {
 
     g_st().need_start_insertmode.set(false);
     g_st().ins_global.need_undo = true;
-    g_st().where_paste_started.lnum = 0;
+    {
+        let mut v = g_st().where_paste_started.get();
+        v.lnum = 0;
+        g_st().where_paste_started.set(v);
+    }
     g_st().ins_global.can_cindent = true;
     if g_st().ins_global.did_restart_edit == 0 {
         fold_open_cursor();
@@ -1396,7 +1400,7 @@ pub fn ins_redraw(ready: bool) {
     if ready
         && has_event(EVENT_CURSORMOVEDI)
         && (g_st().last_cursormoved_win.get() != curwin_ptr()
-            || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
+            || !equalpos(g_st().last_cursormoved.get(), curwin_mut().w_cursor))
         && !pum_visible()
     {
         if syntax_present(curwin_mut()) && g_st().must_redraw.get() != 0 {
@@ -1407,7 +1411,7 @@ pub fn ins_redraw(ready: bool) {
         g_st()
             .last_cursormoved_win
             .set(crate::globals::curwin_ptr());
-        g_st().last_cursormoved = curwin_mut().w_cursor;
+        g_st().last_cursormoved.set(curwin_mut().w_cursor);
     }
 
     if ready
@@ -1755,7 +1759,9 @@ pub fn get_literal(no_simplify: bool) -> i32 {
     loop {
         nc = plain_vgetc();
         if !no_simplify {
-            nc = merge_modifiers(nc, &mut g_st().mod_mask.get());
+            let mut mm = g_st().mod_mask.get();
+            nc = merge_modifiers(nc, &mut mm);
+            g_st().mod_mask.set(mm);
         }
         if (g_st().mod_mask.get() & !MOD_MASK_SHIFT) != 0 {
             break;

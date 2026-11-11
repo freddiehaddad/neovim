@@ -990,7 +990,7 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: i32) {
         opt_idx,
         def_val.clone(),
         opt_flags,
-        g_st().current_sctx.sc_sid,
+        g_st().current_sctx.get().sc_sid,
     );
     optval_free_read(opt_idx, def_val);
 
@@ -5408,7 +5408,7 @@ fn did_set_option<'a>(
 
     if set_sid != SID_NONE {
         let script_ctx = if set_sid == 0 {
-            g_st().current_sctx
+            g_st().current_sctx.get()
         } else {
             Sctx {
                 sc_sid: set_sid,
@@ -8094,7 +8094,7 @@ pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
 
 fn didset_options_sctx(opt_flags: i32, opts: &[i32]) {
     for &opt_idx in opts {
-        set_option_sctx(opt_idx, opt_flags, g_st().current_sctx);
+        set_option_sctx(opt_idx, opt_flags, g_st().current_sctx.get());
     }
 }
 

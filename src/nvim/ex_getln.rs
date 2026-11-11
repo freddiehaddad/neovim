@@ -3317,7 +3317,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
 fn command_line_changed(s: &mut CommandLineState) -> i32 {
     let prev_cmdpreview = g_st().cmdpreview.get();
     if s.firstc == b':' as i32
-        && g_st().current_sctx.sc_sid == 0
+        && g_st().current_sctx.get().sc_sid == 0
         && !opt_vars().p_icm.is_empty()
         && g_st().cmdline_star.get() == 0
         && vpeekc_any() == 0

@@ -2742,13 +2742,17 @@ fn do_source_ext(
 
         save_funccal();
 
-        let save_current_sctx = g_st().current_sctx;
+        let save_current_sctx = g_st().current_sctx.get();
 
         RT_STATE.with(|s| {
             s.last_current_sid_seq
                 .set(s.last_current_sid_seq.get() + (1))
         });
-        g_st().current_sctx.sc_seq = RT_STATE.with(|s| s.last_current_sid_seq.get());
+        {
+            let mut v = g_st().current_sctx.get();
+            v.sc_seq = RT_STATE.with(|s| s.last_current_sid_seq.get());
+            g_st().current_sctx.set(v);
+        }
 
         if sid > 0 {
             has_si = true;
@@ -2763,9 +2767,17 @@ fn do_source_ext(
         }
         debug_assert_eq!(has_si, str_opt.is_none());
 
-        if str_opt.is_none() || !script_is_lua(g_st().current_sctx.sc_sid) {
-            g_st().current_sctx.sc_sid = sid;
-            g_st().current_sctx.sc_lnum = 0;
+        if str_opt.is_none() || !script_is_lua(g_st().current_sctx.get().sc_sid) {
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_sid = sid;
+                g_st().current_sctx.set(v);
+            }
+            {
+                let mut v = g_st().current_sctx.get();
+                v.sc_lnum = 0;
+                g_st().current_sctx.set(v);
+            }
         }
 
         let si_name = if has_si { script_item_name(sid) } else { None };
@@ -2868,7 +2880,7 @@ fn do_source_ext(
         retval = true;
 
         if l_do_profiling == PROF_YES && has_si {
-            with_script_item_mut(g_st().current_sctx.sc_sid, |si_mut| {
+            with_script_item_mut(g_st().current_sctx.get().sc_sid, |si_mut| {
                 if si_mut.sn_prof_on {
                     si_mut.sn_pr_start = profile_end(si_mut.sn_pr_start);
                     si_mut.sn_pr_start = profile_sub_wait(wait_start, si_mut.sn_pr_start);
@@ -2910,7 +2922,7 @@ fn do_source_ext(
                 .set(g_st().debug_break_level.get() + (1));
         }
 
-        g_st().current_sctx = save_current_sctx;
+        g_st().current_sctx.set(save_current_sctx);
         restore_funccal();
         if l_do_profiling == PROF_YES {
             prof_child_exit(&mut wait_start);

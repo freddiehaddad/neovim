@@ -141,7 +141,7 @@ pub struct EditorState {
     pub may_garbage_collect: std::cell::Cell<bool>,
     pub want_garbage_collect: std::cell::Cell<bool>,
     pub garbage_collect_at_exit: std::cell::Cell<bool>,
-    pub current_sctx: Sctx,
+    pub current_sctx: std::cell::Cell<Sctx>,
     pub current_ui: std::cell::Cell<u64>,
     pub did_source_packages: std::cell::Cell<bool>,
     pub provider_caller_scope: CallerScope,
@@ -191,10 +191,10 @@ pub struct EditorState {
     pub silent_mode: std::cell::Cell<bool>,
     pub exmode_active: std::cell::Cell<bool>,
     pub visual_global: VisualState,
-    pub where_paste_started: CursorPos,
+    pub where_paste_started: std::cell::Cell<CursorPos>,
     pub did_syncbind: std::cell::Cell<bool>,
     pub old_indent: std::cell::Cell<i32>,
-    pub saved_cursor: CursorPos,
+    pub saved_cursor: std::cell::Cell<CursorPos>,
     pub ins_global: InsState,
     pub orig_line_count: std::cell::Cell<Linenr>,
     pub vr_lines_changed: std::cell::Cell<i32>,
@@ -308,7 +308,7 @@ pub struct EditorState {
     pub window_handles: std::collections::BTreeMap<i32, WinPtr>,
     pub tabpage_handles: std::collections::BTreeMap<i32, TabpagePtr>,
     pub last_cursormoved_win: CloneCell<WinPtr>,
-    pub last_cursormoved: CursorPos,
+    pub last_cursormoved: std::cell::Cell<CursorPos>,
     pub autocmd_busy: std::cell::Cell<bool>,
     pub autocmd_no_enter: std::cell::Cell<i32>,
     pub autocmd_no_leave: std::cell::Cell<i32>,
@@ -479,12 +479,12 @@ impl EditorState {
             may_garbage_collect: std::cell::Cell::new(false),
             want_garbage_collect: std::cell::Cell::new(false),
             garbage_collect_at_exit: std::cell::Cell::new(false),
-            current_sctx: Sctx {
+            current_sctx: std::cell::Cell::new(Sctx {
                 sc_sid: 0,
                 sc_seq: 0,
                 sc_lnum: 0,
                 sc_chan: 0,
-            },
+            }),
             current_ui: std::cell::Cell::new(0),
             did_source_packages: std::cell::Cell::new(false),
             provider_caller_scope: CallerScope {
@@ -580,18 +580,18 @@ impl EditorState {
                     vcol: 0,
                 },
             },
-            where_paste_started: CursorPos {
+            where_paste_started: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
-            },
+            }),
             did_syncbind: std::cell::Cell::new(false),
             old_indent: std::cell::Cell::new(0),
-            saved_cursor: CursorPos {
+            saved_cursor: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
-            },
+            }),
             ins_global: InsState {
                 start: CursorPos {
                     lnum: 0,
@@ -737,11 +737,11 @@ impl EditorState {
             window_handles: std::collections::BTreeMap::new(),
             tabpage_handles: std::collections::BTreeMap::new(),
             last_cursormoved_win: CloneCell::new(WinPtr::NULL),
-            last_cursormoved: CursorPos {
+            last_cursormoved: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
-            },
+            }),
             autocmd_busy: std::cell::Cell::new(false),
             autocmd_no_enter: std::cell::Cell::new(0),
             autocmd_no_leave: std::cell::Cell::new(0),

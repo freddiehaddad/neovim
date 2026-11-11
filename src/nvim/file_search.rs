@@ -1402,13 +1402,15 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
     let ptr_cstr =
         std::ffi::CString::new(crate::memory::bytes_until_nul(ptr_slice)).unwrap_or_default();
     {
-        let save_sctx = g_st().current_sctx;
+        let save_sctx = g_st().current_sctx.get();
         set_vim_var_string(
             VV_FNAME,
             Some(&ptr_cstr),
             ptr_cstr.as_bytes().len() as isize,
         );
-        g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get();
+        g_st()
+            .current_sctx
+            .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get());
 
         let use_sandbox = was_set_insecurely(
             Some(crate::globals::curwin_mut()),
@@ -1424,7 +1426,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         }
 
         set_vim_var_string(VV_FNAME, None, 0);
-        g_st().current_sctx = save_sctx;
+        g_st().current_sctx.set(save_sctx);
         res
     }
 }

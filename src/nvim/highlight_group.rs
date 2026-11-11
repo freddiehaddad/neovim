@@ -976,7 +976,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
         None
     };
     let syn_attr = hl_get_syn_attr(0, id, attrs);
-    let mut sctx = g_st().current_sctx;
+    let mut sctx = g_st().current_sctx.get();
     sctx.sc_lnum += sourcing_lnum();
     nlua_set_sctx(&mut sctx);
 
@@ -1217,7 +1217,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 let sg_set = with_hl_group_mut((from_id - 1) as usize, |hlg| {
                     if dodefault && (forceit || hlg.sg_deflink == 0) {
                         hlg.sg_deflink = to_id;
-                        hlg.sg_deflink_sctx = g_st().current_sctx;
+                        hlg.sg_deflink_sctx = g_st().current_sctx.get();
                         hlg.sg_deflink_sctx.sc_lnum += sourcing_lnum();
                         nlua_set_sctx(&mut hlg.sg_deflink_sctx);
                     }
@@ -1232,14 +1232,14 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     } else {
                         with_hl_group_mut((from_id - 1) as usize, |hlg| {
                             if hlg.sg_link != to_id
-                                || hlg.sg_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                                || hlg.sg_script_ctx.sc_sid != g_st().current_sctx.get().sc_sid
                                 || hlg.sg_cleared
                             {
                                 if !init {
                                     hlg.sg_set |= SG_LINK;
                                 }
                                 hlg.sg_link = to_id;
-                                hlg.sg_script_ctx = g_st().current_sctx;
+                                hlg.sg_script_ctx = g_st().current_sctx.get();
                                 hlg.sg_script_ctx.sc_lnum += sourcing_lnum();
                                 nlua_set_sctx(&mut hlg.sg_script_ctx);
                                 hlg.sg_cleared = false;
@@ -1618,7 +1618,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         } else {
             set_hl_attr(idx);
         }
-        let mut sctx = g_st().current_sctx;
+        let mut sctx = g_st().current_sctx.get();
         sctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&mut sctx);
         let item_changed = with_hl_group_mut(idx as usize, |g| {

@@ -709,11 +709,19 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             changed_bytes(curwin_mut().w_cursor.lnum, 0);
         }
 
-        if g_st().saved_cursor.lnum == curwin_mut().w_cursor.lnum {
-            if g_st().saved_cursor.col >= old_offset {
-                g_st().saved_cursor.col += ind_len - old_offset;
-            } else if g_st().saved_cursor.col >= new_offset {
-                g_st().saved_cursor.col = new_offset;
+        if g_st().saved_cursor.get().lnum == curwin_mut().w_cursor.lnum {
+            if g_st().saved_cursor.get().col >= old_offset {
+                {
+                    let mut v = g_st().saved_cursor.get();
+                    v.col += ind_len - old_offset;
+                    g_st().saved_cursor.set(v);
+                }
+            } else if g_st().saved_cursor.get().col >= new_offset {
+                {
+                    let mut v = g_st().saved_cursor.get();
+                    v.col = new_offset;
+                    g_st().saved_cursor.set(v);
+                }
             }
         }
         retval = true;
@@ -1567,7 +1575,7 @@ pub fn get_expr_indent() -> i32 {
         K_OPT_INDENTEXPR,
         OPT_LOCAL,
     ) != 0;
-    let save_sctx = g_st().current_sctx;
+    let save_sctx = g_st().current_sctx.get();
 
     let save_pos = curwin_mut().w_cursor;
     let save_curswant = curwin_mut().w_curswant.get();
@@ -1575,12 +1583,14 @@ pub fn get_expr_indent() -> i32 {
     set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.lnum));
 
     g_st().textlock.set(g_st().textlock.get() + (1));
-    g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_INDENTEXPR].get();
+    g_st()
+        .current_sctx
+        .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INDENTEXPR].get());
 
     let mut indent = eval_expr_option_number(&mut curbuf_mut().b_p_inde, use_sandbox);
 
     g_st().textlock.set(g_st().textlock.get() - (1));
-    g_st().current_sctx = save_sctx;
+    g_st().current_sctx.set(save_sctx);
 
     let save_state = g_st().state_global.get();
     g_st().state_global.set(MODE_INSERT);

@@ -2341,7 +2341,7 @@ pub fn autocmd_register(
             g_st()
                 .last_cursormoved_win
                 .set(crate::globals::curwin_ptr());
-            g_st().last_cursormoved = curwin_mut().w_cursor;
+            g_st().last_cursormoved.set(curwin_mut().w_cursor);
         }
 
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
@@ -2377,7 +2377,7 @@ pub fn autocmd_register(
         callback_copy(&cb, handler_fn);
         ac.handler = AutoCmdHandler::Fn(cb);
     }
-    ac.script_ctx = g_st().current_sctx;
+    ac.script_ctx = g_st().current_sctx.get();
     let sourcing_lnum = if crate::runtime::estack_is_empty() {
         0
     } else {
@@ -2966,7 +2966,7 @@ pub fn apply_autocmds_group(
 
             estack_push(ETYPE_AUCMD, None, 0);
 
-            let save_current_sctx = g_st().current_sctx;
+            let save_current_sctx = g_st().current_sctx.get();
 
             if g_st().do_profiling.get() == PROF_YES {
                 prof_child_enter(&mut wait_time);
@@ -3080,7 +3080,7 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr.set(save_autocmd_bufnr);
             AU_STATE.with(|s| s.autocmd_winid.set(save_autocmd_winid));
             g_st().autocmd_match.set(save_autocmd_match);
-            g_st().current_sctx = save_current_sctx;
+            g_st().current_sctx.set(save_current_sctx);
             restore_funccal();
             if g_st().do_profiling.get() == PROF_YES {
                 prof_child_exit(&mut wait_time);
@@ -3381,8 +3381,8 @@ pub fn getnextac(
     }
 
     AU_STATE.with(|s| s.autocmd_nested.set(nested));
-    g_st().current_sctx = script_ctx;
-    apc.script_ctx.set(g_st().current_sctx);
+    g_st().current_sctx.set(script_ctx);
+    apc.script_ctx.set(g_st().current_sctx.get());
     let event = apc.event;
     drop(apc);
 

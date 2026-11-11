@@ -734,10 +734,14 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         }
     }
 
-    g_st().saved_cursor = pos;
+    g_st().saved_cursor.set(pos);
     format_lines(-1, false);
-    curwin_mut().w_cursor = g_st().saved_cursor;
-    g_st().saved_cursor.lnum = 0;
+    curwin_mut().w_cursor = g_st().saved_cursor.get();
+    {
+        let mut v = g_st().saved_cursor.get();
+        v.lnum = 0;
+        g_st().saved_cursor.set(v);
+    }
 
     if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get() {
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
@@ -829,7 +833,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     }
 
     if keep_cursor {
-        g_st().saved_cursor = oap.cursor_start;
+        g_st().saved_cursor.set(oap.cursor_start);
     }
 
     format_lines(oap.line_count, keep_cursor);
@@ -846,8 +850,12 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     }
 
     if keep_cursor {
-        curwin_mut().w_cursor = g_st().saved_cursor;
-        g_st().saved_cursor.lnum = 0;
+        curwin_mut().w_cursor = g_st().saved_cursor.get();
+        {
+            let mut v = g_st().saved_cursor.get();
+            v.lnum = 0;
+            g_st().saved_cursor.set(v);
+        }
         check_cursor(curwin_mut());
     }
 
@@ -884,18 +892,20 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
         K_OPT_FORMATEXPR,
         OPT_LOCAL,
     ) != 0;
-    let save_sctx = g_st().current_sctx;
+    let save_sctx = g_st().current_sctx.get();
 
     set_vim_var_nr(VV_LNUM, i64::from(lnum));
     set_vim_var_nr(VV_COUNT, count as _);
     set_vim_var_char(c);
 
-    g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get();
+    g_st()
+        .current_sctx
+        .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get());
 
     let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
 
     set_vim_var_string(VV_CHAR, None, -1);
-    g_st().current_sctx = save_sctx;
+    g_st().current_sctx.set(save_sctx);
 
     r
 }

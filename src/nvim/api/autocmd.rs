@@ -874,7 +874,7 @@ pub fn nvim_create_autocmd(
                     handler_cmd.as_deref(),
                     &mut handler_fn,
                 );
-                g_st().current_sctx = save_current_sctx;
+                g_st().current_sctx.set(save_current_sctx);
 
                 if !retval {
                     api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set autocmd",);
@@ -1019,7 +1019,7 @@ pub fn nvim_create_augroup(
     let augroup = augroup_add(augroup_name.as_cstr());
     if augroup == AUGROUP_ERROR {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set augroup",);
-        g_st().current_sctx = save_current_sctx;
+        g_st().current_sctx.set(save_current_sctx);
         return -1;
     }
 
@@ -1028,7 +1028,7 @@ pub fn nvim_create_augroup(
             aucmd_del_for_event_and_group(event as AuEvent, augroup);
         }
     }
-    g_st().current_sctx = save_current_sctx;
+    g_st().current_sctx.set(save_current_sctx);
 
     i64::from(augroup)
 }

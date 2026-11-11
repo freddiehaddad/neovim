@@ -939,10 +939,12 @@ pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut Ty
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
 pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
-    let saved_sctx = g_st().current_sctx;
+    let saved_sctx = g_st().current_sctx.get();
     let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
 
-    g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR].get();
+    g_st()
+        .current_sctx
+        .set(wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR].get());
 
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     if use_sandbox {
@@ -980,7 +982,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
         g_st().sandbox.set(g_st().sandbox.get() - (1));
     }
     g_st().textlock.set(g_st().textlock.get() - (1));
-    g_st().current_sctx = saved_sctx;
+    g_st().current_sctx.set(saved_sctx);
 
     retval as i32
 }
@@ -6581,7 +6583,7 @@ pub fn eval_call_provider(
     let name_len = format_to_buf!(&mut func, c"provider#%s#Call", provider);
 
     let new_scope = CallerScope {
-        script_ctx: g_st().current_sctx,
+        script_ctx: g_st().current_sctx.get(),
         es_entry: crate::runtime::estack_top_clone(),
         autocmd_fname: g_st().autocmd_fname.get().clone(),
         autocmd_match: g_st().autocmd_match.get().clone(),
