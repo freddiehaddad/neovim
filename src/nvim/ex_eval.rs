@@ -751,22 +751,23 @@ pub fn ex_eval(eap: &mut Exarg) {
 }
 
 pub fn ex_if(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
-
-    if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
+    if eap.cstack_mut().cs_idx == (CSTACK_LEN - 1) as i32 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E579: :if nesting too deep",
         )));
     } else {
-        cstack.cs_idx += 1;
-        let idx = cstack.cs_idx as usize;
-        cstack.cs_flags[idx] = 0;
-
-        let skip = check_skip(&*cstack);
+        let (idx, skip) = {
+            let cstack = eap.cstack_mut();
+            cstack.cs_idx += 1;
+            let idx = cstack.cs_idx as usize;
+            cstack.cs_flags[idx] = 0;
+            (idx, check_skip(&*cstack))
+        };
         let mut error = false;
         let arg = eap.arg.to_cstring();
         let result = eval_to_bool(&arg, &mut error, eap, skip, false);
 
+        let cstack = eap.cstack_mut();
         if !skip && !error {
             if result {
                 cstack.cs_flags[idx] = CSF_ACTIVE | CSF_TRUE;
@@ -788,18 +789,17 @@ pub fn ex_endif(eap: &mut Exarg) {
         )));
     } else {
         if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) == 0 && dbg_check_skipped(eap) {
-            do_intthrow(cstack);
+            do_intthrow(eap.cstack_mut());
         }
-        cstack.cs_idx -= 1;
+        eap.cstack_mut().cs_idx -= 1;
     }
 }
 
 pub fn ex_else(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
-    let mut skip = check_skip(&*cstack);
-
-    if cstack.cs_idx < 0
-        || (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
+    let mut skip = check_skip(eap.cstack_mut());
+    let cs_idx = eap.cstack_mut().cs_idx;
+    if cs_idx < 0
+        || (eap.cstack_mut().cs_flags[cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
     {
         if eap.cmdidx == Cmdidx::CmdElse {
             eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
@@ -811,7 +811,7 @@ pub fn ex_else(eap: &mut Exarg) {
             c"E582: :elseif without :if",
         )));
         skip = true;
-    } else if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ELSE) != 0 {
+    } else if (eap.cstack_mut().cs_flags[cs_idx as usize] & CSF_ELSE) != 0 {
         if eap.cmdidx == Cmdidx::CmdElse {
             eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_MULTIPLE_ELSE)));
             return;
@@ -822,18 +822,18 @@ pub fn ex_else(eap: &mut Exarg) {
         skip = true;
     }
 
-    let idx = cstack.cs_idx as usize;
-    if skip || (cstack.cs_flags[idx] & CSF_TRUE) != 0 {
+    let idx = cs_idx as usize;
+    if skip || (eap.cstack_mut().cs_flags[idx] & CSF_TRUE) != 0 {
         if eap.errmsg.is_none() {
-            cstack.cs_flags[idx] = CSF_TRUE;
+            eap.cstack_mut().cs_flags[idx] = CSF_TRUE;
         }
         skip = true;
     } else {
-        cstack.cs_flags[idx] = CSF_ACTIVE;
+        eap.cstack_mut().cs_flags[idx] = CSF_ACTIVE;
     }
 
     if !skip && dbg_check_skipped(eap) && g_st().got_int {
-        do_intthrow(cstack);
+        do_intthrow(eap.cstack_mut());
         skip = true;
     }
 
@@ -850,53 +850,57 @@ pub fn ex_else(eap: &mut Exarg) {
 
         if !skip && !error {
             if result {
-                cstack.cs_flags[idx] = CSF_ACTIVE | CSF_TRUE;
+                eap.cstack_mut().cs_flags[idx] = CSF_ACTIVE | CSF_TRUE;
             } else {
-                cstack.cs_flags[idx] = 0;
+                eap.cstack_mut().cs_flags[idx] = 0;
             }
         } else if eap.errmsg.is_none() {
-            cstack.cs_flags[idx] = CSF_TRUE;
+            eap.cstack_mut().cs_flags[idx] = CSF_TRUE;
         }
     } else {
-        cstack.cs_flags[idx] |= CSF_ELSE;
+        eap.cstack_mut().cs_flags[idx] |= CSF_ELSE;
     }
 }
 
 pub fn ex_while(eap: &mut Exarg) {
     let mut error = false;
-    let cstack = eap.cstack_mut();
+    let is_while = eap.cmdidx == Cmdidx::CmdWhile;
 
-    if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
+    if eap.cstack_mut().cs_idx == (CSTACK_LEN - 1) as i32 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E585: :while/:for nesting too deep",
         )));
     } else {
-        if (cstack.cs_lflags & CSL_HAD_LOOP) == 0 {
-            cstack.cs_idx += 1;
-            cstack.cs_looplevel += 1;
-            cstack.cs_line[cstack.cs_idx as usize] = -1;
-        }
-        let idx = cstack.cs_idx as usize;
-        cstack.cs_flags[idx] = if eap.cmdidx == Cmdidx::CmdWhile {
-            CSF_WHILE
-        } else {
-            CSF_FOR
+        let (idx, skip, had_loop) = {
+            let cstack = eap.cstack_mut();
+            if (cstack.cs_lflags & CSL_HAD_LOOP) == 0 {
+                cstack.cs_idx += 1;
+                cstack.cs_looplevel += 1;
+                cstack.cs_line[cstack.cs_idx as usize] = -1;
+            }
+            let idx = cstack.cs_idx as usize;
+            cstack.cs_flags[idx] = if is_while { CSF_WHILE } else { CSF_FOR };
+            (
+                idx,
+                check_skip(&*cstack),
+                (cstack.cs_lflags & CSL_HAD_LOOP) != 0,
+            )
         };
 
-        let skip = check_skip(&*cstack);
         let arg = eap.arg.to_cstring();
-        let result = if eap.cmdidx == Cmdidx::CmdWhile {
+        let result = if is_while {
             eval_to_bool(&arg, &mut error, eap, skip, false)
         } else {
             let mut evalarg = Evalarg::new();
             fill_evalarg_from_eap(&mut evalarg, skip);
-            if (cstack.cs_lflags & CSL_HAD_LOOP) != 0 {
+            if had_loop {
                 error = false;
             } else {
                 let fi = eval_for_line(&arg, &mut error, eap, &mut evalarg);
-                (&mut cstack.cs_forinfo)[idx] = Some(fi);
+                (&mut eap.cstack_mut().cs_forinfo)[idx] = Some(fi);
             }
 
+            let cstack = eap.cstack_mut();
             let res = if !error && !skip {
                 if let Some(fi) = (&mut cstack.cs_forinfo)[idx].as_deref_mut() {
                     next_for_item(fi, &arg)
@@ -913,6 +917,7 @@ pub fn ex_while(eap: &mut Exarg) {
             res
         };
 
+        let cstack = eap.cstack_mut();
         if !skip && !error && result {
             cstack.cs_flags[idx] |= CSF_ACTIVE | CSF_TRUE;
             cstack.cs_lflags ^= CSL_HAD_LOOP;
@@ -926,13 +931,12 @@ pub fn ex_while(eap: &mut Exarg) {
 }
 
 pub fn ex_continue(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
-
-    if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
+    if eap.cstack_mut().cs_looplevel <= 0 || eap.cstack_mut().cs_idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E586: :continue without :while or :for",
         )));
     } else {
+        let cstack = eap.cstack_mut();
         let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, false);
         assert!(idx >= 0);
         if (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) != 0 {
@@ -948,13 +952,12 @@ pub fn ex_continue(eap: &mut Exarg) {
 }
 
 pub fn ex_break(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
-
-    if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
+    if eap.cstack_mut().cs_looplevel <= 0 || eap.cstack_mut().cs_idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E587: :break without :while or :for",
         )));
     } else {
+        let cstack = eap.cstack_mut();
         let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, true);
         if idx >= 0 && (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
             cstack.cs_pending[idx as usize] = CSTP_BREAK as u8;
@@ -964,17 +967,16 @@ pub fn ex_break(eap: &mut Exarg) {
 }
 
 pub fn ex_endwhile(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
     let (err, csf) = if eap.cmdidx == Cmdidx::CmdEndwhile {
         (E_WHILE, CSF_WHILE)
     } else {
         (E_FOR, CSF_FOR)
     };
 
-    if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
+    if eap.cstack().cs_looplevel <= 0 || eap.cstack().cs_idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(err)));
     } else {
-        let mut fl = cstack.cs_flags[cstack.cs_idx as usize];
+        let mut fl = eap.cstack().cs_flags[eap.cstack().cs_idx as usize];
         if (fl & csf) == 0 {
             if (fl & CSF_WHILE) != 0 {
                 eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
@@ -992,9 +994,9 @@ pub fn ex_endwhile(eap: &mut Exarg) {
             } else if (fl & CSF_FINALLY) != 0 {
                 eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_ENDTRY)));
             }
-            let mut idx = cstack.cs_idx;
+            let mut idx = eap.cstack().cs_idx;
             while idx > 0 {
-                fl = cstack.cs_flags[idx as usize];
+                fl = eap.cstack().cs_flags[idx as usize];
                 if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
                     eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(err)));
                     return;
@@ -1004,18 +1006,19 @@ pub fn ex_endwhile(eap: &mut Exarg) {
                 }
                 idx -= 1;
             }
+            let cstack = eap.cstack_mut();
             cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, false);
             let mut trylevel = cstack.cs_trylevel;
             rewind_conditionals(cstack, idx, CSF_TRY, &mut trylevel);
             cstack.cs_trylevel = trylevel;
-        } else if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) != 0
-            && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ACTIVE) == 0
+        } else if (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRUE) != 0
+            && (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_ACTIVE) == 0
             && dbg_check_skipped(eap)
         {
-            do_intthrow(cstack);
+            do_intthrow(eap.cstack_mut());
         }
 
-        cstack.cs_lflags |= CSL_HAD_ENDLOOP;
+        eap.cstack_mut().cs_lflags |= CSL_HAD_ENDLOOP;
     }
 }
 
@@ -1055,13 +1058,12 @@ pub fn do_throw(cstack: &mut Cstack) {
 }
 
 pub fn ex_try(eap: &mut Exarg) {
-    let cstack = eap.cstack_mut();
-
-    if cstack.cs_idx == (CSTACK_LEN - 1) as i32 {
+    if eap.cstack_mut().cs_idx == (CSTACK_LEN - 1) as i32 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E601: :try nesting too deep",
         )));
     } else {
+        let cstack = eap.cstack_mut();
         cstack.cs_idx += 1;
         cstack.cs_trylevel += 1;
         let idx = cstack.cs_idx as usize;
@@ -1085,31 +1087,32 @@ pub fn ex_catch(eap: &mut Exarg) {
     let mut idx: i32 = 0;
     let mut give_up = false;
     let mut skip = false;
-    let cstack = eap.cstack_mut();
 
-    if cstack.cs_trylevel <= 0 || cstack.cs_idx < 0 {
+    if eap.cstack().cs_trylevel <= 0 || eap.cstack().cs_idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E603: :catch without :try",
         )));
         give_up = true;
     } else {
-        if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-            eap.errmsg = Some(std::borrow::Cow::Borrowed(get_end_emsg(&*cstack)));
+        if (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRY) == 0 {
+            let msg = get_end_emsg(eap.cstack());
+            eap.errmsg = Some(std::borrow::Cow::Borrowed(msg));
             skip = true;
         }
-        idx = cstack.cs_idx;
+        idx = eap.cstack().cs_idx;
         while idx > 0 {
-            if (cstack.cs_flags[idx as usize] & CSF_TRY) != 0 {
+            if (eap.cstack().cs_flags[idx as usize] & CSF_TRY) != 0 {
                 break;
             }
             idx -= 1;
         }
-        if (cstack.cs_flags[idx as usize] & CSF_FINALLY) != 0 {
+        if (eap.cstack().cs_flags[idx as usize] & CSF_FINALLY) != 0 {
             eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
                 c"E604: :catch after :finally",
             )));
             give_up = true;
         } else {
+            let cstack = eap.cstack_mut();
             let mut looplevel = cstack.cs_looplevel;
             rewind_conditionals(cstack, idx, CSF_WHILE | CSF_FOR, &mut looplevel);
             cstack.cs_looplevel = looplevel;
@@ -1132,13 +1135,13 @@ pub fn ex_catch(eap: &mut Exarg) {
     if !give_up {
         let mut caught = false;
         let u_idx = idx as usize;
-        if !g_st().did_throw || (cstack.cs_flags[u_idx] & CSF_TRUE) == 0 {
+        if !g_st().did_throw || (eap.cstack_mut().cs_flags[u_idx] & CSF_TRUE) == 0 {
             skip = true;
         }
 
         if !skip
-            && (cstack.cs_flags[u_idx] & CSF_THROWN) != 0
-            && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
+            && (eap.cstack_mut().cs_flags[u_idx] & CSF_THROWN) != 0
+            && (eap.cstack_mut().cs_flags[u_idx] & CSF_CAUGHT) == 0
         {
             if let Some(ref end_slice) = end
                 && !end_slice.is_empty()
@@ -1153,7 +1156,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 return;
             }
 
-            if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
+            if !dbg_check_skipped(eap) || !do_intthrow(eap.cstack_mut()) {
                 let pat_cstr = if let Some(ref end_slice) = end {
                     let pat_len = end_slice.offset_from(&pat);
                     Some(crate::memory::bytes_to_cstring(pat.slice(pat_len)))
@@ -1187,6 +1190,7 @@ pub fn ex_catch(eap: &mut Exarg) {
             }
         }
 
+        let cstack = eap.cstack_mut();
         if caught {
             cstack.cs_flags[u_idx] |= CSF_ACTIVE | CSF_CAUGHT;
             g_st().did_emsg = 0;
@@ -1219,43 +1223,44 @@ pub fn ex_catch(eap: &mut Exarg) {
 
 pub fn ex_finally(eap: &mut Exarg) {
     let mut pending = CSTP_NONE;
-    let cstack = eap.cstack_mut();
 
-    let mut idx = cstack.cs_idx;
+    let mut idx = eap.cstack_mut().cs_idx;
     while idx >= 0 {
-        if (cstack.cs_flags[idx as usize] & CSF_TRY) != 0 {
+        if (eap.cstack_mut().cs_flags[idx as usize] & CSF_TRY) != 0 {
             break;
         }
         idx -= 1;
     }
-    if cstack.cs_trylevel <= 0 || idx < 0 {
+    if eap.cstack_mut().cs_trylevel <= 0 || idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E606: :finally without :try",
         )));
         return;
     }
 
-    if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = Some(std::borrow::Cow::Borrowed(get_end_emsg(&*cstack)));
+    if (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRY) == 0 {
+        let msg = get_end_emsg(eap.cstack());
+        eap.errmsg = Some(std::borrow::Cow::Borrowed(msg));
         pending = CSTP_ERROR;
     }
 
-    if (cstack.cs_flags[idx as usize] & CSF_FINALLY) != 0 {
+    if (eap.cstack_mut().cs_flags[idx as usize] & CSF_FINALLY) != 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_MULTIPLE_FINALLY)));
         return;
     }
-    let mut looplevel = cstack.cs_looplevel;
-    rewind_conditionals(cstack, idx, CSF_WHILE | CSF_FOR, &mut looplevel);
-    cstack.cs_looplevel = looplevel;
+    let mut looplevel = eap.cstack_mut().cs_looplevel;
+    rewind_conditionals(eap.cstack_mut(), idx, CSF_WHILE | CSF_FOR, &mut looplevel);
+    eap.cstack_mut().cs_looplevel = looplevel;
 
-    let cur_idx = cstack.cs_idx as usize;
-    let skip = (cstack.cs_flags[cur_idx] & CSF_TRUE) == 0;
+    let cur_idx = eap.cstack_mut().cs_idx as usize;
+    let skip = (eap.cstack_mut().cs_flags[cur_idx] & CSF_TRUE) == 0;
 
     if !skip {
         if dbg_check_skipped(eap) {
-            do_intthrow(cstack);
+            do_intthrow(eap.cstack_mut());
         }
 
+        let cstack = eap.cstack_mut();
         cleanup_conditionals(&mut *cstack, CSF_TRY, false);
 
         let cur_idx = cstack.cs_idx as usize;
@@ -1300,16 +1305,15 @@ pub fn ex_endtry(eap: &mut Exarg) {
     let mut rethrow = false;
     let mut pending: i32 = CSTP_NONE;
     let mut rettv: Option<TypVal> = None;
-    let cstack = eap.cstack_mut();
 
-    let mut idx = cstack.cs_idx;
+    let mut idx = eap.cstack_mut().cs_idx;
     while idx >= 0 {
-        if (cstack.cs_flags[idx as usize] & CSF_TRY) != 0 {
+        if (eap.cstack_mut().cs_flags[idx as usize] & CSF_TRY) != 0 {
             break;
         }
         idx -= 1;
     }
-    if cstack.cs_trylevel <= 0 || idx < 0 {
+    if eap.cstack_mut().cs_trylevel <= 0 || idx < 0 {
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E602: :endtry without :try",
         )));
@@ -1319,10 +1323,12 @@ pub fn ex_endtry(eap: &mut Exarg) {
     let mut skip = g_st().did_emsg != 0
         || g_st().got_int
         || g_st().did_throw
-        || (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRUE) == 0;
+        || (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRUE) == 0;
 
-    if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) == 0 {
-        eap.errmsg = Some(std::borrow::Cow::Borrowed(get_end_emsg(&*cstack)));
+    if (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRY) == 0 {
+        let msg = get_end_emsg(eap.cstack());
+        eap.errmsg = Some(std::borrow::Cow::Borrowed(msg));
+        let cstack = eap.cstack_mut();
         let mut looplevel = cstack.cs_looplevel;
         rewind_conditionals(cstack, idx, CSF_WHILE | CSF_FOR, &mut looplevel);
         cstack.cs_looplevel = looplevel;
@@ -1334,10 +1340,10 @@ pub fn ex_endtry(eap: &mut Exarg) {
 
         g_st().did_emsg = 0;
     } else {
-        idx = cstack.cs_idx;
+        idx = eap.cstack_mut().cs_idx;
         if g_st().did_throw
-            && (cstack.cs_flags[idx as usize] & CSF_TRUE) != 0
-            && (cstack.cs_flags[idx as usize] & CSF_FINALLY) == 0
+            && (eap.cstack_mut().cs_flags[idx as usize] & CSF_TRUE) != 0
+            && (eap.cstack_mut().cs_flags[idx as usize] & CSF_FINALLY) == 0
         {
             rethrow = true;
         }
@@ -1345,31 +1351,37 @@ pub fn ex_endtry(eap: &mut Exarg) {
 
     let u_idx = idx as usize;
     if (rethrow
-        || (!skip && (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0 && cstack.cs_pending[u_idx] == 0))
+        || (!skip
+            && (eap.cstack_mut().cs_flags[u_idx] & CSF_FINALLY) == 0
+            && eap.cstack_mut().cs_pending[u_idx] == 0))
         && dbg_check_skipped(eap)
         && g_st().got_int
     {
         skip = true;
+        let cstack = eap.cstack_mut();
         do_intthrow(cstack);
         rethrow = g_st().did_throw && (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0;
     }
 
-    if !skip {
-        pending = i32::from(cstack.cs_pending[u_idx]);
-        cstack.cs_pending[u_idx] = CSTP_NONE as u8;
-        if pending == CSTP_RETURN {
-            rettv = (&mut cstack.cs_rettv)[u_idx].take();
-        } else if (pending & CSTP_THROW) != 0 {
-            g_st().current_exception = (&mut cstack.cs_exception)[u_idx].take();
+    {
+        let cstack = eap.cstack_mut();
+        if !skip {
+            pending = i32::from(cstack.cs_pending[u_idx]);
+            cstack.cs_pending[u_idx] = CSTP_NONE as u8;
+            if pending == CSTP_RETURN {
+                rettv = (&mut cstack.cs_rettv)[u_idx].take();
+            } else if (pending & CSTP_THROW) != 0 {
+                g_st().current_exception = (&mut cstack.cs_exception)[u_idx].take();
+            }
         }
-    }
 
-    cleanup_conditionals(&mut *cstack, CSF_TRY | CSF_SILENT, true);
+        cleanup_conditionals(&mut *cstack, CSF_TRY | CSF_SILENT, true);
 
-    if cstack.cs_idx >= 0 && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) != 0 {
-        cstack.cs_idx -= 1;
+        if cstack.cs_idx >= 0 && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) != 0 {
+            cstack.cs_idx -= 1;
+        }
+        cstack.cs_trylevel -= 1;
     }
-    cstack.cs_trylevel -= 1;
 
     if !skip {
         let report_val = if pending == CSTP_RETURN {
@@ -1403,7 +1415,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
     }
 
     if rethrow {
-        do_throw(cstack);
+        do_throw(eap.cstack_mut());
     }
 }
 

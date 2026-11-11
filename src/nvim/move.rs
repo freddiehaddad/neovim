@@ -40,7 +40,7 @@ use crate::plines::{
     win_get_fill, win_may_fill,
 };
 use crate::strings::tr;
-use crate::textformat::Oparg;
+
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
 
@@ -2422,9 +2422,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
     let prev_col = curwin_mut().w_cursor.col;
     let prev_curswant = curwin_mut().w_curswant;
     let prev_lnum = curwin_mut().w_cursor.lnum;
-    let mut oa = Oparg::new();
     let mut ca = Cmdarg::new();
-    ca.oap = crate::globals::GraphPtr::from(&mut oa);
 
     if half {
         if count != 0 {
@@ -2462,7 +2460,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
         }
 
         if curwin_mut().w_onebuf_opt.wo_wrap {
-            nv_screengo(&mut oa, dir, curscount, true);
+            nv_screengo(&mut ca.oap, dir, curscount, true);
         } else if dir == FORWARD {
             cursor_down_inner(curwin_mut(), curscount, true);
         } else {

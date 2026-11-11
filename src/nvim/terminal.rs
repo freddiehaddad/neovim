@@ -94,7 +94,6 @@ use crate::state::{
     state_handle_k_event,
 };
 use crate::strings::format_to_buf;
-use crate::textformat::Oparg;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
@@ -2149,8 +2148,6 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
             g_st().curbuf = curwin_mut().w_buffer;
 
             let mut cap = Cmdarg::new();
-            let mut oa = Oparg::new();
-            cap.oap = crate::globals::GraphPtr::from(&mut oa);
             cap.cmdchar = c;
             cap.arg = match c {
                 K_MOUSEUP => MSCR_UP,

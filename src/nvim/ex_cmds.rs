@@ -3172,16 +3172,10 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
     } else {
         let getline_state = g_st().state_global;
         g_st().state_global = MODE_CMDLINE;
-        let cstack = eap.cstack_mut();
-        let raw_line = eap.ea_getline.call(
-            if cstack.cs_looplevel > 0 {
-                -1
-            } else {
-                NUL as i32
-            },
-            indent,
-            true,
-        );
+        let looplevel = eap.cstack().cs_looplevel;
+        let raw_line =
+            eap.ea_getline
+                .call(if looplevel > 0 { -1 } else { NUL as i32 }, indent, true);
         g_st().state_global = getline_state;
         raw_line.map(std::ffi::CString::into_bytes_with_nul)
     }

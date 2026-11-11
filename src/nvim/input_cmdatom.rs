@@ -62,7 +62,7 @@ use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, NUMBUFLEN};
 
 #[derive(Clone)]
 pub struct Cmdarg {
-    pub oap: crate::globals::GraphPtr<Oparg>,
+    pub oap: Oparg,
     pub cmdchar: i32,
     pub nchar: i32,
     pub nchar_composing: [u8; MAX_SCHAR_SIZE],
@@ -79,7 +79,7 @@ pub struct Cmdarg {
 impl Cmdarg {
     pub const fn new() -> Self {
         Self {
-            oap: crate::globals::GraphPtr::NULL,
+            oap: Oparg::new(),
             cmdchar: 0,
             nchar: 0,
             nchar_composing: [0; MAX_SCHAR_SIZE],
@@ -97,11 +97,6 @@ impl Cmdarg {
     #[inline]
     pub fn searchbuf_cstr(&self) -> Option<&CStr> {
         self.searchbuf.as_deref()
-    }
-
-    #[inline]
-    pub fn oap_mut(&self) -> &'static mut Oparg {
-        self.oap.borrow_mut()
     }
 }
 
@@ -480,7 +475,7 @@ pub fn atom_free_all() {
 pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
     let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
     CmdSpec {
-        regname: cap.oap_mut().regname,
+        regname: cap.oap.regname,
         count: i64::from(cap.count0),
         cmd: cap.cmdchar,
         cmd2: if operand { NUL } else { cap.nchar },
@@ -1525,7 +1520,8 @@ pub fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
     atom_visual_end_suffix(Some(suffix), Some(&spec), redoable)
 }
 
-pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
+pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
+    let oap = &cap.oap;
     let redoable = op_redoable(oap.op_type, redo_yank);
     let ins_op = oap.op_type == OP_CHANGE || oap.op_type == OP_INSERT || oap.op_type == OP_APPEND;
     let payload_motion =
@@ -1934,13 +1930,13 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
 
     if (vis
         && with_atom(|st| st.vatom.frame.get() <= old_id && st.atom_captures.get() == old_captures)
-        && ca.oap_mut().op_type == OP_NOP)
+        && ca.oap.op_type == OP_NOP)
         || (!g_st().visual_global.active
             && !old_visual.active
             && atom_capturable(old_consumers, old_keytyped)
             && with_atom(|st| st.atom_captures.get() == old_captures)
             && !atom_staged()
-            && ca.oap_mut().op_type == OP_NOP
+            && ca.oap.op_type == OP_NOP
             && stuff_empty()
             && !ins_cascaded)
     {
@@ -2074,10 +2070,7 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
         mc_clock_edge(map_edit, map_moved, comp_follow);
 
         with_atom(|st| st.map_edit.set(false));
-        if ca.oap_mut().op_type == OP_NOP
-            && !g_st().visual_global.active
-            && g_st().restart_edit == 0
-        {
+        if ca.oap.op_type == OP_NOP && !g_st().visual_global.active && g_st().restart_edit == 0 {
             atom_composite_end();
             with_atom(|st| st.composite.open.set(false));
         }

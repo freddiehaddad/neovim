@@ -669,11 +669,12 @@ fn pum_compute_text_attrs(
         return None;
     }
 
-    let leader = if (g_st().state_global & MODE_CMDLINE) != 0 {
-        cmdline_compl_pattern()
-    } else {
-        ins_compl_leader()
-    };
+    let leader: Option<std::borrow::Cow<'_, std::ffi::CStr>> =
+        if (g_st().state_global & MODE_CMDLINE) != 0 {
+            cmdline_compl_pattern().map(std::borrow::Cow::Owned)
+        } else {
+            ins_compl_leader().map(std::borrow::Cow::Borrowed)
+        };
     let leader = leader.filter(|s| !s.is_empty())?;
 
     let in_fuzzy = if (g_st().state_global & MODE_CMDLINE) != 0 {

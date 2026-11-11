@@ -3481,7 +3481,8 @@ pub fn op_self_select(cap: &Cmdarg) -> bool {
         && (cap.nchar == b'n' as i32 || cap.nchar == b'N' as i32 || cap.nchar == b'v' as i32)
 }
 
-fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
+fn op_ins_visual(cap: &Cmdarg) -> VisualIns {
+    let oap = &cap.oap;
     if !oap.is_visual {
         return K_VINS_NONE;
     }
@@ -3502,18 +3503,18 @@ fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
 }
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
-    let oap = cap.oap_mut();
     let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr;
 
     let old_cursor = curwin_mut().w_cursor;
-    let op_origin = oap.start;
+    let op_origin = cap.oap.start;
 
-    if (g_st().finish_op || g_st().visual_global.active) && oap.op_type != OP_NOP {
+    if (g_st().finish_op || g_st().visual_global.active) && cap.oap.op_type != OP_NOP {
         let mut include_line_break = false;
         let redo_yank =
             crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_YANK) && !gui_yank;
 
         reset_lbr();
+        let oap = &mut cap.oap;
         oap.is_visual = g_st().visual_global.active;
         if oap.motion_force == b'V' as i32 {
             oap.motion_type = MT_LINE_WISE;
@@ -3534,7 +3535,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             g_st().visual_global.reselect = 0;
         }
 
-        atom_capture_op(oap, cap, redo_yank);
+        atom_capture_op(cap, redo_yank);
+        let oap = &mut cap.oap;
 
         if g_st().visual_global.active {
             if !gui_yank && !g_st().finish_op {
@@ -3545,7 +3547,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
             if g_st().visual_global.select
                 && g_st().visual_global.mode == b'V' as i32
-                && cap.oap_mut().op_type != OP_DELETE
+                && oap.op_type != OP_DELETE
             {
                 if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
                     g_st().visual_global.start.col = 0;
@@ -3807,10 +3809,12 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
+                    let v_ins = op_ins_visual(cap);
+                    let oap = &mut cap.oap;
                     let mut session: InsSession = atom_ins_start(
                         b'c' as i32,
                         i64::from(cap.count0),
-                        op_ins_visual(oap, cap),
+                        v_ins,
                         oap.is_visual && oap.motion_type == MT_BLOCK_WISE,
                     );
                     let busy = op_change(oap) != 0;
@@ -3891,10 +3895,12 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
+                    let v_ins = op_ins_visual(cap);
+                    let oap = &mut cap.oap;
                     let mut session: InsSession = atom_ins_start(
                         b'I' as i32,
                         i64::from(cap.count1),
-                        op_ins_visual(oap, cap),
+                        v_ins,
                         oap.motion_type == MT_BLOCK_WISE,
                     );
                     op_insert(oap, cap.count1);
@@ -3926,7 +3932,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
             OP_MCURSOR => {
                 restore_lbr(lbr_saved);
-                mc_zq(oap, cap, op_origin);
+                mc_zq(cap, op_origin);
             }
             OP_FOLDOPEN | OP_FOLDOPENREC | OP_FOLDCLOSE | OP_FOLDCLOSEREC => {
                 g_st().visual_global.reselect = 0;
@@ -3964,6 +3970,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 clearopbeep(oap);
             }
         }
+        let oap = &mut cap.oap;
         g_st().virtual_op = K_NONE;
         if !gui_yank {
             if !opt_vars().p_sol

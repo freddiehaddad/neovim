@@ -1240,8 +1240,6 @@ pub fn do_mousescroll(cap: &mut Cmdarg) {
 /// of the MSCR_ values.
 pub fn ins_mousescroll(dir: i32) {
     let mut cap = Cmdarg::new();
-    let mut oa = Oparg::new();
-    cap.oap = crate::globals::GraphPtr::from(&mut oa);
     cap.arg = dir;
 
     match dir {
@@ -1292,8 +1290,6 @@ pub fn ins_mousescroll(dir: i32) {
 /// Returns true when the info popup was scrolled.
 pub fn cmdline_mousescroll(dir: i32) -> bool {
     let mut cap = Cmdarg::new();
-    let mut oa = Oparg::new();
-    cap.oap = crate::globals::GraphPtr::from(&mut oa);
     cap.arg = dir;
 
     match dir {
@@ -1792,13 +1788,7 @@ pub fn nv_mousescroll(cap: &mut Cmdarg) {
 
 /// Mouse clicks and drags.
 pub fn nv_mouse(cap: &mut Cmdarg) {
-    do_mouse(
-        Some(cap.oap_mut()),
-        cap.cmdchar,
-        BACKWARD,
-        cap.count1,
-        false,
-    );
+    do_mouse(Some(&mut cap.oap), cap.cmdchar, BACKWARD, cap.count1, false);
 }
 
 /// Compute the buffer line position from the screen position "rowp" / "colp" in

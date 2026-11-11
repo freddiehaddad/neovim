@@ -53,15 +53,13 @@ use std::ptr;
 
 pub use crate::option_vars::Synblock;
 
-macro_rules! syn_getcurline {
-    () => {
-        ml_get_buf(
-            SYN_STATE.with(SyntaxState::syn_buf_mut),
-            SYN_STATE.with(|s| s.current_lnum.get()),
-        )
-        .as_ptr()
-        .cast_mut()
-    };
+#[inline]
+fn syn_curline_byte(col: Colnr) -> u8 {
+    let slice = crate::memline::ml_get_buf_slice(
+        SYN_STATE.with(SyntaxState::syn_buf_mut),
+        SYN_STATE.with(|s| s.current_lnum.get()),
+    );
+    slice.get(col.max(0) as usize).copied().unwrap_or(0)
 }
 
 #[repr(C)]
@@ -428,7 +426,8 @@ struct SyntaxState {
     next_match_end_idx: std::cell::Cell<i32>,
     syn_win: std::cell::Cell<crate::globals::WinPtr>,
     syn_buf: std::cell::Cell<crate::globals::BufPtr>,
-    syn_block: std::cell::Cell<crate::globals::GraphPtr<Synblock>>,
+    syn_win_owned: std::cell::Cell<bool>,
+    syn_block_addr: std::cell::Cell<usize>,
     syn_tm: std::cell::Cell<Option<Proftime>>,
     current_lnum: std::cell::Cell<Linenr>,
     current_col: std::cell::Cell<Colnr>,
@@ -475,7 +474,8 @@ impl SyntaxState {
             next_match_end_idx: std::cell::Cell::new(0),
             syn_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
             syn_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
-            syn_block: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            syn_win_owned: std::cell::Cell::new(false),
+            syn_block_addr: std::cell::Cell::new(0),
             syn_tm: std::cell::Cell::new(None),
             current_lnum: std::cell::Cell::new(0),
             current_col: std::cell::Cell::new(0),
@@ -524,19 +524,21 @@ pub fn win_s(wp: &mut WinInfoInfo) -> &'static mut Synblock {
 
 #[inline]
 fn syn_block_mut() -> &'static mut Synblock {
-    SYN_STATE.with(|s| s.syn_block.get()).borrow_mut()
+    if SYN_STATE.with(|s| s.syn_win_owned.get()) {
+        win_s(SYN_STATE.with(|s| s.syn_win.get()).borrow_mut())
+    } else {
+        &mut SYN_STATE.with(SyntaxState::syn_buf_mut).b_s
+    }
 }
 
 #[inline]
-fn syn_items(block: &mut Synblock, idx: isize) -> &'static mut Synpat {
-    let ptr = crate::globals::GraphPtr::<Synpat>::from_ref(&block.b_syn_patterns[idx as usize]);
-    ptr.borrow_mut()
+fn syn_items(block: &mut Synblock, idx: isize) -> &mut Synpat {
+    &mut block.b_syn_patterns[idx as usize]
 }
 
 #[inline]
-fn syn_clstr(block: &mut Synblock, idx: isize) -> &'static mut SynCluster {
-    let ptr = crate::globals::GraphPtr::<SynCluster>::from_ref(&block.b_syn_clusters[idx as usize]);
-    ptr.borrow_mut()
+fn syn_clstr(block: &mut Synblock, idx: isize) -> &mut SynCluster {
+    &mut block.b_syn_clusters[idx as usize]
 }
 
 #[inline]
@@ -592,14 +594,18 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
     SYN_STATE.with(|s| s.current_sub_char.set(NUL as i32));
 
-    if SYN_STATE.with(|s| s.syn_block.get()) != win_s(wp)
+    let wp_block_addr = ptr::from_ref(win_s(wp)).addr();
+    if SYN_STATE.with(|s| s.syn_block_addr.get()) != wp_block_addr
         || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer
         || SYN_STATE.with(|s| s.changedtick_last.get())
             != buf_get_changedtick(SYN_STATE.with(SyntaxState::syn_buf_mut))
     {
         invalidate_current_state();
-        SYN_STATE.with(|s| s.syn_buf.set(wp.w_buffer));
-        SYN_STATE.with(|s| s.syn_block.set(crate::globals::GraphPtr::new(win_s(wp))));
+        SYN_STATE.with(|s| {
+            s.syn_buf.set(wp.w_buffer);
+            s.syn_win_owned.set(wp.w_s_owned.is_some());
+            s.syn_block_addr.set(wp_block_addr);
+        });
     }
     SYN_STATE.with(|s| {
         s.changedtick_last.set(buf_get_changedtick(
@@ -870,13 +876,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
                         }
 
                         let prev_current_col = SYN_STATE.with(|s| s.current_col.get());
-                        if *crate::globals::GraphPtr::of(
-                            syn_getcurline!()
-                                .wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-                        )
-                        .borrow()
-                            != 0
-                        {
+                        if syn_curline_byte(prev_current_col) != 0 {
                             SYN_STATE.with(|s| s.current_col.set(s.current_col.get() + (1)));
                         }
                         check_state_ends();
@@ -1088,28 +1088,32 @@ fn syn_stack_alloc() {
 
 /// Check for changes in a buffer to affect stored syntax states.
 pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
-    let buf_ptr = &raw mut *buf;
-    syn_stack_apply_changes_block(
-        &mut buf.b_s,
-        crate::globals::GraphPtr::of(buf_ptr).borrow_mut(),
-    );
+    let mod_top = buf.b_mod_top;
+    let mod_bot = buf.b_mod_bot;
+    let mod_xlines = buf.b_mod_xlines;
+    syn_stack_apply_changes_block(&mut buf.b_s, mod_top, mod_bot, mod_xlines);
 
     if !g_st().curtab.is_null() {
         for wp in for_all_windows_mut() {
             if wp.w_buffer == buf && !ptr::eq(win_s(wp), &raw mut buf.b_s) {
-                syn_stack_apply_changes_block(&mut *win_s(wp), buf);
+                syn_stack_apply_changes_block(&mut *win_s(wp), mod_top, mod_bot, mod_xlines);
             }
         }
     }
 }
 
-fn syn_stack_apply_changes_block(block: &mut Synblock, buf: &mut FileBuf) {
+fn syn_stack_apply_changes_block(
+    block: &mut Synblock,
+    mod_top: Linenr,
+    mod_bot: Linenr,
+    mod_xlines: i32,
+) {
     let mut idx = 0;
     while idx < block.b_sst_array.len() {
         let p = &mut block.b_sst_array.as_mut_slice()[idx];
-        if p.sst_lnum + block.b_syn_sync_linebreaks > buf.b_mod_top {
-            let n = p.sst_lnum + buf.b_mod_xlines;
-            if n <= buf.b_mod_bot {
+        if p.sst_lnum + block.b_syn_sync_linebreaks > mod_top {
+            let n = p.sst_lnum + mod_xlines;
+            if n <= mod_bot {
                 if block.b_sst_search == idx {
                     block.b_sst_search = 0;
                 } else if block.b_sst_search > idx {
@@ -1118,15 +1122,15 @@ fn syn_stack_apply_changes_block(block: &mut Synblock, buf: &mut FileBuf) {
                 block.b_sst_array.remove(idx);
                 continue;
             }
-            if p.sst_change_lnum != 0 && p.sst_change_lnum > buf.b_mod_top {
-                if p.sst_change_lnum + buf.b_mod_xlines > buf.b_mod_top {
-                    p.sst_change_lnum += buf.b_mod_xlines;
+            if p.sst_change_lnum != 0 && p.sst_change_lnum > mod_top {
+                if p.sst_change_lnum + mod_xlines > mod_top {
+                    p.sst_change_lnum += mod_xlines;
                 } else {
-                    p.sst_change_lnum = buf.b_mod_top;
+                    p.sst_change_lnum = mod_top;
                 }
             }
-            if p.sst_change_lnum == 0 || p.sst_change_lnum < buf.b_mod_bot {
-                p.sst_change_lnum = buf.b_mod_bot;
+            if p.sst_change_lnum == 0 || p.sst_change_lnum < mod_bot {
+                p.sst_change_lnum = mod_bot;
             }
 
             p.sst_lnum = n;
@@ -1380,7 +1384,7 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
 
 /// We stop parsing syntax above line "lnum".
 pub fn syntax_end_parsing(wp: &mut WinInfoInfo, lnum: Linenr) {
-    if SYN_STATE.with(|s| s.syn_block.get()) != win_s(wp) {
+    if SYN_STATE.with(|s| s.syn_block_addr.get()) != ptr::from_ref(win_s(wp)).addr() {
         return;
     }
     if let Some(mut sp_idx) = syn_stack_find_entry(lnum) {
@@ -1444,12 +1448,7 @@ fn syn_finish_line(syncing: bool) -> bool {
             }
 
             let prev_current_col = SYN_STATE.with(|s| s.current_col.get());
-            if *crate::globals::GraphPtr::of(
-                syn_getcurline!().wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-            )
-            .borrow()
-                != 0
-            {
+            if syn_curline_byte(prev_current_col) != 0 {
                 SYN_STATE.with(|s| s.current_col.set(s.current_col.get() + (1)));
             }
             check_state_ends();
@@ -1537,16 +1536,10 @@ fn syn_current_attr(
     let mut zero_width_next_list = false;
     let mut zero_width_next_ga: Vec<i32> = Vec::new();
 
-    let mut line = syn_getcurline!();
-    if *crate::globals::GraphPtr::of(
-        line.wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-    )
-    .borrow()
-        == 0
-        && SYN_STATE.with(|s| s.current_col.get()) != 0
-    {
+    let cur_col_init = SYN_STATE.with(|s| s.current_col.get());
+    if syn_curline_byte(cur_col_init) == 0 && cur_col_init != 0 {
         if SYN_STATE.with(|s| s.next_match_idx.get()) >= 0
-            && SYN_STATE.with(|s| s.next_match_col.get()) >= SYN_STATE.with(|s| s.current_col.get())
+            && SYN_STATE.with(|s| s.next_match_col.get()) >= cur_col_init
             && SYN_STATE.with(|s| s.next_match_col.get()) != MAXCOL
         {
             push_next_match();
@@ -1557,17 +1550,7 @@ fn syn_current_attr(
         return 0;
     }
 
-    if *crate::globals::GraphPtr::of(
-        line.wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-    )
-    .borrow()
-        == 0
-        || *crate::globals::GraphPtr::of(
-            line.wrapping_offset((SYN_STATE.with(|s| s.current_col.get()) + 1) as isize),
-        )
-        .borrow()
-            == 0
-    {
+    if syn_curline_byte(cur_col_init) == 0 || syn_curline_byte(cur_col_init + 1) == 0 {
         SYN_STATE.with(|s| s.current_finished.set(true));
         SYN_STATE.with(|s| s.current_state_stored.set(false));
     }
@@ -1759,9 +1742,7 @@ fn syn_current_attr(
                             );
                             syn_add_end_off(&mut eos_pos, &mut regmatch, &mut *spp, SPO_RS_OFF, 0);
 
-                            cur_extmatch =
-                                crate::globals::GraphPtr::of(&raw mut g_st().re_extmatch_out)
-                                    .replace_val(None);
+                            cur_extmatch = g_st().re_extmatch_out.take();
 
                             flags = 0;
                             eoe_pos.lnum = 0;
@@ -1868,16 +1849,11 @@ fn syn_current_attr(
 
         if with_syn_ext(|ext| ext.current_next_list.borrow().is_some()) && !keep_next_list {
             if !found_match {
-                line = syn_getcurline!();
+                let cur_col = SYN_STATE.with(|s| s.current_col.get());
                 if ((SYN_STATE.with(|s| s.current_next_flags.get()) & HL_SKIPWHITE) != 0
-                    && ascii_iswhite(
-                        *crate::globals::GraphPtr::of(
-                            line.wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-                        )
-                        .borrow(),
-                    ))
+                    && ascii_iswhite(syn_curline_byte(cur_col)))
                     || ((SYN_STATE.with(|s| s.current_next_flags.get()) & HL_SKIPEMPTY) != 0
-                        && (line.is_null() || *crate::globals::GraphPtr::of(line).borrow() == 0))
+                        && syn_curline_byte(0) == 0)
                 {
                     break;
                 }
@@ -1969,13 +1945,7 @@ fn syn_current_attr(
 
         if !syncing && !keep_state {
             check_state_ends();
-            if !cur_state_empty()
-                && *crate::globals::GraphPtr::of(
-                    syn_getcurline!()
-                        .wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-                )
-                .borrow()
-                    != NUL
+            if !cur_state_empty() && syn_curline_byte(SYN_STATE.with(|s| s.current_col.get())) != 0
             {
                 SYN_STATE.with(|s| s.current_col.set(s.current_col.get() + (1)));
                 check_state_ends();
@@ -1991,17 +1961,9 @@ fn syn_current_attr(
     }
 
     if with_syn_ext(|ext| ext.current_next_list.borrow().is_some()) {
-        line = syn_getcurline!();
-        if *crate::globals::GraphPtr::of(
-            line.wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-        )
-        .borrow()
-            != 0
-            && *crate::globals::GraphPtr::of(
-                line.wrapping_offset((SYN_STATE.with(|s| s.current_col.get()) + 1) as isize),
-            )
-            .borrow()
-                == NUL
+        let cur_col = SYN_STATE.with(|s| s.current_col.get());
+        if syn_curline_byte(cur_col) != 0
+            && syn_curline_byte(cur_col + 1) == 0
             && (SYN_STATE.with(|s| s.current_next_flags.get()) & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
         {
             with_syn_ext(|ext| *ext.current_next_list.borrow_mut() = None);
@@ -2174,12 +2136,7 @@ fn check_state_ends() {
             with_syn_ext(|ext| *ext.current_next_list.borrow_mut() = si_next_list);
             SYN_STATE.with(|s| s.current_next_flags.set(si_flags));
             if (SYN_STATE.with(|s| s.current_next_flags.get()) & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                && *crate::globals::GraphPtr::of(
-                    syn_getcurline!()
-                        .wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-                )
-                .borrow()
-                    == 0
+                && syn_curline_byte(SYN_STATE.with(|s| s.current_col.get())) == 0
             {
                 with_syn_ext(|ext| *ext.current_next_list.borrow_mut() = None);
             }
@@ -2213,12 +2170,7 @@ fn check_state_ends() {
                 check_keepend();
                 if (SYN_STATE.with(|s| s.current_next_flags.get()) & HL_HAS_EOL) != 0
                     && SYN_STATE.with(|s| s.keepend_level.get()) < 0
-                    && *crate::globals::GraphPtr::of(
-                        syn_getcurline!()
-                            .wrapping_offset(SYN_STATE.with(|s| s.current_col.get()) as isize),
-                    )
-                    .borrow()
-                        == 0
+                    && syn_curline_byte(SYN_STATE.with(|s| s.current_col.get())) == 0
                 {
                     break;
                 }
@@ -2433,11 +2385,12 @@ fn find_endpos(
         idx += 1;
     }
 
-    let spp_skip = if spp.sp_type == SPTYPE_SKIP {
+    let skip_idx = if spp.sp_type == SPTYPE_SKIP {
+        let s_idx = idx;
         idx += 1;
-        spp
+        Some(s_idx)
     } else {
-        ptr::null_mut()
+        None
     };
 
     g_st().re_extmatch_in = start_ext;
@@ -2481,8 +2434,8 @@ fn find_endpos(
             break;
         }
 
-        if !spp_skip.is_null() {
-            let spp_skip = crate::globals::GraphPtr::of(spp_skip).borrow_mut();
+        if let Some(skip_idx) = skip_idx {
+            let spp_skip = syn_items(syn_block_mut(), skip_idx as isize);
             let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
             if lc_col < 0 {
                 lc_col = 0;
@@ -3002,9 +2955,16 @@ pub fn syntax_clear(block: &mut Synblock) {
     block.b_syn_isk = None;
 
     syn_stack_free_all(block);
-    invalidate_current_state();
-
-    SYN_STATE.with(|s| s.running_syn_inc_tag.set(0));
+    if !crate::globals::g_st().exiting {
+        invalidate_current_state();
+        let block_addr = ptr::from_ref(block).addr();
+        let _ = SYN_STATE.try_with(|s| {
+            if s.syn_block_addr.get() == block_addr {
+                s.syn_block_addr.set(0);
+            }
+            s.running_syn_inc_tag.set(0);
+        });
+    }
 }
 
 impl Drop for Synblock {
@@ -3306,19 +3266,24 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
 
     let mut idx: i32 = 0;
     while (idx as usize) < win_s(curwin_mut()).b_syn_patterns.len() && !g_st().got_int {
-        let spp = syn_items(&mut *win_s(curwin_mut()), idx as isize);
-        if spp.sp_syn.id as i32 != id || spp.sp_syncing != syncing {
-            idx += 1;
-            continue;
-        }
+        let first_idx = idx;
+        let sp_type = {
+            let spp = syn_items(&mut *win_s(curwin_mut()), idx as isize);
+            if spp.sp_syn.id as i32 != id || spp.sp_syncing != syncing {
+                idx += 1;
+                continue;
+            }
+            spp.sp_type
+        };
 
         syn_list_header(did_header, 0, id, true);
         did_header = true;
         SYN_STATE.with(|s| s.last_matchgroup.set(0));
-        if spp.sp_type == SPTYPE_MATCH {
+        if sp_type == SPTYPE_MATCH {
+            let spp = syn_items(&mut *win_s(curwin_mut()), idx as isize);
             put_pattern(c"match", b' ' as i32, &*spp, hl_id);
             msg_putchar(b' ' as i32);
-        } else if spp.sp_type == SPTYPE_START {
+        } else if sp_type == SPTYPE_START {
             while syn_items(&mut *win_s(curwin_mut()), idx as isize).sp_type == SPTYPE_START {
                 put_pattern(
                     c"start",
@@ -3351,29 +3316,35 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
             idx -= 1;
             msg_putchar(b' ' as i32);
         }
-        syn_list_flags(&NAMELIST1, spp.sp_flags, hl_id);
+        let spp = syn_items(&mut *win_s(curwin_mut()), first_idx as isize);
+        let sp_flags = spp.sp_flags;
+        let sp_sync_idx = spp.sp_sync_idx;
+        let sp_cont_list = spp.sp_cont_list.clone();
+        let sp_cont_in_list = spp.sp_syn.cont_in_list.clone();
+        let sp_next_list = spp.sp_next_list.clone();
+        syn_list_flags(&NAMELIST1, sp_flags, hl_id);
 
-        if let Some(ref list) = spp.sp_cont_list {
+        if let Some(ref list) = sp_cont_list {
             put_id_list(c"contains", list, hl_id);
         }
 
-        if let Some(ref list) = spp.sp_syn.cont_in_list {
+        if let Some(ref list) = sp_cont_in_list {
             put_id_list(c"containedin", list, hl_id);
         }
 
-        if let Some(ref list) = spp.sp_next_list {
+        if let Some(ref list) = sp_next_list {
             put_id_list(c"nextgroup", list, hl_id);
-            syn_list_flags(&NAMELIST2, spp.sp_flags, hl_id);
+            syn_list_flags(&NAMELIST2, sp_flags, hl_id);
         }
-        if (spp.sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
-            if (spp.sp_flags & HL_SYNC_HERE) != 0 {
+        if (sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
+            if (sp_flags & HL_SYNC_HERE) != 0 {
                 msg_puts_hl(c"grouphere", hl_id, false);
             } else {
                 msg_puts_hl(c"groupthere", hl_id, false);
             }
             msg_putchar(b' ' as i32);
-            if spp.sp_sync_idx >= 0 {
-                let sync_id = syn_items(&mut *win_s(curwin_mut()), spp.sp_sync_idx as isize)
+            if sp_sync_idx >= 0 {
+                let sync_id = syn_items(&mut *win_s(curwin_mut()), sp_sync_idx as isize)
                     .sp_syn
                     .id as i32;
                 msg_outtrans(&highlight_group_name(sync_id - 1), 0, false);

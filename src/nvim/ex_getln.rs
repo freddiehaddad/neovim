@@ -286,7 +286,6 @@ struct CommandLineState {
     some_key_typed: bool,
     ignore_drag_release: bool,
     break_ctrl_c: bool,
-    xpc: ExpandCtx,
     b_im_use_insert: Option<bool>,
     b_im_ptr_buf: crate::globals::BufPtr,
     cmdline_type: i32,
@@ -320,7 +319,6 @@ impl CommandLineState {
             some_key_typed: false,
             ignore_drag_release: false,
             break_ctrl_c: false,
-            xpc: ExpandCtx::new(),
             b_im_use_insert: None,
             b_im_ptr_buf: crate::globals::BufPtr::NULL,
             cmdline_type: 0,
@@ -328,6 +326,14 @@ impl CommandLineState {
             did_hist_navigate: false,
         }
     }
+}
+
+#[inline]
+fn with_ccline_xpc<R>(f: impl FnOnce(&mut ExpandCtx) -> R) -> R {
+    let ccline = get_cmdline_info();
+    let mut xpc_borrow = ccline.xpc.borrow_mut();
+    let xpc = xpc_borrow.get_or_insert_with(ExpandCtx::new);
+    f(xpc)
 }
 
 impl EditorState for CommandLineState {
@@ -1056,10 +1062,8 @@ fn command_line_enter(
         .set(GETLN_STATE.with(|s| s.cmdline_level.get()));
 
     if GETLN_STATE.with(|s| s.cmdline_level.get()) != 50 {
-        expand_init(&mut s.xpc);
-        get_cmdline_info()
-            .xpc
-            .set(crate::globals::GraphPtr::from(&mut s.xpc));
+        let mut xpc = ExpandCtx::new();
+        expand_init(&mut xpc);
         clear_cmdline_orig();
 
         g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl
@@ -1074,18 +1078,19 @@ fn command_line_enter(
             redrawcmdprompt(); // draw prompt or indent
             get_cmdline_info().cmdspos.set(cmd_startcol());
         }
-        s.xpc.xp_context = EXPAND_NOTHING;
-        s.xpc.xp_backslash = XP_BS_NONE;
+        xpc.xp_context = EXPAND_NOTHING;
+        xpc.xp_backslash = XP_BS_NONE;
         #[cfg(not(windows))]
         {
-            s.xpc.xp_shell = false;
+            xpc.xp_shell = false;
         }
 
         if get_cmdline_info().input_fn.get() != 0 {
-            s.xpc.xp_context = get_cmdline_info().xp_context.get();
-            s.xpc.xp_pattern = get_cmdline_info().cmdbuff();
-            s.xpc.xp_arg = get_cmdline_info().xp_arg.borrow().clone();
+            xpc.xp_context = get_cmdline_info().xp_context.get();
+            xpc.xp_pattern = get_cmdline_info().cmdbuff();
+            xpc.xp_arg = get_cmdline_info().xp_arg.borrow().clone();
         }
+        *get_cmdline_info().xpc.borrow_mut() = Some(xpc);
 
         g_st().msg_scroll = 0;
 
@@ -1244,8 +1249,9 @@ fn command_line_enter(
         s.did_wild_list = false;
         s.wim_index = 0;
 
-        expand_cleanup(&mut s.xpc);
-        get_cmdline_info().xpc.set(crate::globals::GraphPtr::NULL);
+        if let Some(mut xpc) = get_cmdline_info().xpc.borrow_mut().take() {
+            expand_cleanup(&mut xpc);
+        }
         clear_cmdline_orig();
 
         finish_incsearch_highlighting(s.gotesc, &mut s.is_state, false);
@@ -1367,7 +1373,7 @@ fn command_line_check(s: &mut CommandLineState) -> i32 {
         s.some_key_typed = true;
     }
 
-    may_trigger_safestate(s.xpc.xp_numfiles <= 0);
+    may_trigger_safestate(with_ccline_xpc(|xpc| xpc.xp_numfiles <= 0));
 
     if !get_cmdline_info().cmdbuff().is_null() {
         s.prev_cmdbuff = Some(get_cmdline_info().cmdbuff().to_cstring());
@@ -1456,28 +1462,30 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
     if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LASTUSED) != 0 {
         options |= WILD_BUFLASTUSED;
     }
-    if s.xpc.xp_numfiles > 0 {
-        if s.xpc.xp_numfiles > 1
+    if with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
+        if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
             && !s.did_wild_list
             && (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0
         {
-            showmatches(
-                &mut s.xpc,
-                false,
-                true,
-                if opt_vars().p_wmnu {
-                    g_st().wim_flags[s.wim_index as usize] as i32
-                } else {
-                    0
-                },
-            );
+            with_ccline_xpc(|xpc| {
+                showmatches(
+                    xpc,
+                    false,
+                    true,
+                    if opt_vars().p_wmnu {
+                        g_st().wim_flags[s.wim_index as usize] as i32
+                    } else {
+                        0
+                    },
+                );
+            });
             redrawcmd();
             s.did_wild_list = true;
         }
         if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LONGEST) != 0 {
-            res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
+            res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_LONGEST, options, escape));
         } else if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_FULL) != 0 {
-            res = nextwild(&mut s.xpc, WILD_NEXT, options, escape);
+            res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_NEXT, options, escape));
         } else {
             res = true;
         }
@@ -1496,12 +1504,12 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             if s.c == K_WILD {
                 options |= WILD_FUNC_TRIGGER;
             }
-            s.xpc.xp_pre_incsearch_pos = s.is_state.search_start;
+            with_ccline_xpc(|xpc| xpc.xp_pre_incsearch_pos = s.is_state.search_start);
         }
         let cmdpos_before = get_cmdline_info().cmdpos.get();
 
         if wim_longest {
-            res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
+            res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_LONGEST, options, escape));
         } else {
             if wim_noselect || (wim_list && !wim_full) {
                 options |= WILD_NOSELECT;
@@ -1509,32 +1517,35 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             if wim_noinsert {
                 options |= WILD_NOINSERT;
             }
-            res = nextwild(&mut s.xpc, WILD_EXPAND_KEEP, options, escape);
+            res = with_ccline_xpc(|xpc| nextwild(xpc, WILD_EXPAND_KEEP, options, escape));
         }
 
-        if redraw_if_menu_empty && s.xpc.xp_numfiles <= 0 {
+        if redraw_if_menu_empty && with_ccline_xpc(|xpc| xpc.xp_numfiles <= 0) {
             pum_check_clear();
         }
 
         if g_st().got_int {
             vpeekc();
             g_st().got_int = false;
-            expand_one(&mut s.xpc, None, None, 0, WILD_FREE);
-            s.xpc.xp_context = EXPAND_NOTHING;
+            with_ccline_xpc(|xpc| {
+                expand_one(xpc, None, None, 0, WILD_FREE);
+                xpc.xp_context = EXPAND_NOTHING;
+            });
             return CMDLINE_CHANGED;
         }
 
-        if res && s.xpc.xp_numfiles > if wim_noselect || wim_noinsert { 0 } else { 1 } {
+        if res
+            && with_ccline_xpc(|xpc| {
+                xpc.xp_numfiles > if wim_noselect || wim_noinsert { 0 } else { 1 }
+            })
+        {
             if wim_longest {
                 let found_longest_prefix = get_cmdline_info().cmdpos.get() != cmdpos_before;
                 let show_menu = opt_vars().p_wmnu && wim_full;
                 if wim_list || show_menu {
-                    showmatches(
-                        &mut s.xpc,
-                        show_menu,
-                        wim_list,
-                        K_OPT_WIM_FLAG_NOSELECT as i32,
-                    );
+                    with_ccline_xpc(|xpc| {
+                        showmatches(xpc, show_menu, wim_list, K_OPT_WIM_FLAG_NOSELECT as i32);
+                    });
                 } else if !found_longest_prefix {
                     let wim_list_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_LIST) != 0;
                     let wim_full_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_FULL) != 0;
@@ -1545,18 +1556,22 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                             && (wim_full_next || wim_noselect_next || wim_noinsert_next))
                     {
                         if wim_full_next && !wim_noselect_next && !wim_noinsert_next {
-                            nextwild(&mut s.xpc, WILD_NEXT, options, escape);
+                            with_ccline_xpc(|xpc| {
+                                nextwild(xpc, WILD_NEXT, options, escape);
+                            });
                         } else {
-                            showmatches(
-                                &mut s.xpc,
-                                opt_vars().p_wmnu && (wim_noselect_next || wim_noinsert_next),
-                                wim_list_next,
-                                if opt_vars().p_wmnu {
-                                    g_st().wim_flags[1] as i32
-                                } else {
-                                    0
-                                },
-                            );
+                            with_ccline_xpc(|xpc| {
+                                showmatches(
+                                    xpc,
+                                    opt_vars().p_wmnu && (wim_noselect_next || wim_noinsert_next),
+                                    wim_list_next,
+                                    if opt_vars().p_wmnu {
+                                        g_st().wim_flags[1] as i32
+                                    } else {
+                                        0
+                                    },
+                                );
+                            });
                         }
                         if wim_list_next {
                             s.did_wild_list = true;
@@ -1566,16 +1581,18 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             } else {
                 let show_menu = opt_vars().p_wmnu && (wim_full || wim_noselect || wim_noinsert);
                 if wim_list || show_menu {
-                    showmatches(
-                        &mut s.xpc,
-                        show_menu,
-                        wim_list,
-                        if opt_vars().p_wmnu {
-                            g_st().wim_flags[0] as i32
-                        } else {
-                            0
-                        },
-                    );
+                    with_ccline_xpc(|xpc| {
+                        showmatches(
+                            xpc,
+                            show_menu,
+                            wim_list,
+                            if opt_vars().p_wmnu {
+                                g_st().wim_flags[0] as i32
+                            } else {
+                                0
+                            },
+                        );
+                    });
                 } else {
                     vim_beep(K_OPT_BO_FLAG_WILDMODE);
                 }
@@ -1585,8 +1602,8 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             if wim_list {
                 s.did_wild_list = true;
             }
-        } else if s.xpc.xp_numfiles == -1 {
-            s.xpc.xp_context = EXPAND_NOTHING;
+        } else if with_ccline_xpc(|xpc| xpc.xp_numfiles == -1) {
+            with_ccline_xpc(|xpc| xpc.xp_context = EXPAND_NOTHING);
         }
     }
 
@@ -1621,12 +1638,14 @@ fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: i32) 
         }
         cmdline_pum_remove(c != -1 && s.skip_pum_redraw);
     }
-    if s.xpc.xp_numfiles != -1 {
-        expand_one(&mut s.xpc, None, None, 0, WILD_FREE);
+    if with_ccline_xpc(|xpc| xpc.xp_numfiles != -1) {
+        with_ccline_xpc(|xpc| {
+            expand_one(xpc, None, None, 0, WILD_FREE);
+        });
     }
     s.did_wild_list = false;
     if !opt_vars().p_wmnu || (c != K_UP && c != K_DOWN) {
-        s.xpc.xp_context = EXPAND_NOTHING;
+        with_ccline_xpc(|xpc| xpc.xp_context = EXPAND_NOTHING);
     }
     s.wim_index = 0;
     wildmenu_cleanup(&get_cmdline_info());
@@ -1640,7 +1659,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     let display_tick_saved: Disptick = curwin_mut().w_display_tick;
     s.c = key;
 
-    if get_cmdline_info().cmdbuff_replaced.get() && s.xpc.xp_numfiles > 0 {
+    if get_cmdline_info().cmdbuff_replaced.get() && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
         command_line_end_wildmenu(s, false, -1);
     }
     get_cmdline_info().cmdbuff_replaced.set(false);
@@ -1670,14 +1689,13 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
 
         if g_st().pum_want.active {
             if cmdline_pum_active() {
-                nextwild(&mut s.xpc, WILD_PUM_WANT, 0, s.firstc != b'@' as i32);
+                with_ccline_xpc(|xpc| {
+                    nextwild(xpc, WILD_PUM_WANT, 0, s.firstc != b'@' as i32);
+                });
                 if g_st().pum_want.finish {
-                    nextwild(
-                        &mut s.xpc,
-                        WILD_APPLY,
-                        WILD_NO_BEEP,
-                        s.firstc != b'@' as i32,
-                    );
+                    with_ccline_xpc(|xpc| {
+                        nextwild(xpc, WILD_APPLY, WILD_NO_BEEP, s.firstc != b'@' as i32);
+                    });
                     command_line_end_wildmenu(s, false, s.c);
                 }
             }
@@ -1722,18 +1740,22 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         && s.c != K_KPAGEUP
         && s.c != K_LEFT
         && s.c != K_RIGHT
-        && (s.xpc.xp_numfiles > 0 || (s.c != CTRL_P && s.c != CTRL_N))
+        && (with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) || (s.c != CTRL_P && s.c != CTRL_N))
     {
         s.lookfor = None;
         s.lookforlen = 0;
     }
 
-    if s.c as OptInt != opt_vars().p_wc && s.c == K_S_TAB && s.xpc.xp_numfiles > 0 {
+    if s.c as OptInt != opt_vars().p_wc
+        && s.c == K_S_TAB
+        && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0)
+    {
         s.c = CTRL_P;
     }
 
     if opt_vars().p_wmnu {
-        s.c = wildmenu_translate_key(&get_cmdline_info(), s.c, &mut s.xpc, s.did_wild_list);
+        let ccline = get_cmdline_info();
+        s.c = with_ccline_xpc(|xpc| wildmenu_translate_key(&ccline, s.c, xpc, s.did_wild_list));
     }
 
     let mut wild_type: i32 = 0;
@@ -1741,7 +1763,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         (s.c as OptInt == opt_vars().p_wc && g_st().key_typed) || s.c as OptInt == opt_vars().p_wcm;
     if (cmdline_pum_active() || g_st().wild_menu_showing != 0 || s.did_wild_list)
         && !key_is_wc
-        && s.xpc.xp_numfiles > 0
+        && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0)
         && (s.c == CTRL_E || s.c == CTRL_Y)
     {
         wild_type = if s.c == CTRL_E {
@@ -1749,7 +1771,9 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         } else {
             WILD_APPLY
         };
-        nextwild(&mut s.xpc, wild_type, WILD_NO_BEEP, s.firstc != b'@' as i32);
+        with_ccline_xpc(|xpc| {
+            nextwild(xpc, wild_type, WILD_NO_BEEP, s.firstc != b'@' as i32);
+        });
     }
 
     if (g_st().key_typed
@@ -1786,7 +1810,8 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     }
 
     if opt_vars().p_wmnu {
-        s.c = wildmenu_process_key(&get_cmdline_info(), s.c, &mut s.xpc);
+        let ccline = get_cmdline_info();
+        s.c = with_ccline_xpc(|xpc| wildmenu_process_key(&ccline, s.c, xpc));
     }
 
     if s.c == CTRL_BSL {
@@ -1854,27 +1879,31 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
 
     if s.c == K_S_TAB
         && g_st().key_typed
-        && nextwild(&mut s.xpc, WILD_EXPAND_KEEP, 0, s.firstc != b'@' as i32)
+        && with_ccline_xpc(|xpc| nextwild(xpc, WILD_EXPAND_KEEP, 0, s.firstc != b'@' as i32))
     {
-        if s.xpc.xp_numfiles > 1
+        if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
             && ((!s.did_wild_list
                 && (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0)
                 || opt_vars().p_wmnu)
         {
             let list = (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0;
-            showmatches(
-                &mut s.xpc,
-                opt_vars().p_wmnu && !list,
-                list,
-                if opt_vars().p_wmnu {
-                    g_st().wim_flags[0] as i32
-                } else {
-                    0
-                },
-            );
+            with_ccline_xpc(|xpc| {
+                showmatches(
+                    xpc,
+                    opt_vars().p_wmnu && !list,
+                    list,
+                    if opt_vars().p_wmnu {
+                        g_st().wim_flags[0] as i32
+                    } else {
+                        0
+                    },
+                );
+            });
         }
-        nextwild(&mut s.xpc, WILD_PREV, 0, s.firstc != b'@' as i32);
-        nextwild(&mut s.xpc, WILD_PREV, 0, s.firstc != b'@' as i32);
+        with_ccline_xpc(|xpc| {
+            nextwild(xpc, WILD_PREV, 0, s.firstc != b'@' as i32);
+            nextwild(xpc, WILD_PREV, 0, s.firstc != b'@' as i32);
+        });
         return command_line_changed(s);
     }
 
@@ -2351,7 +2380,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
 
         dealloc_cmdbuff();
 
-        s.xpc.xp_context = EXPAND_NOTHING;
+        with_ccline_xpc(|xpc| xpc.xp_context = EXPAND_NOTHING);
         let entry_owned;
         let (p_cstr, plen, is_lookfor, sep) = if s.hiscnt == get_hislen() {
             (s.lookfor.as_deref().unwrap_or(c""), s.lookforlen, true, 0u8)
@@ -2489,16 +2518,18 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                 }
 
                 CTRL_D_CONST => {
-                    if showmatches(
-                        &mut s.xpc,
-                        false,
-                        true,
-                        if opt_vars().p_wmnu {
-                            g_st().wim_flags[0] as i32
-                        } else {
-                            0
-                        },
-                    ) == EXPAND_NOTHING
+                    if with_ccline_xpc(|xpc| {
+                        showmatches(
+                            xpc,
+                            false,
+                            true,
+                            if opt_vars().p_wmnu {
+                                g_st().wim_flags[0] as i32
+                            } else {
+                                0
+                            },
+                        )
+                    }) == EXPAND_NOTHING
                     {
                         break 'key_switch;
                     }
@@ -2684,10 +2715,10 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         cmdline_pum_cleanup(&get_cmdline_info());
                     }
 
-                    if !nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as i32) {
+                    if !with_ccline_xpc(|xpc| nextwild(xpc, WILD_ALL, 0, s.firstc != b'@' as i32)) {
                         break 'key_switch;
                     }
-                    s.xpc.xp_context = EXPAND_NOTHING;
+                    with_ccline_xpc(|xpc| xpc.xp_context = EXPAND_NOTHING);
                     s.did_wild_list = false;
                     return command_line_changed(s);
                 }
@@ -2697,16 +2728,20 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         return command_line_not_changed(s);
                     }
 
-                    if !nextwild(&mut s.xpc, WILD_LONGEST, 0, s.firstc != b'@' as i32) {
+                    if !with_ccline_xpc(|xpc| {
+                        nextwild(xpc, WILD_LONGEST, 0, s.firstc != b'@' as i32)
+                    }) {
                         break 'key_switch;
                     }
                     return command_line_changed(s);
                 }
 
                 CTRL_N | CTRL_P => {
-                    if s.xpc.xp_numfiles > 0 {
+                    if with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
                         let wild_type = if s.c == CTRL_P { WILD_PREV } else { WILD_NEXT };
-                        if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
+                        if !with_ccline_xpc(|xpc| {
+                            nextwild(xpc, wild_type, 0, s.firstc != b'@' as i32)
+                        }) {
                             break 'key_switch;
                         }
                         return command_line_changed(s);
@@ -2734,7 +2769,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         } else {
                             WILD_PAGEUP
                         };
-                        if !nextwild(&mut s.xpc, wild_type, 0, s.firstc != b'@' as i32) {
+                        if !with_ccline_xpc(|xpc| {
+                            nextwild(xpc, wild_type, 0, s.firstc != b'@' as i32)
+                        }) {
                             break 'key_switch;
                         }
                         return command_line_changed(s);
@@ -3261,7 +3298,9 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
         if prev_cmdpreview {
             update_screen();
         }
-        if s.xpc.xp_context == EXPAND_NOTHING && (g_st().key_typed || vpeekc() == NUL as i32) {
+        if with_ccline_xpc(|xpc| xpc.xp_context == EXPAND_NOTHING)
+            && (g_st().key_typed || vpeekc() == NUL as i32)
+        {
             may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
         }
     }
@@ -3582,15 +3621,17 @@ pub fn realloc_cmdbuff(mut len: i32) {
     let cmdlen = get_cmdline_info().cmdlen.get() as usize;
     get_cmdline_info().cmdbuff_vec.borrow_mut()[cmdlen] = NUL;
 
-    if let Some(xpc) = get_cmdline_info().xpc.get().opt_mut()
+    let ccline = get_cmdline_info();
+    if let Ok(mut xpc_borrow) = ccline.xpc.try_borrow_mut()
+        && let Some(ref mut xpc) = *xpc_borrow
         && !xpc.xp_pattern.is_null()
         && xpc.xp_context != EXPAND_NOTHING
         && xpc.xp_context != EXPAND_UNSUCCESSFUL
     {
         let i = ((xpc.xp_pattern).offset_from(p) as isize) as i32;
 
-        if i >= 0 && i <= get_cmdline_info().cmdlen.get() {
-            xpc.xp_pattern = get_cmdline_info().cmdbuff().wrapping_add(i as usize);
+        if i >= 0 && i <= ccline.cmdlen.get() {
+            xpc.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize);
         }
     }
 }
@@ -4693,7 +4734,8 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
     }
 
     let p = get_ccline_opt()?;
-    let xpc = p.xpc.get().opt_mut()?;
+    let mut xpc_borrow = p.xpc.try_borrow_mut().ok()?;
+    let xpc = xpc_borrow.as_mut()?;
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {
@@ -4720,7 +4762,8 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
     }
 
     let p = get_ccline_opt()?;
-    let xpc = p.xpc.get().opt_mut()?;
+    let mut xpc_borrow = p.xpc.try_borrow_mut().ok()?;
+    let xpc = xpc_borrow.as_mut()?;
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {

@@ -1509,8 +1509,8 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
 }
 
 pub fn mc_zq_start(cap: &mut Cmdarg) {
-    cap.oap_mut().from_visual = g_st().visual_global.active;
-    cap.oap_mut().motion_type = MT_UNKNOWN;
+    cap.oap.from_visual = g_st().visual_global.active;
+    cap.oap.motion_type = MT_UNKNOWN;
     if g_st().visual_global.active {
         atom_visual_reset();
         end_visual_mode();
@@ -1518,7 +1518,8 @@ pub fn mc_zq_start(cap: &mut Cmdarg) {
     }
 }
 
-pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
+pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
+    let oap = &cap.oap;
     atom_did_global_op();
     if mc_replaying()
         || oap.motion_type == MT_UNKNOWN

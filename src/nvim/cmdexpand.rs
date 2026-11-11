@@ -1581,7 +1581,9 @@ pub struct CmdlineInfo {
     pub cmdprompt: std::cell::RefCell<Option<CString>>,
     pub hl_id: std::cell::Cell<i32>,
     pub overstrike: std::cell::Cell<i32>,
-    pub xpc: std::cell::Cell<crate::globals::GraphPtr<ExpandCtx>>,
+    pub xpc: std::cell::RefCell<Option<ExpandCtx>>,
+    pub compl_orig: std::cell::RefCell<Option<CString>>,
+    pub compl_is_fuzzy: std::cell::Cell<bool>,
     pub xp_context: std::cell::Cell<i32>,
     pub xp_arg: std::cell::RefCell<Option<CString>>,
     pub input_fn: std::cell::Cell<i32>,
@@ -1611,7 +1613,9 @@ impl CmdlineInfo {
             cmdprompt: std::cell::RefCell::new(None),
             hl_id: std::cell::Cell::new(0),
             overstrike: std::cell::Cell::new(0),
-            xpc: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            xpc: std::cell::RefCell::new(None),
+            compl_orig: std::cell::RefCell::new(None),
+            compl_is_fuzzy: std::cell::Cell::new(false),
             xp_context: std::cell::Cell::new(0),
             xp_arg: std::cell::RefCell::new(None),
             input_fn: std::cell::Cell::new(0),
@@ -2201,6 +2205,10 @@ fn cmdline_pum_create(
         });
     }
     COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = items.into());
+    *ccline.compl_orig.borrow_mut() = xp.xp_orig.clone();
+    ccline
+        .compl_is_fuzzy
+        .set(cmdline_fuzzy_completion_supported(xp));
 
     let pat_cstr = xp.xp_pattern.as_cstr();
     let tail_off = if showtail {
@@ -2252,15 +2260,21 @@ pub fn cmdline_pum_cleanup(cclp: &CmdlineInfo) {
 }
 
 /// Returns the current cmdline completion pattern.
-pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
-    let xp = get_cmdline_info().xpc.get();
-    xp.opt()?.xp_orig.as_deref()
+pub fn cmdline_compl_pattern() -> Option<CString> {
+    let ccline = get_cmdline_info();
+    if let Ok(xpc) = ccline.xpc.try_borrow() {
+        return xpc.as_ref()?.xp_orig.clone();
+    }
+    ccline.compl_orig.borrow().clone()
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
-    let xp = get_cmdline_info().xpc.get();
-    xp.opt().is_some_and(cmdline_fuzzy_completion_supported)
+    let ccline = get_cmdline_info();
+    if let Ok(xpc) = ccline.xpc.try_borrow() {
+        return xpc.as_ref().is_some_and(cmdline_fuzzy_completion_supported);
+    }
+    ccline.compl_is_fuzzy.get()
 }
 
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
@@ -2565,13 +2579,18 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
     }
 
     if opt_vars().p_wmnu {
+        let ccline = get_cmdline_info();
+        *ccline.compl_orig.borrow_mut() = xp.xp_orig.clone();
+        ccline
+            .compl_is_fuzzy
+            .set(cmdline_fuzzy_completion_supported(xp));
         let has_arr = COMPL_MATCH_ARRAY.with(|cell| !cell.borrow().is_empty());
         if has_arr {
             CMDEXP_STATE.with(|s| s.compl_selected.set(findex));
             cmdline_pum_display(false);
         } else if cmdline_compl_use_pum(true) {
             cmdline_pum_create(
-                &get_cmdline_info(),
+                &ccline,
                 xp,
                 &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                 CMDEXP_STATE.with(|s| s.cmd_showtail.get()),
@@ -5973,7 +5992,8 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let ccline = &*ccline_rc;
 
     tv_dict_alloc_ret(rettv);
-    let Some(xpc) = ccline.xpc.get().opt() else {
+    let xpc_borrow = ccline.xpc.borrow();
+    let Some(xpc) = xpc_borrow.as_ref() else {
         return;
     };
     if xpc.xp_files.capacity() == 0 {

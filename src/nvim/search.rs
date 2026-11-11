@@ -1872,7 +1872,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         }
     }
 
-    cap.oap_mut().inclusive = dir != BACKWARD;
+    cap.oap.inclusive = dir != BACKWARD;
 
     let p_bytes = get_cursor_line_slice();
     let mut col = curwin_mut().w_cursor.col;

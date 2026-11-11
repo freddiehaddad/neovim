@@ -318,7 +318,6 @@ pub struct ExMagic {
 }
 
 #[repr(C)]
-#[derive(Clone)]
 pub struct Exarg {
     pub arg: crate::strings::OwnedSlice,
     pub args: Vec<crate::strings::OwnedSlice>,
@@ -350,7 +349,7 @@ pub struct Exarg {
     pub useridx: i32,
     pub errmsg: Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     pub ea_getline: LineGetter,
-    pub cstack: crate::globals::GraphPtr<crate::ex_eval::Cstack>,
+    pub cstack: Option<Box<crate::ex_eval::Cstack>>,
     pub magic: ExMagic,
 }
 
@@ -387,7 +386,7 @@ impl Exarg {
             useridx: 0,
             errmsg: None,
             ea_getline: LineGetter::None,
-            cstack: crate::globals::GraphPtr::NULL,
+            cstack: None,
             magic: ExMagic {
                 file: false,
                 bar: false,
@@ -410,8 +409,13 @@ impl Exarg {
 
 impl Exarg {
     #[inline]
-    pub fn cstack_mut(&self) -> &'static mut crate::ex_eval::Cstack {
-        self.cstack.borrow_mut()
+    pub fn cstack(&self) -> &crate::ex_eval::Cstack {
+        self.cstack.as_deref().expect("Exarg::cstack must be set")
+    }
+
+    #[inline]
+    pub fn cstack_mut(&mut self) -> &mut crate::ex_eval::Cstack {
+        self.cstack.get_or_insert_with(Box::default)
     }
 
     #[inline]
@@ -4992,7 +4996,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut did_inc = false;
         let mut did_block = false;
         let mut retval = true;
-        let mut cstack = Cstack::default();
+        let mut cstack = Box::<Cstack>::default();
         let mut current_line: i32 = 0;
         let mut fname_opt: Option<&CStr> = None;
         let sname_owned: Option<std::ffi::CString>;
@@ -6183,8 +6187,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
             break 'end;
         }
 
-        let mut cstack = Cstack::default();
-        eap.cstack = crate::globals::GraphPtr::from(&mut cstack);
+        eap.cstack = Some(Box::default());
 
         let _ = execute_cmd0(&mut retv, eap, &mut errormsg, preview);
     }
@@ -6202,7 +6205,8 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     retv
 }
 
-fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
+fn profile_cmd(eap: &Exarg, fgetline: LineGetter) {
+    let cstack = eap.cstack();
     if g_st().do_profiling == PROF_YES
         && (!eap.skip
             || cstack.cs_idx == 0
@@ -6338,7 +6342,7 @@ fn skip_cmd(eap: &Exarg) -> bool {
 fn do_one_cmd(
     cmdline_buf: &mut Vec<u8>,
     flags: i32,
-    cstack: &mut Cstack,
+    cstack: &mut Box<Cstack>,
     fgetline: LineGetter,
 ) -> bool {
     let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
@@ -6348,6 +6352,7 @@ fn do_one_cmd(
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
+    ea.cstack = Some(std::mem::take(cstack));
     g_st().ex_nesting_level += 1;
 
     if DOCMD_STATE.with(|s| s.quitmore.get()) != 0 && !fgetline.is_func() && !fgetline.is_autocmd()
@@ -6368,7 +6373,6 @@ fn do_one_cmd(
         ea.cmdline_buf = std::mem::take(cmdline_buf);
         ea.cmd = ea.cmdline_ptr();
         ea.ea_getline = fgetline;
-        ea.cstack = crate::globals::GraphPtr::from(&mut *cstack);
 
         if !parse_command_modifiers(&mut ea, &mut errormsg, &mut g_st().cmdmod, false) {
             break 'doend;
@@ -6380,17 +6384,18 @@ fn do_one_cmd(
         ea.skip = g_st().did_emsg != 0
             || g_st().got_int
             || g_st().did_throw
-            || (cstack.cs_idx >= 0 && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ACTIVE) == 0);
+            || (ea.cstack().cs_idx >= 0
+                && (ea.cstack().cs_flags[ea.cstack().cs_idx as usize] & CSF_ACTIVE) == 0);
 
         let mut p_opt = find_excmd_after_range(&mut ea);
-        profile_cmd(&ea, cstack, fgetline);
+        profile_cmd(&ea, fgetline);
 
         if !g_st().exiting {
             dbg_check_breakpoint(&mut ea);
         }
         if !ea.skip && g_st().got_int {
             ea.skip = true;
-            do_intthrow(cstack);
+            do_intthrow(ea.cstack_mut());
         }
 
         set_cmd_addr_type(&mut ea, p_opt.as_opt_cstr());
@@ -6678,7 +6683,7 @@ fn do_one_cmd(
         }
 
         if g_st().need_rethrow {
-            do_throw(cstack);
+            do_throw(ea.cstack_mut());
         } else if g_st().check_cstack {
             if source_finished(fgetline) {
                 do_finish(&mut ea, true);
@@ -6689,6 +6694,8 @@ fn do_one_cmd(
         g_st().need_rethrow = false;
         g_st().check_cstack = false;
     }
+
+    *cstack = ea.cstack.take().unwrap();
 
     if curwin_mut().w_cursor.lnum == 0 {
         curwin_mut().w_cursor.lnum = 1;

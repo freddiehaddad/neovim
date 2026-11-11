@@ -2381,7 +2381,7 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
             g_st().global_busy != 0
                 || g_st().listcmd_busy
                 || !eap.nextcmd.is_null()
-                || eap.cstack_mut().cs_idx >= 0,
+                || eap.cstack().cs_idx >= 0,
         );
     } else if !do_source(fname, false, DOSO_NONE, None) {
         semsg!(gettext(E_NOTOPEN), fname);
