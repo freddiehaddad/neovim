@@ -154,16 +154,73 @@ impl OptSetPrep {
     }
 }
 
+pub enum OptRef<T: 'static> {
+    Global(fn(&OptionVars) -> &T, fn(&mut OptionVars) -> &mut T),
+    Win(
+        crate::globals::WinPtr,
+        fn(&WinInfoInfo) -> &T,
+        fn(&mut WinInfoInfo) -> &mut T,
+    ),
+    Buf(
+        crate::globals::BufPtr,
+        fn(&FileBuf) -> &T,
+        fn(&mut FileBuf) -> &mut T,
+    ),
+}
+
+impl<T: 'static> Clone for OptRef<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: 'static> Copy for OptRef<T> {}
+
+impl<T: 'static> OptRef<T> {
+    #[inline]
+    pub fn get(self) -> &'static T {
+        match self {
+            Self::Global(f, _) => f(opt_vars()),
+            Self::Win(w, f, _) => f(w.borrow()),
+            Self::Buf(b, f, _) => f(b.borrow()),
+        }
+    }
+
+    #[inline]
+    pub fn get_mut(self) -> &'static mut T {
+        match self {
+            Self::Global(_, f) => f(opt_vars()),
+            Self::Win(w, _, f) => f(w.borrow_mut()),
+            Self::Buf(b, _, f) => f(b.borrow_mut()),
+        }
+    }
+
+    #[inline]
+    pub fn as_ptr(self) -> *const () {
+        std::ptr::from_ref(self.get()).cast::<()>()
+    }
+}
+
+impl<T: 'static> PartialEq for OptRef<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.as_ptr(), other.as_ptr())
+    }
+}
+
+impl<T: 'static> Eq for OptRef<T> {}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum OptVar {
     #[default]
     None,
-    Bool(crate::globals::GraphPtr<bool>),
-    I32Bool(crate::globals::GraphPtr<i32>),
-    OptBool(crate::globals::GraphPtr<Option<bool>>),
-    Int(crate::globals::GraphPtr<crate::option::OptInt>),
-    Str(crate::globals::GraphPtr<OptString>),
-    Callback(crate::globals::GraphPtr<crate::eval::typval::Callback>),
+    Bool(OptRef<bool>),
+    I32Bool(OptRef<i32>),
+    OptBool(OptRef<Option<bool>>),
+    Int(OptRef<crate::option::OptInt>),
+    Str(OptRef<OptString>),
+    Callback(OptRef<crate::eval::typval::Callback>),
     DefVal(OptIndex),
 }
 
@@ -183,12 +240,12 @@ impl OptVar {
         let p = std::ptr::from_ref(other).cast::<()>();
         match self {
             Self::None => false,
-            Self::Bool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::I32Bool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::OptBool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::Int(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::Str(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::Callback(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::Bool(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::I32Bool(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::OptBool(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::Int(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::Str(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::Callback(g) => std::ptr::eq(g.as_ptr(), p),
             Self::DefVal(_) => false,
         }
     }
@@ -196,7 +253,7 @@ impl OptVar {
     #[inline]
     pub fn as_cstr(self) -> &'static CStr {
         match self {
-            Self::Str(s) => s.borrow().as_cstr(),
+            Self::Str(s) => s.get().as_cstr(),
             _ => c"",
         }
     }
@@ -204,60 +261,60 @@ impl OptVar {
     #[inline]
     pub fn opt_cstr(self) -> Option<&'static CStr> {
         match self {
-            Self::Str(s) => Some(s.borrow().as_cstr()),
+            Self::Str(s) => Some(s.get().as_cstr()),
             _ => None,
         }
     }
 
     #[inline]
     pub fn set_cstr(self, val: &CStr) {
-        if let Self::Str(mut s) = self {
-            s.set_option_cstr(val);
+        if let Self::Str(s) = self {
+            s.get_mut().set_option_cstr(val);
         }
     }
 
     #[inline]
     pub fn set_bytes(self, bytes: &[u8]) {
-        if let Self::Str(mut s) = self {
-            s.set_option_bytes(bytes);
+        if let Self::Str(s) = self {
+            s.get_mut().set_option_bytes(bytes);
         }
     }
 
     #[inline]
     pub fn clear_str(self) {
-        if let Self::Str(mut s) = self {
-            s.clear_option_str();
+        if let Self::Str(s) = self {
+            s.get_mut().clear_option_str();
         }
     }
 
     #[inline]
     pub fn check_str(self) {
-        if let Self::Str(mut s) = self {
-            s.check_option_str();
+        if let Self::Str(s) = self {
+            s.get_mut().check_option_str();
         }
     }
 
     #[inline]
     pub fn int_val(self) -> crate::option::OptInt {
         match self {
-            Self::Int(p) => *p,
+            Self::Int(p) => *p.get(),
             _ => 0,
         }
     }
 
     #[inline]
     pub fn set_int(self, val: crate::option::OptInt) {
-        if let Self::Int(mut p) = self {
-            *p = val;
+        if let Self::Int(p) = self {
+            *p.get_mut() = val;
         }
     }
 
     #[inline]
     pub fn bool_tristate(self) -> i32 {
         match self {
-            Self::Bool(p) => i32::from(*p),
-            Self::I32Bool(p) => i32::from(*p != 0),
-            Self::OptBool(p) => match *p {
+            Self::Bool(p) => i32::from(*p.get()),
+            Self::I32Bool(p) => i32::from(*p.get() != 0),
+            Self::OptBool(p) => match *p.get() {
                 Some(b) => i32::from(b),
                 None => crate::extmark::K_NONE,
             },
@@ -268,9 +325,9 @@ impl OptVar {
     #[inline]
     pub fn set_bool(self, val: Option<bool>) {
         match self {
-            Self::Bool(mut p) => *p = val.unwrap(),
-            Self::I32Bool(mut p) => *p = i32::from(val.unwrap()),
-            Self::OptBool(mut p) => *p = val,
+            Self::Bool(p) => *p.get_mut() = val.unwrap(),
+            Self::I32Bool(p) => *p.get_mut() = i32::from(val.unwrap()),
+            Self::OptBool(p) => *p.get_mut() = val,
             _ => {}
         }
     }
@@ -278,51 +335,51 @@ impl OptVar {
     #[inline]
     pub fn callback_mut(self) -> &'static mut crate::eval::typval::Callback {
         match self {
-            Self::Callback(p) => p.borrow_mut(),
+            Self::Callback(p) => p.get_mut(),
             _ => unreachable!(),
         }
     }
 }
 
-impl From<&mut bool> for OptVar {
+impl From<OptRef<bool>> for OptVar {
     #[inline]
-    fn from(r: &mut bool) -> Self {
-        Self::Bool(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<bool>) -> Self {
+        Self::Bool(r)
     }
 }
 
-impl From<&mut i32> for OptVar {
+impl From<OptRef<i32>> for OptVar {
     #[inline]
-    fn from(r: &mut i32) -> Self {
-        Self::I32Bool(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<i32>) -> Self {
+        Self::I32Bool(r)
     }
 }
 
-impl From<&mut Option<bool>> for OptVar {
+impl From<OptRef<Option<bool>>> for OptVar {
     #[inline]
-    fn from(r: &mut Option<bool>) -> Self {
-        Self::OptBool(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<Option<bool>>) -> Self {
+        Self::OptBool(r)
     }
 }
 
-impl From<&mut crate::option::OptInt> for OptVar {
+impl From<OptRef<crate::option::OptInt>> for OptVar {
     #[inline]
-    fn from(r: &mut crate::option::OptInt) -> Self {
-        Self::Int(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<crate::option::OptInt>) -> Self {
+        Self::Int(r)
     }
 }
 
-impl From<&mut OptString> for OptVar {
+impl From<OptRef<OptString>> for OptVar {
     #[inline]
-    fn from(r: &mut OptString) -> Self {
-        Self::Str(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<OptString>) -> Self {
+        Self::Str(r)
     }
 }
 
-impl From<&mut crate::eval::typval::Callback> for OptVar {
+impl From<OptRef<crate::eval::typval::Callback>> for OptVar {
     #[inline]
-    fn from(r: &mut crate::eval::typval::Callback) -> Self {
-        Self::Callback(crate::globals::GraphPtr::from(r))
+    fn from(r: OptRef<crate::eval::typval::Callback>) -> Self {
+        Self::Callback(r)
     }
 }
 

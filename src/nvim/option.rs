@@ -3611,7 +3611,46 @@ macro_rules! opt_cb {
 
 macro_rules! opt_var {
     ($field:ident) => {
-        Some(|| OptVar::from(&mut opt_vars().$field))
+        Some(|| {
+            OptVar::from(crate::optionstr::OptRef::Global(
+                |v| &v.$field,
+                |v| &mut v.$field,
+            ))
+        })
+    };
+}
+
+macro_rules! buf_var {
+    ($buf:expr, $field:ident) => {
+        OptVar::from(crate::optionstr::OptRef::Buf(
+            crate::globals::BufPtr::from(&*$buf),
+            |b| &b.$field,
+            |b| &mut b.$field,
+        ))
+    };
+}
+
+macro_rules! win_onebuf_var {
+    ($win:expr, $field:ident) => {
+        OptVar::from(crate::optionstr::OptRef::Win(
+            crate::globals::WinPtr::from(&*$win),
+            |w| &w.w_onebuf_opt.$field,
+            |w| &mut w.w_onebuf_opt.$field,
+        ))
+    };
+}
+
+macro_rules! winopt_var {
+    ($win:expr, $allbuf:expr, $field:ident) => {
+        if $allbuf {
+            OptVar::from(crate::optionstr::OptRef::Win(
+                crate::globals::WinPtr::from(&*$win),
+                |w| &w.w_allbuf_opt.$field,
+                |w| &mut w.w_allbuf_opt.$field,
+            ))
+        } else {
+            win_onebuf_var!($win, $field)
+        }
     };
 }
 
@@ -6168,42 +6207,42 @@ pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
         fd,
         cmd,
         K_OPT_FOLDMETHOD,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdm),
+        win_onebuf_var!(curwin_mut(), wo_fdm),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDEXPR,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fde),
+        win_onebuf_var!(curwin_mut(), wo_fde),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMARKER,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fmr),
+        win_onebuf_var!(curwin_mut(), wo_fmr),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDIGNORE,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdi),
+        win_onebuf_var!(curwin_mut(), wo_fdi),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDLEVEL,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdl),
+        win_onebuf_var!(curwin_mut(), wo_fdl),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMINLINES,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fml),
+        win_onebuf_var!(curwin_mut(), wo_fml),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDNESTMAX,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdn),
+        win_onebuf_var!(curwin_mut(), wo_fdn),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDENABLE,
-        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fen),
+        win_onebuf_var!(curwin_mut(), wo_fen),
     ) {
         return false;
     }
@@ -6322,52 +6361,52 @@ fn put_set(
     ret
 }
 
-fn get_winopt_var(wop: &mut Winopt, opt_idx: OptIndex) -> OptVar {
+fn get_winopt_var(win: &WinInfoInfo, allbuf: bool, opt_idx: OptIndex) -> OptVar {
     match opt_idx {
-        K_OPT_ARABIC => OptVar::from(&mut wop.wo_arab),
-        K_OPT_LIST => OptVar::from(&mut wop.wo_list),
-        K_OPT_SPELL => OptVar::from(&mut wop.wo_spell),
-        K_OPT_CURSORCOLUMN => OptVar::from(&mut wop.wo_cuc),
-        K_OPT_CURSORLINE => OptVar::from(&mut wop.wo_cul),
-        K_OPT_CURSORLINEOPT => OptVar::from(&mut wop.wo_culopt),
-        K_OPT_COLORCOLUMN => OptVar::from(&mut wop.wo_cc),
-        K_OPT_DIFF => OptVar::from(&mut wop.wo_diff),
-        K_OPT_EVENTIGNOREWIN => OptVar::from(&mut wop.wo_eiw),
-        K_OPT_FOLDCOLUMN => OptVar::from(&mut wop.wo_fdc),
-        K_OPT_FOLDENABLE => OptVar::from(&mut wop.wo_fen),
-        K_OPT_FOLDIGNORE => OptVar::from(&mut wop.wo_fdi),
-        K_OPT_FOLDLEVEL => OptVar::from(&mut wop.wo_fdl),
-        K_OPT_FOLDMETHOD => OptVar::from(&mut wop.wo_fdm),
-        K_OPT_FOLDMINLINES => OptVar::from(&mut wop.wo_fml),
-        K_OPT_FOLDNESTMAX => OptVar::from(&mut wop.wo_fdn),
-        K_OPT_FOLDEXPR => OptVar::from(&mut wop.wo_fde),
-        K_OPT_FOLDTEXT => OptVar::from(&mut wop.wo_fdt),
-        K_OPT_FOLDMARKER => OptVar::from(&mut wop.wo_fmr),
-        K_OPT_NUMBER => OptVar::from(&mut wop.wo_nu),
-        K_OPT_RELATIVENUMBER => OptVar::from(&mut wop.wo_rnu),
-        K_OPT_NUMBERWIDTH => OptVar::from(&mut wop.wo_nuw),
-        K_OPT_WINFIXBUF => OptVar::from(&mut wop.wo_wfb),
-        K_OPT_WINFIXHEIGHT => OptVar::from(&mut wop.wo_wfh),
-        K_OPT_WINFIXWIDTH => OptVar::from(&mut wop.wo_wfw),
-        K_OPT_WINPINNED => OptVar::from(&mut wop.wo_wp),
-        K_OPT_PREVIEWWINDOW => OptVar::from(&mut wop.wo_pvw),
-        K_OPT_LHISTORY => OptVar::from(&mut wop.wo_lhi),
-        K_OPT_RIGHTLEFT => OptVar::from(&mut wop.wo_rl),
-        K_OPT_RIGHTLEFTCMD => OptVar::from(&mut wop.wo_rlc),
-        K_OPT_SCROLL => OptVar::from(&mut wop.wo_scr),
-        K_OPT_SMOOTHSCROLL => OptVar::from(&mut wop.wo_sms),
-        K_OPT_WRAP => OptVar::from(&mut wop.wo_wrap),
-        K_OPT_LINEBREAK => OptVar::from(&mut wop.wo_lbr),
-        K_OPT_BREAKINDENT => OptVar::from(&mut wop.wo_bri),
-        K_OPT_BREAKINDENTOPT => OptVar::from(&mut wop.wo_briopt),
-        K_OPT_SCROLLBIND => OptVar::from(&mut wop.wo_scb),
-        K_OPT_CURSORBIND => OptVar::from(&mut wop.wo_crb),
-        K_OPT_CONCEALCURSOR => OptVar::from(&mut wop.wo_cocu),
-        K_OPT_CONCEALLEVEL => OptVar::from(&mut wop.wo_cole),
-        K_OPT_SIGNCOLUMN => OptVar::from(&mut wop.wo_scl),
-        K_OPT_WINHIGHLIGHT => OptVar::from(&mut wop.wo_winhl),
-        K_OPT_WINBLEND => OptVar::from(&mut wop.wo_winbl),
-        K_OPT_STATUSCOLUMN => OptVar::from(&mut wop.wo_stc),
+        K_OPT_ARABIC => winopt_var!(win, allbuf, wo_arab),
+        K_OPT_LIST => winopt_var!(win, allbuf, wo_list),
+        K_OPT_SPELL => winopt_var!(win, allbuf, wo_spell),
+        K_OPT_CURSORCOLUMN => winopt_var!(win, allbuf, wo_cuc),
+        K_OPT_CURSORLINE => winopt_var!(win, allbuf, wo_cul),
+        K_OPT_CURSORLINEOPT => winopt_var!(win, allbuf, wo_culopt),
+        K_OPT_COLORCOLUMN => winopt_var!(win, allbuf, wo_cc),
+        K_OPT_DIFF => winopt_var!(win, allbuf, wo_diff),
+        K_OPT_EVENTIGNOREWIN => winopt_var!(win, allbuf, wo_eiw),
+        K_OPT_FOLDCOLUMN => winopt_var!(win, allbuf, wo_fdc),
+        K_OPT_FOLDENABLE => winopt_var!(win, allbuf, wo_fen),
+        K_OPT_FOLDIGNORE => winopt_var!(win, allbuf, wo_fdi),
+        K_OPT_FOLDLEVEL => winopt_var!(win, allbuf, wo_fdl),
+        K_OPT_FOLDMETHOD => winopt_var!(win, allbuf, wo_fdm),
+        K_OPT_FOLDMINLINES => winopt_var!(win, allbuf, wo_fml),
+        K_OPT_FOLDNESTMAX => winopt_var!(win, allbuf, wo_fdn),
+        K_OPT_FOLDEXPR => winopt_var!(win, allbuf, wo_fde),
+        K_OPT_FOLDTEXT => winopt_var!(win, allbuf, wo_fdt),
+        K_OPT_FOLDMARKER => winopt_var!(win, allbuf, wo_fmr),
+        K_OPT_NUMBER => winopt_var!(win, allbuf, wo_nu),
+        K_OPT_RELATIVENUMBER => winopt_var!(win, allbuf, wo_rnu),
+        K_OPT_NUMBERWIDTH => winopt_var!(win, allbuf, wo_nuw),
+        K_OPT_WINFIXBUF => winopt_var!(win, allbuf, wo_wfb),
+        K_OPT_WINFIXHEIGHT => winopt_var!(win, allbuf, wo_wfh),
+        K_OPT_WINFIXWIDTH => winopt_var!(win, allbuf, wo_wfw),
+        K_OPT_WINPINNED => winopt_var!(win, allbuf, wo_wp),
+        K_OPT_PREVIEWWINDOW => winopt_var!(win, allbuf, wo_pvw),
+        K_OPT_LHISTORY => winopt_var!(win, allbuf, wo_lhi),
+        K_OPT_RIGHTLEFT => winopt_var!(win, allbuf, wo_rl),
+        K_OPT_RIGHTLEFTCMD => winopt_var!(win, allbuf, wo_rlc),
+        K_OPT_SCROLL => winopt_var!(win, allbuf, wo_scr),
+        K_OPT_SMOOTHSCROLL => winopt_var!(win, allbuf, wo_sms),
+        K_OPT_WRAP => winopt_var!(win, allbuf, wo_wrap),
+        K_OPT_LINEBREAK => winopt_var!(win, allbuf, wo_lbr),
+        K_OPT_BREAKINDENT => winopt_var!(win, allbuf, wo_bri),
+        K_OPT_BREAKINDENTOPT => winopt_var!(win, allbuf, wo_briopt),
+        K_OPT_SCROLLBIND => winopt_var!(win, allbuf, wo_scb),
+        K_OPT_CURSORBIND => winopt_var!(win, allbuf, wo_crb),
+        K_OPT_CONCEALCURSOR => winopt_var!(win, allbuf, wo_cocu),
+        K_OPT_CONCEALLEVEL => winopt_var!(win, allbuf, wo_cole),
+        K_OPT_SIGNCOLUMN => winopt_var!(win, allbuf, wo_scl),
+        K_OPT_WINHIGHLIGHT => winopt_var!(win, allbuf, wo_winhl),
+        K_OPT_WINBLEND => winopt_var!(win, allbuf, wo_winbl),
+        K_OPT_STATUSCOLUMN => winopt_var!(win, allbuf, wo_stc),
         _ => OptVar::None,
     }
 }
@@ -6376,58 +6415,54 @@ pub fn get_varp_scope_from(
     p: Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
-    mut win: Option<&mut WinInfoInfo>,
+    win: Option<&mut WinInfoInfo>,
 ) -> OptVar {
     let opt_idx = get_opt_idx(p.clone());
 
     if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
         if option_is_window_local(opt_idx) {
-            return get_winopt_var(&mut win.unwrap().w_allbuf_opt, opt_idx);
+            return get_winopt_var(win.unwrap(), true, opt_idx);
         }
         return p.var();
     }
 
     if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
         return match opt_idx {
-            K_OPT_FORMATPRG => OptVar::from(&mut buf.b_p_fp),
-            K_OPT_FSYNC => OptVar::from(&mut buf.b_p_fs),
-            K_OPT_FINDFUNC => OptVar::from(&mut buf.b_p_ffu),
-            K_OPT_ERRORFORMAT => OptVar::from(&mut buf.b_p_efm),
-            K_OPT_GREPFORMAT => OptVar::from(&mut buf.b_p_gefm),
-            K_OPT_GREPPRG => OptVar::from(&mut buf.b_p_gp),
-            K_OPT_MAKEPRG => OptVar::from(&mut buf.b_p_mp),
-            K_OPT_EQUALPRG => OptVar::from(&mut buf.b_p_ep),
-            K_OPT_KEYWORDPRG => OptVar::from(&mut buf.b_p_kp),
-            K_OPT_PATH => OptVar::from(&mut buf.b_p_path),
-            K_OPT_AUTOCOMPLETE => OptVar::from(&mut buf.b_p_ac),
-            K_OPT_AUTOREAD => OptVar::from(&mut buf.b_p_ar),
-            K_OPT_TAGS => OptVar::from(&mut buf.b_p_tags),
-            K_OPT_TAGCASE => OptVar::from(&mut buf.b_p_tc),
-            K_OPT_SIDESCROLLOFF => {
-                OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_siso)
-            }
-            K_OPT_SCROLLOFF => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_so),
-            K_OPT_SCROLLOFFPAD => {
-                OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sop)
-            }
-            K_OPT_DEFINE => OptVar::from(&mut buf.b_p_def),
-            K_OPT_INCLUDE => OptVar::from(&mut buf.b_p_inc),
-            K_OPT_COMPLETEOPT => OptVar::from(&mut buf.b_p_cot),
-            K_OPT_DICTIONARY => OptVar::from(&mut buf.b_p_dict),
-            K_OPT_DIFFANCHORS => OptVar::from(&mut buf.b_p_dia),
-            K_OPT_THESAURUS => OptVar::from(&mut buf.b_p_tsr),
-            K_OPT_THESAURUSFUNC => OptVar::from(&mut buf.b_p_tsrfu),
-            K_OPT_TAGFUNC => OptVar::from(&mut buf.b_p_tfu),
-            K_OPT_SHOWBREAK => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sbr),
-            K_OPT_STATUSLINE => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_stl),
-            K_OPT_WINBAR => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr),
-            K_OPT_UNDOLEVELS => OptVar::from(&mut buf.b_p_ul),
-            K_OPT_LISPWORDS => OptVar::from(&mut buf.b_p_lw),
-            K_OPT_BACKUPCOPY => OptVar::from(&mut buf.b_p_bkc),
-            K_OPT_MAKEENCODING => OptVar::from(&mut buf.b_p_menc),
-            K_OPT_FILLCHARS => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fcs),
-            K_OPT_LISTCHARS => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lcs),
-            K_OPT_VIRTUALEDIT => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_ve),
+            K_OPT_FORMATPRG => buf_var!(buf, b_p_fp),
+            K_OPT_FSYNC => buf_var!(buf, b_p_fs),
+            K_OPT_FINDFUNC => buf_var!(buf, b_p_ffu),
+            K_OPT_ERRORFORMAT => buf_var!(buf, b_p_efm),
+            K_OPT_GREPFORMAT => buf_var!(buf, b_p_gefm),
+            K_OPT_GREPPRG => buf_var!(buf, b_p_gp),
+            K_OPT_MAKEPRG => buf_var!(buf, b_p_mp),
+            K_OPT_EQUALPRG => buf_var!(buf, b_p_ep),
+            K_OPT_KEYWORDPRG => buf_var!(buf, b_p_kp),
+            K_OPT_PATH => buf_var!(buf, b_p_path),
+            K_OPT_AUTOCOMPLETE => buf_var!(buf, b_p_ac),
+            K_OPT_AUTOREAD => buf_var!(buf, b_p_ar),
+            K_OPT_TAGS => buf_var!(buf, b_p_tags),
+            K_OPT_TAGCASE => buf_var!(buf, b_p_tc),
+            K_OPT_SIDESCROLLOFF => win_onebuf_var!(win.as_deref().unwrap(), wo_siso),
+            K_OPT_SCROLLOFF => win_onebuf_var!(win.as_deref().unwrap(), wo_so),
+            K_OPT_SCROLLOFFPAD => win_onebuf_var!(win.as_deref().unwrap(), wo_sop),
+            K_OPT_DEFINE => buf_var!(buf, b_p_def),
+            K_OPT_INCLUDE => buf_var!(buf, b_p_inc),
+            K_OPT_COMPLETEOPT => buf_var!(buf, b_p_cot),
+            K_OPT_DICTIONARY => buf_var!(buf, b_p_dict),
+            K_OPT_DIFFANCHORS => buf_var!(buf, b_p_dia),
+            K_OPT_THESAURUS => buf_var!(buf, b_p_tsr),
+            K_OPT_THESAURUSFUNC => buf_var!(buf, b_p_tsrfu),
+            K_OPT_TAGFUNC => buf_var!(buf, b_p_tfu),
+            K_OPT_SHOWBREAK => win_onebuf_var!(win.as_deref().unwrap(), wo_sbr),
+            K_OPT_STATUSLINE => win_onebuf_var!(win.as_deref().unwrap(), wo_stl),
+            K_OPT_WINBAR => win_onebuf_var!(win.as_deref().unwrap(), wo_wbr),
+            K_OPT_UNDOLEVELS => buf_var!(buf, b_p_ul),
+            K_OPT_LISPWORDS => buf_var!(buf, b_p_lw),
+            K_OPT_BACKUPCOPY => buf_var!(buf, b_p_bkc),
+            K_OPT_MAKEENCODING => buf_var!(buf, b_p_menc),
+            K_OPT_FILLCHARS => win_onebuf_var!(win.as_deref().unwrap(), wo_fcs),
+            K_OPT_LISTCHARS => win_onebuf_var!(win.as_deref().unwrap(), wo_lcs),
+            K_OPT_VIRTUALEDIT => win_onebuf_var!(win.as_deref().unwrap(), wo_ve),
             _ => std::process::abort(),
         };
     }
@@ -6457,8 +6492,8 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         return p.var();
     }
 
-    if let Some(ref mut w) = win {
-        let win_var = get_winopt_var(&mut w.w_onebuf_opt, opt_idx);
+    if let Some(ref w) = win {
+        let win_var = get_winopt_var(w, false, opt_idx);
         if win_var.is_some() {
             return win_var;
         }
@@ -6467,352 +6502,380 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
     match opt_idx {
         K_OPT_EQUALPRG => {
             if !buf.b_p_ep.is_empty() {
-                OptVar::from(&mut buf.b_p_ep)
+                buf_var!(buf, b_p_ep)
             } else {
                 p.var()
             }
         }
         K_OPT_KEYWORDPRG => {
             if !buf.b_p_kp.is_empty() {
-                OptVar::from(&mut buf.b_p_kp)
+                buf_var!(buf, b_p_kp)
             } else {
                 p.var()
             }
         }
         K_OPT_PATH => {
             if !buf.b_p_path.is_empty() {
-                OptVar::from(&mut buf.b_p_path)
+                buf_var!(buf, b_p_path)
             } else {
                 p.var()
             }
         }
         K_OPT_AUTOCOMPLETE => {
             if buf.b_p_ac.is_some() {
-                OptVar::from(&mut buf.b_p_ac)
+                buf_var!(buf, b_p_ac)
             } else {
                 p.var()
             }
         }
         K_OPT_AUTOREAD => {
             if buf.b_p_ar.is_some() {
-                OptVar::from(&mut buf.b_p_ar)
+                buf_var!(buf, b_p_ar)
             } else {
                 p.var()
             }
         }
         K_OPT_TAGS => {
             if !buf.b_p_tags.is_empty() {
-                OptVar::from(&mut buf.b_p_tags)
+                buf_var!(buf, b_p_tags)
             } else {
                 p.var()
             }
         }
         K_OPT_TAGCASE => {
             if !buf.b_p_tc.is_empty() {
-                OptVar::from(&mut buf.b_p_tc)
+                buf_var!(buf, b_p_tc)
             } else {
                 p.var()
             }
         }
         K_OPT_SIDESCROLLOFF => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if w.w_onebuf_opt.wo_siso >= 0 {
-                OptVar::from(&mut w.w_onebuf_opt.wo_siso)
+                win_onebuf_var!(w, wo_siso)
             } else {
                 p.var()
             }
         }
         K_OPT_SCROLLOFF => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if w.w_onebuf_opt.wo_so >= 0 {
-                OptVar::from(&mut w.w_onebuf_opt.wo_so)
+                win_onebuf_var!(w, wo_so)
             } else {
                 p.var()
             }
         }
         K_OPT_SCROLLOFFPAD => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if w.w_onebuf_opt.wo_sop >= 0 {
-                OptVar::from(&mut w.w_onebuf_opt.wo_sop)
+                win_onebuf_var!(w, wo_sop)
             } else {
                 p.var()
             }
         }
         K_OPT_BACKUPCOPY => {
             if !buf.b_p_bkc.is_empty() {
-                OptVar::from(&mut buf.b_p_bkc)
+                buf_var!(buf, b_p_bkc)
             } else {
                 p.var()
             }
         }
         K_OPT_DEFINE => {
             if !buf.b_p_def.is_empty() {
-                OptVar::from(&mut buf.b_p_def)
+                buf_var!(buf, b_p_def)
             } else {
                 p.var()
             }
         }
         K_OPT_INCLUDE => {
             if !buf.b_p_inc.is_empty() {
-                OptVar::from(&mut buf.b_p_inc)
+                buf_var!(buf, b_p_inc)
             } else {
                 p.var()
             }
         }
         K_OPT_COMPLETEOPT => {
             if !buf.b_p_cot.is_empty() {
-                OptVar::from(&mut buf.b_p_cot)
+                buf_var!(buf, b_p_cot)
             } else {
                 p.var()
             }
         }
         K_OPT_DICTIONARY => {
             if !buf.b_p_dict.is_empty() {
-                OptVar::from(&mut buf.b_p_dict)
+                buf_var!(buf, b_p_dict)
             } else {
                 p.var()
             }
         }
         K_OPT_DIFFANCHORS => {
             if !buf.b_p_dia.is_empty() {
-                OptVar::from(&mut buf.b_p_dia)
+                buf_var!(buf, b_p_dia)
             } else {
                 p.var()
             }
         }
         K_OPT_THESAURUS => {
             if !buf.b_p_tsr.is_empty() {
-                OptVar::from(&mut buf.b_p_tsr)
+                buf_var!(buf, b_p_tsr)
             } else {
                 p.var()
             }
         }
         K_OPT_THESAURUSFUNC => {
             if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-                OptVar::from(&mut buf.b_p_tsrfu)
+                buf_var!(buf, b_p_tsrfu)
             } else {
                 p.var()
             }
         }
         K_OPT_FORMATPRG => {
             if !buf.b_p_fp.is_empty() {
-                OptVar::from(&mut buf.b_p_fp)
+                buf_var!(buf, b_p_fp)
             } else {
                 p.var()
             }
         }
         K_OPT_FSYNC => {
             if buf.b_p_fs.is_some() {
-                OptVar::from(&mut buf.b_p_fs)
+                buf_var!(buf, b_p_fs)
             } else {
                 p.var()
             }
         }
         K_OPT_FINDFUNC => {
             if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
-                OptVar::from(&mut buf.b_p_ffu)
+                buf_var!(buf, b_p_ffu)
             } else {
                 p.var()
             }
         }
         K_OPT_ERRORFORMAT => {
             if !buf.b_p_efm.is_empty() {
-                OptVar::from(&mut buf.b_p_efm)
+                buf_var!(buf, b_p_efm)
             } else {
                 p.var()
             }
         }
         K_OPT_GREPFORMAT => {
             if !buf.b_p_gefm.is_empty() {
-                OptVar::from(&mut buf.b_p_gefm)
+                buf_var!(buf, b_p_gefm)
             } else {
                 p.var()
             }
         }
         K_OPT_GREPPRG => {
             if !buf.b_p_gp.is_empty() {
-                OptVar::from(&mut buf.b_p_gp)
+                buf_var!(buf, b_p_gp)
             } else {
                 p.var()
             }
         }
         K_OPT_MAKEPRG => {
             if !buf.b_p_mp.is_empty() {
-                OptVar::from(&mut buf.b_p_mp)
+                buf_var!(buf, b_p_mp)
             } else {
                 p.var()
             }
         }
         K_OPT_SHOWBREAK => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_sbr.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_sbr)
+                win_onebuf_var!(w, wo_sbr)
             } else {
                 p.var()
             }
         }
         K_OPT_STATUSLINE => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_stl.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_stl)
+                win_onebuf_var!(w, wo_stl)
             } else {
                 p.var()
             }
         }
         K_OPT_WINBAR => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_wbr.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_wbr)
+                win_onebuf_var!(w, wo_wbr)
             } else {
                 p.var()
             }
         }
         K_OPT_UNDOLEVELS => {
             if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
-                OptVar::from(&mut buf.b_p_ul)
+                buf_var!(buf, b_p_ul)
             } else {
                 p.var()
             }
         }
         K_OPT_LISPWORDS => {
             if !buf.b_p_lw.is_empty() {
-                OptVar::from(&mut buf.b_p_lw)
+                buf_var!(buf, b_p_lw)
             } else {
                 p.var()
             }
         }
         K_OPT_MAKEENCODING => {
             if !buf.b_p_menc.is_empty() {
-                OptVar::from(&mut buf.b_p_menc)
+                buf_var!(buf, b_p_menc)
             } else {
                 p.var()
             }
         }
         K_OPT_FILLCHARS => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_fcs.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_fcs)
+                win_onebuf_var!(w, wo_fcs)
             } else {
                 p.var()
             }
         }
         K_OPT_LISTCHARS => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_lcs.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_lcs)
+                win_onebuf_var!(w, wo_lcs)
             } else {
                 p.var()
             }
         }
         K_OPT_VIRTUALEDIT => {
-            let w = win.as_deref_mut().unwrap();
+            let w = win.as_deref().unwrap();
             if !w.w_onebuf_opt.wo_ve.is_empty() {
-                OptVar::from(&mut w.w_onebuf_opt.wo_ve)
+                win_onebuf_var!(w, wo_ve)
             } else {
                 p.var()
             }
         }
 
-        K_OPT_AUTOINDENT => OptVar::from(&mut buf.b_p_ai),
-        K_OPT_BINARY => OptVar::from(&mut buf.b_p_bin),
-        K_OPT_BOMB => OptVar::from(&mut buf.b_p_bomb),
-        K_OPT_BUFHIDDEN => OptVar::from(&mut buf.b_p_bh),
-        K_OPT_BUFTYPE => OptVar::from(&mut buf.b_p_bt),
-        K_OPT_BUFLISTED => OptVar::from(&mut buf.b_p_bl),
-        K_OPT_BUSY => OptVar::from(&mut buf.b_p_busy),
-        K_OPT_CHANNEL => OptVar::from(&mut buf.b_p_channel),
-        K_OPT_COPYINDENT => OptVar::from(&mut buf.b_p_ci),
-        K_OPT_CINDENT => OptVar::from(&mut buf.b_p_cin),
-        K_OPT_CINKEYS => OptVar::from(&mut buf.b_p_cink),
-        K_OPT_CINOPTIONS => OptVar::from(&mut buf.b_p_cino),
-        K_OPT_CINSCOPEDECLS => OptVar::from(&mut buf.b_p_cinsd),
-        K_OPT_CINWORDS => OptVar::from(&mut buf.b_p_cinw),
-        K_OPT_COMMENTS => OptVar::from(&mut buf.b_p_com),
-        K_OPT_COMMENTSTRING => OptVar::from(&mut buf.b_p_cms),
-        K_OPT_COMPLETE => OptVar::from(&mut buf.b_p_cpt),
+        K_OPT_AUTOINDENT => buf_var!(buf, b_p_ai),
+        K_OPT_BINARY => buf_var!(buf, b_p_bin),
+        K_OPT_BOMB => buf_var!(buf, b_p_bomb),
+        K_OPT_BUFHIDDEN => buf_var!(buf, b_p_bh),
+        K_OPT_BUFTYPE => buf_var!(buf, b_p_bt),
+        K_OPT_BUFLISTED => buf_var!(buf, b_p_bl),
+        K_OPT_BUSY => buf_var!(buf, b_p_busy),
+        K_OPT_CHANNEL => buf_var!(buf, b_p_channel),
+        K_OPT_COPYINDENT => buf_var!(buf, b_p_ci),
+        K_OPT_CINDENT => buf_var!(buf, b_p_cin),
+        K_OPT_CINKEYS => buf_var!(buf, b_p_cink),
+        K_OPT_CINOPTIONS => buf_var!(buf, b_p_cino),
+        K_OPT_CINSCOPEDECLS => buf_var!(buf, b_p_cinsd),
+        K_OPT_CINWORDS => buf_var!(buf, b_p_cinw),
+        K_OPT_COMMENTS => buf_var!(buf, b_p_com),
+        K_OPT_COMMENTSTRING => buf_var!(buf, b_p_cms),
+        K_OPT_COMPLETE => buf_var!(buf, b_p_cpt),
         #[cfg(windows)]
-        K_OPT_COMPLETESLASH => OptVar::from(&mut buf.b_p_csl),
-        K_OPT_COMPLETEFUNC => OptVar::from(&mut buf.b_p_cfu),
-        K_OPT_OMNIFUNC => OptVar::from(&mut buf.b_p_ofu),
-        K_OPT_ENDOFFILE => OptVar::from(&mut buf.b_p_eof),
-        K_OPT_ENDOFLINE => OptVar::from(&mut buf.b_p_eol),
-        K_OPT_FIXENDOFLINE => OptVar::from(&mut buf.b_p_fixeol),
-        K_OPT_EXPANDTAB => OptVar::from(&mut buf.b_p_et),
-        K_OPT_FILEENCODING => OptVar::from(&mut buf.b_p_fenc),
-        K_OPT_FILEFORMAT => OptVar::from(&mut buf.b_p_ff),
-        K_OPT_FILETYPE => OptVar::from(&mut buf.b_p_ft),
-        K_OPT_FOLLOW => OptVar::from(&mut buf.b_p_follow),
-        K_OPT_FORMATOPTIONS => OptVar::from(&mut buf.b_p_fo),
-        K_OPT_FORMATLISTPAT => OptVar::from(&mut buf.b_p_flp),
-        K_OPT_IMINSERT => OptVar::from(&mut buf.b_p_iminsert),
-        K_OPT_IMSEARCH => OptVar::from(&mut buf.b_p_imsearch),
-        K_OPT_INFERCASE => OptVar::from(&mut buf.b_p_inf),
-        K_OPT_ISKEYWORD => OptVar::from(&mut buf.b_p_isk),
-        K_OPT_INCLUDEEXPR => OptVar::from(&mut buf.b_p_inex),
-        K_OPT_INDENTEXPR => OptVar::from(&mut buf.b_p_inde),
-        K_OPT_INDENTKEYS => OptVar::from(&mut buf.b_p_indk),
-        K_OPT_FORMATEXPR => OptVar::from(&mut buf.b_p_fex),
-        K_OPT_LISP => OptVar::from(&mut buf.b_p_lisp),
-        K_OPT_LISPOPTIONS => OptVar::from(&mut buf.b_p_lop),
-        K_OPT_MODELINE => OptVar::from(&mut buf.b_p_ml),
-        K_OPT_MATCHPAIRS => OptVar::from(&mut buf.b_p_mps),
-        K_OPT_MODIFIABLE => OptVar::from(&mut buf.b_p_ma),
-        K_OPT_MODIFIED => OptVar::from(&mut buf.b_changed),
-        K_OPT_NRFORMATS => OptVar::from(&mut buf.b_p_nf),
-        K_OPT_PRESERVEINDENT => OptVar::from(&mut buf.b_p_pi),
-        K_OPT_QUOTEESCAPE => OptVar::from(&mut buf.b_p_qe),
-        K_OPT_READONLY => OptVar::from(&mut buf.b_p_ro),
-        K_OPT_SCROLLBACK => OptVar::from(&mut buf.b_p_scbk),
-        K_OPT_SMARTINDENT => OptVar::from(&mut buf.b_p_si),
-        K_OPT_SOFTTABSTOP => OptVar::from(&mut buf.b_p_sts),
-        K_OPT_SUFFIXESADD => OptVar::from(&mut buf.b_p_sua),
-        K_OPT_SWAPFILE => OptVar::from(&mut buf.b_p_swf),
-        K_OPT_SYNMAXCOL => OptVar::from(&mut buf.b_p_smc),
-        K_OPT_SYNTAX => OptVar::from(&mut buf.b_p_syn),
+        K_OPT_COMPLETESLASH => buf_var!(buf, b_p_csl),
+        K_OPT_COMPLETEFUNC => buf_var!(buf, b_p_cfu),
+        K_OPT_OMNIFUNC => buf_var!(buf, b_p_ofu),
+        K_OPT_ENDOFFILE => buf_var!(buf, b_p_eof),
+        K_OPT_ENDOFLINE => buf_var!(buf, b_p_eol),
+        K_OPT_FIXENDOFLINE => buf_var!(buf, b_p_fixeol),
+        K_OPT_EXPANDTAB => buf_var!(buf, b_p_et),
+        K_OPT_FILEENCODING => buf_var!(buf, b_p_fenc),
+        K_OPT_FILEFORMAT => buf_var!(buf, b_p_ff),
+        K_OPT_FILETYPE => buf_var!(buf, b_p_ft),
+        K_OPT_FOLLOW => buf_var!(buf, b_p_follow),
+        K_OPT_FORMATOPTIONS => buf_var!(buf, b_p_fo),
+        K_OPT_FORMATLISTPAT => buf_var!(buf, b_p_flp),
+        K_OPT_IMINSERT => buf_var!(buf, b_p_iminsert),
+        K_OPT_IMSEARCH => buf_var!(buf, b_p_imsearch),
+        K_OPT_INFERCASE => buf_var!(buf, b_p_inf),
+        K_OPT_ISKEYWORD => buf_var!(buf, b_p_isk),
+        K_OPT_INCLUDEEXPR => buf_var!(buf, b_p_inex),
+        K_OPT_INDENTEXPR => buf_var!(buf, b_p_inde),
+        K_OPT_INDENTKEYS => buf_var!(buf, b_p_indk),
+        K_OPT_FORMATEXPR => buf_var!(buf, b_p_fex),
+        K_OPT_LISP => buf_var!(buf, b_p_lisp),
+        K_OPT_LISPOPTIONS => buf_var!(buf, b_p_lop),
+        K_OPT_MODELINE => buf_var!(buf, b_p_ml),
+        K_OPT_MATCHPAIRS => buf_var!(buf, b_p_mps),
+        K_OPT_MODIFIABLE => buf_var!(buf, b_p_ma),
+        K_OPT_MODIFIED => buf_var!(buf, b_changed),
+        K_OPT_NRFORMATS => buf_var!(buf, b_p_nf),
+        K_OPT_PRESERVEINDENT => buf_var!(buf, b_p_pi),
+        K_OPT_QUOTEESCAPE => buf_var!(buf, b_p_qe),
+        K_OPT_READONLY => buf_var!(buf, b_p_ro),
+        K_OPT_SCROLLBACK => buf_var!(buf, b_p_scbk),
+        K_OPT_SMARTINDENT => buf_var!(buf, b_p_si),
+        K_OPT_SOFTTABSTOP => buf_var!(buf, b_p_sts),
+        K_OPT_SUFFIXESADD => buf_var!(buf, b_p_sua),
+        K_OPT_SWAPFILE => buf_var!(buf, b_p_swf),
+        K_OPT_SYNMAXCOL => buf_var!(buf, b_p_smc),
+        K_OPT_SYNTAX => buf_var!(buf, b_p_syn),
         K_OPT_SPELLCAPCHECK => {
-            let ws = if let Some(ref mut w) = win {
-                w.w_s_ptr()
+            if let Some(ref mut w) = win {
+                OptVar::from(crate::optionstr::OptRef::Win(
+                    crate::globals::WinPtr::from(&**w),
+                    |w| &w.w_s_ptr().b_p_spc,
+                    |w| &mut w.w_s_ptr().b_p_spc,
+                ))
             } else {
-                &mut buf.b_s
-            };
-            OptVar::from(&mut ws.b_p_spc)
+                OptVar::from(crate::optionstr::OptRef::Buf(
+                    crate::globals::BufPtr::from(&*buf),
+                    |b| &b.b_s.b_p_spc,
+                    |b| &mut b.b_s.b_p_spc,
+                ))
+            }
         }
         K_OPT_SPELLFILE => {
-            let ws = if let Some(ref mut w) = win {
-                w.w_s_ptr()
+            if let Some(ref mut w) = win {
+                OptVar::from(crate::optionstr::OptRef::Win(
+                    crate::globals::WinPtr::from(&**w),
+                    |w| &w.w_s_ptr().b_p_spf,
+                    |w| &mut w.w_s_ptr().b_p_spf,
+                ))
             } else {
-                &mut buf.b_s
-            };
-            OptVar::from(&mut ws.b_p_spf)
+                OptVar::from(crate::optionstr::OptRef::Buf(
+                    crate::globals::BufPtr::from(&*buf),
+                    |b| &b.b_s.b_p_spf,
+                    |b| &mut b.b_s.b_p_spf,
+                ))
+            }
         }
         K_OPT_SPELLLANG => {
-            let ws = if let Some(ref mut w) = win {
-                w.w_s_ptr()
+            if let Some(ref mut w) = win {
+                OptVar::from(crate::optionstr::OptRef::Win(
+                    crate::globals::WinPtr::from(&**w),
+                    |w| &w.w_s_ptr().b_p_spl,
+                    |w| &mut w.w_s_ptr().b_p_spl,
+                ))
             } else {
-                &mut buf.b_s
-            };
-            OptVar::from(&mut ws.b_p_spl)
+                OptVar::from(crate::optionstr::OptRef::Buf(
+                    crate::globals::BufPtr::from(&*buf),
+                    |b| &b.b_s.b_p_spl,
+                    |b| &mut b.b_s.b_p_spl,
+                ))
+            }
         }
         K_OPT_SPELLOPTIONS => {
-            let ws = if let Some(ref mut w) = win {
-                w.w_s_ptr()
+            if let Some(ref mut w) = win {
+                OptVar::from(crate::optionstr::OptRef::Win(
+                    crate::globals::WinPtr::from(&**w),
+                    |w| &w.w_s_ptr().b_p_spo,
+                    |w| &mut w.w_s_ptr().b_p_spo,
+                ))
             } else {
-                &mut buf.b_s
-            };
-            OptVar::from(&mut ws.b_p_spo)
+                OptVar::from(crate::optionstr::OptRef::Buf(
+                    crate::globals::BufPtr::from(&*buf),
+                    |b| &b.b_s.b_p_spo,
+                    |b| &mut b.b_s.b_p_spo,
+                ))
+            }
         }
-        K_OPT_SHIFTWIDTH => OptVar::from(&mut buf.b_p_sw),
-        K_OPT_TAGFUNC => OptVar::from(&mut buf.b_p_tfu),
-        K_OPT_TABSTOP => OptVar::from(&mut buf.b_p_ts),
-        K_OPT_TEXTWIDTH => OptVar::from(&mut buf.b_p_tw),
-        K_OPT_UNDOFILE => OptVar::from(&mut buf.b_p_udf),
-        K_OPT_WRAPMARGIN => OptVar::from(&mut buf.b_p_wm),
-        K_OPT_VARSOFTTABSTOP => OptVar::from(&mut buf.b_p_vsts),
-        K_OPT_VARTABSTOP => OptVar::from(&mut buf.b_p_vts),
-        K_OPT_KEYMAP => OptVar::from(&mut buf.b_p_keymap),
+        K_OPT_SHIFTWIDTH => buf_var!(buf, b_p_sw),
+        K_OPT_TAGFUNC => buf_var!(buf, b_p_tfu),
+        K_OPT_TABSTOP => buf_var!(buf, b_p_ts),
+        K_OPT_TEXTWIDTH => buf_var!(buf, b_p_tw),
+        K_OPT_UNDOFILE => buf_var!(buf, b_p_udf),
+        K_OPT_WRAPMARGIN => buf_var!(buf, b_p_wm),
+        K_OPT_VARSOFTTABSTOP => buf_var!(buf, b_p_vsts),
+        K_OPT_VARTABSTOP => buf_var!(buf, b_p_vts),
+        K_OPT_KEYMAP => buf_var!(buf, b_p_keymap),
         _ => {
             iemsg(tr(c"E356: get_varp ERROR"));
-            OptVar::from(&mut buf.b_p_wm)
+            buf_var!(buf, b_p_wm)
         }
     }
 }
