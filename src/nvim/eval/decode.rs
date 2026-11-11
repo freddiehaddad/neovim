@@ -202,7 +202,7 @@ fn json_decoder_pop(
             return false;
         } else if !obj.didcomma && last_container.special_val.is_null() {
             let dict = last_container.container.vval.v_dict_ref();
-            if dict.dv_hashtab.ht_used != 0 {
+            if dict.dv_hashtab.ht_used.get() != 0 {
                 json_err(
                     c"E474: Expected comma before dictionary key: %s",
                     &buf[val_location..],
@@ -666,6 +666,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                             .v_dict_ref()
                             .dv_hashtab
                             .ht_used
+                            .get()
                             == 0
                     } else {
                         tv_list_len(last_container.container.vval.v_list_opt()) == 0

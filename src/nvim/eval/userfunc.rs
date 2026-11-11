@@ -1175,7 +1175,7 @@ fn add_nr_var(dp: &mut TvDict, name: &std::ffi::CStr, nr: Varnumber) {
         v_lock: VAR_FIXED,
         vval: crate::eval::typval::TypvalVval::Number(nr),
     });
-    hash_add(&mut dp.dv_hashtab, &v);
+    hash_add(&dp.dv_hashtab, &v);
 }
 
 impl Drop for Funccall {
@@ -1492,7 +1492,7 @@ pub fn call_user_func(
             selfdict.dv_refcount += 1;
         }
 
-        hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
+        hash_add(&fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
     }
 
     init_var_dict(
@@ -1527,7 +1527,7 @@ pub fn call_user_func(
             v_lock: VAR_FIXED,
             vval: crate::eval::typval::TypvalVval::List(fc.fc_l_varlist.get()),
         });
-        hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
+        hash_add(&fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
     }
 
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
@@ -1605,9 +1605,9 @@ pub fn call_user_func(
         if addlocal {
             let tv_val = v.tv().clone();
             tv_copy(&tv_val, &mut v.tv_mut());
-            hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
+            hash_add(&fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
         } else {
-            hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
+            hash_add(&fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
         }
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
@@ -4493,7 +4493,7 @@ pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>)
                 .saturating_sub((varname.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize));
             let varname_bytes = varname.to_bytes();
             let idx = hash_find_len_idx(&*ht_ref, &varname_bytes[..len.min(varname_bytes.len())]);
-            if !hashitem_empty(&ht_ref.as_slice()[idx]) {
+            if !hashitem_empty(&ht_ref.slot(idx)) {
                 *pht = Some(ht_ref);
                 found_idx = Some(idx);
                 break;

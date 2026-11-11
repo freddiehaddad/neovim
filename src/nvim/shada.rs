@@ -1164,22 +1164,24 @@ fn hms_dealloc(hms_p: &mut HistoryMergerState) {
 
 fn var_shada_iter(
     iter: Option<usize>,
-    name: &mut Option<&'static CStr>,
+    name: &mut Option<std::ffi::CString>,
     rettv: &mut TypVal,
     flavour: VarFlavour,
 ) -> Option<usize> {
     let globvarht = get_globvar_ht();
-    let harray = &globvarht.ht_array;
-    let hinum = harray.len();
+    let hinum = globvarht.array_len();
     *name = None;
     let mut idx = if let Some(i) = iter {
         i
     } else {
         let mut i = 0;
-        while i < hinum
-            && (hashitem_empty(&harray[i])
-                || (var_flavour(harray[i].key_cstr().unwrap_or(c"").to_bytes()) & flavour) == 0)
-        {
+        while i < hinum {
+            let hi = globvarht.slot(i);
+            if !hashitem_empty(&hi)
+                && (var_flavour(hi.key_cstr().unwrap_or(c"").to_bytes()) & flavour) != 0
+            {
+                break;
+            }
             i += 1;
         }
         if i == hinum {
@@ -1187,13 +1189,14 @@ fn var_shada_iter(
         }
         i
     };
-    let di = harray[idx].di_opt().unwrap();
-    *name = Some(di.key_cstr());
+    let di = globvarht.slot(idx).hi_di;
+    *name = Some(di.key_cstr().to_owned());
     tv_copy(&di.tv(), rettv);
     idx += 1;
     while idx < hinum {
-        if !hashitem_empty(&harray[idx])
-            && (var_flavour(harray[idx].key_cstr().unwrap_or(c"").to_bytes()) & flavour) != 0
+        let hi = globvarht.slot(idx);
+        if !hashitem_empty(&hi)
+            && (var_flavour(hi.key_cstr().unwrap_or(c"").to_bytes()) & flavour) != 0
         {
             return Some(idx);
         }
@@ -2618,11 +2621,12 @@ fn shada_write(
             let cur_timestamp = os_time();
             loop {
                 let mut vartv = TypVal::new();
-                let mut name: Option<&'static CStr> = None;
+                let mut name: Option<std::ffi::CString> = None;
                 var_iter = var_shada_iter(var_iter, &mut name, &mut vartv, VAR_FLAVOUR_SHADA);
-                let Some(name) = name else {
+                let Some(ref name_cstr) = name else {
                     break;
                 };
+                let name: &CStr = name_cstr;
                 let mut skip = false;
                 match vartv.v_type {
                     VarType::VarFunc | VarType::VarPartial => {
@@ -4096,7 +4100,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
     let cur_timestamp = os_time();
     loop {
         let mut vartv = TypVal::new();
-        let mut name: Option<&'static CStr> = None;
+        let mut name: Option<std::ffi::CString> = None;
         var_iter = var_shada_iter(
             var_iter,
             &mut name,
@@ -4114,7 +4118,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
                 can_free_entry: false,
                 timestamp: cur_timestamp,
                 data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                    name: Some(name.to_owned()),
+                    name: Some(name),
                     value: tgttv,
                 }),
                 additional_data: None,

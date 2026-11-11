@@ -39,51 +39,80 @@ impl Hashitem {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Hashtab {
-    pub ht_mask: HashVal,
-    pub ht_used: usize,
-    pub ht_filled: usize,
-    pub ht_changed: i32,
-    pub ht_locked: i32,
-    pub ht_array: Vec<Hashitem>,
+    pub ht_mask: std::cell::Cell<HashVal>,
+    pub ht_used: std::cell::Cell<usize>,
+    pub ht_filled: std::cell::Cell<usize>,
+    pub ht_changed: std::cell::Cell<i32>,
+    pub ht_locked: std::cell::Cell<i32>,
+    pub ht_array: std::cell::RefCell<Vec<Hashitem>>,
 }
 
 impl Hashtab {
     pub const fn new() -> Self {
         Self {
-            ht_mask: HT_INIT_SIZE - 1,
-            ht_used: 0,
-            ht_filled: 0,
-            ht_changed: 0,
-            ht_locked: 0,
-            ht_array: Vec::new(),
+            ht_mask: std::cell::Cell::new(HT_INIT_SIZE - 1),
+            ht_used: std::cell::Cell::new(0),
+            ht_filled: std::cell::Cell::new(0),
+            ht_changed: std::cell::Cell::new(0),
+            ht_locked: std::cell::Cell::new(0),
+            ht_array: std::cell::RefCell::new(Vec::new()),
         }
     }
 
     #[inline]
-    pub fn as_slice(&self) -> &[Hashitem] {
-        if self.ht_array.is_empty() {
-            &EMPTY_HASHARRAY
+    pub fn slot(&self, idx: usize) -> Hashitem {
+        let arr = self.ht_array.borrow();
+        if arr.is_empty() {
+            EMPTY_HASHARRAY[idx].clone()
         } else {
-            &self.ht_array
+            arr[idx].clone()
         }
     }
 
     #[inline]
-    pub fn iter_items(&self) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
+    pub fn array_len(&self) -> usize {
+        self.ht_array.borrow().len()
+    }
+
+    #[inline]
+    pub fn take(&self) -> Self {
+        Self {
+            ht_mask: std::cell::Cell::new(self.ht_mask.replace(HT_INIT_SIZE - 1)),
+            ht_used: std::cell::Cell::new(self.ht_used.replace(0)),
+            ht_filled: std::cell::Cell::new(self.ht_filled.replace(0)),
+            ht_changed: std::cell::Cell::new(self.ht_changed.replace(0)),
+            ht_locked: std::cell::Cell::new(self.ht_locked.replace(0)),
+            ht_array: std::cell::RefCell::new(std::mem::take(&mut *self.ht_array.borrow_mut())),
+        }
+    }
+
+    #[inline]
+    pub fn replace(&self, other: Self) {
+        self.ht_mask.set(other.ht_mask.get());
+        self.ht_used.set(other.ht_used.get());
+        self.ht_filled.set(other.ht_filled.get());
+        self.ht_changed.set(other.ht_changed.get());
+        self.ht_locked.set(other.ht_locked.get());
+        *self.ht_array.borrow_mut() = other.ht_array.into_inner();
+    }
+
+    #[inline]
+    pub fn iter_items(&self) -> std::vec::IntoIter<(Hashitem, crate::eval::typval::DictitemId)> {
         self.ht_array
+            .borrow()
             .iter()
-            .filter_map(|hi| hi.hi_di.opt().map(|di| (hi, di)))
-            .take(self.ht_used)
+            .filter(|hi| !hi.hi_di.is_null())
+            .take(self.ht_used.get())
+            .map(|hi| (hi.clone(), hi.hi_di.clone()))
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     #[inline]
     pub fn iter_items_mut(
         &self,
-    ) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
-        self.ht_array
-            .iter()
-            .filter_map(|hi| hi.di_opt().map(|di| (hi, di)))
-            .take(self.ht_used)
+    ) -> std::vec::IntoIter<(Hashitem, crate::eval::typval::DictitemId)> {
+        self.iter_items()
     }
 
     #[inline]
@@ -101,16 +130,19 @@ impl Hashtab {
     #[inline]
     pub fn find_hi_idx(&self, key: &CStr) -> Option<usize> {
         let idx = hash_find_idx(self, key);
-        (!hashitem_empty(&self.as_slice()[idx])).then_some(idx)
+        (!hashitem_empty(&self.slot(idx))).then_some(idx)
     }
 
     #[inline]
-    pub fn remove_at(&mut self, idx: usize) {
-        let hi = &mut self.ht_array[idx];
-        self.ht_used -= 1;
-        self.ht_changed += 1;
-        hi.hi_removed = true;
-        hi.hi_di = crate::eval::typval::DictitemId::NULL;
+    pub fn remove_at(&self, idx: usize) {
+        {
+            let mut arr = self.ht_array.borrow_mut();
+            let hi = &mut arr[idx];
+            self.ht_used.set(self.ht_used.get() - 1);
+            self.ht_changed.set(self.ht_changed.get() + 1);
+            hi.hi_removed = true;
+            hi.hi_di = crate::eval::typval::DictitemId::NULL;
+        }
         hash_may_resize(self, 0);
     }
 }
@@ -140,8 +172,8 @@ fn key_matches(hi_key: Option<&CStr>, key: &[u8]) -> bool {
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
-pub fn hash_clear(ht: &mut Hashtab) {
-    *ht = Hashtab::new();
+pub fn hash_clear(ht: &Hashtab) {
+    ht.replace(Hashtab::new());
 }
 
 /// Find slot index for NUL-terminated `key` in `ht`.
@@ -158,19 +190,25 @@ pub fn hash_find_len_idx(ht: &Hashtab, key: &[u8]) -> usize {
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
 pub fn hash_find(ht: &Hashtab, key: &CStr) -> Hashitem {
-    ht.as_slice()[hash_find_idx(ht, key)].clone()
+    ht.slot(hash_find_idx(ht, key))
 }
 
 /// Find item for `key` slice in `ht` (`hash_find_len`).
 pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> Hashitem {
-    ht.as_slice()[hash_find_len_idx(ht, key)].clone()
+    ht.slot(hash_find_len_idx(ht, key))
 }
 
 /// Find slot index for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
-    let arr = ht.as_slice();
+    let arr_guard = ht.ht_array.borrow();
+    let arr: &[Hashitem] = if arr_guard.is_empty() {
+        &EMPTY_HASHARRAY
+    } else {
+        &arr_guard
+    };
+    let mask = ht.ht_mask.get();
 
-    let mut idx = hash & ht.ht_mask;
+    let mut idx = hash & mask;
     if arr[idx].is_null_slot() {
         return idx;
     }
@@ -185,7 +223,7 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-        let slot_idx = idx & ht.ht_mask;
+        let slot_idx = idx & mask;
         let item = &arr[slot_idx];
 
         if item.is_null_slot() {
@@ -205,11 +243,11 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
 }
 
 /// Add dictionary item `di` to hashtable `ht` (`hash_add`).
-pub fn hash_add(ht: &mut Hashtab, di: &crate::eval::typval::Dictitem) -> bool {
+pub fn hash_add(ht: &Hashtab, di: &crate::eval::typval::Dictitem) -> bool {
     let key = di.key_cstr();
     let hash = hash_hash(key);
     let idx = hash_lookup_idx(ht, key.to_bytes(), hash);
-    if !hashitem_empty(&ht.as_slice()[idx]) {
+    if !hashitem_empty(&ht.slot(idx)) {
         siemsg!(
             c"E685: Internal error: hash_add(): duplicate key \"%s\"",
             key,
@@ -221,67 +259,63 @@ pub fn hash_add(ht: &mut Hashtab, di: &crate::eval::typval::Dictitem) -> bool {
 }
 
 /// Add item at `idx` with precomputed `hash` to `ht` (`hash_add_item`).
-pub fn hash_add_item(
-    ht: &mut Hashtab,
-    idx: usize,
-    di: &crate::eval::typval::Dictitem,
-    hash: HashVal,
-) {
-    if ht.ht_array.is_empty() {
-        ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
+pub fn hash_add_item(ht: &Hashtab, idx: usize, di: &crate::eval::typval::Dictitem, hash: HashVal) {
+    {
+        let mut arr = ht.ht_array.borrow_mut();
+        if arr.is_empty() {
+            *arr = vec![Hashitem::default(); HT_INIT_SIZE];
+        }
+        let hi_ref = &mut arr[idx];
+        ht.ht_used.set(ht.ht_used.get() + 1);
+        ht.ht_changed.set(ht.ht_changed.get() + 1);
+        if hi_ref.is_null_slot() {
+            ht.ht_filled.set(ht.ht_filled.get() + 1);
+        }
+        hi_ref.hi_removed = false;
+        hi_ref.hi_di = crate::eval::typval::DictitemId::from(di);
+        hi_ref.hi_hash = hash;
     }
-    let hi_ref = &mut ht.ht_array[idx];
-    ht.ht_used += 1;
-    ht.ht_changed += 1;
-    if hi_ref.is_null_slot() {
-        ht.ht_filled += 1;
-    }
-    hi_ref.hi_removed = false;
-    hi_ref.hi_di = crate::eval::typval::DictitemId::from(di);
-    hi_ref.hi_hash = hash;
 
     hash_may_resize(ht, 0);
 }
 
 /// Remove item at `idx` from `ht` (`hash_remove`).
-pub fn hash_remove(ht: &mut Hashtab, idx: usize) {
+pub fn hash_remove(ht: &Hashtab, idx: usize) {
     ht.remove_at(idx);
 }
 
 /// Lock hashtable to prevent `ht_array` reallocation (`hash_lock`).
-pub fn hash_lock(ht: &mut Hashtab) {
-    ht.ht_locked += 1;
+pub fn hash_lock(ht: &Hashtab) {
+    ht.ht_locked.set(ht.ht_locked.get() + 1);
 }
 
 /// Unlock hashtable and resize if needed (`hash_unlock`).
-pub fn hash_unlock(ht: &mut Hashtab) {
-    ht.ht_locked -= 1;
+pub fn hash_unlock(ht: &Hashtab) {
+    ht.ht_locked.set(ht.ht_locked.get() - 1);
     hash_may_resize(ht, 0);
 }
 
-fn hash_may_resize(ht: &mut Hashtab, mut minitems: usize) {
-    if ht.ht_locked > 0 {
+fn hash_may_resize(ht: &Hashtab, mut minitems: usize) {
+    if ht.ht_locked.get() > 0 {
         return;
     }
 
-    let oldsize = ht.ht_mask + 1;
+    let oldsize = ht.ht_mask.get() + 1;
     let is_small = oldsize == HT_INIT_SIZE;
+    let used = ht.ht_used.get();
+    let filled = ht.ht_filled.get();
 
     let minsize = if minitems == 0 {
-        if ht.ht_filled < HT_INIT_SIZE - 1 && is_small {
+        if filled < HT_INIT_SIZE - 1 && is_small {
             return;
         }
-        if ht.ht_filled * 3 < oldsize * 2 && ht.ht_used > oldsize / 5 {
+        if filled * 3 < oldsize * 2 && used > oldsize / 5 {
             return;
         }
-        if ht.ht_used > 1000 {
-            ht.ht_used * 2
-        } else {
-            ht.ht_used * 4
-        }
+        if used > 1000 { used * 2 } else { used * 4 }
     } else {
-        if minitems < ht.ht_used {
-            minitems = ht.ht_used;
+        if minitems < used {
+            minitems = used;
         }
         (minitems * 3).div_ceil(2)
     };
@@ -293,22 +327,23 @@ fn hash_may_resize(ht: &mut Hashtab, mut minitems: usize) {
     }
 
     let newarray_is_small = newsize == HT_INIT_SIZE;
-    if !newarray_is_small && newsize == oldsize && ht.ht_filled * 3 < oldsize * 2 {
+    if !newarray_is_small && newsize == oldsize && filled * 3 < oldsize * 2 {
         return;
     }
 
-    if ht.ht_used == 0 && newarray_is_small {
-        ht.ht_array = Vec::new();
-        ht.ht_mask = HT_INIT_SIZE - 1;
-        ht.ht_filled = 0;
-        ht.ht_changed += 1;
+    if used == 0 && newarray_is_small {
+        *ht.ht_array.borrow_mut() = Vec::new();
+        ht.ht_mask.set(HT_INIT_SIZE - 1);
+        ht.ht_filled.set(0);
+        ht.ht_changed.set(ht.ht_changed.get() + 1);
         return;
     }
 
-    let oldarray = std::mem::replace(&mut ht.ht_array, vec![Hashitem::default(); newsize]);
+    let mut arr = ht.ht_array.borrow_mut();
+    let oldarray = std::mem::replace(&mut *arr, vec![Hashitem::default(); newsize]);
 
     let newmask = newsize - 1;
-    let mut todo = ht.ht_used;
+    let mut todo = used;
 
     for item in oldarray {
         if todo == 0 {
@@ -316,24 +351,24 @@ fn hash_may_resize(ht: &mut Hashtab, mut minitems: usize) {
         }
         if !hashitem_empty(&item) {
             let mut newi = item.hi_hash & newmask;
-            if !ht.ht_array[newi].is_null_slot() {
+            if !arr[newi].is_null_slot() {
                 let mut perturb = item.hi_hash;
                 loop {
                     newi = newi.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-                    if ht.ht_array[newi & newmask].is_null_slot() {
+                    if arr[newi & newmask].is_null_slot() {
                         break;
                     }
                     perturb >>= PERTURB_SHIFT;
                 }
             }
-            ht.ht_array[newi & newmask] = item;
+            arr[newi & newmask] = item;
             todo -= 1;
         }
     }
 
-    ht.ht_mask = newmask;
-    ht.ht_filled = ht.ht_used;
-    ht.ht_changed += 1;
+    ht.ht_mask.set(newmask);
+    ht.ht_filled.set(used);
+    ht.ht_changed.set(ht.ht_changed.get() + 1);
 }
 
 /// Compute hash for NUL-terminated `key` (`hash_hash`).
@@ -371,7 +406,7 @@ mod tests {
 
         {
             let ht = &mut ht_val;
-            assert_eq!(ht.ht_used, 0);
+            assert_eq!(ht.ht_used.get(), 0);
 
             let items: Vec<crate::eval::typval::DictitemId> = keys
                 .iter()
@@ -381,7 +416,7 @@ mod tests {
             for di in &items {
                 assert!(hash_add(ht, di));
             }
-            assert_eq!(ht.ht_used, 50);
+            assert_eq!(ht.ht_used.get(), 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
             let first_di = &items[0];
@@ -400,10 +435,10 @@ mod tests {
                 let idx = hash_find_idx(ht, k.as_c_str());
                 hash_remove(ht, idx);
             }
-            assert_eq!(ht.ht_used, 0);
-            assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);
+            assert_eq!(ht.ht_used.get(), 0);
+            assert_eq!(ht.ht_mask.get(), HT_INIT_SIZE - 1);
             hash_clear(ht);
-            assert!(ht.ht_array.is_empty());
+            assert!(ht.ht_array.borrow().is_empty());
 
             for di in &items {
                 crate::eval::typval::tv_dict_item_free(di);

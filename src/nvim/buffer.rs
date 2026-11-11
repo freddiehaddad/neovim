@@ -1882,7 +1882,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     }
     {
         let changedtick_idx = hash_find_idx(&buf.b_vars().dv_hashtab, c"changedtick");
-        hash_remove(&mut buf.b_vars().dv_hashtab, changedtick_idx);
+        hash_remove(&buf.b_vars().dv_hashtab, changedtick_idx);
     }
     vars_clear(&mut buf.b_vars().dv_hashtab);
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {

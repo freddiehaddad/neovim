@@ -399,9 +399,9 @@ fn tv_list_item_next(li: &Listitem) -> Option<crate::eval::typval::ListitemId> {
 pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
     let v_event = get_vim_var_dict(VV_EVENT);
 
-    if v_event.dv_hashtab.ht_used > 0 {
+    if v_event.dv_hashtab.ht_used.get() > 0 {
         sve.sve_did_save = true;
-        sve.sve_hashtab = std::mem::take(&mut v_event.dv_hashtab);
+        sve.sve_hashtab = v_event.dv_hashtab.take();
     } else {
         sve.sve_did_save = false;
     }
@@ -411,7 +411,9 @@ pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
 pub fn restore_v_event(v_event: &mut TvDict, sve: &mut SaveVEvent) {
     tv_dict_free_contents(&mut *v_event);
     if sve.sve_did_save {
-        v_event.dv_hashtab = std::mem::take(&mut sve.sve_hashtab);
+        v_event
+            .dv_hashtab
+            .replace(std::mem::take(&mut sve.sve_hashtab));
     }
 }
 

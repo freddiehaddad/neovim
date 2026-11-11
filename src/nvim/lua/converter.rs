@@ -669,12 +669,12 @@ fn lua_convert_one_value(
         }
         VarType::VarDict => {
             let mut dict = tv_ref.vval.v_dict();
-            if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
+            if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 lua_conv_empty_dict(lstate);
                 return true;
             }
             let mut handled_special = false;
-            if dict.dv_hashtab.ht_used == 2
+            if dict.dv_hashtab.ht_used.get() == 2
                 && let Some(type_di) = tv_dict_find(dict.opt(), c"_TYPE", 5)
                 && type_di.tv().v_type == VarType::VarList
                 && let Some(val_di) = tv_dict_find(dict.opt(), c"_VAL", 4)
@@ -863,13 +863,14 @@ fn lua_convert_one_value(
                 ) {
                     return true;
                 }
-                lua_conv_dict_start(lstate, dict.dv_hashtab.ht_used);
+                let used = dict.dv_hashtab.ht_used.get();
+                lua_conv_dict_start(lstate, used);
                 mpstack.push(MPConvStackVal {
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,
                         hi_idx: 0,
-                        todo: dict.dv_hashtab.ht_used,
+                        todo: used,
                     },
                 });
             }
@@ -905,14 +906,14 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     dict.dv_copy_id = saved_copy_id;
                     lua_rawset_safe(lstate, -3);
                     continue;
-                } else if *todo != dict.dv_hashtab.ht_used {
+                } else if *todo != dict.dv_hashtab.ht_used.get() {
                     lua_rawset_safe(lstate, -3);
                 }
-                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                while hashitem_empty(&dict.dv_hashtab.slot(*hi_idx)) {
                     *hi_idx += 1;
                 }
-                let hi = &dict.dv_hashtab.as_slice()[*hi_idx];
-                let di = crate::eval::typval::tv_dict_hi2di(hi);
+                let hi = dict.dv_hashtab.slot(*hi_idx);
+                let di = crate::eval::typval::tv_dict_hi2di(&hi);
                 *todo -= 1;
                 *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());

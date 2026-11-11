@@ -637,7 +637,7 @@ pub fn evalvars_init() {
         }
 
         if di.tv().v_type != VarType::VarUnknown {
-            hash_add(&mut get_vimvar_dict().dv_hashtab, &di);
+            hash_add(&get_vimvar_dict().dv_hashtab, &di);
         }
         if (vv_flags & VV_COMPAT) != 0 {
             hash_add(get_compat_ht(), &di);
@@ -735,7 +735,7 @@ pub fn evalvars_clear() {
 
     partial_unref(get_vim_var_partial(VV_LUA).as_deref());
     set_vim_var_partial(VV_LUA, None);
-    hash_clear(&mut get_vimvar_dict().dv_hashtab);
+    hash_clear(&get_vimvar_dict().dv_hashtab);
     hash_clear(get_compat_ht());
 
     vars_clear(&mut *get_globvar_ht());
@@ -913,7 +913,7 @@ pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
         tv.v_type == VarType::VarUnknown
     };
     if was_unknown {
-        hash_add(&mut get_vimvar_dict().dv_hashtab, &di);
+        hash_add(&get_vimvar_dict().dv_hashtab, &di);
     }
 }
 
@@ -926,7 +926,7 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
     }
 
     if let Some(idx) = get_vimvar_dict().dv_hashtab.find_hi_idx(di.key_cstr()) {
-        hash_remove(&mut get_vimvar_dict().dv_hashtab, idx);
+        hash_remove(&get_vimvar_dict().dv_hashtab, idx);
     } else {
         internal_error(c"restore_vimvar()");
     }
@@ -1464,7 +1464,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
         }
 
         if empty != 0 || di.tv().v_type != VarType::VarString || !di.tv().vval.v_string_is_null() {
-            list_one_var(di, prefix, first);
+            list_one_var(&di, prefix, first);
         }
     }
 }
@@ -2096,7 +2096,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
         }
 
         let mut hi_idx = Some(hash_find_idx(&*ht, varname_cstr));
-        if hashitem_empty(&ht.as_slice()[hi_idx.unwrap()]) {
+        if hashitem_empty(&ht.slot(hi_idx.unwrap())) {
             let mut ht_opt: Option<&'static mut Hashtab> = Some(ht);
             hi_idx = find_hi_in_scoped_ht(&name_cstr, &mut ht_opt);
             if let Some(h) = ht_opt {
@@ -2107,10 +2107,10 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             }
         }
         if let Some(idx) = hi_idx
-            && !hashitem_empty(&ht.as_slice()[idx])
+            && !hashitem_empty(&ht.slot(idx))
         {
-            let hi = &ht.as_slice()[idx];
-            let di = tv_dict_hi2di(hi);
+            let hi = ht.slot(idx);
+            let di = tv_dict_hi2di(&hi);
             let d_lock = d.dv_lock;
             if var_check_fixed(i32::from(di.di_flags.get()), &name_cstr, TV_CSTRING)
                 || var_check_ro(i32::from(di.di_flags.get()), &name_cstr, TV_CSTRING)
@@ -2208,15 +2208,16 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
 pub fn del_menutrans_vars() {
     let ght = get_globvar_ht();
     hash_lock(ght);
-    for i in 0..ght.ht_array.len() {
-        if ght.ht_used == 0 {
+    for i in 0..ght.array_len() {
+        if ght.ht_used.get() == 0 {
             break;
         }
-        let is_menutrans = ght.ht_array[i]
+        let hi = ght.slot(i);
+        let is_menutrans = hi
             .key_cstr()
             .is_some_and(|k| k.to_bytes().starts_with(b"menutrans_"));
         if is_menutrans {
-            let di = ght.ht_array[i].hi_di.clone();
+            let di = hi.hi_di;
             ght.remove_at(i);
             crate::eval::typval::tv_dict_item_free(&di);
         }
@@ -2305,76 +2306,68 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         VARS_STATE.with(|s| s.tdone.set(0));
     }
 
-    if VARS_STATE.with(|s| s.gdone.get()) < get_globvar_ht().ht_used {
-        let arr = get_globvar_ht().ht_array.as_slice();
+    if VARS_STATE.with(|s| s.gdone.get()) < get_globvar_ht().ht_used.get() {
+        let ght = get_globvar_ht();
         if VARS_STATE.with(|s| s.gdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
         VARS_STATE.with(|s| s.gdone.set(s.gdone.get() + (1)));
-        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+        while hashitem_empty(&ght.slot(VARS_STATE.with(|s| s.hi_idx.get()))) {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        let hi_key = arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr();
+        let hi = ght.slot(VARS_STATE.with(|s| s.hi_idx.get()));
+        let hi_key = hi.key_cstr();
         if xp.xp_pattern.as_bytes().starts_with(b"g:") {
             return Some(xp.set_item(cat_prefix_varname(b'g' as i32, hi_key)));
         }
-        return hi_key;
+        return hi_key.map(|k| xp.set_item(k.to_owned()));
     }
 
     let ht = &prevwin_curwin().w_buffer.b_vars().dv_hashtab;
-    if VARS_STATE.with(|s| s.bdone.get()) < ht.ht_used {
-        let arr = ht.ht_array.as_slice();
+    if VARS_STATE.with(|s| s.bdone.get()) < ht.ht_used.get() {
         if VARS_STATE.with(|s| s.bdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
         VARS_STATE.with(|s| s.bdone.set(s.bdone.get() + (1)));
-        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+        while hashitem_empty(&ht.slot(VARS_STATE.with(|s| s.hi_idx.get()))) {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(xp.set_item(cat_prefix_varname(
-            b'b' as i32,
-            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
-        )));
+        let hi = ht.slot(VARS_STATE.with(|s| s.hi_idx.get()));
+        return Some(xp.set_item(cat_prefix_varname(b'b' as i32, hi.key_cstr())));
     }
 
     let ht = &prevwin_curwin().w_vars().dv_hashtab;
-    if VARS_STATE.with(|s| s.wdone.get()) < ht.ht_used {
-        let arr = ht.ht_array.as_slice();
+    if VARS_STATE.with(|s| s.wdone.get()) < ht.ht_used.get() {
         if VARS_STATE.with(|s| s.wdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
         VARS_STATE.with(|s| s.wdone.set(s.wdone.get() + (1)));
-        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+        while hashitem_empty(&ht.slot(VARS_STATE.with(|s| s.hi_idx.get()))) {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(xp.set_item(cat_prefix_varname(
-            b'w' as i32,
-            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
-        )));
+        let hi = ht.slot(VARS_STATE.with(|s| s.hi_idx.get()));
+        return Some(xp.set_item(cat_prefix_varname(b'w' as i32, hi.key_cstr())));
     }
 
     let ht = &curtab_mut().tp_vars().dv_hashtab;
-    if VARS_STATE.with(|s| s.tdone.get()) < ht.ht_used {
-        let arr = ht.ht_array.as_slice();
+    if VARS_STATE.with(|s| s.tdone.get()) < ht.ht_used.get() {
         if VARS_STATE.with(|s| s.tdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
         VARS_STATE.with(|s| s.tdone.set(s.tdone.get() + (1)));
-        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+        while hashitem_empty(&ht.slot(VARS_STATE.with(|s| s.hi_idx.get()))) {
             VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(xp.set_item(cat_prefix_varname(
-            b't' as i32,
-            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
-        )));
+        let hi = ht.slot(VARS_STATE.with(|s| s.hi_idx.get()));
+        return Some(xp.set_item(cat_prefix_varname(b't' as i32, hi.key_cstr())));
     }
 
     if VARS_STATE.with(|s| s.vidx.get()) < VV_LEN {
@@ -2832,7 +2825,7 @@ pub fn new_script_vars() -> Box<Scriptvar> {
 
 /// Initialize dictionary "dict" as a scope and set variable "dict_var" to point to it.
 pub fn init_var_dict(dict: &mut TvDict, dict_var: &ScopeDictDictItem, scope: ScopeType) {
-    hash_clear(&mut dict.dv_hashtab);
+    hash_clear(&dict.dv_hashtab);
     dict.dv_lock = VAR_UNLOCKED;
     dict.dv_scope = scope;
     dict.dv_refcount = DO_NOT_FREE_CNT;
@@ -2865,7 +2858,7 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
             v.set_tv(TypVal::new());
         }
         if (v.di_flags.get() & DI_FLAGS_ALLOC) != 0 {
-            crate::eval::typval::tv_dict_item_free(v);
+            crate::eval::typval::tv_dict_item_free(&v);
         } else if free_val {
             v.clear_tv();
         }
@@ -2875,7 +2868,7 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
 
 /// Delete a variable from hashtab "ht" at slot "hi_idx".
 fn delete_var(ht: &mut Hashtab, hi_idx: usize) {
-    let di = ht.as_slice()[hi_idx].hi_di.clone();
+    let di = ht.slot(hi_idx).hi_di;
     hash_remove(ht, hi_idx);
     if let Some(di) = di.opt() {
         crate::eval::typval::tv_dict_item_free(di);
@@ -3087,7 +3080,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         let new_di = crate::eval::typval::tv_dict_item_alloc_len(
             &varname_bytes[..varname_len.min(varname_bytes.len())],
         );
-        if !hash_add(&mut *ht_ref, &new_di) {
+        if !hash_add(&*ht_ref, &new_di) {
             crate::eval::typval::tv_dict_item_free(&new_di);
             return;
         }

@@ -1900,7 +1900,7 @@ pub fn tv_list_len(l: Option<&TvList>) -> i32 {
 
 #[inline]
 pub fn tv_dict_len(d: Option<&TvDict>) -> i64 {
-    d.map_or(0, |d| d.dv_hashtab.ht_used as i64)
+    d.map_or(0, |d| d.dv_hashtab.ht_used.get() as i64)
 }
 
 #[inline]
@@ -1975,7 +1975,7 @@ fn tv_dict_set_ret_inline(tv: &mut TypVal, d: &mut TvDict) {
 
 #[inline]
 fn tv_dict_len_inline(d: Option<&TvDict>) -> isize {
-    d.map_or(0, |d| d.dv_hashtab.ht_used as isize)
+    d.map_or(0, |d| d.dv_hashtab.ht_used.get() as isize)
 }
 
 #[inline]
@@ -3757,7 +3757,7 @@ pub fn tv_dict_item_copy(di: &Dictitem) -> DictitemId {
 /// Remove item from dictionary and free it.
 pub fn tv_dict_item_remove(dict: &mut TvDict, item: &Dictitem) {
     if let Some(idx) = dict.dv_hashtab.find_hi_idx(item.key_cstr()) {
-        hash_remove(&mut dict.dv_hashtab, idx);
+        hash_remove(&dict.dv_hashtab, idx);
     } else {
         semsg!(tr(E_INTERN2), c"tv_dict_item_remove()");
     }
@@ -3826,13 +3826,13 @@ pub fn tv_dict_free_slot(d: &mut TvDict) {
 
 /// Free items contained in a dictionary.
 pub fn tv_dict_free_contents(d: &mut TvDict) {
-    hash_lock(&mut d.dv_hashtab);
-    debug_assert!(d.dv_hashtab.ht_locked > 0);
-    for i in 0..d.dv_hashtab.ht_array.len() {
-        if d.dv_hashtab.ht_used == 0 {
+    hash_lock(&d.dv_hashtab);
+    debug_assert!(d.dv_hashtab.ht_locked.get() > 0);
+    for i in 0..d.dv_hashtab.array_len() {
+        if d.dv_hashtab.ht_used.get() == 0 {
             break;
         }
-        let di_id = d.dv_hashtab.ht_array[i].hi_di.clone();
+        let di_id = d.dv_hashtab.slot(i).hi_di;
         if let Some(di) = di_id.opt() {
             d.dv_hashtab.remove_at(i);
             tv_dict_item_free(di);
@@ -3841,7 +3841,7 @@ pub fn tv_dict_free_contents(d: &mut TvDict) {
 
     d.watchers.clear();
 
-    hash_clear(&mut d.dv_hashtab);
+    hash_clear(&d.dv_hashtab);
 }
 
 /// Free a dictionary, including all items it contains.
@@ -4037,7 +4037,7 @@ pub fn tv_dict_add(d: &mut TvDict, item: &Dictitem) -> bool {
     if tv_dict_wrong_func_name(d, &item.tv(), key) != 0 {
         return false;
     }
-    hash_add(&mut d.dv_hashtab, item)
+    hash_add(&d.dv_hashtab, item)
 }
 
 /// Add a list entry to dictionary.
@@ -4175,21 +4175,21 @@ pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &UserFunc) -> 
 /// Clear all the keys of a Dictionary.
 #[cfg(test)]
 pub fn tv_dict_clear(d: &mut TvDict) {
-    hash_lock(&mut d.dv_hashtab);
-    debug_assert!(d.dv_hashtab.ht_locked > 0);
+    hash_lock(&d.dv_hashtab);
+    debug_assert!(d.dv_hashtab.ht_locked.get() > 0);
 
-    for i in 0..d.dv_hashtab.ht_array.len() {
-        if d.dv_hashtab.ht_used == 0 {
+    for i in 0..d.dv_hashtab.array_len() {
+        if d.dv_hashtab.ht_used.get() == 0 {
             break;
         }
-        let di_id = d.dv_hashtab.ht_array[i].hi_di.clone();
+        let di_id = d.dv_hashtab.slot(i).hi_di;
         if let Some(di) = di_id.opt() {
             tv_dict_item_free(di);
             d.dv_hashtab.remove_at(i);
         }
     }
 
-    hash_unlock(&mut d.dv_hashtab);
+    hash_unlock(&d.dv_hashtab);
 }
 
 /// Extend dictionary with items from another dictionary.
@@ -4200,15 +4200,15 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
     let arg_errmsg_len = arg_errmsg.to_bytes().len();
 
     if first_action == b'm' {
-        hash_lock(&mut d2.dv_hashtab);
+        hash_lock(&d2.dv_hashtab);
     }
 
-    let mut todo = d2.dv_hashtab.ht_used;
-    for i in 0..d2.dv_hashtab.ht_array.len() {
+    let mut todo = d2.dv_hashtab.ht_used.get();
+    for i in 0..d2.dv_hashtab.array_len() {
         if todo == 0 {
             break;
         }
-        let di2_id = d2.dv_hashtab.ht_array[i].hi_di.clone();
+        let di2_id = d2.dv_hashtab.slot(i).hi_di;
         if let Some(di2) = di2_id.opt() {
             todo -= 1;
             let key2 = crate::memory::bytes_as_cstr(&di2.di_key);
@@ -4264,7 +4264,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
     }
 
     if first_action == b'm' {
-        hash_unlock(&mut d2.dv_hashtab);
+        hash_unlock(&d2.dv_hashtab);
     }
 }
 
@@ -4312,7 +4312,7 @@ pub fn tv_dict_copy(
         .unwrap()
         .dv_hashtab
         .iter_items()
-        .map(|(_, di)| DictitemId::from(di))
+        .map(|(_, di)| di)
         .collect();
     for di in items {
         if g_st().got_int {
@@ -4885,7 +4885,7 @@ fn nothing_convert_one_value(
         }
         VarType::VarDict => {
             let mut dict = tv.vval.v_dict();
-            if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
+            if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 tv_dict_unref(dict.opt_mut());
                 tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
                 tv.v_lock = VAR_UNLOCKED;
@@ -4910,7 +4910,7 @@ fn nothing_convert_one_value(
                 data: MPConvStackData::Dict {
                     dict,
                     hi_idx: 0,
-                    todo: dict.dv_hashtab.ht_used,
+                    todo: dict.dv_hashtab.ht_used.get(),
                 },
             };
             mpstack.push(mpsv);
@@ -4947,11 +4947,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     tv_dict_unref(dict.opt_mut());
                     continue;
                 }
-                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                while hashitem_empty(&dict.dv_hashtab.slot(*hi_idx)) {
                     *hi_idx += 1;
                 }
-                let hi = &dict.dv_hashtab.as_slice()[*hi_idx];
-                let di = hi.hi_di.clone();
+                let hi = dict.dv_hashtab.slot(*hi_idx);
+                let di = hi.hi_di;
                 *todo -= 1;
                 *hi_idx += 1;
                 let mut item_tv = std::mem::replace(
@@ -5030,7 +5030,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             pt.pt_dict.get()
                         };
                         if !dict.is_null() {
-                            if dict.dv_hashtab.ht_used == 0 {
+                            if dict.dv_hashtab.ht_used.get() == 0 {
                                 pt.pt_dict.set(DictId::NULL);
                                 tv_dict_unref(dict.opt_mut());
                                 continue;
@@ -5052,7 +5052,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                                 data: MPConvStackData::Dict {
                                     dict,
                                     hi_idx: 0,
-                                    todo: dict.dv_hashtab.ht_used,
+                                    todo: dict.dv_hashtab.ht_used.get(),
                                 },
                             };
                             mpstack.push(mpsv);
@@ -5187,11 +5187,8 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
             {
                 d.dv_lock = change_lock(lock, d.dv_lock);
                 if !(0..=1).contains(&deep) {
-                    let items: Vec<DictitemId> = d
-                        .dv_hashtab
-                        .iter_items()
-                        .map(|(_, di)| DictitemId::from(di))
-                        .collect();
+                    let items: Vec<DictitemId> =
+                        d.dv_hashtab.iter_items().map(|(_, di)| di).collect();
                     for di in items {
                         let mut item_tv = di.tv().clone();
                         tv_item_lock(&mut item_tv, deep - 1, lock, check_refcount);
@@ -5835,7 +5832,7 @@ pub fn tv2bool(tv: &TypVal) -> bool {
         VarType::VarDict => tv
             .vval
             .v_dict_opt()
-            .is_some_and(|d| d.dv_hashtab.ht_used > 0),
+            .is_some_and(|d| d.dv_hashtab.ht_used.get() > 0),
         VarType::VarBool => tv.vval.v_bool() == K_BOOL_VAR_TRUE_CONST,
         VarType::VarSpecial => tv.vval.v_special() != K_SPECIAL_VAR_NULL_CONST,
         VarType::VarBlob => tv

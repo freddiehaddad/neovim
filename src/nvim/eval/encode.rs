@@ -268,7 +268,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     let Some(spdict) = tv.vval.v_dict_opt() else {
         return false;
     };
-    if spdict.dv_hashtab.ht_used != 2 {
+    if spdict.dv_hashtab.ht_used.get() != 2 {
         return false;
     }
     let Some(type_di) = crate::eval::typval::tv_dict_find_opt(Some(spdict), c"_TYPE", 5) else {
@@ -306,7 +306,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
         }
         match v.data {
             MPConvStackData::Dict { dict, hi_idx, .. } => {
-                let hi = &dict.dv_hashtab.as_slice()[hi_idx.saturating_sub(1)];
+                let hi = dict.dv_hashtab.slot(hi_idx.saturating_sub(1));
                 let mut key_tv = TypVal {
                     v_type: VarType::VarString,
                     v_lock: VAR_UNLOCKED,
@@ -1109,13 +1109,13 @@ fn convert_one_value(
         }
         VarType::VarDict => {
             let mut dict = tv_ref.vval.v_dict();
-            if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
+            if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 backend.conv_empty_dict();
                 return true;
             }
             let mut handled_special = false;
             if backend.allow_specials()
-                && dict.dv_hashtab.ht_used == 2
+                && dict.dv_hashtab.ht_used.get() == 2
                 && let Some(type_di) = tv_dict_find(dict.opt(), c"_TYPE", 5)
                 && type_di.tv().v_type == VarType::VarList
                 && let Some(val_di) = tv_dict_find(dict.opt(), c"_VAL", 4)
@@ -1316,14 +1316,15 @@ fn convert_one_value(
                     return done_ok;
                 }
 
-                backend.conv_dict_start(dict.dv_hashtab.ht_used);
+                let used = dict.dv_hashtab.ht_used.get();
+                backend.conv_dict_start(used);
 
                 mpstack.push(MPConvStackVal {
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,
                         hi_idx: 0,
-                        todo: dict.dv_hashtab.ht_used,
+                        todo: used,
                     },
                 });
             }
@@ -1365,14 +1366,14 @@ fn encode_vim_with_backend(
 
                     backend.conv_dict_end();
                     continue;
-                } else if *todo != dict.dv_hashtab.ht_used {
+                } else if *todo != dict.dv_hashtab.ht_used.get() {
                     backend.conv_dict_between_items();
                 }
-                while hashitem_empty(&dict.dv_hashtab.as_slice()[hi_idx]) {
+                while hashitem_empty(&dict.dv_hashtab.slot(hi_idx)) {
                     hi_idx += 1;
                 }
-                let hi = &dict.dv_hashtab.as_slice()[hi_idx];
-                let di = crate::eval::typval::tv_dict_hi2di(hi);
+                let hi = dict.dv_hashtab.slot(hi_idx);
+                let di = crate::eval::typval::tv_dict_hi2di(&hi);
                 *todo -= 1;
                 if let MPConvStackData::Dict {
                     hi_idx: ref mut hi_idx_ref,
@@ -1487,8 +1488,9 @@ fn encode_vim_with_backend(
                             pt.pt_dict.get()
                         };
                         if let Some(dict) = dict.opt_mut() {
-                            backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
-                            if dict.dv_hashtab.ht_used == 0 {
+                            let used = dict.dv_hashtab.ht_used.get();
+                            backend.conv_func_before_self(used as isize);
+                            if used == 0 {
                                 backend.conv_empty_dict();
                                 continue;
                             }
@@ -1505,14 +1507,14 @@ fn encode_vim_with_backend(
                                 }
                                 continue;
                             }
-                            backend.conv_dict_start(dict.dv_hashtab.ht_used);
+                            backend.conv_dict_start(used);
 
                             mpstack.push(MPConvStackVal {
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
                                     dict: dict.into(),
                                     hi_idx: 0,
-                                    todo: dict.dv_hashtab.ht_used,
+                                    todo: used,
                                 },
                             });
                         } else {

@@ -174,7 +174,7 @@ fn convert_one_value(
                 });
                 return;
             };
-            if dict.dv_hashtab.ht_used == 0 {
+            if dict.dv_hashtab.ht_used.get() == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict::new()),
@@ -187,7 +187,7 @@ fn convert_one_value(
                 return;
             }
             dict.dv_copy_id = copy_id;
-            let used = dict.dv_hashtab.ht_used;
+            let used = dict.dv_hashtab.ht_used.get();
             let d_obj = arena_dict_opt(arena, used);
             stack.push(Object {
                 obj_type: ObjectType::ObjectTypeDict,
@@ -299,14 +299,14 @@ pub fn vim_to_object(
                     pop_into_parent_dict(&mut stack);
                 }
                 *first = false;
-                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                while hashitem_empty(&dict.dv_hashtab.slot(*hi_idx)) {
                     *hi_idx += 1;
                 }
-                let cur_hi = &dict.dv_hashtab.as_slice()[*hi_idx];
+                let cur_hi = dict.dv_hashtab.slot(*hi_idx);
                 *hi_idx += 1;
                 *todo -= 1;
 
-                let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
+                let di = crate::eval::typval::tv_dict_hi2di(&cur_hi);
                 let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 

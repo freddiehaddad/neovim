@@ -123,17 +123,15 @@ fn filter_map_dict(
         if d.as_deref_mut().unwrap().dv_lock == VAR_UNLOCKED {
             d.as_deref_mut().unwrap().dv_lock = VAR_LOCKED;
         }
-        hash_lock(&mut d.as_deref_mut().unwrap().dv_hashtab);
+        hash_lock(&d.as_deref_mut().unwrap().dv_hashtab);
 
-        let mut todo = d.as_deref_mut().unwrap().dv_hashtab.ht_used;
-        let len = d.as_deref_mut().unwrap().dv_hashtab.ht_array.len();
+        let mut todo = d.as_deref_mut().unwrap().dv_hashtab.ht_used.get();
+        let len = d.as_deref_mut().unwrap().dv_hashtab.array_len();
         for i in 0..len {
             if todo == 0 {
                 break;
             }
-            let di_id = d.as_deref_mut().unwrap().dv_hashtab.ht_array[i]
-                .hi_di
-                .clone();
+            let di_id = d.as_deref_mut().unwrap().dv_hashtab.slot(i).hi_di;
             if let Some(di) = di_id.opt() {
                 todo -= 1;
                 if filtermap == FilterMap::Map
@@ -182,7 +180,7 @@ fn filter_map_dict(
             }
         }
 
-        hash_unlock(&mut d.as_deref_mut().unwrap().dv_hashtab);
+        hash_unlock(&d.as_deref_mut().unwrap().dv_hashtab);
         d.unwrap().dv_lock = prev_lock;
     }
 }
