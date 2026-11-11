@@ -1810,7 +1810,7 @@ impl FileBuf {
         Option<std::ffi::CString>,
         BufFname,
     ) {
-        let kind = std::mem::replace(&mut self.b_fname.get(), BufFname::None);
+        let kind = self.b_fname.replace(BufFname::None);
         (self.b_ffname.take(), self.b_sfname.take(), kind)
     }
 

@@ -2193,14 +2193,18 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
             .w_topline
             .set(lnum + (dp_lnum[u_toidx] - dp_lnum[u_fromidx]));
         if lnum >= dp_lnum[u_fromidx] {
+            let mut tf = towin.w_topfill.get();
+            let mut tl = towin.w_topline.get();
             calculate_topfill_and_topline(
                 u_fromidx,
                 u_toidx,
                 fromwin.w_topline.get(),
                 fromwin.w_topfill.get(),
-                &mut towin.w_topfill.get(),
-                &mut towin.w_topline.get(),
+                &mut tf,
+                &mut tl,
             );
+            towin.w_topfill.set(tf);
+            towin.w_topline.set(tl);
         }
     } else {
         towin.w_topline.set(

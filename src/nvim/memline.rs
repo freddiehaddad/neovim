@@ -2882,15 +2882,11 @@ pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, bytes: &[u8]) {
     buf.deleted_bytes.set(buf.deleted_bytes.get() + (len + 1));
     buf.deleted_bytes2.set(buf.deleted_bytes2.get() + (len + 1));
     if buf.update_need_codepoints.get() {
-        mb_utflen(
-            bytes,
-            len,
-            &mut buf.deleted_codepoints.get(),
-            &mut buf.deleted_codeunits.get(),
-        );
-        buf.deleted_codepoints
-            .set(buf.deleted_codepoints.get() + (1));
-        buf.deleted_codeunits.set(buf.deleted_codeunits.get() + (1));
+        let mut del_cp = buf.deleted_codepoints.get();
+        let mut del_cu = buf.deleted_codeunits.get();
+        mb_utflen(bytes, len, &mut del_cp, &mut del_cu);
+        buf.deleted_codepoints.set(del_cp + 1);
+        buf.deleted_codeunits.set(del_cu + 1);
     }
 }
 

@@ -1524,20 +1524,12 @@ pub fn mark_adjust_buf(
                 }
 
                 if win.w_old_cursor_lnum.get() != 0 {
-                    one_adjust_nodel(
-                        &mut win.w_old_cursor_lnum.get(),
-                        line1,
-                        line2,
-                        amount,
-                        amount_after,
-                    );
-                    one_adjust_nodel(
-                        &mut win.w_old_visual_lnum.get(),
-                        line1,
-                        line2,
-                        amount,
-                        amount_after,
-                    );
+                    let mut old_cur = win.w_old_cursor_lnum.get();
+                    one_adjust_nodel(&mut old_cur, line1, line2, amount, amount_after);
+                    win.w_old_cursor_lnum.set(old_cur);
+                    let mut old_vis = win.w_old_visual_lnum.get();
+                    one_adjust_nodel(&mut old_vis, line1, line2, amount, amount_after);
+                    win.w_old_visual_lnum.set(old_vis);
                 }
 
                 if by_api

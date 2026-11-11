@@ -2317,37 +2317,44 @@ fn set_insecure_flag(
     opt_flags: i32,
     insecure: bool,
 ) {
-    let update = |f: &mut u32| {
+    let update_cell = |f: &std::cell::Cell<u32>| {
         if insecure {
-            *f |= K_OPT_FLAG_INSECURE;
+            f.set(f.get() | K_OPT_FLAG_INSECURE);
         } else {
-            *f &= !K_OPT_FLAG_INSECURE;
+            f.set(f.get() & !K_OPT_FLAG_INSECURE);
         }
     };
     if (opt_flags & OPT_LOCAL) != 0 {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return update(&mut wp.w_onebuf_opt.wo_wrap_flags.get()),
-            K_OPT_STATUSLINE => return update(&mut wp.w_onebuf_opt.wo_stl_flags.get()),
-            K_OPT_WINBAR => return update(&mut wp.w_onebuf_opt.wo_wbr_flags.get()),
-            K_OPT_FOLDEXPR => return update(&mut wp.w_onebuf_opt.wo_fde_flags.get()),
-            K_OPT_FOLDTEXT => return update(&mut wp.w_onebuf_opt.wo_fdt_flags.get()),
-            K_OPT_INDENTEXPR => return update(&mut wp.buf_mut().b_p_inde_flags.get()),
-            K_OPT_FORMATEXPR => return update(&mut wp.buf_mut().b_p_fex_flags.get()),
-            K_OPT_INCLUDEEXPR => return update(&mut wp.buf_mut().b_p_inex_flags.get()),
-            K_OPT_COMPLETE => return update(&mut wp.buf_mut().b_p_cpt_flags.get()),
+            K_OPT_WRAP => return update_cell(&wp.w_onebuf_opt.wo_wrap_flags),
+            K_OPT_STATUSLINE => return update_cell(&wp.w_onebuf_opt.wo_stl_flags),
+            K_OPT_WINBAR => return update_cell(&wp.w_onebuf_opt.wo_wbr_flags),
+            K_OPT_FOLDEXPR => return update_cell(&wp.w_onebuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => return update_cell(&wp.w_onebuf_opt.wo_fdt_flags),
+            K_OPT_INDENTEXPR => return update_cell(&wp.buf_mut().b_p_inde_flags),
+            K_OPT_FORMATEXPR => return update_cell(&wp.buf_mut().b_p_fex_flags),
+            K_OPT_INCLUDEEXPR => return update_cell(&wp.buf_mut().b_p_inex_flags),
+            K_OPT_COMPLETE => return update_cell(&wp.buf_mut().b_p_cpt_flags),
             _ => {}
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return update(&mut wp.w_allbuf_opt.wo_wrap_flags.get()),
-            K_OPT_FOLDEXPR => return update(&mut wp.w_allbuf_opt.wo_fde_flags.get()),
-            K_OPT_FOLDTEXT => return update(&mut wp.w_allbuf_opt.wo_fdt_flags.get()),
+            K_OPT_WRAP => return update_cell(&wp.w_allbuf_opt.wo_wrap_flags),
+            K_OPT_FOLDEXPR => return update_cell(&wp.w_allbuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => return update_cell(&wp.w_allbuf_opt.wo_fdt_flags),
             _ => {}
         }
     }
-    OPTIONS.with(|opts| update(&mut opts.borrow_mut()[opt_idx as usize].flags));
+    OPTIONS.with(|opts| {
+        let f = &mut opts.borrow_mut()[opt_idx as usize].flags;
+        if insecure {
+            *f |= K_OPT_FLAG_INSECURE;
+        } else {
+            *f &= !K_OPT_FLAG_INSECURE;
+        }
+    });
 }
 
 /// Redraw the window title and/or tab page text later.
