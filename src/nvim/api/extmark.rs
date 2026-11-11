@@ -209,8 +209,10 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
     {
         return i64::from(*id);
     }
-    let id = g_st().next_namespace_id;
-    g_st().next_namespace_id += 1;
+    let id = g_st().next_namespace_id.get();
+    g_st()
+        .next_namespace_id
+        .set(g_st().next_namespace_id.get() + (1));
     if !name_bytes.is_empty() {
         g_st().namespace_ids.push((
             std::ffi::CString::new(name_bytes.to_vec()).unwrap_or_default(),
@@ -252,7 +254,7 @@ pub fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
     }
-    ns < g_st().next_namespace_id as u32
+    ns < g_st().next_namespace_id.get() as u32
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);

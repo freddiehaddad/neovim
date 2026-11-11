@@ -281,7 +281,7 @@ pub fn diff_buf_delete(buf: &FileBuf) {
             tp.tp_diffbuf[i as usize].set(crate::globals::BufPtr::NULL);
             tp.tp_diff_invalid.set(1);
             if g_st().curtab == tp {
-                g_st().need_diff_redraw = true;
+                g_st().need_diff_redraw.set(true);
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             }
         }
@@ -572,8 +572,8 @@ fn diff_mark_adjust_tp(
         }
     }
     if g_st().curtab == tp {
-        g_st().need_diff_redraw = true;
-        g_st().diff_need_scrollbind = true;
+        g_st().need_diff_redraw.set(true);
+        g_st().diff_need_scrollbind.set(true);
     }
 }
 fn diff_alloc_new(tp: &TabPageInfo, idx: usize) -> usize {
@@ -682,7 +682,7 @@ pub fn diff_redraw(dofold: bool) {
     let mut wp_other = crate::globals::WinPtr::NULL;
     let mut used_max_fill_other = false;
     let mut used_max_fill_curwin = false;
-    g_st().need_diff_redraw = false;
+    g_st().need_diff_redraw.set(false);
     for wp in for_all_windows_ptr() {
         if !wp.w_onebuf_opt.wo_diff.get() || !buf_valid(wp.buf_opt()) {
             continue;
@@ -1444,8 +1444,8 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         }
         wp.w_onebuf_opt.wo_fdc_save = wp.w_onebuf_opt.wo_fdc.clone();
     }
-    debug_assert!(g_st().diff_foldcolumn >= 0 && g_st().diff_foldcolumn <= 9);
-    let fdc_buf: [u8; 1] = [b'0' + (g_st().diff_foldcolumn as u8)];
+    debug_assert!(g_st().diff_foldcolumn.get() >= 0 && g_st().diff_foldcolumn.get() <= 9);
+    let fdc_buf: [u8; 1] = [b'0' + (g_st().diff_foldcolumn.get() as u8)];
     wp.w_onebuf_opt.wo_fdc.set_option_bytes(&fdc_buf);
     wp.w_onebuf_opt.wo_fen.set(true);
     wp.w_onebuf_opt.wo_fdl.set(0);
@@ -2388,12 +2388,16 @@ pub fn diffopt_changed() -> bool {
             st.linematch_lines.set(lm_lines);
             st.diff_algorithm.set(algorithm);
         });
-        g_st().diff_context = if context == 0 { 1 } else { context };
-        g_st().diff_foldcolumn = if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
-            v.foldcolumn as i32
-        } else {
-            2
-        };
+        g_st()
+            .diff_context
+            .set(if context == 0 { 1 } else { context });
+        g_st()
+            .diff_foldcolumn
+            .set(if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
+                v.foldcolumn as i32
+            } else {
+                2
+            });
         diff_redraw(true);
         check_scrollbind(0, 0);
     }
@@ -3089,10 +3093,10 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         if dp.df_lnum[u_idx] <= lnum {
             le = Some(dp_idx);
         }
-        if dp.df_lnum[u_idx] - g_st().diff_context > lnum {
+        if dp.df_lnum[u_idx] - g_st().diff_context.get() > lnum {
             break;
         }
-        if dp.df_lnum[u_idx] + dp.df_count[u_idx] + g_st().diff_context > lnum {
+        if dp.df_lnum[u_idx] + dp.df_count[u_idx] + g_st().diff_context.get() > lnum {
             result = false;
             break;
         }
@@ -3251,7 +3255,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             eap.line2,
         );
         if eap.cmdidx != Cmdidx::CmdDiffget {
-            if g_st().key_typed {
+            if g_st().key_typed.get() {
                 u_sync(false);
             }
             ctx_restore(&mut aco);

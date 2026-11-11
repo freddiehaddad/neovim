@@ -352,7 +352,7 @@ pub fn search_regcomp(
     let mut pat_from_spat: Option<usize> = None;
     let mut pat_ref = pat_cstr;
     {
-        g_st().rc_did_emsg = false;
+        g_st().rc_did_emsg.set(false);
 
         if pat_cstr.is_empty() {
             let (spat_idx, has_pat, cloned_pat, plen, pmagic, no_scs) = with_srch(|s| {
@@ -376,7 +376,7 @@ pub fn search_regcomp(
                 } else {
                     emsg(tr(E_NOPREVRE));
                 }
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             pat_from_spat = Some(spat_idx);
@@ -715,7 +715,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
         regmatch.free_prog();
         return;
     }
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     search_regcomp(
         c"",
         0,
@@ -726,7 +726,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
         opt_vars().p_magic.get(),
         regmatch,
     );
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 }
 
 pub fn searchit(
@@ -757,7 +757,7 @@ pub fn searchit(
         let mut nmatched: i32;
         let mut submatch: i32 = 0;
         let mut first_match = true;
-        let called_emsg_before = g_st().called_emsg;
+        let called_emsg_before = g_st().called_emsg.get();
         let mut break_loop = false;
         let mut stop_lnum: Linenr = 0;
         let mut tm: Option<Proftime> = None;
@@ -777,7 +777,7 @@ pub fn searchit(
             magic,
             &mut regmatch,
         ) {
-            if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
+            if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg.get() {
                 semsg!(tr(c"E383: Invalid search string: %s"), get_search_pat());
             }
             return 0;
@@ -862,7 +862,7 @@ pub fn searchit(
                     if regmatch.regprog.is_null() {
                         break;
                     }
-                    if g_st().called_emsg > called_emsg_before
+                    if g_st().called_emsg.get() > called_emsg_before
                         || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                     {
                         break;
@@ -1075,7 +1075,7 @@ pub fn searchit(
                         break;
                     }
                     line_breakcheck();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
 
@@ -1102,8 +1102,8 @@ pub fn searchit(
 
                 if !opt_vars().p_ws.get()
                     || stop_lnum != 0
-                    || g_st().got_int
-                    || g_st().called_emsg > called_emsg_before
+                    || g_st().got_int.get()
+                    || g_st().called_emsg.get() > called_emsg_before
                     || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                     || break_loop
                     || found != 0
@@ -1135,8 +1135,8 @@ pub fn searchit(
                     ea.sa_wrapped = 1;
                 }
             }
-            if g_st().got_int
-                || g_st().called_emsg > called_emsg_before
+            if g_st().got_int.get()
+                || g_st().called_emsg.get() > called_emsg_before
                 || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                 || break_loop
             {
@@ -1151,7 +1151,7 @@ pub fn searchit(
         regmatch.free_prog();
 
         if found == 0 {
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 emsg(tr(E_INTERR));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
                 if opt_vars().p_ws.get() {
@@ -1426,8 +1426,8 @@ pub fn do_search(
         let mut show_search_stats = false;
         if (options & SEARCH_ECHO) != 0
             && messaging()
-            && g_st().msg_silent == 0
-            && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
+            && g_st().msg_silent.get() == 0
+            && (!g_st().cmd_silent.get() || !shortmess(K_SHM_SEARCHCOUNT))
         {
             let mut off_buf = [0u8; 40];
             let mut off_len: usize = 0;
@@ -1436,7 +1436,7 @@ pub fn do_search(
             msg_ext_set_kind(c"search_cmd");
 
             let off0 = with_srch(|s| s.spats[0].off);
-            if !g_st().cmd_silent && (off0.line || off0.end || off0.off != 0) {
+            if !g_st().cmd_silent.get() && (off0.line || off0.end || off0.off != 0) {
                 off_buf[off_len] = dirc as u8;
                 off_len += 1;
                 if off0.end {
@@ -1471,14 +1471,17 @@ pub fn do_search(
                 )
             };
 
-            let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent {
+            let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent.get() {
                 let mut sz = if ui_has(K_UIMESSAGES) {
                     0
-                } else if g_st().msg_scrolled != 0 && !g_st().cmd_silent {
-                    ((g_st().rows_global - g_st().msg_row) * g_st().columns_global - 1) as usize
+                } else if g_st().msg_scrolled.get() != 0 && !g_st().cmd_silent.get() {
+                    ((g_st().rows_global.get() - g_st().msg_row.get())
+                        * g_st().columns_global.get()
+                        - 1) as usize
                 } else {
-                    ((g_st().rows_global - g_st().msg_row - 1) * g_st().columns_global
-                        + g_st().sc_col
+                    ((g_st().rows_global.get() - g_st().msg_row.get() - 1)
+                        * g_st().columns_global.get()
+                        + g_st().sc_col.get()
                         - 1) as usize
                 };
                 if sz < plen + off_len + SEARCH_STAT_BUF_LEN + 3 {
@@ -1494,7 +1497,7 @@ pub fn do_search(
             msgbuflen = msgbufsize - 1;
             msgbuf_vec[msgbuflen] = 0;
 
-            if !g_st().cmd_silent {
+            if !g_st().cmd_silent.get() {
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
                 if utf_iscomposing_first(utf_ptr2char(p_bytes.as_slice())) {
@@ -1533,7 +1536,7 @@ pub fn do_search(
                 gotocmdline(false);
                 ui_flush();
                 ui_busy_stop();
-                g_st().msg_nowait = true;
+                g_st().msg_nowait.set(true);
             }
 
             if !shortmess(K_SHM_SEARCHCOUNT) {
@@ -1795,7 +1798,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     let mut stop = true;
 
     if c != i32::from(NUL) {
-        if g_st().key_stuffed == 0 {
+        if g_st().key_stuffed.get() == 0 {
             set_csearch_direction(dir);
             set_csearch_until(i32::from(t_cmd));
             with_srch_mut(|s| {
@@ -2106,7 +2109,7 @@ pub fn findmatchlimit(
                 }
             }
             pos.col = 0;
-            while !g_st().got_int {
+            while !g_st().got_int.get() {
                 if hash_dir > 0 {
                     if pos.lnum == curbuf_mut().b_ml.ml_line_count {
                         break;
@@ -2182,7 +2185,7 @@ pub fn findmatchlimit(
         pos.col = comment_col;
     }
 
-    while !g_st().got_int {
+    while !g_st().got_int.get() {
         if backwards {
             if lispcomm && pos.col < comment_col {
                 break;
@@ -2548,16 +2551,16 @@ pub fn showmatch(c: i32) {
     } else {
         opt_vars().p_siso.get()
     };
-    if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol.get() {
-        g_st().dollar_vcol = -1;
+    if g_st().dollar_vcol.get() >= 0 && g_st().dollar_vcol.get() == curwin_mut().w_virtcol.get() {
+        g_st().dollar_vcol.set(-1);
     }
     curwin_mut()
         .w_virtcol
         .set(curwin_mut().w_virtcol.get() + (1));
 
-    let save_dollar_vcol = g_st().dollar_vcol;
-    let save_state = g_st().state_global;
-    g_st().state_global = MODE_SHOWMATCH;
+    let save_dollar_vcol = g_st().dollar_vcol.get();
+    let save_state = g_st().state_global.get();
+    g_st().state_global.set(MODE_SHOWMATCH);
     ui_cursor_shape();
     curwin_mut().w_cursor = mpos;
     if use_win_so {
@@ -2574,7 +2577,7 @@ pub fn showmatch(c: i32) {
     update_screen();
     setcursor();
     ui_flush();
-    g_st().dollar_vcol = save_dollar_vcol;
+    g_st().dollar_vcol.set(save_dollar_vcol);
 
     if !vim_strchr(opt_vars().p_cpo.as_cstr(), K_CPO_SHOWMATCH)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -2595,7 +2598,7 @@ pub fn showmatch(c: i32) {
     } else {
         opt_vars().p_siso.set(save_siso);
     }
-    g_st().state_global = save_state;
+    g_st().state_global.set(save_state);
     ui_cursor_shape();
 }
 
@@ -2725,7 +2728,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         }
     }
 
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed.get() {
         fold_open_cursor();
     }
 
@@ -2752,7 +2755,7 @@ fn is_zero_width(
             col: 0,
             coladd: 0,
         };
-        let called_emsg_before = g_st().called_emsg;
+        let called_emsg_before = g_st().called_emsg.get();
         let mut flag = 0;
 
         let pattern_cstr = match pattern_opt {
@@ -2826,7 +2829,7 @@ fn is_zero_width(
                 }
             }
 
-            if g_st().called_emsg == called_emsg_before {
+            if g_st().called_emsg.get() == called_emsg_before {
                 result = i32::from(
                     nmatched != 0
                         && regmatch.startpos[0].lnum == regmatch.endpos[0].lnum
@@ -2901,7 +2904,7 @@ fn cmdline_search_stat(
     }
     msgbuf[msgbuflen - len..msgbuflen].copy_from_slice(&t[..len]);
 
-    g_st().msg_ext_overwrite = true;
+    g_st().msg_ext_overwrite.set(true);
     msg_ext_set_kind(c"search_count");
     give_warning(crate::memory::bytes_as_cstr(msgbuf), false, false);
 }
@@ -2994,7 +2997,7 @@ fn update_search_stat(
             start = profile_setlimit(i64::from(timeout));
         }
         let mut lastpos = with_srch(|s| s.stat_lastpos);
-        while !g_st().got_int
+        while !g_st().got_int.get()
             && searchit(
                 Some(curwin_mut()),
                 curbuf_mut(),
@@ -3035,7 +3038,7 @@ fn update_search_stat(
             }
         }
         with_srch_mut(|s| s.stat_lastpos = lastpos);
-        if g_st().got_int {
+        if g_st().got_int.get() {
             with_srch_mut(|s| s.stat_cur = -1);
         }
         if done_search {
@@ -3227,7 +3230,7 @@ pub fn find_pattern_in_path(
         let mut already = false;
         let mut startp_idx: Option<usize> = None;
         let mut curwin_save = crate::globals::WinPtr::NULL;
-        let l_g_do_tagpreview = g_st().g_do_tagpreview;
+        let l_g_do_tagpreview = g_st().g_do_tagpreview.get();
 
         let mut file_line_vec: Vec<u8> = vec![0; LSIZE];
 
@@ -3363,7 +3366,7 @@ pub fn find_pattern_in_path(
                                 && files[i as usize].matched != 0
                             {
                                 msg_putchar(b'\n' as i32);
-                                if !g_st().got_int {
+                                if !g_st().got_int.get() {
                                     msg_home_replace(Some(nf.as_c_str()));
                                     msg_puts(tr(c" (includes previously listed match)"));
                                     prev_fname = None;
@@ -3392,7 +3395,7 @@ pub fn find_pattern_in_path(
                         msg_puts_title(tr(c"in path ---\n"));
                     }
                     did_show = true;
-                    while depth_displayed < depth && !g_st().got_int {
+                    while depth_displayed < depth && !g_st().got_int.get() {
                         depth_displayed += 1;
                         for _ in 0..depth_displayed {
                             msg_puts(c"  ");
@@ -3400,7 +3403,7 @@ pub fn find_pattern_in_path(
                         msg_home_replace(files[depth_displayed as usize].name_ptr());
                         msg_puts(c" -->\n");
                     }
-                    if !g_st().got_int {
+                    if !g_st().got_int.get() {
                         for _ in 0..=depth_displayed {
                             msg_puts(c"  ");
                         }
@@ -3491,7 +3494,7 @@ pub fn find_pattern_in_path(
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
-                            g_st().msg_hist_off = true;
+                            g_st().msg_hist_off.set(true);
                             format_to_buf!(
                                 g_st().iobuff_bytes_mut(),
                                 tr(c"Scanning included file: %s"),
@@ -3745,13 +3748,13 @@ pub fn find_pattern_in_path(
                             if did_show {
                                 msg_putchar(b'\n' as i32);
                             }
-                            if !g_st().got_int {
+                            if !g_st().got_int.get() {
                                 msg_home_replace(curr_fname.as_deref());
                             }
                             prev_fname = curr_fname.clone();
                         }
                         did_show = true;
-                        if !g_st().got_int {
+                        if !g_st().got_int.get() {
                             let (fp_arg, lnum_arg) = if depth == -1 {
                                 (None, &mut lnum)
                             } else {
@@ -3898,7 +3901,7 @@ pub fn find_pattern_in_path(
             if action == ACTION_EXPAND {
                 ins_compl_check_keys(30, false);
             }
-            if g_st().got_int || ins_compl_interrupted() {
+            if g_st().got_int.get() || ins_compl_interrupted() {
                 break;
             }
 
@@ -3955,7 +3958,7 @@ pub fn find_pattern_in_path(
                 }
             }
         } else if !found && action != ACTION_EXPAND && !silent {
-            if g_st().got_int || ins_compl_interrupted() {
+            if g_st().got_int.get() || ins_compl_interrupted() {
                 emsg(tr(E_INTERR));
             } else if type_ == FIND_DEFINE {
                 emsg(tr(c"E388: Couldn't find definition"));
@@ -3984,10 +3987,10 @@ fn show_pat_in_path(
 ) {
     if did_show {
         msg_putchar(b'\n' as i32);
-    } else if g_st().msg_silent == 0 {
+    } else if g_st().msg_silent.get() == 0 {
         gotocmdline(true);
     }
-    if g_st().got_int {
+    if g_st().got_int.get() {
         return;
     }
     let mut use_line_buf = true;
@@ -4025,7 +4028,7 @@ fn show_pat_in_path(
             msg_prt_line(ml_get(*lnum).to_bytes(), false);
         }
 
-        if g_st().got_int || type_ != FIND_DEFINE || !has_trailing_bsl {
+        if g_st().got_int.get() || type_ != FIND_DEFINE || !has_trailing_bsl {
             break;
         }
 

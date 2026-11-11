@@ -1288,7 +1288,9 @@ extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
     let lang = lang_check(lstate, 1);
     let src_bytes = lua_tolstring_bytes(lstate, 2);
 
-    g_st().tslua_query_parse_count += 1;
+    g_st()
+        .tslua_query_parse_count
+        .set(g_st().tslua_query_parse_count.get() + (1));
     let query = match ts_query_create(lang, src_bytes) {
         Ok(q) => q,
         Err((error_offset, error_type)) => {

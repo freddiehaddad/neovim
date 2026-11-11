@@ -344,12 +344,12 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     if i < bufnrs.len() {
         let buf_ref = buf.borrow();
         ret = true;
-        g_st().exiting = false;
+        g_st().exiting.set(false);
         if !opt_vars().p_confirm.get() && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
-            if g_st().vgetc_busy > 0 {
-                g_st().msg_row = g_st().cmdline_row;
-                g_st().msg_col = 0;
-                g_st().msg_didout = false;
+            if g_st().vgetc_busy.get() > 0 {
+                g_st().msg_row.set(g_st().cmdline_row.get());
+                g_st().msg_col.set(0);
+                g_st().msg_didout.set(false);
             }
             let shown = if !buf_ref.terminal.get().is_null()
                 && channel_job_running(buf_ref.b_p_channel.get() as u64)
@@ -365,13 +365,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     sp.unwrap_or_else(|| buf_ref.fname_cstr()),
                 )
             };
-            if shown && g_st().msg_didany {
-                let save = g_st().no_wait_return;
-                g_st().no_wait_return = 0;
+            if shown && g_st().msg_didany.get() {
+                let save = g_st().no_wait_return.get();
+                g_st().no_wait_return.set(0);
                 if !ui_has(K_UIMESSAGES) {
                     wait_return(0);
                 }
-                g_st().no_wait_return = save;
+                g_st().no_wait_return.set(save);
             }
         }
 
@@ -477,7 +477,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
     let mut save_ei: Option<std::ffi::CString> = None;
 
-    g_st().msg_listdo_overwrite += 1;
+    g_st()
+        .msg_listdo_overwrite
+        .set(g_st().msg_listdo_overwrite.get() + (1));
 
     if eap.cmdidx != Cmdidx::CmdWindo && eap.cmdidx != Cmdidx::CmdTabdo {
         save_ei = Some(au_event_disable(c",Syntax"));
@@ -560,9 +562,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
         } else {
             setpcmark();
         }
-        g_st().listcmd_busy = true;
+        g_st().listcmd_busy.set(true);
 
-        while !g_st().got_int && !buf.is_null() {
+        while !g_st().got_int.get() && !buf.is_null() {
             let mut execute = true;
             if eap.cmdidx == Cmdidx::CmdArgdo {
                 if i == curwin_argcount() {
@@ -673,10 +675,12 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 break;
             }
         }
-        g_st().listcmd_busy = false;
+        g_st().listcmd_busy.set(false);
     }
 
-    g_st().msg_listdo_overwrite -= 1;
+    g_st()
+        .msg_listdo_overwrite
+        .set(g_st().msg_listdo_overwrite.get() - (1));
     if save_ei.is_some() {
         let mut aco: CtxSwitch = CtxSwitch::new();
 
@@ -769,15 +773,15 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
 /// `:checktime [buffer]` (`ex_checktime`).
 pub fn ex_checktime(eap: &mut Exarg) {
-    let save_no_check_timestamps = g_st().no_check_timestamps;
+    let save_no_check_timestamps = g_st().no_check_timestamps.get();
 
-    g_st().no_check_timestamps = 0;
+    g_st().no_check_timestamps.set(0);
     if eap.addr_count == 0 {
         check_timestamps(0);
     } else if let Some(buf) = crate::buffer::buflist_findnr_opt(eap.line2) {
         buf_check_timestamp(buf);
     }
-    g_st().no_check_timestamps = save_no_check_timestamps;
+    g_st().no_check_timestamps.set(save_no_check_timestamps);
 }
 
 fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
@@ -870,9 +874,9 @@ pub fn ex_drop(eap: &mut Exarg) {
     }
 
     if !buf_hide(curbuf_mut()) {
-        g_st().emsg_off += 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
         split = check_changed(curbuf_mut(), CCGD_AW | CCGD_EXCMD);
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     }
 
     if split {

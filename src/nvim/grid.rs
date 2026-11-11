@@ -591,7 +591,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
         assert!(maxcol as usize <= linebuf_size);
     });
 
-    if g_st().full_screen && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0 {
+    if g_st().full_screen.get() && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0 {
         assert!(linebuf_size > 0);
         g_st().linebuf_char.fill(u32::MAX);
         g_st().linebuf_attr.fill(-1);
@@ -1229,7 +1229,7 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
         wp.w_grid.col_offset = wp.w_wincol.get() + wp.w_wincol_off.get();
     }
 
-    if (g_st().resizing_screen || was_resized) && want_allocation {
+    if (g_st().resizing_screen.get() || was_resized) && want_allocation {
         ui_call_grid_resize(
             i64::from(wp.w_grid_alloc.handle),
             i64::from(wp.w_grid_alloc.cols),

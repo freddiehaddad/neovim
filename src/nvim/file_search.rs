@@ -479,7 +479,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
     'upward: loop {
         loop {
             os_breakcheck();
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break;
             }
 
@@ -745,7 +745,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
         if !search_ctx.ffsc_start_dir.data.is_null()
             && !search_ctx.ffsc_stopdirs_v.is_empty()
-            && !g_st().got_int
+            && !g_st().got_int.get()
         {
             let start_dir_bytes = search_ctx.ffsc_start_dir.as_bytes_with_nul_mut();
             let plen = path_end_off

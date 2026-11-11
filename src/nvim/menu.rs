@@ -492,13 +492,13 @@ fn add_menu_path(
         for (idx, m) in menup_vec.iter_mut().enumerate() {
             if menu_name_equal(name_cstr.to_bytes(), m) || menu_name_equal(dname.as_bytes(), m) {
                 if next_is_empty && !m.children.is_empty() {
-                    if !g_st().sys_menu {
+                    if !g_st().sys_menu.get() {
                         emsg(gettext(c"E330: Menu path must not lead to a sub-menu"));
                     }
                     return cleanup_erret(&ancestor_stack);
                 }
                 if !next_is_empty && m.children.is_empty() {
-                    if !g_st().sys_menu {
+                    if !g_st().sys_menu.get() {
                         emsg(gettext(E_NOTSUBMENU));
                     }
                     return cleanup_erret(&ancestor_stack);
@@ -563,7 +563,7 @@ fn add_menu_path(
 
     let amenu =
         (modes & (MENU_NORMAL_MODE | MENU_INSERT_MODE)) == (MENU_NORMAL_MODE | MENU_INSERT_MODE);
-    if g_st().sys_menu {
+    if g_st().sys_menu.get() {
         modes &= !old_modes;
     }
 
@@ -916,7 +916,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
 
     if menu.is_some() {
         msg_putchar(b'\n' as i32);
-        if g_st().got_int {
+        if g_st().got_int.get() {
             return;
         }
         for _ in 0..depth {
@@ -933,7 +933,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
         for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
             if (menu.as_deref_mut().unwrap().modes & modes & (1 << bit)) != 0 {
                 msg_putchar(b'\n' as i32);
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     return;
                 }
                 for _ in 0..(depth + 2) {
@@ -981,7 +981,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
         };
 
         for child in children {
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break;
             }
             if !menu_is_hidden(child.dname.as_bytes()) {
@@ -1447,7 +1447,7 @@ fn menu_is_hidden(name: &[u8]) -> bool {
 }
 
 fn get_menu_mode() -> i32 {
-    if (g_st().state_global & MODE_TERMINAL) != 0 {
+    if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         return MENU_INDEX_TERMINAL;
     }
     if g_st().visual_global.active {
@@ -1456,22 +1456,22 @@ fn get_menu_mode() -> i32 {
         }
         return MENU_INDEX_VISUAL;
     }
-    if (g_st().state_global & MODE_INSERT) != 0 {
+    if (g_st().state_global.get() & MODE_INSERT) != 0 {
         return MENU_INDEX_INSERT;
     }
-    if (g_st().state_global & MODE_CMDLINE) != 0
-        || g_st().state_global == MODE_ASKMORE
-        || g_st().state_global == MODE_HITRETURN
+    if (g_st().state_global.get() & MODE_CMDLINE) != 0
+        || g_st().state_global.get() == MODE_ASKMORE
+        || g_st().state_global.get() == MODE_HITRETURN
     {
         return MENU_INDEX_CMDLINE;
     }
-    if g_st().finish_op {
+    if g_st().finish_op.get() {
         return MENU_INDEX_OP_PENDING;
     }
-    if (g_st().state_global & MODE_NORMAL) != 0 {
+    if (g_st().state_global.get() & MODE_NORMAL) != 0 {
         return MENU_INDEX_NORMAL;
     }
-    if (g_st().state_global & MODE_LANGMAP) != 0 {
+    if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
         return MENU_INDEX_INSERT;
     }
     MENU_INDEX_INVALID
@@ -1528,13 +1528,13 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
     let mut idx = mode_idx;
 
     if idx < 0 {
-        if (g_st().state_global & MODE_TERMINAL) != 0 {
+        if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
             idx = MENU_INDEX_TERMINAL;
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
             idx = MENU_INDEX_CMDLINE;
         } else if (get_real_state() & MODE_VISUAL) != 0 {
             idx = MENU_INDEX_VISUAL;
-        } else if ((g_st().state_global & MODE_INSERT) != 0 || g_st().restart_edit != 0)
+        } else if ((g_st().state_global.get() & MODE_INSERT) != 0 || g_st().restart_edit.get() != 0)
             && g_st().current_sctx.sc_sid == 0
         {
             idx = MENU_INDEX_INSERT;
@@ -1586,11 +1586,11 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
     {
         if g_st().current_sctx.sc_sid != 0 {
             let mut save_state = SaveState::new();
-            g_st().ex_normal_busy += 1;
+            g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() + (1));
             save_current_state(&mut save_state);
             exec_normal_cmd(cmd_str, menu.noremap[u_idx], menu.silent[u_idx]);
             restore_current_state(&mut save_state);
-            g_st().ex_normal_busy -= 1;
+            g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() - (1));
         } else {
             ins_typebuf(cmd_str, menu.noremap[u_idx], 0, true, menu.silent[u_idx]);
         }

@@ -259,7 +259,7 @@ fn signal_name(signum: i32) -> &'static CStr {
 fn deadly_signal(signum: i32) -> ! {
     // Set the v:dying variable.
     set_vim_var_nr(VV_DYING, 1);
-    g_st().v_dying = 1;
+    g_st().v_dying.set(1);
 
     format_to_buf!(
         &mut g_st().iobuff,

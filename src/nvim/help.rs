@@ -45,7 +45,7 @@ pub fn ex_help(eap: &mut Exarg) {
     let mut wp: Option<&'static mut WinInfoInfo>;
     let mut empty_fnum: i32 = 0;
     let mut alt_fnum: i32 = 0;
-    let old_key_typed = g_st().key_typed;
+    let old_key_typed = g_st().key_typed.get();
 
     let mut lang: Option<std::ffi::CString> = None;
     let arg_owned: Option<std::ffi::CString>;
@@ -178,7 +178,7 @@ pub fn ex_help(eap: &mut Exarg) {
         } else {
             let mut n = WSP_HELP;
             if g_st().cmdmod.cmod_split == 0
-                && curwin_mut().w_width.get() != g_st().columns_global
+                && curwin_mut().w_width.get() != g_st().columns_global.get()
                 && curwin_mut().w_width.get() < 80
             {
                 n |= if opt_vars().p_sb.get() {
@@ -214,8 +214,8 @@ pub fn ex_help(eap: &mut Exarg) {
     }
 
     if !early_ret {
-        g_st().restart_edit = 0;
-        g_st().key_typed = old_key_typed;
+        g_st().restart_edit.set(0);
+        g_st().key_typed.set(old_key_typed);
 
         do_tag(None, &tag, DT_HELP, 1, false, true);
 

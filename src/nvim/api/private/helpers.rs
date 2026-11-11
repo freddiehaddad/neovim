@@ -337,32 +337,32 @@ pub fn try_enter(tstate: &mut TryState) {
     *tstate = TryState {
         current_exception: saved_excp,
         msg_list: saved_msg_list,
-        got_int: i32::from(g_st().got_int),
-        did_throw: g_st().did_throw,
-        need_rethrow: i32::from(g_st().need_rethrow),
-        did_emsg: g_st().did_emsg,
+        got_int: i32::from(g_st().got_int.get()),
+        did_throw: g_st().did_throw.get(),
+        need_rethrow: i32::from(g_st().need_rethrow.get()),
+        did_emsg: g_st().did_emsg.get(),
     };
-    g_st().got_int = false;
-    g_st().did_throw = false;
-    g_st().need_rethrow = false;
-    g_st().did_emsg = 0;
-    g_st().trylevel += 1;
+    g_st().got_int.set(false);
+    g_st().did_throw.set(false);
+    g_st().need_rethrow.set(false);
+    g_st().did_emsg.set(0);
+    g_st().trylevel.set(g_st().trylevel.get() + (1));
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
 pub fn try_leave(tstate: &TryState, err: &mut Error) {
-    debug_assert!(g_st().trylevel > 0);
-    g_st().trylevel -= 1;
+    debug_assert!(g_st().trylevel.get() > 0);
+    g_st().trylevel.set(g_st().trylevel.get() - (1));
 
-    g_st().did_emsg = 0;
-    g_st().force_abort = false;
+    g_st().did_emsg.set(0);
+    g_st().force_abort.set(false);
 
-    if g_st().got_int {
-        if g_st().did_throw {
+    if g_st().got_int.get() {
+        if g_st().did_throw.get() {
             discard_current_exception();
         }
         api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
-        g_st().got_int = false;
+        g_st().got_int.set(false);
     } else if g_st()
         .msg_list
         .as_ref()
@@ -373,7 +373,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         let throw_slice = &throw_bytes[msgs[0].throw_off.min(throw_bytes.len())..];
         let msg = get_error_exception_string(throw_slice, None);
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &msg);
-    } else if g_st().did_throw || g_st().need_rethrow {
+    } else if g_st().did_throw.get() || g_st().need_rethrow.get() {
         if let Some(excp) = g_st().current_exception.clone() {
             if !excp.throw_name.as_bytes().is_empty() {
                 if excp.throw_lnum != 0 {
@@ -403,10 +403,10 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 
     g_st().msg_list = tstate.msg_list.clone();
     g_st().current_exception = tstate.current_exception.clone();
-    g_st().got_int = tstate.got_int != 0;
-    g_st().did_throw = tstate.did_throw;
-    g_st().need_rethrow = tstate.need_rethrow != 0;
-    g_st().did_emsg = tstate.did_emsg;
+    g_st().got_int.set(tstate.got_int != 0);
+    g_st().did_throw.set(tstate.did_throw);
+    g_st().need_rethrow.set(tstate.need_rethrow != 0);
+    g_st().did_emsg.set(tstate.did_emsg);
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).

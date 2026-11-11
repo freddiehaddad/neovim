@@ -102,9 +102,9 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     ui_flush();
                     break K_EVENT;
                 } else {
-                    if g_st().must_redraw != 0
-                        && !g_st().need_wait_return
-                        && (g_st().state_global & MODE_CMDLINE) == 0
+                    if g_st().must_redraw.get() != 0
+                        && !g_st().need_wait_return.get()
+                        && (g_st().state_global.get() & MODE_CMDLINE) == 0
                     {
                         update_screen();
                         setcursor();
@@ -132,7 +132,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                 let keyname: &CStr = if key == K_EVENT {
                     c"K_EVENT"
                 } else {
-                    special_name = get_special_key_name(key, g_st().mod_mask);
+                    special_name = get_special_key_name(key, g_st().mod_mask.get());
                     &special_name
                 };
                 logmsg!(
@@ -166,27 +166,28 @@ pub fn state_handle_k_event() {
         }
 
         os_breakcheck();
-        if input_available() != 0 || g_st().got_int {
+        if input_available() != 0 || g_st().got_int.get() {
             return;
         }
     }
 }
 
 pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
-    if (g_st().state_global & MODE_TERMINAL) != 0 {
+    if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         return true;
     }
 
     let cur_ve_flags = get_ve_flags(wp);
 
     if cur_ve_flags == K_OPT_VE_FLAG_ALL
-        || ((cur_ve_flags & K_OPT_VE_FLAG_INSERT) != 0 && (g_st().state_global & MODE_INSERT) != 0)
+        || ((cur_ve_flags & K_OPT_VE_FLAG_INSERT) != 0
+            && (g_st().state_global.get() & MODE_INSERT) != 0)
     {
         return true;
     }
 
-    if g_st().virtual_op != K_NONE {
-        return g_st().virtual_op != 0;
+    if g_st().virtual_op.get() != K_NONE {
+        return g_st().virtual_op.get() != 0;
     }
     (cur_ve_flags & K_OPT_VE_FLAG_BLOCK) != 0
         && g_st().visual_global.active
@@ -194,47 +195,47 @@ pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
 }
 
 pub fn get_real_state() -> i32 {
-    if (g_st().state_global & MODE_NORMAL) != 0 {
+    if (g_st().state_global.get() & MODE_NORMAL) != 0 {
         if g_st().visual_global.active {
             if g_st().visual_global.select {
                 return MODE_SELECT;
             }
             return MODE_VISUAL;
-        } else if g_st().finish_op {
+        } else if g_st().finish_op.get() {
             return MODE_OP_PENDING;
         }
     }
-    g_st().state_global
+    g_st().state_global.get()
 }
 
 pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
     *buf = [0; MODE_MAX_LENGTH];
     let mut i: usize = 0;
 
-    if g_st().state_global == MODE_HITRETURN
-        || g_st().state_global == MODE_ASKMORE
-        || g_st().state_global == MODE_SETWSIZE
-        || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key.get())
+    if g_st().state_global.get() == MODE_HITRETURN
+        || g_st().state_global.get() == MODE_ASKMORE
+        || g_st().state_global.get() == MODE_SETWSIZE
+        || ((g_st().state_global.get() & MODE_CMDLINE) != 0 && get_cmdline_info().one_key.get())
     {
         buf[i] = b'r';
         i += 1;
-        if g_st().state_global == MODE_ASKMORE {
+        if g_st().state_global.get() == MODE_ASKMORE {
             buf[i] = b'm';
             i += 1;
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
             buf[i] = b'?';
             i += 1;
         }
-    } else if g_st().state_global == MODE_EXTERNCMD {
+    } else if g_st().state_global.get() == MODE_EXTERNCMD {
         buf[i] = b'!';
         i += 1;
-    } else if (g_st().state_global & MODE_INSERT) != 0 {
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+    } else if (g_st().state_global.get() & MODE_INSERT) != 0 {
+        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             buf[i] = b'R';
             i += 1;
             buf[i] = b'v';
             i += 1;
-        } else if (g_st().state_global & REPLACE_FLAG) != 0 {
+        } else if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
             buf[i] = b'R';
             i += 1;
         } else {
@@ -248,18 +249,18 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
             buf[i] = b'x';
             i += 1;
         }
-    } else if (g_st().state_global & MODE_CMDLINE) != 0 || g_st().exmode_active {
+    } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 || g_st().exmode_active.get() {
         buf[i] = b'c';
         i += 1;
-        if g_st().exmode_active {
+        if g_st().exmode_active.get() {
             buf[i] = b'v';
             i += 1;
         }
-        if (g_st().state_global & MODE_CMDLINE) != 0 && cmdline_overstrike() {
+        if (g_st().state_global.get() & MODE_CMDLINE) != 0 && cmdline_overstrike() {
             buf[i] = b'r';
             i += 1;
         }
-    } else if (g_st().state_global & MODE_TERMINAL) != 0 {
+    } else if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         buf[i] = b't';
         i += 1;
     } else if g_st().visual_global.active {
@@ -277,27 +278,27 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
     } else {
         buf[i] = b'n';
         i += 1;
-        if g_st().finish_op {
+        if g_st().finish_op.get() {
             buf[i] = b'o';
             i += 1;
-            if g_st().motion_force != 0 {
-                buf[i] = g_st().motion_force as u8;
+            if g_st().motion_force.get() != 0 {
+                buf[i] = g_st().motion_force.get() as u8;
                 i += 1;
             }
         } else if !curbuf_mut().terminal.get().is_null() {
             buf[i] = b't';
             i += 1;
-            if g_st().restart_edit == b'I' as i32 {
+            if g_st().restart_edit.get() == b'I' as i32 {
                 buf[i] = b'T';
                 i += 1;
             }
-        } else if g_st().restart_edit == b'I' as i32
-            || g_st().restart_edit == b'R' as i32
-            || g_st().restart_edit == b'V' as i32
+        } else if g_st().restart_edit.get() == b'I' as i32
+            || g_st().restart_edit.get() == b'R' as i32
+            || g_st().restart_edit.get() == b'V' as i32
         {
             buf[i] = b'i';
             i += 1;
-            buf[i] = g_st().restart_edit as u8;
+            buf[i] = g_st().restart_edit.get() as u8;
             i += 1;
         }
     }
@@ -307,7 +308,7 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
 }
 
 pub fn may_trigger_modechanged() {
-    if !has_event(EVENT_MODECHANGED) || g_st().got_int {
+    if !has_event(EVENT_MODECHANGED) || g_st().got_int.get() {
         return;
     }
 
@@ -348,8 +349,8 @@ fn is_safe_now() -> bool {
     stuff_empty()
         && g_st().typebuf.tb_len == 0
         && using_script() == 0
-        && g_st().global_busy == 0
-        && !g_st().debug_mode
+        && g_st().global_busy.get() == 0
+        && !g_st().debug_mode.get()
 }
 
 pub fn may_trigger_safestate(safe: bool) {

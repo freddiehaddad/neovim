@@ -96,22 +96,22 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInf
                     format!(
                         "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
                         i64::from(wp.w_height.get()),
-                        i64::from(g_st().rows_global) / 2,
-                        i64::from(g_st().rows_global)
+                        i64::from(g_st().rows_global.get()) / 2,
+                        i64::from(g_st().rows_global.get())
                     ),
                 )
             {
                 return false;
             }
 
-            if wp.w_width.get() < g_st().columns_global
+            if wp.w_width.get() < g_st().columns_global.get()
                 && !write_fmt(
                     fd,
                     format!(
                         "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
                         i64::from(wp.w_width.get()),
-                        i64::from(g_st().columns_global) / 2,
-                        i64::from(g_st().columns_global)
+                        i64::from(g_st().columns_global.get()) / 2,
+                        i64::from(g_st().columns_global.get())
                     ),
                 )
             {
@@ -657,8 +657,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 fd,
                 format!(
                     "set lines={} columns={}\n",
-                    i64::from(g_st().rows_global),
-                    i64::from(g_st().columns_global)
+                    i64::from(g_st().rows_global.get()),
+                    i64::from(g_st().columns_global.get())
                 ),
             )
         {

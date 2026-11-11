@@ -159,9 +159,9 @@ fn coladvance2(
     let mut head: i32 = 0;
 
     let one_more = i32::from(
-        (g_st().state_global & MODE_INSERT) != 0
-            || (g_st().state_global & MODE_TERMINAL) != 0
-            || g_st().restart_edit != 0
+        (g_st().state_global.get() & MODE_INSERT) != 0
+            || (g_st().state_global.get() & MODE_TERMINAL) != 0
+            || g_st().restart_edit.get() != 0
             || (g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o')
             || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
     );
@@ -194,7 +194,7 @@ fn coladvance2(
 
             let disp_wcol = vcol2disp_vcol(&mut *wp, pos.lnum, wcol);
             if disp_wcol / width > csize / width
-                && ((g_st().state_global & MODE_INSERT) == 0 || disp_wcol > csize + 1)
+                && ((g_st().state_global.get() & MODE_INSERT) == 0 || disp_wcol > csize + 1)
             {
                 wcol = disp_vcol2vcol(&mut *wp, pos.lnum, (csize / width + 1) * width - 1);
             }
@@ -371,9 +371,9 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
     if len == 0 {
         win.w_cursor.col = 0;
     } else if win.w_cursor.col >= len {
-        if (g_st().state_global & MODE_INSERT) != 0
-            || g_st().restart_edit != 0
-            || (g_st().state_global & MODE_TERMINAL) != 0
+        if (g_st().state_global.get() & MODE_INSERT) != 0
+            || g_st().restart_edit.get() != 0
+            || (g_st().state_global.get() & MODE_TERMINAL) != 0
             || (g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o')
             || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
             || virtual_active(&mut *win)

@@ -1441,7 +1441,7 @@ pub fn get_c_indent() -> i32 {
     }
     let mut linecopy_bytes = crate::memline::ml_get_slice(cur_curpos.lnum).to_vec();
     linecopy_bytes.push(0);
-    if (g_st().state_global & MODE_INSERT) != 0
+    if (g_st().state_global.get() & MODE_INSERT) != 0
         && (curwin_mut().w_cursor.col as usize) < linecopy_bytes.len().saturating_sub(1)
         && linecopy_bytes[curwin_mut().w_cursor.col as usize] == b')'
     {

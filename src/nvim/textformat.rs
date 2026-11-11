@@ -196,7 +196,7 @@ pub fn internal_format(
 
     curwin_mut().w_onebuf_opt.wo_lbr.set(false);
 
-    if !curbuf_mut().b_p_ai.get() && (g_st().state_global & VREPLACE_FLAG) == 0 {
+    if !curbuf_mut().b_p_ai.get() && (g_st().state_global.get() & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
             save_char = cc as u8;
@@ -204,7 +204,7 @@ pub fn internal_format(
         }
     }
 
-    while !g_st().got_int {
+    while !g_st().got_int.get() {
         let mut startcol: i32;
         let mut foundcol: i32;
         let mut end_foundcol: i32 = 0;
@@ -418,10 +418,10 @@ pub fn internal_format(
 
         undisplay_dollar();
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             orig_col = startcol;
         } else {
-            g_st().replace_offset = startcol - end_foundcol;
+            g_st().replace_offset.set(startcol - end_foundcol);
         }
 
         curwin_mut().w_cursor.col = foundcol;
@@ -435,7 +435,7 @@ pub fn internal_format(
         startcol -= curwin_mut().w_cursor.col;
         startcol = startcol.max(0);
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             let rem = get_cursor_pos_slice();
             let keep_len = (startcol as usize).min(rem.len());
             saved_text.reserve_exact(keep_len + 1);
@@ -465,26 +465,26 @@ pub fn internal_format(
             if (flags & INSCHAR_COM_LIST) != 0 {
                 second_indent
             } else {
-                g_st().old_indent
+                g_st().old_indent.get()
             },
             Some(&mut did_do_comment),
         );
         if (flags & INSCHAR_COM_LIST) == 0 {
-            g_st().old_indent = 0;
+            g_st().old_indent.set(0);
         }
 
         if did_do_comment {
             no_leader = false;
         }
 
-        g_st().replace_offset = 0;
+        g_st().replace_offset.set(0);
         if first_line {
             if (flags & INSCHAR_COM_LIST) == 0 {
                 if second_indent < 0 && has_format_option(K_FO_QNUMBER) {
                     second_indent = get_number_indent(curwin_mut().w_cursor.lnum - 1);
                 }
                 if second_indent >= 0 {
-                    if (g_st().state_global & VREPLACE_FLAG) != 0 {
+                    if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
                         change_indent(INDENT_SET, second_indent, 0, true);
                     } else if leader_len > 0 && second_indent - leader_len > 0 {
                         let padding = second_indent - leader_len;
@@ -499,7 +499,7 @@ pub fn internal_format(
             first_line = false;
         }
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             ins_bytes(&saved_text);
         } else {
             curwin_mut().w_cursor.col += startcol;
@@ -711,7 +711,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         && !trailblank
         && !wasatend
         && pos.col > 0
-        && (g_st().state_global & MODE_INSERT) != 0
+        && (g_st().state_global.get() & MODE_INSERT) != 0
         && crate::cursor::get_cursor_line_slice()
             .get((pos.col - 1) as usize)
             .is_some_and(|&b| whitechar(b))
@@ -917,7 +917,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let mut need_set_indent = true;
     let first_line = curwin_mut().w_cursor.lnum;
     let mut force_format = false;
-    let old_state = g_st().state_global;
+    let old_state = g_st().state_global.get();
 
     let max_len = comp_textwidth(true) * 3;
 
@@ -950,7 +950,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
     curwin_mut().w_cursor.lnum -= 1;
     let mut count = i64::from(line_count);
-    while count != 0 && !g_st().got_int {
+    while count != 0 && !g_st().got_int.get() {
         if advance {
             curwin_mut().w_cursor.lnum += 1;
             prev_is_end_par = is_end_par;
@@ -1043,13 +1043,13 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     set_indent(indent, SIN_CHANGED);
                 }
 
-                g_st().state_global = MODE_NORMAL;
+                g_st().state_global.set(MODE_NORMAL);
                 coladvance(curwin_mut(), MAXCOL);
                 while curwin_mut().w_cursor.col != 0 && ascii_isspace(gchar_cursor()) {
                     dec_cursor();
                 }
 
-                g_st().state_global = MODE_INSERT;
+                g_st().state_global.set(MODE_INSERT);
                 let smd_save = opt_vars().p_smd.get();
                 opt_vars().p_smd.set(false);
 
@@ -1066,7 +1066,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     second_indent,
                 );
 
-                g_st().state_global = old_state;
+                g_st().state_global.set(old_state);
                 opt_vars().p_smd.set(smd_save);
                 ui_cursor_shape();
 

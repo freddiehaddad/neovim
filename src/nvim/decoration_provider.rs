@@ -126,7 +126,7 @@ fn decor_provider_invoke(
 ) -> bool {
     let mut err = error_init();
 
-    g_st().textlock += 1;
+    g_st().textlock.set(g_st().textlock.get() + (1));
     let ret = nlua_call_ref(
         ref_,
         Some(name),
@@ -139,7 +139,7 @@ fn decor_provider_invoke(
         None,
         Some(&mut err),
     );
-    g_st().textlock -= 1;
+    g_st().textlock.set(g_st().textlock.get() - (1));
 
     let ret_ok = with_providers_mut(|providers| {
         let provider = &mut providers[provider_idx as usize];
@@ -219,7 +219,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
         return;
     }
     let running = g_st().decor_state.running_decor_provider;
-    g_st().decor_state.running_decor_provider = running || g_st().updating_screen;
+    g_st().decor_state.running_decor_provider = running || g_st().updating_screen.get();
     let mut i = 0usize;
     while i < providers_len() {
         let ref_opt = with_providers_mut(|providers| {
@@ -486,8 +486,8 @@ pub fn decor_provider_invalidate_hl() {
         }
     });
 
-    if g_st().ns_hl_active != 0 {
-        g_st().ns_hl_active = -1;
+    if g_st().ns_hl_active.get() != 0 {
+        g_st().ns_hl_active.set(-1);
         hl_check_ns();
     }
 }

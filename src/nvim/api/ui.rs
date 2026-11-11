@@ -311,7 +311,7 @@ pub fn nvim_ui_attach(
             .insert(channel_id, std::rc::Rc::clone(&ui_rc));
     });
 
-    g_st().current_ui = channel_id;
+    g_st().current_ui.set(channel_id);
     ui_attach_impl(&ui_rc, channel_id);
 
     if let Some(chan) = find_channel_opt(channel_id) {
@@ -347,7 +347,7 @@ pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
         return;
     }
     if gained {
-        g_st().current_ui = channel_id;
+        g_st().current_ui.set(channel_id);
         may_trigger_vim_suspend_resume(false);
     }
     do_autocmd_focusgained(gained);
@@ -581,7 +581,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             );
             return;
         }
-        g_st().t_colors = value.data.integer() as i32;
+        g_st().t_colors.set(value.data.integer() as i32);
         ui.term_colors = value.data.integer() as i32;
         return;
     }
@@ -614,7 +614,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             );
             return;
         }
-        g_st().stdin_fd = value.data.integer() as i32;
+        g_st().stdin_fd.set(value.data.integer() as i32);
         return;
     }
 
@@ -629,7 +629,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             return;
         }
         if ui.channel_id == CHAN_STDIO {
-            g_st().stdin_isatty = value.data.boolean();
+            g_st().stdin_isatty.set(value.data.boolean());
         }
         ui.stdin_tty = value.data.boolean();
         return;
@@ -646,7 +646,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             return;
         }
         if ui.channel_id == CHAN_STDIO {
-            g_st().stdout_isatty = value.data.boolean();
+            g_st().stdout_isatty.set(value.data.boolean());
         }
         ui.stdout_tty = value.data.boolean();
         return;
@@ -1247,7 +1247,7 @@ pub fn remote_ui_raw_line(
         if endcol < clearcol {
             remote_ui_cursor_goto(ui, row, endcol);
             remote_ui_highlight_set(ui, clearattr as i32);
-            if clearattr == 0 && clearcol == Integer::from(g_st().columns_global) {
+            if clearattr == 0 && clearcol == Integer::from(g_st().columns_global.get()) {
                 push_call(ui, c"eol_clear", ARRAY_INIT);
             } else {
                 let mut c = endcol;

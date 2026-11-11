@@ -551,7 +551,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
 
         if !grid.is_some_and(|g| {
             ptr::eq(g, &raw const g_st().default_grid)
-                || (g.comp_col == 0 && g.cols == g_st().columns_global)
+                || (g.comp_col == 0 && g.cols == g_st().columns_global.get())
         }) {
             flags &= !K_LINE_FLAG_WRAP;
         }
@@ -782,30 +782,30 @@ pub fn ui_comp_msg_set_pos(
         );
     } else if row < (msg_current_row as Integer)
         && ui_comp_should_draw()
-        && (msg_current_row < g_st().rows_global || (scrolled && !msg_was_scrolled))
+        && (msg_current_row < g_st().rows_global.get() || (scrolled && !msg_was_scrolled))
     {
         let delta = msg_current_row - (row as i32);
         if g_st().msg_grid.blending {
             let first_row = ((row as i32) - if scrolled { 1 } else { 0 }).max(0);
             compose_area(
                 first_row as Integer,
-                (g_st().rows_global - delta) as Integer,
+                (g_st().rows_global.get() - delta) as Integer,
                 0,
-                g_st().columns_global as Integer,
+                g_st().columns_global.get() as Integer,
             );
         } else {
             let first_row = ((row as i32) - if msg_was_scrolled { 1 } else { 0 }).max(0);
             ui_composed_call_grid_scroll(
                 1,
                 first_row as Integer,
-                g_st().rows_global as Integer,
+                g_st().rows_global.get() as Integer,
                 0,
-                g_st().columns_global as Integer,
+                g_st().columns_global.get() as Integer,
                 delta as Integer,
                 0,
             );
             if scrolled && !msg_was_scrolled && row > 0 {
-                compose_area(row - 1, row, 0, g_st().columns_global as Integer);
+                compose_area(row - 1, row, 0, g_st().columns_global.get() as Integer);
             }
         }
     }

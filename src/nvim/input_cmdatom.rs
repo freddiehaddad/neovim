@@ -489,7 +489,7 @@ fn atom_origin() -> CmdOrigin {
         win: crate::globals::curwin_ptr(),
         pos: curwin_mut().w_cursor,
         tick: buf_get_changedtick(curbuf_mut()),
-        maptick: g_st().maptick,
+        maptick: g_st().maptick.get(),
         mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor, 0),
         ..CmdOrigin::default()
     };
@@ -614,7 +614,7 @@ fn atom_from_cur_frame(ca: &mut Cmdarg) -> CmdAtom {
         atom = atom_from_cmdline(K_AEXCMD, ca, Some(cmdline), visual_active);
     } else if ca.cmdchar == K_LUA {
         let mut lua_id = [0u8; NUMBUFLEN];
-        format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap);
+        format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap.get());
         atom = atom_from_cmdline(
             K_ANORMAL,
             ca,
@@ -982,14 +982,14 @@ pub fn atom_term_enter() {
 
 pub fn atom_is_user_cmd() -> bool {
     !mc_replaying()
-        && ((g_st().reg_executing == 0 && !g_st().pending_end_reg_executing)
+        && ((g_st().reg_executing.get() == 0 && !g_st().pending_end_reg_executing.get())
             || with_atom(|st| st.composite.r#macro.get()))
-        && g_st().ex_normal_busy == 0
+        && g_st().ex_normal_busy.get() == 0
 }
 
 #[inline]
 fn atom_is_user_input() -> bool {
-    g_st().key_typed || (atom_is_user_cmd() && atom_composite_active())
+    g_st().key_typed.get() || (atom_is_user_cmd() && atom_composite_active())
 }
 
 pub fn atom_suppress(suppress: bool) {
@@ -1126,7 +1126,7 @@ fn atom_typed_collecting() -> bool {
 }
 
 pub fn atom_payload_start() {
-    if g_st().expr_map_lock == 0 && !mc_replaying() {
+    if g_st().expr_map_lock.get() == 0 && !mc_replaying() {
         with_atom(|st| {
             let mut frames = st.cmd_frames.borrow_mut();
             if let Some(cur_frame) = frames.last_mut()
@@ -1141,7 +1141,7 @@ pub fn atom_payload_start() {
 }
 
 pub fn atom_payload_end() {
-    if g_st().expr_map_lock == 0 && !mc_replaying() {
+    if g_st().expr_map_lock.get() == 0 && !mc_replaying() {
         with_atom(|st| {
             let mut frames = st.cmd_frames.borrow_mut();
             if let Some(cur_frame) = frames.last_mut()
@@ -1179,7 +1179,11 @@ fn atom_payload_append_cur_frame(atom: &mut CmdAtom) {
 }
 
 pub fn atom_typed_add(slice: &[u8]) {
-    if mc_replaying() || !atom_typed_collecting() || g_st().cmdline_star > 0 || slice.is_empty() {
+    if mc_replaying()
+        || !atom_typed_collecting()
+        || g_st().cmdline_star.get() > 0
+        || slice.is_empty()
+    {
         return;
     }
     if slice.len() == 3
@@ -1264,10 +1268,10 @@ pub fn atom_stuff_start(cap: &Cmdarg) {
 }
 
 pub fn atom_map_start(lhs: &[u8], peeked: bool) {
-    if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
+    if mc_replaying() || g_st().reg_executing.get() != 0 || g_st().ex_normal_busy.get() != 0 {
         return;
     }
-    if (g_st().state_global & MODE_NORMAL) == 0 {
+    if (g_st().state_global.get() & MODE_NORMAL) == 0 {
         atom_composite_label(lhs);
         return;
     }
@@ -1316,7 +1320,7 @@ fn atom_visual_typed() -> bool {
     atom_visual_pending()
         && with_atom(|st| {
             (st.vatom.state.get() & K_VATOM_TYPED) != 0
-                || g_st().maptick != st.vatom.origin.get().maptick
+                || g_st().maptick.get() != st.vatom.origin.get().maptick
         })
 }
 
@@ -1525,7 +1529,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             ..CmdSpec::default()
         };
         if prep_exempt && (!g_st().visual_global.active || oap.motion_force != 0) {
-            if atom_capturable(atom_buf_has_consumers(), g_st().key_typed) {
+            if atom_capturable(atom_buf_has_consumers(), g_st().key_typed.get()) {
                 let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
                 spec.motion_force = oap.motion_force;
                 spec.cmd = cap.cmdchar;
@@ -1601,7 +1605,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             }
         } else if cap.cmdchar == K_LUA {
             let mut lua_id = [0u8; NUMBUFLEN];
-            let n = format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap);
+            let n = format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap.get());
             redo_append_str(&lua_id[..n.max(0) as usize]);
             redo_append_str(b"\n");
         }
@@ -1685,7 +1689,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
 
 pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
     let visual = session.vis != K_VINS_NONE;
-    let user_input = session.typed || g_st().maptick != session.origin.maptick;
+    let user_input = session.typed || g_st().maptick.get() != session.origin.maptick;
 
     if mc_replaying() {
         session.vsel = None;
@@ -1700,11 +1704,11 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
     }
     if !user_input
         || busy
-        || g_st().restart_edit != 0
+        || g_st().restart_edit.get() != 0
         || !atom_buf_has_consumers()
         || (visual && session.vis != K_VINS_KEYS && session.vsel.is_none())
     {
-        if user_input && (busy || g_st().restart_edit != 0) && atom_composite_active() {
+        if user_input && (busy || g_st().restart_edit.get() != 0) && atom_composite_active() {
             with_atom(|st| st.composite.lossy.set(true));
         }
         session.vsel = None;
@@ -1756,12 +1760,12 @@ pub fn atom_cmd_start(cmdchar: i32) {
             origin,
             staged: CmdAtom::default(),
             visual: g_st().visual_global,
-            keytyped: g_st().key_typed,
+            keytyped: g_st().key_typed.get(),
             keyclass,
-            ex_normal: g_st().ex_normal_busy,
+            ex_normal: g_st().ex_normal_busy.get(),
             captures: st.atom_captures.get(),
             global_ops: st.global_ops.get(),
-            beeps: g_st().did_beep,
+            beeps: g_st().did_beep.get(),
             id: frame_id,
             follow,
             consumers,
@@ -1783,7 +1787,7 @@ pub fn atom_cmd_start(cmdchar: i32) {
         && !atom_composite_active()
         && with_atom(|st| st.composite.lhs.get()[0] != 0)
     {
-        if !g_st().key_typed && consumers {
+        if !g_st().key_typed.get() && consumers {
             atom_composite_start(&[]);
             with_atom(|st| {
                 st.typed.map_start.set(st.typed.keys.borrow().len());
@@ -1944,9 +1948,9 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
         let changed = atom_origin_changed(old_origin);
         let motion = (nv_is(ca.cmdchar, NV_MOTION) || special_motion)
             && !changed
-            && !g_st().finish_op
+            && !g_st().finish_op.get()
             && !jump_cmd;
-        let failed = g_st().did_beep != old_beeps && !atom_origin_moved(old_origin);
+        let failed = g_st().did_beep.get() != old_beeps && !atom_origin_moved(old_origin);
         let follow = (mc_following() || mapped) && motion && !failed;
 
         if root_redo_frame == old_id && !mouse_cmd {
@@ -2058,7 +2062,10 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
         mc_clock_edge(map_edit, map_moved, comp_follow);
 
         with_atom(|st| st.map_edit.set(false));
-        if ca.oap.op_type == OP_NOP && !g_st().visual_global.active && g_st().restart_edit == 0 {
+        if ca.oap.op_type == OP_NOP
+            && !g_st().visual_global.active
+            && g_st().restart_edit.get() == 0
+        {
             atom_composite_end();
             with_atom(|st| st.composite.open.set(false));
         }

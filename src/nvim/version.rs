@@ -4008,14 +4008,14 @@ pub fn ex_version(eap: &mut Exarg) {
 
 fn version_msg_wrap(s: &CStr, wrap: bool) {
     let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-    if !g_st().got_int
-        && len < g_st().columns_global
-        && g_st().msg_col + len >= g_st().columns_global
+    if !g_st().got_int.get()
+        && len < g_st().columns_global.get()
+        && g_st().msg_col.get() + len >= g_st().columns_global.get()
         && s.to_bytes().first() != Some(&b'\n')
     {
         msg_putchar(b'\n' as i32);
     }
-    if !g_st().got_int {
+    if !g_st().got_int.get() {
         if wrap {
             msg_puts(c"[");
         }
@@ -4043,22 +4043,22 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
     }
     width += 1;
 
-    if g_st().columns_global < width {
+    if g_st().columns_global.get() < width {
         for (idx, &item) in items.iter().enumerate() {
             version_msg_wrap(item, idx as i32 == current);
-            if g_st().msg_col > 0 && (idx as i32) < item_count - 1 {
+            if g_st().msg_col.get() > 0 && (idx as i32) < item_count - 1 {
                 msg_putchar(b'\n' as i32);
             }
         }
         return;
     }
 
-    let ncol = (g_st().columns_global + 1) / width;
+    let ncol = (g_st().columns_global.get() + 1) / width;
     let nrow = item_count / ncol + i32::from(item_count % ncol != 0);
     let mut cur_row: i32 = 1;
 
     let mut idx_i: i32 = 0;
-    while !g_st().got_int && idx_i < nrow * ncol {
+    while !g_st().got_int.get() && idx_i < nrow * ncol {
         let idx = (idx_i / ncol) + (idx_i % ncol) * nrow;
         if idx < item_count {
             let last_col = (idx_i + 1) % ncol == 0;
@@ -4070,16 +4070,16 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
                 msg_putchar(b']' as i32);
             }
             if last_col {
-                if g_st().msg_col > 0 && cur_row < nrow {
+                if g_st().msg_col.get() > 0 && cur_row < nrow {
                     msg_putchar(b'\n' as i32);
                 }
                 cur_row += 1;
             } else {
-                while g_st().msg_col % width != 0 {
+                while g_st().msg_col.get() % width != 0 {
                     msg_putchar(b' ' as i32);
                 }
             }
-        } else if g_st().msg_col > 0 {
+        } else if g_st().msg_col.get() > 0 {
             if cur_row < nrow {
                 msg_putchar(b'\n' as i32);
             }
@@ -4192,16 +4192,16 @@ pub fn intro_message(colon: bool) {
     ];
 
     let lines_size = lines.len() as i32;
-    let mut blanklines = g_st().rows_global - (lines_size - 1);
+    let mut blanklines = g_st().rows_global.get() - (lines_size - 1);
     if opt_vars().p_ls.get() > 1 {
-        blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height.get();
+        blanklines -= g_st().rows_global.get() - crate::globals::topframe_mut().fr_height.get();
     }
     if blanklines < 0 {
         blanklines = 0;
     }
 
     let mut row = blanklines / 2;
-    if (row >= 2 && g_st().columns_global >= 50) || colon {
+    if (row >= 2 && g_st().columns_global.get() >= 50) || colon {
         for (i, &p) in lines.iter().enumerate() {
             let formatted_cstr: Option<CString>;
 
@@ -4226,7 +4226,7 @@ pub fn intro_message(colon: bool) {
                 c""
             };
 
-            if !mesg.to_bytes().is_empty() && row < g_st().rows_global - 1 {
+            if !mesg.to_bytes().is_empty() && row < g_st().rows_global.get() - 1 {
                 do_intro_line(row, mesg, colon, i < 3);
             }
             row += 1;
@@ -4237,7 +4237,7 @@ pub fn intro_message(colon: bool) {
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
     let mesg_bytes = mesg_cstr.to_bytes();
     {
-        let mut col = (g_st().columns_global - vim_strsize(mesg_cstr)) / 2;
+        let mut col = (g_st().columns_global.get() - vim_strsize(mesg_cstr)) / 2;
         if col < 0 {
             col = 0;
         }

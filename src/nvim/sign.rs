@@ -347,7 +347,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
     msg_puts_title(gettext(c"\n--- Signs ---"));
 
     while let Some(buf_ref) = buf.opt() {
-        if g_st().got_int {
+        if g_st().got_int.get() {
             break;
         }
         if buf_has_signs(buf_ref) {

@@ -140,7 +140,7 @@ impl SlangId {
 
 impl Drop for Slang {
     fn drop(&mut self) {
-        if crate::globals::g_st().exiting {
+        if crate::globals::g_st().exiting.get() {
             return;
         }
         crate::spell::slang_clear(self);
@@ -670,7 +670,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
 /// "z=": Find badly spelled word under or after the cursor.
 pub fn spell_suggest(count: i32) {
     let mut badlen: i32 = 0;
-    let msg_scroll_save = g_st().msg_scroll;
+    let msg_scroll_save = g_st().msg_scroll.get();
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
     if !curwin_mut().w_onebuf_opt.wo_spell.get() {
         parse_spelllang(curwin_mut());
@@ -729,7 +729,7 @@ pub fn spell_suggest(count: i32) {
         let line_cstr = crate::memory::bytes_as_cstr(&line_vec);
         let limit = sps_st(|st| {
             st.spell_suggest_timeout.set(5000);
-            st.sps_limit.get().min(g_st().rows_global - 2)
+            st.sps_limit.get().min(g_st().rows_global.get() - 2)
         });
         let mut sug = Suginfo::default();
         let cursor_col = (curwin_mut().w_cursor.col as usize).min(line_len);
@@ -755,8 +755,8 @@ pub fn spell_suggest(count: i32) {
         } else {
             curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
             select_spell_suggestion(&mut sug);
-            g_st().lines_left = g_st().rows_global;
-            g_st().msg_scroll = msg_scroll_save;
+            g_st().lines_left.set(g_st().rows_global.get());
+            g_st().msg_scroll.set(msg_scroll_save);
             return;
         }
         if selected > 0 && selected <= sug_len && u_save_cursor() {
@@ -976,7 +976,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
         semsg!(gettext(E_NOTOPEN), fname);
         return;
     };
-    while !vim_fgets(&mut line, &fd) && !g_st().got_int {
+    while !vim_fgets(&mut line, &fd) && !g_st().got_int.get() {
         line_breakcheck();
         let Some(slash_pos) = crate::memory::bytes_as_cstr(&line)
             .to_bytes()
@@ -1049,9 +1049,9 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
         suggest_try_soundalike_finish();
     }
     os_breakcheck();
-    if interactive && g_st().got_int {
+    if interactive && g_st().got_int.get() {
         let _ = vgetc();
-        g_st().got_int = false;
+        g_st().got_int.set(false);
     }
     let flags = sps_st(|st| st.sps_flags.get());
     if (flags & SPS_DOUBLE) == 0 && !su.su_ga.is_empty() {
@@ -1168,7 +1168,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
     if timeout > 0 {
         time_limit = profile_setlimit(timeout);
     }
-    while depth >= 0 && !g_st().got_int {
+    while depth >= 0 && !g_st().got_int.get() {
         let mut udepth = depth as usize;
         let state = stack[udepth].ts_state;
         match state {
@@ -1813,7 +1813,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 if ptr::eq(byts.as_ptr(), slang.sl_fbyts.as_ptr())
                     && n >= slang.sl_fbyts.len() as i32
                 {
-                    g_st().got_int = true;
+                    g_st().got_int.set(true);
                     continue;
                 }
                 c = i32::from(byts[n as usize]);
@@ -2128,7 +2128,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     if sps_st(|st| st.spell_suggest_timeout.get()) > 0
                         && profile_passed_limit(time_limit)
                     {
-                        g_st().got_int = true;
+                        g_st().got_int.set(true);
                     }
                 }
             }

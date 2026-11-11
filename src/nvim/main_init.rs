@@ -446,14 +446,14 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     #[cfg(windows)]
     let mut startup_stderr_fd: i32 = -1;
     #[cfg(windows)]
-    if g_st().embedded_mode {
+    if g_st().embedded_mode.get() {
         startup_stderr_fd = os_dup_cloexec(STDERR_FILENO);
     }
 
     let stdin_type = os_guess_handle(STDIN_FILENO);
     let stdio_rpc =
         params.listen_addr.is_none() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
-    if g_st().embedded_mode && stdio_rpc {
+    if g_st().embedded_mode.get() && stdio_rpc {
         let mut err = None;
         let on_data = CallbackReader::none();
         if channel_from_stdio(true, on_data, &mut err) == 0 {
@@ -465,17 +465,20 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         fname = get_fname(&mut params);
     }
 
-    if g_st().recoverymode && fname.is_none() {
-        g_st().headless_mode = true;
+    if g_st().recoverymode.get() && fname.is_none() {
+        g_st().headless_mode.set(true);
     }
 
     #[cfg(windows)]
     let has_term = true;
     #[cfg(not(windows))]
-    let has_term = g_st().stdin_isatty || g_st().stdout_isatty || g_st().stderr_isatty;
+    let has_term =
+        g_st().stdin_isatty.get() || g_st().stdout_isatty.get() || g_st().stderr_isatty.get();
 
-    let use_builtin_ui =
-        has_term && !g_st().headless_mode && !g_st().embedded_mode && !g_st().silent_mode;
+    let use_builtin_ui = has_term
+        && !g_st().headless_mode.get()
+        && !g_st().embedded_mode.get()
+        && !g_st().silent_mode.get();
 
     if params.remote != 0 {
         let server_addr = params.server_addr.clone();
@@ -483,26 +486,28 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         remote_request(&mut params, remote, server_addr.as_deref(), use_builtin_ui);
     }
 
-    let remote_ui = g_st().ui_client_channel_id != 0;
+    let remote_ui = g_st().ui_client_channel_id.get() != 0;
 
     if use_builtin_ui && !remote_ui {
-        g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
+        g_st()
+            .ui_client_forward_stdin
+            .set(!g_st().stdin_isatty.get());
         let rv = ui_client_start_server(&get_vim_var_str(VV_PROGPATH), &params.argv);
         if rv == 0 {
             fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
             os_exit(1);
         }
-        g_st().ui_client_channel_id = rv;
+        g_st().ui_client_channel_id.set(rv);
     }
 
-    if g_st().ui_client_channel_id != 0 {
+    if g_st().ui_client_channel_id.get() != 0 {
         ui_client_run(if remote_ui {
             params.server_addr.as_deref()
         } else {
             None
         });
     }
-    assert!(g_st().ui_client_channel_id == 0 && !use_builtin_ui);
+    assert!(g_st().ui_client_channel_id.get() == 0 && !use_builtin_ui);
 
     if !server_init(params.listen_addr.as_deref()) {
         #[cfg(windows)]
@@ -523,11 +528,13 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if params.diff_mode != 0 && params.window_count == -1 {
         params.window_count = 0;
     }
-    g_st().redrawing_disabled += 1;
+    g_st()
+        .redrawing_disabled
+        .set(g_st().redrawing_disabled.get() + (1));
 
     crate::log::log_get_stdout().set_unbuffered();
 
-    g_st().full_screen = !g_st().silent_mode;
+    g_st().full_screen.set(!g_st().silent_mode.get());
 
     win_init_size();
     if params.diff_mode != 0 {
@@ -536,25 +543,27 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     assert!(
         opt_vars().p_ch.get() >= 0
-            && i64::from(g_st().rows_global) >= opt_vars().p_ch.get()
-            && i64::from(g_st().rows_global) - opt_vars().p_ch.get() <= i64::from(i32::MAX)
+            && i64::from(g_st().rows_global.get()) >= opt_vars().p_ch.get()
+            && i64::from(g_st().rows_global.get()) - opt_vars().p_ch.get() <= i64::from(i32::MAX)
     );
-    g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch.get() as i32;
-    g_st().msg_row = g_st().cmdline_row;
+    g_st()
+        .cmdline_row
+        .set(g_st().rows_global.get() - opt_vars().p_ch.get() as i32);
+    g_st().msg_row.set(g_st().cmdline_row.get());
     default_grid_alloc();
-    set_init_2(g_st().headless_mode);
+    set_init_2(g_st().headless_mode.get());
     time_msg_if_enabled(c"inits 2");
 
-    g_st().msg_scroll = 1;
-    g_st().no_wait_return += 1;
+    g_st().msg_scroll.set(1);
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
     init_highlight(true, false);
     ui_comp_syn_init();
     time_msg_if_enabled(c"init highlight");
 
-    g_st().debug_break_level = params.use_debug_break_level;
+    g_st().debug_break_level.set(params.use_debug_break_level);
 
-    let use_remote_ui = g_st().embedded_mode && !g_st().headless_mode;
+    let use_remote_ui = g_st().embedded_mode.get() && !g_st().headless_mode.get();
     if use_remote_ui {
         if !stdio_rpc {
             fprintf!(
@@ -631,7 +640,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     set_window_layout(&mut params);
 
-    if g_st().recoverymode && fname.is_none() {
+    if g_st().recoverymode.get() && fname.is_none() {
         let mut items_tv = crate::eval::typval::TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
         recover_names(None, false, &items_tv.vval.v_list());
@@ -648,7 +657,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         opt_vars().p_uc.set(0);
     }
 
-    if g_st().silent_mode {
+    if g_st().silent_mode.get() {
         opt_vars().p_ut.set(1);
     }
 
@@ -663,10 +672,10 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     handle_quickfix(&mut params);
 
     set_starting(NO_BUFFERS);
-    g_st().no_wait_return = 0;
-    g_st().msg_scroll = 0;
+    g_st().no_wait_return.set(0);
+    g_st().msg_scroll.set(0);
 
-    if params.edit_type == EDIT_STDIN && !g_st().recoverymode {
+    if params.edit_type == EDIT_STDIN && !g_st().recoverymode.get() {
         read_stdin();
     }
 
@@ -674,7 +683,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
 
-    g_st().no_wait_return += 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
     create_windows(&mut params);
     time_msg_if_enabled(c"opening buffers");
@@ -714,9 +723,9 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     set_starting(0);
 
-    g_st().redrawing_disabled = 0;
+    g_st().redrawing_disabled.set(0);
     redraw_all_later(UPD_NOT_VALID);
-    g_st().no_wait_return = 0;
+    g_st().no_wait_return.set(0);
 
     do_autochdir();
 
@@ -744,7 +753,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         time_msg_if_enabled(c"diff scrollbinding");
     }
 
-    if g_st().restart_edit != 0 {
+    if g_st().restart_edit.get() != 0 {
         stuffchar_readbuff(K_NOP);
     }
 
@@ -755,7 +764,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     if let Some(ref luaf) = params.luaf {
-        g_st().msg_scroll = 1;
+        g_st().msg_scroll.set(1);
         logmsg_str(
             LOGLVL_DBG,
             None,
@@ -766,15 +775,15 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         );
         let lua_ok = nlua_exec_file(luaf.as_c_str());
         time_msg_if_enabled(c"executing Lua -l script");
-        if g_st().msg_didout {
+        if g_st().msg_didout.get() {
             msg_putchar(b'\n' as i32);
-            g_st().msg_didout = false;
+            g_st().msg_didout.set(false);
         }
         getout(if lua_ok { 0 } else { 1 });
-    } else if g_st().silent_mode {
-        g_st().msg_scroll = 1;
-        g_st().no_wait_return += 1;
-        if !params.input_istext && !g_st().stdin_isatty {
+    } else if g_st().silent_mode.get() {
+        g_st().msg_scroll.set(1);
+        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+        if !params.input_istext && !g_st().stdin_isatty.get() {
             logmsg_str(
                 LOGLVL_DBG,
                 None,
@@ -786,9 +795,9 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             let mut args = [crate::eval::typval::TypVal::new(); 1];
             nlua_call_typval(c"vim._core.exmode", c"run", &mut args, None);
         }
-        if g_st().msg_didout {
+        if g_st().msg_didout.get() {
             msg_putchar(b'\n' as i32);
-            g_st().msg_didout = false;
+            g_st().msg_didout.set(false);
         }
         getout(0);
     }
@@ -814,17 +823,17 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
 /// Prompts/dialogs should not wait for a key (no chance of meaningful input).
 pub fn input_unanswerable() -> bool {
-    g_st().v_dying != 0 || (g_st().exiting && ui_active() == 0)
+    g_st().v_dying.get() != 0 || (g_st().exiting.get() && ui_active() == 0)
 }
 
 pub fn os_exit(mut r: i32) -> ! {
-    g_st().exiting = true;
+    g_st().exiting.set(true);
     signal_reject_deadly();
 
-    if g_st().ui_client_channel_id != 0 {
+    if g_st().ui_client_channel_id.get() != 0 {
         ui_client_stop();
         if r == 0 {
-            r = g_st().ui_client_exit_status;
+            r = g_st().ui_client_exit_status.get();
         }
     } else {
         ui_flush();
@@ -833,13 +842,13 @@ pub fn os_exit(mut r: i32) -> ! {
     if !event_teardown() && r == 0 {
         r = 1;
     }
-    if g_st().ui_client_channel_id != 0 {
+    if g_st().ui_client_channel_id.get() != 0 {
         #[cfg(unix)]
         {
-            if g_st().stdout_isatty {
+            if g_st().stdout_isatty.get() {
                 tcdrain(STDOUT_FILENO);
             }
-            if g_st().stderr_isatty {
+            if g_st().stderr_isatty.get() {
                 tcdrain(STDERR_FILENO);
             }
         }
@@ -866,13 +875,13 @@ pub fn os_exit(mut r: i32) -> ! {
 }
 
 pub fn getout(mut exitval: i32) -> ! {
-    assert!(g_st().ui_client_channel_id == 0);
-    g_st().exiting = true;
+    assert!(g_st().ui_client_channel_id.get() == 0);
+    g_st().exiting.set(true);
 
     time_finish();
 
-    if g_st().exmode_active {
-        exitval += g_st().ex_exitval;
+    if g_st().exmode_active.get() {
+        exitval += g_st().ex_exitval.get();
     }
 
     set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
@@ -884,7 +893,7 @@ pub fn getout(mut exitval: i32) -> ! {
 
     invoke_all_defer();
 
-    if g_st().v_dying <= 1 {
+    if g_st().v_dying.get() <= 1 {
         let mut next_tp: Option<crate::globals::TabpagePtr>;
         let mut tp_opt = (!g_st().first_tabpage.is_null()).then(|| g_st().first_tabpage.clone());
         while let Some(tp) = tp_opt {
@@ -956,7 +965,7 @@ pub fn getout(mut exitval: i32) -> ! {
         shada_write_file(None, false);
     }
 
-    if g_st().v_dying <= 1 {
+    if g_st().v_dying.get() <= 1 {
         let mut unblock = 0;
         if is_autocmd_blocked() {
             unblock_autocmds();
@@ -970,8 +979,8 @@ pub fn getout(mut exitval: i32) -> ! {
 
     profile_dump();
 
-    if g_st().did_emsg != 0 {
-        if !g_st().headless_mode && input_unanswerable() {
+    if g_st().did_emsg.get() != 0 {
+        if !g_st().headless_mode.get() && input_unanswerable() {
             logmsg!(
                 LOGLVL_WRN,
                 None,
@@ -982,7 +991,7 @@ pub fn getout(mut exitval: i32) -> ! {
                 get_vim_var_str(VV_ERRMSG),
             );
         }
-        g_st().no_wait_return = 0;
+        g_st().no_wait_return.set(0);
         wait_return(0);
     }
 
@@ -990,7 +999,7 @@ pub fn getout(mut exitval: i32) -> ! {
         ui_call_set_title(cstr_as_string(Some(opt_vars().p_titleold.as_cstr())));
     }
 
-    if g_st().garbage_collect_at_exit {
+    if g_st().garbage_collect_at_exit.get() {
         garbage_collect(false);
     }
 
@@ -1007,10 +1016,10 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     if main_init_st(|st| st.really_exiting.replace(true)) {
         std::process::exit(2);
     }
-    g_st().exiting = true;
+    g_st().exiting.set(true);
     signal_reject_deadly();
 
-    if g_st().ui_client_channel_id != 0 {
+    if g_st().ui_client_channel_id.get() != 0 {
         ui_client_stop();
     }
     let stderr = log_get_stderr();
@@ -1021,7 +1030,7 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
         let has_eol = bytes.last() == Some(&b'\n');
         fprintf!(stderr, if has_eol { c"%s" } else { c"%s\n" }, errmsg,);
     }
-    if g_st().ui_client_channel_id != 0 {
+    if g_st().ui_client_channel_id.get() != 0 {
         os_exit(1);
     }
 
@@ -1126,7 +1135,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
                 os_exit(1);
             }
         }
-        g_st().ui_client_channel_id = chan;
+        g_st().ui_client_channel_id.set(chan);
         return;
     }
 
@@ -1232,10 +1241,10 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
 }
 
 fn edit_stdin(parmp: &mut Mparm) -> bool {
-    let implicit = !g_st().headless_mode
-        && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
+    let implicit = !g_st().headless_mode.get()
+        && !(g_st().embedded_mode.get() && g_st().stdin_fd.get() <= 0)
         && (!parmp.exmode || parmp.input_istext)
-        && !g_st().stdin_isatty
+        && !g_st().stdin_isatty.get()
         && parmp.edit_type <= EDIT_STDIN
         && parmp.scriptin.is_none();
     parmp.had_stdin_file || implicit
@@ -1269,8 +1278,8 @@ fn command_line_scan(parmp: &mut Mparm) {
             match c {
                 0 => {
                     if parmp.exmode {
-                        g_st().silent_mode = true;
-                        g_st().exmode_active = true;
+                        g_st().silent_mode.set(true);
+                        g_st().exmode_active.set(true);
                         parmp.no_swap_file = true;
                     } else {
                         if parmp.edit_type > EDIT_STDIN {
@@ -1304,9 +1313,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                         }
                         os_exit(0);
                     } else if sub.eq_ignore_ascii_case(b"headless") {
-                        g_st().headless_mode = true;
+                        g_st().headless_mode.set(true);
                     } else if sub.eq_ignore_ascii_case(b"embed") {
-                        g_st().embedded_mode = true;
+                        g_st().embedded_mode.set(true);
                     } else if strnicmp_ascii(sub, b"listen") {
                         want_argument = true;
                         argv_idx += 6;
@@ -1330,7 +1339,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         parmp.clean = true;
                         set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(Some(c"NONE")), 0);
                     } else if strnicmp_ascii(sub, b"luamod-dev") {
-                        g_st().nlua_disable_preload = true;
+                        g_st().nlua_disable_preload.set(true);
                     } else {
                         if !sub.is_empty() {
                             mainerr(ERR_OPT_UNKNOWN, Some(&arg0_cstr), None);
@@ -1406,17 +1415,17 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                 }
                 b'R' => {
-                    g_st().readonlymode = true;
+                    g_st().readonlymode.set(true);
                     curbuf_mut().b_p_ro.set(true);
                     opt_vars().p_uc.set(10000);
                 }
                 b'r' | b'L' => {
-                    g_st().recoverymode = true;
+                    g_st().recoverymode.set(true);
                 }
                 b's' => {
                     if parmp.exmode {
-                        g_st().silent_mode = true;
-                        g_st().exmode_active = true;
+                        g_st().silent_mode.set(true);
+                        g_st().exmode_active.set(true);
                         parmp.no_swap_file = true;
                         if opt_vars().p_shadafile.is_null() || opt_vars().p_shadafile.is_empty() {
                             set_option_value_give_err(
@@ -1565,8 +1574,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                         );
                     }
                     b'l' => {
-                        g_st().headless_mode = true;
-                        g_st().silent_mode = true;
+                        g_st().headless_mode.set(true);
+                        g_st().silent_mode.set(true);
                         opt_vars().p_verbose.set(1);
                         parmp.no_swap_file = true;
                         if parmp.use_vimrc.is_none() {
@@ -1701,7 +1710,7 @@ fn command_line_scan(parmp: &mut Mparm) {
         }
     }
 
-    if g_st().embedded_mode && (g_st().silent_mode || parmp.luaf.is_some()) {
+    if g_st().embedded_mode.get() && (g_st().silent_mode.get() || parmp.luaf.is_some()) {
         mainerr(gettext(c"--embed conflicts with -es/-Es/-l"), None, None);
     }
 
@@ -1775,9 +1784,9 @@ fn init_startuptime(paramp: &mut Mparm) {
 }
 
 fn check_and_set_isatty(_paramp: &mut Mparm) {
-    g_st().stdin_isatty = os_isatty(STDIN_FILENO);
-    g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
-    g_st().stderr_isatty = os_isatty(STDERR_FILENO);
+    g_st().stdin_isatty.set(os_isatty(STDIN_FILENO));
+    g_st().stdout_isatty.set(os_isatty(STDOUT_FILENO));
+    g_st().stderr_isatty.set(os_isatty(STDERR_FILENO));
     time_msg_if_enabled(c"window checked");
 }
 
@@ -1839,12 +1848,12 @@ fn handle_quickfix(paramp: &mut Mparm) {
 
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
-        g_st().swap_exists_did_quit = false;
+        g_st().swap_exists_did_quit.set(false);
         format_to_buf!(&mut g_st().iobuff, c"ta %s", tagname);
         do_cmdline_cmd(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
         time_msg_if_enabled(c"jumping to tag");
 
-        if g_st().swap_exists_did_quit {
+        if g_st().swap_exists_did_quit.get() {
             ui_call_error_exit(1);
             getout(1);
         }
@@ -1852,9 +1861,9 @@ fn handle_tag(tagname: Option<&CStr>) {
 }
 
 fn read_stdin() {
-    g_st().swap_exists_action = SEA_DIALOG;
-    g_st().no_wait_return = 1;
-    let save_msg_didany = g_st().msg_didany;
+    g_st().swap_exists_action.set(SEA_DIALOG);
+    g_st().no_wait_return.set(1);
+    let save_msg_didany = g_st().msg_didany.get();
 
     if curbuf_mut().b_ffname.is_some() {
         let Some(stdin_buf_ref) = buflist_new(None, None, 0, BLN_LISTED) else {
@@ -1887,8 +1896,8 @@ fn read_stdin() {
         }
     }
 
-    g_st().no_wait_return = 0;
-    g_st().msg_didany = save_msg_didany;
+    g_st().no_wait_return.set(0);
+    g_st().msg_didany.set(save_msg_didany);
     time_msg_if_enabled(c"reading stdin");
     check_swap_exists_action();
 }
@@ -1920,8 +1929,8 @@ fn create_windows(parmp: &mut Mparm) {
         parmp.window_count = 1;
     }
 
-    if g_st().recoverymode {
-        g_st().msg_scroll = 1;
+    if g_st().recoverymode.get() {
+        g_st().msg_scroll.set(1);
         ml_recover(true);
         if curbuf_mut().b_ml.ml_mfp.is_none() {
             getout(1);
@@ -1929,8 +1938,12 @@ fn create_windows(parmp: &mut Mparm) {
         do_modelines(0);
     } else {
         let mut done: i32 = 0;
-        g_st().autocmd_no_enter += 1;
-        g_st().autocmd_no_leave += 1;
+        g_st()
+            .autocmd_no_enter
+            .set(g_st().autocmd_no_enter.get() + (1));
+        g_st()
+            .autocmd_no_leave
+            .set(g_st().autocmd_no_leave.get() + (1));
         let startup_curwin = curwin_ptr();
         let mut dorewind = true;
         while done < 1000 {
@@ -1961,27 +1974,27 @@ fn create_windows(parmp: &mut Mparm) {
                         .wo_fdl
                         .set(opt_vars().p_fdls.get());
                 }
-                g_st().swap_exists_action = SEA_DIALOG;
+                g_st().swap_exists_action.set(SEA_DIALOG);
                 set_buflisted(1);
 
                 open_buffer(false, None, 0);
 
-                if g_st().swap_exists_action == SEA_QUIT {
-                    if g_st().got_int || only_one_window() {
-                        g_st().did_emsg = 0;
+                if g_st().swap_exists_action.get() == SEA_QUIT {
+                    if g_st().got_int.get() || only_one_window() {
+                        g_st().did_emsg.set(0);
                         ui_call_error_exit(1);
                         getout(1);
                     }
                     setfname(curbuf_mut(), None, None, false);
                     curwin_mut().w_arg_idx.set(-1);
-                    g_st().swap_exists_action = SEA_NONE;
+                    g_st().swap_exists_action.set(SEA_NONE);
                 } else {
                     handle_swap_exists(None);
                 }
                 dorewind = true;
             }
             os_breakcheck();
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 vgetc();
                 break;
             }
@@ -1994,8 +2007,12 @@ fn create_windows(parmp: &mut Mparm) {
             set_curwin(startup_curwin);
         }
         g_st().curbuf = curwin_mut().w_buffer;
-        g_st().autocmd_no_enter -= 1;
-        g_st().autocmd_no_leave -= 1;
+        g_st()
+            .autocmd_no_enter
+            .set(g_st().autocmd_no_enter.get() - (1));
+        g_st()
+            .autocmd_no_leave
+            .set(g_st().autocmd_no_leave.get() - (1));
     }
 }
 
@@ -2003,8 +2020,12 @@ fn edit_buffers(parmp: &mut Mparm) {
     let mut advance = true;
     let mut p_shm_save: Option<std::ffi::CString> = None;
 
-    g_st().autocmd_no_enter += 1;
-    g_st().autocmd_no_leave += 1;
+    g_st()
+        .autocmd_no_enter
+        .set(g_st().autocmd_no_enter.get() + (1));
+    g_st()
+        .autocmd_no_leave
+        .set(g_st().autocmd_no_leave.get() + (1));
 
     if curwin_mut().w_arg_idx.get() == -1 {
         win_close(curwin_mut(), true, false);
@@ -2049,7 +2070,7 @@ fn edit_buffers(parmp: &mut Mparm) {
             || curbuf_mut().b_ffname.is_none()
         {
             curwin_mut().w_arg_idx.set(arg_idx);
-            g_st().swap_exists_did_quit = false;
+            g_st().swap_exists_did_quit.set(false);
             let entry_opt = (arg_idx < gargcount()).then(|| garg_entry(arg_idx as usize));
             let fname = entry_opt.as_ref().and_then(|e| alist_name(e));
             do_ecmd(
@@ -2061,9 +2082,9 @@ fn edit_buffers(parmp: &mut Mparm) {
                 ECMD_HIDE,
                 Some(curwin_mut()),
             );
-            if g_st().swap_exists_did_quit {
-                if g_st().got_int || only_one_window() {
-                    g_st().did_emsg = 0;
+            if g_st().swap_exists_did_quit.get() {
+                if g_st().got_int.get() || only_one_window() {
+                    g_st().did_emsg.set(0);
                     ui_call_error_exit(1);
                     getout(1);
                 }
@@ -2071,12 +2092,12 @@ fn edit_buffers(parmp: &mut Mparm) {
                 advance = false;
             }
             if arg_idx == gargcount() - 1 {
-                g_st().arg_had_last = true;
+                g_st().arg_had_last.set(true);
             }
             arg_idx += 1;
         }
         os_breakcheck();
-        if g_st().got_int {
+        if g_st().got_int.get() {
             vgetc();
             break;
         }
@@ -2089,7 +2110,9 @@ fn edit_buffers(parmp: &mut Mparm) {
     if parmp.window_layout == WIN_TABS {
         goto_tabpage(1);
     }
-    g_st().autocmd_no_enter -= 1;
+    g_st()
+        .autocmd_no_enter
+        .set(g_st().autocmd_no_enter.get() - (1));
 
     let mut win = if parmp.window_count > 1 {
         g_st().firstwin
@@ -2105,7 +2128,9 @@ fn edit_buffers(parmp: &mut Mparm) {
     }
     win_enter(win.borrow_mut(), false);
 
-    g_st().autocmd_no_leave -= 1;
+    g_st()
+        .autocmd_no_leave
+        .set(g_st().autocmd_no_leave.get() - (1));
     time_msg_if_enabled(c"editing files in windows");
     if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
         win_equal(Some(curwin_mut()), false, b'b' as i32);
@@ -2129,7 +2154,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
 }
 
 fn exe_commands(parmp: &mut Mparm) {
-    g_st().msg_scroll = 1;
+    g_st().msg_scroll.set(1);
     if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
         curwin_mut().w_cursor.lnum = 0;
     }
@@ -2146,7 +2171,7 @@ fn exe_commands(parmp: &mut Mparm) {
         curwin_mut().w_cursor.lnum = 1;
     }
 
-    g_st().msg_scroll = 0;
+    g_st().msg_scroll.set(0);
 
     if parmp.edit_type == EDIT_QF {
         qf_jump(None, 0, 0, false);
@@ -2314,7 +2339,7 @@ fn source_startup_scripts(parmp: &Mparm) {
         } else if !do_source(use_vimrc.as_c_str(), false, DOSO_NONE, None) {
             semsg!(gettext(E_CANNOT_READ_FROM_STR_2), use_vimrc,);
         }
-    } else if !g_st().silent_mode {
+    } else if !g_st().silent_mode.get() {
         do_system_initialization();
         if do_user_initialization() {
             do_exrc_initialization();
@@ -2365,10 +2390,10 @@ fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
 
 fn version() {
     nlua_init(&[], -1);
-    g_st().info_message = true;
+    g_st().info_message.set(true);
     list_version();
     msg_putchar(b'\n' as i32);
-    g_st().msg_didout = false;
+    g_st().msg_didout.set(false);
 }
 
 fn usage() {
@@ -2451,7 +2476,7 @@ fn usage() {
 }
 
 fn check_swap_exists_action() {
-    if g_st().swap_exists_action == SEA_QUIT {
+    if g_st().swap_exists_action.get() == SEA_QUIT {
         ui_call_error_exit(1);
         getout(1);
     }
@@ -2465,8 +2490,8 @@ pub(crate) fn ensure_test_editor_init() {
         static THREAD_VARS_INIT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
     INIT.call_once(|| {
-        g_st().headless_mode = true;
-        g_st().silent_mode = true;
+        g_st().headless_mode.set(true);
+        g_st().silent_mode.set(true);
         event_init();
         estack_init();
         cmdline_init();

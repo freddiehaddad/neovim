@@ -437,10 +437,10 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     }
 
     if atom_type == K_AINSERT_SPAN {
-        g_st().state_global = MODE_INSERT;
+        g_st().state_global.set(MODE_INSERT);
     }
 
-    let beeps = g_st().did_beep;
+    let beeps = g_st().did_beep.get();
     let tick = buf_get_changedtick(curbuf_mut());
     let mode_str = if atom_remap { c"ix" } else { c"nix" };
     nvim_feedkeys(
@@ -451,7 +451,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 
     if atom_type == K_AINSERT_SPAN
         && with_mc(|st| st.mc_ins_span.first.get())
-        && g_st().did_beep != beeps
+        && g_st().did_beep.get() != beeps
         && buf_get_changedtick(curbuf_mut()) == tick
     {
         extmark_del_id(curbuf_mut(), mc_ns(), ctx.mark);
@@ -514,7 +514,7 @@ fn mc_cascade() {
     assert!(!cursors_is_empty());
     assert!(!mc_replaying());
 
-    g_st().got_int = false;
+    g_st().got_int.set(false);
 
     if edits {
         mc_cleanup(true, None, 0);
@@ -543,7 +543,7 @@ fn mc_cascade() {
         let mut ci = 0;
         while ci < cursors_len() {
             line_breakcheck();
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break 'outer;
             }
             let cur_mark = with_mc(|st| st.mc_cursors.borrow()[ci].mark);
@@ -880,7 +880,7 @@ fn mc_ins_keys_nonliteral(keys: &[u8]) -> bool {
 pub fn mc_ins_cascade_restart() {
     if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
-        || (g_st().state_global & MODE_INSERT) == 0
+        || (g_st().state_global.get() & MODE_INSERT) == 0
         || !mc_buf_has_cursors(curbuf_mut())
         || with_atom(|st| !st.g_atoms.borrow().is_empty())
     {
@@ -910,7 +910,7 @@ pub fn mc_ins_cascaded(root_frame: u64) -> bool {
 pub fn mc_ins_cascade() {
     if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
-        || (g_st().state_global & MODE_INSERT) == 0
+        || (g_st().state_global.get() & MODE_INSERT) == 0
         || !mc_buf_has_cursors(curbuf_mut())
     {
         return;
@@ -1027,7 +1027,7 @@ fn mc_reg_read(reg: i32) -> std::ffi::CString {
 }
 
 fn mc_reg_gather() {
-    if cursors_is_empty() || g_st().exiting {
+    if cursors_is_empty() || g_st().exiting.get() {
         return;
     }
     let start_time = with_mc(|st| st.mc_start.time.get());
@@ -1161,7 +1161,7 @@ pub fn mc_vsel_refresh() {
     mc_sandbox_enter(&mut sb, false);
     block_autocmds();
     block_on_key();
-    g_st().emsg_silent += 1;
+    g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
 
     for i in 0..cursors_len() {
         let mut ctx = cursor_clone(i);
@@ -1190,7 +1190,9 @@ pub fn mc_vsel_refresh() {
         };
         let mut inclusive = true;
         let mut oa = Oparg::new();
-        g_st().virtual_op = i32::from(virtual_active(curwin_mut()));
+        g_st()
+            .virtual_op
+            .set(i32::from(virtual_active(curwin_mut())));
         getregionpos_prep(
             &mut s,
             &mut e,
@@ -1233,7 +1235,7 @@ pub fn mc_vsel_refresh() {
         g_st().visual_global.active = false;
     }
 
-    g_st().emsg_silent -= 1;
+    g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
     unblock_on_key();
     unblock_autocmds();
     mc_sandbox_leave(&mut sb);
@@ -1317,7 +1319,7 @@ pub fn mc_following() -> bool {
 }
 
 fn mc_lua_enable(enable: bool) {
-    if g_st().exiting {
+    if g_st().exiting.get() {
         return;
     }
     let mut tv_args = [
@@ -1363,8 +1365,8 @@ pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
 fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     curwin_mut().w_cursor = pos;
     curwin_mut().w_set_curswant.set(false);
-    g_st().msg_silent += 1;
-    g_st().emsg_silent += 1;
+    g_st().msg_silent.set(g_st().msg_silent.get() + (1));
+    g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
     let save_cmod_flags = g_st().cmdmod.cmod_flags;
     g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
     atom_suppress(true);
@@ -1372,16 +1374,16 @@ fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     block_on_key();
     let mut sst = SaveState::new();
     save_current_state(&mut sst);
-    let beeps = g_st().did_beep_silent;
+    let beeps = g_st().did_beep_silent.get();
     exec_normal_cmd(keys, REMAP_NONE, true);
-    let failed = g_st().did_beep_silent != beeps;
+    let failed = g_st().did_beep_silent.get() != beeps;
     restore_current_state(&mut sst);
     unblock_on_key();
     unblock_autocmds();
     atom_suppress(false);
     g_st().cmdmod.cmod_flags = save_cmod_flags;
-    g_st().emsg_silent -= 1;
-    g_st().msg_silent -= 1;
+    g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
+    g_st().msg_silent.set(g_st().msg_silent.get() - (1));
     if failed {
         INIT_POS
     } else {
@@ -1488,7 +1490,7 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
     let mut placed: i32 = 0;
     let mut step = first;
     let curswant = curwin_mut().w_curswant.get();
-    while !g_st().got_int {
+    while !g_st().got_int.get() {
         mc_zq_target(step, search, motion_type, mc_add(curbuf_mut(), step));
         placed += 1;
         let prev = step;
@@ -1814,7 +1816,7 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
         mc_reg_gather();
     }
 
-    if !g_st().exiting {
+    if !g_st().exiting.get() {
         extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
         if g_st().curbuf == (&raw mut *buf) {
             let mut primary: u32 = 1;

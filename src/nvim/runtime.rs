@@ -1696,7 +1696,7 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 
 /// Load plugins from all packages in the "start" directory.
 pub fn load_start_packages() {
-    g_st().did_source_packages = true;
+    g_st().did_source_packages.set(true);
     let p_pp = opt_vars().p_pp.to_owned();
     do_in_path(
         &p_pp,
@@ -1724,7 +1724,7 @@ pub fn load_start_packages() {
 
 /// ":packloadall"
 pub fn ex_packloadall(eap: &mut Exarg) {
-    if !g_st().did_source_packages || eap.forceit {
+    if !g_st().did_source_packages.get() || eap.forceit {
         add_pack_start_dirs();
         load_start_packages();
     }
@@ -1736,7 +1736,7 @@ pub fn load_plugins() {
         let mut rtp_copy_owned: Option<std::ffi::CString> = None;
         let plugin_pattern = c"plugin/**/*";
 
-        if !g_st().did_source_packages {
+        if !g_st().did_source_packages.get() {
             let copy = opt_vars().p_rtp.to_owned();
             rtp_copy_owned = Some(copy);
             add_pack_start_dirs();
@@ -1750,7 +1750,7 @@ pub fn load_plugins() {
             time_msg(c"loading rtp plugins", None);
         }
 
-        if !g_st().did_source_packages {
+        if !g_st().did_source_packages.get() {
             drop(rtp_copy_owned);
             load_start_packages();
         }
@@ -1776,7 +1776,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
         PackAddAction::Both
     };
 
-    if !g_st().did_source_packages {
+    if !g_st().did_source_packages.get() {
         format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
         res = do_in_path(
             opt_vars().p_pp.as_cstr(),
@@ -2378,8 +2378,8 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
     {
         openscript(
             fname,
-            g_st().global_busy != 0
-                || g_st().listcmd_busy
+            g_st().global_busy.get() != 0
+                || g_st().listcmd_busy.get()
                 || !eap.nextcmd.is_null()
                 || eap.cstack().cs_idx >= 0,
         );
@@ -2572,7 +2572,7 @@ fn do_source_ext(
     let mut cookie = SourceCookie::new();
     let mut firstline: Option<std::ffi::CString> = None;
     let mut retval = false;
-    let save_debug_break_level = g_st().debug_break_level;
+    let save_debug_break_level = g_st().debug_break_level.get();
     let mut has_si = false;
     let mut wait_start: Proftime = 0;
     let mut trigger_source_post = false;
@@ -2725,8 +2725,8 @@ fn do_source_ext(
 
         cookie.breakpoint = dbg_find_breakpoint(true, &fname_exp_owned, 0);
         cookie.fname = Some(fname_exp_owned.clone());
-        cookie.dbg_tick = g_st().debug_tick;
-        cookie.level = g_st().ex_nesting_level;
+        cookie.dbg_tick = g_st().debug_tick.get();
+        cookie.level = g_st().ex_nesting_level.get();
 
         let mut rel_time: Proftime = 0;
         let mut start_time: Proftime = 0;
@@ -2735,7 +2735,7 @@ fn do_source_ext(
             time_push(&mut rel_time, &mut start_time);
         }
 
-        let l_do_profiling = g_st().do_profiling;
+        let l_do_profiling = g_st().do_profiling.get();
         if l_do_profiling == PROF_YES {
             prof_child_enter(&mut wait_start);
         }
@@ -2879,7 +2879,7 @@ fn do_source_ext(
             });
         }
 
-        if g_st().got_int {
+        if g_st().got_int.get() {
             emsg(gettext(E_INTERR));
         }
         estack_pop();
@@ -2898,14 +2898,16 @@ fn do_source_ext(
             time_pop(rel_time);
         }
 
-        if !g_st().got_int {
+        if !g_st().got_int.get() {
             trigger_source_post = true;
         }
 
-        if save_debug_break_level > g_st().ex_nesting_level
-            && g_st().debug_break_level == g_st().ex_nesting_level
+        if save_debug_break_level > g_st().ex_nesting_level.get()
+            && g_st().debug_break_level.get() == g_st().ex_nesting_level.get()
         {
-            g_st().debug_break_level += 1;
+            g_st()
+                .debug_break_level
+                .set(g_st().debug_break_level.get() + (1));
         }
 
         g_st().current_sctx = save_current_sctx;
@@ -2998,7 +3000,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
 
     msg_ext_set_kind(c"list_cmd");
     let mut i = 1;
-    while i <= script_items_len() && !g_st().got_int {
+    while i <= script_items_len() && !g_st().got_int.get() {
         if let Some(sn) = script_item_name(i) {
             home_replace(
                 None,
@@ -3008,7 +3010,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             );
             format_to_buf!(&mut g_st().iobuff, c"%3d: %s", i, &g_st().name_buff);
             if !message_filtered(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())) {
-                if g_st().msg_col > 0 {
+                if g_st().msg_col.get() > 0 {
                     msg_putchar(b'\n' as i32);
                 }
                 msg_outtrans(
@@ -3179,12 +3181,12 @@ pub fn getsourceline(
     _indent: i32,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    if sp.dbg_tick < g_st().debug_tick && !sp.source_from_buf_or_str {
+    if sp.dbg_tick < g_st().debug_tick.get() && !sp.source_from_buf_or_str {
         let fname_cstr = sp.fname.as_deref().unwrap_or(c"");
         sp.breakpoint = dbg_find_breakpoint(true, fname_cstr, sourcing_lnum());
-        sp.dbg_tick = g_st().debug_tick;
+        sp.dbg_tick = g_st().debug_tick.get();
     }
-    if g_st().do_profiling == PROF_YES {
+    if g_st().do_profiling.get() == PROF_YES {
         script_line_end();
     }
     set_sourcing_lnum(sp.sourcing_lnum + 1);
@@ -3196,7 +3198,7 @@ pub fn getsourceline(
     } else {
         get_one_sourceline(sp)
     };
-    if line_vec.is_some() && g_st().do_profiling == PROF_YES {
+    if line_vec.is_some() && g_st().do_profiling.get() == PROF_YES {
         script_line_start();
     }
 
@@ -3241,7 +3243,7 @@ pub fn getsourceline(
         let fname_cstr = sp.fname.as_deref();
         dbg_breakpoint(fname_cstr, sourcing_lnum());
         sp.breakpoint = dbg_find_breakpoint(true, fname_cstr.unwrap_or(c""), sourcing_lnum());
-        sp.dbg_tick = g_st().debug_tick;
+        sp.dbg_tick = g_st().debug_tick.get();
     }
 
     line

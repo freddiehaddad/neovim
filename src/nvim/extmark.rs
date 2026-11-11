@@ -866,7 +866,7 @@ pub fn extmark_adjust(
     amount_after: Linenr,
     undo: ExtmarkOp,
 ) {
-    if g_st().curbuf_splice_pending != 0 {
+    if g_st().curbuf_splice_pending.get() != 0 {
         return;
     }
     let start_byte = ml_find_line_or_offset(buf, line1, None, true) as Bcount;

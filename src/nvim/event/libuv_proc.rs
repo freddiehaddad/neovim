@@ -242,7 +242,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     uvproc.uvstdio[1].flags = UV_IGNORE;
     uvproc.uvstdio[2].flags = UV_IGNORE;
 
-    if g_st().ui_client_forward_stdin {
+    if g_st().ui_client_forward_stdin.get() {
         debug_assert_eq!(UI_CLIENT_STDIN_FD, 3);
         uvproc.uvopts.stdio_count = 4;
         uvproc.uvstdio[3].data.fd = 0;

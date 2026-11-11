@@ -652,7 +652,7 @@ fn do_incsearch_highlighting(
     *skiplen = 0;
     *patlen = get_cmdline_info().cmdlen.get();
 
-    if !opt_vars().p_is.get() || g_st().cmd_silent {
+    if !opt_vars().p_is.get() || g_st().cmd_silent.get() {
         return false;
     }
 
@@ -669,7 +669,7 @@ fn do_incsearch_highlighting(
         return false;
     }
 
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let retval = parse_pattern_and_range(
         &mut is_state.search_start,
         &mut *search_delim,
@@ -677,7 +677,7 @@ fn do_incsearch_highlighting(
         &mut *patlen,
         &mut *magic,
     );
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 
     retval
 }
@@ -758,7 +758,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
             sa_wrapped: 0,
         };
         get_cmdline_info().cmdbuff_vec.borrow_mut()[end_idx] = 0;
-        g_st().emsg_off += 1; // So it doesn't beep if bad expr
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1)); // So it doesn't beep if bad expr
         found = do_search(
             None,
             if firstc == b':' as i32 {
@@ -774,7 +774,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
             magic,
             Some(&mut sia),
         );
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
         get_cmdline_info().cmdbuff_vec.borrow_mut()[end_idx] = next_char;
         if curwin_mut().w_cursor.lnum < g_st().search_global.first_line
             || curwin_mut().w_cursor.lnum > g_st().search_global.last_line
@@ -785,9 +785,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         }
 
         // if interrupted while searching, behave like it failed
-        if g_st().got_int {
+        if g_st().got_int.get() {
             vpeekc(); // remove <C-C> from input stream
-            g_st().got_int = false; // don't abandon the command line
+            g_st().got_int.set(false); // don't abandon the command line
             found = 0;
         } else if char_avail() {
             // cancelled searching because a char was typed
@@ -1005,7 +1005,7 @@ fn init_ccline(firstc: i32, indent: i32) {
 
 fn ui_ext_cmdline_hide(abort: bool) {
     if ui_has(K_UICMDLINE) {
-        g_st().cmdline_was_last_drawn = false;
+        g_st().cmdline_was_last_drawn.set(false);
         get_cmdline_info().redraw_state.set(K_CMD_REDRAW_NONE);
         ui_call_cmdline_hide(get_cmdline_info().level.get() as Integer, abort);
     }
@@ -1020,14 +1020,14 @@ fn command_line_enter(
 ) -> Option<std::ffi::CString> {
     GETLN_STATE.with(|s| s.cmdline_level.set(s.cmdline_level.get() + (1)));
 
-    let save_cmdpreview = g_st().cmdpreview;
-    g_st().cmdpreview = false;
+    let save_cmdpreview = g_st().cmdpreview.get();
+    g_st().cmdpreview.set(false);
     let mut state = CommandLineState::new();
     state.firstc = firstc;
     state.count = count;
     state.indent = indent;
-    state.save_msg_scroll = g_st().msg_scroll;
-    state.save_state = g_st().state_global;
+    state.save_msg_scroll = g_st().msg_scroll.get();
+    state.save_state = g_st().state_global.get();
     state.prev_cmdpos = -1;
     state.ignore_drag_release = true;
     let s = &mut state;
@@ -1066,14 +1066,16 @@ fn command_line_enter(
         expand_init(&mut xpc);
         clear_cmdline_orig();
 
-        g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl.get()
-            && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
-            && (s.firstc == b'/' as i32 || s.firstc == b'?' as i32);
+        g_st().cmdmsg_rl.set(
+            curwin_mut().w_onebuf_opt.wo_rl.get()
+                && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
+                && (s.firstc == b'/' as i32 || s.firstc == b'?' as i32),
+        );
 
         msg_grid_validate();
 
-        g_st().redir_off = true; // don't redirect the typed command
-        if !g_st().cmd_silent {
+        g_st().redir_off.set(true); // don't redirect the typed command
+        if !g_st().cmd_silent.get() {
             gotocmdline(true);
             redrawcmdprompt(); // draw prompt or indent
             get_cmdline_info().cmdspos.set(cmd_startcol());
@@ -1092,9 +1094,9 @@ fn command_line_enter(
         }
         *get_cmdline_info().xpc.borrow_mut() = Some(xpc);
 
-        g_st().msg_scroll = 0;
+        g_st().msg_scroll.set(0);
 
-        g_st().state_global = MODE_CMDLINE;
+        g_st().state_global.set(MODE_CMDLINE);
 
         if s.firstc == b'/' as i32 || s.firstc == b'?' as i32 || s.firstc == b'@' as i32 {
             let (use_insert, im_val) = if curbuf_mut().b_p_imsearch.get() == B_IMODE_USE_INSERT {
@@ -1105,7 +1107,9 @@ fn command_line_enter(
             s.b_im_use_insert = Some(use_insert);
             s.b_im_ptr_buf = g_st().curbuf;
             if im_val == B_IMODE_LMAP {
-                g_st().state_global |= MODE_LANGMAP;
+                g_st()
+                    .state_global
+                    .set(g_st().state_global.get() | (MODE_LANGMAP));
             }
         }
 
@@ -1143,7 +1147,7 @@ fn command_line_enter(
                 if !ui_has(K_UIMESSAGES) {
                     msg_putchar(b'\n' as i32);
                 }
-                g_st().msg_scroll = 1;
+                g_st().msg_scroll.set(1);
                 msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
                 api_clear_error(&mut err);
                 redrawcmd();
@@ -1157,11 +1161,11 @@ fn command_line_enter(
         s.histype = hist_char2type(s.firstc);
         do_digraph(-1); // init digraph typeahead
 
-        if g_st().did_emsg != 0 {
+        if g_st().did_emsg.get() != 0 {
             redrawcmd();
         }
 
-        if !g_st().cmd_silent {
+        if !g_st().cmd_silent.get() {
             let mut found_one = false;
 
             for wp in for_all_windows_mut() {
@@ -1176,7 +1180,7 @@ fn command_line_enter(
             }
 
             if !opt_vars().p_tal.is_empty() {
-                g_st().redraw_tabline = true;
+                g_st().redraw_tabline.set(true);
                 found_one = true;
             }
 
@@ -1189,8 +1193,8 @@ fn command_line_enter(
             }
         }
 
-        g_st().did_emsg = 0;
-        g_st().got_int = false;
+        g_st().did_emsg.set(0);
+        g_st().got_int.set(false);
 
         state_enter(&mut *s);
 
@@ -1238,7 +1242,7 @@ fn command_line_enter(
             restore_v_event(&dict, &mut save_v_event);
         }
 
-        g_st().cmdmsg_rl = false;
+        g_st().cmdmsg_rl.set(false);
 
         if cmdline_pum_active() {
             cmdline_pum_remove(false);
@@ -1296,20 +1300,20 @@ fn command_line_enter(
         if opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES) {
             set_must_redraw(UPD_VALID);
         }
-        g_st().msg_scroll = s.save_msg_scroll;
-        g_st().redir_off = false;
+        g_st().msg_scroll.set(s.save_msg_scroll);
+        g_st().redir_off.set(false);
 
         if error_set(&err) {
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
             }
             emsg(err.msg_cstr().unwrap_or(c""));
-            g_st().did_emsg = 0;
+            g_st().did_emsg.set(0);
             api_clear_error(&mut err);
         }
 
         if s.some_key_typed && !error_set(&err) {
-            g_st().need_wait_return = false;
+            g_st().need_wait_return.set(false);
         }
 
         set_option_direct(
@@ -1318,9 +1322,9 @@ fn command_line_enter(
             0,
             SID_NONE,
         );
-        g_st().state_global = s.save_state;
-        if g_st().cmdpreview != save_cmdpreview {
-            g_st().cmdpreview = save_cmdpreview;
+        g_st().state_global.set(s.save_state);
+        if g_st().cmdpreview.get() != save_cmdpreview {
+            g_st().cmdpreview.set(save_cmdpreview);
             redraw_all_later(UPD_SOME_VALID);
         }
         may_trigger_modechanged();
@@ -1344,7 +1348,7 @@ fn command_line_enter(
     if ui_has(K_UICMDLINE) {
         ui_ext_cmdline_hide(s.gotesc);
     }
-    if !g_st().cmd_silent {
+    if !g_st().cmd_silent.get() {
         redraw_custom_title_later();
         status_redraw_all();
     }
@@ -1365,11 +1369,11 @@ fn command_line_check(s: &mut CommandLineState) -> i32 {
     s.prev_cmdpos = get_cmdline_info().cmdpos.get();
     s.prev_cmdbuff = None;
 
-    g_st().redir_off = true;
-    g_st().quit_more = false;
-    g_st().did_emsg = 0;
+    g_st().redir_off.set(true);
+    g_st().quit_more.set(false);
+    g_st().did_emsg.set(0);
 
-    if g_st().ex_normal_busy == 0 && stuff_empty() && g_st().typebuf.tb_len == 0 {
+    if g_st().ex_normal_busy.get() == 0 && stuff_empty() && g_st().typebuf.tb_len == 0 {
         s.some_key_typed = true;
     }
 
@@ -1390,17 +1394,17 @@ fn command_line_check(s: &mut CommandLineState) -> i32 {
 
 /// Handle `CTRL-\` pressed in Command-line mode.
 fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> i32 {
-    g_st().no_mapping += 1;
-    g_st().allow_keys += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
     s.c = plain_vgetc();
-    g_st().no_mapping -= 1;
-    g_st().allow_keys -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
 
     if s.c != CTRL_N
         && s.c != CTRL_G
         && (s.c != b'e' as i32
-            || (get_cmdline_info().cmdfirstc.get() == b'=' as i32 && g_st().key_typed)
-            || g_st().cmdline_star > 0)
+            || (get_cmdline_info().cmdfirstc.get() == b'=' as i32 && g_st().key_typed.get())
+            || g_st().cmdline_star.get() > 0)
     {
         vungetc(s.c);
         return PROCESS_NEXT_KEY;
@@ -1415,9 +1419,9 @@ fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> i32 {
 
         s.c = get_expr_register();
         if s.c == b'=' as i32 {
-            g_st().textlock += 1;
+            g_st().textlock.set(g_st().textlock.get() + (1));
             let p = get_expr_line();
-            g_st().textlock -= 1;
+            g_st().textlock.set(g_st().textlock.get() - (1));
 
             if let Some(p) = p {
                 let bytes = p.as_bytes_with_nul();
@@ -1433,15 +1437,15 @@ fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> i32 {
                         .min(GETLN_STATE.with(|s| s.new_cmdpos.get())),
                 );
 
-                g_st().key_typed = false;
+                g_st().key_typed.set(false);
                 redrawcmd();
                 return CMDLINE_CHANGED;
             }
         }
         beep_flush();
-        g_st().got_int = false;
-        g_st().did_emsg = 0;
-        g_st().emsg_on_display = false;
+        g_st().got_int.set(false);
+        g_st().did_emsg.set(0);
+        g_st().emsg_on_display.set(false);
         redrawcmd();
         return CMDLINE_NOT_CHANGED;
     }
@@ -1526,9 +1530,9 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             pum_check_clear();
         }
 
-        if g_st().got_int {
+        if g_st().got_int.get() {
             vpeekc();
-            g_st().got_int = false;
+            g_st().got_int.set(false);
             with_ccline_xpc(|xpc| {
                 expand_one(xpc, None, None, 0, WILD_FREE);
                 xpc.xp_context = EXPAND_NOTHING;
@@ -1706,16 +1710,16 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
             g_st().pum_want.active = false;
         }
 
-        if !g_st().cmdline_was_last_drawn {
+        if !g_st().cmdline_was_last_drawn.get() {
             redrawcmdline();
         }
         return 1;
     }
 
-    if g_st().key_typed {
+    if g_st().key_typed.get() {
         s.some_key_typed = true;
 
-        if g_st().cmdmsg_rl && g_st().key_stuffed == 0 {
+        if g_st().cmdmsg_rl.get() && g_st().key_stuffed.get() == 0 {
             match s.c {
                 K_RIGHT => s.c = K_LEFT,
                 K_S_RIGHT => s.c = K_S_LEFT,
@@ -1728,9 +1732,12 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         }
     }
 
-    if s.c == CTRL_C_CONST && s.firstc != b'@' as i32 && !s.break_ctrl_c && g_st().global_busy == 0
+    if s.c == CTRL_C_CONST
+        && s.firstc != b'@' as i32
+        && !s.break_ctrl_c
+        && g_st().global_busy.get() == 0
     {
-        g_st().got_int = false;
+        g_st().got_int.set(false);
     }
 
     if s.lookfor.is_some()
@@ -1763,9 +1770,9 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     }
 
     let mut wild_type: i32 = 0;
-    let key_is_wc = (s.c as OptInt == opt_vars().p_wc.get() && g_st().key_typed)
+    let key_is_wc = (s.c as OptInt == opt_vars().p_wc.get() && g_st().key_typed.get())
         || s.c as OptInt == opt_vars().p_wcm.get();
-    if (cmdline_pum_active() || g_st().wild_menu_showing != 0 || s.did_wild_list)
+    if (cmdline_pum_active() || g_st().wild_menu_showing.get() != 0 || s.did_wild_list)
         && !key_is_wc
         && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0)
         && (s.c == CTRL_E || s.c == CTRL_Y)
@@ -1780,7 +1787,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         });
     }
 
-    if (g_st().key_typed
+    if (g_st().key_typed.get()
         && (s.c == b'\n' as i32 || s.c == b'\r' as i32 || s.c == K_KENTER || s.c == ESC))
         || s.c == CTRL_C_CONST
     {
@@ -1830,7 +1837,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     }
 
     if s.c == GETLN_STATE.with(|s| s.cedit_key.get()) {
-        if g_st().ex_normal_busy == 0 && !g_st().got_int {
+        if g_st().ex_normal_busy.get() == 0 && !g_st().got_int.get() {
             s.c = open_cmdwin();
             s.some_key_typed = true;
         }
@@ -1842,7 +1849,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         || s.c == b'\r' as i32
         || s.c == K_KENTER
         || (s.c == ESC
-            && (!g_st().key_typed
+            && (!g_st().key_typed.get()
                 || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ESC)))
     {
         s.gotesc = false;
@@ -1850,26 +1857,26 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
             return command_line_changed(s);
         }
 
-        if !g_st().cmd_silent {
+        if !g_st().cmd_silent.get() {
             if !ui_has(K_UICMDLINE) {
-                msg_cursor_goto(g_st().msg_row, 0);
+                msg_cursor_goto(g_st().msg_row.get(), 0);
             }
             ui_flush();
         }
         return 0;
     }
 
-    if (s.c as OptInt == opt_vars().p_wc.get() && !s.gotesc && g_st().key_typed)
+    if (s.c as OptInt == opt_vars().p_wc.get() && !s.gotesc && g_st().key_typed.get())
         || s.c as OptInt == opt_vars().p_wcm.get()
         || s.c == K_WILD
         || s.c == CTRL_Z_CONST
     {
         if s.c == K_WILD {
-            g_st().emsg_silent += 1;
+            g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
         }
         let res = command_line_wildchar_complete(s);
         if s.c == K_WILD {
-            g_st().emsg_silent -= 1;
+            g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
         }
         if res == CMDLINE_CHANGED {
             return command_line_changed(s);
@@ -1882,7 +1889,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     s.gotesc = false;
 
     if s.c == K_S_TAB
-        && g_st().key_typed
+        && g_st().key_typed.get()
         && with_ccline_xpc(|xpc| nextwild(xpc, WILD_EXPAND_KEEP, 0, s.firstc != b'@' as i32))
     {
         if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
@@ -1921,7 +1928,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         if s.is_state.winid != curwin_mut().handle {
             init_incsearch_state(&mut s.is_state);
         }
-        if g_st().key_typed || vpeekc() == NUL as i32 {
+        if g_st().key_typed.get() || vpeekc() == NUL as i32 {
             may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
         }
         return command_line_not_changed(s);
@@ -2000,7 +2007,7 @@ fn may_do_command_line_next_incsearch(
     if !opt_vars().p_hls.get() {
         search_flags += SEARCH_KEEP;
     }
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let found = searchit(
         Some(curwin_mut()),
         curbuf_mut(),
@@ -2015,7 +2022,7 @@ fn may_do_command_line_next_incsearch(
         magic,
         None,
     );
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     ui_busy_stop();
     if found != 0 {
         let match_start = s.match_start;
@@ -2159,12 +2166,12 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 
         dealloc_cmdbuff();
 
-        if !g_st().cmd_silent && !ui_has(K_UICMDLINE) {
-            g_st().msg_col = 0;
+        if !g_st().cmd_silent.get() && !ui_has(K_UICMDLINE) {
+            g_st().msg_col.set(0);
             msg_putchar(b' ' as i32);
         }
         s.is_state.search_start = s.is_state.save_cursor;
-        g_st().redraw_cmdline = true;
+        g_st().redraw_cmdline.set(true);
         return GOTO_NORMAL_MODE;
     }
     CMDLINE_CHANGED
@@ -2179,9 +2186,11 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
         None
     };
     if map_to_exists_mode(c"", MODE_LANGMAP, false) {
-        g_st().state_global ^= MODE_LANGMAP;
+        g_st()
+            .state_global
+            .set(g_st().state_global.get() ^ (MODE_LANGMAP));
         if let Some(use_insert) = use_insert_opt {
-            let val = if (g_st().state_global & MODE_LANGMAP) != 0 {
+            let val = if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
                 B_IMODE_LMAP
             } else {
                 B_IMODE_NONE
@@ -2212,8 +2221,8 @@ fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
     let save_new_cmdpos = GETLN_STATE.with(|s| s.new_cmdpos.get());
 
     putcmdline(b'"', true);
-    g_st().no_mapping += 1;
-    g_st().allow_keys += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
     s.c = plain_vgetc();
     let mut i = s.c;
     if i == CTRL_O {
@@ -2223,11 +2232,11 @@ fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
     if i == CTRL_R_CONST {
         s.c = plain_vgetc();
     }
-    g_st().no_mapping -= 1;
-    g_st().allow_keys -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
     GETLN_STATE.with(|s| s.new_cmdpos.set(-1));
     if s.c == b'=' as i32 {
-        if get_cmdline_info().cmdfirstc.get() == b'=' as i32 || g_st().cmdline_star > 0 {
+        if get_cmdline_info().cmdfirstc.get() == b'=' as i32 || g_st().cmdline_star.get() > 0 {
             beep_flush();
             s.c = ESC;
         } else {
@@ -2244,7 +2253,7 @@ fn command_line_insert_reg(s: &mut CommandLineState) -> i32 {
             s.gotesc = true;
             return GOTO_NORMAL_MODE;
         }
-        g_st().key_typed = false;
+        g_st().key_typed.set(false);
         if GETLN_STATE.with(|s| s.new_cmdpos.get()) >= 0 {
             get_cmdline_info().cmdpos.set(
                 get_cmdline_info()
@@ -2274,9 +2283,11 @@ fn command_line_left_right_mouse(s: &mut CommandLineState) {
     get_cmdline_info().cmdpos.set(0);
     while get_cmdline_info().cmdpos.get() < get_cmdline_info().cmdlen.get() {
         let cells = cmdline_charsize(get_cmdline_info().cmdpos.get());
-        if g_st().mouse_row
-            <= g_st().cmdline_row + get_cmdline_info().cmdspos.get() / g_st().columns_global
-            && g_st().mouse_col < get_cmdline_info().cmdspos.get() % g_st().columns_global + cells
+        if g_st().mouse_row.get()
+            <= g_st().cmdline_row.get()
+                + get_cmdline_info().cmdspos.get() / g_st().columns_global.get()
+            && g_st().mouse_col.get()
+                < get_cmdline_info().cmdspos.get() % g_st().columns_global.get() + cells
         {
             break;
         }
@@ -2549,9 +2560,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         }
 
                         let cells = cmdline_charsize(get_cmdline_info().cmdpos.get());
-                        if g_st().key_typed
+                        if g_st().key_typed.get()
                             && get_cmdline_info().cmdspos.get() + cells
-                                >= g_st().columns_global * g_st().rows_global
+                                >= g_st().columns_global.get() * g_st().rows_global.get()
                         {
                             break;
                         }
@@ -2570,7 +2581,8 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                         if !((s.c == K_S_RIGHT
                             || s.c == K_C_RIGHT
-                            || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32)) != 0)
+                            || (g_st().mod_mask.get() & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
+                                != 0)
                             && get_cmdline_info().cmdbuff_vec.borrow()
                                 [get_cmdline_info().cmdpos.get() as usize]
                                 != b' ')
@@ -2607,7 +2619,8 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         if !(get_cmdline_info().cmdpos.get() > 0
                             && (s.c == K_S_LEFT
                                 || s.c == K_C_LEFT
-                                || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
+                                || (g_st().mod_mask.get()
+                                    & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
                                     != 0)
                             && get_cmdline_info().cmdbuff_vec.borrow()
                                 [(get_cmdline_info().cmdpos.get() - 1) as usize]
@@ -2653,7 +2666,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         return command_line_not_changed(s);
                     }
                     if { get_cmdline_info().mouse_used.get() }.is_some()
-                        && g_st().mouse_row < g_st().cmdline_row
+                        && g_st().mouse_row.get() < g_st().cmdline_row.get()
                     {
                         get_cmdline_info().mouse_used.set(Some(true));
                         return 0;
@@ -2664,7 +2677,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                 K_LEFTMOUSE => {
                     if { get_cmdline_info().mouse_used.get() }.is_some()
-                        && g_st().mouse_row < g_st().cmdline_row
+                        && g_st().mouse_row.get() < g_st().cmdline_row.get()
                     {
                         get_cmdline_info().mouse_used.set(Some(true));
                         return 0;
@@ -2806,11 +2819,11 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                     s.ignore_drag_release = true;
                     putcmdline(b'^', true);
 
-                    s.c = get_literal((g_st().mod_mask & (MOD_MASK_SHIFT as i32)) != 0);
+                    s.c = get_literal((g_st().mod_mask.get() & (MOD_MASK_SHIFT as i32)) != 0);
 
                     s.do_abbr = false;
                     get_cmdline_info().special_char.set(0);
-                    if utf_iscomposing_first(s.c) && !g_st().cmd_silent {
+                    if utf_iscomposing_first(s.c) && !g_st().cmd_silent.get() {
                         if ui_has(K_UICMDLINE) {
                             unputcmdline();
                         } else {
@@ -2852,13 +2865,13 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         return 0;
                     }
                     if !is_special(s.c) {
-                        g_st().mod_mask = 0x0;
+                        g_st().mod_mask.set(0x0);
                     }
                 }
 
                 _ => {
                     if !is_special(s.c) {
-                        g_st().mod_mask = 0x0;
+                        g_st().mod_mask.set(0x0);
                     }
                 }
             }
@@ -2874,9 +2887,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
     }
 
     // end:
-    if is_special(s.c) || g_st().mod_mask != 0 {
+    if is_special(s.c) || g_st().mod_mask.get() != 0 {
         put_on_cmdline(
-            get_special_key_name(s.c, g_st().mod_mask).to_bytes(),
+            get_special_key_name(s.c, g_st().mod_mask.get()).to_bytes(),
             -1,
             true,
         );
@@ -3165,9 +3178,9 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         .to_bytes_with_nul()
         .to_vec();
     let mut errormsg = None;
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let parsed = parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false);
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     if !parsed {
         return false;
     }
@@ -3188,8 +3201,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut cmdpreview_buf = crate::globals::BufPtr::NULL;
     let mut cmdpreview_win = crate::globals::WinPtr::NULL;
 
-    g_st().emsg_silent += 1;
-    g_st().msg_silent += 1;
+    g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
+    g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     block_autocmds();
 
     let mut cpinfo = cmdpreview_prepare();
@@ -3208,7 +3221,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         });
     }
 
-    g_st().cmdpreview = true;
+    g_st().cmdpreview.set(true);
 
     let mut err = error_init();
     let mut tstate = TryState::new();
@@ -3229,10 +3242,10 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     if cmdpreview_type != 0 {
-        let save_rd = g_st().redrawing_disabled;
-        g_st().redrawing_disabled = 0;
+        let save_rd = g_st().redrawing_disabled.get();
+        g_st().redrawing_disabled.set(0);
         update_screen();
-        g_st().redrawing_disabled = save_rd;
+        g_st().redrawing_disabled.set(save_rd);
     }
 
     if icm_split && cmdpreview_type == 2 && !cmdpreview_win.is_null() {
@@ -3242,8 +3255,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     cmdpreview_restore_state(&mut cpinfo);
 
     unblock_autocmds();
-    g_st().msg_silent -= 1;
-    g_st().emsg_silent -= 1;
+    g_st().msg_silent.set(g_st().msg_silent.get() - (1));
+    g_st().emsg_silent.set(g_st().emsg_silent.get() - (1));
     redrawcmdline();
 
     cmdpreview_type != 0
@@ -3281,7 +3294,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
             }
-            g_st().msg_scroll = 1;
+            g_st().msg_scroll.set(1);
             msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
             api_clear_error(&mut err);
             redrawcmd();
@@ -3290,22 +3303,22 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
 }
 
 fn command_line_changed(s: &mut CommandLineState) -> i32 {
-    let prev_cmdpreview = g_st().cmdpreview;
+    let prev_cmdpreview = g_st().cmdpreview.get();
     if s.firstc == b':' as i32
         && g_st().current_sctx.sc_sid == 0
         && !opt_vars().p_icm.is_empty()
-        && g_st().cmdline_star == 0
+        && g_st().cmdline_star.get() == 0
         && vpeekc_any() == 0
         && cmdpreview_may_show(s)
     {
         // 'inccommand' preview has been shown.
     } else {
-        g_st().cmdpreview = false;
+        g_st().cmdpreview.set(false);
         if prev_cmdpreview {
             update_screen();
         }
         if with_ccline_xpc(|xpc| xpc.xp_context == EXPAND_NOTHING)
-            && (g_st().key_typed || vpeekc() == NUL as i32)
+            && (g_st().key_typed.get() || vpeekc() == NUL as i32)
         {
             may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
         }
@@ -3336,12 +3349,12 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
 /// Abandon the command line.
 fn abandon_cmdline() {
     dealloc_cmdbuff();
-    if g_st().msg_scrolled == 0 {
+    if g_st().msg_scrolled.get() == 0 {
         compute_cmdrow();
     }
     if !get_cmdline_info().one_key.get() {
         msg(c"", 0);
-        g_st().redraw_cmdline = true;
+        g_st().redraw_cmdline.set(true);
     }
 }
 
@@ -3366,7 +3379,7 @@ pub fn getcmdline_prompt(
     one_key: bool,
     mouse_used: Option<&mut bool>,
 ) -> Option<std::ffi::CString> {
-    let msg_col_save = g_st().msg_col;
+    let msg_col_save = g_st().msg_col.get();
 
     let mut did_save_ccline = false;
     if !get_cmdline_info().cmdbuff().is_null() {
@@ -3395,10 +3408,10 @@ pub fn getcmdline_prompt(
         .mouse_used
         .set(mouse_used.is_some().then_some(false));
 
-    let cmd_silent_saved = g_st().cmd_silent;
-    let msg_silent_saved = g_st().msg_silent;
-    g_st().msg_silent = 0;
-    g_st().cmd_silent = false;
+    let cmd_silent_saved = g_st().cmd_silent.get();
+    let msg_silent_saved = g_st().msg_silent.get();
+    g_st().msg_silent.set(0);
+    g_st().cmd_silent.set(false);
 
     let ret = command_line_enter(firstc, 1, 0, false);
     if let Some(mouse_used_ref) = mouse_used {
@@ -3410,10 +3423,10 @@ pub fn getcmdline_prompt(
     if did_save_ccline {
         restore_cmdline();
     }
-    g_st().msg_silent = msg_silent_saved;
-    g_st().cmd_silent = cmd_silent_saved;
+    g_st().msg_silent.set(msg_silent_saved);
+    g_st().cmd_silent.set(cmd_silent_saved);
     if !get_cmdline_info().cmdbuff().is_null() {
-        g_st().msg_col = msg_col_save;
+        g_st().msg_col.set(msg_col_save);
     }
 
     ret
@@ -3470,7 +3483,7 @@ pub fn text_locked() -> bool {
     if expr_map_locked() {
         return true;
     }
-    g_st().textlock != 0
+    g_st().textlock.get() != 0
 }
 
 pub fn text_locked_msg() {
@@ -3500,7 +3513,7 @@ pub fn curbuf_locked() -> bool {
 }
 
 pub fn allbuf_locked() -> bool {
-    if g_st().allbuf_lock > 0 {
+    if g_st().allbuf_lock.get() > 0 {
         emsg(gettext(
             c"E811: Not allowed to change buffer information now",
         ));
@@ -3510,7 +3523,7 @@ pub fn allbuf_locked() -> bool {
 }
 
 fn cmdline_charsize(idx: i32) -> i32 {
-    if g_st().cmdline_star > 0 {
+    if g_st().cmdline_star.get() > 0 {
         return 1;
     }
     ptr2cells(get_cmdline_info().cmdbuff().wrapping_add(idx as usize))
@@ -3531,12 +3544,12 @@ fn cmd_startcol() -> i32 {
 pub fn cmd_screencol(bytepos: i32) -> i32 {
     let mut m: i32;
     let mut col = cmd_startcol();
-    if g_st().key_typed {
+    if g_st().key_typed.get() {
         m = if !g_st().cmdline_win.is_null() {
             let cw = g_st().cmdline_win.borrow();
             cw.w_view_width.get() * cw.w_view_height.get()
         } else {
-            g_st().columns_global * g_st().rows_global
+            g_st().columns_global.get() * g_st().rows_global.get()
         };
         if m < 0 {
             m = MAXCOL;
@@ -3565,7 +3578,7 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
 fn correct_screencol(idx: i32, cells: i32, col: &mut i32) {
     if utfc_ptr2len(get_cmdline_info().cmdbuff().wrapping_add(idx as usize)) > 1
         && utf_ptr2cells(get_cmdline_info().cmdbuff().wrapping_add(idx as usize)) > 1
-        && (*col) % g_st().columns_global + cells > g_st().columns_global
+        && (*col) % g_st().columns_global.get() + cells > g_st().columns_global.get()
     {
         *col += 1;
     }
@@ -3573,7 +3586,7 @@ fn correct_screencol(idx: i32, cells: i32, col: &mut i32) {
 
 /// Get an Ex command line for the `:` command.
 pub fn getexline(c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
-    if g_st().exec_from_reg && vpeekc() == b':' as i32 {
+    if g_st().exec_from_reg.get() && vpeekc() == b':' as i32 {
         vgetc();
     }
 
@@ -3782,12 +3795,12 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
             err_errmsg = c"E5407: Callback has thrown an exception: %s";
-            let saved_msg_col = g_st().msg_col;
-            g_st().msg_silent += 1;
+            let saved_msg_col = g_st().msg_col.get();
+            g_st().msg_silent.set(g_st().msg_silent.get() + (1));
             let cbcall_ret = callback_call(&color_cb, 1, std::slice::from_mut(&mut arg), &mut tv);
-            g_st().msg_silent -= 1;
-            g_st().msg_col = saved_msg_col;
-            if g_st().got_int {
+            g_st().msg_silent.set(g_st().msg_silent.get() - (1));
+            g_st().msg_col.set(saved_msg_col);
+            if g_st().got_int.get() {
                 GETLN_STATE.with(|s| s.getln_interrupted_highlight.set(true));
             }
             try_leave(&tstate, &mut err);
@@ -3795,7 +3808,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 break 'color_cmdline_error;
             }
             if tv.v_type != VarType::VarList {
-                g_st().msg_scroll = 1;
+                g_st().msg_scroll.set(1);
                 msg_putchar(b'\n' as i32);
                 smsg!(HLF_E, c"%s", gettext(c"E5400: Callback should return list"),);
                 printed_errmsg = true;
@@ -3808,7 +3821,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             for (i, li) in (0_i32..).zip(crate::eval::typval::tv_list_iter(Some(v_list))) {
                 let li_tv = li.tv();
                 if li_tv.v_type != VarType::VarList {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(HLF_E, gettext(c"E5401: List item %i is not a List"), i,);
                     printed_errmsg = true;
@@ -3816,7 +3829,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 }
                 let l = li_tv.vval.v_list_opt();
                 if tv_list_len(l) != 3 {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
@@ -3836,7 +3849,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 if error {
                     break 'color_cmdline_error;
                 } else if !(prev_end <= start && start < colored_ccline.cmdlen.get() as Varnumber) {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
@@ -3852,7 +3865,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     [colored_ccline.cmdbuff_vec.borrow()[start as usize] as usize]
                     == 0
                 {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
@@ -3874,7 +3887,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 if error {
                     break 'color_cmdline_error;
                 } else if !(start < end && end <= colored_ccline.cmdlen.get() as Varnumber) {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
@@ -3890,7 +3903,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     && UTF8LEN_TAB_ZERO[colored_ccline.cmdbuff_vec.borrow()[end as usize] as usize]
                         == 0
                 {
-                    g_st().msg_scroll = 1;
+                    g_st().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
@@ -3926,7 +3939,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
 
         // color_cmdline_error:
         if error_set(&err) {
-            g_st().msg_scroll = 1;
+            g_st().msg_scroll.set(1);
             msg_putchar(b'\n' as i32);
             smsg!(HLF_E, gettext(err_errmsg), err.msg_cstr());
             printed_errmsg = true;
@@ -3970,7 +3983,7 @@ fn draw_cmdline(start: i32, len: i32) {
         return;
     }
 
-    if g_st().cmdline_star > 0 {
+    if g_st().cmdline_star.get() > 0 {
         let mut i: i32 = 0;
         while i < len {
             msg_putchar(b'*' as i32);
@@ -4005,7 +4018,7 @@ fn ui_ext_cmdline_show(line: &CmdlineInfo) {
     let mut arena = Arena::new();
     let mut content: Array;
     let cmdbuff = line.cmdbuff();
-    if g_st().cmdline_star != 0 {
+    if g_st().cmdline_star.get() != 0 {
         content = arena_array(&mut arena, 1);
         let mut len: usize = 0;
         let mut p = get_cmdline_info().cmdbuff();
@@ -4156,10 +4169,10 @@ pub fn cmdline_ui_flush() {
             line_ref.redraw_state.set(K_CMD_REDRAW_NONE);
 
             if redraw_state == K_CMD_REDRAW_ALL {
-                g_st().cmdline_was_last_drawn = true;
+                g_st().cmdline_was_last_drawn.set(true);
 
                 ui_ext_cmdline_show(&line_ref);
-            } else if redraw_state == K_CMD_REDRAW_POS && g_st().cmdline_was_last_drawn {
+            } else if redraw_state == K_CMD_REDRAW_POS && g_st().cmdline_was_last_drawn.get() {
                 ui_call_cmdline_pos(
                     line_ref.cmdpos.get() as Integer,
                     line_ref.level.get() as Integer,
@@ -4174,11 +4187,11 @@ pub fn cmdline_ui_flush() {
 
 /// Put a character on the command line.
 pub fn putcmdline(c: u8, shift: bool) {
-    if g_st().cmd_silent {
+    if g_st().cmd_silent.get() {
         return;
     }
     if !ui_has(K_UICMDLINE) {
-        g_st().msg_no_more = true;
+        g_st().msg_no_more.set(true);
         msg_putchar(i32::from(c));
         if shift {
             draw_cmdline(
@@ -4186,7 +4199,7 @@ pub fn putcmdline(c: u8, shift: bool) {
                 get_cmdline_info().cmdlen.get() - get_cmdline_info().cmdpos.get(),
             );
         }
-        g_st().msg_no_more = false;
+        g_st().msg_no_more.set(false);
     } else if get_cmdline_info().redraw_state.get() != K_CMD_REDRAW_ALL {
         let charbuf: [u8; 2] = [c, 0];
         ui_call_cmdline_special_char(
@@ -4203,10 +4216,10 @@ pub fn putcmdline(c: u8, shift: bool) {
 
 /// Undo a `putcmdline(c, false)`.
 pub fn unputcmdline() {
-    if g_st().cmd_silent {
+    if g_st().cmd_silent.get() {
         return;
     }
-    g_st().msg_no_more = true;
+    g_st().msg_no_more.set(true);
     if get_cmdline_info().cmdlen.get() == get_cmdline_info().cmdpos.get() && !ui_has(K_UICMDLINE) {
         msg_putchar(b' ' as i32);
     } else {
@@ -4219,7 +4232,7 @@ pub fn unputcmdline() {
             ),
         );
     }
-    g_st().msg_no_more = false;
+    g_st().msg_no_more.set(false);
     cursorcmd();
     get_cmdline_info().special_char.set(0);
     ui_cursor_shape();
@@ -4298,22 +4311,22 @@ pub fn put_on_cmdline(str_bytes: &[u8], mut len: i32, redraw: bool) {
         }
     }
 
-    if redraw && !g_st().cmd_silent {
-        g_st().msg_no_more = true;
-        let i = g_st().cmdline_row;
+    if redraw && !g_st().cmd_silent.get() {
+        g_st().msg_no_more.set(true);
+        let i = g_st().cmdline_row.get();
         cursorcmd();
         draw_cmdline(
             get_cmdline_info().cmdpos.get(),
             get_cmdline_info().cmdlen.get() - get_cmdline_info().cmdpos.get(),
         );
-        if g_st().cmdline_row != i || get_cmdline_info().overstrike.get() != 0 {
+        if g_st().cmdline_row.get() != i || get_cmdline_info().overstrike.get() != 0 {
             msg_clr_eos();
         }
-        g_st().msg_no_more = false;
+        g_st().msg_no_more.set(false);
     }
     let mut m: i32;
-    if g_st().key_typed {
-        m = g_st().columns_global * g_st().rows_global;
+    if g_st().key_typed.get() {
+        m = g_st().columns_global.get() * g_st().rows_global.get();
         if m < 0 {
             m = MAXCOL;
         }
@@ -4380,13 +4393,13 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
     }
 
     line_breakcheck();
-    if g_st().got_int {
+    if g_st().got_int.get() {
         return false;
     }
 
-    g_st().textlock += 1;
+    g_st().textlock.set(g_st().textlock.get() + (1));
     let spec_res = get_spec_reg(regname, true);
-    g_st().textlock -= 1;
+    g_st().textlock.set(g_st().textlock.get() - (1));
 
     if let Some(opt_vec) = spec_res {
         let Some(vec_val) = opt_vec else {
@@ -4456,10 +4469,10 @@ pub fn cmdline_paste_str(s: &[u8], literally: bool) {
 }
 
 pub fn redrawcmdline() {
-    if g_st().cmd_silent {
+    if g_st().cmd_silent.get() {
         return;
     }
-    g_st().need_wait_return = false;
+    g_st().need_wait_return.set(false);
     compute_cmdrow();
     redrawcmd();
     cursorcmd();
@@ -4467,7 +4480,7 @@ pub fn redrawcmdline() {
 }
 
 fn redrawcmdprompt() {
-    if g_st().cmd_silent {
+    if g_st().cmd_silent.get() {
         return;
     }
     if ui_has(K_UICMDLINE) {
@@ -4480,9 +4493,10 @@ fn redrawcmdprompt() {
     let ccline_rc = get_cmdline_info();
     if let Some(ref prompt) = *ccline_rc.cmdprompt.borrow() {
         msg_puts_hl(prompt, get_cmdline_info().hl_id.get(), false);
-        get_cmdline_info()
-            .cmdindent
-            .set(g_st().msg_col + (g_st().msg_row - g_st().cmdline_row) * g_st().columns_global);
+        get_cmdline_info().cmdindent.set(
+            g_st().msg_col.get()
+                + (g_st().msg_row.get() - g_st().cmdline_row.get()) * g_st().columns_global.get(),
+        );
         if get_cmdline_info().cmdfirstc.get() != NUL as i32 {
             get_cmdline_info()
                 .cmdindent
@@ -4499,7 +4513,7 @@ fn redrawcmdprompt() {
 
 /// Redraw what is currently on the command line.
 pub fn redrawcmd() {
-    if g_st().cmd_silent {
+    if g_st().cmd_silent.get() {
         return;
     }
 
@@ -4509,22 +4523,22 @@ pub fn redrawcmd() {
     }
 
     if get_cmdline_info().cmdbuff().is_null() {
-        msg_cursor_goto(g_st().cmdline_row, 0);
+        msg_cursor_goto(g_st().cmdline_row.get(), 0);
         msg_clr_eos();
         return;
     }
 
-    g_st().redrawing_cmdline = true;
+    g_st().redrawing_cmdline.set(true);
 
     sb_text_restart_cmdline();
     msg_start();
     msg_starthere();
     redrawcmdprompt();
 
-    g_st().msg_no_more = true;
+    g_st().msg_no_more.set(true);
     draw_cmdline(0, get_cmdline_info().cmdlen.get());
     msg_clr_eos();
-    g_st().msg_no_more = false;
+    g_st().msg_no_more.set(false);
 
     get_cmdline_info()
         .cmdspos
@@ -4537,40 +4551,47 @@ pub fn redrawcmd() {
         );
     }
 
-    g_st().msg_scroll = 0;
-    g_st().skip_redraw = false;
-    g_st().cmdline_was_last_drawn = true;
-    g_st().redrawing_cmdline = false;
+    g_st().msg_scroll.set(0);
+    g_st().skip_redraw.set(false);
+    g_st().cmdline_was_last_drawn.set(true);
+    g_st().redrawing_cmdline.set(false);
 }
 
 pub fn compute_cmdrow() {
-    if g_st().msg_scrolled != 0 {
-        g_st().cmdline_row = g_st().rows_global - 1;
+    if g_st().msg_scrolled.get() != 0 {
+        g_st().cmdline_row.set(g_st().rows_global.get() - 1);
     } else {
         let wp = lastwin_nofloating(None);
-        g_st().cmdline_row = wp.w_winrow.get()
-            + wp.w_height.get()
-            + wp.w_hsep_height.get()
-            + wp.w_status_height.get()
-            + global_stl_height();
+        g_st().cmdline_row.set(
+            wp.w_winrow.get()
+                + wp.w_height.get()
+                + wp.w_hsep_height.get()
+                + wp.w_status_height.get()
+                + global_stl_height(),
+        );
     }
-    if g_st().cmdline_row == g_st().rows_global && opt_vars().p_ch.get() > 0 {
-        g_st().cmdline_row -= 1;
+    if g_st().cmdline_row.get() == g_st().rows_global.get() && opt_vars().p_ch.get() > 0 {
+        g_st().cmdline_row.set(g_st().cmdline_row.get() - (1));
     }
-    g_st().lines_left = g_st().cmdline_row;
+    g_st().lines_left.set(g_st().cmdline_row.get());
 }
 
 pub fn cursorcmd() {
-    if g_st().cmd_silent || ui_has(K_UICMDLINE) {
+    if g_st().cmd_silent.get() || ui_has(K_UICMDLINE) {
         return;
     }
 
-    g_st().msg_row =
-        g_st().cmdline_row + (get_cmdline_info().cmdspos.get() / g_st().columns_global);
-    g_st().msg_col = get_cmdline_info().cmdspos.get() % g_st().columns_global;
-    g_st().msg_row = g_st().msg_row.min(g_st().rows_global - 1);
+    g_st().msg_row.set(
+        g_st().cmdline_row.get() + (get_cmdline_info().cmdspos.get() / g_st().columns_global.get()),
+    );
+    g_st()
+        .msg_col
+        .set(get_cmdline_info().cmdspos.get() % g_st().columns_global.get());
+    g_st()
+        .msg_row
+        .set(g_st().msg_row.get().min(g_st().rows_global.get() - 1));
 
-    msg_cursor_goto(g_st().msg_row, g_st().msg_col);
+    msg_cursor_goto(g_st().msg_row.get(), g_st().msg_col.get());
 }
 
 pub fn gotocmdline(clr: bool) {
@@ -4578,18 +4599,18 @@ pub fn gotocmdline(clr: bool) {
         return;
     }
     msg_start();
-    g_st().msg_col = 0;
+    g_st().msg_col.set(0);
     if clr {
         msg_clr_eos();
     }
-    msg_cursor_goto(g_st().cmdline_row, 0);
+    msg_cursor_goto(g_st().cmdline_row.get(), 0);
 }
 
 /// Check the word in front of the cursor for an abbreviation.
 fn ccheck_abbr(c: i32) -> i32 {
     let mut spos: i32 = 0;
 
-    if opt_vars().p_paste.get() || g_st().no_abbr {
+    if opt_vars().p_paste.get() || g_st().no_abbr.get() {
         return 0;
     }
 
@@ -4699,7 +4720,7 @@ pub fn get_cmdline_last_prompt_id() -> u32 {
 
 /// Get reference to the command line info to use.
 fn get_ccline_opt() -> Option<std::rc::Rc<CmdlineInfo>> {
-    if (g_st().state_global & MODE_CMDLINE) == 0 {
+    if (g_st().state_global.get() & MODE_CMDLINE) == 0 {
         return None;
     }
     let cc = get_cmdline_info();
@@ -4731,7 +4752,7 @@ fn get_cmdline_type() -> i32 {
 
 /// Get the current command line in allocated memory.
 fn get_cmdline_str() -> Option<std::ffi::CString> {
-    if g_st().cmdline_star > 0 {
+    if g_st().cmdline_star.get() > 0 {
         return None;
     }
     let p = get_ccline_opt()?;
@@ -4743,7 +4764,7 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
 
 /// Get the current command-line completion pattern.
 fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
-    if g_st().cmdline_star > 0 {
+    if g_st().cmdline_star.get() > 0 {
         return None;
     }
 
@@ -4771,7 +4792,7 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
 
 /// Get the command-line completion type.
 fn get_cmdline_completion() -> Option<std::ffi::CString> {
-    if g_st().cmdline_star > 0 {
+    if g_st().cmdline_star.get() > 0 {
         return None;
     }
 
@@ -5059,7 +5080,7 @@ pub fn open_cmdwin_event(firstc: i32, content: Option<std::ffi::CString>, pos: i
 
 /// Schedules cmdwin to open after the current cmdline-reader returns.
 fn open_cmdwin() -> i32 {
-    if text_locked() || g_st().cmdline_star > 0 {
+    if text_locked() || g_st().cmdline_star.get() > 0 {
         beep_flush();
         return K_IGNORE;
     }
@@ -5143,7 +5164,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
-    if g_st().cmdpreview {
+    if g_st().cmdpreview.get() {
         return;
     }
 
@@ -5249,16 +5270,16 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             msg_clr_eos();
             let plen = (nl_idx + 1) as isize;
             msg_puts_len(&prompt_bytes[..=nl_idx], plen, get_echo_hl_id(), false);
-            g_st().msg_didout = false;
+            g_st().msg_didout.set(false);
             msg_starthere();
         }
     }
-    g_st().cmdline_row = g_st().msg_row;
+    g_st().cmdline_row.set(g_st().msg_row.get());
 
     stuff_readbuff_special(defstr);
 
-    let save_ex_normal_busy = g_st().ex_normal_busy;
-    g_st().ex_normal_busy = 0;
+    let save_ex_normal_busy = g_st().ex_normal_busy.get();
+    g_st().ex_normal_busy.set(0);
     atom_payload_start();
     let res = getcmdline_prompt(
         if secret { NUL as i32 } else { b'@' as i32 },
@@ -5271,7 +5292,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         None,
     );
     atom_payload_end();
-    g_st().ex_normal_busy = save_ex_normal_busy;
+    g_st().ex_normal_busy.set(save_ex_normal_busy);
     callback_free(&input_callback);
 
     if let Some(res_cstr) = res {
@@ -5280,15 +5301,15 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         tv_copy(cancelreturn, &mut *rettv);
     }
 
-    g_st().need_wait_return = false;
-    g_st().msg_didout = false;
+    g_st().need_wait_return.set(false);
+    g_st().msg_didout.set(false);
 }
 
 /// `"wildtrigger()"` function.
 pub fn f_wildtrigger(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if (g_st().state_global & MODE_CMDLINE) == 0
+    if (g_st().state_global.get() & MODE_CMDLINE) == 0
         || char_avail()
-        || g_st().wild_menu_showing != 0
+        || g_st().wild_menu_showing.get() != 0
         || cmdline_pum_active()
     {
         return;

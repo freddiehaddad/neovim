@@ -316,8 +316,8 @@ fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
     if buf.b_mtime_read.get() != 0
         && time_differs(file_info, buf.b_mtime_read.get(), buf.b_mtime_read_ns.get())
     {
-        g_st().msg_scroll = 1;
-        g_st().msg_silent = 0;
+        g_st().msg_scroll.set(1);
+        g_st().msg_silent.set(0);
         msg(
             gettext(c"WARNING: The file has been changed since reading it!!!"),
             HLF_E,
@@ -325,7 +325,7 @@ fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
         if ask_yesno(gettext(c"Do you really want to write to it")) == b'n' as i32 {
             return false;
         }
-        g_st().msg_scroll = 0;
+        g_st().msg_scroll.set(0);
     }
     true
 }
@@ -373,7 +373,7 @@ fn buf_write_do_autocmds(
 ) -> Option<bool> {
     let mut buf = bufref.br_buf;
     let old_line_count = buf.b_ml.ml_line_count;
-    let msg_save = g_st().msg_scroll;
+    let msg_save = g_st().msg_scroll.get();
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut did_cmd = false;
@@ -487,8 +487,8 @@ fn buf_write_do_autocmds(
             b.b_op_end = orig_end;
         }
 
-        g_st().no_wait_return -= 1;
-        g_st().msg_scroll = msg_save;
+        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+        g_st().msg_scroll.set(msg_save);
         if nofile_err {
             let _ = semsg!(
                 gettext(c"E676: No matching autocommands for buftype=%s buffer"),
@@ -538,8 +538,8 @@ fn buf_write_do_autocmds(
         } else {
             *endp -= old_line_count - b.b_ml.ml_line_count;
             if *endp < start {
-                g_st().no_wait_return -= 1;
-                g_st().msg_scroll = msg_save;
+                g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+                g_st().msg_scroll.set(msg_save);
                 emsg(gettext(
                     c"E204: Autocommand changed number of lines in unexpected way",
                 ));
@@ -1093,8 +1093,8 @@ pub fn buf_write(
     let mut fname = fname_arg;
     let mut sfname = sfname_arg;
     let mut retval = true;
-    let msg_save = g_st().msg_scroll;
-    let mut prev_got_int = g_st().got_int;
+    let msg_save = g_st().msg_scroll.get();
+    let mut prev_got_int = g_st().got_int.get();
     let whole = start == 1 && end == buf.b_ml.ml_line_count;
     let mut write_undo_file = false;
     let mut sha_ctx = ContextSha256::new();
@@ -1156,7 +1156,7 @@ pub fn buf_write(
         .ffname_opt()
         .is_some_and(|bf| path_equal(ffname.unwrap_or(c""), bf, K_PATH_CMP_LITERAL));
 
-    g_st().no_wait_return += 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
     let orig_start = buf.b_op_start;
     let orig_end = buf.b_op_end;
@@ -1215,7 +1215,9 @@ pub fn buf_write(
         buf.b_op_end = orig_end;
     }
 
-    g_st().msg_scroll = i32::from(!(shortmess(K_SHM_OVER) && !g_st().exiting));
+    g_st()
+        .msg_scroll
+        .set(i32::from(!(shortmess(K_SHM_OVER) && !g_st().exiting.get())));
 
     let mut msg_id = [0u8; MAXPATHL + 32];
     #[cfg(windows)]
@@ -1225,7 +1227,7 @@ pub fn buf_write(
 
     fname_msg_id(&mut msg_id, c"nvim.bufwrite", Some(&*buf), msgname_opt);
 
-    let show_msg = !filtering && g_st().msg_silent == 0;
+    let show_msg = !filtering && g_st().msg_silent.get() == 0;
     if show_msg {
         ui_busy_start();
     }
@@ -1241,7 +1243,7 @@ pub fn buf_write(
     let mut progress_nchars: i64 = 0;
     let write_start = os_hrtime();
     let write_tick = buf_get_changedtick(&*buf);
-    g_st().msg_scroll = 0;
+    g_st().msg_scroll.set(0);
 
     write_info.bw_buf = vec![0; WRITEBUFSIZE];
     let bufsize: i32 = WRITEBUFSIZE as i32;
@@ -1287,8 +1289,8 @@ pub fn buf_write(
             }
 
             let mut backup_copy = false;
-            prev_got_int = g_st().got_int;
-            g_st().got_int = false;
+            prev_got_int = g_st().got_int.get();
+            g_st().got_int.set(false);
             buf.b_saving.set(true);
 
             if !(append && opt_vars().p_pm.is_empty())
@@ -1332,7 +1334,7 @@ pub fn buf_write(
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
             {
                 buf.b_p_ro.set(false);
-                g_st().need_maketitle = true;
+                g_st().need_maketitle.set(true);
                 status_redraw_all();
             }
 
@@ -1345,11 +1347,14 @@ pub fn buf_write(
             let mut wfname_owned: Option<std::ffi::CString> = None;
 
             'restore_backup: {
-                if reset_changed && !newfile && overwriting && !(g_st().exiting && backup.is_some())
+                if reset_changed
+                    && !newfile
+                    && overwriting
+                    && !(g_st().exiting.get() && backup.is_some())
                 {
                     let fsync_opt = buf.b_p_fs.get().unwrap_or(opt_vars().p_fs.get());
                     ml_preserve(&mut *buf, false, fsync_opt);
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         err = set_err(Some(gettext(E_INTERR)));
                         break 'restore_backup;
                     }
@@ -1621,7 +1626,7 @@ pub fn buf_write(
                             s_idx = write_info.bw_len as usize;
 
                             os_breakcheck();
-                            if g_st().got_int {
+                            if g_st().got_int.get() {
                                 end = 0;
                                 break;
                             }
@@ -1776,7 +1781,7 @@ pub fn buf_write(
                                     arg: 0,
                                 };
                             }
-                        } else if g_st().got_int {
+                        } else if g_st().got_int.get() {
                             err = set_err(Some(gettext(E_INTERR)));
                         } else {
                             err = set_err(Some(gettext(c"E514: Write error (file system full?)")));
@@ -1786,7 +1791,7 @@ pub fn buf_write(
                     if let Some(ref bk) = backup {
                         let fname_cstr = fname.unwrap_or(c"");
                         if backup_copy {
-                            if g_st().got_int {
+                            if g_st().got_int.get() {
                                 msg(gettext(E_INTERR), 0);
                                 ui_flush();
                             }
@@ -1801,7 +1806,7 @@ pub fn buf_write(
                 }
 
                 lnum -= start;
-                g_st().no_wait_return -= 1;
+                g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 
                 #[cfg(windows)]
                 {
@@ -1988,7 +1993,7 @@ pub fn buf_write(
             drop(wfname_owned);
         } // 'fail
 
-        g_st().no_wait_return -= 1;
+        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
     } // 'nofail
 
     if show_msg {
@@ -2034,7 +2039,7 @@ pub fn buf_write(
     }
 
     buf.b_saving.set(false);
-    g_st().msg_scroll = msg_save;
+    g_st().msg_scroll.set(msg_save);
 
     if retval && write_undo_file {
         let mut hash = [0u8; UNDO_HASH_SIZE];
@@ -2049,7 +2054,7 @@ pub fn buf_write(
         }
     }
 
-    g_st().got_int |= prev_got_int;
+    g_st().got_int.set(g_st().got_int.get() | (prev_got_int));
 
     drop(fname_copy);
     drop(sfname_copy);

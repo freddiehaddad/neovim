@@ -831,7 +831,7 @@ fn nfa_regatom() -> bool {
 
         if c == NUL as i32 {
             emsg(tr(E_NUL_FOUND));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return false;
         } else if c == magic_fn(b'^' as i32) {
             emit_fn(NFA_BOL);
@@ -850,7 +850,7 @@ fn nfa_regatom() -> bool {
             c = no_magic(getchr());
             if c == NUL as i32 {
                 emsg(tr(E_NUL_FOUND));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             if c == b'^' as i32 {
@@ -872,7 +872,7 @@ fn nfa_regatom() -> bool {
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return false;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
@@ -932,7 +932,7 @@ fn nfa_regatom() -> bool {
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return false;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
@@ -1019,9 +1019,9 @@ fn nfa_regatom() -> bool {
                         return true;
                     }
                     b'1'..=b'9' => {
-                        if (g_st().reg_do_extmatch & REX_USE) == 0 {
+                        if (g_st().reg_do_extmatch.get() & REX_USE) == 0 {
                             emsg(tr(E_Z1_NOT_ALLOWED));
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return false;
                         }
                         emit_fn(NFA_ZREF1 + (no_magic(c) - b'1' as i32));
@@ -1029,9 +1029,9 @@ fn nfa_regatom() -> bool {
                         return true;
                     }
                     b'(' => {
-                        if g_st().reg_do_extmatch != REX_SET {
+                        if g_st().reg_do_extmatch.get() != REX_SET {
                             emsg(tr(E_Z_NOT_ALLOWED));
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return false;
                         }
                         if !nfa_reg(REG_ZPAREN) {
@@ -1121,7 +1121,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                         c"\\"
                     },
                 );
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             emit_fn(if nr == 0 { 0x0a } else { nr as i32 });
@@ -1172,7 +1172,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                             c"\\"
                         },
                     );
-                    g_st().rc_did_emsg = true;
+                    g_st().rc_did_emsg.set(true);
                     return false;
                 }
                 if !nfa_regatom() {
@@ -1190,7 +1190,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                         c"\\"
                     },
                 );
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             emit_fn(NFA_OPT_CHARS);
@@ -1438,7 +1438,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Opt
                         *startc = coll_get_char();
                         if *startc == i32::MAX {
                             emsg(tr(E_UNICODE_VAL_TOO_LARGE));
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return Some(false);
                         }
                         got_coll_char = true;
@@ -1458,7 +1458,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Opt
                     *startc = oldstartc;
                     if *startc > endc {
                         emsg(tr(E_REVERSE_RANGE));
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return Some(false);
                     }
                     if endc > *startc + 2 {
@@ -1552,7 +1552,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Opt
 
         if re_s.reg_strict.get() != 0 {
             emsg(tr(E_MISSINGBRACKET));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return Some(false);
         }
         None
@@ -1632,7 +1632,7 @@ fn nfa_regpiece_multi(op: i32, old_state: &mut ParseState, my_post_start: usize)
         }
         if !read_limits(&mut minval, &mut maxval) {
             emsg(tr(c"E870: (NFA regexp) Error reading repetition limits"));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return false;
         }
         if minval == 0 && maxval == MAX_LIMIT {
@@ -1692,7 +1692,7 @@ fn nfa_regpiece_multi(op: i32, old_state: &mut ParseState, my_post_start: usize)
 
     if re_multi_type(peekchr()) != NOT_MULTI {
         emsg(tr(c"E871: (NFA regexp) Can't have a multi follow a multi"));
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return false;
     }
 
@@ -1789,7 +1789,7 @@ fn nfa_reg(paren: i32) -> bool {
         if paren == REG_PAREN {
             if re_s.regnpar.get() >= NSUBEXP as i32 {
                 emsg(tr(c"E872: (NFA regexp) Too many '('"));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             parno = re_s.regnpar.get();
@@ -1797,7 +1797,7 @@ fn nfa_reg(paren: i32) -> bool {
         } else if paren == REG_ZPAREN {
             if re_s.regnzpar.get() >= NSUBEXP as i32 {
                 emsg(tr(c"E879: (NFA regexp) Too many \\z("));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return false;
             }
             parno = re_s.regnzpar.get();
@@ -1806,7 +1806,7 @@ fn nfa_reg(paren: i32) -> bool {
 
         if re_s.nfa_reg_parse_depth.get() >= REG_MAX_PAREN_DEPTH {
             emsg(tr(E_COMMAND_TOO_COMPLEX));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return false;
         }
         re_s.nfa_reg_parse_depth
@@ -1847,7 +1847,7 @@ fn nfa_reg(paren: i32) -> bool {
                     },
                 );
             }
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             re_s.nfa_reg_parse_depth
                 .set(re_s.nfa_reg_parse_depth.get() - (1));
             return false;
@@ -1864,7 +1864,7 @@ fn nfa_reg(paren: i32) -> bool {
             } else {
                 emsg(tr(c"E873: (NFA regexp) proper termination error"));
             }
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             re_s.nfa_reg_parse_depth
                 .set(re_s.nfa_reg_parse_depth.get() - (1));
             return false;
@@ -2309,7 +2309,7 @@ fn post2nfa(states: &mut [NfaState], postfix: &[i32], nfa_calc_size: bool) -> Op
         emsg(tr(
                 c"E875: (NFA regexp) (While converting from postfix to NFA),too many states left on stack",
             ));
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return None;
     }
 
@@ -2317,7 +2317,7 @@ fn post2nfa(states: &mut [NfaState], postfix: &[i32], nfa_calc_size: bool) -> Op
         emsg(tr(
             c"E876: (NFA regexp) Not enough space to store the whole NFA ",
         ));
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return None;
     }
 
@@ -3619,7 +3619,7 @@ fn nfa_regmatch(
             if !re_s.rex.reg_nobreak.get() {
                 fast_breakcheck();
             }
-            if g_st().got_int || nfa_did_time_out() {
+            if g_st().got_int.get() || nfa_did_time_out() {
                 return 0;
             }
 
@@ -3735,7 +3735,7 @@ fn nfa_regmatch(
                     if (loop_count & 15) == 0 && !re_s.rex.reg_nobreak.get() {
                         fast_breakcheck();
                     }
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                     let check_timeout = {
@@ -4757,7 +4757,7 @@ fn nfa_regmatch(
                 if (loop_count & 15) == 0 && !re_s.rex.reg_nobreak.get() {
                     fast_breakcheck();
                 }
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     break;
                 }
                 let check_timeout = {

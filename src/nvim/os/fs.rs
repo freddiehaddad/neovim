@@ -1911,8 +1911,8 @@ pub fn os_dup_cloexec(fd: i32) -> i32 {
 
 /// Open the file descriptor for stdin.
 pub fn os_open_stdin_fd() -> i32 {
-    if g_st().stdin_fd > 0 {
-        g_st().stdin_fd
+    if g_st().stdin_fd.get() > 0 {
+        g_st().stdin_fd.get()
     } else {
         let fd = os_dup(STDIN_FILENO);
         #[cfg(windows)]

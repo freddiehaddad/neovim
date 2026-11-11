@@ -1276,7 +1276,9 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         let is_curbuf = b_fnum == curbuf_mut().b_fnum.get();
         let save_acd = opt_vars().p_acd.get();
         if !is_curbuf {
-            g_st().redrawing_disabled += 1;
+            g_st()
+                .redrawing_disabled
+                .set(g_st().redrawing_disabled.get() + (1));
             opt_vars().p_acd.set(false);
         }
 
@@ -1286,7 +1288,9 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         ctx_restore(&mut aco);
 
         if !is_curbuf {
-            g_st().redrawing_disabled -= 1;
+            g_st()
+                .redrawing_disabled
+                .set(g_st().redrawing_disabled.get() - (1));
             opt_vars().p_acd.set(save_acd);
         }
     });
@@ -1691,7 +1695,7 @@ fn fix_cursor_cols(
     new_rows: Linenr,
     new_cols_at_end_row: Colnr,
 ) {
-    let mode_col_adj = if win == curwin_ptr() && (g_st().state_global & MODE_INSERT) != 0 {
+    let mode_col_adj = if win == curwin_ptr() && (g_st().state_global.get() & MODE_INSERT) != 0 {
         0
     } else {
         1

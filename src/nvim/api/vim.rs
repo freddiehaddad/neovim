@@ -498,7 +498,7 @@ pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
         };
         Integer::from(win.w_ns_hl.get())
     } else {
-        Integer::from(g_st().ns_hl_global)
+        Integer::from(g_st().ns_hl_global.get())
     }
 }
 
@@ -512,7 +512,7 @@ pub fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
     if !validate_int(ns_id >= 0, c"namespace", ns_id, err) {
         return;
     }
-    g_st().ns_hl_global = ns_id as NS;
+    g_st().ns_hl_global.set(ns_id as NS);
     hl_check_ns();
     redraw_all_later(UPD_NOT_VALID);
 }
@@ -527,7 +527,7 @@ pub fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns_fast(Integer ns_id, Error *err) FUNC_API_SINCE(10) FUNC_API_FAST;
 pub fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
-    g_st().ns_hl_fast = ns_id as NS;
+    g_st().ns_hl_fast.set(ns_id as NS);
     hl_check_ns();
 }
 
@@ -591,23 +591,25 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
             !typed,
             false,
         );
-        if g_st().vgetc_busy != 0 {
-            g_st().typebuf_was_filled = true;
+        if g_st().vgetc_busy.get() != 0 {
+            g_st().typebuf_was_filled.set(true);
         }
     }
     drop(owned_keys_esc);
 
     if execute {
-        let save_msg_scroll = g_st().msg_scroll;
-        g_st().msg_scroll = 0;
+        let save_msg_scroll = g_st().msg_scroll.get();
+        g_st().msg_scroll.set(0);
         if !dangerous {
-            g_st().ex_normal_busy += 1;
+            g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() + (1));
         }
         exec_normal(true, lowlevel);
         if !dangerous {
-            g_st().ex_normal_busy -= 1;
+            g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() - (1));
         }
-        g_st().msg_scroll |= save_msg_scroll;
+        g_st()
+            .msg_scroll
+            .set(g_st().msg_scroll.get() | (save_msg_scroll));
     }
 }
 
@@ -1239,14 +1241,14 @@ pub fn nvim_echo(
         data: opts.data.clone(),
     };
 
-    let save_nwr = g_st().need_wait_return;
-    let save_lines_left = g_st().lines_left;
-    let save_msg_didany = g_st().msg_didany;
+    let save_nwr = g_st().need_wait_return.get();
+    let save_lines_left = g_st().lines_left.get();
+    let save_msg_didany = g_st().msg_didany.get();
     if opts._truncate {
-        g_st().no_wait_return += 1;
-        g_st().lines_left = 0;
-        g_st().msg_didany = true;
-        g_st().msg_no_more = true;
+        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+        g_st().lines_left.set(0);
+        g_st().msg_didany.set(true);
+        g_st().msg_no_more.set(true);
     }
     msg_ext_no_fast();
     id = msg_multihl(
@@ -1260,11 +1262,11 @@ pub fn nvim_echo(
         false,
     );
     if opts._truncate {
-        g_st().msg_no_more = false;
-        g_st().msg_didany = save_msg_didany;
-        g_st().lines_left = save_lines_left;
-        g_st().no_wait_return -= 1;
-        g_st().need_wait_return = save_nwr;
+        g_st().msg_no_more.set(false);
+        g_st().msg_didany.set(save_msg_didany);
+        g_st().lines_left.set(save_lines_left);
+        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+        g_st().need_wait_return.set(save_nwr);
     }
 
     if opts.verbose {
@@ -1784,7 +1786,7 @@ pub fn nvim_put(
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let visual_was_active = g_st().visual_global.active;
-    g_st().msg_silent += 1;
+    g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     do_put(
         b'_' as i32,
         Some(crate::register::PutReg::Ref(&reg)),
@@ -1792,7 +1794,7 @@ pub fn nvim_put(
         1,
         if follow { PUT_CURSEND } else { 0 },
     );
-    g_st().msg_silent -= 1;
+    g_st().msg_silent.set(g_st().msg_silent.get() - (1));
     g_st().visual_global.active = visual_was_active;
     try_leave(&tstate, err);
 }
@@ -1890,8 +1892,8 @@ pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut
 // DLLEXPORT Object nvim_load_context(Dict dict, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
     let mut ctx = CONTEXT_INIT;
-    let save_did_emsg = g_st().did_emsg;
-    g_st().did_emsg = 0;
+    let save_did_emsg = g_st().did_emsg.get();
+    g_st().did_emsg.set(0);
 
     ctx_from_dict(dict, &mut ctx, err);
     if !error_set(err) {
@@ -1899,7 +1901,7 @@ pub fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
     }
 
     ctx_free(&mut ctx);
-    g_st().did_emsg = save_did_emsg;
+    g_st().did_emsg.set(save_did_emsg);
     nil_obj()
 }
 
@@ -2167,14 +2169,14 @@ pub fn nvim_chan_set(
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
 pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
     if type_str.size == 0 || buf == 0 {
-        g_st().cmdwin_type = 0;
+        g_st().cmdwin_type.set(0);
         g_st().cmdwin_buf = crate::globals::BufPtr::NULL;
         return;
     }
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
-    g_st().cmdwin_type = i32::from(type_str.first_byte());
+    g_st().cmdwin_type.set(i32::from(type_str.first_byte()));
     g_st().cmdwin_buf = crate::globals::BufPtr::from(&mut *b);
 }
 
@@ -2308,12 +2310,12 @@ pub fn nvim_stats(arena: &mut Arena) -> Dict {
     put_c(
         &mut rv,
         c"arena_alloc_count",
-        integer_obj(g_st().arena_alloc_count as Integer),
+        integer_obj(g_st().arena_alloc_count.get() as Integer),
     );
     put_c(
         &mut rv,
         c"ts_query_parse_count",
-        integer_obj(g_st().tslua_query_parse_count as Integer),
+        integer_obj(g_st().tslua_query_parse_count.get() as Integer),
     );
     rv
 }
@@ -2528,7 +2530,7 @@ pub fn nvim_screenshot(path: NvimString) {
 // DLLEXPORT void nvim__invalidate_glyph_cache(void);
 pub fn nvim_invalidate_glyph_cache() {
     schar_cache_clear();
-    g_st().must_redraw = UPD_CLEAR;
+    g_st().must_redraw.set(UPD_CLEAR);
 }
 
 /// @nodoc
@@ -2800,7 +2802,7 @@ pub fn nvim_eval_statusline(
         } else if statuscol_lnum != 0 {
             win_col_off(wp.borrow_mut())
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
-            g_st().columns_global
+            g_st().columns_global.get()
         } else {
             wp.w_width.get()
         };
@@ -3099,7 +3101,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
 
     let mut flush_ui = opts.flush;
     if opts.tabline {
-        if g_st().redraw_tabline && firstwin_mut().w_lines_valid.get() == 0 {
+        if g_st().redraw_tabline.get() && firstwin_mut().w_lines_valid.get() == 0 {
             opts.flush = true;
         } else {
             draw_tabline();
@@ -3108,8 +3110,8 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     let save_lz = opt_vars().p_lz.get();
-    let save_rd = g_st().redrawing_disabled;
-    g_st().redrawing_disabled = 0;
+    let save_rd = g_st().redrawing_disabled.get();
+    g_st().redrawing_disabled.set(0);
     opt_vars().p_lz.set(false);
     if opts.statuscolumn || opts.statusline || opts.winbar {
         if win.is_null() {
@@ -3129,7 +3131,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         opts.flush = true;
     }
 
-    if opts.flush && !g_st().cmdpreview {
+    if opts.flush && !g_st().cmdpreview.get() {
         validate_cursor(curwin_mut());
         update_topline(curwin_mut());
         update_screen();
@@ -3145,7 +3147,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         ui_flush();
     }
 
-    g_st().redrawing_disabled = save_rd;
+    g_st().redrawing_disabled.set(save_rd);
     opt_vars().p_lz.set(save_lz);
 }
 

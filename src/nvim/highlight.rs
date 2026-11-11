@@ -280,7 +280,7 @@ use crate::lua::converter::LUA_NOREF;
 #[inline]
 pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
     if let Some(ref tbl) = wp.w_ns_hl_attr
-        && g_st().ns_hl_fast < 0
+        && g_st().ns_hl_fast.get() < 0
     {
         tbl[hlf as usize].get()
     } else {
@@ -460,10 +460,10 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     }
 
     if *ns_hl < 0 {
-        if g_st().ns_hl_active <= 0 {
+        if g_st().ns_hl_active.get() <= 0 {
             return -1;
         }
-        *ns_hl = g_st().ns_hl_active;
+        *ns_hl = g_st().ns_hl_active.get();
     }
 
     let ns_id = *ns_hl;
@@ -563,18 +563,18 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
 }
 
 pub fn hl_check_ns() -> bool {
-    let ns = if g_st().ns_hl_fast > 0 {
-        g_st().ns_hl_fast
-    } else if g_st().ns_hl_win >= 0 {
-        g_st().ns_hl_win
+    let ns = if g_st().ns_hl_fast.get() > 0 {
+        g_st().ns_hl_fast.get()
+    } else if g_st().ns_hl_win.get() >= 0 {
+        g_st().ns_hl_win.get()
     } else {
-        g_st().ns_hl_global
+        g_st().ns_hl_global.get()
     };
-    if g_st().ns_hl_active == ns {
+    if g_st().ns_hl_active.get() == ns {
         return false;
     }
 
-    g_st().ns_hl_active = ns;
+    g_st().ns_hl_active.set(ns);
     g_st().hl_attr_active = None;
     if ns > 0 {
         update_ns_hl(ns);
@@ -586,7 +586,7 @@ pub fn hl_check_ns() -> bool {
 }
 
 pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
-    g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl.get());
+    g_st().ns_hl_win.set(wp.map_or(-1, |wp| wp.w_ns_hl.get()));
     hl_check_ns()
 }
 
@@ -625,7 +625,7 @@ pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -
             attrs.hl_blend = opt_vars().p_pb.get() as i32;
         }
         if pum_drawn() {
-            g_st().must_redraw_pum = true;
+            g_st().must_redraw_pum.set(true);
         }
     }
 
@@ -765,7 +765,7 @@ pub fn update_ns_hl(ns_id: i32) {
 }
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
-    if g_st().ns_hl_fast < 0 {
+    if g_st().ns_hl_fast.get() < 0 {
         let local = if wp == curwin_ptr() {
             wp.w_hl_attr_normal.get()
         } else {
@@ -993,13 +993,13 @@ pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
 
 fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     if attrs.rgb_bg_color == -1 {
-        attrs.rgb_bg_color = g_st().normal_bg;
+        attrs.rgb_bg_color = g_st().normal_bg.get();
     }
     if attrs.rgb_fg_color == -1 {
-        attrs.rgb_fg_color = g_st().normal_fg;
+        attrs.rgb_fg_color = g_st().normal_fg.get();
     }
     if attrs.rgb_sp_color == -1 {
-        attrs.rgb_sp_color = g_st().normal_sp;
+        attrs.rgb_sp_color = g_st().normal_sp.get();
     }
     let dark = opt_vars().p_bg.first_byte() == b'd';
     if attrs.rgb_fg_color == -1 {

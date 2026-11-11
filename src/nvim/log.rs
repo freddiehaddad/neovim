@@ -333,7 +333,7 @@ fn do_log_to_file_str(
 
     let millis = os_gettimeofday_ms();
 
-    let ui = g_st().ui_client_channel_id != 0;
+    let ui = g_st().ui_client_channel_id.get() != 0;
     let first_byte = st.instance_name[0];
     let regen = ui || first_byte == 0 || first_byte == b'?';
 

@@ -668,7 +668,7 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
         }
         if g_st().visual_global.mode == b'V' as i32 {
             g_st().visual_global.mode = b'v' as i32;
-            g_st().redraw_cmdline = true;
+            g_st().redraw_cmdline.set(true);
         }
     } else {
         oap.inclusive = inclusive;
@@ -804,7 +804,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: i32, include: bool) -> bool {
                 }
                 g_st().visual_global.start = start_pos;
                 g_st().visual_global.mode = b'v' as i32;
-                g_st().redraw_cmdline = true;
+                g_st().redraw_cmdline.set(true);
                 redraw_curbuf_later(UPD_INVERTED);
                 return true;
             }
@@ -1699,7 +1699,7 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
         if g_st().visual_global.mode == b'V' as i32 {
             g_st().visual_global.mode = b'v' as i32;
-            g_st().redraw_cmdline = true;
+            g_st().redraw_cmdline.set(true);
         }
     } else {
         oap.inclusive = inclusive;

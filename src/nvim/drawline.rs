@@ -1156,7 +1156,7 @@ fn apply_cursorline_highlight(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     let ae = syn_attr2entry(wlv.cul_attr);
     if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
         wlv.line_attr_lowprio = wlv.cul_attr;
-    } else if (g_st().state_global & MODE_INSERT) == 0
+    } else if (g_st().state_global.get() & MODE_INSERT) == 0
         && bt_quickfix(Some(wp.buf_mut()))
         && qf_current_entry(wp) == wlv.lnum
     {
@@ -1609,13 +1609,13 @@ pub fn win_line(
         extra_check = wp.w_onebuf_opt.wo_lbr.get();
         let w_s = wp.w_s_ptr();
         if syntax_present(&mut *wp) && !w_s.b_syn_error && !w_s.b_syn_slow && !has_foldtext {
-            let save_did_emsg = g_st().did_emsg;
-            g_st().did_emsg = 0;
+            let save_did_emsg = g_st().did_emsg.get();
+            g_st().did_emsg.set(0);
             syntax_start(wp, lnum);
-            if g_st().did_emsg != 0 {
+            if g_st().did_emsg.get() != 0 {
                 w_s.b_syn_error = true;
             } else {
-                g_st().did_emsg = save_did_emsg;
+                g_st().did_emsg.set(save_did_emsg);
                 if !w_s.b_syn_slow {
                     has_syntax = true;
                     extra_check = true;
@@ -2082,7 +2082,7 @@ pub fn win_line(
         ptr = line.wrapping_add(v as usize);
     }
 
-    if (g_st().state_global & MODE_INSERT) != 0
+    if (g_st().state_global.get() & MODE_INSERT) != 0
         && ins_compl_win_active(wp)
         && (in_curline || ins_compl_lnum_in_range(lnum))
     {
@@ -2277,7 +2277,7 @@ pub fn win_line(
                 apply_cursorline_highlight(wp, &mut wlv);
             }
 
-            if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
+            if g_st().dollar_vcol.get() >= 0 && in_curline && wlv.vcol >= cursor_vcol {
                 draw_virt_text(wp, buf.borrow_mut(), win_col_offset, &mut wlv.col, wlv.row);
 
                 wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
@@ -2391,7 +2391,7 @@ pub fn win_line(
                         has_match_conc = 0;
                     }
 
-                    if (g_st().state_global & MODE_INSERT) != 0
+                    if (g_st().state_global.get() & MODE_INSERT) != 0
                         && ins_compl_win_active(wp)
                         && (in_curline || ins_compl_lnum_in_range(lnum))
                     {
@@ -2688,8 +2688,8 @@ pub fn win_line(
                     let v = ((ptr as isize) - (line as isize)) as i32;
                     let prev_v = (prev_ptr as isize) - (line as isize);
                     if has_syntax && v > 0 {
-                        let save_did_emsg = g_st().did_emsg;
-                        g_st().did_emsg = 0;
+                        let save_did_emsg = g_st().did_emsg.get();
+                        g_st().did_emsg.set(0);
 
                         decor_attr = get_syntax_attr(
                             v - 1,
@@ -2697,11 +2697,11 @@ pub fn win_line(
                             false,
                         );
 
-                        if g_st().did_emsg != 0 {
+                        if g_st().did_emsg.get() != 0 {
                             w_s.b_syn_error = true;
                             has_syntax = false;
                         } else {
-                            g_st().did_emsg = save_did_emsg;
+                            g_st().did_emsg.set(save_did_emsg);
                         }
 
                         if w_s.b_syn_slow {
@@ -2762,13 +2762,13 @@ pub fn win_line(
                             word_end = v1 + len;
 
                             if spell_hlf != HLF_COUNT
-                                && (g_st().state_global & MODE_INSERT) != 0
+                                && (g_st().state_global.get() & MODE_INSERT) != 0
                                 && wp.w_cursor.lnum == lnum
                                 && wp.w_cursor.col >= prev_col
                                 && wp.w_cursor.col < word_end
                             {
                                 spell_hlf = HLF_COUNT;
-                                g_st().spell_redraw_lnum = lnum;
+                                g_st().spell_redraw_lnum.set(lnum);
                             }
 
                             if spell_hlf == HLF_COUNT && used_nextline && p_off + len > nextline_idx
@@ -3571,8 +3571,8 @@ pub fn win_line(
                 if wlv.line_attr_lowprio != 0 {
                     let line_ae = syn_attr2entry(wlv.line_attr_lowprio);
                     let char_ae = syn_attr2entry(wlv.char_attr);
-                    let mut win_normal_bg = g_st().normal_bg;
-                    let mut win_normal_cterm_bg = g_st().cterm_normal_bg_color;
+                    let mut win_normal_bg = g_st().normal_bg.get();
+                    let mut win_normal_cterm_bg = g_st().cterm_normal_bg_color.get();
 
                     if bg_attr != 0 {
                         let norm_ae = syn_attr2entry(bg_attr);

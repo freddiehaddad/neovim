@@ -277,7 +277,7 @@ pub fn channel_close(
             }
             if !chan.err_closed {
                 chan.err_closed = true;
-                if !g_st().exiting {
+                if !g_st().exiting.get() {
                     redirect_stderr_to_null();
                 }
                 channel_decref(&mut *chan);
@@ -632,7 +632,7 @@ pub fn channel_from_stdio(
     on_output: CallbackReader,
     error: &mut Option<&'static CStr>,
 ) -> u64 {
-    if !g_st().headless_mode && !g_st().embedded_mode {
+    if !g_st().headless_mode.get() && !g_st().embedded_mode.get() {
         *error = Some(gettext(c"can only be opened in headless mode"));
         return 0;
     }
@@ -648,14 +648,14 @@ pub fn channel_from_stdio(
     let mut stdout_dup_fd = STDOUT_FILENO;
 
     #[cfg(windows)]
-    if g_st().embedded_mode && os_has_conpty_working() {
+    if g_st().embedded_mode.get() && os_has_conpty_working() {
         stdin_dup_fd = os_dup_cloexec(STDIN_FILENO);
         stdout_dup_fd = os_dup_cloexec(STDOUT_FILENO);
         os_attach_parent_console();
     }
 
     #[cfg(not(windows))]
-    if g_st().embedded_mode {
+    if g_st().embedded_mode.get() {
         stdin_dup_fd = os_dupfd_cloexec(STDIN_FILENO, STDERR_FILENO + 1);
         stdout_dup_fd = os_dupfd_cloexec(STDOUT_FILENO, STDERR_FILENO + 1);
         let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
@@ -857,9 +857,9 @@ pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
         terminal_close(chan.term.borrow_mut(), status);
     }
 
-    if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
+    if !g_st().exiting.get() && g_st().ui_client_channel_id.get() == chan.id {
         ui_client_attach_to_restarted_server(status != 0);
-        if g_st().ui_client_channel_id == chan.id {
+        if g_st().ui_client_channel_id.get() == chan.id {
             exit_on_closed_chan(status);
         }
     }
@@ -972,7 +972,7 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
         let args = Array::from_slice(&mut args_items[..3]);
-        g_st().textlock += 1;
+        g_st().textlock.set(g_st().textlock.get() + (1));
         crate::lua::executor::nlua_call_ref(
             cb,
             Some(c"input"),
@@ -981,7 +981,7 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             None,
             None,
         );
-        g_st().textlock -= 1;
+        g_st().textlock.set(g_st().textlock.get() - (1));
         return;
     }
     let in_stream = &mut chan.uv.proc_.r#in;

@@ -114,10 +114,10 @@ pub fn exec_impl(
     opts: &mut KeyDict_exec_opts,
     err: &mut Error,
 ) -> NvimString {
-    let save_msg_silent = g_st().msg_silent;
-    let save_redir_off = g_st().redir_off;
+    let save_msg_silent = g_st().msg_silent.get();
+    let save_redir_off = g_st().redir_off.get();
     let mut save_capture_ga = g_st().capture_ga.take();
-    let save_msg_col = g_st().msg_col;
+    let save_msg_col = g_st().msg_col.get();
     let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
         g_st().capture_ga = Some(Vec::new());
@@ -128,9 +128,9 @@ pub fn exec_impl(
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     if opts.output {
-        g_st().msg_silent += 1;
-        g_st().redir_off = false;
-        g_st().msg_col = 0;
+        g_st().msg_silent.set(g_st().msg_silent.get() + (1));
+        g_st().redir_off.set(false);
+        g_st().msg_col.set(0);
     }
 
     let save_current_sctx = api_set_sctx(channel_id);
@@ -138,9 +138,9 @@ pub fn exec_impl(
     if opts.output {
         capture_local =
             std::mem::replace(&mut g_st().capture_ga, save_capture_ga).unwrap_or_default();
-        g_st().msg_silent = save_msg_silent;
-        g_st().redir_off = save_redir_off;
-        g_st().msg_col = save_msg_col;
+        g_st().msg_silent.set(save_msg_silent);
+        g_st().redir_off.set(save_redir_off);
+        g_st().msg_col.set(save_msg_col);
     }
     g_st().current_sctx = save_current_sctx;
     try_leave(&tstate, err);
@@ -183,10 +183,10 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
 
     let eval_rec = API_VIMS_STATE.with(|st| st.eval_recursive.get());
     if eval_rec == 0 {
-        g_st().force_abort = false;
-        g_st().suppress_errthrow = false;
-        g_st().did_throw = false;
-        g_st().did_emsg = 0;
+        g_st().force_abort.set(false);
+        g_st().suppress_errthrow.set(false);
+        g_st().did_throw.set(false);
+        g_st().did_emsg.set(0);
     }
     API_VIMS_STATE.with(|st| st.eval_recursive.set(eval_rec + 1));
 
@@ -253,10 +253,10 @@ fn call_function_impl(
 
     let call_rec = API_VIMS_STATE.with(|st| st.call_func_recursive.get());
     if call_rec == 0 {
-        g_st().force_abort = false;
-        g_st().suppress_errthrow = false;
-        g_st().did_throw = false;
-        g_st().did_emsg = 0;
+        g_st().force_abort.set(false);
+        g_st().suppress_errthrow.set(false);
+        g_st().did_throw.set(false);
+        g_st().did_emsg.set(0);
     }
     API_VIMS_STATE.with(|st| st.call_func_recursive.set(call_rec + 1));
 

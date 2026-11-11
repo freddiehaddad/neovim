@@ -232,9 +232,9 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         fconfig.col += curwin_mut().w_wcol.get() as f64;
         fconfig.window = curwin_mut().handle;
     } else if fconfig.relative == K_FLOAT_RELATIVE_MOUSE {
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
-        let mut grid = g_st().mouse_grid;
+        let mut row = g_st().mouse_row.get();
+        let mut col = g_st().mouse_col.get();
+        let mut grid = g_st().mouse_grid.get();
         if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
             fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
             fconfig.row += row as f64;
@@ -264,9 +264,9 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         } else {
             0
         };
-        let max_h = g_st().rows_global - win_border_height(wp) - above_ch;
+        let max_h = g_st().rows_global.get() - win_border_height(wp) - above_ch;
         wp.w_height.set(wp.w_height.get().min(max_h));
-        let max_w = g_st().columns_global - win_border_width(wp);
+        let max_w = g_st().columns_global.get() - win_border_width(wp);
         wp.w_width.set(wp.w_width.get().min(max_w));
     }
 
@@ -553,8 +553,12 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
     let border_h = win_border_height(&mut *wp);
     let border_w = win_border_width(&mut *wp);
-    let row = wp.w_wantline.get().max(0).min(g_st().rows_global - 1);
-    let col = wp.w_wantcol.get().max(0).min(g_st().columns_global - 1);
+    let row = wp.w_wantline.get().max(0).min(g_st().rows_global.get() - 1);
+    let col = wp
+        .w_wantcol
+        .get()
+        .max(0)
+        .min(g_st().columns_global.get() - 1);
 
     let v: OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
@@ -571,23 +575,23 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     // If a dimension is not given in 'previewpopup', autosize to the content.
     let last: Linenr = wp.buf_mut().b_ml.ml_line_count;
     if want_w == 0 {
-        want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().columns_global).max(1);
+        want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().columns_global.get()).max(1);
     }
-    want_w = want_w.min(g_st().columns_global);
+    want_w = want_w.min(g_st().columns_global.get());
 
     if want_h == 0 {
         let saved_view_width = wp.w_view_width.get();
         wp.w_view_width.set(want_w);
-        want_h = plines_m_win(wp, 1, last, g_st().rows_global).max(1);
+        want_h = plines_m_win(wp, 1, last, g_st().rows_global.get()).max(1);
         wp.w_view_width.set(saved_view_width);
     }
-    want_h = want_h.min(g_st().rows_global);
+    want_h = want_h.min(g_st().rows_global.get());
 
     let need_h = want_h + border_h;
     let need_w = want_w + border_w;
-    let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch.get() as i32);
+    let space_below = g_st().rows_global.get() - row - 1 - (opt_vars().p_ch.get() as i32);
     let space_above = row - 1;
-    let space_right = g_st().columns_global - col - 1;
+    let space_right = g_st().columns_global.get() - col - 1;
     let space_left = col;
     // Prefer below/right; flip only if this side can't fit but the other can.
     let below = space_below >= need_h || space_above < need_h;

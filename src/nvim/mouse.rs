@@ -262,7 +262,7 @@ fn find_end_of_word(pos: &mut CursorPos) {
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
+    let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].tabnr;
     if tabnr <= 0 {
         tabpage_move(9999);
     } else if tabnr < tabpage_index(g_st().curtab.opt()) {
@@ -291,11 +291,11 @@ fn mouse_tab_close(c1: i32) {
 /// Call click definition function for column "col" in the "click_defs" array for button
 /// "which_button".
 fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button: i32) {
-    let clicks = if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+    let clicks = if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
         4
-    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
         3
-    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
         2
     } else {
         1
@@ -316,22 +316,22 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     };
 
     let mod_str: [u8; 5] = [
-        if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
             b's'
         } else {
             b' '
         },
-        if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 {
             b'c'
         } else {
             b' '
         },
-        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
             b'a'
         } else {
             b' '
         },
-        if (g_st().mod_mask & MOD_MASK_META) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_META) != 0 {
             b'm'
         } else {
             b' '
@@ -382,9 +382,9 @@ fn get_fpos_of_mouse(
     mpos: &mut CursorPos,
     wpp: Option<&mut Option<&'static mut WinInfoInfo>>,
 ) -> i32 {
-    let mut grid = g_st().mouse_grid;
-    let mut row = g_st().mouse_row;
-    let mut col = g_st().mouse_col;
+    let mut grid = g_st().mouse_grid.get();
+    let mut row = g_st().mouse_row.get();
+    let mut col = g_st().mouse_col.get();
 
     if row < 0 || col < 0 {
         return IN_UNKNOWN;
@@ -415,10 +415,11 @@ fn get_fpos_of_mouse(
     }
 
     if winrow >= wp.w_view_height.get() + wp.w_status_height.get() {
-        if g_st().mouse_grid <= 1
-            && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch.get()
-            && i64::from(g_st().mouse_row)
-                >= i64::from(g_st().rows_global)
+        if g_st().mouse_grid.get() <= 1
+            && i64::from(g_st().mouse_row.get())
+                < i64::from(g_st().rows_global.get()) - opt_vars().p_ch.get()
+            && i64::from(g_st().mouse_row.get())
+                >= i64::from(g_st().rows_global.get())
                     - opt_vars().p_ch.get()
                     - i64::from(global_stl_height())
         {
@@ -521,19 +522,19 @@ pub fn do_mouse(
 
     loop {
         which_button = get_mouse_button(key2termcap1(c), &mut is_click, &mut is_drag);
-        if is_drag && g_st().key_stuffed == 0 && vpeekc() != 0 {
-            let save_mouse_grid = g_st().mouse_grid;
-            let save_mouse_row = g_st().mouse_row;
-            let save_mouse_col = g_st().mouse_col;
+        if is_drag && g_st().key_stuffed.get() == 0 && vpeekc() != 0 {
+            let save_mouse_grid = g_st().mouse_grid.get();
+            let save_mouse_row = g_st().mouse_row.get();
+            let save_mouse_col = g_st().mouse_col.get();
 
             let nc = safe_vgetc();
             if c == nc {
                 continue;
             }
             vungetc(nc);
-            g_st().mouse_grid = save_mouse_grid;
-            g_st().mouse_row = save_mouse_row;
-            g_st().mouse_col = save_mouse_col;
+            g_st().mouse_grid.set(save_mouse_grid);
+            g_st().mouse_row.set(save_mouse_row);
+            g_st().mouse_col.set(save_mouse_col);
         }
         break;
     }
@@ -559,8 +560,8 @@ pub fn do_mouse(
         }
     }
 
-    if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
-        if (g_st().state_global & MODE_INSERT) != 0 {
+    if is_click && (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
+        if (g_st().state_global.get() & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
         if count > 1 {
@@ -568,24 +569,25 @@ pub fn do_mouse(
         }
         stuffchar_readbuff(CTRL_T_CONST);
         mouse_st(|st| st.got_click.set(false));
-        if (g_st().state_global & MODE_INSERT) == 0 {
+        if (g_st().state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
         return false;
     }
 
-    if (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
+    if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
         return false;
     }
 
-    if (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META)) != 0
+    if (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META))
+        != 0
         && (!is_click
-            || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
+            || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
             || which_button == MOUSE_MIDDLE)
-        && !((g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+        && !((g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
             && mouse_model_popup()
             && which_button == MOUSE_LEFT)
-        && !((g_st().mod_mask & MOD_MASK_ALT) != 0
+        && !((g_st().mod_mask.get() & MOD_MASK_ALT) != 0
             && !mouse_model_popup()
             && which_button == MOUSE_RIGHT)
     {
@@ -602,7 +604,7 @@ pub fn do_mouse(
         0
     };
     if which_button == MOUSE_MIDDLE {
-        if g_st().state_global == MODE_NORMAL {
+        if g_st().state_global.get() == MODE_NORMAL {
             if oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
                 clearopbeep(oap.as_deref_mut().unwrap());
                 return false;
@@ -623,11 +625,11 @@ pub fn do_mouse(
                 exec_stuffed(None);
                 return false;
             }
-        } else if (g_st().state_global & MODE_INSERT) == 0 {
+        } else if (g_st().state_global.get() & MODE_INSERT) == 0 {
             return false;
         }
 
-        if (g_st().state_global & MODE_INSERT) != 0 {
+        if (g_st().state_global.get() & MODE_INSERT) != 0 {
             if regname == b'.' as i32 {
                 insert_reg(regname, None, true);
             } else {
@@ -635,7 +637,7 @@ pub fn do_mouse(
                     regname = b'*' as i32;
                 }
                 let mut reg: Option<crate::register::RegIdx> = None;
-                if (g_st().state_global & REPLACE_FLAG) != 0
+                if (g_st().state_global.get() & REPLACE_FLAG) != 0
                     && !yank_register_mline(regname, &mut reg)
                 {
                     insert_reg(regname, reg, true);
@@ -665,7 +667,10 @@ pub fn do_mouse(
     let old_curwin = curwin_ptr();
 
     if !g_st().tab_page_click_defs.is_empty() {
-        if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow.get() > 0 {
+        if g_st().mouse_grid.get() <= 1
+            && g_st().mouse_row.get() == 0
+            && firstwin_mut().w_winrow.get() > 0
+        {
             if is_drag {
                 if mouse_st(|st| st.in_tab_line.get()) {
                     move_tab_to_mouse();
@@ -673,15 +678,16 @@ pub fn do_mouse(
                 return false;
             }
 
-            if is_click && g_st().mouse_col < g_st().columns_global {
-                let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
+            if is_click && g_st().mouse_col.get() < g_st().columns_global.get() {
+                let tabnr =
+                    g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].tabnr;
                 mouse_st(|st| st.in_tab_line.set(true));
 
-                match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
+                match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].type_ {
                     K_STL_CLICK_DISABLED => {}
                     K_STL_CLICK_TAB_SWITCH => {
                         if which_button != MOUSE_MIDDLE {
-                            if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+                            if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
                                 end_visual_mode();
                                 tabpage_new();
                                 tabpage_move(if tabnr == 0 { 9999 } else { tabnr - 1 });
@@ -701,7 +707,7 @@ pub fn do_mouse(
                     K_STL_CLICK_FUNC_RUN => {
                         call_click_def_func(
                             g_st().tab_page_click_defs.as_slice(),
-                            g_st().mouse_col,
+                            g_st().mouse_col.get(),
                             which_button,
                         );
                     }
@@ -715,7 +721,7 @@ pub fn do_mouse(
         }
     }
 
-    if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
+    if is_click && (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
         let mut pos = ZERO_POS;
         let mut wp: Option<&'static mut WinInfoInfo> = None;
         if get_fpos_of_mouse(&mut pos, Some(&mut wp)) == IN_BUFFER
@@ -723,7 +729,7 @@ pub fn do_mouse(
             && !bt_quickfix(wp.buf_opt())
         {
             mouse_st(|st| st.got_click.set(false));
-            if (g_st().state_global & MODE_INSERT) == 0 {
+            if (g_st().state_global.get() & MODE_INSERT) == 0 {
                 pos.coladd = 0;
 
                 mc_toggle(wp.buf_mut(), pos, false, K_NONE);
@@ -738,7 +744,7 @@ pub fn do_mouse(
         m_pos_flag = get_fpos_of_mouse(&mut m_pos, None);
         if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
             && which_button == MOUSE_RIGHT
-            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+            && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
         {
             if !is_click {
                 return false;
@@ -747,18 +753,20 @@ pub fn do_mouse(
         }
         if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
             && which_button == MOUSE_LEFT
-            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+            && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
         {
             which_button = MOUSE_RIGHT;
-            g_st().mod_mask &= !MOD_MASK_SHIFT;
+            g_st()
+                .mod_mask
+                .set(g_st().mod_mask.get() & (!MOD_MASK_SHIFT));
         }
     }
 
     let mut end_visual = ZERO_POS;
     let mut start_visual = ZERO_POS;
     let mouse_can_visual = ui_mouse_has(K_MOUSE_VISUAL);
-    if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
-        && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+    if (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
+        && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
     {
         if which_button == MOUSE_LEFT && mouse_can_visual {
             if is_click {
@@ -805,7 +813,7 @@ pub fn do_mouse(
         );
     }
 
-    if g_st().mod_mask == 0
+    if g_st().mod_mask.get() == 0
         && !is_drag
         && (jump_flags & (MOUSE_FOLD_CLOSE | MOUSE_FOLD_OPEN)) != 0
         && which_button == MOUSE_LEFT
@@ -828,9 +836,9 @@ pub fn do_mouse(
     let in_sep_line = (jump_flags & IN_SEP_LINE) != 0;
 
     if (in_winbar || in_status_line || in_statuscol) && is_click {
-        let mut click_grid = g_st().mouse_grid;
-        let mut click_row = g_st().mouse_row;
-        let mut click_col = g_st().mouse_col;
+        let mut click_grid = g_st().mouse_grid.get();
+        let mut click_row = g_st().mouse_row.get();
+        let mut click_col = g_st().mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) else {
             return false;
         };
@@ -842,7 +850,7 @@ pub fn do_mouse(
                 wp
             };
             if in_global_statusline {
-                click_col = g_st().mouse_col;
+                click_col = g_st().mouse_col.get();
             }
             if click_col >= stl_wp.w_status_click_defs.len() as i32 {
                 return false;
@@ -887,7 +895,7 @@ pub fn do_mouse(
                     if in_statuscol
                         && mouse_model_popup()
                         && which_button == MOUSE_RIGHT
-                        && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+                        && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
                     {
                         do_popup(which_button, m_pos_flag, m_pos);
                     }
@@ -914,21 +922,21 @@ pub fn do_mouse(
     }
 
     if g_st().visual_global.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
-        if g_st().mouse_row == 0 {
-            g_st().mouse_dragging = 2;
+        if g_st().mouse_row.get() == 0 {
+            g_st().mouse_dragging.set(2);
         } else {
-            g_st().mouse_dragging = 1;
+            g_st().mouse_dragging.set(1);
         }
     }
 
-    if is_drag && g_st().mouse_row < 0 && !in_status_line {
+    if is_drag && g_st().mouse_row.get() < 0 && !in_status_line {
         scroll_redraw(0, 1);
-        g_st().mouse_row = 0;
+        g_st().mouse_row.set(0);
     }
 
     let old_mode = g_st().visual_global.mode;
     if start_visual.lnum != 0 {
-        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
             g_st().visual_global.mode = CTRL_V_CONST;
         }
 
@@ -983,7 +991,7 @@ pub fn do_mouse(
                 g_st().visual_global.start = start_visual;
             }
         }
-    } else if (g_st().state_global & MODE_INSERT) != 0 && g_st().visual_global.active {
+    } else if (g_st().state_global.get() & MODE_INSERT) != 0 && g_st().visual_global.active {
         stuffchar_readbuff(CTRL_O);
     }
 
@@ -993,10 +1001,10 @@ pub fn do_mouse(
         }
         let mut reg: Option<crate::register::RegIdx> = None;
         if yank_register_mline(regname, &mut reg) {
-            if g_st().mouse_past_bottom {
+            if g_st().mouse_past_bottom.get() {
                 dir = FORWARD;
             }
-        } else if g_st().mouse_past_eol {
+        } else if g_st().mouse_past_eol.get() {
             dir = FORWARD;
         }
 
@@ -1031,7 +1039,7 @@ pub fn do_mouse(
             },
         );
 
-        if g_st().restart_edit != 0 {
+        if g_st().restart_edit.get() != 0 {
             g_st().where_paste_started = curwin_mut().w_cursor;
         }
         do_put(
@@ -1041,8 +1049,8 @@ pub fn do_mouse(
             count,
             (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
         );
-    } else if ((g_st().mod_mask & MOD_MASK_CTRL) != 0
-        || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+    } else if ((g_st().mod_mask.get() & MOD_MASK_CTRL) != 0
+        || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
         && bt_quickfix(Some(crate::globals::curbuf_mut()))
     {
         if curwin_mut().w_llist_ref.is_null() {
@@ -1052,18 +1060,18 @@ pub fn do_mouse(
         }
         mouse_st(|st| st.got_click.set(false));
     } else if curbuf_mut().b_help.get()
-        && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
+        && (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
     {
-        if (g_st().state_global & MODE_INSERT) != 0 {
+        if (g_st().state_global.get() & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
         stuffchar_readbuff(CTRL_RSB_CONST);
         mouse_st(|st| st.got_click.set(false));
-        if (g_st().state_global & MODE_INSERT) == 0 {
+        if (g_st().state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
-    } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
-        if (g_st().state_global & MODE_INSERT) != 0
+    } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
+        if (g_st().state_global.get() & MODE_INSERT) != 0
             || (g_st().visual_global.active && g_st().visual_global.select)
         {
             stuffchar_readbuff(CTRL_O);
@@ -1073,13 +1081,13 @@ pub fn do_mouse(
         } else {
             stuffchar_readbuff(b'#' as i32);
         }
-        if (g_st().state_global & MODE_INSERT) == 0 {
+        if (g_st().state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
     } else if in_status_line || in_sep_line {
         // Do nothing if on status line or vertical separator
-    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
-        && (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
+    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
+        && (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
         && mouse_can_visual
     {
         if is_click || !g_st().visual_global.active {
@@ -1093,19 +1101,19 @@ pub fn do_mouse(
                 may_start_select(b'o' as i32);
                 setmouse();
             }
-            if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+            if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+                if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
                     g_st().visual_global.mode = CTRL_V_CONST;
                 } else {
                     g_st().visual_global.mode = b'v' as i32;
                 }
-            } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+            } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
                 g_st().visual_global.mode = b'V' as i32;
-            } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+            } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
                 g_st().visual_global.mode = CTRL_V_CONST;
             }
         }
-        if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+        if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
             let mut pos: Option<CursorPos> = None;
 
             if is_click {
@@ -1157,20 +1165,20 @@ pub fn do_mouse(
             redraw_curbuf_later(UPD_INVERTED);
         }
     } else if g_st().visual_global.active && !old_active {
-        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
             g_st().visual_global.mode = CTRL_V_CONST;
         } else {
             g_st().visual_global.mode = b'v' as i32;
         }
     }
 
-    if (!g_st().visual_global.active && old_active && g_st().mode_displayed)
+    if (!g_st().visual_global.active && old_active && g_st().mode_displayed.get())
         || (g_st().visual_global.active
             && opt_vars().p_smd.get()
-            && g_st().msg_silent == 0
+            && g_st().msg_silent.get() == 0
             && (!old_active || g_st().visual_global.mode != old_mode))
     {
-        g_st().redraw_cmdline = true;
+        g_st().redraw_cmdline.set(true);
     }
 
     moved
@@ -1212,10 +1220,10 @@ pub fn ins_mouse(c: i32) {
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
 pub fn do_mousescroll(cap: &mut Cmdarg) {
-    let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
+    let shift_or_ctrl = (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
     if cap.arg == MSCR_UP || cap.arg == MSCR_DOWN {
-        if (g_st().state_global & MODE_NORMAL) != 0 && shift_or_ctrl {
+        if (g_st().state_global.get() & MODE_NORMAL) != 0 && shift_or_ctrl {
             pagescroll(if cap.arg != 0 { FORWARD } else { BACKWARD }, 1, false);
         } else {
             if shift_or_ctrl {
@@ -1256,10 +1264,10 @@ pub fn ins_mousescroll(dir: i32) {
     }
 
     let old_curwin = curwin_ptr();
-    if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
+    if g_st().mouse_row.get() >= 0 && g_st().mouse_col.get() >= 0 {
+        let mut grid = g_st().mouse_grid.get();
+        let mut row = g_st().mouse_row.get();
+        let mut col = g_st().mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
@@ -1305,13 +1313,13 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
         _ => {}
     }
 
-    if g_st().mouse_row < 0 || g_st().mouse_col < 0 {
+    if g_st().mouse_row.get() < 0 || g_st().mouse_col.get() < 0 {
         return false;
     }
 
-    let mut grid = g_st().mouse_grid;
-    let mut row = g_st().mouse_row;
-    let mut col = g_st().mouse_col;
+    let mut grid = g_st().mouse_grid.get();
+    let mut row = g_st().mouse_row.get();
+    let mut col = g_st().mouse_col.get();
 
     let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) else {
         return false;
@@ -1402,13 +1410,13 @@ fn jump_to_mouse_retnomove(
 /// Change current window if necessary. Returns an integer with the
 /// CURSOR_MOVED bit set if the cursor has moved or unset otherwise.
 pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button: i32) -> i32 {
-    let mut row = g_st().mouse_row;
-    let mut col = g_st().mouse_col;
-    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row.get();
+    let mut col = g_st().mouse_col.get();
+    let mut grid = g_st().mouse_grid.get();
     let keep_focus = (flags & MOUSE_FOCUS) != 0;
 
-    g_st().mouse_past_bottom = false;
-    g_st().mouse_past_eol = false;
+    g_st().mouse_past_bottom.set(false);
+    g_st().mouse_past_eol.set(false);
 
     if (flags & MOUSE_RELEASED) != 0 {
         mouse_st(|st| {
@@ -1422,7 +1430,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     if (flags & MOUSE_DID_MOVE) != 0
         && mouse_st(|st| {
-            st.prev_row.get() == g_st().mouse_row && st.prev_col.get() == g_st().mouse_col
+            st.prev_row.get() == g_st().mouse_row.get()
+                && st.prev_col.get() == g_st().mouse_col.get()
         })
     {
         let (stl_off, sep_off, winbar, stcol) = mouse_st(|st| {
@@ -1437,8 +1446,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     }
 
     mouse_st(|st| {
-        st.prev_row.set(g_st().mouse_row);
-        st.prev_col.set(g_st().mouse_col);
+        st.prev_row.set(g_st().mouse_row.get());
+        st.prev_col.set(g_st().mouse_col.get());
     });
 
     if (flags & MOUSE_SETPOS) != 0 {
@@ -1495,9 +1504,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     });
 
     if keep_focus {
-        row = g_st().mouse_row;
-        col = g_st().mouse_col;
-        grid = g_st().mouse_grid;
+        row = g_st().mouse_row.get();
+        col = g_st().mouse_col.get();
+        grid = g_st().mouse_grid.get();
     }
 
     let old_curwin = curwin_ptr();
@@ -1555,7 +1564,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         && (flags & MOUSE_MAY_STOP_VIS) != 0));
             if status_line_offset == 0 && sep_line_offset == 0 {
                 resolved = crate::globals::WinPtr::from(&*wp);
-                g_st().mouse_past_bottom = mouse_resolve(
+                let past_bottom = mouse_resolve(
                     &mut *wp,
                     row,
                     col,
@@ -1563,6 +1572,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                     &mut vcol,
                     &mut mouse_fold_flags,
                 );
+                g_st().mouse_past_bottom.set(past_bottom);
             }
             if stop_visual {
                 end_visual_mode();
@@ -1707,7 +1717,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             );
             row = curwin_mut().w_view_height.get() - 1;
         } else if row == 0
-            && g_st().mouse_dragging > 0
+            && g_st().mouse_dragging.get() > 0
             && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count
             && curwin_mut().w_cursor.lnum == curwin_mut().w_topline.get()
         {
@@ -1719,7 +1729,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     if resolved.is_null() || resolved != curwin_ptr() || lnum > curbuf_mut().b_ml.ml_line_count {
         mouse_fold_flags = 0;
-        g_st().mouse_past_bottom = mouse_resolve(
+        let past_bottom = mouse_resolve(
             curwin_mut(),
             row,
             col,
@@ -1727,6 +1737,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             &mut vcol,
             &mut mouse_fold_flags,
         );
+        g_st().mouse_past_bottom.set(past_bottom);
     }
     curwin_mut().w_cursor.lnum = lnum;
 
@@ -1737,8 +1748,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         may_start_select(b'o' as i32);
         setmouse();
 
-        if opt_vars().p_smd.get() && g_st().msg_silent == 0 {
-            g_st().redraw_cmdline = true;
+        if opt_vars().p_smd.get() && g_st().msg_silent.get() == 0 {
+            g_st().redraw_cmdline.set(true);
         }
     }
 
@@ -1748,7 +1759,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         if let Some(inclusive) = inclusive {
             *inclusive = true;
         }
-        g_st().mouse_past_eol = true;
+        g_st().mouse_past_eol.set(true);
     } else if let Some(inclusive) = inclusive {
         *inclusive = false;
     }
@@ -1793,10 +1804,10 @@ fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
 pub fn nv_mousescroll(cap: &mut Cmdarg) {
     let old_curwin = curwin_ptr();
 
-    if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
+    if g_st().mouse_row.get() >= 0 && g_st().mouse_col.get() >= 0 {
+        let mut grid = g_st().mouse_grid.get();
+        let mut row = g_st().mouse_row.get();
+        let mut col = g_st().mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
@@ -2014,7 +2025,7 @@ fn mouse_find_grid_win(
     colp: &mut i32,
 ) -> Option<&'static mut WinInfoInfo> {
     if *gridp == g_st().msg_grid.handle {
-        *rowp += g_st().msg_grid_pos;
+        *rowp += g_st().msg_grid_pos.get();
         *gridp = DEFAULT_GRID_HANDLE;
     } else if *gridp > 1 {
         if let Some(wp) = get_win_by_grid_handle(*gridp)
@@ -2149,9 +2160,9 @@ fn find_longest_lnum() -> Linenr {
 
 /// Check clicked cell on its grid
 fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
-    let mut click_grid = g_st().mouse_grid;
-    let mut click_row = g_st().mouse_row;
-    let mut click_col = g_st().mouse_col;
+    let mut click_grid = g_st().mouse_grid.get();
+    let mut click_row = g_st().mouse_row.get();
+    let mut click_col = g_st().mouse_col.get();
 
     if !mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col)
         .is_some_and(|w| ptr::eq(w, wp))
@@ -2212,9 +2223,9 @@ fn mouse_resolve(
 
 /// "getmousepos()" function
 pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut row = g_st().mouse_row;
-    let mut col = g_st().mouse_col;
-    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row.get();
+    let mut col = g_st().mouse_col.get();
+    let mut grid = g_st().mouse_grid.get();
     let mut winid: Varnumber = 0;
     let mut winrow: Varnumber = 0;
     let mut wincol: Varnumber = 0;
@@ -2224,8 +2235,16 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     let d = tv_dict_alloc_ret(rettv);
 
-    tv_dict_add_nr(&d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
-    tv_dict_add_nr(&d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
+    tv_dict_add_nr(
+        &d,
+        c"screenrow",
+        Varnumber::from(g_st().mouse_row.get()) + 1,
+    );
+    tv_dict_add_nr(
+        &d,
+        c"screencol",
+        Varnumber::from(g_st().mouse_col.get()) + 1,
+    );
 
     if let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) {
         let height = wp.w_height.get() + wp.w_hsep_height.get() + wp.w_status_height.get();

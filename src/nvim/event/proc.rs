@@ -306,12 +306,11 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
 
         (*proc_).refcount += 1;
         loop_process_events_until(main_loop_ptr(), events.opt_mut(), i64::from(ms), || {
-            ptr::read_volatile(&raw const g_st().got_int)
-                || ptr::read_volatile(&raw const (*proc_).refcount) == 1
+            g_st().got_int.get() || ptr::read_volatile(&raw const (*proc_).refcount) == 1
         });
 
-        if g_st().got_int {
-            g_st().got_int = false;
+        if g_st().got_int.get() {
+            g_st().got_int.set(false);
             proc_stop(&mut *proc_);
             if ms == -1 {
                 loop_process_events_until(main_loop_ptr(), events.opt_mut(), -1, || {
@@ -530,9 +529,9 @@ pub fn exit_event(status: i32) {
         return;
     }
 
-    if !g_st().exiting {
-        if g_st().ui_client_channel_id != 0 {
-            g_st().ui_client_exit_status = status;
+    if !g_st().exiting.get() {
+        if g_st().ui_client_channel_id.get() != 0 {
+            g_st().ui_client_exit_status.set(status);
             os_exit(status);
         } else {
             debug_assert_eq!(status, 0);

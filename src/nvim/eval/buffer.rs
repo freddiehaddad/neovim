@@ -199,8 +199,8 @@ fn set_buffer_lines(
             break;
         }
 
-        if g_st().u_sync_once == 2 {
-            g_st().u_sync_once = 1;
+        if g_st().u_sync_once.get() == 2 {
+            g_st().u_sync_once.set(1);
             u_sync(true);
         }
 
@@ -252,22 +252,22 @@ fn set_buffer_lines(
 
 /// `append(lnum, string/list)` function (`f_append`).
 pub fn f_append(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
     let lnum = tv_get_lnum(&argvars[0]);
-    if g_st().did_emsg == did_emsg_before {
+    if g_st().did_emsg.get() == did_emsg_before {
         set_buffer_lines(g_st().curbuf.opt_mut(), lnum, true, &mut argvars[1], rettv);
     }
 }
 
 /// Set or append lines to a buffer (`buf_set_append_line`).
 fn buf_set_append_line(argvars: &mut [TypVal], rettv: &mut TypVal, append: bool) {
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
     let Some(buf) = tv_get_buf(&mut argvars[0], 0) else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     };
     let lnum = tv_get_lnum_buf(&argvars[1], Some(&*buf));
-    if g_st().did_emsg == did_emsg_before {
+    if g_st().did_emsg.get() == did_emsg_before {
         set_buffer_lines(Some(buf), lnum, append, &mut argvars[2], rettv);
     }
 }
@@ -384,7 +384,7 @@ pub fn invoke_prompt_interrupt() -> bool {
         vval: TypvalVval::Number(0),
     }];
 
-    g_st().got_int = false;
+    g_st().got_int.set(false);
     let ret = callback_call(&curbuf_mut().b_prompt_interrupt, 0, &mut argv, &mut rettv);
     tv_clear(&mut rettv);
     ret
@@ -392,7 +392,7 @@ pub fn invoke_prompt_interrupt() -> bool {
 
 /// `prompt_appendbuf({buffer}, string/list)` function (`f_prompt_appendbuf`).
 pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
 
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
@@ -434,7 +434,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         }
     }
 
-    if g_st().did_emsg == did_emsg_before {
+    if g_st().did_emsg.get() == did_emsg_before {
         if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
             let li = l.lv_first.get();
@@ -506,8 +506,8 @@ pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `bufload(expr)` function (`f_bufload`).
 pub fn f_bufload(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFuncData) {
     if let Some(buf) = get_buf_arg(&mut argvars[0]) {
-        if g_st().swap_exists_action != SEA_READONLY {
-            g_st().swap_exists_action = SEA_NONE;
+        if g_st().swap_exists_action.get() != SEA_READONLY {
+            g_st().swap_exists_action.set(SEA_NONE);
         }
         buf_ensure_loaded(buf);
     }
@@ -548,9 +548,9 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         if !tv_check_str_or_nr(&argvars[0]) {
             return;
         }
-        g_st().emsg_off += 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
         let b = crate::globals::BufPtr::from(tv_get_buf(&mut argvars[0], 0));
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
         b
     };
 
@@ -605,14 +605,14 @@ pub fn f_bufwinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `deletebufline()` function (`f_deletebufline`).
 pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
     rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL by default
     let Some(buf) = tv_get_buf(&mut argvars[0], 0) else {
         return;
     };
 
     let first = tv_get_lnum_buf(&argvars[1], Some(&*buf));
-    if g_st().did_emsg > did_emsg_before {
+    if g_st().did_emsg.get() > did_emsg_before {
         return;
     }
     let mut last = if argvars[2].v_type != VarType::VarUnknown {
@@ -637,8 +637,8 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
     let count: i32 = last - first + 1;
 
-    if g_st().u_sync_once == 2 {
-        g_st().u_sync_once = 1;
+    if g_st().u_sync_once.get() == 2 {
+        g_st().u_sync_once.set(1);
         u_sync(true);
     }
 
@@ -815,11 +815,11 @@ fn get_buffer_lines(
 fn getbufline(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
     let mut lnum: Linenr = 1;
     let mut end: Linenr = 1;
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
     let buf = tv_get_buf_from_arg(&mut argvars[0]);
     if let Some(ref buf_ref) = buf {
         lnum = tv_get_lnum_buf(&argvars[1], Some(buf_ref));
-        if g_st().did_emsg > did_emsg_before {
+        if g_st().did_emsg.get() > did_emsg_before {
             return;
         }
         end = if argvars[2].v_type == VarType::VarUnknown {
@@ -867,9 +867,9 @@ pub fn f_setbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `setline()` function (`f_setline`).
 pub fn f_setline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let did_emsg_before = g_st().did_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
     let lnum = tv_get_lnum(&argvars[0]);
-    if g_st().did_emsg == did_emsg_before {
+    if g_st().did_emsg.get() == did_emsg_before {
         set_buffer_lines(g_st().curbuf.opt_mut(), lnum, false, &mut argvars[1], rettv);
     }
 }

@@ -325,7 +325,7 @@ pub struct VimTimer {
 
 impl Drop for VimTimer {
     fn drop(&mut self) {
-        if crate::globals::g_st().exiting {
+        if crate::globals::g_st().exiting.get() {
             return;
         }
         if let Some(events) = self.watcher.get_mut().events.opt_mut() {
@@ -475,7 +475,7 @@ pub fn eval_to_bool(
     fill_evalarg_from_eap(&mut evalarg, skip);
 
     if skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     let r = if use_simple_function {
         eval0_simple_funccal(arg, &mut tv, Some(&mut *eap), &mut evalarg)
@@ -492,7 +492,7 @@ pub fn eval_to_bool(
         }
     }
     if skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     }
 
     retval
@@ -501,8 +501,8 @@ pub fn eval_to_bool(
 /// Call eval1() and give an error message if not done at a lower level.
 fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> bool {
     let start = *arg;
-    let did_emsg_before = g_st().did_emsg;
-    let called_emsg_before = g_st().called_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
+    let called_emsg_before = g_st().called_emsg.get();
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip);
@@ -510,8 +510,8 @@ fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
     let ret = eval1(arg, &mut *rettv, Some(&mut evalarg));
     if !ret
         && !aborting()
-        && g_st().did_emsg == did_emsg_before
-        && g_st().called_emsg == called_emsg_before
+        && g_st().did_emsg.get() == did_emsg_before
+        && g_st().called_emsg.get() == called_emsg_before
     {
         semsg!(gettext(E_INVEXPR2), start);
     }
@@ -646,7 +646,7 @@ pub fn eval_to_string_skip(arg: &CStr, eap: &mut Exarg, skip: bool) -> Option<st
 
     fill_evalarg_from_eap(&mut evalarg, skip);
     if skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     if !eval0(arg, &mut tv, Some(&mut *eap), &mut evalarg) || skip {
         retval = None;
@@ -655,7 +655,7 @@ pub fn eval_to_string_skip(arg: &CStr, eap: &mut Exarg, skip: bool) -> Option<st
         tv_clear(&mut tv);
     }
     if skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     }
 
     retval
@@ -747,16 +747,16 @@ pub fn eval_to_string_safe(
     save_funccal();
     {
         if use_sandbox {
-            g_st().sandbox += 1;
+            g_st().sandbox.set(g_st().sandbox.get() + (1));
         }
-        g_st().textlock += 1;
+        g_st().textlock.set(g_st().textlock.get() + (1));
     }
     let retval = eval_to_string(arg, false, use_simple_function);
     {
         if use_sandbox {
-            g_st().sandbox -= 1;
+            g_st().sandbox.set(g_st().sandbox.get() - (1));
         }
-        g_st().textlock -= 1;
+        g_st().textlock.set(g_st().textlock.get() - (1));
     }
     restore_funccal();
     retval
@@ -770,7 +770,7 @@ pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
     let mut r: Option<bool> = None;
 
     {
-        g_st().emsg_off += 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     }
 
     if use_simple_function {
@@ -784,7 +784,7 @@ pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
         tv_clear(&mut rettv);
     }
     {
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     }
 
     retval
@@ -896,9 +896,9 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
     let copy = Callback::NONE;
     callback_copy(&copy, cb);
     if use_sandbox {
-        g_st().sandbox += 1;
+        g_st().sandbox.set(g_st().sandbox.get() + (1));
     }
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let mut tv = tv_initial_value();
     let mut argv = [tv_initial_value()];
     let mut retval = -1;
@@ -906,9 +906,9 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
         retval = tv_get_number_chk(&tv, None) as i32;
         tv_clear(&mut tv);
     }
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     if use_sandbox {
-        g_st().sandbox -= 1;
+        g_st().sandbox.set(g_st().sandbox.get() - (1));
     }
     callback_free(&copy);
     retval
@@ -920,16 +920,16 @@ pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut Ty
     save_funccal();
     {
         if use_sandbox {
-            g_st().sandbox += 1;
+            g_st().sandbox.set(g_st().sandbox.get() + (1));
         }
-        g_st().textlock += 1;
+        g_st().textlock.set(g_st().textlock.get() + (1));
     }
     let mut argv = [tv_initial_value()];
     let ok = callback_call(cb, 0, &mut argv, &mut *ret_tv);
     {
-        g_st().textlock -= 1;
+        g_st().textlock.set(g_st().textlock.get() - (1));
         if use_sandbox {
-            g_st().sandbox -= 1;
+            g_st().sandbox.set(g_st().sandbox.get() - (1));
         }
     }
     restore_funccal();
@@ -944,11 +944,11 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
 
     g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR].get();
 
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     if use_sandbox {
-        g_st().sandbox += 1;
+        g_st().sandbox.set(g_st().sandbox.get() + (1));
     }
-    g_st().textlock += 1;
+    g_st().textlock.set(g_st().textlock.get() + (1));
     *cp = NUL as i32;
 
     let mut tv = tv_initial_value();
@@ -975,11 +975,11 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
         tv_clear(&mut tv);
     }
 
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     if use_sandbox {
-        g_st().sandbox -= 1;
+        g_st().sandbox.set(g_st().sandbox.get() - (1));
     }
-    g_st().textlock -= 1;
+    g_st().textlock.set(g_st().textlock.get() - (1));
     g_st().current_sctx = saved_sctx;
 
     retval as i32
@@ -1435,7 +1435,7 @@ pub fn get_lval<'a>(
             lp.ll_name = None;
             lp.ll_name_off = 0;
             if !aborting() && !quiet {
-                g_st().emsg_severe = true;
+                g_st().emsg_severe.set(true);
                 semsg!(gettext(E_INVARG2), name_in);
                 return None;
             }
@@ -1717,7 +1717,7 @@ pub fn eval_for_line(
     }
 
     if skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     expr = crate::charset::skipwhite(&expr[2..]);
     if eval0(expr, &mut tv, Some(&mut *eap), &mut *evalarg) {
@@ -1727,7 +1727,7 @@ pub fn eval_for_line(
                 let Some(l) = tv.vval.v_list_opt() else {
                     tv_clear(&mut tv);
                     if skip {
-                        g_st().emsg_skip -= 1;
+                        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
                     }
                     return fi;
                 };
@@ -1754,7 +1754,7 @@ pub fn eval_for_line(
         }
     }
     if skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     }
 
     fi
@@ -2043,8 +2043,8 @@ pub fn eval0(
     mut eap: Option<&mut Exarg>,
     evalarg: &mut Evalarg,
 ) -> bool {
-    let did_emsg_before = g_st().did_emsg;
-    let called_emsg_before = g_st().called_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
+    let called_emsg_before = g_st().called_emsg.get();
     let mut end_error = false;
 
     let mut p = crate::charset::skipwhite(arg);
@@ -2058,8 +2058,8 @@ pub fn eval0(
             tv_clear(rettv);
         }
         if !aborting()
-            && g_st().did_emsg == did_emsg_before
-            && g_st().called_emsg == called_emsg_before
+            && g_st().did_emsg.get() == did_emsg_before
+            && g_st().called_emsg.get() == called_emsg_before
         {
             if end_error {
                 semsg!(gettext(E_TRAILING_ARG), p);
@@ -4095,9 +4095,9 @@ pub fn garbage_collect(testing: bool) -> bool {
     let mut abort = false;
 
     if !testing {
-        g_st().want_garbage_collect = false;
-        g_st().may_garbage_collect = false;
-        g_st().garbage_collect_at_exit = false;
+        g_st().want_garbage_collect.set(false);
+        g_st().may_garbage_collect.set(false);
+        g_st().garbage_collect_at_exit.set(false);
     }
 
     crate::runtime::estack_cleanup();
@@ -4724,7 +4724,7 @@ fn string_to_list(mut bytes: &[u8], keepempty: bool) -> crate::eval::typval::Lis
 
 fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
     let mut wait_time: Proftime = 0;
-    let profiling = g_st().do_profiling == PROF_YES;
+    let profiling = g_st().do_profiling.get() == PROF_YES;
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -5069,8 +5069,8 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
     let Some(timer) = with_timers(|t| t.get(&timer_id).cloned()) else {
         return;
     };
-    let save_did_emsg = g_st().did_emsg;
-    let called_emsg_before = g_st().called_emsg;
+    let save_did_emsg = g_st().did_emsg.get();
+    let called_emsg_before = g_st().called_emsg.get();
 
     if timer.stopped.get() || timer.paused.get() {
         return;
@@ -5095,14 +5095,14 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
 
     callback_call(&timer.callback, 1, &mut argv, &mut rettv);
 
-    if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
+    if g_st().called_emsg.get() > called_emsg_before && g_st().did_emsg.get() != 0 {
         timer.emsg_count.set(timer.emsg_count.get() + 1);
 
-        if g_st().did_throw {
+        if g_st().did_throw.get() {
             discard_current_exception();
         }
     }
-    g_st().did_emsg = save_did_emsg;
+    g_st().did_emsg.set(save_did_emsg);
 
     if timer.emsg_count.get() >= 3 {
         timer_stop(&timer);
@@ -6147,35 +6147,35 @@ pub fn ex_echo(eap: &mut Exarg) {
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
-    let did_emsg_before = g_st().did_emsg;
-    let called_emsg_before = g_st().called_emsg;
+    let did_emsg_before = g_st().did_emsg.get();
+    let called_emsg_before = g_st().called_emsg.get();
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
     if eap.skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     while !arg.to_bytes().is_empty()
         && arg.to_bytes_with_nul()[0] != b'|'
         && arg.to_bytes_with_nul()[0] != b'\n'
-        && !g_st().got_int
+        && !g_st().got_int.get()
     {
-        g_st().need_clr_eos = true;
+        g_st().need_clr_eos.set(true);
 
         {
             let p = arg;
             if !eval1(&mut arg, &mut rettv, Some(&mut evalarg)) {
                 if !aborting()
-                    && g_st().did_emsg == did_emsg_before
-                    && g_st().called_emsg == called_emsg_before
+                    && g_st().did_emsg.get() == did_emsg_before
+                    && g_st().called_emsg.get() == called_emsg_before
                 {
                     semsg!(gettext(E_INVEXPR2), p);
                 }
-                g_st().need_clr_eos = false;
+                g_st().need_clr_eos.set(false);
                 break;
             }
-            g_st().need_clr_eos = false;
+            g_st().need_clr_eos.set(false);
         }
 
         if !eap.skip {
@@ -6185,7 +6185,7 @@ pub fn ex_echo(eap: &mut Exarg) {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echo");
                 if eap.cmdidx == Cmdidx::CmdEcho {
-                    if !g_st().msg_didout {
+                    if !g_st().msg_didout.get() {
                         msg_sb_eol();
                     }
                     msg_start();
@@ -6209,7 +6209,7 @@ pub fn ex_echo(eap: &mut Exarg) {
     msg_ext_set_append(false);
 
     if eap.skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     } else {
         if ui_has(K_UIMESSAGES)
             && (eap.arg.is_empty() || eap.arg.first_byte() == b'|' || eap.arg.first_byte() == b'\n')
@@ -6244,7 +6244,7 @@ pub fn ex_execute(eap: &mut Exarg) {
     let mut has_arg = false;
 
     if eap.skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     while !arg.to_bytes().is_empty()
         && arg.to_bytes_with_nul()[0] != b'|'
@@ -6294,11 +6294,11 @@ pub fn ex_execute(eap: &mut Exarg) {
                 EVAL_STATE.with(|s| s.echo_hl_id.get()),
             );
         } else if eap.cmdidx == Cmdidx::CmdEchoerr {
-            let save_did_emsg = g_st().did_emsg;
+            let save_did_emsg = g_st().did_emsg.get();
             msg_ext_no_fast();
             emsg_multiline(crate::memory::bytes_as_cstr(&buf), c"echoerr", HLF_E, true);
-            if !g_st().force_abort {
-                g_st().did_emsg = save_did_emsg;
+            if !g_st().force_abort.get() {
+                g_st().did_emsg.set(save_did_emsg);
             }
         } else if eap.cmdidx == Cmdidx::CmdExecute {
             do_cmdline(
@@ -6310,7 +6310,7 @@ pub fn ex_execute(eap: &mut Exarg) {
     }
 
     if eap.skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     }
 
     eap.nextcmd = arg_slice.advance_to_opt_cstr(check_nextcmd(arg));
@@ -6373,7 +6373,7 @@ pub fn last_set_msg(script_ctx: Sctx) {
     }
 
     let p = get_scriptname(script_ctx, true);
-    g_st().msg_ext_skip_verbose = true;
+    g_st().msg_ext_skip_verbose.set(true);
 
     verbose_enter();
     msg_puts(gettext(c"\n\tLast set from "));
@@ -6584,15 +6584,17 @@ pub fn eval_call_provider(
         es_entry: crate::runtime::estack_top_clone(),
         autocmd_fname: g_st().autocmd_fname.clone(),
         autocmd_match: g_st().autocmd_match.clone(),
-        autocmd_fname_full: g_st().autocmd_fname_full,
-        autocmd_bufnr: g_st().autocmd_bufnr,
+        autocmd_fname_full: g_st().autocmd_fname_full.get(),
+        autocmd_bufnr: g_st().autocmd_bufnr.get(),
         funccalp: get_current_funccal().into(),
     };
     let saved_provider_caller_scope =
         std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
     save_funccal();
     {
-        g_st().provider_call_nesting += 1;
+        g_st()
+            .provider_call_nesting
+            .set(g_st().provider_call_nesting.get() + (1));
     }
 
     let mut argvars = [
@@ -6636,8 +6638,10 @@ pub fn eval_call_provider(
     restore_funccal();
     {
         g_st().provider_caller_scope = saved_provider_caller_scope;
-        g_st().provider_call_nesting -= 1;
-        debug_assert!(g_st().provider_call_nesting >= 0);
+        g_st()
+            .provider_call_nesting
+            .set(g_st().provider_call_nesting.get() - (1));
+        debug_assert!(g_st().provider_call_nesting.get() >= 0);
     }
 
     if discard {

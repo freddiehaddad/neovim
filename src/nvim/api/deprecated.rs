@@ -1115,8 +1115,8 @@ fn push_char(line_buf: &mut Vec<u8>, c: u8, to_err: bool) {
         } else {
             msg(cstr, 0);
         }
-        if g_st().msg_silent == 0 {
-            g_st().msg_didout = true;
+        if g_st().msg_silent.get() == 0 {
+            g_st().msg_didout.set(true);
         }
         line_buf.clear();
         line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
@@ -1137,9 +1137,9 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
     });
 
     msg_ext_no_fast();
-    g_st().no_wait_return += 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
     for &b in message.as_bytes() {
-        if g_st().got_int {
+        if g_st().got_int.get() {
             break;
         }
         push_char(&mut line_buf, b, to_err);
@@ -1147,7 +1147,7 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
     if writeln {
         push_char(&mut line_buf, b'\n', to_err);
     }
-    g_st().no_wait_return -= 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
     API_DEP_STATE.with(|st| {
         if to_err {
             *st.err_line_buf.borrow_mut() = line_buf;

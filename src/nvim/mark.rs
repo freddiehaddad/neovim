@@ -439,8 +439,8 @@ pub fn mark_forget_file(wp: &mut WinInfoInfo, fnum: i32) {
 
 /// Set the previous context mark to the current position and add it to the jump list (`setpcmark`).
 pub fn setpcmark() {
-    if g_st().global_busy != 0
-        || g_st().listcmd_busy
+    if g_st().global_busy.get() != 0
+        || g_st().listcmd_busy.get()
         || (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) != 0
         || mc_replaying()
     {
@@ -651,8 +651,8 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Op
 pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Option<Fmark> {
     let mut mark: Option<Fmark> = None;
     let pos = curwin_mut().w_cursor;
-    let slcb = g_st().listcmd_busy;
-    g_st().listcmd_busy = true;
+    let slcb = g_st().listcmd_busy.get();
+    g_st().listcmd_busy.set(true);
     if name == b'{' as i32 || name == b'}' as i32 {
         let mut oa = Oparg::new();
         if findpar(
@@ -681,7 +681,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> O
         mark = Some(pos_to_mark(&*buf, None, win.w_cursor));
     }
     curwin_mut().w_cursor = pos;
-    g_st().listcmd_busy = slcb;
+    g_st().listcmd_busy.set(slcb);
     mark
 }
 
@@ -970,15 +970,15 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
     if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
         return c"-invalid-".to_owned();
     }
-    debug_assert!(g_st().columns_global >= 0);
+    debug_assert!(g_st().columns_global.get() >= 0);
     let line = crate::charset::skipwhite_slice(ml_get(mp.lnum).to_bytes());
-    let max_bytes = line.len().min((g_st().columns_global as usize) * 5);
+    let max_bytes = line.len().min((g_st().columns_global.get() as usize) * 5);
 
     let mut len: i32 = 0;
     let mut off = 0usize;
     while off < max_bytes {
         len += slice2cells(&line[off..]);
-        if len >= g_st().columns_global - lead_len {
+        if len >= g_st().columns_global.get() - lead_len {
             break;
         }
         off += crate::mbyte::utfc_slice2len(&line[off..]);
@@ -1145,7 +1145,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
     msg_ext_set_kind(c"list_cmd");
     msg_puts_title(gettext(c"\n jump line  col file/text"));
     let mut i: i32 = 0;
-    while i < curwin_mut().w_jumplistlen.get() && !g_st().got_int {
+    while i < curwin_mut().w_jumplistlen.get() && !g_st().got_int.get() {
         let idx = i as usize;
         if curwin_mut().w_jumplist[idx].fmark.mark.lnum != 0 {
             let mut name = fm_getname(&mut curwin_mut().w_jumplist[idx].fmark, 16);
@@ -1163,7 +1163,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             }
 
             msg_putchar(b'\n' as i32);
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break;
             }
             let indicator = if i == curwin_mut().w_jumplistidx.get() {
@@ -1212,11 +1212,11 @@ pub fn ex_changes(_eap: &mut Exarg) {
     msg_puts_title(gettext(c"\nchange line  col text"));
 
     let mut i: i32 = 0;
-    while i < curbuf_mut().b_changelistlen.get() && !g_st().got_int {
+    while i < curbuf_mut().b_changelistlen.get() && !g_st().got_int.get() {
         let idx = i as usize;
         if curbuf_mut().b_changelist[idx].mark.lnum != 0 {
             msg_putchar(b'\n' as i32);
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break;
             }
             let indicator = if i == curwin_mut().w_changelistidx.get() {

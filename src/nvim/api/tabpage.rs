@@ -259,13 +259,21 @@ pub fn nvim_open_tabpage(
     if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer != (&raw mut *b) {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
-            g_st().autocmd_no_enter += 1;
-            g_st().autocmd_no_leave += 1;
+            g_st()
+                .autocmd_no_enter
+                .set(g_st().autocmd_no_enter.get() + (1));
+            g_st()
+                .autocmd_no_leave
+                .set(g_st().autocmd_no_leave.get() + (1));
         }
         win_set_buf(wp.borrow_mut(), b, err);
         if au_no_enter_leave {
-            g_st().autocmd_no_enter -= 1;
-            g_st().autocmd_no_leave -= 1;
+            g_st()
+                .autocmd_no_enter
+                .set(g_st().autocmd_no_enter.get() - (1));
+            g_st()
+                .autocmd_no_leave
+                .set(g_st().autocmd_no_leave.get() - (1));
         }
         if !valid_tabpage(tp.opt()) {
             api_clear_error(err);

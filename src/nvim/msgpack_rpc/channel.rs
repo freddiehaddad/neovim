@@ -457,7 +457,7 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
         let msg_type = channel.unpacker_mut().msg_type;
         if msg_type == MessageType::MessageTypeRedrawEvent {
             let p = channel.unpacker_mut();
-            if g_st().ui_client_attached {
+            if g_st().ui_client_attached.get() {
                 if p.has_grid_line_event {
                     ui_client_event_raw_line(&mut p.grid_line_event);
                     p.has_grid_line_event = false;
@@ -782,15 +782,15 @@ pub fn rpc_close_event(chan_id: u64) {
     remote_ui_disconnect(channel.id, &mut Error::new(), false);
 
     let is_ui_client =
-        g_st().ui_client_channel_id != 0 && channel.id == g_st().ui_client_channel_id;
+        g_st().ui_client_channel_id.get() != 0 && channel.id == g_st().ui_client_channel_id.get();
     if is_ui_client {
-        if !g_st().exiting && channel.streamtype != K_CHANNEL_STREAM_PROC {
+        if !g_st().exiting.get() && channel.streamtype != K_CHANNEL_STREAM_PROC {
             ui_client_attach_to_restarted_server(false);
         }
-        if g_st().ui_client_channel_id != channel.id {
+        if g_st().ui_client_channel_id.get() != channel.id {
             return;
         }
-        if channel.streamtype == K_CHANNEL_STREAM_PROC && g_st().ui_client_error_exit < 0 {
+        if channel.streamtype == K_CHANNEL_STREAM_PROC && g_st().ui_client_error_exit.get() < 0 {
             return;
         }
         exit_on_closed_chan(0);

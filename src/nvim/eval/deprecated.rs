@@ -87,7 +87,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    let l_provider_call_nesting = g_st().provider_call_nesting;
+    let l_provider_call_nesting = g_st().provider_call_nesting.get();
 
     if check_secure() {
         return;
@@ -128,8 +128,8 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         save_current_sctx = g_st().current_sctx;
         save_autocmd_fname = g_st().autocmd_fname.take();
         save_autocmd_match = g_st().autocmd_match.take();
-        save_autocmd_fname_full = g_st().autocmd_fname_full;
-        save_autocmd_bufnr = g_st().autocmd_bufnr;
+        save_autocmd_fname_full = g_st().autocmd_fname_full.get();
+        save_autocmd_bufnr = g_st().autocmd_bufnr.get();
         save_funccal();
 
         g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
@@ -137,8 +137,12 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         crate::runtime::estack_push_entry(es_entry);
         g_st().autocmd_fname = g_st().provider_caller_scope.autocmd_fname.clone();
         g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
-        g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
-        g_st().autocmd_bufnr = g_st().provider_caller_scope.autocmd_bufnr;
+        g_st()
+            .autocmd_fname_full
+            .set(g_st().provider_caller_scope.autocmd_fname_full);
+        g_st()
+            .autocmd_bufnr
+            .set(g_st().provider_caller_scope.autocmd_bufnr);
         set_current_funccal(g_st().provider_caller_scope.funccalp);
     }
 
@@ -155,8 +159,8 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         crate::runtime::estack_pop_raw();
         g_st().autocmd_fname = save_autocmd_fname;
         g_st().autocmd_match = save_autocmd_match;
-        g_st().autocmd_fname_full = save_autocmd_fname_full;
-        g_st().autocmd_bufnr = save_autocmd_bufnr;
+        g_st().autocmd_fname_full.set(save_autocmd_fname_full);
+        g_st().autocmd_bufnr.set(save_autocmd_bufnr);
         restore_funccal();
     }
 

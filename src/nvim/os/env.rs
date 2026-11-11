@@ -111,7 +111,7 @@ fn env_name_valid(bytes: &[u8]) -> bool {
 }
 
 pub fn env_init() {
-    g_st().nvim_testing = os_env_exists(c"NVIM_TEST", false);
+    g_st().nvim_testing.set(os_env_exists(c"NVIM_TEST", false));
 }
 
 /// Gets the length (bytes) of the env var name at `bytes`.
@@ -876,10 +876,10 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             if let Some(vim_path_cstr) = vim_path_cstr {
                 if vimruntime {
                     let _ = os_setenv(c"VIMRUNTIME", vim_path_cstr.as_c_str(), 1);
-                    g_st().didset_vimruntime = true;
+                    g_st().didset_vimruntime.set(true);
                 } else {
                     let _ = os_setenv(c"VIM", vim_path_cstr.as_c_str(), 1);
-                    g_st().didset_vim = true;
+                    g_st().didset_vim.set(true);
                 }
                 Some(vim_path_cstr)
             } else {
@@ -1108,9 +1108,9 @@ pub fn vim_unsetenv_ext(var: &CStr) {
     let _ = os_unsetenv(var);
     let var_bytes = var.to_bytes();
     if var_bytes.eq_ignore_ascii_case(b"VIM") {
-        g_st().didset_vim = false;
+        g_st().didset_vim.set(false);
     } else if var_bytes.eq_ignore_ascii_case(b"VIMRUNTIME") {
-        g_st().didset_vimruntime = false;
+        g_st().didset_vimruntime.set(false);
     }
 }
 
@@ -1120,10 +1120,10 @@ pub fn vim_setenv_ext(name: &CStr, val: &CStr) {
     let name_bytes = name.to_bytes();
     if name_bytes.eq_ignore_ascii_case(b"HOME") {
         init_homedir();
-    } else if g_st().didset_vim && name_bytes.eq_ignore_ascii_case(b"VIM") {
-        g_st().didset_vim = false;
-    } else if g_st().didset_vimruntime && name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME") {
-        g_st().didset_vimruntime = false;
+    } else if g_st().didset_vim.get() && name_bytes.eq_ignore_ascii_case(b"VIM") {
+        g_st().didset_vim.set(false);
+    } else if g_st().didset_vimruntime.get() && name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME") {
+        g_st().didset_vimruntime.set(false);
     }
 }
 

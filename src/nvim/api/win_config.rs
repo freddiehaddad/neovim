@@ -489,16 +489,24 @@ pub fn nvim_open_win(
         if !tp.is_null() && bufref_valid(Some(&bufref)) && (&raw mut *b) != wp.w_buffer.as_ptr() {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
-                g_st().autocmd_no_enter += 1;
-                g_st().autocmd_no_leave += 1;
+                g_st()
+                    .autocmd_no_enter
+                    .set(g_st().autocmd_no_enter.get() + (1));
+                g_st()
+                    .autocmd_no_leave
+                    .set(g_st().autocmd_no_leave.get() + (1));
             }
             win_set_buf(wp.borrow_mut(), b, err);
             if !fconfig.noautocmd {
                 tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
             }
             if au_no_enter_leave {
-                g_st().autocmd_no_enter -= 1;
-                g_st().autocmd_no_leave -= 1;
+                g_st()
+                    .autocmd_no_enter
+                    .set(g_st().autocmd_no_enter.get() - (1));
+                g_st()
+                    .autocmd_no_leave
+                    .set(g_st().autocmd_no_leave.get() - (1));
             }
         }
         if tp.is_null() {
@@ -579,7 +587,7 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> b
     if window_layout_locked_err(crate::cmdexpand::Cmdidx::CmdSize, err) {
         return false;
     }
-    if g_st().textlock != 0 || expr_map_locked() {
+    if g_st().textlock.get() != 0 || expr_map_locked() {
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
         return false;
     }

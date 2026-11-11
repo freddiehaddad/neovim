@@ -700,13 +700,13 @@ pub fn clear_folding(win: &mut WinInfoInfo) {
 
 /// Update folds for changes in the buffer of a window.
 pub fn fold_update(wp: &mut WinInfoInfo, top: Linenr, bot: Linenr) {
-    if g_st().disable_fold_update != 0
-        || ((g_st().state_global & MODE_INSERT) != 0 && !foldmethod_is_indent(&mut *wp))
+    if g_st().disable_fold_update.get() != 0
+        || ((g_st().state_global.get() & MODE_INSERT) != 0 && !foldmethod_is_indent(&mut *wp))
     {
         return;
     }
 
-    if g_st().need_diff_redraw {
+    if g_st().need_diff_redraw.get() {
         return;
     }
 
@@ -728,10 +728,10 @@ pub fn fold_update(wp: &mut WinInfoInfo, top: Linenr, bot: Linenr) {
         || foldmethod_is_diff(&mut *wp)
         || foldmethod_is_syntax(&mut *wp)
     {
-        let save_got_int = g_st().got_int;
-        g_st().got_int = false;
+        let save_got_int = g_st().got_int.get();
+        g_st().got_int.set(false);
         fold_update_iems(&mut *wp, top, bot);
-        g_st().got_int |= save_got_int;
+        g_st().got_int.set(g_st().got_int.get() | (save_got_int));
     }
 }
 
@@ -1139,7 +1139,7 @@ pub fn fold_mark_adjust(
     if line2 < line1 {
         line2 = line1;
     }
-    if (g_st().state_global & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+    if (g_st().state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
         line1 -= 1;
     }
     fold_mark_adjust_recurse(&mut wp.w_folds, line1, line2, amount, amount_after);
@@ -1156,7 +1156,7 @@ fn fold_mark_adjust_recurse(
         return;
     }
 
-    let top = if (g_st().state_global & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+    let top = if (g_st().state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
         line1 + 1
     } else {
         line1
@@ -1464,7 +1464,7 @@ pub fn get_foldtext(
     vt: &mut VirtText,
 ) -> std::ffi::CString {
     let mut text: Option<std::ffi::CString> = None;
-    let save_did_emsg = g_st().did_emsg;
+    let save_did_emsg = g_st().did_emsg.get();
 
     let mut got_fdt_error = FOLD_STATE.with(|st| {
         if st.last_wp.get() != wp || st.fdt_last_lnum.get() > lnum || st.fdt_last_lnum.get() == 0 {
@@ -1474,7 +1474,7 @@ pub fn get_foldtext(
     });
 
     if !got_fdt_error {
-        g_st().did_emsg = 0;
+        g_st().did_emsg.set(0);
     }
 
     if wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST {
@@ -1501,7 +1501,7 @@ pub fn get_foldtext(
             g_st().curbuf = wp.w_buffer;
             g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get();
 
-            g_st().emsg_off += 1;
+            g_st().emsg_off.set(g_st().emsg_off.get() + (1));
 
             let obj = eval_foldtext(wp);
             if obj.obj_type == ObjectType::ObjectTypeArray {
@@ -1516,9 +1516,9 @@ pub fn get_foldtext(
             }
             api_free_object(obj);
 
-            g_st().emsg_off -= 1;
+            g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 
-            if text.is_none() || g_st().did_emsg != 0 {
+            if text.is_none() || g_st().did_emsg.get() != 0 {
                 got_fdt_error = true;
                 FOLD_STATE.with(|st| st.got_fdt_error.set(true));
             }
@@ -1535,8 +1535,8 @@ pub fn get_foldtext(
         });
         set_vim_var_string(VV_FOLDDASHES, None, -1);
 
-        if g_st().did_emsg == 0 && save_did_emsg != 0 {
-            g_st().did_emsg = save_did_emsg;
+        if g_st().did_emsg.get() == 0 && save_did_emsg != 0 {
+            g_st().did_emsg.set(save_did_emsg);
         }
 
         if let Some(t) = text.take() {
@@ -1684,12 +1684,12 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
     }
 
     if foldmethod_is_diff(wp) {
-        if top > g_st().diff_context {
-            top -= g_st().diff_context;
+        if top > g_st().diff_context.get() {
+            top -= g_st().diff_context.get();
         } else {
             top = 1;
         }
-        bot += g_st().diff_context;
+        bot += g_st().diff_context.get();
     }
 
     top = top.min(wp.buf_mut().b_ml.ml_line_count);
@@ -1753,7 +1753,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         }
 
         fline.lvl = -1;
-        while !g_st().got_int {
+        while !g_st().got_int.get() {
             fline.lvl_next = -1;
             call_getlevel(getlevel, &mut fline);
             if fline.lvl >= 0 {
@@ -1797,7 +1797,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         end = start;
     }
 
-    while !g_st().got_int {
+    while !g_st().got_int.get() {
         if fline.lnum > wp.buf_mut().b_ml.ml_line_count {
             break;
         }
@@ -1891,7 +1891,7 @@ fn fold_update_iemsrecurse(
     let linecount = flp.wp_mut().buf_mut().b_ml.ml_line_count - flp.off;
 
     flp.lnum_save = flp.lnum;
-    while !g_st().got_int {
+    while !g_st().got_int.get() {
         line_breakcheck();
 
         lvl = flp.lvl.min(MAX_LEVEL);
@@ -1939,7 +1939,7 @@ fn fold_update_iemsrecurse(
                 || flp.had_end <= MAX_LEVEL
                 || flp.lnum == linecount)
         {
-            while !g_st().got_int {
+            while !g_st().got_int.get() {
                 let concat: Linenr = if flp.start != 0 || flp.had_end <= MAX_LEVEL {
                     0
                 } else {
@@ -2093,7 +2093,7 @@ fn fold_update_iemsrecurse(
         } else {
             flp.lnum = flp.lnum_save;
             let ll = flp.lnum + 1;
-            while !g_st().got_int {
+            while !g_st().got_int.get() {
                 FOLD_STATE.with(|st| {
                     st.prev_lnum.set(flp.lnum);
                     st.prev_lnum_lvl.set(flp.lvl);
@@ -2454,10 +2454,10 @@ fn foldlevel_expr(flp: &mut Fline) {
         flp.lvl = 0;
     }
 
-    let save_keytyped = g_st().key_typed;
+    let save_keytyped = g_st().key_typed.get();
     let mut c: i32 = 0;
     let n = eval_foldexpr(flp.wp_mut(), &mut c);
-    g_st().key_typed = save_keytyped;
+    g_st().key_typed.set(save_keytyped);
 
     match c as u8 {
         b'a' => {

@@ -464,9 +464,9 @@ fn showmap(mp: &Mapblock, local: bool) {
         return;
     }
 
-    if g_st().msg_col > 0 || g_st().msg_silent != 0 {
+    if g_st().msg_col.get() > 0 || g_st().msg_silent.get() != 0 {
         msg_putchar(b'\n' as i32);
-        if g_st().got_int {
+        if g_st().got_int.get() {
             return;
         }
     }
@@ -718,7 +718,9 @@ fn map_add(
             if local {
                 buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() | (mode));
             } else {
-                g_st().mapped_ctrl_c |= mode;
+                g_st()
+                    .mapped_ctrl_c
+                    .set(g_st().mapped_ctrl_c.get() | (mode));
             }
         }
 
@@ -885,7 +887,7 @@ fn buf_do_map(
             }
 
             if has_lhs && has_rhs && is_abbrev {
-                g_st().no_abbr = false;
+                g_st().no_abbr.set(false);
             }
 
             if do_print {
@@ -896,11 +898,11 @@ fn buf_do_map(
                 let lhs_slice = &lhs_bytes[..(len as usize).min(lhs_bytes.len())];
                 let dup_found = with_map_buckets(None, is_abbrev, |buckets| {
                     for bucket in buckets {
-                        if g_st().got_int {
+                        if g_st().got_int.get() {
                             break;
                         }
                         for mp in bucket {
-                            if g_st().got_int {
+                            if g_st().got_int.get() {
                                 break;
                             }
                             if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
@@ -922,11 +924,11 @@ fn buf_do_map(
             if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
                 with_map_buckets(Some(&*buf), is_abbrev, |buckets| {
                     for bucket in buckets {
-                        if g_st().got_int {
+                        if g_st().got_int.get() {
                             break;
                         }
                         for mp in bucket {
-                            if g_st().got_int {
+                            if g_st().got_int.get() {
                                 break;
                             }
                             if mp.m_simplified == 0 && (mp.m_mode & mode) != 0 {
@@ -956,7 +958,7 @@ fn buf_do_map(
             };
             let unique_conflict = with_map_tables_mut(buf, local, is_abbrev, |tables| {
                 for round in 0..num_rounds {
-                    if did_it || g_st().got_int {
+                    if did_it || g_st().got_int.get() {
                         break;
                     }
                     let (hash_start, hash_end) = if (round == 0 && has_lhs) || is_abbrev {
@@ -970,11 +972,11 @@ fn buf_do_map(
                         (0, 256)
                     };
                     for hash in hash_start..hash_end {
-                        if g_st().got_int {
+                        if g_st().got_int.get() {
                             break;
                         }
                         let mut idx: usize = 0;
-                        while idx < tables[hash].len() && !g_st().got_int {
+                        while idx < tables[hash].len() && !g_st().got_int.get() {
                             let mp: &mut Mapblock = &mut tables[hash][idx];
                             if (mp.m_mode & mode) == 0 {
                                 idx += 1;
@@ -1088,7 +1090,9 @@ fn buf_do_map(
                     if local {
                         buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() & (!mode));
                     } else {
-                        g_st().mapped_ctrl_c &= !mode;
+                        g_st()
+                            .mapped_ctrl_c
+                            .set(g_st().mapped_ctrl_c.get() & (!mode));
                     }
                 }
                 continue;
@@ -1623,7 +1627,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 }
                 let len_u = len as usize;
                 let abbr_slice = &line_bytes[scol_u..(scol_u + len_u).min(line_bytes.len())];
-                let match_found = (cand.m_mode & g_st().state_global) != 0
+                let match_found = (cand.m_mode & g_st().state_global.get()) != 0
                     && qlen == len
                     && &q_bytes[..len_u.min(q_bytes.len())] == abbr_slice;
                 if match_found {
@@ -1709,11 +1713,11 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
         vim_unescape_ks(&mut expr_bytes);
     }
 
-    g_st().expr_map_lock += 1;
+    g_st().expr_map_lock.set(g_st().expr_map_lock.get() + (1));
     set_vim_var_char(c);
     let save_cursor = curwin_mut().w_cursor;
-    let save_msg_col = g_st().msg_col;
-    let save_msg_row = g_st().msg_row;
+    let save_msg_col = g_st().msg_col.get();
+    let save_msg_row = g_st().msg_row.get();
     if luaref != LUA_NOREF {
         let mut err = Error::new();
         let args = Array::new();
@@ -1729,10 +1733,10 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     } else {
         p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
     }
-    g_st().expr_map_lock -= 1;
+    g_st().expr_map_lock.set(g_st().expr_map_lock.get() - (1));
     curwin_mut().w_cursor = save_cursor;
-    g_st().msg_col = save_msg_col;
-    g_st().msg_row = save_msg_row;
+    g_st().msg_col.set(save_msg_col);
+    g_st().msg_row.set(save_msg_row);
 
     let p = p?;
 
@@ -2799,8 +2803,8 @@ pub fn ex_abbreviate(eap: &mut Exarg) {
 
 /// ":map" and friends.
 pub fn ex_map(eap: &mut Exarg) {
-    if g_st().secure != 0 {
-        g_st().secure = 2;
+    if g_st().secure.get() != 0 {
+        g_st().secure.set(2);
         msg_outtrans(eap.cmd.as_cstr(), 0, false);
         msg_putchar(b'\n' as i32);
     }

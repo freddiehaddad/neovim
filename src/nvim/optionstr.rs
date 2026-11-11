@@ -1173,7 +1173,7 @@ pub fn check_stl_option<'a>(s: &[u8], mut errbuf: Option<&'a mut [u8]>) -> Optio
 
 /// Check for a "normal" directory or file name in some options.
 pub fn check_illegal_path_names(val_bytes: &[u8], flags: u32) -> bool {
-    let nfname_illegal: &[u8] = if g_st().secure != 0 {
+    let nfname_illegal: &[u8] = if g_st().secure.get() != 0 {
         b"/\\*?[|;&<>\r\n"
     } else {
         b"/\\*?[<>\r\n"
@@ -2253,10 +2253,10 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'helpfile' option is changed.
 pub fn did_set_helpfile<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().didset_vim {
+    if g_st().didset_vim.get() {
         vim_unsetenv_ext(c"VIM");
     }
-    if g_st().didset_vimruntime {
+    if g_st().didset_vimruntime.get() {
         vim_unsetenv_ext(c"VIMRUNTIME");
     }
     None
@@ -2293,7 +2293,7 @@ pub fn did_set_iconstring<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'inccommand' option is changed.
 pub fn did_set_inccommand<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().cmdpreview {
+    if g_st().cmdpreview.get() {
         return Some(E_INVARG);
     }
     None
@@ -2331,12 +2331,12 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
 
-    let secure_save = g_st().secure;
-    g_st().secure = 0;
+    let secure_save = g_st().secure.get();
+    g_st().secure.set(0);
 
     let errmsg = keymap_init();
 
-    g_st().secure = secure_save;
+    g_st().secure.set(secure_save);
 
     args.os_value_checked = true;
 
@@ -2366,8 +2366,14 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km.as_cstr(), b'o' as i32);
-    g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km.as_cstr(), b'a' as i32);
+    g_st().km_stopsel.set(crate::strings::vim_haschr(
+        opt_vars().p_km.as_cstr(),
+        b'o' as i32,
+    ));
+    g_st().km_startsel.set(crate::strings::vim_haschr(
+        opt_vars().p_km.as_cstr(),
+        b'a' as i32,
+    ));
     None
 }
 
@@ -2645,18 +2651,18 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut prog: Option<Box<Regprog>> = None;
     let mut err = Error::new();
-    let save_emsg_silent = g_st().emsg_silent;
-    let save_suppress_errthrow = g_st().suppress_errthrow;
-    g_st().emsg_silent = 0;
-    g_st().suppress_errthrow = false;
+    let save_emsg_silent = g_st().emsg_silent.get();
+    let save_suppress_errthrow = g_st().suppress_errthrow.get();
+    g_st().emsg_silent.set(0);
+    g_st().suppress_errthrow.set(false);
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let errmsg = compile_cap_prog(args.os_newval.data.string().as_cstr(), &mut prog);
     try_leave(&tstate, &mut err);
 
-    g_st().emsg_silent = save_emsg_silent;
-    g_st().suppress_errthrow = save_suppress_errthrow;
+    g_st().emsg_silent.set(save_emsg_silent);
+    g_st().suppress_errthrow.set(save_suppress_errthrow);
     args.os_prep = OptSetPrep::SpellcapProg(prog);
     if err.err_type != ErrorType::ErrorTypeNone {
         let msg_cstr = err.msg_cstr().unwrap_or(c"");
@@ -2794,7 +2800,7 @@ fn did_set_statustabline_rulerformat<'a>(
     statuscolumn: bool,
 ) -> Option<&'a CStr> {
     if rulerformat {
-        g_st().ru_wid = 0;
+        g_st().ru_wid.set(0);
     } else if statuscolumn {
         args.win_mut().w_nrwidth_line_count.set(0);
     }
@@ -2825,7 +2831,7 @@ fn did_set_statustabline_rulerformat<'a>(
         }
         let wid = getdigits_int(&mut rem, true, 0);
         if wid != 0 && rem.first() == Some(&b'(') {
-            g_st().ru_wid = wid;
+            g_st().ru_wid.set(wid);
         }
     }
     if rulerformat {
@@ -2882,9 +2888,9 @@ fn did_set_titleiconstring<'a>(args: &mut Optset<'a>, flagval: i32) -> Option<&'
     if crate::strings::vim_haschr(val, b'%' as i32)
         && check_stl_option(val.to_bytes(), None).is_none()
     {
-        g_st().stl_syntax |= flagval;
+        g_st().stl_syntax.set(g_st().stl_syntax.get() | (flagval));
     } else {
-        g_st().stl_syntax &= !flagval;
+        g_st().stl_syntax.set(g_st().stl_syntax.get() & (!flagval));
     }
     did_set_title();
 

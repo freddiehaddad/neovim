@@ -355,7 +355,7 @@ pub fn free_all_mem() {
         decor_free_all_mem();
         drawline_free_all_mem();
 
-        if g_st().ui_client_channel_id != 0 {
+        if g_st().ui_client_channel_id.get() != 0 {
             ui_client_free_all_mem();
         }
 

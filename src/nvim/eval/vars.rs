@@ -702,7 +702,7 @@ pub fn evalvars_init() {
     );
     set_vim_var_nr(VV_MAXCOL, MAXCOL);
 
-    set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
+    set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col.get() - 1));
 
     let vvlua_pt = crate::eval::typval::tv_partial_alloc();
     vvlua_pt.set_name(Some(std::ffi::CString::default()));
@@ -867,7 +867,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_string(VV_VAL, Some(badword), -1);
     if opt_vars().p_verbose.get() == 0 {
-        g_st().emsg_off += 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     }
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
     g_st().current_sctx = ctx;
@@ -883,7 +883,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     }
 
     if opt_vars().p_verbose.get() == 0 {
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     }
     get_vim_var_tv(VV_VAL).clear_tv();
     restore_vimvar(VV_VAL, &mut save_val);
@@ -1290,13 +1290,13 @@ pub fn ex_let(eap: &mut Exarg) {
     expr = crate::charset::skipwhite(expr);
 
     if eap.skip {
-        g_st().emsg_skip += 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
     let mut evalarg = Evalarg::new();
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
     let eval_res = eval0(expr, &mut rettv, Some(&mut *eap), &mut evalarg);
     if eap.skip {
-        g_st().emsg_skip -= 1;
+        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     }
 
     if !eap.skip && eval_res {
@@ -1456,7 +1456,7 @@ fn skip_var_one(arg_in: &CStr) -> &CStr {
 /// List variables for hashtab "ht" with prefix "prefix".
 pub fn list_hashtable_vars(ht: &Hashtab, prefix: &std::ffi::CStr, empty: i32, first: &mut i32) {
     for (_, di) in ht.iter_items_mut() {
-        if g_st().got_int {
+        if g_st().got_int.get() {
             break;
         }
         let mut buf = [0u8; IOSIZE];
@@ -1516,13 +1516,13 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
     let mut tv: TypVal = TypVal::new();
 
     while ends_excmd(i32::from(arg.to_bytes().first().copied().unwrap_or(0))) == 0
-        && !g_st().got_int
+        && !g_st().got_int.get()
     {
         if error || eap.skip {
             arg = find_name_end(arg, None, FNE_INCL_BR | FNE_CHECK_START);
             let b0 = arg.to_bytes().first().copied().unwrap_or(0);
             if !ascii_iswhite(b0) && ends_excmd(i32::from(b0)) == 0 {
-                g_st().emsg_severe = true;
+                g_st().emsg_severe.set(true);
                 semsg!(gettext(E_TRAILING_ARG), arg);
                 break;
             }
@@ -1533,7 +1533,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             let len = get_name_len(&mut arg, &mut tofree, true, true);
             if len <= 0 {
                 if len < 0 && !aborting() {
-                    g_st().emsg_severe = true;
+                    g_st().emsg_severe.set(true);
                     semsg!(gettext(E_INVARG2), arg);
                     break;
                 }
@@ -1975,7 +1975,7 @@ fn ex_unletlock(
             };
             let ne_b0 = ne.to_bytes().first().copied().unwrap_or(0);
             if !ascii_iswhite(ne_b0) && ends_excmd(i32::from(ne_b0)) == 0 {
-                g_st().emsg_severe = true;
+                g_st().emsg_severe.set(true);
                 semsg!(gettext(E_TRAILING_ARG), ne);
                 break;
             }
@@ -3126,7 +3126,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
 pub fn var_check_ro(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
     let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
         Some(E_CANNOT_CHANGE_READONLY_VARIABLE_STR)
-    } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox != 0 {
+    } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox.get() != 0 {
         Some(E_CANNOT_SET_VARIABLE_IN_SANDBOX_STR)
     } else {
         None
@@ -3241,7 +3241,7 @@ fn get_var_from(
     let mut done = false;
     let do_change_curbuf = !buf.is_null() && htname == b'b' as i32;
 
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -3322,7 +3322,7 @@ fn get_var_from(
         tv_copy(&*deftv, rettv);
     }
 
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 }
 
 /// getwinvar() and gettabwinvar().
@@ -3628,8 +3628,8 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         return false;
     }
 
-    let called_emsg_before = g_st().called_emsg;
-    g_st().did_emsg = 0;
+    let called_emsg_before = g_st().called_emsg.get();
+    g_st().did_emsg.set(0);
     let mut tv = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
@@ -3642,7 +3642,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         set_var_lval(&mut lval, endp_cstr, &mut tv, true, false, Some(c"="));
     }
     drop(lval);
-    if g_st().called_emsg > called_emsg_before {
+    if g_st().called_emsg.get() > called_emsg_before {
         REDIR_ENDP.with(|c| *c.borrow_mut() = None);
         var_redir_stop();
         return false;

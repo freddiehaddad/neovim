@@ -342,7 +342,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
     let is_stl_global = global_stl_height() > 0;
 
     if with_stl_state(|st| st.redr_status_busy.get())
-        || (g_st().wild_menu_showing != 0 && !ui_has(K_UIWILDMENU_CONST))
+        || (g_st().wild_menu_showing.get() != 0 && !ui_has(K_UIWILDMENU_CONST))
     {
         return;
     }
@@ -354,7 +354,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
     let is_stl_curwin = stl_curwin == wp;
 
     if wp.w_status_height.get() == 0 && !(is_stl_global && is_stl_curwin) {
-        g_st().redraw_cmdline = true;
+        g_st().redraw_cmdline.set(true);
     } else if !redrawing() {
         wp.w_redr_status.set(true);
     } else if !wp.w_onebuf_opt.wo_stl.is_empty()
@@ -545,7 +545,7 @@ fn win_redr_stl_expr(
         fillchar = schar_from_ascii(b' ');
         group = HLF_TPF;
         attr = hl_attr(group);
-        maxwidth = g_st().columns_global;
+        maxwidth = g_st().columns_global.get();
         opt_idx = K_OPT_TABLINE;
         click_defs_target = ClickDefsTarget::Tabline;
     } else if draw_winbar {
@@ -592,7 +592,7 @@ fn win_redr_stl_expr(
     } else if draw_ruler && ui_event {
         stl_cstr = opt_vars().p_ruf.as_cstr().to_owned();
         opt_idx = K_OPT_RULERFORMAT;
-        maxwidth = g_st().columns_global / 2;
+        maxwidth = g_st().columns_global.get() / 2;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
         attr = hl_attr(group);
@@ -623,11 +623,11 @@ fn win_redr_stl_expr(
             }
         }
         stl_cstr = stl.to_owned();
-        row = g_st().rows_global - 1;
-        col = g_st().ru_col.max(g_st().columns_global / 2);
+        row = g_st().rows_global.get() - 1;
+        col = g_st().ru_col.get().max(g_st().columns_global.get() / 2);
         let _ = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
         grid_target = StlGridTarget::MsgAdj;
-        maxwidth = g_st().columns_global - col;
+        maxwidth = g_st().columns_global.get() - col;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
         attr = hl_attr(group);
@@ -646,9 +646,9 @@ fn win_redr_stl_expr(
             0
         };
         if is_stl_global {
-            row = g_st().rows_global - (opt_vars().p_ch.get() as i32) - 1;
+            row = g_st().rows_global.get() - (opt_vars().p_ch.get() as i32) - 1;
             col = 0;
-            maxwidth = g_st().columns_global;
+            maxwidth = g_st().columns_global.get();
         } else if wp_ref.w_status_height.get() == 0 {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
@@ -867,7 +867,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_status_height.get() == 0 && !is_stl_global && g_st().edit_submode.is_some() {
+    if wp.w_status_height.get() == 0 && !is_stl_global && g_st().edit_submode.get().is_some() {
         return;
     }
 
@@ -1005,12 +1005,12 @@ fn ui_ext_tabline_update() {
 pub fn draw_tabline() {
     let attr_fill = hl_attr(HLF_TPF);
     let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
-    let use_sep_chars = g_st().t_colors < 8;
+    let use_sep_chars = g_st().t_colors.get() < 8;
 
     if !crate::grid::grid_allocated(&g_st().default_grid) {
         return;
     }
-    g_st().redraw_tabline = false;
+    g_st().redraw_tabline.set(false);
 
     if ui_has(K_UITABLINE) {
         ui_ext_tabline_update();
@@ -1021,7 +1021,7 @@ pub fn draw_tabline() {
         return;
     }
 
-    debug_assert!(g_st().tab_page_click_defs.len() >= g_st().columns_global as usize);
+    debug_assert!(g_st().tab_page_click_defs.len() >= g_st().columns_global.get() as usize);
     stl_clear_click_defs(&mut g_st().tab_page_click_defs);
 
     if !opt_vars().p_tal.is_empty() {
@@ -1037,7 +1037,7 @@ pub fn draw_tabline() {
         }
 
         let tabwidth = (if tabcount > 0 {
-            (g_st().columns_global - 1 + tabcount / 2) / tabcount
+            (g_st().columns_global.get() - 1 + tabcount / 2) / tabcount
         } else {
             0
         })
@@ -1048,7 +1048,7 @@ pub fn draw_tabline() {
 
         tp = g_st().first_tabpage.clone();
         while !tp.is_null() {
-            if col >= g_st().columns_global - 4 {
+            if col >= g_st().columns_global.get() - 4 {
                 break;
             }
 
@@ -1091,7 +1091,7 @@ pub fn draw_tabline() {
             if modified || wincount > 1 {
                 if wincount > 1 {
                     let len = format_to_buf!(g_st().name_buff_bytes_mut(), c"%d", wincount);
-                    if col + len >= g_st().columns_global - 3 {
+                    if col + len >= g_st().columns_global.get() - 3 {
                         break;
                     }
 
@@ -1126,7 +1126,7 @@ pub fn draw_tabline() {
                     let step = crate::mbyte::utfc_slice2len(b).max(1).min(b.len());
                     p_cstr = &p_cstr[step..];
                 }
-                let n = g_st().columns_global - col - 1;
+                let n = g_st().columns_global.get() - col - 1;
                 len = len.min(n);
 
                 grid_line_puts(col, p_cstr, -1, attr);
@@ -1148,7 +1148,7 @@ pub fn draw_tabline() {
             tp = tp.tp_next.get();
         }
 
-        for scol in col..g_st().columns_global {
+        for scol in col..g_st().columns_global.get() {
             g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
                 type_: K_STL_CLICK_TAB_SWITCH,
                 tabnr: 0,
@@ -1157,15 +1157,20 @@ pub fn draw_tabline() {
         }
 
         let c = if use_sep_chars { b'_' } else { b' ' };
-        grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
+        grid_line_fill(
+            col,
+            g_st().columns_global.get(),
+            schar_from_ascii(c),
+            attr_fill,
+        );
 
         if opt_vars().p_sc.get() && opt_vars().p_sloc.first_byte() == b't' {
-            let n = g_st().columns_global - col - i32::from(tabcount > 1) * 3;
+            let n = g_st().columns_global.get() - col - i32::from(tabcount > 1) * 3;
             let sc_width = 10.min(n);
 
             if sc_width > 0 {
                 grid_line_puts(
-                    g_st().columns_global - sc_width - i32::from(tabcount > 1) * 2,
+                    g_st().columns_global.get() - sc_width - i32::from(tabcount > 1) * 2,
                     crate::memory::bytes_as_cstr(&g_st().showcmd_buf),
                     sc_width,
                     attr_nosel,
@@ -1176,11 +1181,11 @@ pub fn draw_tabline() {
 
         if tabcount > 1 {
             grid_line_put_schar(
-                g_st().columns_global - 1,
+                g_st().columns_global.get() - 1,
                 schar_from_ascii(b'X'),
                 attr_nosel,
             );
-            g_st().tab_page_click_defs.as_mut_slice()[(g_st().columns_global - 1) as usize] =
+            g_st().tab_page_click_defs.as_mut_slice()[(g_st().columns_global.get() - 1) as usize] =
                 StlClickDefinition {
                     type_: K_STL_CLICK_TAB_CLOSE,
                     tabnr: 999,
@@ -1191,7 +1196,7 @@ pub fn draw_tabline() {
         grid_line_flush();
     }
 
-    g_st().redraw_tabline = false;
+    g_st().redraw_tabline.set(false);
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
@@ -1539,13 +1544,13 @@ pub fn build_stl_str_hl_slice(
         Some(f) => f.to_bytes_with_nul().to_vec(),
         None => vec![0],
     };
-    let save_redraw_not_allowed = g_st().redraw_not_allowed;
+    let save_redraw_not_allowed = g_st().redraw_not_allowed.get();
     #[allow(non_snake_case)]
-    let save_KeyTyped = g_st().key_typed;
-    let did_emsg_before = g_st().did_emsg;
+    let save_KeyTyped = g_st().key_typed.get();
+    let did_emsg_before = g_st().did_emsg.get();
 
-    if g_st().updating_screen {
-        g_st().redraw_not_allowed = true;
+    if g_st().updating_screen.get() {
+        g_st().redraw_not_allowed.set(true);
     }
 
     const INIT_LEN: usize = 20;
@@ -2151,7 +2156,7 @@ pub fn build_stl_str_hl_slice(
                 num = (*wp).buf_mut().b_ml.ml_line_count;
             }
             STL_COLUMN => {
-                num = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
+                num = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
                     wp.w_cursor.col + 1
@@ -2159,7 +2164,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_VIRTCOL | STL_VIRTCOL_ALT => {
                 let virtcol = wp.w_virtcol.get() + 1;
-                let col_1 = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
+                let col_1 = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
                     wp.w_cursor.col + 1
@@ -2214,7 +2219,7 @@ pub fn build_stl_str_hl_slice(
                     0
                 } else {
                     l + 1
-                        + if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
+                        + if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                             0
                         } else {
                             wp.w_cursor.col
@@ -2703,15 +2708,15 @@ pub fn build_stl_str_hl_slice(
         });
     }
 
-    g_st().redraw_not_allowed = save_redraw_not_allowed;
+    g_st().redraw_not_allowed.set(save_redraw_not_allowed);
 
-    if opt_idx != K_OPT_INVALID && g_st().did_emsg > did_emsg_before {
+    if opt_idx != K_OPT_INVALID && g_st().did_emsg.get() > did_emsg_before {
         let def = get_option_default(opt_idx, opt_scope);
         set_option_direct(opt_idx, def.clone(), opt_scope, SID_ERROR);
         optval_free_read(opt_idx, def);
     }
 
-    g_st().key_typed = save_KeyTyped;
+    g_st().key_typed.set(save_KeyTyped);
     width
 }
 
@@ -2741,7 +2746,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            g_st().emsg_skip += 1;
+            g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
 
             let check = |max_cells: i32,
                          pat: &str,
@@ -2906,7 +2911,7 @@ mod tests {
             check(3, "abc%%abcabc", "<bc", None, None, None);
             check(1, "%%", "%", None, None, None);
 
-            g_st().emsg_skip -= 1;
+            g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
         }
     }
 }

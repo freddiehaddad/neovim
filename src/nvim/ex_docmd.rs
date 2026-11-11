@@ -4873,40 +4873,40 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 ];
 
 fn save_dbg_stuff(dsp: &mut DbgStuff) {
-    dsp.trylevel = g_st().trylevel;
-    g_st().trylevel = 0;
-    dsp.force_abort = i32::from(g_st().force_abort);
-    g_st().force_abort = false;
+    dsp.trylevel = g_st().trylevel.get();
+    g_st().trylevel.set(0);
+    dsp.force_abort = i32::from(g_st().force_abort.get());
+    g_st().force_abort.set(false);
     dsp.caught_stack = std::mem::take(&mut g_st().caught_stack);
     dsp.vv_exception = v_exception(None);
     dsp.vv_throwpoint = v_throwpoint(None);
 
     // Necessary for debugging an inactive ":catch", ":finally", ":endtry".
-    dsp.did_emsg = g_st().did_emsg;
-    g_st().did_emsg = 0;
-    dsp.got_int = i32::from(g_st().got_int);
-    g_st().got_int = false;
-    dsp.did_throw = g_st().did_throw;
-    g_st().did_throw = false;
-    dsp.need_rethrow = i32::from(g_st().need_rethrow);
-    g_st().need_rethrow = false;
-    dsp.check_cstack = i32::from(g_st().check_cstack);
-    g_st().check_cstack = false;
+    dsp.did_emsg = g_st().did_emsg.get();
+    g_st().did_emsg.set(0);
+    dsp.got_int = i32::from(g_st().got_int.get());
+    g_st().got_int.set(false);
+    dsp.did_throw = g_st().did_throw.get();
+    g_st().did_throw.set(false);
+    dsp.need_rethrow = i32::from(g_st().need_rethrow.get());
+    g_st().need_rethrow.set(false);
+    dsp.check_cstack = i32::from(g_st().check_cstack.get());
+    g_st().check_cstack.set(false);
     dsp.current_exception = g_st().current_exception.take();
 }
 
 fn restore_dbg_stuff(dsp: &mut DbgStuff) {
-    g_st().suppress_errthrow = false;
-    g_st().trylevel = dsp.trylevel;
-    g_st().force_abort = dsp.force_abort != 0;
+    g_st().suppress_errthrow.set(false);
+    g_st().trylevel.set(dsp.trylevel);
+    g_st().force_abort.set(dsp.force_abort != 0);
     g_st().caught_stack = std::mem::take(&mut dsp.caught_stack);
     v_exception(dsp.vv_exception.take());
     v_throwpoint(dsp.vv_throwpoint.take());
-    g_st().did_emsg = dsp.did_emsg;
-    g_st().got_int = dsp.got_int != 0;
-    g_st().did_throw = dsp.did_throw;
-    g_st().need_rethrow = dsp.need_rethrow != 0;
-    g_st().check_cstack = dsp.check_cstack != 0;
+    g_st().did_emsg.set(dsp.did_emsg);
+    g_st().got_int.set(dsp.got_int != 0);
+    g_st().did_throw.set(dsp.did_throw);
+    g_st().need_rethrow.set(dsp.need_rethrow != 0);
+    g_st().check_cstack.set(dsp.check_cstack != 0);
     g_st().current_exception = dsp.current_exception.take();
 }
 
@@ -4939,7 +4939,7 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
 
 /// Print the executed command for when 'verbose' is set.
 fn msg_verbose_cmd(lnum: Linenr, cmd: &CStr) {
-    g_st().no_wait_return += 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
     verbose_enter_scroll();
 
     if lnum == 0 {
@@ -4947,12 +4947,12 @@ fn msg_verbose_cmd(lnum: Linenr, cmd: &CStr) {
     } else {
         let _ = smsg!(0, gettext(c"line %d: %s"), lnum, cmd);
     }
-    if g_st().msg_silent == 0 {
+    if g_st().msg_silent.get() == 0 {
         msg_puts(c"\n");
     }
 
     verbose_leave_scroll();
-    g_st().no_wait_return -= 1;
+    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 }
 
 /// Start executing an Ex command line.
@@ -5015,8 +5015,10 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         }
 
         if let Some(ref fcp) = fgetline.as_func() {
-            if g_st().ex_nesting_level == func_level(fcp) {
-                g_st().ex_nesting_level += 1;
+            if g_st().ex_nesting_level.get() == func_level(fcp) {
+                g_st()
+                    .ex_nesting_level
+                    .set(g_st().ex_nesting_level.get() + (1));
             }
             sname_owned = Some(func_name(fcp));
             fname_opt = sname_owned.as_deref();
@@ -5026,34 +5028,34 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
-            g_st().force_abort = false;
-            g_st().suppress_errthrow = false;
+            g_st().force_abort.set(false);
+            g_st().suppress_errthrow.set(false);
         }
 
         if (flags & DOCMD_EXCRESET) != 0 {
             save_dbg_stuff(&mut debug_saved);
         }
 
-        let initial_trylevel = g_st().trylevel;
+        let initial_trylevel = g_st().trylevel.get();
 
-        g_st().did_throw = false;
-        g_st().did_emsg = 0;
+        g_st().did_throw.set(false);
+        g_st().did_emsg.set(0);
 
         if (flags & DOCMD_KEYTYPED) == 0 && !fgetline.is_exline() {
-            g_st().key_typed = false;
+            g_st().key_typed.set(false);
         }
 
         let mut next_cmdline = cmdline;
         let mut has_cmdline_copy = false;
         loop {
             if next_cmdline.is_none()
-                && !g_st().force_abort
+                && !g_st().force_abort.get()
                 && cstack.cs_idx < 0
                 && !fgetline
                     .as_func()
                     .is_some_and(|fcp| func_has_abort(&fcp) != 0)
             {
-                g_st().did_emsg = 0;
+                g_st().did_emsg.set(0);
             }
 
             if cstack.cs_looplevel > 0
@@ -5062,14 +5064,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 cmdline_buf.clear();
 
                 if let Some(ref fcp) = fgetline.as_func() {
-                    if g_st().do_profiling == PROF_YES {
+                    if g_st().do_profiling.get() == PROF_YES {
                         func_line_end(fcp);
                     }
                     if func_has_ended(fcp) != 0 {
                         retval = false;
                         break;
                     }
-                } else if g_st().do_profiling == PROF_YES && fgetline.is_source() {
+                } else if g_st().do_profiling.get() == PROF_YES && fgetline.is_source() {
                     script_line_end();
                 }
 
@@ -5081,14 +5083,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 let fname_cstr = fname_opt.unwrap_or(c"");
                 if fgetline
                     .dbg_tick_get()
-                    .is_some_and(|dt| dt != g_st().debug_tick)
+                    .is_some_and(|dt| dt != g_st().debug_tick.get())
                 {
                     fgetline.breakpoint_set(dbg_find_breakpoint(
                         fgetline.is_source(),
                         fname_cstr,
                         sourcing_lnum(),
                     ));
-                    fgetline.dbg_tick_set(g_st().debug_tick);
+                    fgetline.dbg_tick_set(g_st().debug_tick.get());
                 }
 
                 {
@@ -5110,9 +5112,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                         fname_cstr,
                         sourcing_lnum(),
                     ));
-                    fgetline.dbg_tick_set(g_st().debug_tick);
+                    fgetline.dbg_tick_set(g_st().debug_tick.get());
                 }
-                if g_st().do_profiling == PROF_YES {
+                if g_st().do_profiling.get() == PROF_YES {
                     if let Some(ref fcp) = fgetline.as_func() {
                         func_line_start(fcp);
                     } else if fgetline.is_source() {
@@ -5139,19 +5141,19 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                         );
                         did_block = true;
                     }
-                    g_st().msg_didout = true;
+                    g_st().msg_didout.set(true);
                 }
 
                 if fgetline.is_none() {
-                    if g_st().key_typed && (flags & DOCMD_REPEAT) == 0 {
-                        g_st().need_wait_return = false;
+                    if g_st().key_typed.get() && (flags & DOCMD_REPEAT) == 0 {
+                        g_st().need_wait_return.set(false);
                     }
                     retval = false;
                     break;
                 }
                 let Some(next_cstr) = fgetline.call(b':' as i32, indent, true) else {
-                    if g_st().key_typed && (flags & DOCMD_REPEAT) == 0 {
-                        g_st().need_wait_return = false;
+                    if g_st().key_typed.get() && (flags & DOCMD_REPEAT) == 0 {
+                        g_st().need_wait_return.set(false);
                     }
                     retval = false;
                     break;
@@ -5201,7 +5203,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 cmd_getline = fgetline.clone();
             }
 
-            g_st().did_endif = false;
+            g_st().did_endif.set(false);
 
             let prev_count = count;
             count += 1;
@@ -5209,12 +5211,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 && (flags & DOCMD_NOWAIT) == 0
                 && RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0
             {
-                msg_didout_before_start = g_st().msg_didout;
-                g_st().msg_didany = false;
+                msg_didout_before_start = g_st().msg_didout.get();
+                g_st().msg_didany.set(false);
                 msg_start();
-                g_st().msg_scroll = i32::from(true);
-                g_st().no_wait_return += 1;
-                g_st().redrawing_disabled += 1;
+                g_st().msg_scroll.set(i32::from(true));
+                g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+                g_st()
+                    .redrawing_disabled
+                    .set(g_st().redrawing_disabled.get() + (1));
                 did_inc = true;
             }
 
@@ -5247,13 +5251,13 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 next_cmdline = Some(c"");
             }
 
-            if g_st().did_emsg != 0
-                && !g_st().force_abort
+            if g_st().did_emsg.get() != 0
+                && !g_st().force_abort.get()
                 && fgetline
                     .as_func()
                     .is_some_and(|fcp| func_has_abort(&fcp) == 0)
             {
-                g_st().did_emsg = 0;
+                g_st().did_emsg.set(0);
             }
 
             if cstack.cs_looplevel > 0 {
@@ -5262,9 +5266,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if (cstack.cs_lflags & (CSL_HAD_CONT | CSL_HAD_ENDLOOP)) != 0 {
                     cstack.cs_lflags &= !(CSL_HAD_CONT | CSL_HAD_ENDLOOP);
 
-                    if g_st().did_emsg == 0
-                        && !g_st().got_int
-                        && !g_st().did_throw
+                    if g_st().did_emsg.get() == 0
+                        && !g_st().got_int.get()
+                        && !g_st().did_throw.get()
                         && cstack.cs_idx >= 0
                         && (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR)) != 0
                         && cstack.cs_line[cstack.cs_idx as usize] >= 0
@@ -5285,7 +5289,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                                 fname_cstr,
                                 wp_lnum - 1,
                             ));
-                            fgetline.dbg_tick_set(g_st().debug_tick);
+                            fgetline.dbg_tick_set(g_st().debug_tick.get());
                         }
                     } else if cstack.cs_idx >= 0 {
                         let prev_idx = cstack.cs_idx - 1;
@@ -5318,33 +5322,36 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 report_make_pending(
                     i32::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
-                    if g_st().did_throw {
+                    if g_st().did_throw.get() {
                         PendingVal::Throw(g_st().current_exception.clone())
                     } else {
                         PendingVal::None
                     },
                 );
-                g_st().did_emsg = 0;
-                g_st().got_int = false;
-                g_st().did_throw = false;
+                g_st().did_emsg.set(0);
+                g_st().got_int.set(false);
+                g_st().did_throw.set(false);
                 cstack.cs_flags[cstack.cs_idx as usize] |= CSF_ACTIVE | CSF_FINALLY;
             }
 
-            g_st().trylevel = initial_trylevel + cstack.cs_trylevel;
+            g_st().trylevel.set(initial_trylevel + cstack.cs_trylevel);
 
-            if g_st().trylevel == 0 && g_st().did_emsg == 0 && !g_st().got_int && !g_st().did_throw
+            if g_st().trylevel.get() == 0
+                && g_st().did_emsg.get() == 0
+                && !g_st().got_int.get()
+                && !g_st().did_throw.get()
             {
-                g_st().force_abort = false;
+                g_st().force_abort.set(false);
             }
 
             do_intthrow(&mut cstack);
 
-            let keep_going = !((g_st().got_int
-                || (g_st().did_emsg != 0 && g_st().force_abort)
-                || g_st().did_throw)
+            let keep_going = !((g_st().got_int.get()
+                || (g_st().did_emsg.get() != 0 && g_st().force_abort.get())
+                || g_st().did_throw.get())
                 && cstack.cs_trylevel == 0)
-                && !(g_st().did_emsg != 0
-                    && (cstack.cs_trylevel == 0 || g_st().did_emsg_syntax)
+                && !(g_st().did_emsg.get() != 0
+                    && (cstack.cs_trylevel == 0 || g_st().did_emsg_syntax.get())
                     && used_getline
                     && fgetline.is_exline())
                 && (next_cmdline.is_some() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
@@ -5354,12 +5361,12 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         }
 
         drop(cmdline_buf);
-        g_st().did_emsg_syntax = false;
+        g_st().did_emsg_syntax.set(false);
         drop(cmd_loop_cookie);
 
         if cstack.cs_idx >= 0 {
-            if !g_st().got_int
-                && !g_st().did_throw
+            if !g_st().got_int.get()
+                && !g_st().did_throw.get()
                 && !aborting()
                 && ((fgetline.is_source() && !source_finished(&fgetline))
                     || fgetline
@@ -5390,7 +5397,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     break;
                 }
             }
-            g_st().trylevel = initial_trylevel;
+            g_st().trylevel.set(initial_trylevel);
         }
 
         do_errthrow(
@@ -5398,33 +5405,37 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             fgetline.is_func().then_some(c"endfunction"),
         );
 
-        if g_st().trylevel == 0 {
-            if g_st().did_throw {
+        if g_st().trylevel.get() == 0 {
+            if g_st().did_throw.get() {
                 handle_did_throw();
-            } else if g_st().got_int || (g_st().did_emsg != 0 && g_st().force_abort) {
-                g_st().suppress_errthrow = true;
+            } else if g_st().got_int.get()
+                || (g_st().did_emsg.get() != 0 && g_st().force_abort.get())
+            {
+                g_st().suppress_errthrow.set(true);
             }
         }
 
-        if g_st().did_throw {
-            g_st().need_rethrow = true;
+        if g_st().did_throw.get() {
+            g_st().need_rethrow.set(true);
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| g_st().ex_nesting_level > source_level(&sp.borrow()))
+            .is_some_and(|sp| g_st().ex_nesting_level.get() > source_level(&sp.borrow()))
             || fgetline
                 .as_func()
-                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&fcp) + 1)
+                .is_some_and(|fcp| g_st().ex_nesting_level.get() > func_level(&fcp) + 1)
         {
-            if !g_st().did_throw {
-                g_st().check_cstack = true;
+            if !g_st().did_throw.get() {
+                g_st().check_cstack.set(true);
             }
         } else {
             if fgetline.is_func() {
-                g_st().ex_nesting_level -= 1;
+                g_st()
+                    .ex_nesting_level
+                    .set(g_st().ex_nesting_level.get() - (1));
             }
             if (fgetline.is_source() || fgetline.is_func())
-                && g_st().ex_nesting_level < g_st().debug_break_level
+                && g_st().ex_nesting_level.get() < g_st().debug_break_level.get()
             {
                 do_debug(if fgetline.is_source() {
                     gettext(c"End of sourced file")
@@ -5443,15 +5454,21 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         cstack.cs_emsg_silent_list.clear();
 
         if did_inc {
-            g_st().redrawing_disabled -= 1;
-            g_st().no_wait_return -= 1;
-            g_st().msg_scroll = 0;
+            g_st()
+                .redrawing_disabled
+                .set(g_st().redrawing_disabled.get() - (1));
+            g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+            g_st().msg_scroll.set(0);
 
-            if !retval || (g_st().did_endif && g_st().key_typed && g_st().did_emsg == 0) {
-                g_st().need_wait_return = false;
-                g_st().msg_didany = false;
-            } else if g_st().need_wait_return {
-                g_st().msg_didout |= msg_didout_before_start;
+            if !retval
+                || (g_st().did_endif.get() && g_st().key_typed.get() && g_st().did_emsg.get() == 0)
+            {
+                g_st().need_wait_return.set(false);
+                g_st().msg_didany.set(false);
+            } else if g_st().need_wait_return.get() {
+                g_st()
+                    .msg_didout
+                    .set(g_st().msg_didout.get() | (msg_didout_before_start));
                 wait_return(0);
             }
         }
@@ -5460,7 +5477,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             ui_ext_cmdline_block_leave();
         }
 
-        g_st().did_endif = false;
+        g_st().did_endif.set(false);
 
         do_cmdline_end();
         retval
@@ -5500,9 +5517,9 @@ pub fn handle_did_throw() {
 
     discard_current_exception();
 
-    if g_st().emsg_silent == 0 {
-        g_st().suppress_errthrow = true;
-        g_st().force_abort = true;
+    if g_st().emsg_silent.get() == 0 {
+        g_st().suppress_errthrow.set(true);
+        g_st().force_abort.set(true);
     }
 
     if !messages.is_empty() {
@@ -5548,7 +5565,7 @@ pub fn get_loop_line(
         return line;
     }
 
-    g_st().key_typed = false;
+    g_st().key_typed.set(false);
     let mut cp = cookie.borrow_mut();
     cp.current_line += 1;
     let wp = &cp.lines[cp.current_line as usize];
@@ -5992,11 +6009,11 @@ pub fn parse_cmdline(
             let mut arg = eap.arg.clone();
             while !arg.is_empty() && arg.first_byte() != b'|' && arg.first_byte() != b'\n' {
                 let start_addr = arg.addr();
-                g_st().emsg_skip += 1;
+                g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
                 let mut arg_cstr = arg.as_cstr();
                 skip_expr(&mut arg_cstr, None);
                 arg = arg.advance_to_cstr(arg_cstr);
-                g_st().emsg_skip -= 1;
+                g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
                 if arg.addr() == start_addr {
                     arg = arg.wrapping_add(1);
                 }
@@ -6116,9 +6133,11 @@ fn execute_cmd0(
     }
 
     if eap.cmdidx == Cmdidx::CmdTry && g_st().cmdmod.cmod_did_esilent > 0 {
-        g_st().emsg_silent -= g_st().cmdmod.cmod_did_esilent;
-        if g_st().emsg_silent < 0 {
-            g_st().emsg_silent = 0;
+        g_st()
+            .emsg_silent
+            .set(g_st().emsg_silent.get() - (g_st().cmdmod.cmod_did_esilent));
+        if g_st().emsg_silent.get() < 0 {
+            g_st().emsg_silent.set(0);
         }
         g_st().cmdmod.cmod_did_esilent = 0;
     }
@@ -6184,7 +6203,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
         }
 
         if ((eap.argt & EX_WHOLEFOLD) != 0 || eap.addr_count >= 2)
-            && g_st().global_busy == 0
+            && g_st().global_busy.get() == 0
             && eap.addr_type == ADDR_LINES
         {
             has_folding(curwin_mut(), eap.line1, Some(&mut eap.line1), None);
@@ -6215,13 +6234,13 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
 
 fn profile_cmd(eap: &Exarg, fgetline: &LineGetter) {
     let cstack = eap.cstack();
-    if g_st().do_profiling == PROF_YES
+    if g_st().do_profiling.get() == PROF_YES
         && (!eap.skip
             || cstack.cs_idx == 0
             || (cstack.cs_idx > 0
                 && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) != 0))
     {
-        let mut skip = g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw;
+        let mut skip = g_st().did_emsg.get() != 0 || g_st().got_int.get() || g_st().did_throw.get();
 
         if eap.cmdidx == Cmdidx::CmdCatch {
             skip = !skip
@@ -6354,14 +6373,16 @@ fn do_one_cmd(
     fgetline: LineGetter,
 ) -> bool {
     let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
-    let save_reg_executing = g_st().reg_executing;
-    let save_pending_end_reg_executing = g_st().pending_end_reg_executing;
+    let save_reg_executing = g_st().reg_executing.get();
+    let save_pending_end_reg_executing = g_st().pending_end_reg_executing.get();
 
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
     ea.cstack = Some(std::mem::take(cstack));
-    g_st().ex_nesting_level += 1;
+    g_st()
+        .ex_nesting_level
+        .set(g_st().ex_nesting_level.get() + (1));
 
     if DOCMD_STATE.with(|s| s.quitmore.get()) != 0 && !fgetline.is_func() && !fgetline.is_autocmd()
     {
@@ -6389,19 +6410,19 @@ fn do_one_cmd(
 
         let after_modifier = ea.cmd.clone();
 
-        ea.skip = g_st().did_emsg != 0
-            || g_st().got_int
-            || g_st().did_throw
+        ea.skip = g_st().did_emsg.get() != 0
+            || g_st().got_int.get()
+            || g_st().did_throw.get()
             || (ea.cstack().cs_idx >= 0
                 && (ea.cstack().cs_flags[ea.cstack().cs_idx as usize] & CSF_ACTIVE) == 0);
 
         let mut p_opt = find_excmd_after_range(&mut ea);
         profile_cmd(&ea, &fgetline);
 
-        if !g_st().exiting {
+        if !g_st().exiting.get() {
             dbg_check_breakpoint(&mut ea);
         }
-        if !ea.skip && g_st().got_int {
+        if !ea.skip && g_st().got_int.get() {
             ea.skip = true;
             do_intthrow(ea.cstack_mut());
         }
@@ -6479,7 +6500,7 @@ fn do_one_cmd(
                     append_command(cmdname);
                 }
                 errormsg = Some(std::borrow::Cow::Borrowed(g_st().iobuff_cstr()));
-                g_st().did_emsg_syntax = true;
+                g_st().did_emsg_syntax.set(true);
                 verify_command(cmdname.to_bytes());
             }
             break 'doend;
@@ -6494,7 +6515,7 @@ fn do_one_cmd(
         }
 
         if !ea.skip {
-            if g_st().sandbox != 0 && (ea.argt & EX_SBOXOK) == 0 {
+            if g_st().sandbox.get() != 0 && (ea.argt & EX_SBOXOK) == 0 {
                 errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_SANDBOX)));
                 break 'doend;
             }
@@ -6534,9 +6555,9 @@ fn do_one_cmd(
         }
 
         if !ea.skip && !ni && (ea.argt & EX_RANGE) != 0 {
-            if g_st().global_busy == 0 && ea.line1 > ea.line2 {
-                if g_st().msg_silent == 0 {
-                    if (flags & DOCMD_VERBOSE) != 0 || g_st().silent_mode {
+            if g_st().global_busy.get() == 0 && ea.line1 > ea.line2 {
+                if g_st().msg_silent.get() == 0 {
+                    if (flags & DOCMD_VERBOSE) != 0 || g_st().silent_mode.get() {
                         errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                             c"E493: Backwards range given",
                         )));
@@ -6561,7 +6582,7 @@ fn do_one_cmd(
         correct_range(&mut ea);
 
         if ((ea.argt & EX_WHOLEFOLD) != 0 || ea.addr_count >= 2)
-            && g_st().global_busy == 0
+            && g_st().global_busy.get() == 0
             && ea.addr_type == ADDR_LINES
         {
             has_folding(curwin_mut(), ea.line1, Some(&mut ea.line1), None);
@@ -6690,17 +6711,17 @@ fn do_one_cmd(
             break 'doend;
         }
 
-        if g_st().need_rethrow {
+        if g_st().need_rethrow.get() {
             do_throw(ea.cstack_mut());
-        } else if g_st().check_cstack {
+        } else if g_st().check_cstack.get() {
             if source_finished(&fgetline) {
                 do_finish(&mut ea, true);
             } else if fgetline.is_func() && current_func_returned() != 0 {
                 let _ = do_return(&mut ea, true, false, None);
             }
         }
-        g_st().need_rethrow = false;
-        g_st().check_cstack = false;
+        g_st().need_rethrow.set(false);
+        g_st().check_cstack.set(false);
     }
 
     *cstack = ea.cstack.take().unwrap();
@@ -6712,7 +6733,7 @@ fn do_one_cmd(
 
     if let Some(mut msg) = errormsg
         && !msg.to_bytes().is_empty()
-        && g_st().did_emsg == 0
+        && g_st().did_emsg.get() == 0
     {
         if (flags & DOCMD_VERBOSE) != 0 {
             let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr().cast();
@@ -6732,14 +6753,18 @@ fn do_one_cmd(
 
     undo_cmdmod(&mut g_st().cmdmod);
     g_st().cmdmod = save_cmdmod;
-    g_st().reg_executing = save_reg_executing;
-    g_st().pending_end_reg_executing = save_pending_end_reg_executing;
+    g_st().reg_executing.set(save_reg_executing);
+    g_st()
+        .pending_end_reg_executing
+        .set(save_pending_end_reg_executing);
 
     if !ea.nextcmd.is_null() && ea.nextcmd.is_empty() {
         ea.nextcmd = crate::strings::OwnedSlice::NULL;
     }
 
-    g_st().ex_nesting_level -= 1;
+    g_st()
+        .ex_nesting_level
+        .set(g_st().ex_nesting_level.get() - (1));
 
     if ea.nextcmd.is_null() {
         false
@@ -7139,7 +7164,7 @@ pub fn parse_command_modifiers(
 
 pub fn apply_cmdmod(cmod: &mut Cmdmod) {
     if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && !cmod.cmod_did_sandbox {
-        g_st().sandbox += 1;
+        g_st().sandbox.set(g_st().sandbox.get() + (1));
         cmod.cmod_did_sandbox = true;
     }
     if cmod.cmod_verbose > 0 {
@@ -7152,18 +7177,18 @@ pub fn apply_cmdmod(cmod: &mut Cmdmod) {
     }
 
     if (cmod.cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0 && cmod.cmod_save_msg_silent == 0 {
-        cmod.cmod_save_msg_silent = g_st().msg_silent + 1;
-        cmod.cmod_save_msg_scroll = g_st().msg_scroll;
+        cmod.cmod_save_msg_silent = g_st().msg_silent.get() + 1;
+        cmod.cmod_save_msg_scroll = g_st().msg_scroll.get();
     }
     if (cmod.cmod_flags & CMOD_SILENT) != 0 {
-        g_st().msg_silent += 1;
+        g_st().msg_silent.set(g_st().msg_silent.get() + (1));
     }
     if (cmod.cmod_flags & CMOD_UNSILENT) != 0 {
-        g_st().msg_silent = 0;
+        g_st().msg_silent.set(0);
     }
 
     if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
-        g_st().emsg_silent += 1;
+        g_st().emsg_silent.set(g_st().emsg_silent.get() + (1));
         cmod.cmod_did_esilent += 1;
     }
 
@@ -7180,7 +7205,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     }
 
     if cmod.cmod_did_sandbox {
-        g_st().sandbox -= 1;
+        g_st().sandbox.set(g_st().sandbox.get() - (1));
         cmod.cmod_did_sandbox = false;
     }
 
@@ -7192,17 +7217,19 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     cmod.cmod_filter_regmatch.free_prog();
 
     if cmod.cmod_save_msg_silent > 0 {
-        if g_st().did_emsg == 0 || g_st().msg_silent > cmod.cmod_save_msg_silent - 1 {
-            g_st().msg_silent = cmod.cmod_save_msg_silent - 1;
+        if g_st().did_emsg.get() == 0 || g_st().msg_silent.get() > cmod.cmod_save_msg_silent - 1 {
+            g_st().msg_silent.set(cmod.cmod_save_msg_silent - 1);
         }
-        g_st().emsg_silent -= cmod.cmod_did_esilent;
-        if g_st().emsg_silent < 0 {
-            g_st().emsg_silent = 0;
+        g_st()
+            .emsg_silent
+            .set(g_st().emsg_silent.get() - (cmod.cmod_did_esilent));
+        if g_st().emsg_silent.get() < 0 {
+            g_st().emsg_silent.set(0);
         }
-        g_st().msg_scroll = cmod.cmod_save_msg_scroll;
+        g_st().msg_scroll.set(cmod.cmod_save_msg_scroll);
 
         if redirecting() != 0 {
-            g_st().msg_col = 0;
+            g_st().msg_col.set(0);
         }
 
         cmod.cmod_save_msg_silent = 0;
@@ -8887,8 +8914,8 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
 }
 
 fn ex_autocmd(eap: &mut Exarg) {
-    if g_st().secure != 0 {
-        g_st().secure = 2;
+    if g_st().secure.get() != 0 {
+        g_st().secure.set(2);
         eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_CURDIR)));
     } else if eap.cmdidx == Cmdidx::CmdAutocmd {
         let arg = eap.arg.to_cstring();
@@ -9007,7 +9034,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
     if !forceit
         && only_one_window()
         && ac > 1
-        && !g_st().arg_had_last
+        && !g_st().arg_had_last.get()
         && n > 0
         && DOCMD_STATE.with(|s| s.quitmore.get()) == 0
     {
@@ -9056,9 +9083,9 @@ pub fn get_command_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 
 fn ex_colorscheme(eap: &mut Exarg) {
     if eap.arg.is_empty() {
-        g_st().emsg_off += 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
         let p = eval_to_string(c"g:colors_name", false, false);
-        g_st().emsg_off -= 1;
+        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 
         msg_ext_set_kind(c"list_cmd");
         if let Some(ref p) = p {
@@ -9079,7 +9106,7 @@ fn ex_highlight(eap: &mut Exarg) {
 }
 
 pub fn not_exiting(save_exiting: bool) {
-    g_st().exiting = save_exiting;
+    g_st().exiting.set(save_exiting);
     set_vim_var_string(VV_EXITREASON, None, -1);
 }
 
@@ -9148,9 +9175,9 @@ fn ex_quit(eap: &mut Exarg) {
         return;
     }
 
-    let save_exiting = g_st().exiting;
+    let save_exiting = g_st().exiting.get();
     if check_more(false, eap.forceit) && only_one_window() {
-        g_st().exiting = true;
+        g_st().exiting.set(true);
     }
     if (!buf_hide(wp.borrow().buf_mut())
         && check_changed(
@@ -9194,8 +9221,8 @@ fn ex_quitall(eap: &mut Exarg) {
     if !before_quit_all(eap) {
         return;
     }
-    let save_exiting = g_st().exiting;
-    g_st().exiting = true;
+    let save_exiting = g_st().exiting.get();
+    g_st().exiting.set(true);
     if eap.forceit || !check_changed_any(false, false) {
         getout(0);
     }
@@ -9203,10 +9230,10 @@ fn ex_quitall(eap: &mut Exarg) {
 }
 
 fn ex_exmode(_eap: &mut Exarg) {
-    if g_st().silent_mode {
+    if g_st().silent_mode.get() {
         return;
     }
-    if g_st().ex_normal_busy > 0 || g_st().global_busy != 0 {
+    if g_st().ex_normal_busy.get() > 0 || g_st().global_busy.get() != 0 {
         flush_buffers(FLUSH_TYPEAHEAD);
         return;
     }
@@ -9558,7 +9585,7 @@ fn ex_restart(eap: &mut Exarg) {
         if error_set(&err) {
             let _ = emsg(err.msg_cstr().unwrap_or(c""));
             api_clear_error(&mut err);
-        } else if !g_st().exiting {
+        } else if !g_st().exiting.get() {
             let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
         }
         drop(quit_cmd_copy);
@@ -9859,9 +9886,9 @@ fn ex_exit(eap: &mut Exarg) {
         return;
     }
 
-    let save_exiting = g_st().exiting;
+    let save_exiting = g_st().exiting.get();
     if check_more(false, eap.forceit) && only_one_window() {
-        g_st().exiting = true;
+        g_st().exiting.set(true);
     }
     if ((eap.cmdidx == Cmdidx::CmdWq || curbuf_is_changed_fn()) && !do_write(eap))
         || before_quit_autocmds(curwin_mut(), false, eap.forceit)
@@ -9884,7 +9911,7 @@ fn ex_print(eap: &mut Exarg) {
         let _ = emsg(gettext(E_EMPTY_BUFFER));
     } else {
         let mut line = eap.line1;
-        while line <= eap.line2 && !g_st().got_int {
+        while line <= eap.line2 && !g_st().got_int.get() {
             print_line(
                 line,
                 eap.cmdidx == Cmdidx::CmdNumber
@@ -9911,7 +9938,7 @@ fn ex_preserve(_eap: &mut Exarg) {
 }
 
 fn ex_recover(eap: &mut Exarg) {
-    g_st().recoverymode = true;
+    g_st().recoverymode.set(true);
     if !check_changed(
         curbuf_mut(),
         (if opt_vars().p_awa.get() { CCGD_AW } else { 0 })
@@ -9922,7 +9949,7 @@ fn ex_recover(eap: &mut Exarg) {
     {
         ml_recover(true);
     }
-    g_st().recoverymode = false;
+    g_st().recoverymode.set(false);
 }
 
 fn ex_wrongmodifier(eap: &mut Exarg) {
@@ -9950,7 +9977,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
         },
     ];
 
-    g_st().textlock += 1;
+    g_st().textlock.set(g_st().textlock.get() + (1));
 
     let ctx = get_option_sctx(K_OPT_FINDFUNC);
     g_st().current_sctx = ctx;
@@ -9960,7 +9987,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
     let retval = callback_call(cb, 2, &mut args, &mut rettv);
 
     g_st().current_sctx = saved_sctx;
-    g_st().textlock -= 1;
+    g_st().textlock.set(g_st().textlock.get() - (1));
 
     let mut retlist: Option<crate::eval::typval::ListId> = None;
     if retval {
@@ -10188,7 +10215,7 @@ fn ex_tabmove(eap: &mut Exarg) {
 fn ex_tabs(_eap: &mut Exarg) {
     msg_ext_set_kind(c"list_cmd");
     msg_start();
-    g_st().msg_scroll = i32::from(true);
+    g_st().msg_scroll.set(i32::from(true));
 
     let lastused_win = if valid_tabpage(g_st().lastused_tabpage.opt()) {
         g_st().lastused_tabpage.tp_curwin.get().as_ptr()
@@ -10197,11 +10224,11 @@ fn ex_tabs(_eap: &mut Exarg) {
     };
 
     for (tabcount, tp) in (1_i32..).zip(for_all_tabpages_ptr()) {
-        if g_st().got_int {
+        if g_st().got_int.get() {
             break;
         }
 
-        if g_st().msg_col > 0 {
+        if g_st().msg_col.get() > 0 {
             msg_putchar(b'\n' as i32);
         }
         let _ = format_to_buf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
@@ -10213,7 +10240,7 @@ fn ex_tabs(_eap: &mut Exarg) {
         os_breakcheck();
 
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 break;
             }
             if !win_is_focusable(wp) {
@@ -10256,13 +10283,13 @@ fn ex_tabs(_eap: &mut Exarg) {
 }
 
 fn ex_detach(eap: &mut Exarg) {
-    if !remote_ui_attached(g_st().current_ui) {
+    if !remote_ui_attached(g_st().current_ui.get()) {
         let _ = emsg(gettext(E_NOUI));
         return;
     }
 
     if eap.forceit {
-        if let Some(chan_ref) = find_channel(g_st().current_ui) {
+        if let Some(chan_ref) = find_channel(g_st().current_ui.get()) {
             chan_ref.detach = true;
             channel_event(chan_ref, EVENT_CHANINFO);
         }
@@ -10279,7 +10306,7 @@ fn ex_detach(eap: &mut Exarg) {
             return;
         }
 
-        let n = ui_detach_others(g_st().current_ui);
+        let n = ui_detach_others(g_st().current_ui.get());
         if n == 0 {
             let _ = msg(gettext(c"No other UIs are attached"), 0);
         } else {
@@ -10293,13 +10320,13 @@ fn ex_detach(eap: &mut Exarg) {
                 line!() as i32,
                 true,
                 c"%%detach current_ui=%llu detached=%zu",
-                g_st().current_ui,
+                g_st().current_ui.get(),
                 n,
             );
         }
     } else {
         let mut err = error_init();
-        ui_detach_channel(g_st().current_ui, &mut err);
+        ui_detach_channel(g_st().current_ui.get(), &mut err);
         if error_set(&err) {
             let _ = emsg(err.msg_cstr().unwrap_or(c""));
             api_clear_error(&mut err);
@@ -10313,7 +10340,7 @@ fn ex_detach(eap: &mut Exarg) {
                 line!() as i32,
                 true,
                 c"detach current_ui=%llu",
-                g_st().current_ui,
+                g_st().current_ui.get(),
             );
         }
     }
@@ -10334,7 +10361,7 @@ fn ex_connect(eap: &mut Exarg) {
             let _ = emsg(gettext(E_NOBANG));
             return;
         }
-        if !remote_ui_attached(g_st().current_ui) {
+        if !remote_ui_attached(g_st().current_ui.get()) {
             let _ = emsg(gettext(E_NOUI));
             return;
         }
@@ -10348,7 +10375,7 @@ fn ex_connect(eap: &mut Exarg) {
             TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: 0,
-                vval: TypvalVval::Number(g_st().current_ui as Varnumber),
+                vval: TypvalVval::Number(g_st().current_ui.get() as Varnumber),
             },
             TypVal::new(),
         ];
@@ -10389,7 +10416,7 @@ fn ex_connect(eap: &mut Exarg) {
     let stop_server = if eap.forceit { ui_active() == 1 } else { false };
 
     let mut err = error_init();
-    remote_ui_connect(g_st().current_ui, addr.as_bytes(), &mut err);
+    remote_ui_connect(g_st().current_ui.get(), addr.as_bytes(), &mut err);
     tv_clear(&mut ssh_rettv);
 
     if error_set(&err) {
@@ -10400,14 +10427,14 @@ fn ex_connect(eap: &mut Exarg) {
 
     ex_detach(&mut crate::ex_docmd::Exarg::new());
     if stop_server {
-        g_st().exiting = true;
+        g_st().exiting.set(true);
         getout(0);
     }
 }
 
 fn ex_mode(eap: &mut Exarg) {
     if eap.arg.is_empty() {
-        g_st().must_redraw = UPD_CLEAR;
+        g_st().must_redraw.set(UPD_CLEAR);
         ex_redraw(eap);
     } else {
         let _ = emsg(gettext(E_SCREENMODE));
@@ -10433,14 +10460,14 @@ fn ex_resize(eap: &mut Exarg) {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
             n += wp.w_width.get();
         } else if n == 0 && eap.arg.is_empty() {
-            n = g_st().columns_global;
+            n = g_st().columns_global.get();
         }
         win_setwidth_win(n, wp, true);
     } else {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
             n += wp.w_height.get();
         } else if n == 0 && eap.arg.is_empty() {
-            n = g_st().rows_global - 1;
+            n = g_st().rows_global.get() - 1;
         }
         win_setheight_win(n, wp, true);
     }
@@ -10545,11 +10572,11 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         if !eap.arg.is_empty() && text_or_buf_locked() {
             return;
         }
-        let n = g_st().readonlymode;
+        let n = g_st().readonlymode.get();
         if eap.cmdidx == Cmdidx::CmdView || eap.cmdidx == Cmdidx::CmdSview {
-            g_st().readonlymode = true;
+            g_st().readonlymode.set(true);
         } else if eap.cmdidx == Cmdidx::CmdEnew {
-            g_st().readonlymode = false;
+            g_st().readonlymode.set(false);
         }
         if eap.cmdidx != Cmdidx::CmdBalt && eap.cmdidx != Cmdidx::CmdBadd {
             setpcmark();
@@ -10594,10 +10621,10 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
                     leave_cleanup(&mut cs);
                 }
             }
-        } else if g_st().readonlymode && curbuf_mut().b_nwindows.get() == 1 {
+        } else if g_st().readonlymode.get() && curbuf_mut().b_nwindows.get() == 1 {
             curbuf_mut().b_p_ro.set(true);
         }
-        g_st().readonlymode = n;
+        g_st().readonlymode.set(n);
     } else {
         if let Some(ref cmd) = eap.do_ecmd_cmd {
             do_cmdline_cmd(cmd);
@@ -10678,7 +10705,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
     }
 
     if curwin_mut().w_onebuf_opt.wo_scb.get() {
-        g_st().did_syncbind = true;
+        g_st().did_syncbind.set(true);
         checkpcmark();
         if old_linenr != curwin_mut().w_cursor.lnum {
             let ctrl_o = [CTRL_O, 0];
@@ -10808,7 +10835,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         _ => std::process::abort(),
     }
 
-    g_st().last_chdir_reason = None;
+    g_st().last_chdir_reason.set(None);
     shorten_fnames(!crate::strings::vim_haschr(
         opt_vars().p_cpo.as_cstr(),
         K_CPO_NOSYMLINKS,
@@ -10920,7 +10947,7 @@ pub fn ex_cd(eap: &mut Exarg) {
 
     if eap.forceit && (new_dir).is_empty() && scope != K_CD_SCOPE_GLOBAL {
         chdir_clear(scope);
-        if g_st().key_typed || opt_vars().p_verbose.get() >= 5 {
+        if g_st().key_typed.get() || opt_vars().p_verbose.get() >= 5 {
             ex_pwd(eap);
         }
         return;
@@ -10932,7 +10959,7 @@ pub fn ex_cd(eap: &mut Exarg) {
     }
 
     if do_chdir((new_dir).as_opt_cstr(), scope)
-        && (g_st().key_typed || opt_vars().p_verbose.get() >= 5)
+        && (g_st().key_typed.get() || opt_vars().p_verbose.get() >= 5)
     {
         ex_pwd(eap);
     }
@@ -10943,7 +10970,7 @@ fn ex_pwd(_eap: &mut Exarg) {
         #[cfg(windows)]
         slash_adjust(g_st().name_buff_bytes_mut());
         if opt_vars().p_verbose.get() > 0 {
-            let context = if let Some(reason) = g_st().last_chdir_reason {
+            let context = if let Some(reason) = g_st().last_chdir_reason.get() {
                 reason
             } else if curbuf_mut().b_localdir.is_some() {
                 c"buffer"
@@ -11004,7 +11031,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
-    while !g_st().got_int && !expired {
+    while !g_st().got_int.get() && !expired {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
@@ -11016,7 +11043,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         }
     }
 
-    if g_st().got_int {
+    if g_st().got_int.get() {
         let _ = vpeekc();
     }
 
@@ -11064,15 +11091,15 @@ fn ex_wincmd(eap: &mut Exarg) {
     if !(p).is_empty() && (p).first_byte() != b'"' && eap.nextcmd.is_null() {
         let _ = emsg(gettext(E_INVARG));
     } else if !eap.skip {
-        g_st().postponed_split_flags = g_st().cmdmod.cmod_split;
-        g_st().postponed_split_tab = g_st().cmdmod.cmod_tab;
+        g_st().postponed_split_flags.set(g_st().cmdmod.cmod_split);
+        g_st().postponed_split_tab.set(g_st().cmdmod.cmod_tab);
         do_window(
             i32::from(eap.arg.first_byte()),
             if eap.addr_count > 0 { eap.line2 } else { 0 },
             xchar,
         );
-        g_st().postponed_split_flags = 0;
-        g_st().postponed_split_tab = 0;
+        g_st().postponed_split_flags.set(0);
+        g_st().postponed_split_tab.set(0);
     }
 }
 
@@ -11083,7 +11110,7 @@ fn ex_operators(eap: &mut Exarg) {
     oa.end.lnum = eap.line2;
     oa.line_count = eap.line2 - eap.line1 + 1;
     oa.motion_type = MT_LINE_WISE;
-    g_st().virtual_op = K_FALSE;
+    g_st().virtual_op.set(K_FALSE);
     if eap.cmdidx != Cmdidx::CmdYank {
         setpcmark();
         curwin_mut().w_cursor.lnum = eap.line1;
@@ -11108,7 +11135,7 @@ fn ex_operators(eap: &mut Exarg) {
         }
         op_shift(&mut oa, false, eap.amount);
     }
-    g_st().virtual_op = K_NONE;
+    g_st().virtual_op.set(K_NONE);
     ex_may_print(eap);
 }
 
@@ -11241,14 +11268,14 @@ fn ex_at(eap: &mut Exarg) {
         return;
     }
 
-    let save_efr = g_st().exec_from_reg;
-    g_st().exec_from_reg = true;
+    let save_efr = g_st().exec_from_reg.get();
+    g_st().exec_from_reg.set(true);
 
     while !stuff_empty() || g_st().typebuf.tb_len > prev_len {
         do_cmdline(None, LineGetter::ExLine, DOCMD_NOWAIT | DOCMD_VERBOSE);
     }
 
-    g_st().exec_from_reg = save_efr;
+    g_st().exec_from_reg.set(save_efr);
 }
 
 fn ex_bang(eap: &mut Exarg) {
@@ -11394,7 +11421,7 @@ fn ex_redir(eap: &mut Exarg) {
             && valid_yank_reg(i32::from(reg_b), true)
             && reg_b != b'_'
         {
-            g_st().redir_reg = i32::from(reg_b);
+            g_st().redir_reg.set(i32::from(reg_b));
             rem = rest;
             if let Some(after_gt2) = rem.strip_prefix(b">>") {
                 rem = after_gt2;
@@ -11402,13 +11429,13 @@ fn ex_redir(eap: &mut Exarg) {
                 if let Some(after_gt) = rem.strip_prefix(b">") {
                     rem = after_gt;
                 }
-                if rem.is_empty() && !ascii_isupper(g_st().redir_reg) {
-                    write_reg_contents(g_st().redir_reg, b"", 0, false);
+                if rem.is_empty() && !ascii_isupper(g_st().redir_reg.get()) {
+                    write_reg_contents(g_st().redir_reg.get(), b"", 0, false);
                 }
             }
         }
         if !rem.is_empty() {
-            g_st().redir_reg = 0;
+            g_st().redir_reg.set(0);
             let _ = semsg!(gettext(E_INVARG2), eap.arg);
         }
     } else if let Some(after_arrow) = arg_bytes.strip_prefix(b"=>") {
@@ -11422,53 +11449,53 @@ fn ex_redir(eap: &mut Exarg) {
         let arg = arg_base.wrapping_add(arg_bytes.len() - rem.len());
 
         if var_redir_start((arg).as_cstr(), append) {
-            g_st().redir_vname = true;
+            g_st().redir_vname.set(true);
         }
     } else {
         let _ = semsg!(gettext(E_INVARG2), eap.arg);
     }
 
-    if has_redir_fd() || g_st().redir_reg != 0 || g_st().redir_vname {
-        g_st().redir_off = false;
+    if has_redir_fd() || g_st().redir_reg.get() != 0 || g_st().redir_vname.get() {
+        g_st().redir_off.set(false);
     }
 }
 
 fn ex_redraw(eap: &mut Exarg) {
-    if g_st().cmdpreview {
+    if g_st().cmdpreview.get() {
         return;
     }
-    let r = g_st().redrawing_disabled;
+    let r = g_st().redrawing_disabled.get();
     let p = opt_vars().p_lz.get();
 
-    g_st().redrawing_disabled = 0;
+    g_st().redrawing_disabled.set(0);
     opt_vars().p_lz.set(false);
     validate_cursor(curwin_mut());
     update_topline(curwin_mut());
     if eap.forceit {
         redraw_all_later(UPD_NOT_VALID);
-        g_st().redraw_cmdline = true;
+        g_st().redraw_cmdline.set(true);
     } else if g_st().visual_global.active {
         redraw_curbuf_later(UPD_INVERTED);
     }
     update_screen();
-    if g_st().need_maketitle {
+    if g_st().need_maketitle.get() {
         maketitle();
     }
-    g_st().redrawing_disabled = r;
+    g_st().redrawing_disabled.set(r);
     opt_vars().p_lz.set(p);
 
-    g_st().msg_didout = false;
-    g_st().msg_col = 0;
-    g_st().need_wait_return = false;
+    g_st().msg_didout.set(false);
+    g_st().msg_col.set(0);
+    g_st().need_wait_return.set(false);
 
     ui_flush();
 }
 
 fn ex_redrawstatus(eap: &mut Exarg) {
-    if g_st().cmdpreview {
+    if g_st().cmdpreview.get() {
         return;
     }
-    let r = g_st().redrawing_disabled;
+    let r = g_st().redrawing_disabled.get();
     let p = opt_vars().p_lz.get();
 
     if eap.forceit {
@@ -11477,9 +11504,9 @@ fn ex_redrawstatus(eap: &mut Exarg) {
         status_redraw_curbuf();
     }
 
-    g_st().redrawing_disabled = 0;
+    g_st().redrawing_disabled.set(0);
     opt_vars().p_lz.set(false);
-    if (g_st().state_global & MODE_CMDLINE) != 0 {
+    if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
         redraw_statuslines();
     } else {
         if g_st().visual_global.active {
@@ -11487,31 +11514,31 @@ fn ex_redrawstatus(eap: &mut Exarg) {
         }
         update_screen();
     }
-    g_st().redrawing_disabled = r;
+    g_st().redrawing_disabled.set(r);
     opt_vars().p_lz.set(p);
     ui_flush();
 }
 
 fn ex_redrawtabline(_eap: &mut Exarg) {
-    let r = g_st().redrawing_disabled;
+    let r = g_st().redrawing_disabled.get();
     let p = opt_vars().p_lz.get();
 
-    g_st().redrawing_disabled = 0;
+    g_st().redrawing_disabled.set(0);
     opt_vars().p_lz.set(false);
 
     draw_tabline();
 
-    g_st().redrawing_disabled = r;
+    g_st().redrawing_disabled.set(r);
     opt_vars().p_lz.set(p);
     ui_flush();
 }
 
 fn close_redir() {
     g_st().redir_fd = None;
-    g_st().redir_reg = 0;
-    if g_st().redir_vname {
+    g_st().redir_reg.set(0);
+    if g_st().redir_vname.get() {
         var_redir_stop();
-        g_st().redir_vname = false;
+        g_st().redir_vname.set(false);
     }
 }
 
@@ -11574,17 +11601,17 @@ pub fn update_topline_cursor() {
 }
 
 pub fn save_current_state(sst: &mut SaveState) {
-    sst.save_msg_scroll = g_st().msg_scroll;
-    sst.save_restart_edit = g_st().restart_edit;
-    sst.save_msg_didout = g_st().msg_didout;
-    sst.save_state = g_st().state_global;
-    sst.save_finish_op = g_st().finish_op;
-    sst.save_opcount = g_st().opcount;
-    sst.save_reg_executing = g_st().reg_executing;
-    sst.save_pending_end_reg_executing = g_st().pending_end_reg_executing;
+    sst.save_msg_scroll = g_st().msg_scroll.get();
+    sst.save_restart_edit = g_st().restart_edit.get();
+    sst.save_msg_didout = g_st().msg_didout.get();
+    sst.save_state = g_st().state_global.get();
+    sst.save_finish_op = g_st().finish_op.get();
+    sst.save_opcount = g_st().opcount.get();
+    sst.save_reg_executing = g_st().reg_executing.get();
+    sst.save_pending_end_reg_executing = g_st().pending_end_reg_executing.get();
 
-    g_st().msg_scroll = 0;
-    g_st().restart_edit = 0;
+    g_st().msg_scroll.set(0);
+    g_st().restart_edit.set(0);
 
     save_typeahead(&mut sst.tabuf);
 }
@@ -11592,29 +11619,33 @@ pub fn save_current_state(sst: &mut SaveState) {
 pub fn restore_current_state(sst: &mut SaveState) {
     restore_typeahead(&mut sst.tabuf);
 
-    g_st().msg_scroll = sst.save_msg_scroll;
-    if g_st().force_restart_edit {
-        g_st().force_restart_edit = false;
+    g_st().msg_scroll.set(sst.save_msg_scroll);
+    if g_st().force_restart_edit.get() {
+        g_st().force_restart_edit.set(false);
     } else {
-        g_st().restart_edit = sst.save_restart_edit;
+        g_st().restart_edit.set(sst.save_restart_edit);
     }
-    g_st().finish_op = sst.save_finish_op;
-    g_st().opcount = sst.save_opcount;
-    g_st().reg_executing = sst.save_reg_executing;
-    g_st().pending_end_reg_executing = sst.save_pending_end_reg_executing;
+    g_st().finish_op.set(sst.save_finish_op);
+    g_st().opcount.set(sst.save_opcount);
+    g_st().reg_executing.set(sst.save_reg_executing);
+    g_st()
+        .pending_end_reg_executing
+        .set(sst.save_pending_end_reg_executing);
 
-    g_st().msg_didout |= sst.save_msg_didout;
+    g_st()
+        .msg_didout
+        .set(g_st().msg_didout.get() | (sst.save_msg_didout));
 
-    g_st().state_global = sst.save_state;
+    g_st().state_global.set(sst.save_state);
     ui_cursor_shape();
 }
 
 pub fn expr_map_locked() -> bool {
-    g_st().expr_map_lock > 0 && (curbuf_mut().b_flags.get() & BF_DUMMY) == 0
+    g_st().expr_map_lock.get() > 0 && (curbuf_mut().b_flags.get() & BF_DUMMY) == 0
 }
 
 fn ex_normal(eap: &mut Exarg) {
-    if !curbuf_mut().terminal.get().is_null() && (g_st().state_global & MODE_TERMINAL) != 0 {
+    if !curbuf_mut().terminal.get().is_null() && (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         let _ = emsg(c"Can't re-enter normal mode from terminal mode");
         return;
     }
@@ -11624,7 +11655,7 @@ fn ex_normal(eap: &mut Exarg) {
         return;
     }
 
-    if OptInt::from(g_st().ex_normal_busy) >= opt_vars().p_mmd.get() {
+    if OptInt::from(g_st().ex_normal_busy.get()) >= opt_vars().p_mmd.get() {
         let _ = emsg(gettext(c"E192: Recursive use of :normal too deep"));
         return;
     }
@@ -11665,7 +11696,7 @@ fn ex_normal(eap: &mut Exarg) {
         arg_vec = Some(v);
     }
 
-    g_st().ex_normal_busy += 1;
+    g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() + (1));
     let mut save_state = SaveState::new();
     save_current_state(&mut save_state);
 
@@ -11685,14 +11716,14 @@ fn ex_normal(eap: &mut Exarg) {
             false,
         );
 
-        if !(eap.addr_count > 0 && eap.line1 <= eap.line2 && !g_st().got_int) {
+        if !(eap.addr_count > 0 && eap.line1 <= eap.line2 && !g_st().got_int.get()) {
             break;
         }
     }
 
     update_topline_cursor();
     restore_current_state(&mut save_state);
-    g_st().ex_normal_busy -= 1;
+    g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() - (1));
 
     setmouse();
     ui_cursor_shape();
@@ -11711,21 +11742,21 @@ fn ex_startinsert(eap: &mut Exarg) {
         set_cursor_for_append_to_line();
     }
 
-    if (g_st().state_global & MODE_INSERT) != 0 {
+    if (g_st().state_global.get() & MODE_INSERT) != 0 {
         return;
     }
 
     if eap.cmdidx == Cmdidx::CmdStartinsert {
-        g_st().restart_edit = b'a' as i32;
+        g_st().restart_edit.set(b'a' as i32);
     } else if eap.cmdidx == Cmdidx::CmdStartreplace {
-        g_st().restart_edit = b'R' as i32;
+        g_st().restart_edit.set(b'R' as i32);
     } else {
-        g_st().restart_edit = b'V' as i32;
+        g_st().restart_edit.set(b'V' as i32);
     }
 
     if !eap.forceit {
         if eap.cmdidx == Cmdidx::CmdStartinsert {
-            g_st().restart_edit = b'i' as i32;
+            g_st().restart_edit.set(b'i' as i32);
         }
         curwin_mut().w_curswant.set(0);
     }
@@ -11736,7 +11767,7 @@ fn ex_startinsert(eap: &mut Exarg) {
 }
 
 fn ex_stopinsert(_eap: &mut Exarg) {
-    g_st().restart_edit = 0;
+    g_st().restart_edit.set(0);
     g_st().ins_global.stop_insert_mode = true;
     clearmode();
 }
@@ -11748,14 +11779,14 @@ pub fn exec_normal_cmd(cmd: &CStr, remap: i32, silent: bool) {
 
 pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     let mut oa = Oparg::new();
-    g_st().finish_op = false;
+    g_st().finish_op.set(false);
     while (!stuff_empty()
         || ((was_typed || typebuf_typed() == 0) && g_st().typebuf.tb_len > 0)
         || (use_vpeekc && {
             let c = vpeekc();
             c != 0 && c != i32::from(CTRL_C_CONST)
         }))
-        && !g_st().got_int
+        && !g_st().got_int.get()
     {
         update_topline_cursor();
         normal_cmd(&mut oa, true);
@@ -11783,9 +11814,9 @@ fn ex_checkpath(eap: &mut Exarg) {
 }
 
 fn ex_psearch(eap: &mut Exarg) {
-    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
+    g_st().g_do_tagpreview.set(opt_vars().p_pvh.get() as i32);
     ex_findpat(eap);
-    g_st().g_do_tagpreview = 0;
+    g_st().g_do_tagpreview.set(0);
 }
 
 fn ex_findpat(eap: &mut Exarg) {
@@ -11859,7 +11890,7 @@ fn ex_findpat(eap: &mut Exarg) {
 }
 
 fn ex_ptag(eap: &mut Exarg) {
-    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
+    g_st().g_do_tagpreview.set(opt_vars().p_pvh.get() as i32);
     ex_tag_cmd(
         eap,
         crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
@@ -11881,7 +11912,7 @@ fn ex_pbuffer(eap: &mut Exarg) {
 }
 
 fn prepare_preview_window() {
-    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
+    g_st().g_do_tagpreview.set(opt_vars().p_pvh.get() as i32);
     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
 }
 
@@ -11892,19 +11923,19 @@ fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         win_enter(curwin_save.borrow_mut(), true);
     }
-    g_st().g_do_tagpreview = 0;
+    g_st().g_do_tagpreview.set(0);
 }
 
 fn ex_stag(eap: &mut Exarg) {
-    g_st().postponed_split = -1;
-    g_st().postponed_split_flags = g_st().cmdmod.cmod_split;
-    g_st().postponed_split_tab = g_st().cmdmod.cmod_tab;
+    g_st().postponed_split.set(-1);
+    g_st().postponed_split_flags.set(g_st().cmdmod.cmod_split);
+    g_st().postponed_split_tab.set(g_st().cmdmod.cmod_tab);
     ex_tag_cmd(
         eap,
         crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
     );
-    g_st().postponed_split_flags = 0;
-    g_st().postponed_split_tab = 0;
+    g_st().postponed_split_flags.set(0);
+    g_st().postponed_split_tab.set(0);
 }
 
 fn ex_tag(eap: &mut Exarg) {
@@ -12117,11 +12148,11 @@ pub fn eval_vars(
                 result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_AFILE => {
-                use_shellslash = !g_st().autocmd_fname_full;
-                if !g_st().autocmd_fname_full
+                use_shellslash = !g_st().autocmd_fname_full.get();
+                if !g_st().autocmd_fname_full.get()
                     && let Some(ref cur_fname) = g_st().autocmd_fname
                 {
-                    g_st().autocmd_fname_full = true;
+                    g_st().autocmd_fname_full.set(true);
                     if let Some(full) = FullName_save(Some(cur_fname), false) {
                         g_st().autocmd_fname = Some(full);
                     }
@@ -12135,13 +12166,13 @@ pub fn eval_vars(
                 result_cstr = path_try_shorten_fname(Some(af));
             }
             SPEC_ABUF => {
-                if g_st().autocmd_bufnr <= 0 {
+                if g_st().autocmd_bufnr.get() <= 0 {
                     *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_AUTOCOMMAND_BUFFER_NUMBER_TO_SUBSTITUTE_FOR_ABUF,
                     )));
                     return None;
                 }
-                let _ = format_to_buf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
+                let _ = format_to_buf!(&mut strbuf, c"%d", g_st().autocmd_bufnr.get());
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_AMATCH => {
@@ -12541,9 +12572,9 @@ pub fn is_loclist_cmd(cmdidx: Cmdidx) -> bool {
 }
 
 fn ex_checkhealth(eap: &mut Exarg) {
-    g_st().emsg_off += 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let ok = nlua_call_excmd(c"vim.health", c"_check", eap, &g_st().cmdmod, None);
-    g_st().emsg_off -= 1;
+    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     if ok {
         return;
     }
@@ -12567,10 +12598,10 @@ fn ex_checkhealth(eap: &mut Exarg) {
 }
 
 fn ex_terminal(eap: &mut Exarg) {
-    let scroll_save = g_st().msg_scroll;
-    g_st().msg_scroll = 0;
+    let scroll_save = g_st().msg_scroll.get();
+    g_st().msg_scroll.set(0);
     autowrite_all();
-    g_st().msg_scroll = scroll_save;
+    g_st().msg_scroll.set(scroll_save);
 
     if !eap.arg.is_empty() {
         nlua_call_excmd(

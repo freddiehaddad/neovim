@@ -501,17 +501,17 @@ pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub fn cursor_get_mode_idx() -> i32 {
-    if g_st().state_global == MODE_SHOWMATCH {
+    if g_st().state_global.get() == MODE_SHOWMATCH {
         SHAPE_IDX_SM as i32
-    } else if g_st().state_global == MODE_TERMINAL {
+    } else if g_st().state_global.get() == MODE_TERMINAL {
         SHAPE_IDX_TERM as i32
-    } else if (g_st().state_global & VREPLACE_FLAG) != 0
-        || (g_st().state_global & REPLACE_FLAG) != 0
+    } else if (g_st().state_global.get() & VREPLACE_FLAG) != 0
+        || (g_st().state_global.get() & REPLACE_FLAG) != 0
     {
         SHAPE_IDX_R as i32
-    } else if (g_st().state_global & MODE_INSERT) != 0 {
+    } else if (g_st().state_global.get() & MODE_INSERT) != 0 {
         SHAPE_IDX_I as i32
-    } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+    } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
         if cmdline_at_end() {
             SHAPE_IDX_C as i32
         } else if cmdline_overstrike() {
@@ -519,7 +519,7 @@ pub fn cursor_get_mode_idx() -> i32 {
         } else {
             SHAPE_IDX_CI as i32
         }
-    } else if g_st().finish_op {
+    } else if g_st().finish_op.get() {
         SHAPE_IDX_O as i32
     } else if g_st().visual_global.active {
         if opt_vars().p_sel.first_byte() == b'e' {

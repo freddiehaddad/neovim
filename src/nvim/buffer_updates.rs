@@ -30,9 +30,9 @@ pub fn luaret_truthy(res: Object) -> bool {
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
     let save_cursor = curwin_mut().w_cursor;
-    g_st().textlock += 1;
+    g_st().textlock.set(g_st().textlock.get() + (1));
     f();
-    g_st().textlock -= 1;
+    g_st().textlock.set(g_st().textlock.get() - (1));
     curwin_mut().w_cursor = save_cursor;
 }
 
@@ -189,7 +189,7 @@ pub fn buf_updates_send_changes(
         return;
     }
 
-    let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf.as_ptr());
+    let send_tick = !(g_st().cmdpreview.get() && (&raw mut *buf) == g_st().curbuf.as_ptr());
     let mut badchannelid: u64 = 0;
 
     let mut arena = ARENA_EMPTY;
@@ -248,7 +248,7 @@ pub fn buf_updates_send_changes(
         let preview = buf.update_callbacks.as_slice()[i].preview;
         let utf_sizes = buf.update_callbacks.as_slice()[i].utf_sizes;
         let mut keep = true;
-        if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
+        if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 if send_tick {
@@ -303,7 +303,7 @@ pub fn buf_updates_send_splice(
         let on_bytes = buf.update_callbacks.as_slice()[i].on_bytes;
         let preview = buf.update_callbacks.as_slice()[i].preview;
         let mut keep = true;
-        if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
+        if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 integer_obj(buf_get_changedtick(&*buf)),

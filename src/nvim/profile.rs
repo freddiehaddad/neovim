@@ -373,29 +373,29 @@ pub fn ex_profile(eap: &mut Exarg) {
     if len == 5 && &arg_bytes[..5] == b"start" && !e.is_empty() {
         let fname = expand_env_save_opt(e.as_cstr(), true, None);
         prof_st(|st| *st.profile_fname.borrow_mut() = Some(fname));
-        g_st().do_profiling = PROF_YES;
+        g_st().do_profiling.set(PROF_YES);
         profile_set_wait(profile_zero());
         set_vim_var_nr(VV_PROFILING, 1);
-    } else if g_st().do_profiling == PROF_NONE {
+    } else if g_st().do_profiling.get() == PROF_NONE {
         emsg(c"E750: First use \":profile start {fname}\"");
     } else if arg_bytes == b"stop" {
         profile_dump();
-        g_st().do_profiling = PROF_NONE;
+        g_st().do_profiling.set(PROF_NONE);
         set_vim_var_nr(VV_PROFILING, 0);
         profile_reset();
     } else if arg_bytes == b"pause" {
-        if g_st().do_profiling == PROF_YES {
+        if g_st().do_profiling.get() == PROF_YES {
             let now = profile_start();
             prof_st(|st| st.pause_time.set(now));
         }
-        g_st().do_profiling = PROF_PAUSED;
+        g_st().do_profiling.set(PROF_PAUSED);
     } else if arg_bytes == b"continue" {
-        if g_st().do_profiling == PROF_PAUSED {
+        if g_st().do_profiling.get() == PROF_PAUSED {
             let elapsed = profile_end(prof_st(|st| st.pause_time.get()));
             prof_st(|st| st.pause_time.set(elapsed));
             profile_set_wait(profile_add(profile_get_wait(), elapsed));
         }
-        g_st().do_profiling = PROF_YES;
+        g_st().do_profiling.set(PROF_YES);
     } else if arg_bytes == b"dump" {
         profile_dump();
     } else {

@@ -435,7 +435,7 @@ pub fn shift_line(left: bool, round: bool, amount: i32, call_changed_bytes: i32)
         get_new_vts_indent(left, round, amount, vts_array)
     };
 
-    if (g_st().state_global & VREPLACE_FLAG) != 0 {
+    if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
         change_indent(INDENT_SET, trim_to_int(count), 0, call_changed_bytes != 0);
     } else {
         set_indent(
@@ -451,7 +451,7 @@ pub fn shift_line(left: bool, round: bool, amount: i32, call_changed_bytes: i32)
 
 fn shift_block(oap: &mut Oparg, amount: i32) {
     let left = oap.op_type == OP_LSHIFT;
-    let oldstate = g_st().state_global;
+    let oldstate = g_st().state_global.get();
     let oldcol = curwin_mut().w_cursor.col;
     let sw_val = get_sw_value_indent(curbuf_mut(), left);
     let ts_val = curbuf_mut().b_p_ts.get() as i32;
@@ -460,7 +460,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
 
     opt_vars().p_ri.set(false);
 
-    g_st().state_global = MODE_INSERT;
+    g_st().state_global.set(MODE_INSERT);
     block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
     if bd.is_short {
         return;
@@ -656,7 +656,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         newlen,
         K_EXTMARK_UNDO,
     );
-    g_st().state_global = oldstate;
+    g_st().state_global.set(oldstate);
     curwin_mut().w_cursor.col = oldcol;
     opt_vars().p_ri.set(old_p_ri);
 }
@@ -668,8 +668,8 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
         let mut count: i32 = 0;
         let mut spaces: i32;
         let mut offset: Colnr;
-        let oldstate = g_st().state_global;
-        g_st().state_global = MODE_INSERT;
+        let oldstate = g_st().state_global.get();
+        g_st().state_global.set(MODE_INSERT);
 
         for lnum in (oap.start.lnum + 1)..=oap.end.lnum {
             block_prep(oap, bdp, lnum, true);
@@ -780,7 +780,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             }
         }
 
-        g_st().state_global = oldstate;
+        g_st().state_global.set(oldstate);
 
         if oap.start.lnum < oap.end.lnum {
             changed_lines(
@@ -842,7 +842,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         && oap.op_type == OP_DELETE
         && crate::memline::ml_get_slice(oap.start.lnum).is_empty()
     {
-        if g_st().virtual_op != 0 {
+        if g_st().virtual_op.get() != 0 {
             only_setmarks = true;
         } else {
             if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EMPTYREGION) {
@@ -966,7 +966,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 u_clearline(curbuf_mut());
             }
         } else {
-            if g_st().virtual_op != 0 {
+            if g_st().virtual_op.get() != 0 {
                 if gchar_pos(&mut oap.start) == TAB {
                     let mut endcol: i32 = 0;
                     if !u_save_cursor() {
@@ -1012,7 +1012,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
                 let mut n = oap.end.col - oap.start.col + 1 - i32::from(!oap.inclusive);
 
-                if g_st().virtual_op != 0 {
+                if g_st().virtual_op.get() != 0 {
                     let len = get_cursor_line_len();
 
                     if oap.end.coladd != 0
@@ -1032,7 +1032,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
                 del_bytes(
                     n,
-                    g_st().virtual_op == 0,
+                    g_st().virtual_op.get() == 0,
                     oap.op_type == OP_DELETE && !oap.is_visual,
                 );
             } else {
@@ -1043,7 +1043,9 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     return false;
                 }
 
-                g_st().curbuf_splice_pending += 1;
+                g_st()
+                    .curbuf_splice_pending
+                    .set(g_st().curbuf_splice_pending.get() + (1));
                 let startpos = curwin_mut().w_cursor;
                 let deleted_bytes = get_region_bytecount(
                     curbuf_mut(),
@@ -1063,12 +1065,14 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 curwin_mut().w_cursor.col = 0;
                 del_bytes(
                     n,
-                    g_st().virtual_op == 0,
+                    g_st().virtual_op.get() == 0,
                     oap.op_type == OP_DELETE && !oap.is_visual,
                 );
                 curwin_mut().w_cursor = curpos;
                 do_join(2, false, false, false, false);
-                g_st().curbuf_splice_pending -= 1;
+                g_st()
+                    .curbuf_splice_pending
+                    .set(g_st().curbuf_splice_pending.get() - (1));
                 extmark_splice(
                     curbuf_mut(),
                     startpos.lnum - 1,
@@ -1131,17 +1135,17 @@ fn pbyte(mut lp: CursorPos, c: i32) {
         *slot = c as u8;
     }
 
-    if g_st().curbuf_splice_pending == 0 {
+    if g_st().curbuf_splice_pending.get() == 0 {
         extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
     }
 }
 
 fn replace_character(c: i32) {
-    let n = g_st().state_global;
+    let n = g_st().state_global.get();
 
-    g_st().state_global = MODE_REPLACE;
+    g_st().state_global.set(MODE_REPLACE);
     ins_char(c);
-    g_st().state_global = n;
+    g_st().state_global.set(n);
     dec_cursor();
 }
 
@@ -1173,12 +1177,12 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
         while curwin_mut().w_cursor.lnum <= oap.end.lnum {
             curwin_mut().w_cursor.col = 0;
             block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
-            if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_max) {
+            if bd.textlen == 0 && (g_st().virtual_op.get() == 0 || bd.is_max) {
                 curwin_mut().w_cursor.lnum += 1;
                 continue;
             }
 
-            if g_st().virtual_op != 0 && bd.is_short && bd.textstart.to_bytes().is_empty() {
+            if g_st().virtual_op.get() != 0 && bd.is_short && bd.textstart.to_bytes().is_empty() {
                 let mut vpos = CursorPos {
                     lnum: curwin_mut().w_cursor.lnum,
                     col: 0,
@@ -1201,7 +1205,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 0
             };
             let mut numc = oap.end_vcol - oap.start_vcol + 1;
-            if bd.is_short && (g_st().virtual_op == 0 || bd.is_max) {
+            if bd.is_short && (g_st().virtual_op.get() == 0 || bd.is_max) {
                 numc -= (oap.end_vcol - bd.end_vcol) + 1;
             }
 
@@ -1263,7 +1267,9 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 true,
             );
             drop(newp_vec);
-            g_st().curbuf_splice_pending += 1;
+            g_st()
+                .curbuf_splice_pending
+                .set(g_st().curbuf_splice_pending.get() + (1));
             let baselnum = curwin_mut().w_cursor.lnum;
             if !after_p.is_empty() {
                 let cur_lnum = curwin_mut().w_cursor.lnum;
@@ -1279,7 +1285,9 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 oap.end.lnum += 1;
                 after_p.clear();
             }
-            g_st().curbuf_splice_pending -= 1;
+            g_st()
+                .curbuf_splice_pending
+                .set(g_st().curbuf_splice_pending.get() - (1));
             extmark_splice(
                 curbuf_mut(),
                 baselnum - 1,
@@ -1339,7 +1347,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     }
                 }
             }
-            if !done && g_st().virtual_op != 0 && curwin_mut().w_cursor.lnum == oap.end.lnum {
+            if !done && g_st().virtual_op.get() != 0 && curwin_mut().w_cursor.lnum == oap.end.lnum {
                 let mut virtcols = oap.end.coladd;
 
                 if curwin_mut().w_cursor.lnum == oap.start.lnum
@@ -1606,7 +1614,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
         oap.start = curbuf_mut().b_op_start_orig;
     }
 
-    if curwin_mut().w_cursor.lnum != oap.start.lnum || g_st().got_int {
+    if curwin_mut().w_cursor.lnum != oap.start.lnum || g_st().got_int.get() {
         return;
     }
 
@@ -1731,13 +1739,13 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
 
     if l > curwin_mut().w_cursor.col
         && !lineempty(curwin_mut().w_cursor.lnum)
-        && g_st().virtual_op == 0
+        && g_st().virtual_op.get() == 0
     {
         inc_cursor();
     }
 
     if oap.motion_type == MT_BLOCK_WISE {
-        if g_st().virtual_op != 0
+        if g_st().virtual_op.get() != 0
             && (curwin_mut().w_cursor.coladd > 0 || gchar_cursor() == i32::from(NUL))
         {
             coladvance_force(getviscol());
@@ -1752,14 +1760,14 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
         fix_indent();
     }
 
-    let save_finish_op = g_st().finish_op;
-    g_st().finish_op = false;
+    let save_finish_op = g_st().finish_op.get();
+    g_st().finish_op.set(false);
 
     let retval = i32::from(edit(i32::from(NUL), false, 1));
 
-    g_st().finish_op = save_finish_op;
+    g_st().finish_op.set(save_finish_op);
 
-    if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int {
+    if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int.get() {
         let firstline_slice = crate::memline::ml_get_slice(oap.start.lnum);
         if bd.textcol > pre_indent {
             let new_indent = getwhitecols(firstline_slice) as i32;
@@ -1774,7 +1782,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                 .to_vec();
             for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                 block_prep(oap, &mut bd, linenr, true);
-                if !bd.is_short || g_st().virtual_op != 0 {
+                if !bd.is_short || g_st().virtual_op.get() != 0 {
                     let mut vpos = CursorPos {
                         lnum: linenr,
                         col: 0,
@@ -1835,7 +1843,7 @@ pub fn adjust_cursor_eol() {
         && gchar_cursor() == i32::from(NUL)
         && (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) == 0
         && (cur_ve_flags & K_OPT_VE_FLAG_ALL) == 0
-        && !(g_st().restart_edit != 0 || (g_st().state_global & MODE_INSERT) != 0);
+        && !(g_st().restart_edit.get() != 0 || (g_st().state_global.get() & MODE_INSERT) != 0);
     if !adj_cursor {
         return;
     }
@@ -1991,7 +1999,7 @@ pub fn do_join(
         }
 
         let space_t = i32::from(spaces_vec[t as usize]);
-        if t > 0 && g_st().curbuf_splice_pending == 0 {
+        if t > 0 && g_st().curbuf_splice_pending.get() == 0 {
             let removed = (curr_start.len() - curr.len()) as Colnr;
             extmark_splice(
                 curbuf_mut(),
@@ -2020,7 +2028,7 @@ pub fn do_join(
             }
         }
         line_breakcheck();
-        if g_st().got_int {
+        if g_st().got_int.get() {
             ret = false;
             aborted = true;
             break;
@@ -2034,7 +2042,9 @@ pub fn do_join(
         let mut newp_vec = vec![0u8; newp_len + 1];
         let mut cend_idx = sumsize as usize;
 
-        g_st().curbuf_splice_pending += 1;
+        g_st()
+            .curbuf_splice_pending
+            .set(g_st().curbuf_splice_pending.get() + (1));
 
         let mut t = (count as Linenr) - 1;
         loop {
@@ -2099,7 +2109,9 @@ pub fn do_join(
         curwin_mut().w_cursor.lnum += 1;
         del_lines((count as i32) - 1, false);
         curwin_mut().w_cursor.lnum = saved_lnum;
-        g_st().curbuf_splice_pending -= 1;
+        g_st()
+            .curbuf_splice_pending
+            .set(g_st().curbuf_splice_pending.get() - (1));
         curbuf_mut().deleted_bytes2.set(0);
 
         curwin_mut().w_cursor.col =
@@ -2230,7 +2242,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
             {
                 bdp.is_short = true;
-                if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
+                if oap.op_type == OP_APPEND || g_st().virtual_op.get() != 0 {
                     bdp.endspaces = oap.end_vcol - bdp.end_vcol + i32::from(oap.inclusive);
                 }
             } else if bdp.end_vcol > oap.end_vcol {
@@ -2272,7 +2284,10 @@ pub fn getregionpos_prep(
         if exclusive && !equalpos(*p1, *p2) {
             *inclusive = !unadjust_for_sel_inner(p2);
         }
-        if *inclusive && g_st().virtual_op == 0 && crate::memline::ml_get_pos_slice(p2).is_empty() {
+        if *inclusive
+            && g_st().virtual_op.get() == 0
+            && crate::memline::ml_get_pos_slice(p2).is_empty()
+        {
             *inclusive = false;
         }
     } else if region_type == MT_BLOCK_WISE {
@@ -2419,7 +2434,7 @@ pub fn charwise_block_prep(
 
     if lnum == start.lnum {
         startcol = start.col;
-        if g_st().virtual_op != 0 {
+        if g_st().virtual_op.get() != 0 {
             getvcol(
                 curwin_mut(),
                 &mut start,
@@ -2438,7 +2453,7 @@ pub fn charwise_block_prep(
 
     if lnum == end.lnum {
         endcol = end.col;
-        if g_st().virtual_op != 0 {
+        if g_st().virtual_op.get() != 0 {
             getvcol(
                 curwin_mut(),
                 &mut end,
@@ -2483,16 +2498,22 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
     let mut change_cnt: isize = 0;
     let mut amount = prenum1;
 
-    g_st().disable_fold_update += 1;
+    g_st()
+        .disable_fold_update
+        .set(g_st().disable_fold_update.get() + (1));
 
     if !g_st().visual_global.active {
         let mut pos = curwin_mut().w_cursor;
         if !u_save_cursor() {
-            g_st().disable_fold_update -= 1;
+            g_st()
+                .disable_fold_update
+                .set(g_st().disable_fold_update.get() - (1));
             return;
         }
         change_cnt = isize::from(do_addsub(oap.op_type, &mut pos, 0, amount));
-        g_st().disable_fold_update -= 1;
+        g_st()
+            .disable_fold_update
+            .set(g_st().disable_fold_update.get() - (1));
         if change_cnt != 0 {
             changed_lines(curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
         }
@@ -2505,7 +2526,9 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
         };
 
         if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
-            g_st().disable_fold_update -= 1;
+            g_st()
+                .disable_fold_update
+                .set(g_st().disable_fold_update.get() - (1));
             return;
         }
 
@@ -2549,7 +2572,9 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
             pos.lnum += 1;
         }
 
-        g_st().disable_fold_update -= 1;
+        g_st()
+            .disable_fold_update
+            .set(g_st().disable_fold_update.get() - (1));
         if change_cnt != 0 {
             changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
         }
@@ -3061,7 +3086,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
         for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
             if byte_count > last_check {
                 os_breakcheck();
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     return;
                 }
                 last_check = byte_count + 100000;
@@ -3072,9 +3097,11 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 let mut len: i32 = 0;
 
                 if l_visual_mode == CTRL_V_CONST {
-                    g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
+                    g_st()
+                        .virtual_op
+                        .set(TriState::from(virtual_active(curwin_mut())));
                     block_prep(&mut oparg, &mut bd, lnum, false);
-                    g_st().virtual_op = K_NONE;
+                    g_st().virtual_op.set(K_NONE);
                     s_opt = Some(bd.textstart.to_bytes());
                     len = bd.textlen;
                 } else if l_visual_mode == b'V' as i32 {
@@ -3253,7 +3280,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             let p = opt_vars().p_shm.take();
             if opt_vars().p_ch.get() < 1 {
                 msg_start();
-                g_st().msg_scroll = 1;
+                g_st().msg_scroll.set(1);
             }
             msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
             opt_vars().p_shm.set(p);
@@ -3390,11 +3417,11 @@ fn op_function(oap: &Oparg) {
             },
         ];
 
-        let save_virtual_op = g_st().virtual_op;
-        g_st().virtual_op = K_NONE;
+        let save_virtual_op = g_st().virtual_op.get();
+        g_st().virtual_op.set(K_NONE);
 
-        let save_finish_op = g_st().finish_op;
-        g_st().finish_op = false;
+        let save_finish_op = g_st().finish_op.get();
+        g_st().finish_op.set(false);
 
         let mut save_redo = RedoState::new();
         save_redobuff(&mut save_redo);
@@ -3405,8 +3432,8 @@ fn op_function(oap: &Oparg) {
         }
         restore_redobuff(&mut save_redo);
 
-        g_st().virtual_op = save_virtual_op;
-        g_st().finish_op = save_finish_op;
+        g_st().virtual_op.set(save_virtual_op);
+        g_st().finish_op.set(save_finish_op);
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
             curbuf_mut().b_op_start = orig_start;
             curbuf_mut().b_op_end = orig_end;
@@ -3510,7 +3537,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
     let old_cursor = curwin_mut().w_cursor;
     let op_origin = cap.oap.start;
 
-    if (g_st().finish_op || g_st().visual_global.active) && cap.oap.op_type != OP_NOP {
+    if (g_st().finish_op.get() || g_st().visual_global.active) && cap.oap.op_type != OP_NOP {
         let mut include_line_break = false;
         let redo_yank =
             crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_YANK) && !gui_yank;
@@ -3541,7 +3568,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         let oap = &mut cap.oap;
 
         if g_st().visual_global.active {
-            if !gui_yank && !g_st().finish_op {
+            if !gui_yank && !g_st().finish_op.get() {
                 curbuf_mut().b_visual = visualinfo();
                 restore_visual_mode();
                 curbuf_mut()
@@ -3620,7 +3647,9 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         check_pos(curwin_mut().buf_mut(), &mut oap.end);
         oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
-        g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
+        g_st()
+            .virtual_op
+            .set(TriState::from(virtual_active(curwin_mut())));
 
         if g_st().visual_global.active {
             get_op_vcol(&mut *oap, true);
@@ -3667,7 +3696,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             } else if g_st().visual_global.mode == b'v' as i32 {
                 oap.motion_type = MT_CHAR_WISE;
                 if crate::memline::ml_get_pos_slice(&oap.end).is_empty()
-                    && (include_line_break || g_st().virtual_op == 0)
+                    && (include_line_break || g_st().virtual_op.get() == 0)
                 {
                     oap.inclusive = false;
                     if opt_vars().p_sel.first_byte() != b'o'
@@ -3687,7 +3716,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             if !gui_yank {
                 g_st().visual_global.active = false;
                 setmouse();
-                g_st().mouse_dragging = 0;
+                g_st().mouse_dragging.set(0);
                 may_clear_cmdline();
                 if (oap.op_type == OP_YANK
                     || oap.op_type == OP_COLON
@@ -3714,7 +3743,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             && ((!oap.inclusive && oap.motion_type != MT_BLOCK_WISE)
                 || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == i32::from(NUL)))
             && equalpos(oap.start, oap.end)
-            && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
+            && !(g_st().virtual_op.get() != 0 && oap.start.coladd != oap.end.coladd);
         let empty_region_error =
             oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EMPTYREGION);
 
@@ -3804,12 +3833,12 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     vim_beep(K_OPT_BO_FLAG_OPERATOR);
                     redo_cancel();
                 } else {
-                    let restart_edit_save = if !g_st().key_typed {
-                        g_st().restart_edit
+                    let restart_edit_save = if !g_st().key_typed.get() {
+                        g_st().restart_edit.get()
                     } else {
                         0
                     };
-                    g_st().restart_edit = 0;
+                    g_st().restart_edit.set(0);
 
                     restore_lbr(lbr_saved);
 
@@ -3829,8 +3858,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     if busy {
                         cap.retval |= CA_COMMAND_BUSY;
                     }
-                    if g_st().restart_edit == 0 {
-                        g_st().restart_edit = restart_edit_save;
+                    if g_st().restart_edit.get() == 0 {
+                        g_st().restart_edit.set(restart_edit_save);
                     }
                     atom_ins_end(&mut session, busy);
                 }
@@ -3840,7 +3869,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FILTER) {
                         redo_append_str(b"!\r");
                     } else {
-                        g_st().bangredo = true;
+                        g_st().bangredo.set(true);
                     }
                 }
 
@@ -3896,8 +3925,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     vim_beep(K_OPT_BO_FLAG_OPERATOR);
                     redo_cancel();
                 } else {
-                    let restart_edit_save = g_st().restart_edit;
-                    g_st().restart_edit = 0;
+                    let restart_edit_save = g_st().restart_edit.get();
+                    g_st().restart_edit.set(0);
 
                     restore_lbr(lbr_saved);
 
@@ -3919,8 +3948,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     reset_lbr();
                     auto_format(false, true);
 
-                    if g_st().restart_edit == 0 {
-                        g_st().restart_edit = restart_edit_save;
+                    if g_st().restart_edit.get() == 0 {
+                        g_st().restart_edit.set(restart_edit_save);
                     } else {
                         cap.retval |= CA_COMMAND_BUSY;
                     }
@@ -3981,7 +4010,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
         }
         let oap = &mut cap.oap;
-        g_st().virtual_op = K_NONE;
+        g_st().virtual_op.set(K_NONE);
         if !gui_yank {
             if !opt_vars().p_sol.get()
                 && oap.motion_type == MT_LINE_WISE
@@ -3998,7 +4027,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             curwin_mut().w_cursor = old_cursor;
         }
         clearop(oap);
-        g_st().motion_force = i32::from(NUL);
+        g_st().motion_force.set(i32::from(NUL));
     }
     restore_lbr(lbr_saved);
 }

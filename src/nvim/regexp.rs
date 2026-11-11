@@ -2748,7 +2748,7 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
                 c"\\"
             },
         );
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return false;
     }
     if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
@@ -3037,7 +3037,7 @@ pub(super) fn match_with_backref(
         *bytelen = 0;
         clnum += 1;
         ccol = 0;
-        if g_st().got_int {
+        if g_st().got_int.get() {
             return RegAction::Fail;
         }
     }
@@ -3047,7 +3047,7 @@ pub(super) fn match_with_backref(
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
         semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what);
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return false;
     }
     true
@@ -4011,7 +4011,7 @@ pub(super) fn seen_endbrace(refnum: i32) -> bool {
         });
         if !has_lookbehind {
             emsg(tr(c"E65: Illegal back reference"));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return false;
         }
     }
@@ -4073,7 +4073,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     let engine = re_s.regexp_engine.get();
     let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
     let chartab = curbuf_mut().b_chartab.get();
-    let can_cache = g_st().reg_do_extmatch == 0
+    let can_cache = g_st().reg_do_extmatch.get() == 0
         && opt_vars().p_verbose.get() == 0
         && !expr.to_bytes().contains(&b'[');
     if can_cache {
@@ -4098,7 +4098,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    let called_emsg_before = g_st().called_emsg;
+    let called_emsg_before = g_st().called_emsg.get();
     let mut prog_opt = if engine != BACKTRACKING_ENGINE {
         nfa_regcomp(
             expr,
@@ -4131,7 +4131,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
 
     if prog_opt.is_none()
         && re_s.regexp_engine.get() == AUTOMATIC_ENGINE
-        && g_st().called_emsg == called_emsg_before
+        && g_st().called_emsg.get() == called_emsg_before
     {
         re_s.regexp_engine.set(BACKTRACKING_ENGINE);
         report_re_switch(expr);
@@ -4147,7 +4147,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
 
     if let Some(ref prog) = prog_opt
         && can_cache
-        && g_st().called_emsg == called_emsg_before
+        && g_st().called_emsg.get() == called_emsg_before
     {
         LAST_REGPROG.with(|cell| {
             *cell.borrow_mut() = Some(CachedRegprog {
@@ -4319,9 +4319,9 @@ pub fn vim_regexec_multi(
         opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
 
         report_re_switch(&pat_owned);
-        g_st().reg_do_extmatch = REX_ALL;
+        g_st().reg_do_extmatch.set(REX_ALL);
         let new_prog = vim_regcomp(&pat_owned, re_flags);
-        g_st().reg_do_extmatch = 0;
+        g_st().reg_do_extmatch.set(0);
 
         if let Some(new_prog) = new_prog {
             rmp.regprog.replace_from(&new_prog);

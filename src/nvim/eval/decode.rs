@@ -1254,7 +1254,9 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::globals::g_st().emsg_skip += 1;
+        crate::globals::g_st()
+            .emsg_skip
+            .set(crate::globals::g_st().emsg_skip.get() + (1));
         let mut rettv = TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -1318,6 +1320,8 @@ mod tests {
         assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as i32);
         tv_clear(&mut rettv);
 
-        crate::globals::g_st().emsg_skip -= 1;
+        crate::globals::g_st()
+            .emsg_skip
+            .set(crate::globals::g_st().emsg_skip.get() - (1));
     }
 }

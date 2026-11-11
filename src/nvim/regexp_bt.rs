@@ -899,7 +899,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
@@ -950,7 +950,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             if c == magic_fn(b'.' as i32) && utf_iscomposing_legacy(peekchr()) {
@@ -983,7 +983,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         c"\\"
                     },
                 );
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             ret = reg(REG_PAREN, &mut flags);
@@ -1004,11 +1004,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         c"\\"
                     },
                 );
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             iemsg(tr(E_INTERNAL_ERROR_IN_REGEXP));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         } else if c == magic_fn(b'=' as i32)
             || c == magic_fn(b'?' as i32)
@@ -1028,7 +1028,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 if magic_cond { c"" } else { c"\\" },
                 c,
             );
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         } else if c == magic_fn(b'~' as i32) {
             if let Some(ref prev_sub) = reg_prev_sub_ref() {
@@ -1046,7 +1046,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 return ret;
             } else {
                 emsg(tr(E_NOPRESUB));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
         } else if (magic_fn(b'1' as i32)..=magic_fn(b'9' as i32)).contains(&c) {
@@ -1059,9 +1059,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             c = no_magic(getchr());
             match c as u8 {
                 b'(' => {
-                    if (g_st().reg_do_extmatch & REX_SET) == 0 {
+                    if (g_st().reg_do_extmatch.get() & REX_SET) == 0 {
                         emsg(tr(E_Z_NOT_ALLOWED));
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     if RE_STATE.with(|s| s.one_exactly.get()) {
@@ -1073,7 +1073,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 c"\\"
                             },
                         );
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     ret = reg(REG_ZPAREN, &mut flags);
@@ -1083,9 +1083,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     return ret;
                 }
                 b'1'..=b'9' => {
-                    if (g_st().reg_do_extmatch & REX_USE) == 0 {
+                    if (g_st().reg_do_extmatch.get() & REX_USE) == 0 {
                         emsg(tr(E_Z1_NOT_ALLOWED));
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     ret = regnode(ZREF + c - b'0' as i32);
@@ -1108,7 +1108,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 }
                 _ => {
                     emsg(tr(c"E68: Invalid character after \\z"));
-                    g_st().rc_did_emsg = true;
+                    g_st().rc_did_emsg.set(true);
                     return None;
                 }
             }
@@ -1125,7 +1125,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 c"\\"
                             },
                         );
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     ret = reg(REG_NPAREN, &mut flags);
@@ -1159,7 +1159,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 c"\\"
                             },
                         );
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     let mut lastnode: Option<usize> = None;
@@ -1178,7 +1178,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                     c"\\"
                                 },
                             );
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return None;
                         }
                         let br = regnode(BRANCH);
@@ -1205,7 +1205,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 c"\\"
                             },
                         );
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     let lastbranch = regnode(BRANCH);
@@ -1250,7 +1250,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 c"\\"
                             },
                         );
-                        g_st().rc_did_emsg = true;
+                        g_st().rc_did_emsg.set(true);
                         return None;
                     }
                     if use_multibytecode(i as i32) {
@@ -1311,7 +1311,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         {
                             if cur && n != 0 {
                                 semsg!(tr(E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR), no_magic(c),);
-                                g_st().rc_did_emsg = true;
+                                g_st().rc_did_emsg.set(true);
                                 return None;
                             }
                             if c == b'l' as i32 {
@@ -1366,7 +1366,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             c"\\"
                         },
                     );
-                    g_st().rc_did_emsg = true;
+                    g_st().rc_did_emsg.set(true);
                     return None;
                 }
             }
@@ -1439,13 +1439,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         }
                         if startc > endc {
                             emsg(tr(E_REVERSE_RANGE));
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return None;
                         }
                         if utf_char2len(startc) > 1 || utf_char2len(endc) > 1 {
                             if endc > startc + 256 {
                                 emsg(tr(E_LARGE_CLASS));
-                                g_st().rc_did_emsg = true;
+                                g_st().rc_did_emsg.set(true);
                                 return None;
                             }
                             while {
@@ -1491,7 +1491,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         startc = coll_get_char();
                         if startc == i32::MAX {
                             emsg(tr(E_UNICODE_VAL_TOO_LARGE));
-                            g_st().rc_did_emsg = true;
+                            g_st().rc_did_emsg.set(true);
                             return None;
                         }
                         if startc == 0 {
@@ -1650,7 +1650,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             RE_STATE.with(|s| s.prevchr_len.set(1));
             if re_st().regparse_byte() != b']' {
                 emsg(tr(E_TOOMSBRA));
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             skipchr();
@@ -1665,7 +1665,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     c"\\"
                 },
             );
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         }
     }
@@ -1775,7 +1775,7 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
                     c"\\"
                 },
             );
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         }
         if lop == BEHIND || lop == NOBEHIND {
@@ -1819,7 +1819,7 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
                         c"\\"
                     },
                 );
-                g_st().rc_did_emsg = true;
+                g_st().rc_did_emsg.set(true);
                 return None;
             }
             reginsert(
@@ -1851,7 +1851,7 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
                     c"\\"
                 },
             );
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         }
         semsg!(
@@ -1863,7 +1863,7 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
             },
             no_magic(peekchr()),
         );
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return None;
     }
 
@@ -1972,7 +1972,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
     if paren == REG_ZPAREN {
         if RE_STATE.with(|s| s.regnzpar.get()) >= NSUBEXP as i32 {
             emsg(tr(c"E50: Too many \\z("));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         }
         parno = RE_STATE.with(|s| s.regnzpar.get());
@@ -1988,7 +1988,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
                     c"\\"
                 },
             );
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
             return None;
         }
         parno = RE_STATE.with(|s| s.regnpar.get());
@@ -2002,7 +2002,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
 
     if RE_STATE.with(|s| s.bt_reg_parse_depth.get()) >= REG_MAX_PAREN_DEPTH {
         emsg(tr(E_COMMAND_TOO_COMPLEX));
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         return None;
     }
     RE_STATE.with(|s| s.bt_reg_parse_depth.set(s.bt_reg_parse_depth.get() + (1)));
@@ -2074,7 +2074,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
                 },
             );
         }
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         RE_STATE.with(|s| s.bt_reg_parse_depth.set(s.bt_reg_parse_depth.get() - (1)));
         return None;
     } else if paren == REG_NOPAREN && peekchr() != NUL as i32 {
@@ -2090,7 +2090,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
         } else {
             emsg(tr(E_TRAILING));
         }
-        g_st().rc_did_emsg = true;
+        g_st().rc_did_emsg.set(true);
         RE_STATE.with(|s| s.bt_reg_parse_depth.set(s.bt_reg_parse_depth.get() - (1)));
         return None;
     }
@@ -2122,7 +2122,7 @@ pub(super) fn bt_regcomp(expr: &CStr, re_flags: i32) -> Option<BtRegprog> {
         bt_st(|st| st.reg_program.borrow_mut().clear());
         if RE_STATE.with(|s| s.reg_toolong.get()) != 0 {
             emsg(tr(c"E339: Pattern too long"));
-            g_st().rc_did_emsg = true;
+            g_st().rc_did_emsg.set(true);
         }
         return None;
     }
@@ -2359,7 +2359,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                         }
                         reg_nextline();
                         *scan = re_s.rex.input.get();
-                        if g_st().got_int {
+                        if g_st().got_int.get() {
                             break;
                         }
                     } else {
@@ -2399,7 +2399,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 count += 1;
                 reg_nextline();
                 scan = re_s.rex.input.get();
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     break;
                 }
             }
@@ -2422,7 +2422,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     }
                     reg_nextline();
                     scan = re_s.rex.input.get();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                 } else if re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op) {
@@ -2453,7 +2453,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     }
                     reg_nextline();
                     scan = re_s.rex.input.get();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                 } else if re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op) {
@@ -2482,7 +2482,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     }
                     reg_nextline();
                     scan = re_s.rex.input.get();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                 } else if re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op) {
@@ -2508,7 +2508,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     }
                     reg_nextline();
                     scan = re_s.rex.input.get();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                 } else if vim_isprintc(utf_ptr2char(scan))
@@ -2610,7 +2610,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     }
                     reg_nextline();
                     scan = re_s.rex.input.get();
-                    if g_st().got_int {
+                    if g_st().got_int.get() {
                         break;
                     }
                 } else if re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op) {
@@ -2649,7 +2649,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                     reg_nextline();
                 }
                 scan = re_s.rex.input.get();
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     break;
                 }
             }
@@ -2804,7 +2804,7 @@ fn regmatch_inner(
                     status = RegAction::Fail;
                     break;
                 };
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     status = RegAction::Fail;
                     break;
                 }
@@ -3583,7 +3583,7 @@ fn regmatch_inner(
 
                             rst.count =
                                 i64::from(regrepeat(prog, operand_idx(scan_idx), rst.maxval));
-                            if g_st().got_int {
+                            if g_st().got_int.get() {
                                 status = RegAction::Fail;
                                 break;
                             }
@@ -3976,7 +3976,7 @@ fn regmatch_inner(
                                         }
                                         rst.count += 1;
                                     }
-                                    if g_st().got_int {
+                                    if g_st().got_int.get() {
                                         break;
                                     }
                                 } else {
@@ -4216,7 +4216,7 @@ fn bt_regexec_both(
             }
         } else {
             let mut tm_count: i32 = 0;
-            while !g_st().got_int {
+            while !g_st().got_int.get() {
                 if prog.regstart != NUL as i32 {
                     let found_off = re_s
                         .rex

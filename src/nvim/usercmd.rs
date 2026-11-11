@@ -605,7 +605,7 @@ fn uc_list(name_prefix: &[u8]) {
                 }
                 found = true;
                 msg_putchar(b'\n' as i32);
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     break;
                 }
 
@@ -768,7 +768,7 @@ fn uc_list(name_prefix: &[u8]) {
                     cmd.uc_rep.as_bytes(),
                     false,
                     if name_len == 0 {
-                        g_st().columns_global - 47
+                        g_st().columns_global.get() - 47
                     } else {
                         0
                     },
@@ -777,7 +777,7 @@ fn uc_list(name_prefix: &[u8]) {
                     last_set_msg(cmd.uc_script_ctx);
                 }
                 line_breakcheck();
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     break;
                 }
                 i += 1;

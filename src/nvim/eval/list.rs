@@ -54,7 +54,7 @@ fn filter_map_one(
     newtv.v_type = VarType::VarUnknown;
     if filtermap == FilterMap::ForEach && expr.v_type == VarType::VarString {
         do_cmdline_cmd(expr.vval.v_string_cstr_or_empty());
-        if g_st().did_emsg == 0 {
+        if g_st().did_emsg.get() == 0 {
             retval = true;
         }
         get_vim_var_tv(VV_VAL).clear_tv();
@@ -148,7 +148,7 @@ fn filter_map_dict(
                 let mut di_tv = di.tv().clone();
                 let r = filter_map_one(&mut di_tv, expr, filtermap, &mut newtv, &mut rem);
                 get_vim_var_tv(VV_KEY).clear_tv();
-                if !r || g_st().did_emsg != 0 {
+                if !r || g_st().did_emsg.get() != 0 {
                     tv_clear(&mut newtv);
                     break;
                 }
@@ -230,7 +230,9 @@ fn filter_map_blob(
             vval: TypvalVval::Number(0),
         };
         let mut rem = false;
-        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) || g_st().did_emsg != 0 {
+        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem)
+            || g_st().did_emsg.get() != 0
+        {
             break;
         }
         if filtermap != FilterMap::ForEach {
@@ -281,7 +283,9 @@ fn filter_map_string(
             vval: TypvalVval::Number(0),
         };
         let mut rem = false;
-        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) || g_st().did_emsg != 0 {
+        if !filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem)
+            || g_st().did_emsg.get() != 0
+        {
             tv_clear(&mut newtv);
             tv_clear(&mut tv);
             break;
@@ -358,7 +362,7 @@ fn filter_map_list(
             if !filter_map_one(&mut cur_tv, expr, filtermap, &mut newtv, &mut rem) {
                 break;
             }
-            if g_st().did_emsg != 0 {
+            if g_st().did_emsg.get() != 0 {
                 tv_clear(&mut newtv);
                 break;
             }
@@ -424,8 +428,8 @@ fn filter_map(argvars: &mut [TypVal], rettv: &mut TypVal, filtermap: FilterMap) 
     prepare_vimvar(VV_VAL, &mut save_val);
     prepare_vimvar(VV_KEY, &mut save_key);
 
-    let save_did_emsg = g_st().did_emsg;
-    g_st().did_emsg = 0;
+    let save_did_emsg = g_st().did_emsg.get();
+    g_st().did_emsg.set(0);
 
     match arg0.v_type {
         VarType::VarDict => {
@@ -446,7 +450,7 @@ fn filter_map(argvars: &mut [TypVal], rettv: &mut TypVal, filtermap: FilterMap) 
     restore_vimvar(VV_KEY, &mut save_key);
     restore_vimvar(VV_VAL, &mut save_val);
 
-    g_st().did_emsg |= save_did_emsg;
+    g_st().did_emsg.set(g_st().did_emsg.get() | (save_did_emsg));
 }
 
 /// `"filter()"` function (`f_filter`).

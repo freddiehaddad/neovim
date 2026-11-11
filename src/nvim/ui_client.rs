@@ -126,7 +126,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
     };
     channel.trust = false;
 
-    if g_st().ui_client_forward_stdin {
+    if g_st().ui_client_forward_stdin.get() {
         close(0);
         #[cfg(windows)]
         {
@@ -134,7 +134,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         }
         #[cfg(not(windows))]
         {
-            let _ = dup(if g_st().stderr_isatty { 2 } else { 1 });
+            let _ = dup(if g_st().stderr_isatty.get() { 2 } else { 1 });
         }
     }
 
@@ -158,12 +158,15 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     if let Some(term) = term {
         put_opt(c"term_name", cstr_as_obj(Some(term)));
     }
-    put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
-    put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
-    put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty));
-    if g_st().ui_client_forward_stdin {
+    put_opt(
+        c"term_colors",
+        integer_obj(Integer::from(g_st().t_colors.get())),
+    );
+    put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty.get()));
+    put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty.get()));
+    if g_st().ui_client_forward_stdin.get() {
         put_opt(c"stdin_fd", integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
-        g_st().ui_client_forward_stdin = false;
+        g_st().ui_client_forward_stdin.set(false);
     }
 
     let mut args_items: [Object; 3] = [
@@ -176,8 +179,8 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     ];
     let args = Array::from_slice(&mut args_items[..3]);
 
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach", args);
-    g_st().ui_client_attached = true;
+    rpc_send_event(g_st().ui_client_channel_id.get(), c"nvim_ui_attach", args);
+    g_st().ui_client_attached.set(true);
 
     if has_time_fd() {
         time_msg(c"nvim_ui_attach", None);
@@ -228,7 +231,11 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
         },
     ];
     let args2 = Array::from_slice(&mut args2_items[..5]);
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_set_client_info", args2);
+    rpc_send_event(
+        g_st().ui_client_channel_id.get(),
+        c"nvim_set_client_info",
+        args2,
+    );
 
     if has_time_fd() {
         time_msg(c"nvim_set_client_info", None);
@@ -237,8 +244,12 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
 
 #[cfg(unix)]
 pub fn ui_client_detach() {
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach", ARRAY_INIT);
-    g_st().ui_client_attached = false;
+    rpc_send_event(
+        g_st().ui_client_channel_id.get(),
+        c"nvim_ui_detach",
+        ARRAY_INIT,
+    );
+    g_st().ui_client_attached.set(false);
 }
 
 /// Sets `addr` (nvim_chan_set) on the server: the address this client connected to, e.g. a tunnel
@@ -257,7 +268,7 @@ fn set_chan_addr(addr: &CStr) {
         },
     ];
     let args = Array::from_slice(&mut args_items[..2]);
-    rpc_send_event(g_st().ui_client_channel_id, c"nvim_chan_set", args);
+    rpc_send_event(g_st().ui_client_channel_id.get(), c"nvim_chan_set", args);
 }
 
 /// @param server_addr Address of the server (`--server`), or NULL if the client started it (stdio).
@@ -304,20 +315,24 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
 }
 
 pub fn ui_client_stop() {
-    g_st().ui_client_attached = false;
+    g_st().ui_client_attached.set(false);
     if !with_tui(tui_is_stopped) {
         tui_stop();
     }
 }
 
 pub fn ui_client_set_size(width: i32, height: i32) {
-    if g_st().ui_client_attached {
+    if g_st().ui_client_attached.get() {
         let mut args_items: [Object; 2] = [
             integer_obj(Integer::from(width)),
             integer_obj(Integer::from(height)),
         ];
         let args = Array::from_slice(&mut args_items[..2]);
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
+        rpc_send_event(
+            g_st().ui_client_channel_id.get(),
+            c"nvim_ui_try_resize",
+            args,
+        );
     }
     UIC_STATE.with(|s| s.tui_width.set(width));
     UIC_STATE.with(|s| s.tui_height.set(height));
@@ -433,7 +448,7 @@ pub fn ui_client_event_connect(args: Array) {
         loop_queues(&mut g_st().main_loop).fast_events.borrow_mut(),
         Event::UiClientConnect(server_addr),
     );
-    g_st().ui_client_channel_id = u64::MAX;
+    g_st().ui_client_channel_id.set(u64::MAX);
 }
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
@@ -454,11 +469,11 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             err_cstr,
         );
         drop(server_addr);
-        g_st().ui_client_exit_status = 1;
+        g_st().ui_client_exit_status.set(1);
         os_exit(1);
     }
 
-    g_st().ui_client_channel_id = chan;
+    g_st().ui_client_channel_id.set(chan);
     set_chan_addr(&server_addr);
     let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
@@ -496,7 +511,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
     let mut start_server = false;
     if !UIC_STATE.with(|s| s.restart_pending.get()) {
         if error_restart
-            && g_st().ui_client_error_exit == -1
+            && g_st().ui_client_error_exit.get() == -1
             && UIC_STATE
                 .with(|s| s.restart_args_after_crash_exit.get())
                 .size
@@ -555,7 +570,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             }
         }
         let id = ui_client_start_server(first_arg.as_cstr(), &argv);
-        g_st().ui_client_error_exit = -1;
+        g_st().ui_client_error_exit.set(-1);
         id
     } else {
         let first_arg_cstr = first_arg.as_cstr();
@@ -585,7 +600,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         id
     };
 
-    g_st().ui_client_channel_id = chan_id;
+    g_st().ui_client_channel_id.set(chan_id);
     let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
         UIC_STATE.with(|s| s.tui_width.get()),
@@ -619,7 +634,9 @@ pub fn ui_client_event_error_exit(args: Array) {
         );
         return;
     }
-    g_st().ui_client_error_exit = args[0].data.integer() as i32;
+    g_st()
+        .ui_client_error_exit
+        .set(args[0].data.integer() as i32);
 }
 
 pub fn ui_client_free_all_mem() {

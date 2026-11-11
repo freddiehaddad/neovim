@@ -335,12 +335,12 @@ pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
     if !opt_vars().p_langmap.is_empty()
         && condition
         && (opt_vars().p_lrm.get()
-            || if g_st().vgetc_busy != 0 {
+            || if g_st().vgetc_busy.get() != 0 {
                 typebuf_maplen() == 0
             } else {
-                g_st().key_typed
+                g_st().key_typed.get()
             })
-        && g_st().key_stuffed == 0
+        && g_st().key_stuffed.get() == 0
         && *c >= 0
     {
         if *c < 256 {
@@ -361,7 +361,7 @@ pub fn get_recorded() -> std::ffi::CString {
         bytes.truncate(len);
     }
 
-    if len > 0 && g_st().restart_edit != 0 && bytes[len - 1] == CTRL_O as u8 {
+    if len > 0 && g_st().restart_edit.get() != 0 && bytes[len - 1] == CTRL_O as u8 {
         bytes.pop();
     }
 
@@ -583,7 +583,7 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
             g_st().typebuf.tb_len -= g_st().typebuf.tb_maplen;
         }
         if g_st().typebuf.tb_len == 0 {
-            g_st().typebuf_was_filled = false;
+            g_st().typebuf_was_filled.set(false);
         }
     } else {
         if flush_typeahead == FLUSH_INPUT {
@@ -592,11 +592,11 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
         }
         g_st().typebuf.tb_off = MAXMAPLEN as i32;
         g_st().typebuf.tb_len = 0;
-        g_st().typebuf_was_filled = false;
+        g_st().typebuf_was_filled.set(false);
     }
     g_st().typebuf.tb_maplen = 0;
     g_st().typebuf.tb_silent = 0;
-    g_st().cmd_silent = false;
+    g_st().cmd_silent.set(false);
     g_st().typebuf.tb_no_abbr_cnt = 0;
     g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
     if g_st().typebuf.tb_change_cnt == 0 {
@@ -615,7 +615,7 @@ pub fn unblock_on_key() {
 
 /// Flush map and typeahead buffers and give a warning for an error.
 pub fn beep_flush() {
-    if g_st().emsg_silent == 0 && !mc_replaying() {
+    if g_st().emsg_silent.get() == 0 && !mc_replaying() {
         flush_buffers(FLUSH_MINIMAL);
     }
     vim_beep(K_OPT_BO_FLAG_ERROR);
@@ -792,7 +792,7 @@ pub fn stuff_redo_readbuff(s: &std::ffi::CStr) {
 }
 
 pub fn stuff_readbuff_len(s: &[u8]) {
-    if g_st().add_last_insert == 1 && !s.is_empty() {
+    if g_st().add_last_insert.get() == 1 && !s.is_empty() {
         g_st().last_insert_ga.extend_from_slice(s);
     }
     with_inp_ext(|ext| add_buff(&mut ext.readbuf1.borrow_mut(), s));
@@ -874,7 +874,7 @@ pub fn start_redo(count: i32, old_redo: bool) -> bool {
     with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &prefix));
     drop(prefix);
     if spec.regname == b'=' as i32 {
-        g_st().cmd_silent = true;
+        g_st().cmd_silent.set(true);
     }
 
     with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &body));
@@ -1034,7 +1034,7 @@ pub fn ins_typebuf(str_: &CStr, noremap: i32, offset: i32, nottyped: bool, silen
     }
     if silent || g_st().typebuf.tb_silent > offset {
         g_st().typebuf.tb_silent += addlen;
-        g_st().cmd_silent = true;
+        g_st().cmd_silent.set(true);
     }
     if g_st().typebuf.tb_no_abbr_cnt != 0 && offset == 0 {
         g_st().typebuf.tb_no_abbr_cnt += addlen;
@@ -1053,8 +1053,8 @@ pub fn requeue_key(c: i32, modifiers: i32, extra_consumed: i32, recorded: bool) 
         CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
         INP_STATE.with(|s| s.key_noremap.get()),
         0,
-        !g_st().key_typed,
-        g_st().cmd_silent,
+        !g_st().key_typed.get(),
+        g_st().cmd_silent.get(),
     );
     ungetchars(len as i32 + extra_consumed, recorded);
 }
@@ -1062,7 +1062,7 @@ pub fn requeue_key(c: i32, modifiers: i32, extra_consumed: i32, recorded: bool) 
 /// Return true if the typeahead buffer was changed.
 pub fn typebuf_changed(tb_change_cnt: i32) -> bool {
     tb_change_cnt != 0
-        && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled)
+        && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled.get())
 }
 
 /// Return true if there are no characters in the typeahead buffer that have not been typed.
@@ -1139,7 +1139,7 @@ pub fn del_typebuf(len: i32, offset: i32) {
         }
     }
 
-    g_st().typebuf_was_filled = false;
+    g_st().typebuf_was_filled.set(false);
     g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
     if g_st().typebuf.tb_change_cnt == 0 {
         g_st().typebuf.tb_change_cnt = 1;
@@ -1219,7 +1219,7 @@ fn gotchars(chars: &[u8]) {
             });
         }
 
-        if g_st().reg_recording != 0 {
+        if g_st().reg_recording.get() != 0 {
             let gotchars_buf = INP_STATE.with(|s| s.gotchars_state.get()).buf;
             let chunk = &gotchars_buf[..buflen];
             with_inp_ext(|ext| ext.recordbuff.borrow_mut().extend_from_slice(chunk));
@@ -1240,8 +1240,8 @@ fn gotchars(chars: &[u8]) {
     }
 
     may_sync_undo();
-    g_st().debug_did_msg = false;
-    g_st().maptick += 1;
+    g_st().debug_did_msg.set(false);
+    g_st().maptick.set(g_st().maptick.get() + (1));
 }
 
 /// Record an `<Ignore>` key.
@@ -1252,12 +1252,12 @@ pub fn gotchars_ignore() {
 }
 
 fn ungetchars(len: i32, recorded: bool) {
-    if !g_st().key_typed {
+    if !g_st().key_typed.get() {
         return;
     }
     let len_u = len as usize;
     if recorded
-        && g_st().reg_recording != 0
+        && g_st().reg_recording.get() != 0
         && with_inp_ext(|ext| ext.recordbuff.borrow().len() >= len_u)
     {
         with_inp_ext(|ext| {
@@ -1286,7 +1286,7 @@ fn ungetchars(len: i32, recorded: bool) {
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub fn may_sync_undo() {
-    if ((g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) == 0
+    if ((g_st().state_global.get() & (MODE_INSERT | MODE_CMDLINE)) == 0
         || g_st().ins_global.moved != K_INS_NONE)
         && INP_STATE.with(|s| s.curscript.get()) < 0
     {
@@ -1307,7 +1307,7 @@ fn alloc_typebuf() {
     if g_st().typebuf.tb_change_cnt == 0 {
         g_st().typebuf.tb_change_cnt = 1;
     }
-    g_st().typebuf_was_filled = false;
+    g_st().typebuf_was_filled.set(false);
 }
 
 fn free_typebuf() {
@@ -1376,7 +1376,7 @@ pub fn openscript(name: &CStr, directly: bool) {
             return;
         }
 
-        if g_st().ignore_script {
+        if g_st().ignore_script.get() {
             return;
         }
 
@@ -1400,15 +1400,15 @@ pub fn openscript(name: &CStr, directly: bool) {
 
         if directly {
             let mut oa = Oparg::new();
-            let save_state = g_st().state_global;
-            let save_restart_edit = g_st().restart_edit;
-            let save_finish_op = g_st().finish_op;
-            let save_msg_scroll = g_st().msg_scroll;
+            let save_state = g_st().state_global.get();
+            let save_restart_edit = g_st().restart_edit.get();
+            let save_finish_op = g_st().finish_op.get();
+            let save_msg_scroll = g_st().msg_scroll.get();
 
-            g_st().state_global = MODE_NORMAL;
-            g_st().msg_scroll = 0;
-            g_st().restart_edit = 0;
-            g_st().finish_op = false;
+            g_st().state_global.set(MODE_NORMAL);
+            g_st().msg_scroll.set(0);
+            g_st().restart_edit.set(0);
+            g_st().finish_op.set(false);
 
             let oldcurscript = INP_STATE.with(|s| s.curscript.get());
             loop {
@@ -1420,10 +1420,10 @@ pub fn openscript(name: &CStr, directly: bool) {
                 }
             }
 
-            g_st().state_global = save_state;
-            g_st().msg_scroll = save_msg_scroll;
-            g_st().restart_edit = save_restart_edit;
-            g_st().finish_op = save_finish_op;
+            g_st().state_global.set(save_state);
+            g_st().msg_scroll.set(save_msg_scroll);
+            g_st().restart_edit.set(save_restart_edit);
+            g_st().finish_op.set(save_finish_op);
         }
     }
 }
@@ -1493,7 +1493,7 @@ pub fn using_script() -> i32 {
 /// Called just before doing a blocking wait.
 pub fn before_blocking() {
     updatescript(0);
-    if g_st().may_garbage_collect {
+    if g_st().may_garbage_collect.get() {
         garbage_collect(false);
     }
 }
@@ -1537,7 +1537,7 @@ pub fn merge_modifiers(c_arg: i32, modifiers: &mut i32) -> i32 {
 }
 
 fn add_byte_to_showcmd(byte: u8) {
-    if !opt_vars().p_sc.get() || g_st().msg_silent != 0 {
+    if !opt_vars().p_sc.get() || g_st().msg_silent.get() != 0 {
         return;
     }
 
@@ -1603,7 +1603,7 @@ pub fn vgetc() -> i32 {
     let mut c: i32;
     let mut buf = [0u8; MB_MAXBYTES + 1];
 
-    if g_st().may_garbage_collect && g_st().want_garbage_collect {
+    if g_st().may_garbage_collect.get() && g_st().want_garbage_collect.get() {
         garbage_collect(false);
     }
 
@@ -1614,14 +1614,22 @@ pub fn vgetc() -> i32 {
             u.c = -1;
             s.ungot.set(u);
         });
-        g_st().mod_mask = INP_STATE.with(|s| s.ungot.get()).mod_mask;
-        g_st().mouse_grid = INP_STATE.with(|s| s.ungot.get()).mouse_grid;
-        g_st().mouse_row = INP_STATE.with(|s| s.ungot.get()).mouse_row;
-        g_st().mouse_col = INP_STATE.with(|s| s.ungot.get()).mouse_col;
+        g_st()
+            .mod_mask
+            .set(INP_STATE.with(|s| s.ungot.get()).mod_mask);
+        g_st()
+            .mouse_grid
+            .set(INP_STATE.with(|s| s.ungot.get()).mouse_grid);
+        g_st()
+            .mouse_row
+            .set(INP_STATE.with(|s| s.ungot.get()).mouse_row);
+        g_st()
+            .mouse_col
+            .set(INP_STATE.with(|s| s.ungot.get()).mouse_col);
     } else {
-        g_st().mod_mask = 0;
-        g_st().vgetc_mod_mask = 0;
-        g_st().vgetc_char = 0;
+        g_st().mod_mask.set(0);
+        g_st().vgetc_mod_mask.set(0);
+        g_st().vgetc_char.set(0);
 
         let rec_len = INP_STATE.with(|st| {
             st.last_recorded_len
@@ -1632,27 +1640,27 @@ pub fn vgetc() -> i32 {
 
         loop {
             let mut did_inc = false;
-            if g_st().mod_mask != 0 {
-                g_st().no_mapping += 1;
-                g_st().allow_keys += 1;
+            if g_st().mod_mask.get() != 0 {
+                g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+                g_st().allow_keys.set(g_st().allow_keys.get() + (1));
                 did_inc = true;
             }
             c = vgetorpeek(true);
             if did_inc {
-                g_st().no_mapping -= 1;
-                g_st().allow_keys -= 1;
+                g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+                g_st().allow_keys.set(g_st().allow_keys.get() - (1));
             }
 
             if c == K_SPECIAL as i32 {
-                let save_allow_keys = g_st().allow_keys;
-                g_st().no_mapping += 1;
-                g_st().allow_keys = 0;
+                let save_allow_keys = g_st().allow_keys.get();
+                g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+                g_st().allow_keys.set(0);
                 let c2 = vgetorpeek(true);
                 c = vgetorpeek(true);
-                g_st().no_mapping -= 1;
-                g_st().allow_keys = save_allow_keys;
+                g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+                g_st().allow_keys.set(save_allow_keys);
                 if c2 == KS_MODIFIER as i32 {
-                    g_st().mod_mask = c;
+                    g_st().mod_mask.set(c);
                     continue;
                 }
                 c = to_special(c2, c);
@@ -1660,7 +1668,7 @@ pub fn vgetc() -> i32 {
 
             let n = mb_byte2len_check(c);
             if n > 1 {
-                g_st().no_mapping += 1;
+                g_st().no_mapping.set(g_st().no_mapping.get() + (1));
                 buf[0] = c as u8;
                 for slot in buf.iter_mut().take(n as usize).skip(1) {
                     *slot = vgetorpeek(true) as u8;
@@ -1669,31 +1677,31 @@ pub fn vgetc() -> i32 {
                         vgetorpeek(true);
                     }
                 }
-                g_st().no_mapping -= 1;
+                g_st().no_mapping.set(g_st().no_mapping.get() - (1));
                 c = utf_ptr2char(&buf);
             }
 
-            if g_st().no_mapping == 0
-                && g_st().key_typed
-                && g_st().mod_mask == MOD_MASK_ALT as i32
-                && (g_st().state_global & MODE_TERMINAL) == 0
+            if g_st().no_mapping.get() == 0
+                && g_st().key_typed.get()
+                && g_st().mod_mask.get() == MOD_MASK_ALT as i32
+                && (g_st().state_global.get() & MODE_TERMINAL) == 0
                 && !is_mouse_key(c)
             {
-                g_st().mod_mask = 0;
+                g_st().mod_mask.set(0);
                 requeue_key(c, 0, 3, true);
                 ins_typebuf(
                     ESC_STR,
                     INP_STATE.with(|s| s.key_noremap.get()),
                     0,
-                    !g_st().key_typed,
-                    g_st().cmd_silent,
+                    !g_st().key_typed.get(),
+                    g_st().cmd_silent.get(),
                 );
                 continue;
             }
 
-            if g_st().vgetc_char == 0 {
-                g_st().vgetc_mod_mask = g_st().mod_mask;
-                g_st().vgetc_char = c;
+            if g_st().vgetc_char.get() == 0 {
+                g_st().vgetc_mod_mask.set(g_st().mod_mask.get());
+                g_st().vgetc_char.set(c);
             }
 
             match c {
@@ -1716,23 +1724,23 @@ pub fn vgetc() -> i32 {
                 K_K8 => c = b'8' as i32,
                 K_K9 => c = b'9' as i32,
                 K_XHOME | K_ZHOME => {
-                    if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
+                    if g_st().mod_mask.get() == MOD_MASK_SHIFT as i32 {
                         c = K_S_HOME;
-                        g_st().mod_mask = 0;
-                    } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
+                        g_st().mod_mask.set(0);
+                    } else if g_st().mod_mask.get() == MOD_MASK_CTRL as i32 {
                         c = K_C_HOME;
-                        g_st().mod_mask = 0;
+                        g_st().mod_mask.set(0);
                     } else {
                         c = K_HOME;
                     }
                 }
                 K_XEND | K_ZEND => {
-                    if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
+                    if g_st().mod_mask.get() == MOD_MASK_SHIFT as i32 {
                         c = K_S_END;
-                        g_st().mod_mask = 0;
-                    } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
+                        g_st().mod_mask.set(0);
+                    } else if g_st().mod_mask.get() == MOD_MASK_CTRL as i32 {
                         c = K_C_END;
-                        g_st().mod_mask = 0;
+                        g_st().mod_mask.set(0);
                     } else {
                         c = K_END;
                     }
@@ -1751,7 +1759,7 @@ pub fn vgetc() -> i32 {
         INP_STATE.with(|s| s.last_vgetc_recorded_len.set(rec_len));
     }
 
-    g_st().may_garbage_collect = false;
+    g_st().may_garbage_collect.set(false);
 
     let mut on_key_buf = with_inp_ext(|ext| {
         let mut b = std::mem::take(&mut *ext.on_key_buf.borrow_mut());
@@ -1817,15 +1825,15 @@ pub fn char_avail() -> bool {
     if test_disable_char_avail.load(std::sync::atomic::Ordering::Relaxed) {
         return false;
     }
-    g_st().no_mapping += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
     let retval = vpeekc();
-    g_st().no_mapping -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
     retval != NUL
 }
 
 fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: bool) {
     let mut n: Varnumber;
-    let called_emsg_start = g_st().called_emsg;
+    let called_emsg_start = g_st().called_emsg.get();
     let mut error = false;
     let mut simplify = true;
     let mut cursor_flag: u8 = 0;
@@ -1854,7 +1862,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         }
     }
 
-    if g_st().called_emsg != called_emsg_start {
+    if g_st().called_emsg.get() != called_emsg_start {
         return;
     }
 
@@ -1862,16 +1870,16 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         ui_busy_start();
     }
 
-    g_st().no_mapping += 1;
-    g_st().allow_keys += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
     block_on_key();
     if !simplify {
         INP_STATE.with(|s| s.no_reduce_keys.set(s.no_reduce_keys.get() + (1)));
     }
     atom_payload_start();
     loop {
-        if cursor_flag == b'm' || (cursor_flag == 0 && g_st().msg_col > 0) {
-            ui_cursor_goto(g_st().msg_row, g_st().msg_col);
+        if cursor_flag == b'm' || (cursor_flag == 0 && g_st().msg_col.get() > 0) {
+            ui_cursor_goto(g_st().msg_row.get(), g_st().msg_col.get());
         }
 
         if argvars[0].v_type == VarType::VarUnknown
@@ -1902,8 +1910,8 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         break;
     }
     atom_payload_end();
-    g_st().no_mapping -= 1;
-    g_st().allow_keys -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
     unblock_on_key();
     if !simplify {
         INP_STATE.with(|s| s.no_reduce_keys.set(s.no_reduce_keys.get() - (1)));
@@ -1919,14 +1927,14 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
     set_vim_var_nr(VV_MOUSE_COL, 0);
 
     let ni = n as i32;
-    if n != 0 && (!allow_number || is_special(ni) || g_st().mod_mask != 0) {
+    if n != 0 && (!allow_number || is_special(ni) || g_st().mod_mask.get() != 0) {
         let mut temp = [0u8; 10];
         let mut i: usize = 0;
 
-        if g_st().mod_mask != 0 {
+        if g_st().mod_mask.get() != 0 {
             temp[i] = K_SPECIAL;
             temp[i + 1] = KS_MODIFIER;
-            temp[i + 2] = g_st().mod_mask as u8;
+            temp[i + 2] = g_st().mod_mask.get() as u8;
             i += 3;
         }
         if is_special(ni) {
@@ -1941,9 +1949,9 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);
 
         if is_mouse_key(ni) {
-            let mut row = g_st().mouse_row;
-            let mut col = g_st().mouse_col;
-            let mut grid = g_st().mouse_grid;
+            let mut row = g_st().mouse_row.get();
+            let mut col = g_st().mouse_col.get();
+            let mut grid = g_st().mouse_grid.get();
             let mut lnum: Linenr = 0;
 
             if row >= 0 && col >= 0 {
@@ -1988,7 +1996,7 @@ pub fn f_getcharstr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `"getcharmod()"` function.
 pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().mod_mask));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().mod_mask.get()));
 }
 
 fn put_string_in_typebuf(offset: i32, slen: i32, string: &mut [u8], new_slen: i32) -> bool {
@@ -2031,7 +2039,8 @@ fn at_ins_compl_key() -> bool {
 }
 
 fn check_simplify_modifier(max_offset: i32) -> i32 {
-    if (g_st().state_global & MODE_TERMINAL) != 0 || INP_STATE.with(|s| s.no_reduce_keys.get()) > 0
+    if (g_st().state_global.get() & MODE_TERMINAL) != 0
+        || INP_STATE.with(|s| s.no_reduce_keys.get()) > 0
     {
         return 0;
     }
@@ -2051,8 +2060,8 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
 
             if new_c != c {
                 if offset == 0 {
-                    g_st().vgetc_char = c;
-                    g_st().vgetc_mod_mask = orig_mod;
+                    g_st().vgetc_char.set(c);
+                    g_st().vgetc_mod_mask.set(orig_mod);
                 }
                 let mut new_string = [0u8; MB_MAXBYTES + 1];
                 let len = if is_special(new_c) {
@@ -2151,14 +2160,15 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     }
 
     let mut tb_b1 = i32::from(g_st().typebuf.tb_buf[tb_off]);
-    if g_st().no_mapping == 0
-        && (g_st().no_zero_mapping == 0 || tb_b1 != b'0' as i32)
+    if g_st().no_mapping.get() == 0
+        && (g_st().no_zero_mapping.get() == 0 || tb_b1 != b'0' as i32)
         && (g_st().typebuf.tb_maplen == 0
             || is_plug_map
             || (g_st().typebuf.tb_noremap[tb_off] & (RM_NONE | RM_ABBR)) == 0)
-        && !(opt_vars().p_paste.get() && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
-        && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
-        && g_st().state_global != MODE_ASKMORE
+        && !(opt_vars().p_paste.get()
+            && (g_st().state_global.get() & (MODE_INSERT | MODE_CMDLINE)) != 0)
+        && !(g_st().state_global.get() == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
+        && g_st().state_global.get() != MODE_ASKMORE
         && !at_ins_compl_key()
     {
         let nolmaplen: i32;
@@ -2183,7 +2193,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             let orig_tb_c1 = tb_c1;
             langmap_adjust(
                 &mut tb_c1,
-                (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0
+                (g_st().state_global.get() & (MODE_CMDLINE | MODE_INSERT)) == 0
                     && get_real_state() != MODE_SELECT,
             );
             if orig_tb_c1 != tb_c1 {
@@ -2296,7 +2306,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     }
 
     if (mp.is_none() || max_mlen > mp_match_len) && keylen != KEYLEN_PART_MAP {
-        if g_st().no_mapping == 0 || g_st().allow_keys != 0 {
+        if g_st().no_mapping.get() == 0 || g_st().allow_keys.get() != 0 {
             if tb_b1 == K_SPECIAL as i32
                 && (g_st().typebuf.tb_len < 2
                     || (g_st().typebuf.tb_buf[tb_off + 1] == KS_MODIFIER
@@ -2338,13 +2348,13 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             atom_map_start(&mp.m_keys.as_bytes()[..mp.m_keylen as usize], !advance);
         }
 
-        g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
+        g_st().cmd_silent.set(g_st().typebuf.tb_silent > 0);
         del_typebuf(keylen, 0);
 
         *mapdepth += 1;
         if (*mapdepth as OptInt) >= opt_vars().p_mmd.get() {
             emsg(gettext(E_RECURSIVE_MAPPING));
-            if (g_st().state_global & MODE_CMDLINE) != 0 {
+            if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
                 redrawcmdline();
             } else {
                 setcursor();
@@ -2380,30 +2390,32 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             .map_or(0, |k| k.as_bytes().len() as i32);
 
         let owned_map_str: Option<std::ffi::CString> = if save_m_expr {
-            let save_vgetc_busy = g_st().vgetc_busy;
-            let save_may_garbage_collect = g_st().may_garbage_collect;
-            let prev_did_emsg = g_st().did_emsg;
+            let save_vgetc_busy = g_st().vgetc_busy.get();
+            let save_may_garbage_collect = g_st().may_garbage_collect.get();
+            let prev_did_emsg = g_st().did_emsg.get();
 
-            g_st().vgetc_busy = 0;
-            g_st().may_garbage_collect = false;
+            g_st().vgetc_busy.set(0);
+            g_st().may_garbage_collect.set(false);
 
             let mut res = eval_map_expr(mp, NUL);
 
             if res.as_ref().is_none_or(|s| s.to_bytes().is_empty()) {
-                if prev_did_emsg != g_st().did_emsg {
+                if prev_did_emsg != g_st().did_emsg.get() {
                     res = Some(std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap());
-                    if (g_st().state_global & MODE_CMDLINE) != 0 {
-                        g_st().msg_didout = true;
-                        g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
+                    if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+                        g_st().msg_didout.set(true);
+                        g_st()
+                            .msg_row
+                            .set(g_st().msg_row.get().max(g_st().cmdline_row.get()));
                         redrawcmd();
                     }
-                } else if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 {
+                } else if (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0 {
                     setcursor();
                 }
             }
 
-            g_st().vgetc_busy = save_vgetc_busy;
-            g_st().may_garbage_collect = save_may_garbage_collect;
+            g_st().vgetc_busy.set(save_vgetc_busy);
+            g_st().may_garbage_collect.set(save_may_garbage_collect);
             res
         } else {
             Some(mp.m_str.clone())
@@ -2436,7 +2448,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                 noremap,
                 0,
                 true,
-                g_st().cmd_silent || save_m_silent,
+                g_st().cmd_silent.get() || save_m_silent,
             )
         } else {
             false
@@ -2460,25 +2472,25 @@ pub fn vungetc(c: i32) {
     INP_STATE.with(|s| {
         s.ungot.set(UngotKey {
             c,
-            mod_mask: g_st().mod_mask,
-            mouse_grid: g_st().mouse_grid,
-            mouse_row: g_st().mouse_row,
-            mouse_col: g_st().mouse_col,
-            stuffed: g_st().key_stuffed != 0,
+            mod_mask: g_st().mod_mask.get(),
+            mouse_grid: g_st().mouse_grid.get(),
+            mouse_row: g_st().mouse_row.get(),
+            mouse_col: g_st().mouse_col.get(),
+            stuffed: g_st().key_stuffed.get() != 0,
         })
     });
 }
 
 /// When peeking and not getting a character, `reg_executing` cannot be cleared yet.
 pub fn check_end_reg_executing(advance: bool) {
-    if g_st().reg_executing != 0
-        && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing)
+    if g_st().reg_executing.get() != 0
+        && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing.get())
     {
         if advance {
-            g_st().reg_executing = 0;
-            g_st().pending_end_reg_executing = false;
+            g_st().reg_executing.set(0);
+            g_st().pending_end_reg_executing.set(false);
         } else {
-            g_st().pending_end_reg_executing = true;
+            g_st().pending_end_reg_executing.set(true);
         }
     }
 }
@@ -2489,15 +2501,15 @@ fn vgetorpeek(advance: bool) -> i32 {
     let mut mapdepth: i32 = 0;
     let mut mode_deleted = false;
 
-    if g_st().vgetc_busy > 0 && g_st().ex_normal_busy == 0 {
+    if g_st().vgetc_busy.get() > 0 && g_st().ex_normal_busy.get() == 0 {
         return NUL;
     }
 
-    g_st().vgetc_busy += 1;
+    g_st().vgetc_busy.set(g_st().vgetc_busy.get() + (1));
 
     if advance {
-        g_st().key_stuffed = 0;
-        g_st().typebuf_was_empty = false;
+        g_st().key_stuffed.set(0);
+        g_st().typebuf_was_empty.set(false);
     }
 
     init_typebuf();
@@ -2512,9 +2524,9 @@ fn vgetorpeek(advance: bool) -> i32 {
         } else {
             c = read_readbuffers(advance);
         }
-        if c != NUL && !g_st().got_int {
+        if c != NUL && !g_st().got_int.get() {
             if advance {
-                g_st().key_stuffed = 1;
+                g_st().key_stuffed.set(1);
             }
             if g_st().typebuf.tb_no_abbr_cnt == 0 {
                 g_st().typebuf.tb_no_abbr_cnt = 1;
@@ -2525,20 +2537,20 @@ fn vgetorpeek(advance: bool) -> i32 {
                 if g_st().typebuf.tb_maplen != 0 {
                     line_breakcheck();
                 } else {
-                    if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c.get())
+                    if ((g_st().mapped_ctrl_c.get() | curbuf_mut().b_mapped_ctrl_c.get())
                         & get_real_state())
                         != 0
                     {
-                        g_st().ctrl_c_interrupts = false;
+                        g_st().ctrl_c_interrupts.set(false);
                     }
                     os_breakcheck();
-                    g_st().ctrl_c_interrupts = true;
+                    g_st().ctrl_c_interrupts.set(true);
                 }
                 let mut keylen: i32 = 0;
-                if g_st().got_int {
+                if g_st().got_int.get() {
                     c = inchar(0, g_st().typebuf.tb_buflen - 1, 0);
                     if (c != 0 || g_st().typebuf.tb_maplen != 0)
-                        && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0
+                        && (g_st().state_global.get() & (MODE_INSERT | MODE_CMDLINE)) != 0
                     {
                         c = ESC;
                     } else {
@@ -2550,7 +2562,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         g_st().typebuf.tb_buf[0] = c as u8;
                         gotchars(&[c as u8]);
                     }
-                    g_st().cmd_silent = false;
+                    g_st().cmd_silent.set(false);
 
                     break;
                 } else if g_st().typebuf.tb_len > 0 {
@@ -2570,11 +2582,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                         let tb_off = g_st().typebuf.tb_off as usize;
                         c = i32::from(g_st().typebuf.tb_buf[tb_off]);
                         if advance {
-                            g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
+                            g_st().cmd_silent.set(g_st().typebuf.tb_silent > 0);
                             if g_st().typebuf.tb_maplen > 0 {
-                                g_st().key_typed = false;
+                                g_st().key_typed.set(false);
                             } else {
-                                g_st().key_typed = true;
+                                g_st().key_typed.set(true);
                                 gotchars(&[c as u8]);
                             }
                             INP_STATE.with(|s| {
@@ -2593,10 +2605,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                 if advance
                     && g_st().typebuf.tb_len == 1
                     && g_st().typebuf.tb_buf[g_st().typebuf.tb_off as usize] == ESC as u8
-                    && g_st().no_mapping == 0
-                    && g_st().ex_normal_busy == 0
+                    && g_st().no_mapping.get() == 0
+                    && g_st().ex_normal_busy.get() == 0
                     && g_st().typebuf.tb_maplen == 0
-                    && (g_st().state_global & MODE_INSERT) != 0
+                    && (g_st().state_global.get() & MODE_INSERT) != 0
                     && (opt_vars().p_timeout.get()
                         || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout.get()))
                     && {
@@ -2608,7 +2620,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         c == 0
                     }
                 {
-                    if g_st().mode_displayed {
+                    if g_st().mode_displayed.get() {
                         unshowmode(true);
                         mode_deleted = true;
                     }
@@ -2709,14 +2721,14 @@ fn vgetorpeek(advance: bool) -> i32 {
                     continue;
                 }
 
-                if g_st().ex_normal_busy > 0 {
+                if g_st().ex_normal_busy.get() > 0 {
                     if g_st().typebuf.tb_len > 0 {
                         timedout = true;
                         continue;
                     }
 
-                    c = if (g_st().state_global & MODE_CMDLINE) != 0
-                        || (g_st().cmdwin_type > 0
+                    c = if (g_st().state_global.get() & MODE_CMDLINE) != 0
+                        || (g_st().cmdwin_type.get() > 0
                             && INP_STATE.with(|s| s.vgetorpeek_tc.get()) == ESC)
                     {
                         CTRL_C_CONST
@@ -2726,17 +2738,17 @@ fn vgetorpeek(advance: bool) -> i32 {
                     INP_STATE.with(|s| s.vgetorpeek_tc.set(c));
 
                     if advance {
-                        g_st().typebuf_was_empty = true;
+                        g_st().typebuf_was_empty.set(true);
                     }
                     g_st().typebuf.tb_no_abbr_cnt = 0;
                     break;
                 }
 
-                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz.get())
-                    && (g_st().state_global & MODE_CMDLINE) == 0
+                if ((g_st().state_global.get() & MODE_INSERT) != 0 || opt_vars().p_lz.get())
+                    && (g_st().state_global.get() & MODE_CMDLINE) == 0
                     && advance
-                    && g_st().must_redraw != 0
-                    && !g_st().need_wait_return
+                    && g_st().must_redraw.get() != 0
+                    && !g_st().need_wait_return.get()
                 {
                     update_screen();
                     setcursor();
@@ -2745,12 +2757,12 @@ fn vgetorpeek(advance: bool) -> i32 {
                 let mut showcmd_idx: i32 = 0;
                 let mut showing_partial = false;
                 if g_st().typebuf.tb_len > 0 && advance {
-                    if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
-                        || g_st().state_global == MODE_LANGMAP)
-                        && g_st().state_global != MODE_HITRETURN
+                    if ((g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
+                        || g_st().state_global.get() == MODE_LANGMAP)
+                        && g_st().state_global.get() != MODE_HITRETURN
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
-                        if (g_st().state_global & MODE_INSERT) != 0
+                        if (g_st().state_global.get() & MODE_INSERT) != 0
                             && utf_ptr2cells(&g_st().typebuf.tb_buf[last_idx..]) == 1
                         {
                             edit_putchar(i32::from(g_st().typebuf.tb_buf[last_idx]), false);
@@ -2774,9 +2786,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                         curwin_mut().w_wrow.set(old_wrow);
                     }
 
-                    if (g_st().state_global & MODE_CMDLINE) != 0
+                    if (g_st().state_global.get() & MODE_CMDLINE) != 0
                         && !get_cmdline_info().cmdbuff().is_null()
-                        && g_st().cmdline_star == 0
+                        && g_st().cmdline_star.get() == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
                         let first_b = g_st().typebuf.tb_buf.get(last_idx).copied().unwrap_or(0);
@@ -2819,10 +2831,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                     pop_showcmd();
                 }
                 if showing_partial {
-                    if (g_st().state_global & MODE_INSERT) != 0 {
+                    if (g_st().state_global.get() & MODE_INSERT) != 0 {
                         edit_unputchar();
                     }
-                    if (g_st().state_global & MODE_CMDLINE) != 0
+                    if (g_st().state_global.get() & MODE_CMDLINE) != 0
                         && !get_cmdline_info().cmdbuff().is_null()
                     {
                         unputcmdline();
@@ -2862,18 +2874,19 @@ fn vgetorpeek(advance: bool) -> i32 {
 
     if advance
         && opt_vars().p_smd.get()
-        && g_st().msg_silent == 0
-        && (g_st().state_global & MODE_INSERT) != 0
+        && g_st().msg_silent.get() == 0
+        && (g_st().state_global.get() & MODE_INSERT) != 0
     {
-        if c == ESC && !mode_deleted && g_st().no_mapping == 0 && g_st().mode_displayed {
-            if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
-                g_st().redraw_cmdline = true;
+        if c == ESC && !mode_deleted && g_st().no_mapping.get() == 0 && g_st().mode_displayed.get()
+        {
+            if g_st().typebuf.tb_len != 0 && !g_st().key_typed.get() {
+                g_st().redraw_cmdline.set(true);
             } else {
                 unshowmode(false);
             }
         } else if c != ESC && mode_deleted {
-            if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
-                g_st().redraw_cmdline = true;
+            if g_st().typebuf.tb_len != 0 && !g_st().key_typed.get() {
+                g_st().redraw_cmdline.set(true);
             } else {
                 showmode();
             }
@@ -2884,7 +2897,7 @@ fn vgetorpeek(advance: bool) -> i32 {
         gotchars_ignore();
     }
 
-    g_st().vgetc_busy -= 1;
+    g_st().vgetc_busy.set(g_st().vgetc_busy.get() - (1));
 
     c
 }
@@ -2898,23 +2911,26 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
         ui_flush();
     }
 
-    if g_st().state_global != MODE_HITRETURN {
-        g_st().did_outofmem_msg = false;
-        g_st().did_swapwrite_msg = false;
+    if g_st().state_global.get() != MODE_HITRETURN {
+        g_st().did_outofmem_msg.set(false);
+        g_st().did_swapwrite_msg.set(false);
     }
 
     let mut read_size: isize = -1;
-    while INP_STATE.with(|s| s.curscript.get()) >= 0 && read_size <= 0 && !g_st().ignore_script {
+    while INP_STATE.with(|s| s.curscript.get()) >= 0
+        && read_size <= 0
+        && !g_st().ignore_script.get()
+    {
         let mut script_char = [0u8; 1];
         let cur_idx = INP_STATE.with(|s| s.curscript.get()) as usize;
-        if g_st().got_int || {
+        if g_st().got_int.get() || {
             read_size = with_inp_ext(|ext| {
                 file_read(&mut ext.scriptin.borrow_mut()[cur_idx], &mut script_char)
             });
             read_size != 1
         } {
             closescript();
-            if g_st().got_int {
+            if g_st().got_int.get() {
                 retesc = 1;
             } else {
                 return -1;
@@ -2927,7 +2943,7 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
     }
 
     if read_size <= 0 {
-        if g_st().got_int {
+        if g_st().got_int.get() {
             let mut dum = [0u8; DUM_LEN + 1];
             loop {
                 len = input_get(Some(&mut dum[..DUM_LEN]), 0, 0, None);
@@ -3003,10 +3019,10 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
     let mut buflen: i32 = 150;
     let mut len: i32 = 0;
     let mut n: i32;
-    let save_mapped_ctrl_c = g_st().mapped_ctrl_c;
+    let save_mapped_ctrl_c = g_st().mapped_ctrl_c.get();
 
-    g_st().mod_mask = 0;
-    g_st().mapped_ctrl_c = 0;
+    g_st().mod_mask.set(0);
+    g_st().mapped_ctrl_c.set(0);
     loop {
         ui_flush();
         let mut maxlen = (buflen - 6 - len) / 3;
@@ -3039,7 +3055,7 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
             n = to_special(buf[1] as i32, buf[2] as i32);
             if buf[1] == KS_MODIFIER || n == K_IGNORE || (is_mouse_key(n) && n != K_LEFTMOUSE) {
                 if buf[1] == KS_MODIFIER {
-                    g_st().mod_mask = buf[2] as i32;
+                    g_st().mod_mask.set(buf[2] as i32);
                 }
                 len -= 3;
                 if len > 0 {
@@ -3058,8 +3074,8 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
         break;
     }
 
-    g_st().mapped_ctrl_c = save_mapped_ctrl_c;
-    merge_modifiers(n, &mut g_st().mod_mask)
+    g_st().mapped_ctrl_c.set(save_mapped_ctrl_c);
+    merge_modifiers(n, &mut g_st().mod_mask.get())
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
@@ -3069,9 +3085,9 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
     let mut cmod: i32 = 0;
     let mut aborted = false;
 
-    g_st().no_mapping += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
 
-    g_st().got_int = false;
+    g_st().got_int.set(false);
     while c1 != NUL && !aborted {
         if vgetorpeek(false) == NUL {
             emsg(gettext(E_CMD_MAPPING_MUST_END_WITH_CR));
@@ -3091,7 +3107,7 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
             c1 = to_special(c1, c2);
         }
 
-        if g_st().got_int {
+        if g_st().got_int.get() {
             aborted = true;
         } else if c1 == b'\r' as i32 || c1 == b'\n' as i32 {
             c1 = NUL;
@@ -3116,7 +3132,7 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
         cmod = 0;
     }
 
-    g_st().no_mapping -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
 
     if aborted {
         None
@@ -3135,12 +3151,12 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
     let mut c1: i32 = -1;
     let mut aborted = false;
 
-    g_st().no_mapping += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
 
-    g_st().got_int = false;
+    g_st().got_int.set(false);
     while c1 != NUL && !aborted {
         c1 = vgetorpeek(true);
-        if g_st().got_int {
+        if g_st().got_int.get() {
             aborted = true;
         } else if c1 == b'\r' as i32 || c1 == b'\n' as i32 {
             c1 = NUL;
@@ -3149,7 +3165,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         }
     }
 
-    g_st().no_mapping -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
 
     if aborted || discard {
         return !aborted;
@@ -3164,7 +3180,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         return false;
     }
     if may_repeat {
-        g_st().repeat_luamap = id;
+        g_st().repeat_luamap.set(id);
     }
 
     let mut err = Error::new();
@@ -3180,12 +3196,12 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
 pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
-    if (g_st().state_global & MODE_CMDLINE) != 0 {
+    if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
         return;
     }
 
     let need_redo = !INP_STATE.with(|s| s.block_redo.get());
-    let need_record = g_st().reg_recording != 0 && !is_internal_call(channel_id);
+    let need_record = g_st().reg_recording.get() != 0 && !is_internal_call(channel_id);
 
     if !need_redo && !need_record {
         return;
@@ -3198,7 +3214,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             K_PASTE_END
         };
         if need_redo {
-            if state == K_FALSE && (g_st().state_global & MODE_INSERT) == 0 {
+            if state == K_FALSE && (g_st().state_global.get() & MODE_INSERT) == 0 {
                 redo_new(CmdSpec::default());
             }
             with_inp_ext(|ext| sb_add_char(&mut ext.redobuff.borrow_mut().cur.body, c));
@@ -3259,9 +3275,9 @@ pub fn paste_repeat(count: i32) {
     let mut buf: Vec<u8> = Vec::new();
     let mut aborted = false;
 
-    g_st().no_mapping += 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
 
-    g_st().got_int = false;
+    g_st().got_int.set(false);
     while !aborted {
         let mut c1 = vgetorpeek(true) as u8;
         if c1 == K_SPECIAL {
@@ -3280,10 +3296,10 @@ pub fn paste_repeat(count: i32) {
         } else {
             buf.push(c1);
         }
-        aborted = g_st().got_int;
+        aborted = g_st().got_int.get();
     }
 
-    g_st().no_mapping -= 1;
+    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
 
     let str_ = NvimString::from_bytes(&buf);
     let mut arena = Arena::new();

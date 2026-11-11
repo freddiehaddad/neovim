@@ -792,7 +792,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
 pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let ch = g_st().cmdwin_type as u8;
+    let ch = g_st().cmdwin_type.get() as u8;
     if ch == 0 {
         tv_set_string(rettv, Some(c""));
     } else {
