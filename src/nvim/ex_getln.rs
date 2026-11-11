@@ -3096,7 +3096,7 @@ fn cmdpreview_prepare() -> CpInfo {
     };
 
     for win in for_all_windows_ptr() {
-        let buf = win.w_buffer.borrow_mut();
+        let buf = win.w_buffer.get().borrow_mut();
 
         if buf.b_fnum.get() != GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) {
             if saved_bufs.insert(buf) {

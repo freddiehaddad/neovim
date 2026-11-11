@@ -596,7 +596,7 @@ pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHig
     }
     if (sh.flags & K_SHCONCEAL_LINES) != 0 {
         for wp in for_all_windows_mut() {
-            if wp.w_buffer == buf {
+            if wp.w_buffer.get() == buf {
                 changed_window_setting(wp);
             }
         }
@@ -702,7 +702,7 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {
-            if wp.w_buffer == buf
+            if wp.w_buffer.get() == buf
                 && wp.w_minscwidth.get() == SCL_NUM
                 && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
                 && (unplace || wp.w_nrwidth_width.get() < 2)
@@ -811,7 +811,7 @@ fn decor_free_sh(first_idx: u32) {
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
     if let Some(win) = g_st().decor_state.win.opt()
-        && win.w_buffer == buf
+        && win.w_buffer.get() == buf
     {
         g_st().decor_state.itr_valid = false;
     }
@@ -1040,7 +1040,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = marktree_itr_current(&state.win.w_buffer.b_marktree, &state.itr);
+    let k = marktree_itr_current(&state.win.w_buffer.get().b_marktree, &state.itr);
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1807,7 +1807,7 @@ pub fn decor_virt_lines(
     mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> i32 {
-    let buf = wp.w_buffer.borrow();
+    let buf = wp.w_buffer.get().borrow();
     if buf_meta_total(buf, K_MTMETA_LINES) == 0 {
         return 0;
     }

@@ -291,7 +291,7 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
     if !win.w_onebuf_opt.wo_diff.get() {
         let mut found_win = false;
         for wp in for_all_windows_mut() {
-            if wp.w_buffer == win.w_buffer && wp.w_onebuf_opt.wo_diff.get() {
+            if wp.w_buffer.get() == win.w_buffer.get() && wp.w_onebuf_opt.wo_diff.get() {
                 found_win = true;
             }
         }
@@ -1384,7 +1384,7 @@ pub fn ex_diffthis(_eap: &mut Exarg) {
 fn set_diff_option(wp: &mut WinInfoInfo, value: bool) {
     let old_curwin = curwin_ptr();
     set_curwin(wp);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
     curbuf_mut()
         .b_ro_locked
         .set(curbuf_mut().b_ro_locked.get() + (1));
@@ -1393,7 +1393,7 @@ fn set_diff_option(wp: &mut WinInfoInfo, value: bool) {
         .b_ro_locked
         .set(curbuf_mut().b_ro_locked.get() - (1));
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 }
 pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     let old_curwin = curwin_ptr();
@@ -2249,7 +2249,7 @@ fn parse_diffanchors(
     } else {
         let mut found_bw = crate::globals::WinPtr::NULL;
         for bw in crate::globals::win_iter_ptr(firstwin_mut()) {
-            if bw.w_buffer == buf && bw.w_onebuf_opt.wo_diff.get() {
+            if bw.w_buffer.get() == buf && bw.w_onebuf_opt.wo_diff.get() {
                 found_bw = crate::globals::WinPtr::from(&*bw);
                 break;
             }
@@ -3078,7 +3078,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
     let mut idx: i32 = -1;
     let mut other = false;
     for i in 0..DB_COUNT {
-        if tp.tp_diffbuf[i].get() == wp.w_buffer {
+        if tp.tp_diffbuf[i].get() == wp.w_buffer.get() {
             idx = i as i32;
         } else if !tp.tp_diffbuf[i].get().is_null() {
             other = true;
@@ -3470,7 +3470,7 @@ fn diffgetput(
 fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT], skip_idx: usize) {
     for wp in for_all_windows_ptr() {
         for i in 0..DB_COUNT {
-            if curtab_mut().tp_diffbuf[i].get() == wp.w_buffer && i != skip_idx {
+            if curtab_mut().tp_diffbuf[i].get() == wp.w_buffer.get() && i != skip_idx {
                 fold_update(&mut *(wp), df_lnum[i], df_lnum[i] + df_count[i]);
             }
         }

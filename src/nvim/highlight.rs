@@ -279,7 +279,7 @@ use crate::lua::converter::LUA_NOREF;
 
 #[inline]
 pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
-    if let Some(ref tbl) = wp.w_ns_hl_attr
+    if let Some(ref tbl) = wp.w_ns_hl_attr.get()
         && g_st().ns_hl_fast.get() < 0
     {
         tbl[hlf as usize].get()
@@ -657,10 +657,11 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
     if ns_id != wp.w_ns_hl_active.get() {
         wp.w_ns_hl_active.set(ns_id);
 
-        wp.w_ns_hl_attr = hl_st(|st| st.ns_hl_attr.borrow().get(&ns_id).cloned());
+        wp.w_ns_hl_attr
+            .set(hl_st(|st| st.ns_hl_attr.borrow().get(&ns_id).cloned()));
     }
 
-    let w_ns_hl_attr = wp.w_ns_hl_attr.clone();
+    let w_ns_hl_attr = wp.w_ns_hl_attr.get().clone();
     let hl_def_get = |idx: usize| -> i32 {
         if let Some(ref tbl) = w_ns_hl_attr {
             tbl[idx].get()

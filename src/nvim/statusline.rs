@@ -396,7 +396,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
 pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
-    let mut fr = wp.w_frame.clone();
+    let mut fr = wp.w_frame.get().clone();
     while !fr.fr_parent.get().is_null() {
         let parent = fr.fr_parent.get();
         if parent.fr_layout.get() == FR_COL {
@@ -536,7 +536,7 @@ fn win_redr_stl_expr(
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
 
     if wp.is_null() {
@@ -573,7 +573,7 @@ fn win_redr_stl_expr(
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf.set(restore_curwin.w_buffer);
+                g_st().curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
         }
@@ -653,7 +653,7 @@ fn win_redr_stl_expr(
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf.set(restore_curwin.w_buffer);
+                g_st().curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
         } else if wp_ref.w_floating.get() {
@@ -824,7 +824,7 @@ fn win_redr_stl_expr(
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        g_st().curbuf.set(restore_curwin.w_buffer);
+        g_st().curbuf.set(restore_curwin.w_buffer.get());
     }
 }
 pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
@@ -1084,7 +1084,7 @@ pub fn draw_tabline() {
                     modified = true;
                 }
 
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.get();
                 wincount += 1;
             }
 
@@ -1994,7 +1994,7 @@ pub fn build_stl_str_hl_slice(
         match opt {
             STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                 fillable = false;
-                if let Some(name) = buf_spname(&wp.w_buffer) {
+                if let Some(name) = buf_spname(&wp.w_buffer.get()) {
                     crate::memory::copy_bytes_to_c_buf(
                         g_st().name_buff_bytes_mut(),
                         name.to_bytes(),
@@ -2006,7 +2006,12 @@ pub fn build_stl_str_hl_slice(
                         (*wp).buf_mut().fname_opt()
                     };
 
-                    home_replace(wp.w_buffer.opt(), t, g_st().name_buff_bytes_mut(), true);
+                    home_replace(
+                        wp.w_buffer.get().opt(),
+                        t,
+                        g_st().name_buff_bytes_mut(),
+                        true,
+                    );
                 }
                 trans_characters(g_st().name_buff_bytes_mut());
                 if opt != STL_FILENAME {
@@ -2059,7 +2064,7 @@ pub fn build_stl_str_hl_slice(
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.active;
                     set_curwin(&mut *wp);
-                    g_st().curbuf.set(wp.w_buffer);
+                    g_st().curbuf.set(wp.w_buffer.get());
                     if curwin_ptr() != save_curwin {
                         g_st().visual_global.active = false;
                     }
@@ -2292,8 +2297,8 @@ pub fn build_stl_str_hl_slice(
                 }
             }
             STL_QUICKFIX => {
-                if bt_quickfix(wp.w_buffer.opt()) {
-                    str_slice = Some(if !wp.w_llist_ref.is_null() {
+                if bt_quickfix(wp.w_buffer.get().opt()) {
+                    str_slice = Some(if !wp.w_llist_ref.get().is_null() {
                         tr(MSG_LOCLIST).to_bytes_with_nul()
                     } else {
                         tr(MSG_QFLIST).to_bytes_with_nul()

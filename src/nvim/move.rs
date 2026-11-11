@@ -208,7 +208,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 
-    if g_st().visual_global.active && wp.w_buffer == g_st().curbuf.get() {
+    if g_st().visual_global.active && wp.w_buffer.get() == g_st().curbuf.get() {
         redraw_buf_later(curbuf_mut(), UPD_INVERTED);
     }
 }
@@ -2736,7 +2736,7 @@ pub fn do_check_cursorbind() {
     g_st().visual_global.active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb.get() {
             if curwin_mut().w_onebuf_opt.wo_diff.get() {
                 curwin_mut().w_cursor.lnum = diff_get_corresponding_line(&old_curbuf, line);

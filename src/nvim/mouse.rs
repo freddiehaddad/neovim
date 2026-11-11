@@ -1053,7 +1053,7 @@ pub fn do_mouse(
         || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
         && bt_quickfix(Some(crate::globals::curbuf_mut()))
     {
-        if curwin_mut().w_llist_ref.is_null() {
+        if curwin_mut().w_llist_ref.get().is_null() {
             do_cmdline_cmd(c".cc");
         } else {
             do_cmdline_cmd(c".ll");
@@ -1194,7 +1194,7 @@ pub fn ins_mouse(c: i32) {
 
         if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
             set_curwin(old_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
             if bt_prompt(Some(crate::globals::curbuf_mut())) {
                 curbuf_mut().b_prompt_insert.set(b'A' as i32);
             }
@@ -1210,7 +1210,7 @@ pub fn ins_mouse(c: i32) {
         );
         if curwin_ptr() != new_curwin && win_valid(new_curwin.opt()) {
             set_curwin(new_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
         }
         set_can_cindent(true);
     }
@@ -1272,7 +1272,7 @@ pub fn ins_mousescroll(dir: i32) {
             return;
         };
         set_curwin(&mut *wp);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
 
     if curwin_ptr() == old_curwin {
@@ -1289,7 +1289,7 @@ pub fn ins_mousescroll(dir: i32) {
 
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 
     if !equalpos(curwin_mut().w_cursor, orig_cursor) {
         start_arrow(Some(orig_cursor), true, 0);
@@ -1331,10 +1331,10 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
     let old_curwin = curwin_ptr();
 
     set_curwin(&mut *wp);
-    g_st().curbuf.set(wp.w_buffer);
+    g_st().curbuf.set(wp.w_buffer.get());
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 
     update_screen();
     true
@@ -1553,7 +1553,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             });
 
             let stop_visual = g_st().visual_global.active
-                && (wp.w_buffer != curwin_mut().w_buffer
+                && (wp.w_buffer.get() != curwin_mut().w_buffer.get()
                     || (status_line_offset == 0
                         && sep_line_offset == 0
                         && (if wp.w_onebuf_opt.wo_rl.get() {
@@ -1817,14 +1817,14 @@ pub fn nv_mousescroll(cap: &mut Cmdarg) {
             return;
         };
         set_curwin(&mut *wp);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
 
     do_mousescroll(cap);
 
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 }
 
 /// Mouse clicks and drags.
@@ -2254,7 +2254,7 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     if let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) {
         let height = wp.w_height.get() + wp.w_hsep_height.get() + wp.w_status_height.get();
-        if row < height + wp.w_border_adj[2] {
+        if row < height + wp.w_border_adj[2].get() {
             winid = Varnumber::from(wp.handle);
             winrow = Varnumber::from(row + 1 + wp.w_winrow_off.get());
             wincol = Varnumber::from(col + 1 + wp.w_wincol_off.get());

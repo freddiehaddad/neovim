@@ -345,7 +345,7 @@ fn get_match(wp: &WinInfoInfo, id: i32) -> Option<&Matchitem> {
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
 pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
-    let buf = wp.w_buffer;
+    let buf = wp.w_buffer.get();
     for cur in &mut wp.w_match_head {
         cur.mit_hl.rm = cur.mit_match.clone();
         cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
@@ -358,7 +358,7 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
         cur.mit_hl.first_lnum = 0;
         cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
     }
-    search_hl.buf = wp.w_buffer;
+    search_hl.buf = wp.w_buffer.get();
     search_hl.lnum = 0;
     search_hl.first_lnum = 0;
     search_hl.attr = win_hl_attr(&mut *wp, HLF_L as i32);

@@ -1019,7 +1019,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
         }
     } else if !only_destroy {
         for wp in for_all_windows_mut() {
-            if !wp.w_buffer.is_null() && wp.buf_mut().b_fnum.get() == buf_handle {
+            if !wp.w_buffer.get().is_null() && wp.buf_mut().b_fnum.get() == buf_handle {
                 wp.w_redr_status.set(true);
             }
         }
@@ -1105,7 +1105,7 @@ pub fn terminal_check_size(term_id: TermId) {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
             if !is_ctx_win(wp)
-                && !wp.w_buffer.is_null()
+                && !wp.w_buffer.get().is_null()
                 && (*wp).buf_mut().terminal.get() == term_id
             {
                 let win_width = (wp.w_view_width.get() - win_col_off(wp)).max(0) as u16;
@@ -2333,7 +2333,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
         if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
             let save_curwin = curwin_ptr();
             set_curwin(&mut *mouse_win);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
 
             let mut cap = Cmdarg::new();
             cap.cmdchar = c;
@@ -2349,7 +2349,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
 
             curwin_mut().w_redr_status.set(true);
             set_curwin(save_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
             redraw_later(Some(&mut *mouse_win), UPD_NOT_VALID);
             with_term_mut(term_id, |term| invalidate_terminal(term_id, term, -1, -1));
             return mouse_win == curwin_ptr();
@@ -2457,7 +2457,7 @@ fn refresh_terminal(term_id: TermId) {
     if resized {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
-                if !wp.w_buffer.is_null()
+                if !wp.w_buffer.get().is_null()
                     && (*wp).buf_mut().b_fnum.get() == buf_handle
                     && wp.w_leftcol.get() != 0
                 {
@@ -2703,7 +2703,7 @@ fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
 
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            if wp.w_buffer == buf {
+            if wp.w_buffer.get() == buf {
                 if wp == curwin_ptr() && is_focused(term_id) {
                     terminal_check_cursor();
                     continue;

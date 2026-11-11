@@ -282,7 +282,7 @@ pub fn changed_lines_invalidate_buf(
     xtra: Linenr,
 ) {
     for_all_tab_windows(|wp| {
-        if wp.w_buffer == buf {
+        if wp.w_buffer.get() == buf {
             changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
         }
     });
@@ -293,7 +293,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
     changed(buf);
 
     for win in for_all_windows_mut() {
-        if win.w_buffer == (&raw mut *buf) {
+        if win.w_buffer.get() == (&raw mut *buf) {
             if win.w_onebuf_opt.wo_diff.get() && diff_internal() != 0 {
                 curtab_mut().tp_diff_update.set(1);
                 diff_update_line(lnum);
@@ -307,7 +307,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
         let mut view = INIT_FMARKV;
-        if curwin_mut().w_buffer == (&raw mut *buf)
+        if curwin_mut().w_buffer.get() == (&raw mut *buf)
             && lnum >= curwin_mut().w_topline.get()
             && lnum <= curwin_mut().w_botline.get()
         {
@@ -348,13 +348,13 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                     buf.b_changelistlen.set(JUMPLISTSIZE - 1);
                     buf.b_changelist.rotate_left(1);
                     for_all_tab_windows(|wp| {
-                        if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx.get() > 0 {
+                        if wp.w_buffer.get() == (&raw mut *buf) && wp.w_changelistidx.get() > 0 {
                             wp.w_changelistidx.set(wp.w_changelistidx.get() - (1));
                         }
                     });
                 }
                 for_all_tab_windows(|wp| {
-                    if wp.w_buffer == (&raw mut *buf)
+                    if wp.w_buffer.get() == (&raw mut *buf)
                         && wp.w_changelistidx.get() == buf.b_changelistlen.get()
                     {
                         wp.w_changelistidx.set(wp.w_changelistidx.get() + (1));
@@ -364,17 +364,17 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             }
         }
         buf.b_changelist[(buf.b_changelistlen.get() - 1) as usize] = buf.b_last_change.clone();
-        if curwin_mut().w_buffer == (&raw mut *buf) {
+        if curwin_mut().w_buffer.get() == (&raw mut *buf) {
             curwin_mut().w_changelistidx.set(buf.b_changelistlen.get());
         }
     }
 
-    if curwin_mut().w_buffer == (&raw mut *buf) && g_st().visual_global.active {
+    if curwin_mut().w_buffer.get() == (&raw mut *buf) && g_st().visual_global.active {
         check_visual_pos();
     }
 
     for_all_tab_windows(|wp| {
-        if wp.w_buffer == (&raw mut *buf) {
+        if wp.w_buffer.get() == (&raw mut *buf) {
             if !g_st().redraw_not_allowed.get() && wp.w_redr_type.get() < UPD_VALID {
                 wp.w_redr_type.set(UPD_VALID);
             }
@@ -431,7 +431,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
     set_must_redraw(UPD_VALID);
 
     if g_st().last_cursormoved_win.get() == curwin_ptr()
-        && curwin_mut().w_buffer == (&raw mut *buf)
+        && curwin_mut().w_buffer.get() == (&raw mut *buf)
         && lnum <= curwin_mut().w_cursor.lnum
         && lnume + xtra.abs() > curwin_mut().w_cursor.lnum
     {
@@ -557,7 +557,7 @@ pub fn changed_lines(
 
     if xtra == 0
         && curwin_mut().w_onebuf_opt.wo_diff.get()
-        && curwin_mut().w_buffer == (&raw mut *buf)
+        && curwin_mut().w_buffer.get() == (&raw mut *buf)
         && diff_internal() == 0
     {
         for wp in for_all_windows_ptr() {

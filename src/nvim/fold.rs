@@ -1498,7 +1498,7 @@ pub fn get_foldtext(
             let saved_sctx = g_st().current_sctx;
 
             set_curwin(&raw mut *wp);
-            g_st().curbuf.set(wp.w_buffer);
+            g_st().curbuf.set(wp.w_buffer.get());
             g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get();
 
             g_st().emsg_off.set(g_st().emsg_off.get() + (1));
@@ -1524,7 +1524,7 @@ pub fn get_foldtext(
             }
 
             set_curwin(save_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
             g_st().current_sctx = saved_sctx;
         }
         let _ = got_fdt_error;
@@ -2444,7 +2444,7 @@ fn foldlevel_expr(flp: &mut Fline) {
 
     let win = curwin_ptr();
     set_curwin(flp.wp);
-    g_st().curbuf.set(flp.wp_mut().w_buffer);
+    g_st().curbuf.set(flp.wp_mut().w_buffer.get());
     set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 
     flp.start = 0;
@@ -2510,7 +2510,7 @@ fn foldlevel_expr(flp: &mut Fline) {
     }
 
     set_curwin(win);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 }
 
 fn parse_marker(wp: &mut WinInfoInfo) {

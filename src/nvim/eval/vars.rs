@@ -2338,7 +2338,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         return hi_key.map(|k| xp.set_item(k.to_owned()));
     }
 
-    let ht = &prevwin_curwin().w_buffer.b_vars().dv_hashtab;
+    let ht = &prevwin_curwin().w_buffer.get().b_vars().dv_hashtab;
     if VARS_STATE.with(|s| s.bdone.get()) < ht.ht_used.get() {
         if VARS_STATE.with(|s| s.bdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));

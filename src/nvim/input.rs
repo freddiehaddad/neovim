@@ -1967,7 +1967,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 while wp != win_ptr {
                     winnr += 1;
 
-                    wp = wp.w_next;
+                    wp = wp.w_next.get();
                 }
                 set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
 

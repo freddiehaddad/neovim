@@ -9135,7 +9135,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
         None,
         None,
         false,
-        wp.w_buffer.opt_mut(),
+        wp.w_buffer.get().opt_mut(),
         wp.opt(),
     );
 
@@ -9170,12 +9170,12 @@ fn ex_quit(eap: &mut Exarg) {
     if eap.addr_count > 0 {
         let mut wnr = eap.line2;
         wp = g_st().firstwin.get();
-        while !wp.borrow().w_next.is_null() {
+        while !wp.borrow().w_next.get().is_null() {
             wnr -= 1;
             if wnr <= 0 {
                 break;
             }
-            wp = wp.borrow().w_next;
+            wp = wp.borrow().w_next.get();
         }
     } else {
         wp = crate::globals::curwin_handle();
@@ -9681,7 +9681,7 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPage
         return;
     }
 
-    let buf = win.w_buffer;
+    let buf = win.w_buffer.get();
 
     let mut need_hide = buf_is_changed_fn(win.buf_mut()) && win.buf_mut().b_nwindows.get() <= 1;
     if need_hide && !buf_hide(win.buf_mut()) && !forceit {
@@ -10148,7 +10148,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
 
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin.opt())
-                    && old_curwin.w_buffer != g_st().curbuf.get()
+                    && old_curwin.w_buffer.get() != g_st().curbuf.get()
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
                     {
@@ -10657,7 +10657,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         && !eap.arg.is_empty()
         && old_curwin != curwin_ptr()
         && win_valid(old_curwin.opt())
-        && old_curwin.w_buffer != g_st().curbuf.get()
+        && old_curwin.w_buffer.get() != g_st().curbuf.get()
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
         {
@@ -10695,7 +10695,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
     let vtopline = if curwin_mut().w_onebuf_opt.wo_scb.get() {
         let mut vt = get_vtopline(curwin_mut());
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_scb.get() && !wp.w_buffer.is_null() {
+            if wp.w_onebuf_opt.wo_scb.get() && !wp.w_buffer.get().is_null() {
                 let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count.get())
                     - (get_scrolloff_value(curwin_mut()) as i32);
                 vt = vt.min(y);
@@ -10795,7 +10795,7 @@ fn get_prevdir(scope: CdScope) -> Option<std::ffi::CString> {
     match scope {
         K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir.get(),
         K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.get().clone(),
-        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir.clone(),
+        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir.get().clone(),
         _ => PREV_DIR.with(|cell| cell.borrow().clone()),
     }
 }
@@ -10804,7 +10804,7 @@ fn set_prevdir(scope: CdScope, dir: Option<std::ffi::CString>) {
     match scope {
         K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir.set(dir),
         K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.set(dir),
-        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir = dir,
+        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir.set(dir),
         _ => PREV_DIR.with(|cell| *cell.borrow_mut() = dir),
     }
 }
@@ -10814,7 +10814,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         curbuf_mut().b_localdir.set(None);
     }
     if scope >= K_CD_SCOPE_WINDOW {
-        curwin_mut().w_localdir = None;
+        curwin_mut().w_localdir.set(None);
     }
     if scope >= K_CD_SCOPE_TABPAGE {
         curtab_mut().tp_localdir.set(None);
@@ -10849,7 +10849,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
             curbuf_mut().b_localdir.set(Some(cwd_cstr));
         }
         K_CD_SCOPE_WINDOW => {
-            curwin_mut().w_localdir = Some(cwd_cstr);
+            curwin_mut().w_localdir.set(Some(cwd_cstr));
         }
         _ => std::process::abort(),
     }
@@ -10937,10 +10937,10 @@ fn chdir_clear(scope: CdScope) {
         }
         curbuf_mut().b_localdir.set(None);
     } else if scope == K_CD_SCOPE_WINDOW {
-        if curwin_mut().w_localdir.is_none() {
+        if curwin_mut().w_localdir.get().is_none() {
             return;
         }
-        curwin_mut().w_localdir = None;
+        curwin_mut().w_localdir.set(None);
     } else {
         if curtab_mut().tp_localdir.get().is_none() {
             return;
@@ -10993,7 +10993,7 @@ fn ex_pwd(_eap: &mut Exarg) {
                 reason
             } else if curbuf_mut().b_localdir.get().is_some() {
                 c"buffer"
-            } else if curwin_mut().w_localdir.is_some() {
+            } else if curwin_mut().w_localdir.get().is_some() {
                 c"window"
             } else if curtab_mut().tp_localdir.get().is_some() {
                 c"tabpage"

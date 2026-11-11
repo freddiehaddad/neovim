@@ -575,7 +575,7 @@ pub fn nvim_buf_set_lines(
 
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tp) {
-                if win.w_buffer == b {
+                if win.w_buffer.get() == b {
                     fix_cursor(win, start as Linenr, end as Linenr, extra as Linenr);
                 }
             }
@@ -912,7 +912,7 @@ pub fn nvim_buf_set_text(
 
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tp) {
-                if win.w_buffer == b_ptr {
+                if win.w_buffer.get() == b_ptr {
                     if i64::from(win.w_cursor.lnum) >= start_row
                         && i64::from(win.w_cursor.lnum) <= end_row
                     {

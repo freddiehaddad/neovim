@@ -1963,13 +1963,13 @@ fn create_windows(parmp: &mut Mparm) {
                 }
                 goto_tabpage(0);
             } else {
-                if curwin_mut().w_next.is_null() {
+                if curwin_mut().w_next.get().is_null() {
                     break;
                 }
-                set_curwin(curwin_mut().w_next.as_ptr());
+                set_curwin(curwin_mut().w_next.get().as_ptr());
             }
             dorewind = false;
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
             if curbuf_mut().b_ml.ml_mfp.is_none() {
                 if opt_vars().p_fdls.get() >= 0 {
                     curwin_mut()
@@ -2009,7 +2009,7 @@ fn create_windows(parmp: &mut Mparm) {
         } else {
             set_curwin(startup_curwin);
         }
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
         g_st()
             .autocmd_no_enter
             .set(g_st().autocmd_no_enter.get() - (1));
@@ -2061,17 +2061,17 @@ fn edit_buffers(parmp: &mut Mparm) {
                     );
                 }
             } else {
-                if curwin_mut().w_next.is_null() {
+                if curwin_mut().w_next.get().is_null() {
                     break;
                 }
-                win_enter(curwin_mut().w_next.borrow_mut(), false);
+                win_enter(curwin_mut().w_next.get().borrow_mut(), false);
             }
         }
         advance = true;
 
         if ptr::eq(
             g_st().curbuf.get().as_ptr(),
-            firstwin_mut().w_buffer.as_ptr(),
+            firstwin_mut().w_buffer.get().as_ptr(),
         ) || curbuf_mut().b_ffname.get().is_none()
         {
             curwin_mut().w_arg_idx.set(arg_idx);
@@ -2125,7 +2125,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         curwin_ptr()
     };
     while win.w_onebuf_opt.wo_pvw.get() {
-        win = win.w_next;
+        win = win.w_next.get();
         if win.is_null() {
             win = g_st().firstwin.get();
             break;

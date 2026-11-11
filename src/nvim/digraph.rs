@@ -2192,7 +2192,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     let old_curbuf = g_st().curbuf.get();
     let old_curwin = curwin_ptr();
 
-    g_st().curbuf.set(wp.w_buffer);
+    g_st().curbuf.set(wp.w_buffer.get());
     set_curwin(&raw mut *wp);
     g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     let s = eval_to_string(c"b:keymap_name", false, false);

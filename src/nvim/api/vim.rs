@@ -1356,7 +1356,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     };
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    if w.w_buffer != g_st().curbuf.get() {
+    if w.w_buffer.get() != g_st().curbuf.get() {
         reset_visual_and_resel();
     }
     goto_tabpage_win(&win_find_tabpage(&*w).unwrap(), w);
@@ -2752,7 +2752,7 @@ pub fn nvim_eval_statusline(
         let mut num_id: i32 = 0;
         let lnum = statuscol_lnum as Linenr;
         let mut cursorline_fi = Foldinfo::new();
-        let wp_buf = wp.w_buffer.borrow_mut();
+        let wp_buf = wp.w_buffer.get().borrow_mut();
         decor_redraw_signs(
             wp.borrow_mut(),
             wp_buf,
@@ -3076,7 +3076,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let end_raw = r[1].data.integer();
 
         let rbuf = if !win.is_null() {
-            win.w_buffer
+            win.w_buffer.get()
         } else if !buf.is_null() {
             buf
         } else {
@@ -3116,7 +3116,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     if opts.statuscolumn || opts.statusline || opts.winbar {
         if win.is_null() {
             for wp in for_all_windows_mut() {
-                if buf.is_null() || wp.w_buffer == buf {
+                if buf.is_null() || wp.w_buffer.get() == buf {
                     redraw_status(wp, opts);
                 }
             }

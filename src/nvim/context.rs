@@ -581,7 +581,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
 }
 
 fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut WinInfoInfo, buf: &mut FileBuf) {
-    cw_win.w_localdir = None;
+    cw_win.w_localdir.set(None);
     cs.cs_b_localdir = buf.b_localdir.take();
     cs.cs_tp_localdir = curtab_mut().tp_localdir.replace(None);
     cs.cs_globaldir = g_st().globaldir.take();
@@ -597,7 +597,7 @@ fn ctx_localdirs_restore(
     CTX_STATE.with(|st| st.ctx_did_chdir.set(persist && did_chdir));
 
     if let Some(dirs_win) = handle_get_window_opt(cs.cs_new_curwin) {
-        dirs_win.w_localdir = cs.cs_w_localdir.take();
+        dirs_win.w_localdir.set(cs.cs_w_localdir.take());
     } else {
         cs.cs_w_localdir = None;
     }
@@ -622,7 +622,7 @@ fn ctx_localdirs_restore(
         cs.cs_tp_localdir = None;
     }
 
-    if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.is_some()) {
+    if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.get().is_some()) {
         update_cwd(K_CD_CAUSE_WINDOW);
     }
 
@@ -646,7 +646,7 @@ fn ctx_dirs_save(
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
         let target_buf = buf.unwrap_or_else(|| wp.buf_mut());
         cs.cs_dirs_tab = tp.handle;
-        cs.cs_w_localdir = wp.w_localdir.clone();
+        cs.cs_w_localdir = wp.w_localdir.get().clone();
         cs.cs_b_localdir = target_buf.b_localdir.get().clone();
         cs.cs_tp_localdir = tp.tp_localdir.get();
     }
@@ -723,7 +723,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
-    cw_win.w_buffer = (&raw mut *buf).into();
+    cw_win.w_buffer.set((&raw mut *buf).into());
     buf.b_nwindows.set(buf.b_nwindows.get() + (1));
     win_init_empty(&mut *cw_win);
 
@@ -816,7 +816,7 @@ pub fn ctx_switch(
             wp = curwin_ptr();
         } else {
             for wp2 in for_all_windows_ptr() {
-                if wp2.w_buffer == buf {
+                if wp2.w_buffer.get() == buf {
                     wp = wp2.into();
                     break;
                 }
@@ -874,7 +874,7 @@ pub fn ctx_switch(
         return false;
     }
     set_curwin(wp);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
     cs.cs_new_curwin = curwin_mut().handle;
     set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.get().opt_mut());
 
@@ -904,7 +904,7 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
     }
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
     g_st()
         .prevwin
@@ -964,7 +964,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
                 .b_nwindows
                 .set(curbuf_mut().b_nwindows.get() - (1));
             g_st().curbuf.set(saved_buf);
-            curwin_mut().w_buffer = g_st().curbuf.get();
+            curwin_mut().w_buffer.set(g_st().curbuf.get());
             curbuf_mut()
                 .b_nwindows
                 .set(curbuf_mut().b_nwindows.get() + (1));

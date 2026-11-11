@@ -5316,7 +5316,7 @@ pub fn var2fpos(
     charcol: bool,
     wp: &mut WinInfoInfo,
 ) -> Option<CursorPos> {
-    let bp = wp.w_buffer;
+    let bp = wp.w_buffer.get();
     let mut pos = CursorPos {
         lnum: 0,
         col: 0,

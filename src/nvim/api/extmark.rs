@@ -1139,7 +1139,7 @@ pub fn nvim_buf_set_extmark(
 
         if opts.ephemeral
             && !g_st().decor_state.win.is_null()
-            && g_st().decor_state.win.w_buffer == (&raw mut *b)
+            && g_st().decor_state.win.w_buffer.get() == (&raw mut *b)
         {
             let r = line as i32;
             let c = col as i32;
@@ -1514,7 +1514,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {
-            if wp.w_buffer == b_ptr {
+            if wp.w_buffer.get() == b_ptr {
                 changed_window_setting(wp);
             }
         }

@@ -1235,7 +1235,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, K_EXTMARK_NOOP);
         for tab in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tab) {
-                if win.w_buffer == g_st().curbuf.get() {
+                if win.w_buffer.get() == g_st().curbuf.get() {
                     fold_move_range(&mut win.w_folds, line1, line2, dest);
                 }
             }
@@ -1250,7 +1250,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, K_EXTMARK_NOOP);
         for tab in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tab) {
-                if win.w_buffer == g_st().curbuf.get() {
+                if win.w_buffer.get() == g_st().curbuf.get() {
                     fold_move_range(&mut win.w_folds, dest + 1, line1 - 1, line2);
                 }
             }
@@ -2811,12 +2811,12 @@ pub fn do_ecmd(
                     }
                     buf.b_locked.set(buf.b_locked.get() - (1));
 
-                    if aborting() && !curwin_mut().w_buffer.is_null() {
+                    if aborting() && !curwin_mut().w_buffer.get().is_null() {
                         g_st().au_new_curbuf.set(save_au_new_curbuf);
                         break 'theend;
                     }
                     if !bufref_valid(Some(&g_st().au_new_curbuf.get())) {
-                        if curwin_mut().w_buffer.is_null() {
+                        if curwin_mut().w_buffer.get().is_null() {
                             buf = g_st().lastbuf.get();
                         } else {
                             delbuf_msg(new_name.take());
@@ -2827,14 +2827,14 @@ pub fn do_ecmd(
                     if buf == g_st().curbuf.get().as_ptr() {
                         auto_buf = true;
                     } else {
-                        if !curwin_mut().w_buffer.is_null() {
+                        if !curwin_mut().w_buffer.get().is_null() {
                             curwin_mut()
                                 .buf_mut()
                                 .b_nwindows
                                 .set(curwin_mut().buf_mut().b_nwindows.get() - (1));
                         }
 
-                        curwin_mut().w_buffer = buf;
+                        curwin_mut().w_buffer.set(buf);
                         g_st().curbuf.set(buf);
                         curbuf_mut()
                             .b_nwindows
@@ -2946,7 +2946,7 @@ pub fn do_ecmd(
 
             for tp in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(&tp) {
-                    if win.w_buffer == g_st().curbuf.get() {
+                    if win.w_buffer.get() == g_st().curbuf.get() {
                         fold_update_all(win);
                     }
                 }

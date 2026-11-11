@@ -288,7 +288,7 @@ fn put_view(
     let mut do_cursor =
         ptr::eq(flagp, &opt_vars().ssop_flags) || (flagp.get() & K_OPT_SSOP_FLAG_CURSOR) != 0;
 
-    if wp.w_alist.is_none() {
+    if wp.w_alist.get().is_none() {
         if !put_line(fd, c"argglobal") {
             return false;
         }
@@ -302,7 +302,7 @@ fn put_view(
             ptr::eq(flagp, &opt_vars().vop_flags)
                 || (flagp.get() & K_OPT_SSOP_FLAG_CURDIR) == 0
                 || tp.tp_localdir.get().is_some()
-                || wp.w_localdir.is_some(),
+                || wp.w_localdir.get().is_some(),
             flagp,
         ) {
             return false;
@@ -382,7 +382,7 @@ fn put_view(
 
     let save_curwin = curwin_ptr();
     set_curwin(&mut *wp);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
     let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
             fd,
@@ -398,7 +398,7 @@ fn put_view(
         true
     };
     set_curwin(save_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
     if !f {
         return false;
     }
@@ -461,7 +461,7 @@ fn put_view(
         }
     }
 
-    if let Some(ref w_localdir) = wp.w_localdir
+    if let Some(ref w_localdir) = wp.w_localdir.get()
         && (!ptr::eq(flagp, &opt_vars().vop_flags) || (flagp.get() & K_OPT_SSOP_FLAG_CURDIR) != 0)
     {
         if fd.puts(c"lcd ") < 0
@@ -754,7 +754,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     }
                     break;
                 }
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.get();
             }
 
             if need_tabnext && !put_line(fd, c"tabnext") {
@@ -784,11 +784,11 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if curwin_ptr() == wp {
                     cnr = nr;
                 }
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.get();
             }
 
             if let Some(tfw) = tab_firstwin.opt()
-                && !tfw.w_next.is_null()
+                && !tfw.w_next.get().is_null()
             {
                 if !put_line(fd, c"wincmd t") {
                     return false;
@@ -814,7 +814,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             wp = tab_firstwin;
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) == 0 {
-                    wp = wp_ref.w_next;
+                    wp = wp_ref.w_next.get();
                     continue;
                 }
                 if !put_view(
@@ -831,7 +831,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     return false;
                 }
                 next_arg_idx = wp_ref.w_arg_idx.get();
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.get();
             }
 
             cur_arg_idx = next_arg_idx;

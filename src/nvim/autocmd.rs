@@ -2812,7 +2812,7 @@ pub fn apply_autocmds_group(
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
                     for wp in for_all_windows_in_tab_mut(&tp) {
-                        if wp.w_buffer == buf
+                        if wp.w_buffer.get() == buf
                             && !event_ignored(event, wp.w_onebuf_opt.wo_eiw.as_cstr())
                         {
                             win_ignore = false;

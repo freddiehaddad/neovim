@@ -1257,7 +1257,7 @@ fn pum_preview_set_text(
     let mut err = Error::new();
     let mut arena = Arena::new();
     let mut replacement = Array::new();
-    let buf = win.w_buffer;
+    let buf = win.w_buffer.get();
     buf.b_p_ma.set(true);
 
     if let Some(info_bytes) = info.map(crate::memory::bytes_until_nul) {

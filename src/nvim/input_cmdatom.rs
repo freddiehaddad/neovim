@@ -510,10 +510,9 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
         && win_valid(origin.win.opt())
-        && origin
-            .win
-            .opt()
-            .is_some_and(|w| origin.buf.br_buf == w.w_buffer && !equalpos(origin.pos, w.w_cursor))
+        && origin.win.opt().is_some_and(|w| {
+            origin.buf.br_buf == w.w_buffer.get() && !equalpos(origin.pos, w.w_cursor)
+        })
 }
 
 #[inline]

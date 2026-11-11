@@ -423,7 +423,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typ
     tv_dict_add_nr(
         &dict,
         c"loclist",
-        Varnumber::from(bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.is_null()),
+        Varnumber::from(bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.get().is_null()),
     );
 
     tv_dict_add_dict(&dict, c"variables", Some(&wp.w_vars()));
@@ -620,7 +620,7 @@ pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.handle == id {
-                if g_st().visual_global.active && wp.w_buffer != g_st().curbuf.get() {
+                if g_st().visual_global.active && wp.w_buffer.get() != g_st().curbuf.get() {
                     end_visual_mode();
                 }
                 goto_tabpage_win(&tp, wp);
@@ -781,7 +781,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     } else if bt_quickfix(wp.buf_opt()) {
         tv_set_string(
             rettv,
-            Some(if !wp.w_llist_ref.is_null() {
+            Some(if !wp.w_llist_ref.get().is_null() {
                 c"loclist"
             } else {
                 c"quickfix"

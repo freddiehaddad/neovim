@@ -2771,7 +2771,7 @@ pub fn did_set_follow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'helpheight' option value.
 pub fn did_set_helpheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !firstwin_mut().w_next.is_null()
+    if !firstwin_mut().w_next.get().is_null()
         && curbuf_mut().b_help.get()
         && OptInt::from(curwin_mut().w_height.get()) < opt_vars().p_hh.get()
     {
@@ -3283,7 +3283,7 @@ pub fn did_set_window<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'winheight' value.
 pub fn did_set_winheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !firstwin_mut().w_next.is_null()
+    if !firstwin_mut().w_next.get().is_null()
         && OptInt::from(curwin_mut().w_height.get()) < opt_vars().p_wh.get()
     {
         win_setheight(opt_vars().p_wh.get() as i32);
@@ -3293,7 +3293,7 @@ pub fn did_set_winheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'winwidth' option value.
 pub fn did_set_winwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !firstwin_mut().w_next.is_null()
+    if !firstwin_mut().w_next.get().is_null()
         && OptInt::from(curwin_mut().w_width.get()) < opt_vars().p_wiw.get()
     {
         win_setwidth(opt_vars().p_wiw.get() as i32);
@@ -5816,7 +5816,7 @@ pub fn set_option_direct_for(
         OptTarget::Global => {}
         OptTarget::Win(win) => {
             set_curwin(win);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
         }
         OptTarget::Buf(buf) => {
             g_st().curbuf.set(buf);

@@ -683,12 +683,12 @@ fn ql_info() -> std::rc::Rc<QfInfo> {
 
 #[inline]
 fn is_qf_window(wp: &WinInfoInfo) -> bool {
-    bt_quickfix(wp.buf_opt()) && wp.w_llist_ref.is_null()
+    bt_quickfix(wp.buf_opt()) && wp.w_llist_ref.get().is_null()
 }
 
 #[inline]
 fn is_ll_window(wp: &WinInfoInfo) -> bool {
-    bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.is_null()
+    bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.get().is_null()
 }
 
 #[inline]
@@ -709,9 +709,9 @@ fn is_qf_list(qfl: &QfList) -> bool {
 #[inline]
 fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<std::rc::Rc<QfInfo>> {
     let p = if is_ll_window(wp) {
-        wp.w_llist_ref
+        wp.w_llist_ref.get()
     } else {
-        wp.w_llist
+        wp.w_llist.get()
     };
     p.rc()
 }
@@ -2014,15 +2014,15 @@ fn wipe_qf_buffer(qi: &QfInfo) {
         && qfbuf.b_nwindows.get() == 0
     {
         let mut buf_was_null = false;
-        if curwin_mut().w_buffer.is_null() {
-            curwin_mut().w_buffer = g_st().curbuf.get();
+        if curwin_mut().w_buffer.get().is_null() {
+            curwin_mut().w_buffer.set(g_st().curbuf.get());
             buf_was_null = true;
         }
 
         close_buffer(None, Some(qfbuf), DOBUF_WIPE, false, false, false);
         qi.qf_bufnr.set(INVALID_QFBUFNR);
         if buf_was_null {
-            curwin_mut().w_buffer = crate::globals::BufPtr::NULL;
+            curwin_mut().w_buffer.set(crate::globals::BufPtr::NULL);
         }
     }
 }
@@ -2061,9 +2061,9 @@ fn ll_free_all(qi: Option<&QfInfo>) {
 
 pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
     if let Some(wp) = wp {
-        let llist = std::mem::replace(&mut wp.w_llist, QfInfoId::NULL);
+        let llist = wp.w_llist.replace(QfInfoId::NULL);
         ll_free_all(llist.rc().as_deref());
-        let llist_ref = std::mem::replace(&mut wp.w_llist_ref, QfInfoId::NULL);
+        let llist_ref = wp.w_llist_ref.replace(QfInfoId::NULL);
         ll_free_all(llist_ref.rc().as_deref());
     } else {
         qf_free_list_stack_items(&ql_info());
@@ -2218,16 +2218,16 @@ pub fn qf_init_stack() {
 }
 
 fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
-    if let Some(wp) = qf_find_win_with_loclist(&llw.w_llist_ref.unwrap_rc()) {
+    if let Some(wp) = qf_find_win_with_loclist(&llw.w_llist_ref.get().unwrap_rc()) {
         wp.w_onebuf_opt.wo_lhi.set(llw.w_onebuf_opt.wo_lhi.get());
     }
 }
 
 fn qf_sync_win_to_llw(pwp: &mut WinInfoInfo) {
-    let llw = pwp.w_llist;
+    let llw = pwp.w_llist.get();
     if !llw.is_null() {
         for wp in win_iter_mut(tab_firstwin(&curtab_mut())) {
-            if wp.w_llist_ref == llw && bt_quickfix(wp.buf_opt()) {
+            if wp.w_llist_ref.get() == llw && bt_quickfix(wp.buf_opt()) {
                 wp.w_onebuf_opt.wo_lhi.set(pwp.w_onebuf_opt.wo_lhi.get());
                 return;
             }
@@ -2287,18 +2287,18 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> std::rc::Rc<QfInfo> {
 
 fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> std::rc::Rc<QfInfo> {
     if is_ll_window(wp) {
-        return wp.w_llist_ref.unwrap_rc();
+        return wp.w_llist_ref.get().unwrap_rc();
     }
 
-    let llist_ref = std::mem::replace(&mut wp.w_llist_ref, QfInfoId::NULL);
+    let llist_ref = wp.w_llist_ref.replace(QfInfoId::NULL);
     ll_free_all(llist_ref.rc().as_deref());
 
-    if wp.w_llist.is_null() {
-        wp.w_llist =
-            qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi.get() as i32).qf_id_handle;
+    if wp.w_llist.get().is_null() {
+        wp.w_llist
+            .set(qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi.get() as i32).qf_id_handle);
     }
 
-    wp.w_llist.unwrap_rc()
+    wp.w_llist.get().unwrap_rc()
 }
 
 fn qf_cmd_get_stack_opt(eap: &mut Exarg, print_emsg: bool) -> Option<std::rc::Rc<QfInfo>> {
@@ -2399,7 +2399,7 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     };
 
     let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi.get() as i32);
-    to.w_llist = to_ll.qf_id_handle;
+    to.w_llist.set(to_ll.qf_id_handle);
     to.w_onebuf_opt
         .wo_lhi
         .set(i64::from(to_ll.qf_maxcount.get()));
@@ -2693,7 +2693,7 @@ fn qf_find_help_win() -> Option<&'static mut WinInfoInfo> {
 }
 
 fn win_set_loclist(wp: &mut WinInfoInfo, qi: &QfInfo) {
-    wp.w_llist = qi.qf_id_handle;
+    wp.w_llist.set(qi.qf_id_handle);
     qi.qf_refcount.set(qi.qf_refcount.get() + (1));
 }
 
@@ -2743,7 +2743,7 @@ fn jump_to_help_window(qi: &QfInfo, newwin: bool, opened_window: &mut bool) -> b
 
 fn qf_find_win_with_loclist(ll: &QfInfo) -> Option<&'static mut WinInfoInfo> {
     for wp in win_iter_ptr(tab_firstwin(&curtab_mut())) {
-        if wp.w_llist == ll && !bt_quickfix(wp.buf_opt()) {
+        if wp.w_llist.get() == ll && !bt_quickfix(wp.buf_opt()) {
             return Some(&mut *wp);
         }
     }
@@ -2805,13 +2805,13 @@ fn qf_goto_win_with_ll_file(
         if win.is_null() {
             win = curwin_ptr();
             loop {
-                if bt_normal(win.w_buffer.opt()) {
+                if bt_normal(win.w_buffer.get().opt()) {
                     break;
                 }
-                if win.w_prev.is_null() {
+                if win.w_prev.get().is_null() {
                     win = g_st().lastwin.get();
                 } else {
-                    win = win.w_prev;
+                    win = win.w_prev.get();
                 }
                 if win == curwin_ptr() {
                     break;
@@ -2821,7 +2821,7 @@ fn qf_goto_win_with_ll_file(
     }
     win_goto(win.borrow_mut());
 
-    if win.w_llist.is_null()
+    if win.w_llist.get().is_null()
         && let Some(ll_ref) = ll_ref
     {
         win_set_loclist(win.borrow_mut(), ll_ref);
@@ -2835,10 +2835,10 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         if win.buf_mut().b_fnum.get() == qf_fnum {
             break;
         }
-        if win.w_prev.is_null() {
+        if win.w_prev.get().is_null() {
             win = g_st().lastwin.get();
         } else {
-            win = win.w_prev;
+            win = win.w_prev.get();
         }
 
         if is_qf_window(win.borrow()) {
@@ -2849,10 +2849,10 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
                 win = g_st().prevwin.get();
             } else if !altwin.is_null() {
                 win = altwin;
-            } else if !curwin_mut().w_prev.is_null() {
-                win = curwin_mut().w_prev;
+            } else if !curwin_mut().w_prev.get().is_null() {
+                win = curwin_mut().w_prev.get();
             } else {
-                win = curwin_mut().w_next;
+                win = curwin_mut().w_next.get();
             }
             break;
         }
@@ -2860,7 +2860,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         if altwin.is_null()
             && !win.w_onebuf_opt.wo_pvw.get()
             && !win.w_onebuf_opt.wo_wfb.get()
-            && bt_normal(win.w_buffer.opt())
+            && bt_normal(win.w_buffer.get().opt())
         {
             altwin = win;
         }
@@ -2876,7 +2876,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
     let ll_ref = if newwin {
         QfInfoId::NULL
     } else {
-        curwin_mut().w_llist_ref
+        curwin_mut().w_llist_ref.get()
     };
     if !ll_ref.is_null() {
         usable_wp = qf_find_win_with_loclist(&ll_ref.unwrap_rc());
@@ -2902,7 +2902,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
             return false;
         }
         *opened_window = true;
-    } else if !curwin_mut().w_llist_ref.is_null() {
+    } else if !curwin_mut().w_llist_ref.get().is_null() {
         qf_goto_win_with_ll_file(usable_wp, qf_fnum, ll_ref.rc().as_deref());
     } else {
         qf_goto_win_with_qfl_file(qf_fnum);
@@ -2991,7 +2991,7 @@ fn qf_jump_edit_buffer(
 
     if qfl_type == QFLT_LOCATION {
         let wp = win_id2wp(prev_winid);
-        if wp.is_none() && curwin_mut().w_llist != qi_id {
+        if wp.is_none() && curwin_mut().w_llist.get() != qi_id {
             emsg(gettext(c"E924: Current window was closed"));
             *opened_window = false;
             return QfStatus::Abort;
@@ -3657,7 +3657,7 @@ pub fn qf_mark_adjust(
         return false;
     }
     let qi_rc = if let Some(wp) = wp {
-        let Some(ll) = wp.w_llist.rc() else {
+        let Some(ll) = wp.w_llist.get().rc() else {
             return false;
         };
         ll
@@ -3840,7 +3840,7 @@ fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
     reset_binding(curwin_mut());
 
     if is_ll_stack(qi) {
-        curwin_mut().w_llist_ref = qi.qf_id_handle;
+        curwin_mut().w_llist_ref.set(qi.qf_id_handle);
         qi.qf_refcount.set(qi.qf_refcount.get() + (1));
     }
 
@@ -3943,7 +3943,7 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
     let old_curwin = curwin_ptr();
 
     set_curwin(&mut *win);
-    g_st().curbuf.set(win.w_buffer);
+    g_st().curbuf.set(win.w_buffer.get());
     curwin_mut().w_cursor.lnum = lnum;
     curwin_mut().w_cursor.col = 0;
     curwin_mut().w_cursor.coladd = 0;
@@ -3952,7 +3952,7 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin_mut().w_buffer);
+    g_st().curbuf.set(curwin_mut().w_buffer.get());
 }
 
 pub fn ex_cbottom(eap: &mut Exarg) {
@@ -3971,7 +3971,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
 
 pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
     let qi_rc = if is_ll_window(&*wp) {
-        wp.w_llist_ref.unwrap_rc()
+        wp.w_llist_ref.get().unwrap_rc()
     } else {
         ql_info()
     };
@@ -3998,8 +3998,8 @@ fn qf_win_pos_update(qi: &QfInfo, old_qf_index: i32) -> bool {
 fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
     if buf_valid(win.buf_opt())
         && bt_quickfix(win.buf_opt())
-        && ((is_qf_stack(qi) && win.w_llist_ref.is_null())
-            || (is_ll_stack(qi) && win.w_llist_ref == qi))
+        && ((is_qf_stack(qi) && win.w_llist_ref.get().is_null())
+            || (is_ll_stack(qi) && win.w_llist_ref.get() == qi))
     {
         return true;
     }
@@ -4026,7 +4026,7 @@ fn qf_find_buf(qi: &QfInfo) -> Option<&'static mut FileBuf> {
     for tp in for_all_tabpages_mut() {
         for win in win_iter_mut(tab_firstwin(&tp)) {
             if is_qf_win(win, qi) {
-                return win.w_buffer.opt_mut();
+                return win.w_buffer.get().opt_mut();
             }
         }
     }
@@ -4061,7 +4061,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
     let mut qf_winid: i32 = 0;
 
     if is_ll_stack(qi) {
-        let win = if curwin_mut().w_llist == qi {
+        let win = if curwin_mut().w_llist.get() == qi {
             Some(curwin_mut())
         } else {
             qf_find_win_with_loclist(qi).or_else(|| qf_find_win(qi))
@@ -4302,7 +4302,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
 
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(tab_firstwin(&tp)) {
-                if wp.w_buffer == g_st().curbuf.get() {
+                if wp.w_buffer.get() == g_st().curbuf.get() {
                     wp.w_skipcol.set(0);
                 }
             }
@@ -5708,7 +5708,7 @@ fn restore_start_dir(dirname_start: &CStr) {
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
         ea.arg = crate::strings::OwnedSlice::from_cstr(dirname_start);
-        ea.cmdidx = if curwin_mut().w_localdir.is_none() {
+        ea.cmdidx = if curwin_mut().w_localdir.get().is_none() {
             Cmdidx::CmdCd
         } else {
             Cmdidx::CmdLcd
@@ -5802,9 +5802,9 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
         }
         let mut did_one = false;
 
-        if !firstwin_mut().w_next.is_null() {
+        if !firstwin_mut().w_next.get().is_null() {
             for wp in for_all_windows_ptr() {
-                if wp.w_buffer == buf {
+                if wp.w_buffer.get() == buf {
                     if win_close(wp, false, false) {
                         did_one = true;
                     }
@@ -6773,15 +6773,14 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi: &QfInfo) {
         qi.qf_curlist.set(0);
         qi.qf_listcount.set(0);
     } else if !qfwin.is_null() {
-        let mut qfwin = qfwin;
         let new_ll = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi.get() as i32);
 
         new_ll.qf_bufnr.set(qfwin.buf_mut().b_fnum.get());
 
-        let old_llist_ref = std::mem::replace(&mut qfwin.w_llist_ref, QfInfoId::NULL);
+        let old_llist_ref = qfwin.w_llist_ref.replace(QfInfoId::NULL);
         ll_free_all(old_llist_ref.rc().as_deref());
 
-        qfwin.w_llist_ref = new_ll.qf_id_handle;
+        qfwin.w_llist_ref.set(new_ll.qf_id_handle);
 
         if wp != qfwin {
             win_set_loclist(wp.borrow_mut(), &new_ll);
@@ -6891,14 +6890,14 @@ pub fn set_ref_in_quickfix(copy_id: i32) -> bool {
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_mut(tab_firstwin(&tp)) {
-            if let Some(ll) = win.w_llist.rc()
+            if let Some(ll) = win.w_llist.get().rc()
                 && (mark_quickfix_ctx(&ll, copy_id) || mark_quickfix_user_data(&ll, copy_id))
             {
                 return true;
             }
 
             if is_ll_window(win)
-                && let Some(ll_ref) = win.w_llist_ref.rc()
+                && let Some(ll_ref) = win.w_llist_ref.get().rc()
                 && ll_ref.qf_refcount.get() == 1
                 && (mark_quickfix_ctx(&ll_ref, copy_id)
                     || mark_quickfix_user_data(&ll_ref, copy_id))
@@ -7155,7 +7154,7 @@ fn hgr_get_ll(new_ll: &mut bool) -> std::rc::Rc<QfInfo> {
     };
 
     if let Some(wp_ref) = wp
-        && let Some(ll) = wp_ref.w_llist.rc()
+        && let Some(ll) = wp_ref.w_llist.get().rc()
     {
         return ll;
     }
@@ -7347,12 +7346,12 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     decr_quickfix_busy();
 
     if eap.cmdidx == Cmdidx::CmdLhelpgrep {
-        if !bt_help(curwin_mut().buf_opt()) || curwin_mut().w_llist == qi_ptr {
+        if !bt_help(curwin_mut().buf_opt()) || curwin_mut().w_llist.get() == qi_ptr {
             if new_qi {
                 ll_free_all(qi_ptr.rc().as_deref());
             }
-        } else if curwin_mut().w_llist.is_null() && new_qi {
-            curwin_mut().w_llist = qi_ptr;
+        } else if curwin_mut().w_llist.get().is_null() && new_qi {
+            curwin_mut().w_llist.set(qi_ptr);
         }
     }
 }

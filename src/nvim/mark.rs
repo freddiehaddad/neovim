@@ -1465,7 +1465,7 @@ pub fn mark_adjust_buf(
         extmark_adjust(&mut *buf, line1, line2, amount, amount_after, op);
     }
 
-    if curwin_mut().w_buffer == buf {
+    if curwin_mut().w_buffer.get() == buf {
         one_adjust(
             &mut curwin_mut().w_pcmark.lnum,
             line1,
@@ -1508,7 +1508,7 @@ pub fn mark_adjust_buf(
                 }
             }
 
-            if win.w_buffer == buf {
+            if win.w_buffer.get() == buf {
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                     for i in 0..(win.w_tagstacklen.get() as usize) {
                         if win.w_tagstack[i].fmark.fnum == fnum {
@@ -1746,7 +1746,7 @@ pub fn mark_col_adjust(
             }
         }
 
-        if win.w_buffer == g_st().curbuf.get() {
+        if win.w_buffer.get() == g_st().curbuf.get() {
             for i in 0..(win.w_tagstacklen.get() as usize) {
                 if win.w_tagstack[i].fmark.fnum == fnum {
                     col_adjust(
@@ -1991,7 +1991,7 @@ pub fn free_jumplist(wp: &mut WinInfoInfo) {
 }
 
 pub fn set_last_cursor(win: &mut WinInfoInfo) {
-    if !win.w_buffer.is_null() {
+    if !win.w_buffer.get().is_null() {
         reset_fmark(
             &mut win.buf_mut().b_last_cursor,
             win.w_cursor,

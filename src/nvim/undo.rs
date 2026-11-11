@@ -2293,7 +2293,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     }
 
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == g_st().curbuf.get() && wp.w_onebuf_opt.wo_cole.get() > 0 {
+        if wp.w_buffer.get() == g_st().curbuf.get() && wp.w_onebuf_opt.wo_cole.get() > 0 {
             redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         }
     }
@@ -2742,7 +2742,7 @@ fn u_saveline(buf: &mut FileBuf, lnum: Linenr) {
     }
     u_clearline(buf);
     buf.b_u_line_lnum.set(lnum);
-    if curwin_mut().w_buffer == buf && curwin_mut().w_cursor.lnum == lnum {
+    if curwin_mut().w_buffer.get() == buf && curwin_mut().w_cursor.lnum == lnum {
         buf.b_u_line_colnr.set(curwin_mut().w_cursor.col);
     } else {
         buf.b_u_line_colnr.set(0);

@@ -595,13 +595,13 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
     let wp_block_addr = ptr::from_ref(win_s(wp)).addr();
     if SYN_STATE.with(|s| s.syn_block_addr.get()) != wp_block_addr
-        || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer
+        || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer.get()
         || SYN_STATE.with(|s| s.changedtick_last.get())
             != buf_get_changedtick(SYN_STATE.with(SyntaxState::syn_buf_mut))
     {
         invalidate_current_state();
         SYN_STATE.with(|s| {
-            s.syn_buf.set(wp.w_buffer);
+            s.syn_buf.set(wp.w_buffer.get());
             s.syn_win_owned.set(wp.w_s_owned.is_some());
             s.syn_block_addr.set(wp_block_addr);
         });
@@ -1070,7 +1070,7 @@ pub fn syn_stack_free_all(block: &mut Synblock) {
 
     if !g_st().curtab.get().is_null() {
         for wp in for_all_windows_mut() {
-            if (!wp.w_buffer.is_null() || wp.w_s_owned.is_some())
+            if (!wp.w_buffer.get().is_null() || wp.w_s_owned.is_some())
                 && ptr::eq(win_s(wp), block)
                 && foldmethod_is_syntax(wp)
             {
@@ -1119,7 +1119,7 @@ pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
 
     if !g_st().curtab.get().is_null() {
         for wp in for_all_windows_mut() {
-            if wp.w_buffer == buf && !ptr::eq(win_s(wp), &raw mut buf.b_s) {
+            if wp.w_buffer.get() == buf && !ptr::eq(win_s(wp), &raw mut buf.b_s) {
                 syn_stack_apply_changes_block(&mut *win_s(wp), mod_top, mod_bot, mod_xlines);
             }
         }
@@ -5265,7 +5265,7 @@ pub fn syn_get_id(
     keep_state: i32,
 ) -> i32 {
     if SYN_STATE.with(|s| s.syn_win.get()) != wp
-        || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer
+        || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer.get()
         || lnum != SYN_STATE.with(|s| s.current_lnum.get())
         || col < SYN_STATE.with(|s| s.current_col.get())
     {

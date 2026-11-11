@@ -486,7 +486,10 @@ pub fn nvim_open_win(
             goto_tabpage_win(tp.borrow(), wp.borrow_mut());
             tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
         }
-        if !tp.is_null() && bufref_valid(Some(&bufref)) && (&raw mut *b) != wp.w_buffer.as_ptr() {
+        if !tp.is_null()
+            && bufref_valid(Some(&bufref))
+            && (&raw mut *b) != wp.w_buffer.get().as_ptr()
+        {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
                 g_st()
@@ -534,7 +537,7 @@ pub fn nvim_open_win(
 }
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
-    if win.w_frame.is_null() || win.frame_mut().fr_parent.get().is_null() {
+    if win.w_frame.get().is_null() || win.frame_mut().fr_parent.get().is_null() {
         return K_WIN_SPLIT_LEFT;
     }
 
@@ -755,9 +758,9 @@ fn win_config_split(
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
                             {
-                                win.w_next
+                                win.w_next.get()
                             } else {
-                                win.w_prev
+                                win.w_prev.get()
                             };
                         }
                         altwin = crate::globals::WinPtr::from(winframe_remove(
@@ -848,7 +851,7 @@ fn win_config_split(
                     win_split_ins(0, flags, win_ptr.opt_mut(), 0, unflat_altfr.opt()).is_some();
                 if !to_split_ok {
                     win_append(
-                        win_ptr.w_prev.opt_mut(),
+                        win_ptr.w_prev.get().opt_mut(),
                         win_ptr.borrow_mut(),
                         if win_tp == g_st().curtab.get() {
                             None

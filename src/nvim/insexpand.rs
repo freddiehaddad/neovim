@@ -2579,7 +2579,7 @@ pub fn ins_compl_active() -> bool {
 pub fn ins_compl_win_active(wp: &mut WinInfoInfo) -> bool {
     ins_compl_active()
         && INSEXPAND.with(|s| s.compl_curr_win.get()) == wp
-        && INSEXPAND.with(|s| s.compl_curr_buf.get()) == wp.w_buffer
+        && INSEXPAND.with(|s| s.compl_curr_buf.get()) == wp.w_buffer.get()
 }
 
 pub fn ins_compl_used_match() -> bool {
@@ -3270,8 +3270,8 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
         debug_assert!(!INSEXPAND.with(|s| s.next_buf_wp.get()).is_null());
         loop {
             let wp = INSEXPAND.with(|s| s.next_buf_wp.get());
-            let next_wp = if !wp.w_next.is_null() {
-                wp.w_next
+            let next_wp = if !wp.w_next.get().is_null() {
+                wp.w_next.get()
             } else {
                 g_st().firstwin.get()
             };
@@ -3283,7 +3283,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
         }
 
-        buf = INSEXPAND.with(|s| s.next_buf_wp.get()).w_buffer;
+        buf = INSEXPAND.with(|s| s.next_buf_wp.get()).w_buffer.get();
     } else {
         loop {
             buf = if !buf.b_next.get().is_null() {
@@ -6847,8 +6847,9 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
 
     INSEXPAND.with(|s| s.compl_curr_win.set(crate::globals::curwin_ptr()));
     INSEXPAND.with(|s| {
-        s.compl_curr_buf
-            .set(crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr()))
+        s.compl_curr_buf.set(crate::globals::BufPtr::new(
+            curwin_mut().w_buffer.get().as_ptr(),
+        ))
     });
     INSEXPAND.with(|s| {
         s.compl_shown_idx

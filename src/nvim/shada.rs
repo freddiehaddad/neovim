@@ -1632,7 +1632,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     if !cl_bufs.is_empty() {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&tp) {
-                if cl_bufs.contains(&(wp.w_buffer.as_ptr() as usize)) {
+                if cl_bufs.contains(&(wp.w_buffer.get().as_ptr() as usize)) {
                     wp.w_changelistidx.set(wp.buf_mut().b_changelistlen.get());
                 }
             }

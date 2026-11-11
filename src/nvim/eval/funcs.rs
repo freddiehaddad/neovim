@@ -1666,7 +1666,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         wp = wp_ref.into();
     }
 
-    let bp = wp.w_buffer.borrow_mut();
+    let bp = wp.w_buffer.get().borrow_mut();
     let mut col: Colnr = 0;
     let mut fnum = bp.b_fnum.get();
     let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, wp.borrow_mut());
@@ -2777,7 +2777,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     let l = tv_list_alloc(buf_ref.b_changelistlen.get() as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(&l));
-    let mut changelistindex = if buf == curwin_mut().w_buffer {
+    let mut changelistindex = if buf == curwin_mut().w_buffer.get() {
         curwin_mut().w_changelistidx.get()
     } else {
         let mut idx = buf_ref.b_changelistlen.get();
@@ -2837,7 +2837,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if let Some(ref mut pos) = fp
             && charcol
         {
-            pos.col = buf_byteidx_to_charidx(wp.w_buffer.opt_mut(), pos.lnum, pos.col);
+            pos.col = buf_byteidx_to_charidx(wp.w_buffer.get().opt_mut(), pos.lnum, pos.col);
         }
     } else {
         fp = var2fpos(&argvars[0], true, &mut fnum, charcol, curwin_mut());
@@ -3101,7 +3101,7 @@ fn getregionpos(
     }
 
     g_st().curbuf.set((findbuf_ref).into());
-    curwin_mut().w_buffer = g_st().curbuf.get();
+    curwin_mut().w_buffer.set(g_st().curbuf.get());
     g_st()
         .virtual_op
         .set(TriState::from(virtual_active(curwin_mut())));
@@ -3186,7 +3186,7 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     g_st().curbuf.set(save_curbuf);
-    curwin_mut().w_buffer = g_st().curbuf.get();
+    curwin_mut().w_buffer.set(g_st().curbuf.get());
     g_st().virtual_op.set(save_virtual);
 }
 
@@ -3330,7 +3330,7 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     g_st().curbuf.set(save_curbuf);
-    curwin_mut().w_buffer = g_st().curbuf.get();
+    curwin_mut().w_buffer.set(g_st().curbuf.get());
     g_st().virtual_op.set(save_virtual);
 }
 
@@ -8225,7 +8225,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 Varnumber::from(wp_ref.buf_mut().b_fnum.get()),
             );
 
-            wp = wp_ref.w_next;
+            wp = wp_ref.w_next.get();
         }
     }
 }

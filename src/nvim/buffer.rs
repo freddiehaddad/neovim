@@ -1345,7 +1345,7 @@ fn can_unload_buffer(buf: &mut FileBuf) -> bool {
 
     if can_unload && g_st().updating_screen.get() {
         for wp in for_all_windows_mut() {
-            if wp.w_buffer == buf {
+            if wp.w_buffer.get() == buf {
                 can_unload = false;
                 break;
             }
@@ -1389,7 +1389,7 @@ pub fn close_buffer(
 
     let is_curwin = !(curwin_ptr()).is_null()
         && win == crate::globals::curwin_handle()
-        && curwin_mut().w_buffer == buf.as_ptr();
+        && curwin_mut().w_buffer.get() == buf.as_ptr();
     let the_curtab = crate::globals::curtab_handle();
 
     if buf.borrow().terminal.get().is_null() {
@@ -1417,7 +1417,7 @@ pub fn close_buffer(
     }
 
     let mut win_valid = win_valid_any_tab(win.opt());
-    if set_context && win_valid && win.borrow().w_buffer == buf.as_ptr() {
+    if set_context && win_valid && win.borrow().w_buffer.get() == buf.as_ptr() {
         if buf.borrow().b_nwindows.get() == 1 {
             set_last_cursor(win.borrow_mut());
         }
@@ -1434,7 +1434,10 @@ pub fn close_buffer(
     let mut bufref: Bufref = Bufref::new();
     set_bufref(&mut bufref, buf.opt_mut());
 
-    if win_valid && win.borrow().w_buffer == buf.as_ptr() && buf.borrow().b_nwindows.get() == 1 {
+    if win_valid
+        && win.borrow().w_buffer.get() == buf.as_ptr()
+        && buf.borrow().b_nwindows.get() == 1
+    {
         buf.borrow_mut()
             .b_locked
             .set(buf.borrow_mut().b_locked.get() + (1));
@@ -1502,13 +1505,13 @@ pub fn close_buffer(
         unblock_autocmds();
     }
 
-    if bt_quickfix(Some(buf.borrow())) && win_valid && win.borrow().w_buffer == buf.as_ptr() {
+    if bt_quickfix(Some(buf.borrow())) && win_valid && win.borrow().w_buffer.get() == buf.as_ptr() {
         win.borrow_mut().w_onebuf_opt.wo_wfh.set(false);
     }
 
     let hiding_buf = buf.borrow().b_nwindows.get() <= 0
         || (win_valid
-            && win.borrow().w_buffer == buf.as_ptr()
+            && win.borrow().w_buffer.get() == buf.as_ptr()
             && buf.borrow().b_nwindows.get() == 1);
 
     if diffopt_hiddenoff() && !unload_buf && hiding_buf {
@@ -1534,7 +1537,7 @@ pub fn close_buffer(
 
     let mut clear_w_buf = false;
     win_valid = win_valid && win_valid_any_tab(win.opt());
-    if win_valid && win.borrow().w_buffer == buf.as_ptr() {
+    if win_valid && win.borrow().w_buffer.get() == buf.as_ptr() {
         buf.borrow_mut()
             .b_nwindows
             .set(buf.borrow_mut().b_nwindows.get() - (1));
@@ -1548,7 +1551,7 @@ pub fn close_buffer(
             || entered_free_all_mem())
     {
         if clear_w_buf {
-            win.borrow_mut().w_buffer = crate::globals::BufPtr::NULL;
+            win.borrow_mut().w_buffer.set(crate::globals::BufPtr::NULL);
         }
         let b_fnum = buf.borrow().b_fnum.get();
         for tp in for_all_tabpages_ptr() {
@@ -1583,7 +1586,7 @@ pub fn close_buffer(
         buf_clear_file(buf.borrow_mut());
         g_st().textlock.set(g_st().textlock.get() - (1));
         if clear_w_buf {
-            win.borrow_mut().w_buffer = crate::globals::BufPtr::NULL;
+            win.borrow_mut().w_buffer.set(crate::globals::BufPtr::NULL);
         }
         if del_buf {
             buf.borrow_mut().b_p_bl.set(false);
@@ -1622,7 +1625,7 @@ pub fn buf_clear() {
 /// Free all things allocated for a buffer that are related to the file.
 pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     let is_curbuf = g_st().curbuf.get() == buf;
-    let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
+    let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer.get() == (&raw mut *buf);
     let the_curwin = curwin_ptr();
     let the_curtab = g_st().curtab.get().clone();
 
@@ -1691,13 +1694,13 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     }
 
     diff_buf_delete(&*buf);
-    if !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf) {
+    if !(curwin_ptr()).is_null() && curwin_mut().w_buffer.get() == (&raw mut *buf) {
         reset_synblock(curwin_mut());
     }
 
     for tp in for_all_tabpages_ptr() {
         for win in for_all_windows_in_tab_mut(&tp) {
-            if win.w_buffer == (&raw mut *buf) {
+            if win.w_buffer.get() == (&raw mut *buf) {
                 clear_folding(win);
             }
         }
@@ -2172,7 +2175,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
                 if wp.w_floating.get() {
                     break;
                 }
-                if wp.w_buffer != g_st().curbuf.get() {
+                if wp.w_buffer.get() != g_st().curbuf.get() {
                     can_close_all_others = true;
                     break;
                 }
@@ -2396,7 +2399,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             close_windows(buf.opt_mut(), false);
             if g_st().curbuf.get() != buf
                 && bufref_valid(Some(&bufref))
-                && firstwin_mut().w_buffer == buf
+                && firstwin_mut().w_buffer.get() == buf
                 && one_window(firstwin_mut(), None)
             {
                 debug_assert!(curwin_mut().w_floating.get());
@@ -2639,7 +2642,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
     if !apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut())
         || (bufref_valid(Some(&prevbufref)) && bufref_valid(Some(&newbufref)) && !aborting())
     {
-        if curwin_mut().w_buffer == prevbuf {
+        if curwin_mut().w_buffer.get() == prevbuf {
             reset_synblock(curwin_mut());
         }
         if unload {
@@ -2674,7 +2677,8 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
     }
 
     let valid = buf_valid_handle(buf);
-    if (valid && g_st().curbuf.get() != buf && !aborting()) || curwin_mut().w_buffer.is_null() {
+    if (valid && g_st().curbuf.get() != buf && !aborting()) || curwin_mut().w_buffer.get().is_null()
+    {
         let target = if valid { buf } else { g_st().lastbuf.get() };
         enter_buffer(target.borrow_mut());
         if old_tw != curbuf_mut().b_p_tw.get() {
@@ -2698,14 +2702,14 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         end_visual_mode();
     }
 
-    if !curwin_mut().w_buffer.is_null() {
+    if !curwin_mut().w_buffer.get().is_null() {
         curwin_mut()
             .buf_mut()
             .b_nwindows
             .set(curwin_mut().buf_mut().b_nwindows.get() - (1));
     }
 
-    curwin_mut().w_buffer = buf;
+    curwin_mut().w_buffer.set(buf);
     g_st().curbuf.set(buf);
     curbuf_mut()
         .b_nwindows
@@ -3302,7 +3306,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                         if curtab_only {
                             let mut found_window = false;
                             for wp in for_all_windows_mut() {
-                                if wp.w_buffer == buf {
+                                if wp.w_buffer.get() == buf {
                                     found_window = true;
                                     break;
                                 }
@@ -3618,7 +3622,7 @@ fn find_wininfo(
                     !wininfo_other_tab_diff(wip)
                         && (!need_options
                             || wip.wi_optset
-                            || wip.win_opt().is_some_and(|w| w.w_buffer == buf_ptr))
+                            || wip.win_opt().is_some_and(|w| w.w_buffer.get() == buf_ptr))
                 })
             } else {
                 (!buf.b_wininfo.is_empty()).then_some(0)
@@ -3637,7 +3641,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
     if let Some(wip) = wip.as_deref()
         && wip.wi_win != curwin_ptr()
         && let Some(wp) = wip.win_opt()
-        && wp.w_buffer == buf_ptr
+        && wp.w_buffer.get() == buf_ptr
         && wp.w_config.style != K_WIN_STYLE_MINIMAL
     {
         copy_winopt(&wp.w_onebuf_opt, &curwin_mut().w_onebuf_opt);
@@ -3893,7 +3897,7 @@ pub fn setfname(
 
             for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(&tab) {
-                    if win.w_buffer == obuf {
+                    if win.w_buffer.get() == obuf {
                         in_use = true;
                     }
                 }
@@ -3950,7 +3954,7 @@ pub fn buf_name_changed(buf: &mut FileBuf) {
         ml_setname(buf);
     }
 
-    if curwin_mut().w_buffer == (&raw mut *buf) {
+    if curwin_mut().w_buffer.get() == (&raw mut *buf) {
         check_arg_idx(curwin_mut());
     }
     maketitle();
@@ -4490,7 +4494,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         while !wp.is_null() {
             wpnext = crate::globals::WinPtr::new(if wp.borrow().w_floating.get() {
                 if wp.borrow().prev_mut().w_floating.get() {
-                    wp.borrow().w_prev.as_ptr()
+                    wp.borrow().w_prev.get().as_ptr()
                 } else {
                     g_st().firstwin.get().as_ptr()
                 }
@@ -4501,7 +4505,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             {
                 ptr::null_mut()
             } else {
-                wp.borrow().w_next.as_ptr()
+                wp.borrow().w_next.get().as_ptr()
             });
             let size_mismatch = if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
                 i64::from(
@@ -4569,10 +4573,10 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         } else {
             wp = g_st().firstwin.get();
             while !wp.is_null() {
-                if !wp.borrow().w_floating.get() && wp.borrow().w_buffer == buf.as_ptr() {
+                if !wp.borrow().w_floating.get() && wp.borrow().w_buffer.get() == buf.as_ptr() {
                     break;
                 }
-                wp = wp.borrow().w_next;
+                wp = wp.borrow().w_next.get();
             }
             if !wp.is_null() {
                 win_move_after(wp.borrow_mut(), curwin_mut());
@@ -4651,7 +4655,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             open_wins -= 1;
             wp = g_st().lastwin.get();
         } else {
-            wp = wp.borrow().w_prev;
+            wp = wp.borrow().w_prev.get();
             if wp.is_null() {
                 break;
             }

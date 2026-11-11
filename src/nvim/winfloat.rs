@@ -82,11 +82,11 @@ pub fn win_new_float(
 
         winframe_remove(wp, &mut dir, tp.opt(), None);
 
-        if !wp.w_frame.is_null() {
-            wp.w_frame.clear_links();
+        if !wp.w_frame.get().is_null() {
+            wp.w_frame.get().clear_links();
         }
 
-        wp.w_frame = crate::globals::FramePtr::NULL;
+        wp.w_frame.set(crate::globals::FramePtr::NULL);
 
         win_remove(wp, tp.opt());
 
@@ -206,11 +206,11 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
 }
 
 pub fn win_border_height(wp: &mut WinInfoInfo) -> i32 {
-    wp.w_border_adj[0] + wp.w_border_adj[2]
+    wp.w_border_adj[0].get() + wp.w_border_adj[2].get()
 }
 
 pub fn win_border_width(wp: &mut WinInfoInfo) -> i32 {
-    wp.w_border_adj[1] + wp.w_border_adj[3]
+    wp.w_border_adj[1].get() + wp.w_border_adj[3].get()
 }
 
 pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
@@ -253,9 +253,9 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     let has_border = wp.w_floating.get() && wp.w_config.border;
     for i in 0..4 {
         let new_adj = i32::from(has_border && wp.w_config.border_chars[2 * i + 1][0] != 0);
-        if new_adj != wp.w_border_adj[i] {
+        if new_adj != wp.w_border_adj[i].get() {
             change_border = true;
-            wp.w_border_adj[i] = new_adj;
+            wp.w_border_adj[i].set(new_adj);
         }
     }
 
@@ -531,7 +531,7 @@ pub fn win_float_close(kind: WinKind) {
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
 pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
-    if wp.w_kind.get() != K_WIN_PREVIEW || !wp.w_floating.get() || wp.w_buffer.is_null() {
+    if wp.w_kind.get() != K_WIN_PREVIEW || !wp.w_floating.get() || wp.w_buffer.get().is_null() {
         return;
     }
 

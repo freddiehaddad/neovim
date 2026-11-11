@@ -825,7 +825,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 
     if (wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below {
         if wlv.prev_num_attr == -1 {
-            let wp_buf = wp.w_buffer.borrow_mut();
+            let wp_buf = wp.w_buffer.get().borrow_mut();
             decor_redraw_signs(
                 wp,
                 wp_buf,
@@ -1427,7 +1427,7 @@ fn win_line_skip_columns(
         && (wp.w_onebuf_opt.wo_cuc.get()
             || !wlv.color_cols.is_empty()
             || virtual_active(wp)
-            || (g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer)
+            || (g_st().visual_global.active && wp.w_buffer.get() == curwin_mut().w_buffer.get())
             || (wlv.foldinfo.fi_level != 0 && wlv.foldinfo.fi_lines > 0))
     {
         wlv.vcol = start_vcol;
@@ -1599,7 +1599,7 @@ pub fn win_line(
         color_cols: &[],
     };
 
-    let buf = wp.w_buffer;
+    let buf = wp.w_buffer.get();
     let draw_text = !concealed && (lnum != buf.b_ml.ml_line_count.get() + 1);
 
     let mut decor_provider_end_col: i32 = 0;
@@ -1636,7 +1636,7 @@ pub fn win_line(
         let hlc = vcol_hlc(&wlv);
         advance_color_col(&mut wlv, hlc);
 
-        if g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer {
+        if g_st().visual_global.active && wp.w_buffer.get() == curwin_mut().w_buffer.get() {
             let (mut top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
                 (curwin_mut().w_cursor, g_st().visual_global.start)
             } else {

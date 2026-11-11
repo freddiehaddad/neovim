@@ -506,7 +506,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         }
     } else if curbuf_mut().b_localdir.get().is_some() {
         scope = K_CD_SCOPE_BUFFER;
-    } else if curwin_mut().w_localdir.is_some() {
+    } else if curwin_mut().w_localdir.get().is_some() {
         scope = K_CD_SCOPE_WINDOW;
     } else if curtab_mut().tp_localdir.get().is_some() {
         scope = K_CD_SCOPE_TABPAGE;
@@ -920,9 +920,10 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let tp_localdir_owned;
     let mut cwd = vec![0u8; MAXPATHL];
 
+    let w_localdir_owned = win.as_ref().and_then(|w| w.w_localdir.get());
     let mut cur_scope = scope;
     if cur_scope == K_CD_SCOPE_WINDOW {
-        from = win.as_ref().unwrap().w_localdir.as_deref();
+        from = w_localdir_owned.as_deref();
 
         if from.is_none() {
             cur_scope = K_CD_SCOPE_TABPAGE;
@@ -1206,7 +1207,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     match scope {
         K_CD_SCOPE_WINDOW => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                win.unwrap().w_localdir.is_some(),
+                win.unwrap().w_localdir.get().is_some(),
             ))
         }
         K_CD_SCOPE_BUFFER => {

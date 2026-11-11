@@ -3109,7 +3109,7 @@ pub fn do_check_scrollbind(check: bool) {
         if g_st().did_syncbind.get() {
             g_st().did_syncbind.set(false);
         } else if old_curwin == curwin_ptr() {
-            if (old_buf == curwin_mut().w_buffer || curwin_mut().w_onebuf_opt.wo_diff.get())
+            if (old_buf == curwin_mut().w_buffer.get() || curwin_mut().w_onebuf_opt.wo_diff.get())
                 && (vtopline != old_vtopline || curwin_mut().w_leftcol.get() != old_leftcol)
             {
                 check_scrollbind(
@@ -3124,7 +3124,7 @@ pub fn do_check_scrollbind(check: bool) {
     }
 
     let cwin = crate::globals::curwin_ptr();
-    let cbuf = crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
+    let cbuf = crate::globals::BufPtr::new(curwin_mut().w_buffer.get().as_ptr());
     let lcol = curwin_mut().w_leftcol.get();
     norm_st(|st| {
         st.do_check_scrollbind_old_curwin.set(cwin);
@@ -3151,7 +3151,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     g_st().visual_global.active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_scb.get() {
             if want_ver {
                 if old_curwin.w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_diff.get()

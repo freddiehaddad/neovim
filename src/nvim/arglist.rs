@@ -112,7 +112,7 @@ pub fn global_alist_rc() -> std::rc::Rc<Alist> {
 
 #[inline]
 pub fn win_alist_rc(wp: &WinInfoInfo) -> std::rc::Rc<Alist> {
-    wp.w_alist.clone().unwrap_or_else(global_alist_rc)
+    wp.w_alist.get().clone().unwrap_or_else(global_alist_rc)
 }
 
 #[inline]
@@ -173,10 +173,10 @@ pub fn alist_new() {
         id.set(next);
         next
     });
-    curwin_mut().w_alist = Some(std::rc::Rc::new(Alist {
+    curwin_mut().w_alist.set(Some(std::rc::Rc::new(Alist {
         al_ga: std::cell::RefCell::new(Vec::new()),
         id: std::cell::Cell::new(next_id),
-    }));
+    })));
 }
 
 /// Set the argument list for the current window (`alist_set`).
@@ -497,7 +497,7 @@ pub fn ex_args(eap: &mut Exarg) {
             return;
         }
         if eap.cmdidx == Cmdidx::CmdArgglobal {
-            curwin_mut().w_alist = None;
+            curwin_mut().w_alist.set(None);
         } else {
             alist_new();
         }
@@ -850,17 +850,17 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
         };
         while !wp.is_null() {
             let mut wpnext = if wp.w_floating.get() {
-                if !wp.w_prev.is_null() && wp.w_prev.w_floating.get() {
-                    wp.w_prev
+                if !wp.w_prev.get().is_null() && wp.w_prev.get().w_floating.get() {
+                    wp.w_prev.get()
                 } else {
                     g_st().firstwin.get()
                 }
-            } else if wp.w_next.is_null() || wp.w_next.w_floating.get() {
+            } else if wp.w_next.get().is_null() || wp.w_next.get().w_floating.get() {
                 crate::globals::WinPtr::NULL
             } else {
-                wp.w_next
+                wp.w_next.get()
             };
-            let buf = wp.w_buffer.borrow_mut();
+            let buf = wp.w_buffer.get().borrow_mut();
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
@@ -906,7 +906,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                         }
 
                         if !std::rc::Rc::ptr_eq(&win_alist_rc(&wp), al) {
-                            wp.w_alist = aall_ref.local_alist.clone();
+                            wp.w_alist.set(aall_ref.local_alist.clone());
                         }
                         break;
                     }
@@ -1087,7 +1087,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
 
     let mut aall = ArgAllState {
         alist: win_alist_rc(curwin_mut()),
-        local_alist: curwin_mut().w_alist.clone(),
+        local_alist: curwin_mut().w_alist.get().clone(),
         had_tab: g_st().cmdmod.cmod_tab,
         keep_tabs,
         forceit,

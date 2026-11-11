@@ -3427,10 +3427,10 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         set_bufref(&mut bufref, savebuf.opt_mut());
         if !savebuf.is_null() && g_st().curbuf.get() == buf {
             g_st().curbuf.set(savebuf);
-            curwin_mut().w_buffer = savebuf;
+            curwin_mut().w_buffer.set(savebuf);
             saved = ml_open(curbuf_mut());
             g_st().curbuf.set((buf).into());
-            curwin_mut().w_buffer = (buf).into();
+            curwin_mut().w_buffer.set((buf).into());
         }
         if savebuf.is_null()
             || !saved
@@ -3504,7 +3504,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
 
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_mut(&tp) {
-            if wp.w_buffer == curwin_mut().w_buffer && !foldmethod_is_manual(wp) {
+            if wp.w_buffer.get() == curwin_mut().w_buffer.get() && !foldmethod_is_manual(wp) {
                 fold_update_all(wp);
             }
         }

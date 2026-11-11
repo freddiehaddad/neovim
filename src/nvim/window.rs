@@ -311,21 +311,21 @@ impl Frame {
 #[repr(C)]
 pub struct WinInfoInfo {
     pub handle: ObjHandle,
-    pub w_buffer: crate::globals::BufPtr,
+    pub w_buffer: crate::globals::CloneCell<crate::globals::BufPtr>,
     pub w_s_owned: Option<Box<crate::syntax::Synblock>>,
     pub w_ns_hl: std::cell::Cell<i32>,
     pub w_ns_hl_winhl: std::cell::Cell<i32>,
     pub w_ns_hl_active: std::cell::Cell<i32>,
-    pub w_ns_hl_attr: Option<std::rc::Rc<crate::highlight::NSHlAttr>>,
+    pub w_ns_hl_attr: crate::globals::CloneCell<Option<std::rc::Rc<crate::highlight::NSHlAttr>>>,
     pub w_ns_set: std::collections::BTreeSet<u32>,
     pub w_hl_id_normal: std::cell::Cell<i32>,
     pub w_hl_attr_normal: std::cell::Cell<i32>,
     pub w_hl_attr_normalnc: std::cell::Cell<i32>,
     pub w_hl_needs_update: std::cell::Cell<i32>,
-    pub w_prev: crate::globals::WinPtr,
-    pub w_next: crate::globals::WinPtr,
+    pub w_prev: crate::globals::CloneCell<crate::globals::WinPtr>,
+    pub w_next: crate::globals::CloneCell<crate::globals::WinPtr>,
     pub w_locked: std::cell::Cell<i32>,
-    pub w_frame: crate::globals::FramePtr,
+    pub w_frame: crate::globals::CloneCell<crate::globals::FramePtr>,
     pub w_cursor: CursorPos,
     pub w_curswant: std::cell::Cell<i32>,
     pub w_set_curswant: std::cell::Cell<bool>,
@@ -375,7 +375,7 @@ pub struct WinInfoInfo {
     pub w_view_width: std::cell::Cell<i32>,
     pub w_height_request: std::cell::Cell<i32>,
     pub w_width_request: std::cell::Cell<i32>,
-    pub w_border_adj: [i32; 4],
+    pub w_border_adj: [std::cell::Cell<i32>; 4],
     pub w_height_outer: std::cell::Cell<i32>,
     pub w_width_outer: std::cell::Cell<i32>,
     pub w_valid: std::cell::Cell<i32>,
@@ -425,11 +425,11 @@ pub struct WinInfoInfo {
     pub w_stl_visual_mode: std::cell::Cell<i32>,
     pub w_stl_visual_pos: CursorPos,
     pub w_alt_fnum: std::cell::Cell<i32>,
-    pub w_alist: Option<std::rc::Rc<crate::arglist::Alist>>,
+    pub w_alist: crate::globals::CloneCell<Option<std::rc::Rc<crate::arglist::Alist>>>,
     pub w_arg_idx: std::cell::Cell<i32>,
     pub w_arg_idx_invalid: std::cell::Cell<bool>,
-    pub w_localdir: Option<std::ffi::CString>,
-    pub w_prevdir: Option<std::ffi::CString>,
+    pub w_localdir: crate::globals::CloneCell<Option<std::ffi::CString>>,
+    pub w_prevdir: crate::globals::CloneCell<Option<std::ffi::CString>>,
     pub w_onebuf_opt: Winopt,
     pub w_allbuf_opt: Winopt,
     pub w_p_cc_cols: Vec<i32>,
@@ -463,8 +463,8 @@ pub struct WinInfoInfo {
     pub w_nrwidth_line_count: std::cell::Cell<i32>,
     pub w_statuscol_line_count: std::cell::Cell<i32>,
     pub w_nrwidth_width: std::cell::Cell<i32>,
-    pub w_llist: crate::quickfix::QfInfoId,
-    pub w_llist_ref: crate::quickfix::QfInfoId,
+    pub w_llist: crate::globals::CloneCell<crate::quickfix::QfInfoId>,
+    pub w_llist_ref: crate::globals::CloneCell<crate::quickfix::QfInfoId>,
     pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<i32, StcClicks>,
@@ -473,32 +473,32 @@ pub struct WinInfoInfo {
 impl WinInfoInfo {
     #[inline]
     pub fn frame_mut(&self) -> crate::globals::FramePtr {
-        self.w_frame.clone()
+        self.w_frame.get().clone()
     }
 
     #[inline]
     pub fn next_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        self.w_next.opt_mut()
+        self.w_next.get().opt_mut()
     }
 
     #[inline]
     pub fn prev_mut(&self) -> &'static mut WinInfoInfo {
-        self.w_prev.borrow_mut()
+        self.w_prev.get().borrow_mut()
     }
 
     #[inline]
     pub fn prev_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        self.w_prev.opt_mut()
+        self.w_prev.get().opt_mut()
     }
 
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        self.w_buffer.borrow_mut()
+        self.w_buffer.get().borrow_mut()
     }
 
     #[inline]
     pub fn buf_opt(&self) -> Option<&'static FileBuf> {
-        self.w_buffer.opt()
+        self.w_buffer.get().opt()
     }
 
     pub const fn new() -> Self {
@@ -509,21 +509,21 @@ impl WinInfoInfo {
         };
         Self {
             handle: 0,
-            w_buffer: crate::globals::BufPtr::NULL,
+            w_buffer: crate::globals::CloneCell::new(crate::globals::BufPtr::NULL),
             w_s_owned: None,
             w_ns_hl: std::cell::Cell::new(0),
             w_ns_hl_winhl: std::cell::Cell::new(0),
             w_ns_hl_active: std::cell::Cell::new(0),
-            w_ns_hl_attr: None,
+            w_ns_hl_attr: crate::globals::CloneCell::new(None),
             w_ns_set: std::collections::BTreeSet::new(),
             w_hl_id_normal: std::cell::Cell::new(0),
             w_hl_attr_normal: std::cell::Cell::new(0),
             w_hl_attr_normalnc: std::cell::Cell::new(0),
             w_hl_needs_update: std::cell::Cell::new(0),
-            w_prev: crate::globals::WinPtr::NULL,
-            w_next: crate::globals::WinPtr::NULL,
+            w_prev: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
+            w_next: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
             w_locked: std::cell::Cell::new(0),
-            w_frame: crate::globals::FramePtr::NULL,
+            w_frame: crate::globals::CloneCell::new(crate::globals::FramePtr::NULL),
             w_cursor: CursorPos {
                 lnum: 1,
                 col: 0,
@@ -604,7 +604,7 @@ impl WinInfoInfo {
             w_view_width: std::cell::Cell::new(0),
             w_height_request: std::cell::Cell::new(0),
             w_width_request: std::cell::Cell::new(0),
-            w_border_adj: [0; 4],
+            w_border_adj: [const { std::cell::Cell::new(0) }; 4],
             w_height_outer: std::cell::Cell::new(0),
             w_width_outer: std::cell::Cell::new(0),
             w_valid: std::cell::Cell::new(0),
@@ -654,11 +654,11 @@ impl WinInfoInfo {
             w_stl_visual_mode: std::cell::Cell::new(0),
             w_stl_visual_pos: ZERO_POS,
             w_alt_fnum: std::cell::Cell::new(0),
-            w_alist: None,
+            w_alist: crate::globals::CloneCell::new(None),
             w_arg_idx: std::cell::Cell::new(0),
             w_arg_idx_invalid: std::cell::Cell::new(false),
-            w_localdir: None,
-            w_prevdir: None,
+            w_localdir: crate::globals::CloneCell::new(None),
+            w_prevdir: crate::globals::CloneCell::new(None),
             w_onebuf_opt: Winopt::ZERO,
             w_allbuf_opt: Winopt::ZERO,
             w_p_cc_cols: Vec::new(),
@@ -696,8 +696,8 @@ impl WinInfoInfo {
             w_nrwidth_line_count: std::cell::Cell::new(0),
             w_statuscol_line_count: std::cell::Cell::new(0),
             w_nrwidth_width: std::cell::Cell::new(0),
-            w_llist: crate::quickfix::QfInfoId::NULL,
-            w_llist_ref: crate::quickfix::QfInfoId::NULL,
+            w_llist: crate::globals::CloneCell::new(crate::quickfix::QfInfoId::NULL),
+            w_llist_ref: crate::globals::CloneCell::new(crate::quickfix::QfInfoId::NULL),
             w_status_click_defs: Vec::new(),
             w_winbar_click_defs: Vec::new(),
             w_statuscol_click_defs: std::collections::BTreeMap::new(),
@@ -1970,9 +1970,9 @@ pub fn win_split_ins(
             available = crate::globals::topframe_mut().fr_width.get();
             needed += minwidth;
         } else if opt_vars().p_ea.get() {
-            minwidth = frame_minwidth(oldwin.w_frame.borrow(), nowin());
+            minwidth = frame_minwidth(oldwin.w_frame.get().borrow(), nowin());
 
-            let mut prevfrp = oldwin.w_frame.clone();
+            let mut prevfrp = oldwin.w_frame.get().clone();
             let mut frp = oldwin.frame_mut().fr_parent.get();
             while !frp.is_null() {
                 if frp.fr_layout.get() == FR_ROW {
@@ -1989,7 +1989,7 @@ pub fn win_split_ins(
             available = crate::globals::topframe_mut().fr_width.get();
             needed += minwidth;
         } else {
-            minwidth = frame_minwidth(oldwin.w_frame.borrow(), nowin());
+            minwidth = frame_minwidth(oldwin.w_frame.get().borrow(), nowin());
 
             available = oldwin.frame_mut().fr_width.get();
             needed += minwidth;
@@ -2044,9 +2044,9 @@ pub fn win_split_ins(
             available = crate::globals::topframe_mut().fr_height.get();
             needed += minheight;
         } else if opt_vars().p_ea.get() {
-            minheight = frame_minheight(oldwin.w_frame.borrow(), nowin()) + need_status;
+            minheight = frame_minheight(oldwin.w_frame.get().borrow(), nowin()) + need_status;
 
-            let mut prevfrp = oldwin.w_frame.clone();
+            let mut prevfrp = oldwin.w_frame.get().clone();
             let mut frp = oldwin.frame_mut().fr_parent.get();
             while !frp.is_null() {
                 if frp.fr_layout.get() == FR_COL {
@@ -2063,7 +2063,7 @@ pub fn win_split_ins(
             available = crate::globals::topframe_mut().fr_height.get();
             needed += minheight;
         } else {
-            minheight = frame_minheight(oldwin.w_frame.borrow(), nowin()) + need_status;
+            minheight = frame_minheight(oldwin.w_frame.get().borrow(), nowin()) + need_status;
 
             available = oldwin.frame_mut().fr_height.get();
             needed += minheight;
@@ -2136,9 +2136,9 @@ pub fn win_split_ins(
             win_append(Some(&mut *oldwin), wp.borrow_mut(), None);
         }
     } else if new_wp.is_null() {
-        wp = win_alloc(oldwin.w_prev.opt_mut(), false).into();
+        wp = win_alloc(oldwin.w_prev.get().opt_mut(), false).into();
     } else {
-        win_append(oldwin.w_prev.opt_mut(), wp.borrow_mut(), None);
+        win_append(oldwin.w_prev.get().opt_mut(), wp.borrow_mut(), None);
     }
 
     if new_wp.is_null() && wp.is_null() {
@@ -2170,7 +2170,9 @@ pub fn win_split_ins(
         new_frame(&mut *wp);
 
         clear_float_config(&mut wp.w_config, true);
-        wp.w_border_adj = [0; 4];
+        for c in &wp.w_border_adj {
+            c.set(0);
+        }
     }
 
     if let Some(tf) = to_flatten.opt() {
@@ -2195,7 +2197,7 @@ pub fn win_split_ins(
         }
         before = (flags & WSP_TOP) != 0;
     } else {
-        curfrp = oldwin.w_frame.clone();
+        curfrp = oldwin.w_frame.get().clone();
         if (flags & WSP_BELOW) != 0 {
             before = false;
         } else if (flags & WSP_ABOVE) != 0 {
@@ -2218,7 +2220,7 @@ pub fn win_split_ins(
 
         curfrp = frp.clone();
         if !frp.fr_win.get().is_null() {
-            oldwin.w_frame = frp;
+            oldwin.w_frame.set(frp);
         } else {
             frp = frp.fr_child.get();
 
@@ -2230,9 +2232,9 @@ pub fn win_split_ins(
     }
 
     let frp = if new_wp.is_null() {
-        wp.w_frame.clone()
+        wp.w_frame.get().clone()
     } else {
-        new_wp.borrow_mut().w_frame.clone()
+        new_wp.borrow_mut().w_frame.get().clone()
     };
 
     frp.fr_parent.set(curfrp.fr_parent.get());
@@ -2460,7 +2462,7 @@ pub fn win_split_ins(
     wp_ptr.opt_mut()
 }
 pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
-    newp.w_buffer = oldp.w_buffer;
+    newp.w_buffer.set(oldp.w_buffer.get());
     newp.w_s_owned = None;
     oldp.buf_mut()
         .b_nwindows
@@ -2480,13 +2482,13 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_prev_fraction_row.set(oldp.w_prev_fraction_row.get());
     copy_jumplist(oldp, newp);
     if (flags & WSP_NEWLOC) != 0 {
-        newp.w_llist = crate::quickfix::QfInfoId::NULL;
-        newp.w_llist_ref = crate::quickfix::QfInfoId::NULL;
+        newp.w_llist.set(crate::quickfix::QfInfoId::NULL);
+        newp.w_llist_ref.set(crate::quickfix::QfInfoId::NULL);
     } else {
         copy_loclist_stack(oldp, newp);
     }
-    newp.w_localdir = oldp.w_localdir.clone();
-    newp.w_prevdir = oldp.w_prevdir.clone();
+    newp.w_localdir.set(oldp.w_localdir.get().clone());
+    newp.w_prevdir.set(oldp.w_prevdir.get().clone());
 
     if opt_vars().p_spk.first_byte() != b'c' {
         if opt_vars().p_spk.first_byte() == b't' {
@@ -2513,7 +2515,7 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
 }
 
 fn win_init_some(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo) {
-    newp.w_alist = oldp.w_alist.clone();
+    newp.w_alist.set(oldp.w_alist.get().clone());
     newp.w_arg_idx.set(oldp.w_arg_idx.get());
 
     win_copy_options(oldp, newp);
@@ -2537,7 +2539,7 @@ pub fn tabpage_win_valid(tp: Option<&TabPageInfo>, win: Option<&WinInfoInfo>) ->
         if wp == win_ptr {
             return true;
         }
-        wp = w.w_next;
+        wp = w.w_next.get();
     }
     false
 }
@@ -2655,30 +2657,30 @@ fn win_exchange(mut prenum: i32) {
     }
     let wp = frp.win_mut();
 
-    let wp2 = curwin_mut().w_prev;
+    let wp2 = curwin_mut().w_prev.get();
     let frp2 = curwin_mut().frame_mut().fr_prev.get();
-    if wp.w_prev != curwin_ptr() {
+    if wp.w_prev.get() != curwin_ptr() {
         win_remove(curwin_mut(), None);
 
-        frame_remove(curwin_mut().w_frame.borrow());
+        frame_remove(curwin_mut().w_frame.get().borrow());
 
-        win_append(wp.w_prev.opt_mut(), curwin_mut(), None);
+        win_append(wp.w_prev.get().opt_mut(), curwin_mut(), None);
 
-        frame_insert(frp.borrow(), curwin_mut().w_frame.borrow());
+        frame_insert(frp.borrow(), curwin_mut().w_frame.get().borrow());
     }
     if wp2 != wp {
         win_remove(&mut *wp, None);
 
-        frame_remove(wp.w_frame.borrow());
+        frame_remove(wp.w_frame.get().borrow());
 
         win_append(wp2.opt_mut(), &mut *wp, None);
         if frp2.is_null() {
             frame_insert(
                 wp.frame_mut().fr_parent.get().fr_child.get().borrow(),
-                wp.w_frame.borrow(),
+                wp.w_frame.get().borrow(),
             );
         } else {
-            frame_append(frp2.borrow(), wp.w_frame.borrow());
+            frame_append(frp2.borrow(), wp.w_frame.get().borrow());
         }
     }
     curwin_mut().w_status_height.swap(&wp.w_status_height);
@@ -2692,7 +2694,7 @@ fn win_exchange(mut prenum: i32) {
 
     win_comp_pos();
 
-    if g_st().curbuf.get() != wp.w_buffer {
+    if g_st().curbuf.get() != wp.w_buffer.get() {
         reset_visual_and_resel();
     } else if g_st().visual_global.active {
         wp.w_cursor = curwin_mut().w_cursor;
@@ -2747,17 +2749,17 @@ fn win_rotate(upwards: bool, mut count: i32) {
 
             win_append(frp.fr_win.get().opt_mut(), wp1.borrow_mut(), None);
 
-            frame_append(frp.borrow(), wp1.w_frame.borrow());
+            frame_append(frp.borrow(), wp1.w_frame.get().borrow());
 
             wp2 = frp.fr_win.get();
         } else {
-            frp = curwin_mut().w_frame.clone();
+            frp = curwin_mut().w_frame.get().clone();
             while !frp.fr_next.get().is_null() {
                 frp = frp.fr_next.get();
             }
 
             wp1 = frp.fr_win.get();
-            wp2 = wp1.w_prev;
+            wp2 = wp1.w_prev.get();
 
             win_remove(wp1.borrow_mut(), None);
 
@@ -2773,7 +2775,7 @@ fn win_rotate(upwards: bool, mut count: i32) {
                     .fr_win
                     .get()
                     .opt()
-                    .and_then(|w| w.w_prev.opt_mut()),
+                    .and_then(|w| w.w_prev.get().opt_mut()),
                 wp1.borrow_mut(),
                 None,
             );
@@ -2837,7 +2839,7 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
             winframe_restore(wp.borrow_mut(), dir, unflat_altfr.borrow());
         }
 
-        win_append(wp.w_prev.opt_mut(), wp.borrow_mut(), None);
+        win_append(wp.w_prev.get().opt_mut(), wp.borrow_mut(), None);
 
         return false;
     }
@@ -2862,7 +2864,7 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
         return;
     }
 
-    if win2.w_next != win1 {
+    if win2.w_next.get() != win1 {
         if win1.frame_mut().fr_parent.get() != win2.frame_mut().fr_parent.get() {
             iemsg(c"INTERNAL: trying to move a window into another frame");
             return;
@@ -3300,7 +3302,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
 
     let mut wp = g_st().lastwin.get();
     while !wp.is_null() && (is_ctx_win(lastwin_mut()) || !one_window(wp.borrow_mut(), None)) {
-        if wp.borrow().w_buffer == buf
+        if wp.borrow().w_buffer.get() == buf
             && (!keep_curwin || wp != curwin_handle())
             && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked.get() > 0)
         {
@@ -3315,7 +3317,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
             }
             wp = g_st().lastwin.get();
         } else {
-            wp = wp.borrow().w_prev;
+            wp = wp.borrow().w_prev.get();
         }
     }
 
@@ -3325,7 +3327,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
         if tp != g_st().curtab.get() {
             let mut wp2 = tp.tp_lastwin.get();
             while !wp2.is_null() {
-                if wp2.borrow().w_buffer == buf
+                if wp2.borrow().w_buffer.get() == buf
                     && !(win_locked(wp2.borrow_mut()) != 0
                         || wp2.borrow().buf_mut().b_locked.get() > 0)
                 {
@@ -3344,7 +3346,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
                     nexttp = g_st().first_tabpage.get().clone();
                     break;
                 }
-                wp2 = wp2.borrow().w_prev;
+                wp2 = wp2.borrow().w_prev.get();
             }
         }
         tp = nexttp;
@@ -3377,13 +3379,13 @@ fn can_close_floating_windows(tp: Option<&TabPageInfo>) -> bool {
     );
     let mut wp = tp.map_or_else(|| g_st().lastwin.get(), |t| t.tp_lastwin.get());
     while wp.w_floating.get() {
-        let mut buf = wp.w_buffer;
+        let mut buf = wp.w_buffer.get();
         let need_hide = buf_is_changed_fn(&mut buf) && buf.b_nwindows.get() <= 1;
         if need_hide && !buf_hide(&buf) {
             return false;
         }
 
-        wp = wp.w_prev;
+        wp = wp.w_prev.get();
     }
     true
 }
@@ -3402,7 +3404,7 @@ fn close_last_window_tabpage(
     let old_curbuf = g_st().curbuf.get();
     let save_lastused = g_st().lastused_tabpage.get().clone();
 
-    let term = if !win.borrow_mut().w_buffer.is_null() {
+    let term = if !win.borrow_mut().w_buffer.get().is_null() {
         win.borrow_mut().buf_mut().terminal.get()
     } else {
         crate::terminal::TermId::NULL
@@ -3414,7 +3416,7 @@ fn close_last_window_tabpage(
     goto_tabpage_tp(
         alt_tabpage().as_deref(),
         false,
-        !win.borrow_mut().w_buffer.is_null(),
+        !win.borrow_mut().w_buffer.get().is_null(),
     );
 
     if g_st().curtab.get() != prev_curtab
@@ -3444,19 +3446,19 @@ fn close_last_window_tabpage(
 
 fn win_close_buffer(win_in: &mut WinInfoInfo, action: i32, abort_if_last: bool) -> bool {
     let win = crate::globals::WinPtr::from(win_in);
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         reset_synblock(win.borrow_mut());
     }
 
-    if !win.borrow_mut().w_buffer.is_null()
-        && bt_quickfix(win.w_buffer.opt())
+    if !win.borrow_mut().w_buffer.get().is_null()
+        && bt_quickfix(win.w_buffer.get().opt())
         && win.borrow_mut().buf_mut().b_nwindows.get() == 1
     {
         win.borrow_mut().buf_mut().b_p_bl.set(false);
     }
 
     let mut retval = false;
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, g_st().curbuf.get().opt_mut());
 
@@ -3466,7 +3468,7 @@ fn win_close_buffer(win_in: &mut WinInfoInfo, action: i32, abort_if_last: bool) 
 
         retval = close_buffer(
             win.opt_mut(),
-            win.w_buffer.opt_mut(),
+            win.w_buffer.get().opt_mut(),
             action,
             abort_if_last,
             true,
@@ -3488,13 +3490,13 @@ fn win_close_buffer(win_in: &mut WinInfoInfo, action: i32, abort_if_last: bool) 
 }
 
 fn win_unclose_buffer(win: &mut WinInfoInfo, _bufref: &mut Bufref) {
-    if win.w_buffer.is_null() {
-        win.w_buffer = (g_st().firstbuf.get().as_ptr()).into();
+    if win.w_buffer.get().is_null() {
+        win.w_buffer.set((g_st().firstbuf.get().as_ptr()).into());
         win.buf_mut()
             .b_nwindows
             .set(win.buf_mut().b_nwindows.get() + (1));
         if &raw mut *win == curwin_ptr() {
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
         }
         win_init_empty(win);
     }
@@ -3519,7 +3521,8 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     }
 
     if win_locked(win.borrow_mut()) != 0
-        || !win.borrow_mut().w_buffer.is_null() && win.borrow_mut().buf_mut().b_locked.get() > 0
+        || !win.borrow_mut().w_buffer.get().is_null()
+            && win.borrow_mut().buf_mut().b_locked.get() > 0
     {
         return false;
     }
@@ -3561,13 +3564,13 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     let mut help_window = false;
     let mut quickfix_window = false;
 
-    if bt_help(win.w_buffer.opt()) {
+    if bt_help(win.w_buffer.get().opt()) {
         help_window = true;
     } else {
         clear_snapshot(&curtab_mut(), SNAP_HELP_IDX as i32);
     }
 
-    if bt_quickfix(win.w_buffer.opt()) {
+    if bt_quickfix(win.w_buffer.get().opt()) {
         quickfix_window = true;
     } else {
         clear_snapshot(&curtab_mut(), SNAP_QUICKFIX_IDX as i32);
@@ -3584,7 +3587,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
             crate::globals::WinPtr::from(frame2win(&win_altframe(win.borrow_mut(), None)))
         };
 
-        if wp.w_buffer != g_st().curbuf.get() {
+        if wp.w_buffer.get() != g_st().curbuf.get() {
             reset_visual_and_resel();
 
             other_buffer = true;
@@ -3639,7 +3642,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, win.w_buffer.opt_mut());
+    set_bufref(&mut bufref, win.w_buffer.get().opt_mut());
 
     win_close_buffer(
         win.borrow_mut(),
@@ -3648,18 +3651,18 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     );
 
     if win_valid(win.opt())
-        && win.borrow_mut().w_buffer.is_null()
+        && win.borrow_mut().w_buffer.get().is_null()
         && !win.borrow_mut().w_floating.get()
         && last_window(win.borrow_mut())
     {
-        if curwin_mut().w_buffer.is_null() {
-            curwin_mut().w_buffer = g_st().curbuf.get();
+        if curwin_mut().w_buffer.get().is_null() {
+            curwin_mut().w_buffer.set(g_st().curbuf.get());
         }
         getout(0);
     }
     if g_st().curtab.get() != prev_curtab
         && win_valid_any_tab(win.opt())
-        && win.borrow_mut().w_buffer.is_null()
+        && win.borrow_mut().w_buffer.get().is_null()
     {
         win_close_othertab(win.borrow_mut(), 0, prev_curtab.borrow(), force);
         return false;
@@ -3704,9 +3707,9 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         }
     }
 
-    set_bufref(&mut bufref, win.w_buffer.opt_mut());
+    set_bufref(&mut bufref, win.w_buffer.get().opt_mut());
 
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         win.borrow_mut()
             .buf_mut()
             .b_nwindows
@@ -3733,18 +3736,18 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     if win == curwin_ptr() {
         set_curwin(wp);
-        if (wp.borrow_mut()).w_onebuf_opt.wo_pvw.get() || bt_quickfix(wp.w_buffer.opt()) {
+        if (wp.borrow_mut()).w_onebuf_opt.wo_pvw.get() || bt_quickfix(wp.w_buffer.get().opt()) {
             loop {
-                if (wp.borrow_mut()).w_next.is_null() {
+                if (wp.borrow_mut()).w_next.get().is_null() {
                     wp = g_st().firstwin.get();
                 } else {
-                    wp = wp.w_next;
+                    wp = wp.w_next.get();
                 }
                 if wp == curwin_ptr() {
                     break;
                 }
                 if !(wp.borrow_mut()).w_onebuf_opt.wo_pvw.get()
-                    && !bt_quickfix(wp.w_buffer.opt())
+                    && !bt_quickfix(wp.w_buffer.get().opt())
                     && !((wp.borrow_mut()).w_floating.get() && !win_is_focusable(wp.borrow()))
                 {
                     set_curwin(wp);
@@ -3752,7 +3755,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
                 }
             }
         }
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
         close_curwin = true;
 
         check_cursor(curwin_mut());
@@ -3854,7 +3857,7 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
         Some(winid_cstr),
         Some(winid_cstr),
         false,
-        win.w_buffer.opt_mut(),
+        win.w_buffer.get().opt_mut(),
         Some(win),
     );
     WIN_STATE.with(|s| s.winclosed_recursive.set(false));
@@ -3897,7 +3900,8 @@ pub fn win_close_othertab(
         return false;
     }
     if win_locked(win.borrow_mut()) != 0
-        || !win.borrow_mut().w_buffer.is_null() && win.borrow_mut().buf_mut().b_locked.get() > 0
+        || !win.borrow_mut().w_buffer.get().is_null()
+            && win.borrow_mut().buf_mut().b_locked.get() > 0
     {
         return false;
     }
@@ -3913,7 +3917,7 @@ pub fn win_close_othertab(
                     break;
                 }
                 let last_w = tp.tp_lastwin.get().borrow_mut();
-                let free_b = i32::from(!buf_hide(&last_w.w_buffer));
+                let free_b = i32::from(!buf_hide(&last_w.w_buffer.get()));
                 if !win_close_othertab(last_w, free_b, tp.borrow(), true) {
                     return false;
                 }
@@ -3927,7 +3931,7 @@ pub fn win_close_othertab(
         }
     }
 
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         do_autocmd_winclosed(win.borrow_mut());
 
         if !win_valid_any_tab(win.opt()) {
@@ -3947,12 +3951,12 @@ pub fn win_close_othertab(
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, win.w_buffer.opt_mut());
+    set_bufref(&mut bufref, win.w_buffer.get().opt_mut());
 
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         close_buffer(
             win.opt_mut(),
-            win.w_buffer.opt_mut(),
+            win.w_buffer.get().opt_mut(),
             if free_buf != 0 { DOBUF_UNLOAD } else { 0 },
             false,
             true,
@@ -4010,9 +4014,9 @@ pub fn win_close_othertab(
         ui_comp_remove_grid(&mut win.borrow_mut().w_grid_alloc);
     }
 
-    set_bufref(&mut bufref, win.w_buffer.opt_mut());
+    set_bufref(&mut bufref, win.w_buffer.get().opt_mut());
 
-    if !win.borrow_mut().w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.get().is_null() {
         win.borrow_mut()
             .buf_mut()
             .b_nwindows
@@ -4068,7 +4072,7 @@ fn win_free_mem(
     };
 
     if !win.borrow_mut().w_floating.get() {
-        let frp = win.borrow_mut().w_frame.clone();
+        let frp = win.borrow_mut().w_frame.get().clone();
 
         wp = crate::globals::WinPtr::from(winframe_remove(
             win.borrow_mut(),
@@ -4208,7 +4212,7 @@ pub fn winframe_find_altwin(
         return None;
     }
 
-    let frp_close = win.w_frame.clone();
+    let frp_close = win.w_frame.get().clone();
     let mut frp2 = win_altframe(win, tp);
     let mut wp = crate::globals::WinPtr::from(frame2win(frp2.borrow()));
 
@@ -4296,7 +4300,11 @@ fn frame_flatten(frp_in: &Frame) {
     frp.fr_parent.get().fr_win.set(frp.fr_win.get());
 
     if !frp.fr_win.get().is_null() {
-        frp.fr_win.get().borrow_mut().w_frame = frp.fr_parent.get();
+        frp.fr_win
+            .get()
+            .borrow_mut()
+            .w_frame
+            .set(frp.fr_parent.get());
     }
 
     frp2 = frp.fr_parent.get();
@@ -4857,11 +4865,11 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
     let mut nextwp: crate::globals::WinPtr;
     let mut wp = g_st().firstwin.get();
     while win_valid(wp.opt()) {
-        nextwp = wp.borrow().w_next;
+        nextwp = wp.borrow().w_next.get();
 
         if old_curwin != curwin_ptr() && win_valid(old_curwin.opt()) {
             set_curwin(old_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer);
+            g_st().curbuf.set(curwin_mut().w_buffer.get());
         }
 
         if wp == curwin_handle() || (wp.borrow().w_onebuf_opt.wo_wp.get() && !ignore_pinned) {
@@ -4870,7 +4878,7 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
         }
 
         if !buf_valid(wp.borrow().buf_opt()) && win_valid(wp.opt()) {
-            wp.borrow_mut().w_buffer = crate::globals::BufPtr::NULL;
+            wp.borrow_mut().w_buffer.set(crate::globals::BufPtr::NULL);
             win_close(wp.borrow_mut(), false, false);
             wp = nextwp;
             continue;
@@ -4974,15 +4982,15 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
         if g_st().curbuf.get().is_null() {
             return false;
         }
-        curwin_mut().w_buffer = g_st().curbuf.get();
+        curwin_mut().w_buffer.set(g_st().curbuf.get());
         curwin_mut().w_s_owned = None;
         curbuf_mut().b_nwindows.set(1);
-        curwin_mut().w_alist = None;
+        curwin_mut().w_alist.set(None);
         curwin_init();
     }
 
     new_frame(curwin_mut());
-    g_st().topframe.set(curwin_mut().w_frame.clone());
+    g_st().topframe.set(curwin_mut().w_frame.get().clone());
     crate::globals::topframe_mut()
         .fr_width
         .set(g_st().columns_global.get());
@@ -4997,7 +5005,7 @@ fn new_frame(wp: &mut WinInfoInfo) {
     let fr = Frame::new_rc();
     fr.fr_layout.set(FR_LEAF);
     fr.fr_win.set(crate::globals::WinPtr::from(&mut *wp));
-    wp.w_frame = crate::globals::FramePtr::from(fr);
+    wp.w_frame.set(crate::globals::FramePtr::from(fr));
 }
 
 pub fn win_init_size() {
@@ -5514,7 +5522,7 @@ pub fn goto_tabpage_tp(
         g_st().skip_win_fix_scroll.set(false);
         return;
     };
-    let new_curbuf = tp_ref.curwin_mut().w_buffer;
+    let new_curbuf = tp_ref.curwin_mut().w_buffer.get();
     if g_st().curtab.get() != tp && leave_tabpage(new_curbuf.opt_mut(), trigger_leave_autocmds) {
         if valid_tabpage(tp.opt()) {
             enter_tabpage(
@@ -5638,7 +5646,7 @@ pub fn win_goto(wp_in: &mut WinInfoInfo) {
     }
 
     let wp_ref = wp.borrow_mut();
-    if g_st().curbuf.get() != wp_ref.w_buffer {
+    if g_st().curbuf.get() != wp_ref.w_buffer.get() {
         reset_visual_and_resel();
     } else if g_st().visual_global.active {
         wp_ref.w_cursor = curwin_mut().w_cursor;
@@ -5823,7 +5831,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
 
     if !curwin_invalid && (flags & WEE_TRIGGER_LEAVE_AUTOCMDS) != 0 {
         if !ptr::eq(
-            wp.borrow_mut().w_buffer.as_ptr(),
+            wp.borrow_mut().w_buffer.get().as_ptr(),
             g_st().curbuf.get().as_ptr(),
         ) {
             apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
@@ -5842,7 +5850,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
     }
 
     let wp = wp.borrow_mut();
-    if (flags & WEE_UNDO_SYNC) != 0 && g_st().curbuf.get() != wp.w_buffer {
+    if (flags & WEE_UNDO_SYNC) != 0 && g_st().curbuf.get() != wp.w_buffer.get() {
         u_sync(false);
     }
 
@@ -5850,7 +5858,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
         update_topline(curwin_mut());
     }
 
-    if g_st().curbuf.get() != wp.w_buffer {
+    if g_st().curbuf.get() != wp.w_buffer.get() {
         buf_copy_options((*wp).buf_mut(), BCO_ENTER | BCO_NOHELP);
     }
     if !curwin_invalid {
@@ -5858,7 +5866,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
         curwin_mut().w_redr_status.set(true);
     }
     set_curwin(&mut *wp);
-    g_st().curbuf.set(wp.w_buffer);
+    g_st().curbuf.set(wp.w_buffer.get());
 
     check_cursor(curwin_mut());
     if !virtual_active(curwin_mut()) {
@@ -5938,7 +5946,7 @@ pub fn update_cwd(cause: CdCause) {
     if let Some(ref d) = curbuf_mut().b_localdir.get() {
         new_dir = Some(d.clone());
         scope = K_CD_SCOPE_BUFFER;
-    } else if let Some(ref d) = curwin_mut().w_localdir {
+    } else if let Some(ref d) = curwin_mut().w_localdir.get() {
         new_dir = Some(d.clone());
         scope = K_CD_SCOPE_WINDOW;
     } else if let Some(d) = curtab_mut().tp_localdir.get() {
@@ -5992,12 +6000,12 @@ pub fn update_cwd(cause: CdCause) {
 
 pub fn buf_jump_open_win(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInfo> {
     let buf = crate::globals::BufPtr::from(buf_in);
-    if curwin_mut().w_buffer == buf {
+    if curwin_mut().w_buffer.get() == buf {
         win_enter(curwin_mut(), false);
         return curwin_ptr().opt_mut();
     }
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == buf {
+        if wp.w_buffer.get() == buf {
             let wp_ptr = crate::globals::WinPtr::from(&*wp);
             win_enter(wp_ptr.borrow_mut(), false);
             return wp_ptr.opt_mut();
@@ -6017,7 +6025,7 @@ pub fn buf_jump_open_tab(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInf
             continue;
         }
         for wp2 in win_iter_ptr(tp.tp_firstwin.get().as_ptr()) {
-            if wp2.w_buffer == buf {
+            if wp2.w_buffer.get() == buf {
                 let wp2_ptr = crate::globals::WinPtr::from(&*wp2);
                 goto_tabpage_win(&tp, wp2_ptr.borrow_mut());
                 return if curwin_ptr() == wp2_ptr {
@@ -6085,7 +6093,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
         g_st().window_handles.remove(&wp.handle);
         clear_folding(&mut *wp);
 
-        wp.w_alist = None;
+        wp.w_alist.set(None);
 
         block_autocmds();
 
@@ -6116,8 +6124,8 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
         }
         wp.w_tagstacklen.set(0);
 
-        wp.w_localdir = None;
-        wp.w_prevdir = None;
+        wp.w_localdir.set(None);
+        wp.w_prevdir.set(None);
 
         stl_clear_click_defs(&mut wp.w_status_click_defs);
         stl_clear_click_defs(&mut wp.w_winbar_click_defs);
@@ -6185,8 +6193,8 @@ impl Drop for WinInfoInfo {
         }
         self.w_tagstacklen.set(0);
 
-        self.w_localdir = None;
-        self.w_prevdir = None;
+        self.w_localdir.set(None);
+        self.w_prevdir.set(None);
 
         free_jumplist(self);
         if let Some(w_winvar) = self.w_winvar.opt() {
@@ -6221,10 +6229,14 @@ pub fn win_append(
         tp.tp_firstwin.get()
     };
 
-    let mut before = if after.is_null() { first } else { after.w_next };
+    let before = if after.is_null() {
+        first
+    } else {
+        after.w_next.get()
+    };
 
-    wp.borrow_mut().w_next = before;
-    wp.borrow_mut().w_prev = after;
+    wp.borrow_mut().w_next.set(before);
+    wp.borrow_mut().w_prev.set(after);
 
     if after.is_null() {
         if tp.is_null() {
@@ -6233,7 +6245,7 @@ pub fn win_append(
             tp.tp_firstwin.set(wp);
         }
     } else {
-        after.borrow_mut().w_next = wp;
+        after.borrow_mut().w_next.set(wp);
     }
     if before.is_null() {
         if tp.is_null() {
@@ -6242,7 +6254,7 @@ pub fn win_append(
             tp.tp_lastwin.set(wp);
         }
     } else {
-        before.w_prev = wp;
+        before.w_prev.set(wp);
     }
 }
 
@@ -6250,20 +6262,20 @@ pub fn win_remove(wp: &mut WinInfoInfo, tp_opt: Option<&TabPageInfo>) {
     debug_assert!(tp_opt.is_none_or(|t| g_st().curtab.get() != t));
 
     if let Some(prev) = wp.prev_opt() {
-        prev.w_next = wp.w_next;
+        prev.w_next.set(wp.w_next.get());
     } else if let Some(tp_ref) = tp_opt {
-        tp_ref.tp_firstwin.set(wp.w_next);
+        tp_ref.tp_firstwin.set(wp.w_next.get());
     } else {
-        g_st().firstwin.set((wp.w_next.as_ptr()).into());
-        curtab_mut().tp_firstwin.set(wp.w_next);
+        g_st().firstwin.set((wp.w_next.get().as_ptr()).into());
+        curtab_mut().tp_firstwin.set(wp.w_next.get());
     }
     if let Some(next) = wp.next_opt() {
-        next.w_prev = wp.w_prev;
+        next.w_prev.set(wp.w_prev.get());
     } else if let Some(tp_ref) = tp_opt {
-        tp_ref.tp_lastwin.set(wp.w_prev);
+        tp_ref.tp_lastwin.set(wp.w_prev.get());
     } else {
-        g_st().lastwin.set((wp.w_prev.as_ptr()).into());
-        curtab_mut().tp_lastwin.set(wp.w_prev);
+        g_st().lastwin.set((wp.w_prev.get().as_ptr()).into());
+        curtab_mut().tp_lastwin.set(wp.w_prev.get());
     }
 }
 
@@ -6569,7 +6581,7 @@ pub fn may_trigger_win_scrolled_resized() {
     if trigger_resize && let Some(rw) = first_size_win {
         resize_win = crate::globals::WinPtr::from(&*rw);
         format_to_buf!(&mut resize_winid[..], c"%d", rw.handle);
-        set_bufref(&mut resize_bufref, rw.w_buffer.opt_mut());
+        set_bufref(&mut resize_bufref, rw.w_buffer.get().opt_mut());
     }
 
     let mut scroll_winid = [0u8; NUMBUFLEN];
@@ -6578,7 +6590,7 @@ pub fn may_trigger_win_scrolled_resized() {
     if trigger_scroll && let Some(sw) = first_scroll_win {
         scroll_win = crate::globals::WinPtr::from(&*sw);
         format_to_buf!(&mut scroll_winid[..], c"%d", sw.handle);
-        set_bufref(&mut scroll_bufref, sw.w_buffer.opt_mut());
+        set_bufref(&mut scroll_bufref, sw.w_buffer.get().opt_mut());
     }
 
     if let Some(ref windows_list) = windows_list {
@@ -7050,7 +7062,7 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> Option<&'static CStr> {
 }
 
 pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
-    let mut fr = dragwin.w_frame.clone();
+    let mut fr = dragwin.w_frame.get().clone();
     let mut curfr = fr.clone();
     if g_st().topframe.get() != fr {
         fr = fr.fr_parent.get();
@@ -7156,7 +7168,7 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
 }
 
 pub fn win_drag_vsep_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
-    let mut fr = dragwin.w_frame.clone();
+    let mut fr = dragwin.w_frame.get().clone();
     if g_st().topframe.get() == fr {
         return;
     }
@@ -7509,17 +7521,17 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
         .set(wp.w_view_height.get() + bh + wp.w_winbar_height.get() + float_stl_height);
     wp.w_width_outer.set(wp.w_view_width.get() + bw);
     wp.w_winrow_off
-        .set(wp.w_border_adj[0] + wp.w_winbar_height.get());
-    wp.w_wincol_off.set(wp.w_border_adj[3]);
+        .set(wp.w_border_adj[0].get() + wp.w_winbar_height.get());
+    wp.w_wincol_off.set(wp.w_border_adj[3].get());
 
     if ui_has(K_UIMULTIGRID) {
         ui_call_win_viewport_margins(
             Integer::from(wp.w_grid_alloc.handle),
             wp.handle,
             Integer::from(wp.w_winrow_off.get()),
-            Integer::from(wp.w_border_adj[2]),
+            Integer::from(wp.w_border_adj[2].get()),
             Integer::from(wp.w_wincol_off.get()),
-            Integer::from(wp.w_border_adj[1]),
+            Integer::from(wp.w_border_adj[1].get()),
         );
     }
 
@@ -7556,7 +7568,7 @@ pub fn win_comp_scroll(wp: &mut WinInfoInfo) {
 pub fn command_height() {
     let mut old_p_ch = curtab_mut().tp_ch_used.get() as i32;
 
-    let mut frp = lastwin_nofloating(None).w_frame.clone();
+    let mut frp = lastwin_nofloating(None).w_frame.get().clone();
     while frp.fr_width.get() != g_st().columns_global.get() && !frp.fr_parent.get().is_null() {
         frp = frp.fr_parent.get();
     }
@@ -7883,7 +7895,7 @@ pub fn only_one_window() -> bool {
 
     let mut count: i32 = 0;
     for wp in for_all_windows_ptr() {
-        if !wp.w_buffer.is_null()
+        if !wp.w_buffer.get().is_null()
             && (!((bt_help(wp.buf_opt()) && !bt_help(Some(crate::globals::curbuf_mut())))
                 || wp.w_floating.get()
                 || wp.w_onebuf_opt.wo_pvw.get())
@@ -7903,7 +7915,7 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {
-            if (do_curwin || wp != curwin_ptr()) && g_st().curbuf.get() == wp.w_buffer {
+            if (do_curwin || wp != curwin_ptr()) && g_st().curbuf.get() == wp.w_buffer.get() {
                 if !nested {
                     wp.w_save_cursor.w_cursor_save = wp.w_cursor;
                     wp.w_save_cursor.w_topline_save = wp.w_topline.get();
@@ -7944,7 +7956,7 @@ pub fn reset_lnums() {
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {
-            if g_st().curbuf.get() == wp.w_buffer {
+            if g_st().curbuf.get() == wp.w_buffer.get() {
                 if equalpos(wp.w_save_cursor.w_cursor_corr, wp.w_cursor)
                     && wp.w_save_cursor.w_cursor_save.lnum != 0
                 {
@@ -8095,7 +8107,7 @@ pub fn check_colorcolumn(
     cc: Option<&CStr>,
     mut wp: Option<&mut WinInfoInfo>,
 ) -> Option<&'static CStr> {
-    if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.is_null() {
+    if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.get().is_null() {
         return None;
     }
 

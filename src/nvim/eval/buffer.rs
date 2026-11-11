@@ -96,7 +96,7 @@ fn find_win_for_curbuf() {
     for wip in &curbuf_mut().b_wininfo {
         if wip
             .win_opt()
-            .is_some_and(|w| w.w_buffer == g_st().curbuf.get())
+            .is_some_and(|w| w.w_buffer.get() == g_st().curbuf.get())
         {
             set_curwin(wip.wi_win);
             break;
@@ -115,8 +115,8 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
     g_st().curbuf.set(buf_ptr);
     find_win_for_curbuf();
 
-    if curwin_mut().w_buffer != buf_ptr {
-        g_st().curbuf.set(curwin_mut().w_buffer);
+    if curwin_mut().w_buffer.get() != buf_ptr {
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
         ctx_switch(&mut cob.cob_aco, None, None, Some(buf), 0);
         cob.cob_using_aco = 1;
     }
@@ -127,7 +127,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
         ctx_restore(&mut cob.cob_aco);
     } else {
         set_curwin(cob.cob_curwin_save);
-        g_st().curbuf.set(curwin_mut().w_buffer);
+        g_st().curbuf.set(curwin_mut().w_buffer.get());
     }
     g_st().visual_global.active = cob.cob_save_visual_active;
 }
@@ -236,8 +236,8 @@ fn set_buffer_lines(
 
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(first_win_in_tab(&tp)) {
-                if wp.w_buffer == buf_ptr
-                    && (wp.w_buffer != g_st().curbuf.get() || wp == curwin_ptr())
+                if wp.w_buffer.get() == buf_ptr
+                    && (wp.w_buffer.get() != g_st().curbuf.get() || wp == curwin_ptr())
                     && wp.w_cursor.lnum > append_lnum
                 {
                     wp.w_cursor.lnum += added as Linenr;
@@ -316,7 +316,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
 
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
-            if wp.w_buffer == buf {
+            if wp.w_buffer.get() == buf {
                 wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
                     1
                 } else {
@@ -589,7 +589,7 @@ fn buf_win_common(argvars: &mut [TypVal], rettv: &mut TypVal, get_nr: bool) {
     let mut found_buf = false;
     for wp in for_all_windows_mut() {
         winnr += i32::from(win_has_winnr(wp, &curtab_mut()));
-        if wp.w_buffer == buf && (!get_nr || win_has_winnr(wp, &curtab_mut())) {
+        if wp.w_buffer.get() == buf && (!get_nr || win_has_winnr(wp, &curtab_mut())) {
             found_buf = true;
             winid = wp.handle;
             break;
@@ -662,7 +662,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(first_win_in_tab(&tp)) {
-                if wp.w_buffer == buf_ptr {
+                if wp.w_buffer.get() == buf_ptr {
                     if wp.w_cursor.lnum > last {
                         wp.w_cursor.lnum -= count as Linenr;
                     } else if wp.w_cursor.lnum > first {
@@ -717,7 +717,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     let windows = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
-            if wp.w_buffer == buf {
+            if wp.w_buffer.get() == buf {
                 tv_list_append_number(&windows, wp.handle as Varnumber);
             }
         }
@@ -1032,7 +1032,8 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             cursor_col += new_prompt_len - mark_col;
         }
 
-        if ptr::eq(curwin_mut().w_buffer.as_ptr(), buf) && curwin_mut().w_cursor.lnum == prompt_lno
+        if ptr::eq(curwin_mut().w_buffer.get().as_ptr(), buf)
+            && curwin_mut().w_cursor.lnum == prompt_lno
         {
             curwin_mut().w_cursor.col = cursor_col;
             check_cursor_col(curwin_mut());

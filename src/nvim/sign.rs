@@ -846,7 +846,7 @@ fn sign_unplace_cmd(
 
     if id == -1 {
         lnum = curwin_mut().w_cursor.lnum;
-        buf = curwin_mut().w_buffer.opt_mut();
+        buf = curwin_mut().w_buffer.get().opt_mut();
     }
 
     if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
@@ -995,7 +995,7 @@ fn parse_sign_cmd_args<'a>(
     }
 
     if filename_off.is_none() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
-        *buf = curwin_mut().w_buffer.opt_mut();
+        *buf = curwin_mut().w_buffer.get().opt_mut();
     }
     true
 }

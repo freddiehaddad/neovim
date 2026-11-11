@@ -256,7 +256,7 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer != (&raw mut *b) {
+    if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer.get() != (&raw mut *b) {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st()

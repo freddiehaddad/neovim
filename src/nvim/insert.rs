@@ -1164,7 +1164,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 s.c = CAR;
             }
             if bt_quickfix(Some(crate::globals::curbuf_mut())) && s.c == CAR {
-                if curwin_mut().w_llist_ref.is_null() {
+                if curwin_mut().w_llist_ref.get().is_null() {
                     do_cmdline_cmd(c".cc");
                 } else {
                     do_cmdline_cmd(c".ll");
@@ -3959,7 +3959,7 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
 
 /// Get the value that `w_virtcol` would have when `'list'` is off.
 pub fn get_nolist_virtcol() -> Colnr {
-    if curwin_mut().w_buffer.is_null()
+    if curwin_mut().w_buffer.get().is_null()
         || curwin_mut().buf_mut().b_ml.ml_mfp.is_none()
         || curwin_mut().w_cursor.lnum > curwin_mut().buf_mut().b_ml.ml_line_count.get()
     {
