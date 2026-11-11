@@ -212,9 +212,10 @@ pub fn has_folding_win(
     let mut use_level = false;
 
     if first == 0 {
-        let mut gap = &raw mut win.w_folds;
-        while let (true, idx) = fold_find(crate::globals::GraphPtr::of(gap).borrow(), lnum_rel) {
-            let fp = &mut (crate::globals::GraphPtr::of(gap).borrow_mut())[idx];
+        let mut folds = std::mem::take(&mut win.w_folds);
+        let mut gap: &mut [FoldEntry] = &mut folds;
+        while let (true, idx) = fold_find(gap, lnum_rel) {
+            let fp = &mut gap[idx];
             if lnum_rel == fp.fd_top && low_level == 0 {
                 low_level = level + 1;
             }
@@ -236,9 +237,10 @@ pub fn has_folding_win(
             }
 
             lnum_rel -= fp.fd_top;
-            gap = &raw mut fp.fd_nested;
+            gap = &mut fp.fd_nested;
             level += 1;
         }
+        win.w_folds = folds;
     }
 
     if !had_folded {
@@ -580,6 +582,59 @@ pub fn fold_create(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPo
     }
 }
 
+#[expect(clippy::too_many_arguments)]
+fn delete_fold_one(
+    wp: &mut WinInfoInfo,
+    gap: &mut Vec<FoldEntry>,
+    lnum: Linenr,
+    lnum_off: Linenr,
+    level: &mut i32,
+    use_level: &mut bool,
+    maybe_small: &mut bool,
+    recursive: bool,
+    did_one: &mut bool,
+    first_lnum: &mut Linenr,
+    last_lnum: &mut Linenr,
+) -> Option<Linenr> {
+    let (true, idx) = fold_find(gap, lnum - lnum_off) else {
+        return None;
+    };
+    if !check_closed(wp, &mut gap[idx], use_level, *level, maybe_small, lnum_off) {
+        let child_off = lnum_off + gap[idx].fd_top;
+        *level += 1;
+        if let Some(next_lnum) = delete_fold_one(
+            wp,
+            &mut gap[idx].fd_nested,
+            lnum,
+            child_off,
+            level,
+            use_level,
+            maybe_small,
+            recursive,
+            did_one,
+            first_lnum,
+            last_lnum,
+        ) {
+            return Some(next_lnum);
+        }
+    }
+
+    let next_lnum = (gap[idx].fd_top + gap[idx].fd_len) + lnum_off;
+    if foldmethod_is_manual(&mut *wp) {
+        delete_fold_entry(gap, idx as i32, recursive);
+    } else {
+        *first_lnum = (*first_lnum).min(gap[idx].fd_top + lnum_off);
+        *last_lnum = (*last_lnum).max(next_lnum);
+        if !*did_one {
+            parse_marker(&mut *wp);
+        }
+        delete_fold_markers(wp, &mut gap[idx], recursive, lnum_off);
+    }
+    *did_one = true;
+    changed_window_setting(&mut *wp);
+    Some(next_lnum)
+}
+
 pub fn delete_fold(
     wp: &mut WinInfoInfo,
     start: Linenr,
@@ -587,8 +642,6 @@ pub fn delete_fold(
     recursive: i32,
     had_visual: bool,
 ) {
-    let mut found_fp = crate::globals::GraphPtr::<FoldEntry>::NULL.as_ptr();
-    let mut found_off: Linenr = 0;
     let mut maybe_small = false;
     let mut level: i32 = 0;
     let mut lnum = start;
@@ -598,73 +651,28 @@ pub fn delete_fold(
 
     checkupdate(wp);
 
+    let mut folds = std::mem::take(&mut wp.w_folds);
     while lnum <= end {
-        let mut gap = &raw mut wp.w_folds;
-        let mut found_ga = crate::globals::GraphPtr::<Vec<FoldEntry>>::NULL.as_ptr();
-        let mut lnum_off: Linenr = 0;
         let mut use_level = false;
-        while let (true, idx) =
-            fold_find(crate::globals::GraphPtr::of(gap).borrow(), lnum - lnum_off)
-        {
-            let fp = &raw mut (crate::globals::GraphPtr::of(gap).borrow_mut())[idx];
-            found_ga = gap;
-            found_fp = fp;
-            found_off = lnum_off;
-
-            if check_closed(
-                wp,
-                crate::globals::GraphPtr::of(fp).borrow_mut(),
-                &mut use_level,
-                level,
-                &mut maybe_small,
-                lnum_off,
-            ) {
-                break;
-            }
-
-            gap = &raw mut crate::globals::GraphPtr::of(fp).borrow_mut().fd_nested;
-
-            lnum_off += crate::globals::GraphPtr::of(fp).borrow().fd_top;
-
-            level += 1;
-        }
-        if found_ga.is_null() {
-            lnum += 1;
+        if let Some(next_lnum) = delete_fold_one(
+            wp,
+            &mut folds,
+            lnum,
+            0,
+            &mut level,
+            &mut use_level,
+            &mut maybe_small,
+            recursive != 0,
+            &mut did_one,
+            &mut first_lnum,
+            &mut last_lnum,
+        ) {
+            lnum = next_lnum;
         } else {
-            let fp = crate::globals::GraphPtr::of(found_fp).borrow();
-            lnum = (fp.fd_top + fp.fd_len) + found_off;
-
-            if foldmethod_is_manual(&mut *wp) {
-                let idx = ((found_fp as usize
-                    - crate::globals::GraphPtr::of(found_ga).borrow().as_ptr() as usize)
-                    / std::mem::size_of::<FoldEntry>()) as i32;
-
-                delete_fold_entry(
-                    crate::globals::GraphPtr::of(found_ga).borrow_mut(),
-                    idx,
-                    recursive != 0,
-                );
-            } else {
-                first_lnum = first_lnum
-                    .min(crate::globals::GraphPtr::of(found_fp).borrow().fd_top + found_off);
-
-                last_lnum = last_lnum.max(lnum);
-                if !did_one {
-                    parse_marker(&mut *wp);
-                }
-
-                delete_fold_markers(
-                    wp,
-                    crate::globals::GraphPtr::of(found_fp).borrow_mut(),
-                    recursive != 0,
-                    found_off,
-                );
-            }
-            did_one = true;
-
-            changed_window_setting(&mut *wp);
+            lnum += 1;
         }
     }
+    wp.w_folds = folds;
     if !did_one {
         emsg(gettext(E_NOFOLD));
         if had_visual {
@@ -881,35 +889,35 @@ pub fn fold_adjust_visual() {
         return;
     }
 
-    let (start, end) = if ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
-        (
-            &raw mut g_st().visual_global.start,
-            &raw mut curwin_mut().w_cursor,
-        )
+    let visual_before_cursor = ltoreq(g_st().visual_global.start, curwin_mut().w_cursor);
+    let (mut start, mut end) = if visual_before_cursor {
+        (g_st().visual_global.start, curwin_mut().w_cursor)
     } else {
-        (
-            &raw mut curwin_mut().w_cursor,
-            &raw mut g_st().visual_global.start,
-        )
+        (curwin_mut().w_cursor, g_st().visual_global.start)
     };
-    let mut start_lnum = crate::globals::GraphPtr::of(start).borrow().lnum;
-    if has_folding(curwin_mut(), start_lnum, Some(&mut start_lnum), None) {
-        let s = crate::globals::GraphPtr::of(start).borrow_mut();
-        s.lnum = start_lnum;
-        s.col = 0;
+    if has_folding(curwin_mut(), start.lnum, Some(&mut start.lnum), None) {
+        start.col = 0;
+        if visual_before_cursor {
+            g_st().visual_global.start = start;
+        } else {
+            curwin_mut().w_cursor = start;
+        }
     }
 
-    let mut end_lnum = crate::globals::GraphPtr::of(end).borrow().lnum;
-    if !has_folding(curwin_mut(), end_lnum, None, Some(&mut end_lnum)) {
+    if !has_folding(curwin_mut(), end.lnum, None, Some(&mut end.lnum)) {
         return;
     }
-    crate::globals::GraphPtr::of(end).borrow_mut().lnum = end_lnum;
 
-    let mut end_col = ml_get_len(end_lnum);
+    let mut end_col = ml_get_len(end.lnum);
     if end_col > 0 && opt_vars().p_sel.first_byte() == b'o' {
         end_col -= 1;
     }
-    crate::globals::GraphPtr::of(end).borrow_mut().col = end_col;
+    end.col = end_col;
+    if visual_before_cursor {
+        curwin_mut().w_cursor = end;
+    } else {
+        g_st().visual_global.start = end;
+    }
     mb_adjust_cursor();
 }
 
@@ -937,7 +945,7 @@ fn fold_find(gap: &[FoldEntry], lnum: Linenr) -> (bool, usize) {
     (false, low)
 }
 
-fn fold_level_win(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+fn fold_level_win(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     let mut lnum_rel = lnum;
     let mut level: i32 = 0;
 
@@ -1000,7 +1008,6 @@ fn set_manual_fold_win(
     recurse: bool,
     mut donep: Option<&mut i32>,
 ) -> Linenr {
-    let mut found = crate::globals::GraphPtr::<FoldEntry>::NULL.as_ptr();
     let mut level: i32 = 0;
     let mut use_level = false;
     let mut found_fold = false;
@@ -1010,7 +1017,8 @@ fn set_manual_fold_win(
 
     checkupdate(wp);
 
-    let mut gap = &mut wp.w_folds;
+    let wo_fdl = wp.w_onebuf_opt.wo_fdl;
+    let mut gap: &mut [FoldEntry] = &mut wp.w_folds;
     loop {
         let (found_in_gap, idx) = fold_find(gap, lnum);
         if !found_in_gap {
@@ -1026,11 +1034,10 @@ fn set_manual_fold_win(
             next = gap[idx + 1].fd_top + off;
         }
 
-        let fp = crate::globals::GraphPtr::<FoldEntry>::of(&raw mut gap[idx]).as_ptr();
-        let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
+        let fp = &mut gap[idx];
         if use_level || fp.fd_flags == FD_LEVEL {
             use_level = true;
-            fp.fd_flags = if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
+            fp.fd_flags = if i64::from(level) >= wo_fdl {
                 FD_CLOSED
             } else {
                 FD_OPEN
@@ -1056,18 +1063,23 @@ fn set_manual_fold_win(
             break;
         }
 
-        found = fp;
         lnum -= fp.fd_top;
         off += fp.fd_top;
+        let (child_found, child_idx) = fold_find(&fp.fd_nested, lnum);
+        if !child_found {
+            if !opening {
+                fp.fd_flags = FD_CLOSED;
+                done |= DONE_ACTION;
+            }
+            if child_idx < fp.fd_nested.len() {
+                next = fp.fd_nested[child_idx].fd_top + off;
+            }
+            break;
+        }
         gap = &mut fp.fd_nested;
         level += 1;
     }
     if found_fold {
-        if !opening && let Some(found) = crate::globals::GraphPtr::of(found).opt_mut() {
-            found.fd_flags = FD_CLOSED;
-
-            done |= DONE_ACTION;
-        }
         wp.w_fold_manual = true;
         if (done & DONE_ACTION) != 0 {
             changed_window_setting(&mut *wp);
@@ -2585,8 +2597,7 @@ pub fn put_folds(fd: &CFile, wp: &mut WinInfoInfo) -> bool {
     }
 
     if wp.w_fold_manual {
-        let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp);
-        return put_foldopen_recurse(fd, wp_ptr.borrow_mut(), &wp.w_folds, 0);
+        return put_foldopen_recurse(fd, wp, &wp.w_folds, 0);
     }
 
     true
@@ -2611,7 +2622,7 @@ fn put_folds_recurse(fd: &CFile, gap: &[FoldEntry], off: Linenr) -> bool {
     true
 }
 
-fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off: Linenr) -> bool {
+fn put_foldopen_recurse(fd: &CFile, wp: &WinInfoInfo, gap: &[FoldEntry], off: Linenr) -> bool {
     for fp in gap {
         if fp.fd_flags != FD_LEVEL {
             if !fp.fd_nested.is_empty() {
@@ -2630,7 +2641,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
                     return false;
                 }
             } else {
-                let level = i64::from(fold_level_win(&mut *wp, off + fp.fd_top));
+                let level = i64::from(fold_level_win(wp, off + fp.fd_top));
                 if ((fp.fd_flags == FD_CLOSED && wp.w_onebuf_opt.wo_fdl >= level)
                     || (fp.fd_flags != FD_CLOSED && wp.w_onebuf_opt.wo_fdl < level))
                     && !put_fold_open_close(fd, fp, off)

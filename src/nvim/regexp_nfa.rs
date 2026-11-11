@@ -3,7 +3,6 @@
 use crate::message::{semsg, siemsg};
 use std::ffi::CStr;
 use std::mem::size_of;
-use std::ptr;
 
 use super::*;
 
@@ -176,7 +175,7 @@ const E_VALUE_TOO_LARGE: &CStr = c"E951: \\% value too large";
 struct RegexpNfaState {
     nfa_match: std::cell::Cell<i32>,
     nfa_time_limit: std::cell::Cell<Option<Proftime>>,
-    nfa_timed_out: std::cell::Cell<crate::globals::GraphPtr<i32>>,
+    nfa_timed_out: std::cell::Cell<bool>,
     nfa_time_count: std::cell::Cell<i32>,
     rec_listbuf: std::cell::RefCell<Vec<[Vec<NfaThread>; 2]>>,
 }
@@ -186,7 +185,7 @@ impl RegexpNfaState {
         Self {
             nfa_match: std::cell::Cell::new(0),
             nfa_time_limit: std::cell::Cell::new(None),
-            nfa_timed_out: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            nfa_timed_out: std::cell::Cell::new(false),
             nfa_time_count: std::cell::Cell::new(0),
             rec_listbuf: std::cell::RefCell::new(Vec::new()),
         }
@@ -2448,7 +2447,7 @@ fn copy_ze_off(re_s: &RegexpState, to: &mut Regsub, from: &mut Regsub) {
 }
 
 #[inline(always)]
-fn sub_equal(re_s: &RegexpState, sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
+fn sub_equal(re_s: &RegexpState, sub1: &Regsub, sub2: &Regsub) -> bool {
     let todo = sub1.in_use.max(sub2.in_use) as usize;
     let has_backref = re_s.rex.nfa_has_backref.get();
     let is_multi = !re_s.rex.has_match.get();
@@ -2541,16 +2540,16 @@ fn sub_equal(re_s: &RegexpState, sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
 #[inline(always)]
 fn has_state_with_pos(
     re_s: &RegexpState,
-    l: &mut NfaList,
+    l: &NfaList,
     state: usize,
-    subs: &mut Regsubs,
+    subs: &Regsubs,
     pim: Option<&NfaPim>,
 ) -> bool {
     let has_zsub = re_s.rex.nfa_has_zsubexpr.get();
-    for thread in &mut l.t[..l.n as usize] {
+    for thread in &l.t[..l.n as usize] {
         if thread.state == Some(state)
-            && sub_equal(re_s, &mut thread.subs.norm, &mut subs.norm)
-            && !(has_zsub || sub_equal(re_s, &mut thread.subs.synt, &mut subs.synt))
+            && sub_equal(re_s, &thread.subs.norm, &subs.norm)
+            && !(has_zsub || sub_equal(re_s, &thread.subs.synt, &subs.synt))
             && pim_equal(re_s, Some(&thread.pim), pim)
         {
             return true;
@@ -2630,16 +2629,15 @@ fn match_follows(states: &[NfaState], startstate: Option<usize>, depth: i32) -> 
 fn state_in_list(
     re_s: &RegexpState,
     states: &[NfaState],
-    l: &mut NfaList,
+    l: &NfaList,
     state: Option<usize>,
-    subs: &mut Regsubs,
+    subs: &Regsubs,
 ) -> bool {
     let Some(state_idx) = state else {
         return false;
     };
     if states[state_idx].lastlist[re_s.nfa_ll_index.get()] == l.id
-        && !(re_s.rex.nfa_has_backref.get()
-            || has_state_with_pos(re_s, l, state_idx, &mut *subs, None))
+        && !(re_s.rex.nfa_has_backref.get() || has_state_with_pos(re_s, l, state_idx, subs, None))
     {
         return true;
     }
@@ -3017,16 +3015,23 @@ fn addstate_here(
     states: &mut [NfaState],
     l: &mut NfaList,
     state: Option<usize>,
-    subs: &mut Regsubs,
     pim: Option<&mut NfaPim>,
     ip: &mut i32,
 ) -> bool {
     let tlen = l.n;
     let listidx = *ip;
     let mut temp_subs = Regsubs::new();
-    copy_sub(re_s, &mut temp_subs.norm, &mut subs.norm);
+    copy_sub(
+        re_s,
+        &mut temp_subs.norm,
+        &mut l.t[listidx as usize].subs.norm,
+    );
     if re_s.rex.nfa_has_zsubexpr.get() {
-        copy_sub(re_s, &mut temp_subs.synt, &mut subs.synt);
+        copy_sub(
+            re_s,
+            &mut temp_subs.synt,
+            &mut l.t[listidx as usize].subs.synt,
+        );
     }
 
     if !addstate(
@@ -3586,11 +3591,9 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
 }
 
 fn nfa_did_time_out() -> bool {
-    let (limit, timed_out_ptr) = nfa_st(|st| (st.nfa_time_limit.get(), st.nfa_timed_out.get()));
+    let limit = nfa_st(|st| st.nfa_time_limit.get());
     if limit.is_some_and(profile_passed_limit) {
-        if let Some(timed_out) = timed_out_ptr.opt_mut() {
-            *timed_out = 1;
-        }
+        nfa_st(|st| st.nfa_timed_out.set(true));
         return true;
     }
     false
@@ -3705,20 +3708,6 @@ fn nfa_regmatch(
 
                 let this_idx = flag;
                 flag ^= 1;
-                let [ref mut l0, ref mut l1] = list;
-                let (thislist, nextlist) = if this_idx == 0 {
-                    (
-                        crate::globals::GraphPtr::from(l0).borrow_mut(),
-                        crate::globals::GraphPtr::from(l1).borrow_mut(),
-                    )
-                } else {
-                    (
-                        crate::globals::GraphPtr::from(l1).borrow_mut(),
-                        crate::globals::GraphPtr::from(l0).borrow_mut(),
-                    )
-                };
-                nextlist.n = 0;
-                nextlist.has_pim = false;
                 re_s.rex.nfa_listid.set(re_s.rex.nfa_listid.get() + (1));
                 if prog.re_engine == AUTOMATIC_ENGINE as u32
                     && re_s.rex.nfa_listid.get() >= NFA_MAX_STATES
@@ -3726,6 +3715,11 @@ fn nfa_regmatch(
                     nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
                     return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                 }
+
+                let [ref mut l0, ref mut l1] = list;
+                let (thislist, nextlist) = if this_idx == 0 { (l0, l1) } else { (l1, l0) };
+                nextlist.n = 0;
+                nextlist.has_pim = false;
 
                 thislist.id = re_s.rex.nfa_listid.get();
                 nextlist.id = re_s.rex.nfa_listid.get() + 1;
@@ -3762,11 +3756,8 @@ fn nfa_regmatch(
                     if check_timeout && nfa_did_time_out() {
                         break;
                     }
-                    let t = crate::globals::GraphPtr::of(
-                        thislist.t.as_mut_ptr().wrapping_add(listidx as usize),
-                    )
-                    .borrow_mut();
-                    let t_state_idx = t.state.unwrap();
+                    let t_idx = listidx as usize;
+                    let t_state_idx = thislist.t[t_idx].state.unwrap();
                     let t_st = &prog.state[t_state_idx];
 
                     let mut add_state: Option<usize> = None;
@@ -3784,9 +3775,13 @@ fn nfa_regmatch(
                                 continue;
                             }
                             nfa_s.nfa_match.set(1);
-                            copy_sub(re_s, &mut submatch.norm, &mut t.subs.norm);
+                            copy_sub(re_s, &mut submatch.norm, &mut thislist.t[t_idx].subs.norm);
                             if re_s.rex.nfa_has_zsubexpr.get() {
-                                copy_sub(re_s, &mut submatch.synt, &mut t.subs.synt);
+                                copy_sub(
+                                    re_s,
+                                    &mut submatch.synt,
+                                    &mut thislist.t[t_idx].subs.synt,
+                                );
                             }
                             if nextlist.n == 0 {
                                 clen = 0;
@@ -3809,9 +3804,9 @@ fn nfa_regmatch(
                                 continue;
                             }
                             if t_st.c != NFA_END_INVISIBLE_NEG {
-                                copy_sub(re_s, &mut m.norm, &mut t.subs.norm);
+                                copy_sub(re_s, &mut m.norm, &mut thislist.t[t_idx].subs.norm);
                                 if re_s.rex.nfa_has_zsubexpr.get() {
-                                    copy_sub(re_s, &mut m.synt, &mut t.subs.synt);
+                                    copy_sub(re_s, &mut m.synt, &mut thislist.t[t_idx].subs.synt);
                                 }
                             }
                             nfa_s.nfa_match.set(1);
@@ -3831,16 +3826,20 @@ fn nfa_regmatch(
                         | NFA_START_INVISIBLE_BEFORE_NEG_FIRST => {
                             let st_c = t_st.c;
                             let out1_out = t_st.out1.and_then(|o1| (&prog.state)[o1].out);
-                            if t.pim.result != NFA_PIM_UNUSED
+                            if thislist.t[t_idx].pim.result != NFA_PIM_UNUSED
                                 || st_c == NFA_START_INVISIBLE_FIRST
                                 || st_c == NFA_START_INVISIBLE_NEG_FIRST
                                 || st_c == NFA_START_INVISIBLE_BEFORE_FIRST
                                 || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST
                             {
                                 let in_use = m.norm.in_use;
-                                copy_sub_off(re_s, &mut m.norm, &mut t.subs.norm);
+                                copy_sub_off(re_s, &mut m.norm, &mut thislist.t[t_idx].subs.norm);
                                 if re_s.rex.nfa_has_zsubexpr.get() {
-                                    copy_sub_off(re_s, &mut m.synt, &mut t.subs.synt);
+                                    copy_sub_off(
+                                        re_s,
+                                        &mut m.synt,
+                                        &mut thislist.t[t_idx].subs.synt,
+                                    );
                                 }
                                 let res = recursive_regmatch(
                                     t_state_idx,
@@ -3859,11 +3858,23 @@ fn nfa_regmatch(
                                     || st_c == NFA_START_INVISIBLE_BEFORE_NEG
                                     || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST;
                                 if (res != 0) != is_neg {
-                                    copy_sub_off(re_s, &mut t.subs.norm, &mut m.norm);
+                                    copy_sub_off(
+                                        re_s,
+                                        &mut thislist.t[t_idx].subs.norm,
+                                        &mut m.norm,
+                                    );
                                     if re_s.rex.nfa_has_zsubexpr.get() {
-                                        copy_sub_off(re_s, &mut t.subs.synt, &mut m.synt);
+                                        copy_sub_off(
+                                            re_s,
+                                            &mut thislist.t[t_idx].subs.synt,
+                                            &mut m.synt,
+                                        );
                                     }
-                                    copy_ze_off(re_s, &mut t.subs.norm, &mut m.norm);
+                                    copy_ze_off(
+                                        re_s,
+                                        &mut thislist.t[t_idx].subs.norm,
+                                        &mut m.norm,
+                                    );
                                     add_here = true;
                                     add_state = out1_out;
                                 }
@@ -3887,7 +3898,6 @@ fn nfa_regmatch(
                                     &mut prog.state,
                                     &mut *thislist,
                                     out1_out,
-                                    &mut t.subs,
                                     Some(&mut pim),
                                     &mut listidx,
                                 ) {
@@ -3902,32 +3912,36 @@ fn nfa_regmatch(
                             let skip = if state_in_list(
                                 re_s,
                                 &prog.state,
-                                &mut *nextlist,
+                                nextlist,
                                 out1_out,
-                                &mut t.subs,
+                                &thislist.t[t_idx].subs,
                             ) {
                                 out1_out
                             } else if state_in_list(
                                 re_s,
                                 &prog.state,
-                                &mut *nextlist,
+                                nextlist,
                                 out1_out_out,
-                                &mut t.subs,
+                                &thislist.t[t_idx].subs,
                             ) || state_in_list(
                                 re_s,
                                 &prog.state,
-                                &mut *thislist,
+                                thislist,
                                 out1_out_out,
-                                &mut t.subs,
+                                &thislist.t[t_idx].subs,
                             ) {
                                 out1_out_out
                             } else {
                                 None
                             };
                             if skip.is_none() {
-                                copy_sub_off(re_s, &mut m.norm, &mut t.subs.norm);
+                                copy_sub_off(re_s, &mut m.norm, &mut thislist.t[t_idx].subs.norm);
                                 if re_s.rex.nfa_has_zsubexpr.get() {
-                                    copy_sub_off(re_s, &mut m.synt, &mut t.subs.synt);
+                                    copy_sub_off(
+                                        re_s,
+                                        &mut m.synt,
+                                        &mut thislist.t[t_idx].subs.synt,
+                                    );
                                 }
                                 let res = recursive_regmatch(
                                     t_state_idx,
@@ -3942,9 +3956,17 @@ fn nfa_regmatch(
                                     return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                                 }
                                 if res != 0 {
-                                    copy_sub_off(re_s, &mut t.subs.norm, &mut m.norm);
+                                    copy_sub_off(
+                                        re_s,
+                                        &mut thislist.t[t_idx].subs.norm,
+                                        &mut m.norm,
+                                    );
                                     if re_s.rex.nfa_has_zsubexpr.get() {
-                                        copy_sub_off(re_s, &mut t.subs.synt, &mut m.synt);
+                                        copy_sub_off(
+                                            re_s,
+                                            &mut thislist.t[t_idx].subs.synt,
+                                            &mut m.synt,
+                                        );
                                     }
                                     let bytelen = if !re_s.rex.has_match.get() {
                                         m.norm.list.multi()[0].end_col - re_s.rex.input_col()
@@ -4312,7 +4334,11 @@ fn nfa_regmatch(
                             let mut bytelen: i32 = 0;
                             let matched = if (NFA_BACKREF1..=NFA_BACKREF9).contains(&c) {
                                 let subidx = c - NFA_BACKREF1 + 1;
-                                match_backref(&mut t.subs.norm, subidx, &mut bytelen)
+                                match_backref(
+                                    &mut thislist.t[t_idx].subs.norm,
+                                    subidx,
+                                    &mut bytelen,
+                                )
                             } else {
                                 let subidx = c - NFA_ZREF1 + 1;
                                 match_zref(subidx, &mut bytelen)
@@ -4333,13 +4359,14 @@ fn nfa_regmatch(
                             }
                         }
                         NFA_SKIP => {
-                            if t.count - clen <= 0 {
+                            let t_count = thislist.t[t_idx].count;
+                            if t_count - clen <= 0 {
                                 add_state = t_st.out;
                                 add_off = clen;
                             } else {
                                 add_state = Some(t_state_idx);
                                 add_off = 0;
-                                add_count = t.count - clen;
+                                add_count = t_count - clen;
                             }
                         }
                         NFA_LNUM | NFA_LNUM_GT | NFA_LNUM_LT => {
@@ -4370,12 +4397,11 @@ fn nfa_regmatch(
                             let col = re_s.rex.input_col();
                             if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                                 let mut matched = false;
-                                let wp = if re_s.rex.reg_win.get().is_null() {
-                                    crate::globals::curwin_ptr().as_ptr()
+                                let mut wp_mut = if re_s.rex.reg_win.get().is_null() {
+                                    crate::globals::curwin_ptr()
                                 } else {
-                                    re_s.rex.reg_win.get().as_ptr()
+                                    re_s.rex.reg_win.get()
                                 };
-                                let wp_mut = crate::globals::GraphPtr::of(wp).borrow_mut();
                                 if op == 1 && col - 1 > t_st.val && col > 100 {
                                     let mut ts = wp_mut.buf_mut().b_p_ts;
                                     if ts < 4 {
@@ -4394,11 +4420,9 @@ fn nfa_regmatch(
                                     {
                                         lnum = 1;
                                     }
-                                    let vcol = re_s
-                                        .rex
-                                        .line
-                                        .get()
-                                        .with_cstr(|cs| win_linetabsize(wp_mut, lnum, cs, col));
+                                    let vcol = re_s.rex.line.get().with_cstr(|cs| {
+                                        win_linetabsize(&mut wp_mut, lnum, cs, col)
+                                    });
                                     matched = nfa_re_num_cmp(
                                         t_st.val as u64,
                                         op,
@@ -4504,40 +4528,27 @@ fn nfa_regmatch(
                     }
 
                     if let Some(add_state_idx) = add_state {
-                        let mut pim = crate::globals::GraphPtr::<NfaPim>::of(
-                            if t.pim.result == NFA_PIM_UNUSED {
-                                ptr::null_mut()
-                            } else {
-                                &raw mut t.pim
-                            },
-                        )
-                        .as_ptr();
-                        let mut pim_copy: NfaPim;
+                        let mut has_pim = thislist.t[t_idx].pim.result != NFA_PIM_UNUSED;
+                        let mut pim_copy = NfaPim::new();
 
-                        if !pim.is_null() && (clen == 0 || match_follows(&prog.state, add_state, 0))
-                        {
-                            let pim_state_idx = crate::globals::GraphPtr::of(pim)
-                                .borrow_mut()
-                                .state
-                                .unwrap();
+                        if has_pim && (clen == 0 || match_follows(&prog.state, add_state, 0)) {
+                            let pim_state_idx = thislist.t[t_idx].pim.state.unwrap();
                             let pim_c = (&prog.state)[pim_state_idx].c;
                             let is_neg = pim_c == NFA_START_INVISIBLE_NEG
                                 || pim_c == NFA_START_INVISIBLE_NEG_FIRST
                                 || pim_c == NFA_START_INVISIBLE_BEFORE_NEG
                                 || pim_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST;
-                            let res = if crate::globals::GraphPtr::of(pim).borrow().result
-                                == NFA_PIM_TODO
-                            {
+                            let res = if thislist.t[t_idx].pim.result == NFA_PIM_TODO {
                                 let r = recursive_regmatch(
                                     pim_state_idx,
-                                    crate::globals::GraphPtr::of(pim).opt(),
+                                    Some(&thislist.t[t_idx].pim),
                                     &mut *prog,
                                     &mut *submatch,
                                     m,
                                     &mut listids,
                                 );
 
-                                crate::globals::GraphPtr::of(pim).borrow_mut().result = if r != 0 {
+                                thislist.t[t_idx].pim.result = if r != 0 {
                                     NFA_PIM_MATCH
                                 } else {
                                     NFA_PIM_NOMATCH
@@ -4546,63 +4557,43 @@ fn nfa_regmatch(
                                 if (r != 0) != is_neg {
                                     copy_sub_off(
                                         re_s,
-                                        &mut crate::globals::GraphPtr::of(pim)
-                                            .borrow_mut()
-                                            .subs
-                                            .norm,
+                                        &mut thislist.t[t_idx].pim.subs.norm,
                                         &mut m.norm,
                                     );
 
                                     if re_s.rex.nfa_has_zsubexpr.get() {
                                         copy_sub_off(
                                             re_s,
-                                            &mut crate::globals::GraphPtr::of(pim)
-                                                .borrow_mut()
-                                                .subs
-                                                .synt,
+                                            &mut thislist.t[t_idx].pim.subs.synt,
                                             &mut m.synt,
                                         );
                                     }
                                 }
                                 r != 0
                             } else {
-                                crate::globals::GraphPtr::of(pim).borrow().result == NFA_PIM_MATCH
+                                thislist.t[t_idx].pim.result == NFA_PIM_MATCH
                             };
 
                             if res != is_neg {
-                                copy_sub_off(
-                                    re_s,
-                                    &mut t.subs.norm,
-                                    &mut crate::globals::GraphPtr::of(pim).borrow_mut().subs.norm,
-                                );
+                                let t_cur = &mut thislist.t[t_idx];
+                                copy_sub_off(re_s, &mut t_cur.subs.norm, &mut t_cur.pim.subs.norm);
 
                                 if re_s.rex.nfa_has_zsubexpr.get() {
                                     copy_sub_off(
                                         re_s,
-                                        &mut t.subs.synt,
-                                        &mut crate::globals::GraphPtr::of(pim)
-                                            .borrow_mut()
-                                            .subs
-                                            .synt,
+                                        &mut t_cur.subs.synt,
+                                        &mut t_cur.pim.subs.synt,
                                     );
                                 }
                             } else {
                                 listidx += 1;
                                 continue;
                             }
-                            pim = ptr::null_mut();
+                            has_pim = false;
                         }
 
-                        if pim == &raw mut t.pim {
-                            pim_copy = NfaPim::new();
-
-                            copy_pim(
-                                re_s,
-                                &mut pim_copy,
-                                crate::globals::GraphPtr::of(pim).borrow_mut(),
-                            );
-
-                            pim = &raw mut pim_copy;
+                        if has_pim {
+                            copy_pim(re_s, &mut pim_copy, &mut thislist.t[t_idx].pim);
                         }
 
                         let r = if add_here {
@@ -4611,8 +4602,7 @@ fn nfa_regmatch(
                                 &mut prog.state,
                                 &mut *thislist,
                                 add_state,
-                                &mut t.subs,
-                                crate::globals::GraphPtr::of(pim).opt_mut(),
+                                has_pim.then_some(&mut pim_copy),
                                 &mut listidx,
                             )
                         } else {
@@ -4621,8 +4611,8 @@ fn nfa_regmatch(
                                 &mut prog.state,
                                 &mut *nextlist,
                                 add_state_idx,
-                                &mut t.subs,
-                                crate::globals::GraphPtr::of(pim).opt_mut(),
+                                &mut thislist.t[t_idx].subs,
+                                has_pim.then_some(&mut pim_copy),
                                 add_off,
                                 0,
                             );
@@ -4827,10 +4817,9 @@ fn nfa_regtry(
         re_s.rex
             .input
             .set(re_s.rex.line.get().wrapping_add(col as usize));
-        let timed_out_ptr = crate::globals::GraphPtr::from(timed_out);
         nfa_st(|st| {
             st.nfa_time_limit.set(tm);
-            st.nfa_timed_out.set(timed_out_ptr);
+            st.nfa_timed_out.set(false);
             st.nfa_time_count.set(0);
         });
 
@@ -4842,6 +4831,11 @@ fn nfa_regtry(
         }
 
         let result = nfa_regmatch(&mut *prog, start, &mut subs, &mut m);
+        if nfa_st(|st| st.nfa_timed_out.get())
+            && let Some(timed_out) = timed_out
+        {
+            *timed_out = 1;
+        }
         if result == 0 {
             return 0;
         } else if result == NFA_TOO_EXPENSIVE {

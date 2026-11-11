@@ -41,7 +41,6 @@ use crate::window::{
     win_split, win_valid,
 };
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 use crate::option::OptInt;
 use crate::os::env::ExpandCtx;
@@ -832,40 +831,31 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
     loop {
         let mut tpnext = curtab_mut().tp_next;
         let mut wp = if lastwin_mut().w_floating {
-            g_st().lastwin.as_ptr()
+            g_st().lastwin
         } else {
-            g_st().firstwin.as_ptr()
+            g_st().firstwin
         };
         while !wp.is_null() {
-            let mut wpnext = if crate::globals::GraphPtr::of(wp).borrow().w_floating {
-                if !crate::globals::GraphPtr::of(wp).borrow().w_prev.is_null()
-                    && crate::globals::GraphPtr::of(wp).borrow().w_prev.w_floating
-                {
-                    crate::globals::GraphPtr::of(wp).borrow().w_prev.as_ptr()
+            let mut wpnext = if wp.w_floating {
+                if !wp.w_prev.is_null() && wp.w_prev.w_floating {
+                    wp.w_prev
                 } else {
-                    g_st().firstwin.as_ptr()
+                    g_st().firstwin
                 }
-            } else if crate::globals::GraphPtr::of(wp).borrow().w_next.is_null()
-                || crate::globals::GraphPtr::of(wp).borrow().w_next.w_floating
-            {
-                ptr::null_mut()
+            } else if wp.w_next.is_null() || wp.w_next.w_floating {
+                crate::globals::WinPtr::NULL
             } else {
-                crate::globals::GraphPtr::of(wp).borrow().w_next.as_ptr()
+                wp.w_next
             };
-            let buf = crate::globals::GraphPtr::of(wp)
-                .borrow_mut()
-                .w_buffer
-                .borrow_mut();
+            let buf = wp.w_buffer.borrow_mut();
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
             if buf.b_ffname.is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows > 1
-                        || crate::globals::GraphPtr::of(wp).borrow().w_width
-                            != g_st().columns_global
-                        || (crate::globals::GraphPtr::of(wp).borrow().w_floating
-                            && !is_ctx_win(crate::globals::GraphPtr::of(wp).borrow()))))
+                        || wp.w_width != g_st().columns_global
+                        || (wp.w_floating && !is_ctx_win(&wp))))
             {
                 i = opened_len;
             } else {
@@ -895,19 +885,15 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 if !aall_ref.new_curwin.is_null() {
                                     aall_ref.new_curwin.w_arg_idx = opened_len;
                                 }
-                                aall_ref.new_curwin = crate::globals::WinPtr::new(wp);
+                                aall_ref.new_curwin = wp;
                                 aall_ref.new_curtab = g_st().curtab;
                             }
                         } else if aall_ref.keep_tabs {
                             i = opened_len;
                         }
 
-                        if !std::rc::Rc::ptr_eq(
-                            &win_alist_rc(crate::globals::GraphPtr::of(wp).borrow()),
-                            al,
-                        ) {
-                            crate::globals::GraphPtr::of(wp).borrow_mut().w_alist =
-                                aall_ref.local_alist.clone();
+                        if !std::rc::Rc::ptr_eq(&win_alist_rc(&wp), al) {
+                            wp.w_alist = aall_ref.local_alist.clone();
                         }
                         break;
                     }
@@ -915,7 +901,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 }
             }
 
-            crate::globals::GraphPtr::of(wp).borrow_mut().w_arg_idx = i;
+            wp.w_arg_idx = i;
 
             if i == opened_len
                 && !aall_ref.keep_tabs
@@ -928,13 +914,11 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
-                    if !win_valid(crate::globals::GraphPtr::of(wp).opt())
-                        || !bufref_valid(Some(&bufref))
-                    {
+                    if !win_valid(wp.opt()) || !bufref_valid(Some(&bufref)) {
                         wp = if lastwin_mut().w_floating {
-                            g_st().lastwin.as_ptr()
+                            g_st().lastwin
                         } else {
-                            g_st().firstwin.as_ptr()
+                            g_st().firstwin
                         };
                         continue;
                     }
@@ -945,16 +929,12 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     aall.use_firstwin = true;
                 } else {
                     let close_b = !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf);
-                    win_close(
-                        crate::globals::GraphPtr::of(wp).borrow_mut(),
-                        close_b,
-                        false,
-                    );
-                    if !win_valid(crate::globals::GraphPtr::of(wpnext).opt()) {
+                    win_close(wp.borrow_mut(), close_b, false);
+                    if !win_valid(wpnext.opt()) {
                         wpnext = if lastwin_mut().w_floating {
-                            g_st().lastwin.as_ptr()
+                            g_st().lastwin
                         } else {
-                            g_st().firstwin.as_ptr()
+                            g_st().firstwin
                         };
                     }
                 }
@@ -967,7 +947,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
         }
 
         if !valid_tabpage(tpnext.opt()) {
-            tpnext = crate::globals::GraphPtr::of(g_st().first_tabpage);
+            tpnext = g_st().first_tabpage;
         }
         goto_tabpage_tp(tpnext.opt_mut(), true, true);
     }

@@ -31,7 +31,6 @@ use crate::regexp::{
 };
 use crate::strings::{format_to_buf, gettext};
 use crate::window::WinInfoInfo;
-use std::ptr;
 
 use crate::change::MB_MAXCHAR;
 use crate::cursor::{Colnr, Linenr};
@@ -368,15 +367,15 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
 fn next_search_hl_pos(
     shl: &mut SynMatch,
     lnum: Linenr,
-    match_item: &mut Matchitem,
+    mit_pos: &mut [Llpos],
+    mit_pos_cur: &mut i32,
     mincol: Colnr,
 ) -> i32 {
     let mut found: isize = -1;
 
     shl.lnum = 0;
-    let mit_pos = &mut match_item.mit_pos;
     let pos_count = mit_pos.len() as i32;
-    for i in match_item.mit_pos_cur..pos_count {
+    for i in *mit_pos_cur..pos_count {
         let pos = mit_pos[i as usize];
         if pos.lnum == 0 {
             break;
@@ -394,7 +393,7 @@ fn next_search_hl_pos(
             }
         }
     }
-    match_item.mit_pos_cur = 0;
+    *mit_pos_cur = 0;
     if found >= 0 {
         let found_pos = mit_pos[found as usize];
         let start = if found_pos.col == 0 {
@@ -415,77 +414,113 @@ fn next_search_hl_pos(
         shl.rm.endpos[0].col = end;
         shl.is_addpos = true;
         shl.has_cursor = false;
-        match_item.mit_pos_cur = (found as i32) + 1;
+        *mit_pos_cur = (found as i32) + 1;
         return 1;
     }
     0
 }
 
+#[inline]
+fn get_shl<'a>(
+    wp: &'a WinInfoInfo,
+    search_hl: &'a SynMatch,
+    match_idx: Option<usize>,
+) -> &'a SynMatch {
+    match match_idx {
+        Some(idx) => &wp.w_match_head[idx].mit_hl,
+        None => search_hl,
+    }
+}
+
+#[inline]
+fn get_shl_mut<'a>(
+    wp: &'a mut WinInfoInfo,
+    search_hl: &'a mut SynMatch,
+    match_idx: Option<usize>,
+) -> &'a mut SynMatch {
+    match match_idx {
+        Some(idx) => &mut wp.w_match_head[idx].mit_hl,
+        None => search_hl,
+    }
+}
+
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
 fn next_search_hl(
     win: &mut WinInfoInfo,
-    shl: &mut SynMatch,
+    search_hl: &mut SynMatch,
     lnum: Linenr,
     mincol: Colnr,
-    mut cur: Option<&mut Matchitem>,
+    match_idx: Option<usize>,
 ) {
     let mut matchcol: Colnr;
     let mut nmatched: i32 = 0;
     let called_emsg_before = g_st().called_emsg;
 
     if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line)
-        && cur.is_none()
+        && match_idx.is_none()
     {
-        shl.lnum = 0;
+        get_shl_mut(win, search_hl, match_idx).lnum = 0;
         return;
     }
 
-    if shl.lnum != 0 {
-        let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
-        if lnum > l {
-            shl.lnum = 0;
-        } else if lnum < l || shl.rm.endpos[0].col > mincol {
-            return;
+    {
+        let shl = get_shl_mut(win, search_hl, match_idx);
+        if shl.lnum != 0 {
+            let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
+            if lnum > l {
+                shl.lnum = 0;
+            } else if lnum < l || shl.rm.endpos[0].col > mincol {
+                return;
+            }
         }
     }
 
     loop {
-        if profile_passed_limit(shl.tm) {
-            shl.lnum = 0;
-            break;
-        }
-        if shl.lnum == 0 {
-            matchcol = 0;
-        } else if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
-            || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
         {
-            matchcol = shl.rm.startpos[0].col;
-            let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow_mut(), lnum);
-            if (matchcol as usize) >= line_slice.len() {
+            let shl = get_shl_mut(win, search_hl, match_idx);
+            if profile_passed_limit(shl.tm) {
                 shl.lnum = 0;
                 break;
             }
-            matchcol += crate::mbyte::utfc_slice2len(&line_slice[matchcol as usize..]) as Colnr;
-        } else {
-            matchcol = shl.rm.endpos[0].col;
+            if shl.lnum == 0 {
+                matchcol = 0;
+            } else if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
+                || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
+            {
+                matchcol = shl.rm.startpos[0].col;
+                let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow_mut(), lnum);
+                if (matchcol as usize) >= line_slice.len() {
+                    shl.lnum = 0;
+                    break;
+                }
+                matchcol += crate::mbyte::utfc_slice2len(&line_slice[matchcol as usize..]) as Colnr;
+            } else {
+                matchcol = shl.rm.endpos[0].col;
+            }
+
+            shl.lnum = lnum;
         }
 
-        shl.lnum = lnum;
-        if !shl.rm.regprog.is_null() {
+        let has_regprog = !get_shl(win, search_hl, match_idx).rm.regprog.is_null();
+        if has_regprog {
             let mut timed_out: i32 = 0;
-
-            let shl_buf = shl.buf.borrow_mut();
+            let (mut rm, shl_buf, shl_tm) = {
+                let shl = get_shl_mut(win, search_hl, match_idx);
+                (std::mem::take(&mut shl.rm), shl.buf.borrow_mut(), shl.tm)
+            };
             nmatched = vim_regexec_multi(
-                &mut shl.rm,
+                &mut rm,
                 Some(win),
                 shl_buf,
                 lnum,
                 matchcol,
-                Some(shl.tm),
+                Some(shl_tm),
                 Some(&mut timed_out),
             );
+            let shl = get_shl_mut(win, search_hl, match_idx);
+            shl.rm = rm;
             if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
-                if cur.is_none() {
+                if match_idx.is_none() {
                     shl.rm.free_prog();
                     set_no_hlsearch(true);
                 }
@@ -494,9 +529,17 @@ fn next_search_hl(
                 g_st().got_int = false;
                 break;
             }
-        } else if cur.is_some() {
-            nmatched = next_search_hl_pos(shl, lnum, cur.as_deref_mut().unwrap(), matchcol);
+        } else if let Some(idx) = match_idx {
+            let cur = &mut win.w_match_head[idx];
+            nmatched = next_search_hl_pos(
+                &mut cur.mit_hl,
+                lnum,
+                &mut cur.mit_pos,
+                &mut cur.mit_pos_cur,
+                matchcol,
+            );
         }
+        let shl = get_shl_mut(win, search_hl, match_idx);
         if nmatched == 0 {
             shl.lnum = 0;
             break;
@@ -516,57 +559,48 @@ fn next_search_hl(
 pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: Linenr) {
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
-    let mut shl;
     let mut shl_flag = false;
 
     while idx < len || !shl_flag {
-        let cur = crate::globals::GraphPtr::<Matchitem>::of(if idx < len {
-            &raw mut (&mut wp.w_match_head)[idx]
-        } else {
-            ptr::null_mut()
-        })
-        .as_ptr();
-        if !shl_flag {
-            shl = (&raw mut *search_hl);
+        let match_idx = if !shl_flag {
             shl_flag = true;
+            None
         } else {
-            shl = (&raw mut crate::globals::GraphPtr::of(cur).borrow_mut().mit_hl);
-        }
-        let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
-        let shl = crate::globals::GraphPtr::of(shl).borrow_mut();
-        if !shl.rm.regprog.is_null() && shl.lnum == 0 && re_multiline(&shl.rm.regprog) != 0 {
-            if shl.first_lnum == 0 {
-                shl.first_lnum = lnum;
-                while shl.first_lnum > wp.w_topline {
-                    if has_folding(&mut *wp, shl.first_lnum - 1, None, None) {
+            Some(idx)
+        };
+        let is_search_hl = match_idx.is_none();
+        let should_prep = {
+            let shl = get_shl(wp, search_hl, match_idx);
+            !shl.rm.regprog.is_null() && shl.lnum == 0 && re_multiline(&shl.rm.regprog) != 0
+        };
+        if should_prep {
+            let mut first_lnum = get_shl(wp, search_hl, match_idx).first_lnum;
+            if first_lnum == 0 {
+                first_lnum = lnum;
+                while first_lnum > wp.w_topline {
+                    if has_folding(&mut *wp, first_lnum - 1, None, None) {
                         break;
                     }
-                    shl.first_lnum -= 1;
+                    first_lnum -= 1;
                 }
+                get_shl_mut(wp, search_hl, match_idx).first_lnum = first_lnum;
             }
-            if !cur.is_null() {
-                crate::globals::GraphPtr::of(cur).borrow_mut().mit_pos_cur = 0;
+            if let Some(m_idx) = match_idx {
+                wp.w_match_head[m_idx].mit_pos_cur = 0;
             }
             let mut pos_inprogress = true;
             let mut n: Colnr = 0;
-            while shl.first_lnum < lnum
-                && (!shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress))
+            while get_shl(wp, search_hl, match_idx).first_lnum < lnum
+                && (!get_shl(wp, search_hl, match_idx).rm.regprog.is_null()
+                    || (match_idx.is_some() && pos_inprogress))
             {
-                next_search_hl(
-                    wp,
-                    shl,
-                    shl.first_lnum,
-                    n,
-                    if is_search_hl {
-                        None
-                    } else {
-                        crate::globals::GraphPtr::of(cur).as_mut()
-                    },
-                );
+                let cur_first_lnum = get_shl(wp, search_hl, match_idx).first_lnum;
+                next_search_hl(wp, search_hl, cur_first_lnum, n, match_idx);
 
                 pos_inprogress =
-                    !cur.is_null() && crate::globals::GraphPtr::of(cur).borrow().mit_pos_cur != 0;
+                    match_idx.is_some_and(|m_idx| wp.w_match_head[m_idx].mit_pos_cur != 0);
 
+                let shl = get_shl_mut(wp, search_hl, match_idx);
                 if shl.lnum != 0 {
                     shl.first_lnum = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
                     n = shl.rm.endpos[0].col;
@@ -576,14 +610,14 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
                 }
             }
         }
-        if !is_search_hl && !cur.is_null() {
+        if !is_search_hl {
             idx += 1;
         }
     }
 }
 
 /// Update `shl->has_cursor` based on the match in `shl` and the cursor position (`check_cur_search_hl`).
-fn check_cur_search_hl(wp: &mut WinInfoInfo, shl: &mut SynMatch) {
+fn check_cur_search_hl(wp: &WinInfoInfo, shl: &mut SynMatch) {
     let linecount = shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
     shl.has_cursor = wp.w_cursor.lnum >= shl.lnum
         && wp.w_cursor.lnum <= shl.lnum + linecount
@@ -602,71 +636,66 @@ pub fn prepare_search_hl_line(
 ) -> bool {
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
-    let mut shl;
     let mut shl_flag = false;
     let mut area_highlighting = false;
 
     while idx < len || !shl_flag {
-        let cur = crate::globals::GraphPtr::<Matchitem>::of(if idx < len {
-            &raw mut (&mut wp.w_match_head)[idx]
-        } else {
-            ptr::null_mut()
-        })
-        .as_ptr();
-        if !shl_flag {
-            shl = (&raw mut *search_hl);
+        let match_idx = if !shl_flag {
             shl_flag = true;
+            None
         } else {
-            shl = (&raw mut crate::globals::GraphPtr::of(cur).borrow_mut().mit_hl);
+            Some(idx)
+        };
+        let is_search_hl = match_idx.is_none();
+        {
+            let shl = get_shl_mut(wp, search_hl, match_idx);
+            shl.startcol = MAXCOL;
+            shl.endcol = MAXCOL;
+            shl.attr_cur = 0;
+            shl.is_addpos = false;
+            shl.has_cursor = false;
         }
-        let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
-        let shl = crate::globals::GraphPtr::of(shl).borrow_mut();
-        shl.startcol = MAXCOL;
-        shl.endcol = MAXCOL;
-        shl.attr_cur = 0;
-        shl.is_addpos = false;
-        shl.has_cursor = false;
-        if !cur.is_null() {
-            crate::globals::GraphPtr::of(cur).borrow_mut().mit_pos_cur = 0;
+        if let Some(m_idx) = match_idx {
+            wp.w_match_head[m_idx].mit_pos_cur = 0;
         }
 
-        next_search_hl(
-            &mut *wp,
-            &mut *shl,
-            lnum,
-            mincol,
-            if is_search_hl {
-                None
-            } else {
-                crate::globals::GraphPtr::of(cur).as_mut()
-            },
-        );
+        next_search_hl(wp, search_hl, lnum, mincol, match_idx);
 
-        if shl.lnum != 0 && shl.lnum <= lnum {
-            shl.startcol = if shl.lnum == lnum {
-                shl.rm.startpos[0].col
-            } else {
-                0
-            };
-            shl.endcol = if lnum == shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum {
-                shl.rm.endpos[0].col
-            } else {
-                MAXCOL
-            };
-
-            if is_search_hl {
-                check_cur_search_hl(wp, &mut *shl);
-            }
-
-            if shl.startcol == shl.endcol {
-                let line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
-                let end_off = shl.endcol as usize;
-                if end_off < line_bytes.len() {
-                    shl.endcol += utfc_ptr2len(&line_bytes[end_off..]);
+        let shl_lnum = get_shl(wp, search_hl, match_idx).lnum;
+        if shl_lnum != 0 && shl_lnum <= lnum {
+            {
+                let shl = get_shl_mut(wp, search_hl, match_idx);
+                shl.startcol = if shl.lnum == lnum {
+                    shl.rm.startpos[0].col
                 } else {
-                    shl.endcol += 1;
-                }
+                    0
+                };
+                shl.endcol = if lnum == shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum {
+                    shl.rm.endpos[0].col
+                } else {
+                    MAXCOL
+                };
             }
+
+            if is_search_hl {
+                check_cur_search_hl(wp, search_hl);
+            }
+
+            let (startcol, endcol) = {
+                let shl = get_shl(wp, search_hl, match_idx);
+                (shl.startcol, shl.endcol)
+            };
+            if startcol == endcol {
+                let line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
+                let end_off = endcol as usize;
+                let step = if end_off < line_bytes.len() {
+                    utfc_ptr2len(&line_bytes[end_off..])
+                } else {
+                    1
+                };
+                get_shl_mut(wp, search_hl, match_idx).endcol += step;
+            }
+            let shl = get_shl_mut(wp, search_hl, match_idx);
             if shl.startcol < mincol {
                 shl.attr_cur = shl.attr;
                 *search_attr = shl.attr;
@@ -674,7 +703,7 @@ pub fn prepare_search_hl_line(
             }
             area_highlighting = true;
         }
-        if !is_search_hl && !cur.is_null() {
+        if !is_search_hl {
             idx += 1;
         }
     }
@@ -696,102 +725,95 @@ pub fn update_search_hl(
     let mut line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
-    let mut shl;
     let mut shl_flag = false;
 
     while idx < len || !shl_flag {
-        let cur = crate::globals::GraphPtr::<Matchitem>::of(if idx < len {
-            &raw mut (&mut wp.w_match_head)[idx]
-        } else {
-            ptr::null_mut()
-        })
-        .as_ptr();
-        if !shl_flag
-            && (cur.is_null()
-                || crate::globals::GraphPtr::of(cur).borrow().mit_priority > SEARCH_HL_PRIORITY)
+        let match_idx = if !shl_flag
+            && (idx >= len || wp.w_match_head[idx].mit_priority > SEARCH_HL_PRIORITY)
         {
-            shl = (&raw mut *search_hl);
             shl_flag = true;
+            None
         } else {
-            shl = (&raw mut crate::globals::GraphPtr::of(cur).borrow_mut().mit_hl);
-        }
-        let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
-        let shl = crate::globals::GraphPtr::of(shl).borrow_mut();
-        if !cur.is_null() {
-            crate::globals::GraphPtr::of(cur).borrow_mut().mit_pos_cur = 0;
+            Some(idx)
+        };
+        let is_search_hl = match_idx.is_none();
+        if let Some(m_idx) = match_idx {
+            wp.w_match_head[m_idx].mit_pos_cur = 0;
         }
         let mut pos_inprogress = true;
-        while !shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress) {
-            if shl.startcol != MAXCOL && col >= shl.startcol && col < shl.endcol {
+        while !get_shl(wp, search_hl, match_idx).rm.regprog.is_null()
+            || (match_idx.is_some() && pos_inprogress)
+        {
+            let (startcol, endcol, has_cursor, attr) = {
+                let shl = get_shl(wp, search_hl, match_idx);
+                (shl.startcol, shl.endcol, shl.has_cursor, shl.attr)
+            };
+            if startcol != MAXCOL && col >= startcol && col < endcol {
                 let next_col = col + utfc_ptr2len(line_bytes.get(col as usize..).unwrap_or(&[]));
-                if shl.endcol < next_col {
-                    shl.endcol = next_col;
+                if endcol < next_col {
+                    get_shl_mut(wp, search_hl, match_idx).endcol = next_col;
                 }
-                if is_search_hl && shl.has_cursor {
-                    shl.attr_cur = win_hl_attr(&mut *wp, HLF_LC as i32);
-                    if shl.attr_cur != shl.attr {
+                if is_search_hl && has_cursor {
+                    let attr_cur = win_hl_attr(&mut *wp, HLF_LC as i32);
+                    search_hl.attr_cur = attr_cur;
+                    if attr_cur != attr {
                         g_st().search_hl_has_cursor_lnum = lnum;
                     }
                 } else {
-                    shl.attr_cur = shl.attr;
+                    get_shl_mut(wp, search_hl, match_idx).attr_cur = attr;
                 }
-                if !cur.is_null()
-                    && !is_search_hl
-                    && syn_name2id(c"Conceal")
-                        == crate::globals::GraphPtr::of(cur).borrow().mit_hlg_id
+                if let Some(m_idx) = match_idx
+                    && syn_name2id(c"Conceal") == wp.w_match_head[m_idx].mit_hlg_id
                 {
-                    *has_match_conc = if col == shl.startcol { 2 } else { 1 };
-
-                    *match_conc = crate::globals::GraphPtr::of(cur).borrow().mit_conceal_char;
+                    *has_match_conc = if col == startcol { 2 } else { 1 };
+                    *match_conc = wp.w_match_head[m_idx].mit_conceal_char;
                 } else {
                     *has_match_conc = 0;
                 }
-            } else if col == shl.endcol {
-                shl.attr_cur = 0;
+            } else if col == endcol {
+                get_shl_mut(wp, search_hl, match_idx).attr_cur = 0;
 
-                next_search_hl(
-                    &mut *wp,
-                    &mut *shl,
-                    lnum,
-                    col,
-                    if is_search_hl {
-                        None
-                    } else {
-                        crate::globals::GraphPtr::of(cur).as_mut()
-                    },
-                );
+                next_search_hl(wp, search_hl, lnum, col, match_idx);
 
                 pos_inprogress =
-                    !cur.is_null() && crate::globals::GraphPtr::of(cur).borrow().mit_pos_cur != 0;
+                    match_idx.is_some_and(|m_idx| wp.w_match_head[m_idx].mit_pos_cur != 0);
 
                 line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
 
-                if shl.lnum == lnum {
-                    shl.startcol = shl.rm.startpos[0].col;
-                    shl.endcol = if shl.rm.endpos[0].lnum == 0 {
-                        shl.rm.endpos[0].col
-                    } else {
-                        MAXCOL
-                    };
-
-                    if is_search_hl {
-                        check_cur_search_hl(wp, &mut *shl);
+                if get_shl(wp, search_hl, match_idx).lnum == lnum {
+                    {
+                        let shl = get_shl_mut(wp, search_hl, match_idx);
+                        shl.startcol = shl.rm.startpos[0].col;
+                        shl.endcol = if shl.rm.endpos[0].lnum == 0 {
+                            shl.rm.endpos[0].col
+                        } else {
+                            MAXCOL
+                        };
                     }
 
-                    if shl.startcol == shl.endcol {
-                        let end_off = shl.endcol as usize;
-                        if end_off >= line_bytes.len() {
-                            shl.endcol += 1;
+                    if is_search_hl {
+                        check_cur_search_hl(wp, search_hl);
+                    }
+
+                    let (new_startcol, new_endcol) = {
+                        let shl = get_shl(wp, search_hl, match_idx);
+                        (shl.startcol, shl.endcol)
+                    };
+                    if new_startcol == new_endcol {
+                        let end_off = new_endcol as usize;
+                        let step = if end_off >= line_bytes.len() {
+                            1
                         } else {
-                            shl.endcol += utfc_ptr2len(&line_bytes[end_off..]);
-                        }
+                            utfc_ptr2len(&line_bytes[end_off..])
+                        };
+                        get_shl_mut(wp, search_hl, match_idx).endcol += step;
                     }
                     continue;
                 }
             }
             break;
         }
-        if !is_search_hl && !cur.is_null() {
+        if !is_search_hl {
             idx += 1;
         }
     }
@@ -801,29 +823,22 @@ pub fn update_search_hl(
     idx = 0;
     shl_flag = false;
     while idx < len || !shl_flag {
-        let cur = crate::globals::GraphPtr::<Matchitem>::of(if idx < len {
-            &raw mut (&mut wp.w_match_head)[idx]
-        } else {
-            ptr::null_mut()
-        })
-        .as_ptr();
-        if !shl_flag
-            && (cur.is_null()
-                || crate::globals::GraphPtr::of(cur).borrow().mit_priority > SEARCH_HL_PRIORITY)
+        let match_idx = if !shl_flag
+            && (idx >= len || wp.w_match_head[idx].mit_priority > SEARCH_HL_PRIORITY)
         {
-            shl = (&raw mut *search_hl);
             shl_flag = true;
+            None
         } else {
-            shl = (&raw mut crate::globals::GraphPtr::of(cur).borrow_mut().mit_hl);
-        }
-        let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
-        let shl = crate::globals::GraphPtr::of(shl).borrow_mut();
+            Some(idx)
+        };
+        let is_search_hl = match_idx.is_none();
+        let shl = get_shl(wp, search_hl, match_idx);
         if shl.attr_cur != 0 {
             search_attr = shl.attr_cur;
             *on_last_col = col + 1 >= shl.endcol;
             *search_attr_from_match = !is_search_hl;
         }
-        if !is_search_hl && !cur.is_null() {
+        if !is_search_hl {
             idx += 1;
         }
     }
@@ -870,31 +885,23 @@ pub fn get_search_match_hl(
 ) {
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
-    let mut shl;
     let mut shl_flag = false;
 
     while idx < len || !shl_flag {
-        let cur = crate::globals::GraphPtr::<Matchitem>::of(if idx < len {
-            &raw mut (&mut wp.w_match_head)[idx]
-        } else {
-            ptr::null_mut()
-        })
-        .as_ptr();
-        if !shl_flag
-            && (cur.is_null()
-                || crate::globals::GraphPtr::of(cur).borrow().mit_priority > SEARCH_HL_PRIORITY)
+        let match_idx = if !shl_flag
+            && (idx >= len || wp.w_match_head[idx].mit_priority > SEARCH_HL_PRIORITY)
         {
-            shl = (&raw mut *search_hl);
             shl_flag = true;
+            None
         } else {
-            shl = (&raw mut crate::globals::GraphPtr::of(cur).borrow_mut().mit_hl);
-        }
-        let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
-        let shl = crate::globals::GraphPtr::of(shl).borrow_mut();
+            Some(idx)
+        };
+        let is_search_hl = match_idx.is_none();
+        let shl = get_shl(wp, search_hl, match_idx);
         if col - 1 == shl.startcol && (is_search_hl || !shl.is_addpos) {
             *char_attr = shl.attr;
         }
-        if !is_search_hl && !cur.is_null() {
+        if !is_search_hl {
             idx += 1;
         }
     }
@@ -986,7 +993,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `setmatches()` function (`f_setmatches`).
 pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut s = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut s = crate::eval::typval::ListId::NULL;
     let win = get_optional_window(argvars, 1);
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1036,7 +1043,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             if s.is_null() {
                 let list = tv_list_alloc(9);
                 tv_list_ref(Some(&mut *list));
-                s = crate::globals::GraphPtr::<TvList>::of(&list);
+                s = list.lv_id;
             }
 
             i = 1;
@@ -1093,7 +1100,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 match_add_failed = true;
             }
             tv_list_unref(s.opt_mut());
-            s = crate::globals::GraphPtr::NULL;
+            s = crate::eval::typval::ListId::NULL;
         }
     }
     if !match_add_failed {
