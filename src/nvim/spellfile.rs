@@ -47,13 +47,12 @@ use crate::spell::{
     onecap_copy, open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug,
     spell_casefold, spell_enc, spell_soundfold, spell_toupper, with_spell_ext, with_spell_priv,
 };
-use crate::spellsuggest::{Fromto, Idx, Salitem, Slang, Spelltab};
+use crate::spellsuggest::{Fromto, Idx, Salitem, Slang, SlangId, Spelltab};
 use crate::strings::{format_to_buf, gettext, strerror, vim_strchr};
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::buf_is_changed_fn;
 use std::mem::size_of;
-use std::ptr;
 
 pub type SpellAddType = i32;
 use crate::change::TAB;
@@ -470,10 +469,42 @@ fn spell_check_magic_string(fd: &CFile) -> i32 {
 /// Load one spell file and store the info into a Slang.
 pub fn spell_load_file(
     fname_cstr: &std::ffi::CStr,
-    lang: Option<&mut [u8]>,
-    old_lp: Option<&mut Slang>,
+    mut lang: Option<&mut [u8]>,
     silent: bool,
-) -> Option<&'static mut Slang> {
+) -> Option<SlangId> {
+    let lang_cstr = lang
+        .as_deref()
+        .map(|b| crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(b)));
+    let mut new_lp = slang_alloc(lang_cstr.as_deref());
+    new_lp.sl_fname = Some(fname_cstr.to_owned());
+    new_lp.sl_add = path_tail(fname_cstr)
+        .to_bytes()
+        .windows(SPL_FNAME_ADD.len())
+        .any(|w| w == SPL_FNAME_ADD);
+
+    if !spell_load_file_into(fname_cstr, &mut new_lp, silent) {
+        if let Some(ref mut lang) = lang
+            && !lang.is_empty()
+        {
+            lang[0] = 0;
+        }
+        return None;
+    }
+
+    if lang.is_some() {
+        let id = with_spell_ext(|ext| {
+            let mut fl = ext.first_lang.borrow_mut();
+            let idx = fl.len();
+            fl.push(Some(std::rc::Rc::from(new_lp)));
+            SlangId::from_slot(idx)
+        });
+        Some(id)
+    } else {
+        None
+    }
+}
+
+fn spell_load_file_into(fname_cstr: &std::ffi::CStr, lp: &mut Slang, silent: bool) -> bool {
     let Some(fd) = CFile::open(fname_cstr, c"r") else {
         if !silent {
             semsg!(gettext(E_NOTOPEN), fname_cstr);
@@ -482,40 +513,13 @@ pub fn spell_load_file(
             smsg!(0, E_NOTOPEN, fname_cstr);
             verbose_leave();
         }
-        if let Some(lang) = lang
-            && !lang.is_empty()
-        {
-            lang[0] = 0;
-        }
-        return None;
+        return false;
     };
     if opt_vars().p_verbose > 2 {
         verbose_enter();
         smsg!(0, gettext(c"Reading spell file \"%s\""), fname_cstr);
         verbose_leave();
     }
-
-    let old_lp_ptr = crate::globals::GraphPtr::<Slang>::of(old_lp);
-    let mut owned_lp = if old_lp_ptr.is_null() {
-        let lang_cstr = lang
-            .as_deref()
-            .map(|b| crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(b)));
-        let mut new_lp = slang_alloc(lang_cstr.as_deref());
-        new_lp.sl_fname = Some(fname_cstr.to_owned());
-        new_lp.sl_add = path_tail(fname_cstr)
-            .to_bytes()
-            .windows(SPL_FNAME_ADD.len())
-            .any(|w| w == SPL_FNAME_ADD);
-        Some(new_lp)
-    } else {
-        None
-    };
-    let mut lp_ptr = crate::globals::GraphPtr::<Slang>::of(
-        owned_lp
-            .as_deref_mut()
-            .map_or(old_lp_ptr, crate::globals::GraphPtr::from),
-    );
-    let lp = lp_ptr.borrow_mut();
 
     estack_push(ETYPE_SPELL, Some(fname_cstr), 0);
     let did_estack_push = true;
@@ -629,7 +633,7 @@ pub fn spell_load_file(
                 res = read_compound(&fd, &mut *lp, len);
             }
             SN_NOBREAK => {
-                lp.sl_nobreak = true;
+                lp.sl_nobreak.set(true);
             }
             SN_SYLLABLE => {
                 let Some(raw) = read_string(&fd, len as usize) else {
@@ -703,32 +707,12 @@ pub fn spell_load_file(
         }
     }
 
-    if !fail {
-        if let Some(boxed_lp) = owned_lp.take()
-            && lang.is_some()
-        {
-            lp_ptr = with_spell_ext(|ext| {
-                let mut fl = ext.first_lang.borrow_mut();
-                fl.push(crate::spell::OwnedSlang(boxed_lp));
-                crate::globals::GraphPtr::<Slang>::from_ref(&**fl.last_mut().unwrap())
-            });
-        }
-    } else {
-        if let Some(lang) = lang
-            && !lang.is_empty()
-        {
-            lang[0] = 0;
-        }
-        drop(owned_lp);
-        lp_ptr = crate::globals::GraphPtr::NULL;
-    }
-
     spell_close(fd);
     if did_estack_push {
         estack_pop();
     }
 
-    lp_ptr.opt_mut()
+    !fail
 }
 
 fn tree_count_words(byts: &[u8], idxs: &mut [Idx]) {
@@ -779,16 +763,27 @@ pub fn suggest_load_files() {
 
     let mut lpi: usize = 0;
     while lpi < win_s(curwin_mut()).b_langp.len() {
-        let lp = &(&win_s(curwin_mut()).b_langp)[lpi];
-        let slang = lp.slang_mut();
-        if slang.sl_sugtime != 0 && !slang.sl_sugloaded {
+        let lp_slang_id = (&win_s(curwin_mut()).b_langp)[lpi].lp_slang;
+        let idx = (lp_slang_id.0.unwrap().get() - 1) as usize;
+        let need_load = lp_slang_id.rc().sl_sugtime != 0 && !lp_slang_id.rc().sl_sugloaded;
+        if need_load {
+            let rc = with_spell_ext(|ext| ext.first_lang.borrow_mut()[idx].take().unwrap());
+            let mut slang_box =
+                Box::new(std::rc::Rc::try_unwrap(rc).unwrap_or_else(|_| unreachable!()));
+            let slang = &mut *slang_box;
             slang.sl_sugloaded = true;
 
             let Some(ref fname_cstr) = slang.sl_fname else {
+                with_spell_ext(|ext| {
+                    ext.first_lang.borrow_mut()[idx] = Some(std::rc::Rc::from(slang_box))
+                });
                 lpi += 1;
                 continue;
             };
             let Some(prefix_len) = fname_cstr.to_bytes().iter().rposition(|&b| b == b'.') else {
+                with_spell_ext(|ext| {
+                    ext.first_lang.borrow_mut()[idx] = Some(std::rc::Rc::from(slang_box))
+                });
                 lpi += 1;
                 continue;
             };
@@ -797,6 +792,9 @@ pub fn suggest_load_files() {
                 c".spl",
                 K_PATH_CMP_LITERAL,
             ) {
+                with_spell_ext(|ext| {
+                    ext.first_lang.borrow_mut()[idx] = Some(std::rc::Rc::from(slang_box))
+                });
                 lpi += 1;
                 continue;
             }
@@ -851,8 +849,9 @@ pub fn suggest_load_files() {
                     }
 
                     if !someerror {
-                        slang.sl_sugbuf = Some(open_spellbuf());
-                        let sugbuf = slang.sl_sugbuf.as_deref_mut().unwrap();
+                        *slang.sl_sugbuf.borrow_mut() = Some(open_spellbuf());
+                        let mut sugbuf_borrow = slang.sl_sugbuf.borrow_mut();
+                        let sugbuf = sugbuf_borrow.as_deref_mut().unwrap();
                         let wcount = get4c(&fd);
                         if wcount < 0 {
                             someerror = true;
@@ -900,6 +899,9 @@ pub fn suggest_load_files() {
                 }
                 spell_close(fd);
             }
+            with_spell_ext(|ext| {
+                ext.first_lang.borrow_mut()[idx] = Some(std::rc::Rc::from(slang_box))
+            });
         }
         lpi += 1;
     }
@@ -1585,19 +1587,25 @@ fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
 
     let len = with_spell_ext(|ext| ext.first_lang.borrow().len());
     for i in (0..len).rev() {
-        let slang_ptr = with_spell_ext(|ext| {
-            crate::globals::GraphPtr::<Slang>::from_ref(&*ext.first_lang.borrow_mut()[i])
+        let matches = with_spell_ext(|ext| {
+            ext.first_lang.borrow()[i].as_ref().is_some_and(|slang| {
+                slang
+                    .sl_fname
+                    .as_ref()
+                    .is_some_and(|f| path_equal(fname_cstr, f, K_PATH_CMP_EXPAND))
+            })
         });
-        let slang = slang_ptr.borrow_mut();
-        if slang
-            .sl_fname
-            .as_ref()
-            .is_some_and(|f| path_equal(fname_cstr, f, K_PATH_CMP_EXPAND))
-        {
-            slang_clear(&mut *slang);
-            if spell_load_file(fname_cstr, None, Some(slang), false).is_none() {
-                slang_clear(&mut *slang);
+        if matches {
+            let rc = with_spell_ext(|ext| ext.first_lang.borrow_mut()[i].take().unwrap());
+            let mut slang_box =
+                Box::new(std::rc::Rc::try_unwrap(rc).unwrap_or_else(|_| unreachable!()));
+            slang_clear(&mut slang_box);
+            if !spell_load_file_into(fname_cstr, &mut slang_box, false) {
+                slang_clear(&mut slang_box);
             }
+            with_spell_ext(|ext| {
+                ext.first_lang.borrow_mut()[i] = Some(std::rc::Rc::from(slang_box));
+            });
             redraw_all_later(UPD_SOME_VALID);
             didit = true;
         }
@@ -1655,7 +1663,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     let mut rline = [0u8; MAXLINELEN];
     let mut pc_vec: Vec<u8>;
     let mut lnum: i32 = 0;
-    let mut cur_aff = crate::globals::GraphPtr::<Affheader>::NULL;
+    let mut cur_aff_key: Option<(bool, Vec<u8>)> = None;
     let mut did_postpone_prefix = false;
     let mut aff_todo: i32 = 0;
     let mut has_low = false;
@@ -2018,7 +2026,8 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 let mut lasti: usize = 4;
                 let mut key = [0u8; AH_KEY_LEN];
 
-                let tp = if item0_bytes[0] == b'P' {
+                let is_pref = item0_bytes[0] == b'P';
+                let tp = if is_pref {
                     &mut aff.af_pref
                 } else {
                     &mut aff.af_suff
@@ -2027,9 +2036,8 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 let item2_bytes = items[2].to_bytes();
                 crate::memory::copy_bytes_to_c_buf(&mut key, items[1].to_bytes());
                 let key_bytes = crate::memory::bytes_until_nul(&key);
-                if let Some(existing_aff) = tp.get_mut(key_bytes) {
-                    cur_aff = crate::globals::GraphPtr::<Affheader>::from_ref(&*existing_aff);
-                    if cur_aff.ah_combine != i32::from(item2_bytes.first() == Some(&b'Y')) {
+                let cur_aff = if let Some(existing_aff) = tp.get_mut(key_bytes) {
+                    if existing_aff.ah_combine != i32::from(item2_bytes.first() == Some(&b'Y')) {
                         smsg!(
                             0,
                             gettext(
@@ -2040,7 +2048,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[1],
                         );
                     }
-                    if cur_aff.ah_follows == 0 {
+                    if existing_aff.ah_follows == 0 {
                         smsg!(
                             0,
                             gettext(c"Duplicate affix in %s line %d: %s"),
@@ -2049,6 +2057,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[1],
                         );
                     }
+                    existing_aff
                 } else {
                     let ah_flag = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
                     if ah_flag == 0 || items[1].to_bytes().len() >= AH_KEY_LEN {
@@ -2082,10 +2091,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         ah_entries: Vec::new(),
                     };
                     new_ah.ah_key[..key_bytes.len()].copy_from_slice(key_bytes);
-                    cur_aff = crate::globals::GraphPtr::<Affheader>::from_ref(
-                        &*tp.entry(key_bytes.to_vec()).or_insert(new_ah),
-                    );
-                }
+                    tp.entry(key_bytes.to_vec()).or_insert(new_ah)
+                };
+                cur_aff_key = Some((is_pref, key_bytes.to_vec()));
 
                 if itemcnt > lasti && items[lasti].to_bytes() == b"S" {
                     lasti += 1;
@@ -2125,8 +2133,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 aff_todo = crate::charset::parse_i64_prefix(items[3].to_bytes()) as i32;
             } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
                 && aff_todo > 0
-                && (crate::memory::bytes_until_nul(&(cur_aff.borrow().ah_key))
-                    == items[1].to_bytes())
+                && cur_aff_key
+                    .as_ref()
+                    .is_some_and(|(_, k)| k.as_slice() == items[1].to_bytes())
                 && itemcnt >= 5
             {
                 let lasti: usize = 5;
@@ -2173,7 +2182,12 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             .add_cstr()
                             .is_none_or(|s| s.to_bytes().is_ascii()))
                 {
-                    let cur_aff_mut = cur_aff.borrow_mut();
+                    let (is_pref, ref aff_k) = *cur_aff_key.as_ref().unwrap();
+                    let cur_aff_mut = if is_pref {
+                        aff.af_pref.get_mut(aff_k.as_slice()).unwrap()
+                    } else {
+                        aff.af_suff.get_mut(aff_k.as_slice()).unwrap()
+                    };
                     cur_aff_mut.ah_entries.insert(0, aff_entry_val);
                     let aff_entry = &mut cur_aff_mut.ah_entries[0];
 
@@ -4424,20 +4438,25 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 }
 
 fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
-    let mut slang = with_spell_ext(|ext| {
+    let found_idx = with_spell_ext(|ext| {
         ext.first_lang
-            .borrow_mut()
-            .iter_mut()
+            .borrow()
+            .iter()
+            .enumerate()
             .rev()
-            .find(|s| {
-                s.sl_fname
-                    .as_ref()
-                    .is_some_and(|f| path_equal(wfname_cstr, f, K_PATH_CMP_EXPAND))
+            .find(|(_, s)| {
+                s.as_ref().is_some_and(|s| {
+                    s.sl_fname
+                        .as_ref()
+                        .is_some_and(|f| path_equal(wfname_cstr, f, K_PATH_CMP_EXPAND))
+                })
             })
-            .map_or(ptr::null_mut(), |s| &raw mut **s)
+            .map(|(idx, _)| idx)
     });
-    let mut temp_slang: Option<Box<Slang>> = None;
-    if slang.is_null() {
+    let mut slang_box: Box<Slang> = if let Some(idx) = found_idx {
+        let rc = with_spell_ext(|ext| ext.first_lang.borrow_mut()[idx].take().unwrap());
+        Box::new(std::rc::Rc::try_unwrap(rc).unwrap_or_else(|_| unreachable!()))
+    } else {
         spell_message(&*spin, gettext(c"Reading back spell file..."));
         let mut new_lp = slang_alloc(None::<&std::ffi::CStr>);
         new_lp.sl_fname = Some(wfname_cstr.to_owned());
@@ -4445,13 +4464,11 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
             .to_bytes()
             .windows(SPL_FNAME_ADD.len())
             .any(|w| w == SPL_FNAME_ADD);
-        slang = spell_load_file(wfname_cstr, None, Some(&mut *new_lp), false)
-            .map_or(ptr::null_mut(), |lp| &raw mut *lp);
-        if slang.is_null() {
+        if !spell_load_file_into(wfname_cstr, &mut new_lp, false) {
             return;
         }
-        temp_slang = Some(new_lp);
-    }
+        new_lp
+    };
 
     spin.si_nodes.clear();
     spin.si_blocks_cnt = 0;
@@ -4461,7 +4478,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
     spin.si_foldwcount = 0;
 
     spell_message(&*spin, gettext(c"Performing soundfolding..."));
-    if sug_filltree(spin, crate::globals::GraphPtr::of(slang).borrow_mut()) && sug_maketable(spin) {
+    if sug_filltree(spin, &mut slang_box) && sug_maketable(spin) {
         smsg!(
             0,
             gettext(c"Number of words after soundfolding: %lld"),
@@ -4479,7 +4496,13 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
         sug_write(spin, crate::memory::bytes_as_cstr(&fname_buf));
     }
 
-    drop(temp_slang);
+    if let Some(idx) = found_idx {
+        with_spell_ext(|ext| {
+            ext.first_lang.borrow_mut()[idx] = Some(std::rc::Rc::from(slang_box));
+        });
+    } else {
+        drop(slang_box);
+    }
     spin.si_nodes.clear();
     close_spellbuf(&mut spin.si_spellbuf);
 }
@@ -4499,11 +4522,6 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
         return false;
     }
     let fbyts_len = slang.sl_fbyts.len() as i32;
-    let slang_ptr = crate::globals::GraphPtr::<Slang>::from_ref(slang);
-    let (byts, idxs): (&[u8], &mut [Idx]) = (
-        &slang_ptr.borrow().sl_fbyts,
-        &mut slang_ptr.borrow_mut().sl_fidxs,
-    );
 
     arridx[0] = 0;
     curi[0] = 1;
@@ -4512,8 +4530,8 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
     let mut depth: isize = 0;
     while depth >= 0 && !g_st().got_int {
         let d = depth as usize;
-        if curi[d] > i32::from(byts[arridx[d] as usize]) {
-            idxs[arridx[d] as usize] = wordcount[d];
+        if curi[d] > i32::from(slang.sl_fbyts[arridx[d] as usize]) {
+            slang.sl_fidxs[arridx[d] as usize] = wordcount[d];
             if depth > 0 {
                 wordcount[d - 1] += wordcount[d];
             }
@@ -4523,7 +4541,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
             let mut n = arridx[d] + curi[d];
             curi[d] += 1;
 
-            let c = i32::from(byts[n as usize]);
+            let c = i32::from(slang.sl_fbyts[n as usize]);
             if c == 0 {
                 tword[d] = 0;
                 spell_soundfold(slang, &tword[..d], true, &mut tsalword);
@@ -4543,7 +4561,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
                 wordcount[d] += 1;
                 spin.si_blocks_cnt = 0;
 
-                while n + 1 < fbyts_len && byts[(n + 1) as usize] == 0 {
+                while n + 1 < fbyts_len && slang.sl_fbyts[(n + 1) as usize] == 0 {
                     n += 1;
                     curi[d] += 1;
                 }
@@ -4551,7 +4569,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
                 tword[d] = c as u8;
                 depth += 1;
                 let nd = depth as usize;
-                arridx[nd] = idxs[n as usize];
+                arridx[nd] = slang.sl_fidxs[n as usize];
                 curi[nd] = 1;
                 wordcount[nd] = 0;
             }
@@ -5181,10 +5199,8 @@ fn init_spellfile() {
         ((spl_cstr.as_ptr().wrapping_add(lend_off) as isize) - (lstart.as_ptr() as isize)) as i32;
     format_to_buf!(&mut buf_arr[cur_len..], c"/%.*s", lstart_len, lstart);
 
-    let fname_opt = (&win_s(curwin_mut()).b_langp)[0]
-        .slang_mut()
-        .sl_fname
-        .as_deref();
+    let slang0 = (&win_s(curwin_mut()).b_langp)[0].slang();
+    let fname_opt = slang0.sl_fname.as_deref();
     let sp_enc = spell_enc();
     let enc_suffix =
         if fname_opt.is_some_and(|f| path_tail(f).to_bytes().windows(7).any(|w| w == b".ascii.")) {

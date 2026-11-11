@@ -109,8 +109,40 @@ pub struct Salitem {
     pub sm_to_w: Vec<i32>,
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct SlangId(pub Option<std::num::NonZeroU32>);
+
+impl SlangId {
+    pub const NULL: Self = Self(None);
+
+    #[inline]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline]
+    pub fn opt_rc(self) -> Option<std::rc::Rc<Slang>> {
+        let idx = (self.0?.get() - 1) as usize;
+        with_spell_ext(|ext| ext.first_lang.borrow().get(idx).and_then(|s| s.clone()))
+    }
+
+    #[inline]
+    pub fn rc(self) -> std::rc::Rc<Slang> {
+        self.opt_rc().expect("null SlangId")
+    }
+}
+
 impl Drop for Slang {
     fn drop(&mut self) {
+        if crate::globals::g_st().exiting {
+            return;
+        }
         crate::spell::slang_clear(self);
     }
 }
@@ -128,7 +160,7 @@ pub struct Slang {
     pub sl_info: Option<std::ffi::CString>,
     pub sl_regions: [u8; MAXREGIONS * 2 + 1],
     pub sl_midword: Option<std::ffi::CString>,
-    pub sl_wordcount: std::collections::BTreeMap<Vec<u8>, u16>,
+    pub sl_wordcount: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, u16>>,
     pub sl_compmax: i32,
     pub sl_compminlen: i32,
     pub sl_compsylmax: i32,
@@ -138,7 +170,7 @@ pub struct Slang {
     pub sl_comprules: Option<std::ffi::CString>,
     pub sl_compstartflags: Option<std::ffi::CString>,
     pub sl_compallflags: Option<std::ffi::CString>,
-    pub sl_nobreak: bool,
+    pub sl_nobreak: std::cell::Cell<bool>,
     pub sl_syllable: Option<std::ffi::CString>,
     pub sl_syl_items: Vec<crate::spell::SylItem>,
     pub sl_prefprog: Vec<Option<Box<crate::regexp::Regprog>>>,
@@ -158,12 +190,12 @@ pub struct Slang {
     pub sl_sugtime: i64,
     pub sl_sbyts: Vec<u8>,
     pub sl_sidxs: Vec<Idx>,
-    pub sl_sugbuf: Option<Box<FileBuf>>,
+    pub sl_sugbuf: std::cell::RefCell<Option<Box<FileBuf>>>,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
     pub sl_map_hash: std::collections::BTreeMap<i32, i32>,
     pub sl_map_array: [i32; 256],
-    pub sl_sounddone: std::collections::BTreeMap<Vec<u8>, i16>,
+    pub sl_sounddone: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, i16>>,
 }
 
 impl Slang {
@@ -176,26 +208,25 @@ impl Slang {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Langp {
-    pub lp_slang: crate::globals::GraphPtr<Slang>,
-    pub lp_sallang: crate::globals::GraphPtr<Slang>,
-    pub lp_replang: crate::globals::GraphPtr<Slang>,
+    pub lp_slang: SlangId,
+    pub lp_sallang: SlangId,
+    pub lp_replang: SlangId,
     pub lp_region: i32,
 }
 
 impl Langp {
     pub const fn new() -> Self {
         Self {
-            lp_slang: crate::globals::GraphPtr::NULL,
-            lp_sallang: crate::globals::GraphPtr::NULL,
-            lp_replang: crate::globals::GraphPtr::NULL,
+            lp_slang: SlangId::NULL,
+            lp_sallang: SlangId::NULL,
+            lp_replang: SlangId::NULL,
             lp_region: 0,
         }
     }
 
     #[inline]
-    pub fn slang_mut(&self) -> &'static mut Slang {
-        assert!(!self.lp_slang.is_null());
-        self.lp_slang.borrow_mut()
+    pub fn slang(&self) -> std::rc::Rc<Slang> {
+        self.lp_slang.rc()
     }
 }
 
@@ -243,7 +274,7 @@ struct Suginfo {
     su_fbadword: [u8; MAXWLEN],
     su_sal_badword: [u8; MAXWLEN],
     su_banned: std::collections::HashSet<Vec<u8>>,
-    su_sallang: crate::globals::GraphPtr<Slang>,
+    su_sallang: SlangId,
 }
 
 impl Default for Suginfo {
@@ -261,7 +292,7 @@ impl Default for Suginfo {
             su_fbadword: [0; MAXWLEN],
             su_sal_badword: [0; MAXWLEN],
             su_banned: std::collections::HashSet::new(),
-            su_sallang: crate::globals::GraphPtr::NULL,
+            su_sallang: SlangId::NULL,
         }
     }
 }
@@ -274,7 +305,7 @@ struct Suggest {
     st_altscore: i32,
     st_salscore: bool,
     st_had_bonus: bool,
-    st_slang: crate::globals::GraphPtr<Slang>,
+    st_slang: SlangId,
 }
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -432,7 +463,11 @@ fn can_be_compound(sp: &Trystate, slang: &Slang, compflags: &mut [u8], flag: i32
     true
 }
 fn score_wordcount_adj(slang: &Slang, score: i32, word: &[u8], split: bool) -> i32 {
-    let Some(&wc_count) = slang.sl_wordcount.get(crate::memory::bytes_until_nul(word)) else {
+    let Some(&wc_count) = slang
+        .sl_wordcount
+        .borrow()
+        .get(crate::memory::bytes_until_nul(word))
+    else {
         return score;
     };
     let bonus = if wc_count < SCORE_THRES2 {
@@ -851,7 +886,7 @@ fn spell_find_suggest(
     }
     if !su.su_sallang.is_null() {
         spell_soundfold(
-            su.su_sallang.borrow_mut(),
+            &su.su_sallang.rc(),
             &su.su_fbadword,
             true,
             &mut su.su_sal_badword,
@@ -868,7 +903,7 @@ fn spell_find_suggest(
             SCORE_ICASE,
             0,
             true,
-            su.su_sallang.opt_mut(),
+            su.su_sallang,
             false,
         );
     }
@@ -923,7 +958,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                         score,
                         0,
                         true,
-                        su.su_sallang.opt_mut(),
+                        su.su_sallang,
                         false,
                     );
                 }
@@ -977,7 +1012,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
                 SCORE_FILE,
                 0,
                 true,
-                su.su_sallang.opt_mut(),
+                su.su_sallang,
                 false,
             );
         }
@@ -1042,7 +1077,7 @@ fn suggest_try_special(su: &mut Suginfo) {
             rescore(SCORE_REP, 0),
             0,
             true,
-            su.su_sallang.opt_mut(),
+            su.su_sallang,
             false,
         );
     }
@@ -1063,7 +1098,7 @@ fn suggest_try_change(su: &mut Suginfo) {
     }
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        if lp.slang_mut().sl_fbyts.is_empty() {
+        if lp.slang().sl_fbyts.is_empty() {
             continue;
         }
         suggest_trie_walk(su, lp, &mut fword, false);
@@ -1092,7 +1127,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
     let mut fl: i32;
     let mut tl: i32;
     let mut repextra: i32 = 0;
-    let slang = lp.lp_slang.borrow_mut();
+    let slang_rc = lp.lp_slang.rc();
+    let slang = &*slang_rc;
+    let replang_rc = lp.lp_replang.opt_rc();
     let mut goodword_ends: bool;
     let mut breakcheckcount: i32 = 1000;
     let mut depth: isize = 0;
@@ -1234,7 +1271,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 let mut p_off: Option<usize> = None;
                 let mut compound_ok = true;
                 if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
-                    if slang.sl_nobreak {
+                    if slang.sl_nobreak.get() {
                         let split_len =
                             (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize;
                         let sf_off = stack[udepth].ts_splitfidx as usize;
@@ -1260,7 +1297,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                     newscore,
                                     0,
                                     false,
-                                    lp.lp_sallang.opt_mut(),
+                                    lp.lp_sallang,
                                     false,
                                 );
                             }
@@ -1420,7 +1457,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 score,
                                 0,
                                 false,
-                                lp.lp_sallang.opt_mut(),
+                                lp.lp_sallang,
                                 false,
                             );
                             if (su.su_badflags & WF_MIXCAP) != 0 {
@@ -1439,7 +1476,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                         score + SCORE_ICASE,
                                         0,
                                         false,
-                                        lp.lp_sallang.opt_mut(),
+                                        lp.lp_sallang,
                                         false,
                                     );
                                 }
@@ -1480,7 +1517,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         compflags[stack[udepth].ts_complen as usize] = ((flags as u32) >> 24) as u8;
                         compflags[stack[udepth].ts_complen as usize + 1] = 0;
                     }
-                    if slang.sl_nobreak && !slang.sl_nocompoundsugs {
+                    if slang.sl_nobreak.get() && !slang.sl_nocompoundsugs {
                         try_compound = true;
                     } else if !fword_ends
                         && try_compound
@@ -1991,7 +2028,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         stack[udepth].ts_curi = if soundfold {
                             slang.sl_repsal_first[first_byte]
                         } else {
-                            lp.lp_replang.sl_rep_first[first_byte]
+                            replang_rc.as_ref().unwrap().sl_rep_first[first_byte]
                         };
                         if stack[udepth].ts_curi < 0 {
                             stack[udepth].ts_state = SugState::StateFinal;
@@ -2006,7 +2043,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
-                        &lp.lp_replang.sl_rep
+                        &replang_rc.as_ref().unwrap().sl_rep
                     };
                     while (stack[udepth].ts_curi as usize) < gap.len() {
                         let curi = stack[udepth].ts_curi;
@@ -2059,7 +2096,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 let gap = if soundfold {
                     &slang.sl_repsal
                 } else {
-                    &lp.lp_replang.sl_rep
+                    &replang_rc.as_ref().unwrap().sl_rep
                 };
                 let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
                 fl = ftp.ft_from.as_bytes().len() as i32;
@@ -2198,11 +2235,11 @@ fn score_comp_sal(su: &mut Suginfo) {
     sga.reserve(su.su_ga.len());
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        let slang = lp.slang_mut();
+        let slang = lp.slang();
         if slang.has_sal() {
-            spell_soundfold(slang, &su.su_fbadword, true, &mut badsound);
+            spell_soundfold(&slang, &su.su_fbadword, true, &mut badsound);
             for stp in &su.su_ga {
-                let score = stp_sal_score(stp, su, lp.slang_mut(), &badsound);
+                let score = stp_sal_score(stp, su, &slang, &badsound);
                 if score < SCORE_MAXMAX {
                     let sga = &mut su.su_sga;
                     sga.push(Suggest {
@@ -2213,7 +2250,7 @@ fn score_comp_sal(su: &mut Suginfo) {
                         st_altscore: 0,
                         st_salscore: false,
                         st_had_bonus: false,
-                        st_slang: crate::globals::GraphPtr::NULL,
+                        st_slang: SlangId::NULL,
                     });
                 }
             }
@@ -2223,15 +2260,15 @@ fn score_comp_sal(su: &mut Suginfo) {
 }
 fn score_combine(su: &mut Suginfo) {
     let mut badsound: [u8; MAXWLEN] = [0; MAXWLEN];
-    let mut slang_opt: Option<&'static mut Slang> = None;
+    let mut slang_opt: Option<std::rc::Rc<Slang>> = None;
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        if lp.slang_mut().has_sal() {
-            let s = lp.slang_mut();
-            spell_soundfold(s, &su.su_fbadword, true, &mut badsound);
+        let s = lp.slang();
+        if s.has_sal() {
+            spell_soundfold(&s, &su.su_fbadword, true, &mut badsound);
             let mut su_ga = std::mem::take(&mut su.su_ga);
             for stp in &mut su_ga {
-                stp.st_altscore = stp_sal_score(stp, su, lp.slang_mut(), &badsound);
+                stp.st_altscore = stp_sal_score(stp, su, &s, &badsound);
                 if stp.st_altscore == SCORE_MAXMAX {
                     stp.st_score = (stp.st_score * 3 + SCORE_BIG) / 4;
                 } else {
@@ -2240,7 +2277,7 @@ fn score_combine(su: &mut Suginfo) {
                 stp.st_salscore = false;
             }
             su.su_ga = su_ga;
-            slang_opt = Some(lp.slang_mut());
+            slang_opt = Some(s);
             break;
         }
     }
@@ -2249,8 +2286,7 @@ fn score_combine(su: &mut Suginfo) {
         return;
     };
     for stp in &mut su.su_sga {
-        stp.st_altscore =
-            spell_edit_score(Some(&mut *slang), &su.su_badword, stp.st_word.to_bytes());
+        stp.st_altscore = spell_edit_score(Some(&slang), &su.su_badword, stp.st_word.to_bytes());
         if stp.st_score == SCORE_MAXMAX {
             stp.st_score = (SCORE_BIG * 7 + stp.st_altscore) / 8;
         } else {
@@ -2287,7 +2323,7 @@ fn score_combine(su: &mut Suginfo) {
     ga.truncate(maxcount);
     su.su_ga = ga;
 }
-fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]) -> i32 {
+fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &Slang, badsound: &[u8]) -> i32 {
     let mut badsound2: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut fword: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut goodsound: [u8; MAXWLEN] = [0; MAXWLEN];
@@ -2340,9 +2376,9 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
 fn suggest_try_soundalike_prep() {
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        let slang = lp.slang_mut();
+        let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
-            slang.sl_sounddone.clear();
+            slang.sl_sounddone.borrow_mut().clear();
         }
     }
 }
@@ -2350,9 +2386,9 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
     let mut salword: [u8; MAXWLEN] = [0; MAXWLEN];
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        let slang = lp.slang_mut();
+        let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
-            spell_soundfold(slang, &su.su_fbadword, true, &mut salword);
+            spell_soundfold(&slang, &su.su_fbadword, true, &mut salword);
             suggest_trie_walk(su, lp, &mut salword, true);
         }
     }
@@ -2360,38 +2396,43 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
 fn suggest_try_soundalike_finish() {
     let w_s = curwin_mut().w_s_ptr();
     for lp in &w_s.b_langp {
-        let slang = lp.slang_mut();
+        let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
-            slang.sl_sounddone.clear();
+            slang.sl_sounddone.borrow_mut().clear();
         }
     }
 }
 fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) {
-    let slang = lp.slang_mut();
+    let slang = lp.slang();
     let mut theword: [u8; MAXWLEN] = [0; MAXWLEN];
     let goodword_bytes = crate::memory::bytes_until_nul(goodword);
-    if let Some(prev_score) = slang.sl_sounddone.get_mut(goodword_bytes) {
-        if score >= *prev_score as i32 {
-            return;
+    {
+        let mut sounddone = slang.sl_sounddone.borrow_mut();
+        if let Some(prev_score) = sounddone.get_mut(goodword_bytes) {
+            if score >= *prev_score as i32 {
+                return;
+            }
+            *prev_score = score as i16;
+        } else {
+            sounddone.insert(goodword_bytes.to_vec(), score as i16);
         }
-        *prev_score = score as i16;
-    } else {
-        slang
-            .sl_sounddone
-            .insert(goodword_bytes.to_vec(), score as i16);
     }
-    let sfwordnr = soundfold_find(slang, goodword_bytes);
+    let sfwordnr = soundfold_find(&slang, goodword_bytes);
     if sfwordnr < 0 {
         internal_error(c"add_sound_suggest()");
         return;
     }
-    let sugbuf = slang.sl_sugbuf.as_deref_mut().unwrap();
-    let mut nrline = crate::memline::ml_get_buf_slice(sugbuf, sfwordnr + 1);
+    let nrline_vec = {
+        let mut sugbuf_borrow = slang.sl_sugbuf.borrow_mut();
+        let sugbuf = sugbuf_borrow.as_deref_mut().unwrap();
+        crate::memline::ml_get_buf_slice(sugbuf, sfwordnr + 1).to_vec()
+    };
+    let mut nrline: &[u8] = &nrline_vec;
     let mut orgnr: i32 = 0;
     while !nrline.is_empty() {
         orgnr += bytes2offset(&mut nrline);
-        let byts = &lp.slang_mut().sl_fbyts;
-        let idxs = &lp.slang_mut().sl_fidxs;
+        let byts = &slang.sl_fbyts;
+        let idxs = &slang.sl_fidxs;
         let mut n: Idx = 0;
         let mut wordcount: i32 = 0;
         let mut wlen: usize = 0;
@@ -2435,7 +2476,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                 continue;
             }
             let p_slice: &[u8] = if (flags & WF_KEEPCAP) != 0 {
-                find_keepcap_word(lp.slang_mut(), &theword, &mut cword);
+                find_keepcap_word(&slang, &theword, &mut cword);
                 &cword
             } else {
                 flags |= su.su_badflags;
@@ -2456,7 +2497,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                         score,
                         0,
                         false,
-                        Some(lp.slang_mut()),
+                        lp.lp_slang,
                         false,
                     );
                 }
@@ -2477,17 +2518,13 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                 }
                 let limit = maxscore(su.su_sfmaxscore - goodscore, score);
                 if limit > SCORE_LIMITMAX {
-                    goodscore += spell_edit_score(Some(lp.slang_mut()), &su.su_badword, p_slice);
+                    goodscore += spell_edit_score(Some(&slang), &su.su_badword, p_slice);
                 } else {
-                    goodscore += spell_edit_score_limit(
-                        Some(lp.slang_mut()),
-                        &su.su_badword,
-                        p_slice,
-                        limit,
-                    );
+                    goodscore +=
+                        spell_edit_score_limit(Some(&slang), &su.su_badword, p_slice, limit);
                 }
                 if goodscore < SCORE_MAXMAX {
-                    goodscore = score_wordcount_adj(lp.slang_mut(), goodscore, p_slice, false);
+                    goodscore = score_wordcount_adj(&slang, goodscore, p_slice, false);
                     goodscore = rescore(goodscore, score);
                     if goodscore <= su.su_sfmaxscore {
                         add_suggestion(
@@ -2498,7 +2535,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                             goodscore,
                             score,
                             true,
-                            Some(lp.slang_mut()),
+                            lp.lp_slang,
                             true,
                         );
                     }
@@ -2508,7 +2545,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
         }
     }
 }
-fn soundfold_find(slang: &mut Slang, word: &[u8]) -> i32 {
+fn soundfold_find(slang: &Slang, word: &[u8]) -> i32 {
     let word_bytes = crate::memory::bytes_until_nul(word);
     let mut arridx: Idx = 0;
     let mut wlen: usize = 0;
@@ -2587,10 +2624,9 @@ fn add_suggestion(
     score: i32,
     altscore: i32,
     had_bonus: bool,
-    slang: Option<&mut Slang>,
+    slang_ptr: SlangId,
     maxsf: bool,
 ) {
-    let slang_ptr = crate::globals::GraphPtr::<Slang>::of(slang);
     let goodword_bytes = crate::memory::bytes_until_nul(goodword);
     let bad_slice = &su.su_badptr.to_bytes()[..badlenarg.max(0) as usize];
     let mut pgood_idx = goodword_bytes.len();
@@ -2637,7 +2673,7 @@ fn add_suggestion(
                 st_altscore: altscore,
                 st_salscore: false,
                 st_had_bonus: had_bonus,
-                st_slang: crate::globals::GraphPtr::NULL,
+                st_slang: SlangId::NULL,
             };
             if stp.st_had_bonus != had_bonus {
                 if had_bonus {
@@ -2733,18 +2769,21 @@ fn rescore_suggestions(su: &mut Suginfo) {
     }
 }
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
-    let slang = stp.st_slang;
+    let slang_id = stp.st_slang;
     let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
-    if !slang.is_null() && slang.has_sal() && !stp.st_had_bonus {
-        let p_slice: &[u8] = if su.su_sallang == slang {
+    if let Some(slang) = slang_id.opt_rc()
+        && slang.has_sal()
+        && !stp.st_had_bonus
+    {
+        let p_slice: &[u8] = if su.su_sallang == slang_id {
             &su.su_sal_badword
         } else {
-            spell_soundfold(slang.borrow_mut(), &su.su_fbadword, true, &mut sal_badword);
+            spell_soundfold(&slang, &su.su_fbadword, true, &mut sal_badword);
 
             &sal_badword
         };
 
-        stp.st_altscore = stp_sal_score(stp, su, slang.borrow_mut(), p_slice);
+        stp.st_altscore = stp_sal_score(stp, su, &slang, p_slice);
 
         if stp.st_altscore == SCORE_MAXMAX {
             stp.st_altscore = SCORE_BIG;
@@ -2915,7 +2954,7 @@ fn soundalike_score(goodstart: &[u8], badstart: &[u8]) -> i32 {
     }
     SCORE_MAXMAX
 }
-fn spell_edit_score(mut slang: Option<&mut Slang>, badword: &[u8], goodword: &[u8]) -> i32 {
+fn spell_edit_score(slang: Option<&Slang>, badword: &[u8], goodword: &[u8]) -> i32 {
     let mut wbadword: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut wgoodword: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut badlen: usize = 0;
@@ -2951,9 +2990,9 @@ fn spell_edit_score(mut slang: Option<&mut Slang>, badword: &[u8], goodword: &[u
                 let prev_diag = cnt[(i - 1) + (j - 1) * stride];
                 let mut val = if spell_tofold(bc) == spell_tofold(gc) {
                     SCORE_ICASE + prev_diag
-                } else if slang.is_some()
-                    && slang.as_deref_mut().unwrap().sl_has_map
-                    && similar_chars(slang.as_deref_mut().unwrap(), gc, bc)
+                } else if let Some(slang) = slang
+                    && slang.sl_has_map
+                    && similar_chars(slang, gc, bc)
                 {
                     SCORE_SIMILAR + prev_diag
                 } else {
@@ -2978,7 +3017,7 @@ fn spell_edit_score(mut slang: Option<&mut Slang>, badword: &[u8], goodword: &[u
     cnt[(badlen - 1) + (goodlen - 1) * stride]
 }
 fn spell_edit_score_limit(
-    slang: Option<&mut Slang>,
+    slang: Option<&Slang>,
     badword: &[u8],
     goodword: &[u8],
     limit: i32,
@@ -2986,7 +3025,7 @@ fn spell_edit_score_limit(
     spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(
-    mut slang: Option<&mut Slang>,
+    slang: Option<&Slang>,
     badword: &[u8],
     goodword: &[u8],
     limit: i32,
@@ -3098,9 +3137,9 @@ fn spell_edit_score_limit_w(
                 }
                 if spell_tofold(bc) == spell_tofold(gc) {
                     score += SCORE_ICASE;
-                } else if slang.is_some()
-                    && slang.as_deref_mut().unwrap().sl_has_map
-                    && similar_chars(slang.as_deref_mut().unwrap(), gc, bc)
+                } else if let Some(slang) = slang
+                    && slang.sl_has_map
+                    && similar_chars(slang, gc, bc)
                 {
                     score += SCORE_SIMILAR;
                 } else {
