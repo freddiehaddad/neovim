@@ -38,9 +38,9 @@ impl MpackData {
     }
 
     #[inline]
-    pub fn list(&self) -> &'static mut crate::eval::typval::TvList {
-        match *self {
-            Self::List(p) => p.borrow_mut(),
+    pub fn list(&self) -> &crate::eval::typval::TvList {
+        match self {
+            Self::List(p) => p,
             _ => unreachable!(),
         }
     }

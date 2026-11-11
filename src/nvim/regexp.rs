@@ -1992,9 +1992,9 @@ use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline(always)]
-pub(super) fn tv_list_ref(l: Option<&mut TvList>) {
+pub(super) fn tv_list_ref(l: Option<&TvList>) {
     if let Some(l) = l {
-        l.lv_refcount += 1;
+        l.lv_refcount.set(l.lv_refcount.get() + 1);
     }
 }
 
@@ -3275,9 +3275,9 @@ pub(crate) fn fill_submatch_list(
         return argskip;
     }
     let listarg = &mut argv[argskip as usize];
-    tv_list_init_static10(listarg.vval.v_list().borrow_mut());
+    tv_list_init_static10(&listarg.vval.v_list());
 
-    let mut li = listarg.vval.v_list().lv_first;
+    let mut li = listarg.vval.v_list().lv_first.get();
     for i in 0..10 {
         let s = RE_STATE.with(|s| s.rsm.get()).sm_startp[i];
         let e = RE_STATE.with(|s| s.rsm.get()).sm_endp[i];
@@ -3437,11 +3437,11 @@ fn vim_regsub_both(
             if let Some(expr) = expr {
                 let mut argv: [TypVal; 2] = [const { TypVal::new() }; 2];
                 let mut rettv: TypVal = TypVal::new();
-                let match_list_id = tv_list_alloc_static().lv_id;
+                let match_list_id = tv_list_alloc_static();
                 rettv.v_type = VarType::VarString;
                 rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                 argv[0].v_type = VarType::VarList;
-                argv[0].vval = crate::eval::typval::TypvalVval::List(match_list_id);
+                argv[0].vval = crate::eval::typval::TypvalVval::List(match_list_id.clone());
                 let mut funcexe = Funcexe {
                     fe_fill_submatch: true,
                     fe_firstline: 0,
@@ -3472,7 +3472,7 @@ fn vim_regsub_both(
                     }
                 }
                 tv_clear(&mut rettv);
-                if let Some(match_list) = match_list_id.opt_mut() {
+                if let Some(match_list) = match_list_id.opt() {
                     tv_list_free_contents(match_list);
                     unref_var_list(match_list);
                 }
@@ -3826,12 +3826,12 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
     }
 }
 
-pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
+pub fn reg_submatch_list(no: i32) -> Option<crate::eval::typval::ListId> {
     if !RE_STATE.with(|s| s.can_f_submatch.get()) || no < 0 {
         return None;
     }
     let no = no as usize;
-    let list: &'static mut TvList;
+    let list: crate::eval::typval::ListId;
     let rsm = RE_STATE.with(|s| s.rsm.get());
 
     if !rsm.sm_has_match {
@@ -3850,19 +3850,19 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
         let s = &first_line[(scol as usize).min(first_line.len())..];
         if slnum == elnum {
             crate::eval::typval::tv_list_append_bytes(
-                list,
+                &list,
                 &s[..((ecol - scol) as usize).min(s.len())],
             );
         } else {
             let max_lnum = elnum - slnum;
-            crate::eval::typval::tv_list_append_bytes(list, s);
+            crate::eval::typval::tv_list_append_bytes(&list, s);
             for i in 1..max_lnum {
                 let line = reg_getline_submatch_slice(slnum + i).unwrap_or_else(|| c"".to_bytes());
-                crate::eval::typval::tv_list_append_bytes(list, line);
+                crate::eval::typval::tv_list_append_bytes(&list, line);
             }
             let last_line = reg_getline_submatch_slice(elnum).unwrap_or_else(|| c"".to_bytes());
             crate::eval::typval::tv_list_append_bytes(
-                list,
+                &list,
                 &last_line[..(ecol as usize).min(last_line.len())],
             );
         }
@@ -3873,10 +3873,10 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
             return None;
         }
         list = tv_list_alloc(1);
-        s.with_cstr(|cs| tv_list_append_string(list, Some(cs), e.offset_from(s) as isize));
+        s.with_cstr(|cs| tv_list_append_string(&list, Some(cs), e.offset_from(s) as isize));
     }
 
-    tv_list_ref(Some(list));
+    tv_list_ref(Some(&list));
     Some(list)
 }
 

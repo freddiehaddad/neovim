@@ -10,7 +10,7 @@ use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, K_CALLBACK_NONE_CONST, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
+    Callback, K_CALLBACK_NONE_CONST, ListId, TvDict, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
     Varnumber, callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find,
     tv_dict_free, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref,
     tv_list_unref,
@@ -732,11 +732,11 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: &[u8]) -> &'static mut TvList {
+fn buffer_to_tv_list(buf: &[u8]) -> ListId {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    tv_list_append_string(&mut *l, Some(c""), 0);
+    tv_list_append_string(&l, Some(c""), 0);
     if !buf.is_empty() {
-        encode_list_write(Some(&mut *l), buf);
+        encode_list_write(Some(&l), buf);
     }
     l
 }
@@ -826,7 +826,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                     let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
                     let _ =
-                        tv_dict_add_list(reader.self_dict.borrow_mut(), reader_type, Some(data));
+                        tv_dict_add_list(reader.self_dict.borrow_mut(), reader_type, Some(&data));
                 } else {
                     semsg!(gettext(E_STREAMKEY), reader_type, chan.id,);
                 }
@@ -901,10 +901,10 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
             &mut chan.on_data
         };
         let l = buffer_to_tv_list(&reader.buffer);
+        tv_list_ref(Some(&l));
         argv[1].v_type = VarType::VarList;
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval = TypvalVval::List(l.lv_id);
-        tv_list_ref(Some(&mut *l));
+        argv[1].vval = TypvalVval::List(l);
         reader.buffer = Vec::new();
         argv[2].v_type = VarType::VarString;
         argv[2].v_lock = VAR_UNLOCKED;

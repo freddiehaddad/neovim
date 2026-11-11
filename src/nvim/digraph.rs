@@ -1827,15 +1827,15 @@ pub fn listdigraphs(use_headers: bool) {
     }
 }
 
-fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
+fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &TvList) {
     let l2 = tv_list_alloc(2);
-    tv_list_append_list(&mut *l, Some(l2));
+    tv_list_append_list(l, Some(&l2));
 
-    crate::eval::typval::tv_list_append_bytes(&mut *l2, &[dp.char1, dp.char2]);
+    crate::eval::typval::tv_list_append_bytes(&l2, &[dp.char1, dp.char2]);
 
     let mut buf = [0u8; 30];
     let len = utf_char2bytes(dp.result, &mut buf) as usize;
-    crate::eval::typval::tv_list_append_bytes(&mut *l2, &buf[..len]);
+    crate::eval::typval::tv_list_append_bytes(&l2, &buf[..len]);
 }
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {

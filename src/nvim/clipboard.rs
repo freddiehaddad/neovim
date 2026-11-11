@@ -132,9 +132,9 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
     reg.with_mut(|r| *r = EMPTY_YANKREG);
 
     let args = tv_list_alloc(1);
-    tv_list_append_bytes(&mut *args, &[name as u8]);
+    tv_list_append_bytes(&args, &[name as u8]);
 
-    let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
+    let result = eval_call_provider(c"clipboard", c"get", &args, false);
 
     let fail_cleanup = |reg: RegIdx, errmsg: bool, target: &mut Option<RegIdx>| {
         reg.with_mut(|r| *r = EMPTY_YANKREG);
@@ -153,17 +153,17 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
     }
 
     let res = result.vval.v_list_opt();
-    let res_len = res.as_deref().map_or(0, |l| l.lv_len);
-    let lines: Option<&'static mut TvList>;
+    let res_len = res.map_or(0, |l| l.lv_len.get());
+    let lines: Option<&TvList>;
     let mut y_type;
 
     if res_len == 2
-        && let Some(first_li) = res.as_deref().and_then(TvList::first_opt)
+        && let Some(first_li) = res.and_then(TvList::first_opt)
         && first_li.li_tv.v_type == VarType::VarList
     {
         lines = first_li.li_tv.vval.v_list_opt();
 
-        let Some(last_li) = res.as_deref().and_then(TvList::last_opt) else {
+        let Some(last_li) = res.and_then(TvList::last_opt) else {
             return fail_cleanup(reg, errmsg, target);
         };
         if last_li.li_tv.v_type != VarType::VarString {
@@ -188,10 +188,10 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
         y_type = MotionType::MtUnknown;
     }
 
-    let lines_len = lines.as_deref().map_or(0, |l| l.lv_len.max(0) as usize);
+    let lines_len = lines.map_or(0, |l| l.lv_len.get().max(0) as usize);
     let mut y_array = Vec::with_capacity(lines_len);
 
-    for li in crate::eval::typval::list_iter_mut(lines.as_deref().and_then(|l| l.first_opt())) {
+    for li in crate::eval::typval::list_iter_mut(lines.and_then(|l| l.first_opt())) {
         if li.li_tv.v_type != VarType::VarString {
             for mut s in y_array {
                 api_clear_string(&mut s);
@@ -239,17 +239,17 @@ pub fn set_clipboard(mut name: i32, reg_idx: RegIdx) {
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for item in &reg.y_array {
-            tv_list_append_bytes(&mut *lines, item.as_bytes());
+            tv_list_append_bytes(&lines, item.as_bytes());
         }
 
         let regtype: u8 = match reg.y_type {
             MotionType::MtLineWise => {
-                tv_list_append_string(&mut *lines, None, 0);
+                tv_list_append_string(&lines, None, 0);
                 b'V'
             }
             MotionType::MtCharWise => b'v',
             MotionType::MtBlockWise => {
-                tv_list_append_string(&mut *lines, None, 0);
+                tv_list_append_string(&lines, None, 0);
                 b'b'
             }
             MotionType::MtUnknown => std::process::abort(),
@@ -258,11 +258,11 @@ pub fn set_clipboard(mut name: i32, reg_idx: RegIdx) {
     });
 
     let args = tv_list_alloc(3);
-    tv_list_append_list(&mut *args, Some(lines));
-    tv_list_append_bytes(&mut *args, &[regtype]);
-    tv_list_append_bytes(&mut *args, &[name as u8]);
+    tv_list_append_list(&args, Some(&lines));
+    tv_list_append_bytes(&args, &[regtype]);
+    tv_list_append_bytes(&args, &[name as u8]);
 
-    let _ = eval_call_provider(c"clipboard", c"set", &mut *args, true);
+    let _ = eval_call_provider(c"clipboard", c"set", &args, true);
 }
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).

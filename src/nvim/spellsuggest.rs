@@ -963,7 +963,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                 }
             }
         }
-        tv_list_unref(Some(list));
+        tv_list_unref(Some(&list));
     }
     check_suggestions(su, false);
     cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);

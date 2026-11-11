@@ -130,27 +130,27 @@ fn convert_one_value(
                 });
                 return;
             };
-            if list.lv_len == 0 {
+            if list.lv_len.get() == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array::new()),
                 });
                 return;
             }
-            let saved_copy_id = list.lv_copy_id;
+            let saved_copy_id = list.lv_copy_id.get();
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
-            list.lv_copy_id = copy_id;
-            let arr = arena_array_opt(arena, list.lv_len as usize);
+            list.lv_copy_id.set(copy_id);
+            let arr = arena_array_opt(arena, list.lv_len.get() as usize);
             stack.push(Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(arr),
             });
             mpstack.push(ConvStackEntry::List {
                 list: list_ptr,
-                li: list.lv_first,
+                li: list.lv_first.get(),
                 saved_copy_id,
                 first: true,
             });
@@ -261,11 +261,11 @@ pub fn vim_to_object(
                 first,
             } => {
                 if li.is_null() {
-                    let mut list_ptr = *list;
+                    let list_ptr = list.clone();
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    list_ptr.lv_copy_id = saved;
+                    list_ptr.lv_copy_id.set(saved);
 
                     pop_into_parent_list(&mut stack);
                     continue;
@@ -387,11 +387,11 @@ pub fn object_to_vim_take_luaref(
                     vval: TypvalVval::Number(0),
                 };
                 object_to_vim_take_luaref(&mut arr[i], &mut li_tv, take_luaref, _err);
-                tv_list_append_owned_tv(list, li_tv);
+                tv_list_append_owned_tv(&list, li_tv);
             }
-            list.lv_refcount += 1;
+            list.lv_refcount.set(list.lv_refcount.get() + 1);
             tv_ref.v_type = VarType::VarList;
-            tv_ref.vval = TypvalVval::List(list.lv_id);
+            tv_ref.vval = TypvalVval::List(list);
         }
         ObjectType::ObjectTypeDict => {
             let mut d = obj.data.dict();
@@ -470,22 +470,22 @@ mod tests {
 
             // Self-referencing list converts nested cycle to Nil
             let list = tv_list_alloc(1);
-            list.lv_refcount += 1;
+            list.lv_refcount.set(list.lv_refcount.get() + 1);
             let mut list_tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(list.lv_id),
+                vval: TypvalVval::List(list.clone()),
             };
-            tv_list_append_owned_tv(&mut *list, list_tv.clone());
+            tv_list_append_owned_tv(&list, list_tv.clone());
             let cyc_obj = vim_to_object(&mut list_tv, None, false);
             assert_eq!(cyc_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
 
-            list.lv_first.li_tv.v_type = VarType::VarUnknown;
+            list.lv_first.get().borrow_mut().li_tv.v_type = VarType::VarUnknown;
 
-            crate::eval::typval::tv_list_free(Some(list));
+            crate::eval::typval::tv_list_free(Some(&list));
         }
     }
 }

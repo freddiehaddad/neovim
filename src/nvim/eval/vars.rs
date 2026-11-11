@@ -537,18 +537,18 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
 ];
 
 std::thread_local! {
-    static EVAL_MSGPACK_TYPE_LISTS: std::cell::Cell<[crate::eval::typval::ListId; NUM_MSGPACK_TYPES]> =
-        const { std::cell::Cell::new([crate::eval::typval::ListId::NULL; NUM_MSGPACK_TYPES]) };
+    static EVAL_MSGPACK_TYPE_LISTS: std::cell::RefCell<[crate::eval::typval::ListId; NUM_MSGPACK_TYPES]> =
+        const { std::cell::RefCell::new([crate::eval::typval::ListId::NULL; NUM_MSGPACK_TYPES]) };
 }
 
 #[inline]
-pub(crate) fn eval_msgpack_type_list(idx: usize) -> Option<&'static mut TvList> {
-    EVAL_MSGPACK_TYPE_LISTS.get()[idx].opt_mut()
+pub(crate) fn eval_msgpack_type_list(idx: usize) -> crate::eval::typval::ListId {
+    EVAL_MSGPACK_TYPE_LISTS.with(|l| l.borrow()[idx].clone())
 }
 
 #[inline]
 pub fn tv_list_locked(l: Option<&TvList>) -> VarLockStatus {
-    l.map_or(VAR_FIXED, |l| l.lv_lock)
+    l.map_or(VAR_FIXED, |l| l.lv_lock.get())
 }
 
 #[inline]
@@ -651,18 +651,16 @@ pub fn evalvars_init() {
     let msgpack_types_dict = tv_dict_alloc();
     for (i, type_name) in MSGPACK_TYPE_NAMES.iter().enumerate() {
         let type_list = tv_list_alloc(0);
-        tv_list_set_lock(Some(&mut *type_list), VAR_FIXED);
-        tv_list_ref(Some(&mut *type_list));
+        tv_list_set_lock(Some(&type_list), VAR_FIXED);
+        tv_list_ref(Some(&type_list));
         let di = tv_dict_item_alloc(type_name);
         di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         di.di_tv = TypVal {
             v_type: VarType::VarList,
             v_lock: 0,
-            vval: TypvalVval::List(type_list.lv_id),
+            vval: TypvalVval::List(type_list.clone()),
         };
-        let mut mp_lists = EVAL_MSGPACK_TYPE_LISTS.get();
-        mp_lists[i] = type_list.lv_id;
-        EVAL_MSGPACK_TYPE_LISTS.set(mp_lists);
+        EVAL_MSGPACK_TYPE_LISTS.with(|l| l.borrow_mut()[i] = type_list);
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
             std::process::abort();
         }
@@ -673,10 +671,7 @@ pub fn evalvars_init() {
     set_vim_var_dict(VV_COMPLETED_ITEM, Some(tv_dict_alloc_lock(VAR_FIXED)));
 
     set_vim_var_dict(VV_EVENT, Some(tv_dict_alloc_lock(VAR_FIXED)));
-    set_vim_var_list(
-        VV_ERRORS,
-        Some(&mut *tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST)),
-    );
+    set_vim_var_list(VV_ERRORS, Some(&tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST)));
     set_vim_var_nr(VV_STDERR, crate::channel::CHAN_STDERR as Varnumber);
     set_vim_var_nr(VV_SEARCHFORWARD, 1);
     set_vim_var_nr(VV_HLSEARCH, 1);
@@ -855,7 +850,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
 }
 
 /// Evaluate an expression to a list with suggestions.
-pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvList> {
+pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typval::ListId> {
     let mut save_val: TypVal = TypVal::new();
     let mut rettv: TypVal = TypVal::new();
     let mut list = crate::eval::typval::ListId::NULL;
@@ -887,12 +882,12 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
     restore_vimvar(VV_VAL, &mut save_val);
     g_st().current_sctx = saved_sctx;
 
-    list.opt_mut()
+    if list.is_null() { None } else { Some(list) }
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
 pub fn get_spellword<'a>(
-    list: &'a mut TvList,
+    list: &'a TvList,
     ret_word: &mut Option<std::borrow::Cow<'a, CStr>>,
 ) -> i32 {
     if tv_list_len(Some(list)) != 2 {
@@ -901,11 +896,11 @@ pub fn get_spellword<'a>(
         ));
         return -1;
     }
-    *ret_word = tv_list_find_str(Some(&mut *list), 0);
+    *ret_word = tv_list_find_str(Some(list), 0);
     if ret_word.is_none() {
         return -1;
     }
-    tv_list_find_nr(Some(&mut *list), -1, None) as i32
+    tv_list_find_nr(Some(list), -1, None) as i32
 }
 
 /// Prepare v: variable "idx" to be used.
@@ -1039,7 +1034,7 @@ pub fn heredoc_get(
     eap: &mut Exarg,
     cmd_in: &CStr,
     script_get: bool,
-) -> Option<&'static mut TvList> {
+) -> Option<crate::eval::typval::ListId> {
     let mut marker_indent_len: i32 = 0;
     let mut text_indent_len: i32 = 0;
     let mut text_indent: Option<Vec<u8>> = None;
@@ -1185,9 +1180,9 @@ pub fn heredoc_get(
                 eval_failed = true;
                 continue;
             };
-            tv_list_append_string(&mut *l, Some(evaluated.as_c_str()), -1);
+            tv_list_append_string(&l, Some(evaluated.as_c_str()), -1);
         } else {
-            tv_list_append_string(&mut *l, Some(str_line), -1);
+            tv_list_append_string(&l, Some(str_line), -1);
         }
     }
     if heredoc_in_string {
@@ -1197,7 +1192,7 @@ pub fn heredoc_get(
     drop(text_indent);
 
     if eval_failed {
-        tv_list_free(Some(l));
+        tv_list_free(Some(&l));
         return None;
     }
     Some(l)
@@ -1246,7 +1241,7 @@ pub fn ex_let(eap: &mut Exarg) {
 
     if expr_bytes.starts_with(b"=<<") {
         if let Some(l) = heredoc_get(eap, &expr[3..], false) {
-            tv_list_set_ret(&mut rettv, Some(l));
+            tv_list_set_ret(&mut rettv, Some(&l));
             if !eap.skip {
                 op[0] = b'=';
                 op[1] = 0;
@@ -1335,7 +1330,7 @@ pub fn ex_let_vars(
     }
     let l = tv.vval.v_list_opt();
 
-    let len = tv_list_len(l.as_deref());
+    let len = tv_list_len(l);
     if semicolon == 0 && var_count < len {
         emsg(gettext(c"E687: Less targets than List items"));
         return false;
@@ -1368,14 +1363,14 @@ pub fn ex_let_vars(
         if arg.to_bytes().first() == Some(&b';') {
             let rest_list = tv_list_alloc(rest_len as isize);
             while let Some(rem) = item {
-                tv_list_append_tv(&mut *rest_list, &mut rem.li_tv);
+                tv_list_append_tv(&rest_list, &mut rem.li_tv);
                 item = rem.next_opt();
             }
 
+            tv_list_ref(Some(&rest_list));
             ltv.v_type = VarType::VarList;
             ltv.v_lock = VAR_UNLOCKED;
-            ltv.vval = crate::eval::typval::TypvalVval::List(rest_list.lv_id);
-            tv_list_ref(Some(&mut *rest_list));
+            ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
 
             let semi_arg = crate::charset::skipwhite_at(arg, 1);
             let res = ex_let_one(semi_arg, &mut ltv, false, is_const != 0, Some(c"]"), op);
@@ -2007,7 +2002,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
         }
     } else if (!lp.ll_list.is_null()
         && value_check_lock(
-            tv_list_locked(lp.list_opt().as_deref()),
+            tv_list_locked(lp.list_opt()),
             lp.ll_name_cstr(),
             lp.ll_name_len,
         ))
@@ -2049,7 +2044,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
 
 /// Unlet one item or a range of items from a list.
 fn tv_list_unlet_range(
-    l: Option<&mut TvList>,
+    l: Option<&TvList>,
     li_first: &mut Listitem,
     n1_arg: i32,
     has_n2: bool,
@@ -2266,7 +2261,7 @@ pub fn get_vim_var_nr(idx: VimVarIndex) -> Varnumber {
     get_vim_var_tv(idx).vval.v_number()
 }
 
-pub fn get_vim_var_list(idx: VimVarIndex) -> Option<&'static mut TvList> {
+pub fn get_vim_var_list(idx: VimVarIndex) -> Option<&'static TvList> {
     get_vim_var_tv(idx).vval.v_list_opt()
 }
 
@@ -2435,7 +2430,7 @@ pub fn set_vim_var_string(idx: VimVarIndex, val: Option<&CStr>, len: isize) {
     }
 }
 
-pub fn set_vim_var_list(idx: VimVarIndex, val: Option<&mut TvList>) {
+pub fn set_vim_var_list(idx: VimVarIndex, val: Option<&TvList>) {
     let tv = get_vim_var_tv(idx);
     tv_clear(tv);
     tv.v_type = VarType::VarList;
@@ -3516,7 +3511,7 @@ pub fn assert_error(buf: &[u8]) {
     let tv = get_vim_var_tv(VV_ERRORS);
 
     if tv.v_type != VarType::VarList || tv.vval.v_list().is_null() {
-        set_vim_var_list(VV_ERRORS, Some(&mut *tv_list_alloc(1)));
+        set_vim_var_list(VV_ERRORS, Some(&tv_list_alloc(1)));
     }
     crate::eval::typval::tv_list_append_bytes(get_vim_var_tv(VV_ERRORS).vval.v_list_ref(), buf);
 }

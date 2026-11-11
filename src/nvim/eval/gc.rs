@@ -52,15 +52,15 @@ pub fn gc_unregister_dict(idx: usize) {
 pub static gc_first_list: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 #[inline]
-pub fn gc_register_list(l: &mut TvList) {
+pub fn gc_register_list(l: &TvList) {
     GC_STATE.with(|st| {
         let mut lists = st.gc_lists.borrow_mut();
         let idx = lists.len();
-        lists.push(l.lv_id);
-        l.lv_gc_idx = Some(idx);
+        lists.push(ListId::from(l));
+        l.lv_gc_idx.set(Some(idx));
     });
     gc_first_list.store(
-        std::ptr::from_mut(l) as usize,
+        std::ptr::from_ref(l) as usize,
         std::sync::atomic::Ordering::Relaxed,
     );
 }
@@ -70,12 +70,12 @@ pub fn gc_unregister_list(idx: usize) {
     let Ok((moved_opt, last_opt)) = GC_STATE.try_with(|st| {
         let mut lists = st.gc_lists.borrow_mut();
         lists.swap_remove(idx);
-        (lists.get(idx).copied(), lists.last().copied())
+        (lists.get(idx).cloned(), lists.last().cloned())
     }) else {
         return;
     };
-    if let Some(mut moved) = moved_opt {
-        moved.lv_gc_idx = Some(idx);
+    if let Some(moved) = moved_opt {
+        moved.lv_gc_idx.set(Some(idx));
     }
 
     gc_first_list.store(
@@ -107,13 +107,12 @@ pub fn gc_lists_len() -> usize {
 }
 
 #[inline]
-pub fn gc_list_at(idx: usize) -> &'static mut TvList {
-    let id = GC_STATE.with(|st| st.gc_lists.borrow()[idx]);
-    id.borrow_mut()
+pub fn gc_list_at(idx: usize) -> ListId {
+    GC_STATE.with(|st| st.gc_lists.borrow()[idx].clone())
 }
 
 #[inline]
 pub fn gc_free_list_at(idx: usize) {
-    let id = GC_STATE.with(|st| st.gc_lists.borrow()[idx]);
-    crate::eval::typval::tv_list_free_slot(id.borrow_mut());
+    let id = GC_STATE.with(|st| st.gc_lists.borrow()[idx].clone());
+    crate::eval::typval::tv_list_free_slot(&id);
 }

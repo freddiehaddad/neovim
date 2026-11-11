@@ -1,5 +1,6 @@
 //! Global variables (`src/nvim/globals.h`).
 
+pub use crate::api::private::validate::CloneCell;
 use crate::highlight::{HLF_COUNT, RgbValue};
 
 use std::ptr;

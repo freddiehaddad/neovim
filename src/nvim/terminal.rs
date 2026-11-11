@@ -2092,16 +2092,16 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
 
     let lines = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     for line in data.as_bytes().split(|&b| b == b'\n') {
-        tv_list_append_bytes(&mut *lines, line);
+        tv_list_append_bytes(&lines, line);
     }
     drop(data);
 
     let args = tv_list_alloc(3);
-    tv_list_append_list(&mut *args, Some(lines));
+    tv_list_append_list(&args, Some(&lines));
 
-    tv_list_append_bytes(&mut *args, b"v");
-    tv_list_append_bytes(&mut *args, regname);
-    eval_call_provider(c"clipboard", c"set", &mut *args, true);
+    tv_list_append_bytes(&args, b"v");
+    tv_list_append_bytes(&args, regname);
+    eval_call_provider(c"clipboard", c"set", &args, true);
 }
 
 fn term_selection_set(

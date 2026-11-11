@@ -217,7 +217,7 @@ fn match_add(
 
             if li.li_tv.v_type == VarType::VarList {
                 let subl = li.li_tv.vval.v_list_opt();
-                let mut sub_iter = tv_list_iter(subl.as_deref());
+                let mut sub_iter = tv_list_iter(subl);
                 let Some(subli1) = sub_iter.next() else {
                     semsg!(
                         gettext(c"E5030: Empty list at position %d"),
@@ -958,10 +958,10 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     break;
                 }
                 let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
-                tv_list_append_number(&mut *l, llpos.lnum as Varnumber);
+                tv_list_append_number(&l, llpos.lnum as Varnumber);
                 if llpos.col > 0 {
-                    tv_list_append_number(&mut *l, llpos.col as Varnumber);
-                    tv_list_append_number(&mut *l, llpos.len as Varnumber);
+                    tv_list_append_number(&l, llpos.col as Varnumber);
+                    tv_list_append_number(&l, llpos.len as Varnumber);
                 }
                 let mut buf = [0u8; 30];
                 let len = format_to_buf!(&mut buf, c"pos%d", (i + 1) as i32);
@@ -969,7 +969,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 tv_dict_add_list(
                     &mut *dict,
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                    Some(l),
+                    Some(&l),
                 );
             }
         } else {
@@ -1005,9 +1005,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     };
 
-    for (li_idx, li) in (0_i32..).zip(list_iter_mut(tv_list_first(
-        argvars[0].vval.v_list_opt().as_deref(),
-    ))) {
+    for (li_idx, li) in (0_i32..).zip(list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt()))) {
         let Some(d) = li
             .li_tv
             .vval
@@ -1036,14 +1034,14 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     clear_matches(&mut *win);
     let mut match_add_failed = false;
-    for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt().as_deref())) {
+    for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
         let d = li.li_tv.vval.v_dict_ref();
         if tv_dict_find_opt(Some(d), c"pattern", 7).is_none() {
             if s.is_null() {
                 let list = tv_list_alloc(9);
-                tv_list_ref(Some(&mut *list));
-                s = list.lv_id;
+                tv_list_ref(Some(&list));
+                s = list;
             }
 
             i = 1;
@@ -1056,10 +1054,10 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     -1,
                 ) {
                     if pos_di.di_tv.v_type != VarType::VarList {
-                        tv_list_unref(s.opt_mut());
+                        tv_list_unref(s.opt());
                         return;
                     }
-                    tv_list_append_tv(s.borrow_mut(), &mut pos_di.di_tv);
+                    tv_list_append_tv(&s, &mut pos_di.di_tv);
                 } else {
                     break;
                 }
@@ -1099,7 +1097,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             {
                 match_add_failed = true;
             }
-            tv_list_unref(s.opt_mut());
+            tv_list_unref(s.opt());
             s = crate::eval::typval::ListId::NULL;
         }
     }
@@ -1170,7 +1168,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     let l = argvars[1].vval.v_list_opt();
-    if tv_list_len(l.as_deref()) == 0 {
+    if tv_list_len(l) == 0 {
         return;
     }
 
@@ -1207,7 +1205,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         None,
         prio,
         id,
-        l.as_deref(),
+        l,
         conceal_char.as_deref(),
     ) as Varnumber);
 }

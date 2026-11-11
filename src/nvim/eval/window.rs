@@ -143,8 +143,8 @@ fn win_id2tabwin(argvars: &mut [TypVal], rettv: &mut TypVal) {
     win_get_tabwin(id, &mut tabnr, &mut winnr);
 
     let list = tv_list_alloc_ret(rettv, 2);
-    tv_list_append_number(&mut *list, tabnr as Varnumber);
-    tv_list_append_number(&mut *list, winnr as Varnumber);
+    tv_list_append_number(&list, tabnr as Varnumber);
+    tv_list_append_number(&list, winnr as Varnumber);
 }
 
 pub fn win_id2wp(id: i32) -> Option<&'static mut WinInfoInfo> {
@@ -186,7 +186,7 @@ fn win_id2win(argvars: &mut [TypVal]) -> i32 {
     0
 }
 
-pub fn win_findbuf(argvars: &mut [TypVal], list: &mut TvList) {
+pub fn win_findbuf(argvars: &mut [TypVal], list: &TvList) {
     let bufnr = tv_get_number(&argvars[0]) as i32;
 
     for tp in for_all_tabpages_mut() {
@@ -262,17 +262,18 @@ pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<&'static mut WinInfoInf
 }
 
 /// Get the layout of the given tab page for `winlayout()` (`get_framelayout`).
-fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
+fn get_framelayout(fr: Option<&Frame>, l: &TvList, outer: bool) {
     let Some(fr) = fr else {
         return;
     };
 
-    let fr_list: &mut TvList = if outer {
+    let sub;
+    let fr_list: &TvList = if outer {
         l
     } else {
-        let sub = tv_list_alloc(2);
-        tv_list_append_list(l, Some(sub));
-        sub
+        sub = tv_list_alloc(2);
+        tv_list_append_list(l, Some(&sub));
+        &sub
     };
 
     if fr.fr_layout.get() == FR_LEAF {
@@ -288,9 +289,9 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
         }
 
         let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        tv_list_append_list(fr_list, Some(win_list));
+        tv_list_append_list(fr_list, Some(&win_list));
         for child in frame_iter_ptr(fr.fr_child.get()) {
-            get_framelayout(Some(&child), &mut *win_list, false);
+            get_framelayout(Some(&child), &win_list, false);
         }
     }
 }
@@ -438,9 +439,9 @@ fn get_tabpage_info(tp: &TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     for wp in win_iter_mut(first_win_in_tab(tp)) {
-        tv_list_append_number(&mut *l, wp.handle as Varnumber);
+        tv_list_append_number(&l, wp.handle as Varnumber);
     }
-    tv_dict_add_list(&mut *dict, c"windows", Some(l));
+    tv_dict_add_list(&mut *dict, c"windows", Some(&l));
 
     tv_dict_add_dict(&mut *dict, c"variables", Some(tp.tp_vars()));
 

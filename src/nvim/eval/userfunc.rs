@@ -1202,7 +1202,7 @@ impl Drop for Funccall {
         if let Some(v) = self.fc_l_avars_var.get().opt_mut() {
             tv_dict_item_free_slot(v);
         }
-        if let Some(varlist) = self.fc_l_varlist.get().opt_mut() {
+        if let Some(varlist) = self.fc_l_varlist.get().opt() {
             tv_list_free_contents(varlist);
             unref_var_list(varlist);
         }
@@ -1243,11 +1243,11 @@ fn cleanup_function_call(fc: &Funccall) {
         }
     }
 
-    if may_free_fc && fc.fc_l_varlist.get().lv_refcount == DO_NOT_FREE_CNT {
+    if may_free_fc && fc.fc_l_varlist.get().lv_refcount.get() == DO_NOT_FREE_CNT {
         for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.get().first_opt()) {
             li.li_tv = TypVal::new();
         }
-        tv_list_free_contents(fc.fc_l_varlist.get().borrow_mut());
+        tv_list_free_contents(&fc.fc_l_varlist.get());
     } else {
         free_fc = false;
 
@@ -1510,8 +1510,8 @@ pub fn call_user_func(
     }
     fc.fc_l_avars.get().dv_lock = VAR_FIXED;
     let varlist = tv_list_alloc_static();
-    tv_list_set_lock(Some(varlist), VAR_FIXED);
-    fc.fc_l_varlist.set(varlist.lv_id);
+    tv_list_set_lock(Some(&varlist), VAR_FIXED);
+    fc.fc_l_varlist.set(varlist);
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
         let v = tv_dict_item_alloc_len(b"000");
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -1603,7 +1603,7 @@ pub fn call_user_func(
             let li = tv_list_item_alloc();
             li.li_tv = argvars[i as usize].clone();
             li.li_tv.v_lock = VAR_FIXED;
-            tv_list_append(fc.fc_l_varlist.get().borrow_mut(), li);
+            tv_list_append(&fc.fc_l_varlist.get(), li);
         }
     }
 
@@ -3753,14 +3753,14 @@ pub fn func_ptr_ref(fp: Option<&UserFunc>) {
 
 #[inline]
 fn fc_referenced(fc: &Funccall) -> bool {
-    fc.fc_l_varlist.get().lv_refcount != DO_NOT_FREE_CNT
+    fc.fc_l_varlist.get().lv_refcount.get() != DO_NOT_FREE_CNT
         || fc.fc_l_vars.get().dv_refcount != DO_NOT_FREE_CNT
         || fc.fc_l_avars.get().dv_refcount != DO_NOT_FREE_CNT
         || fc.fc_refcount.get() > 0
 }
 
 fn can_free_funccal(fc: &Funccall, copy_id: i32) -> bool {
-    fc.fc_l_varlist.get().lv_copy_id != copy_id
+    fc.fc_l_varlist.get().lv_copy_id.get() != copy_id
         && fc.fc_l_vars.get().dv_copy_id != copy_id
         && fc.fc_l_avars.get().dv_copy_id != copy_id
         && fc.fc_copy_id.get() != copy_id
@@ -4556,7 +4556,7 @@ pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
             Some(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab),
             copy_id + 1,
             None,
-        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt_mut(), copy_id + 1, None)
+        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id + 1, None)
         {
             return true;
         }
@@ -4589,7 +4589,7 @@ fn set_ref_in_funccal(fc: &Funccall, copy_id: i32) -> bool {
             Some(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab),
             copy_id,
             None,
-        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt_mut(), copy_id, None)
+        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id, None)
             || set_ref_in_defer(fc, copy_id)
             || set_ref_in_func(None, fc.fc_func.get().rc().as_deref(), copy_id)
         {

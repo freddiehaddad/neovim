@@ -72,9 +72,9 @@ use crate::eval::funcs::{
     DOCMD_KEYTYPED, MT_LINE_WISE, RE_SEARCH, SEARCH_KEEP, VIM_QUESTION, create_environment,
 };
 use crate::eval::typval::{
-    BoolVarValue, Callback, EvalFuncData, TvList, TypVal, TypvalVval, VarType, callback_free,
-    tv_clear, tv_dict_add_str, tv_dict_alloc, tv_get_string, tv_list_alloc_ret,
-    tv_list_append_string, tv_list_copy, tv_list_find_str, tv_list_free,
+    BoolVarValue, Callback, EvalFuncData, TypVal, TypvalVval, VarType, callback_free, tv_clear,
+    tv_dict_add_str, tv_dict_alloc, tv_get_string, tv_list_alloc_ret, tv_list_append_string,
+    tv_list_copy, tv_list_find_str, tv_list_free,
 };
 use crate::eval::userfunc::{
     current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
@@ -9263,12 +9263,12 @@ fn ex_restart(eap: &mut Exarg) {
     let no_ui = ui_active() == 0;
     let exepath = get_vim_var_str(VV_PROGPATH);
     let l = get_vim_var_list(VV_ARGV);
-    let argc = l.as_ref().map_or(0, |l| l.lv_len);
+    let argc = l.as_ref().map_or(0, |l| l.lv_len.get());
 
     let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
     let mut listen_arg: Option<std::ffi::CString> = None;
 
-    let mut li = l.map_or(crate::eval::typval::ListitemId::NULL, |l| l.lv_first);
+    let mut li = l.map_or(crate::eval::typval::ListitemId::NULL, |l| l.lv_first.get());
     while !li.is_null() {
         let arg = tv_get_string(&li.li_tv);
         let i = argv_vec.len();
@@ -9920,7 +9920,7 @@ fn ex_wrongmodifier(eap: &mut Exarg) {
     eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVCMD)));
 }
 
-fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut TvList> {
+fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::typval::ListId> {
     let saved_sctx = g_st().current_sctx;
 
     let mut args = [
@@ -9953,7 +9953,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
     g_st().current_sctx = saved_sctx;
     g_st().textlock -= 1;
 
-    let mut retlist: Option<&'static mut TvList> = None;
+    let mut retlist: Option<crate::eval::typval::ListId> = None;
     if retval {
         if rettv.v_type == VarType::VarList {
             retlist = tv_list_copy(None, rettv.vval.v_list_opt(), false, get_copy_id());
@@ -9973,13 +9973,13 @@ pub fn expand_findfunc(xp: &mut ExpandCtx, pat: &CStr, files: &mut Vec<std::ffi:
         return false;
     };
 
-    if l.lv_len == 0 {
-        tv_list_free(Some(l));
+    if l.lv_len.get() == 0 {
+        tv_list_free(Some(&l));
         return false;
     }
 
-    crate::cmdexpand::expand_process_user_list(Some(l), files, xp);
-    tv_list_free(Some(l));
+    crate::cmdexpand::expand_process_user_list(Some(&l), files, xp);
+    tv_list_free(Some(&l));
 
     true
 }
@@ -9988,15 +9988,14 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     let findarg_cstr = bytes_to_cstring(crate::memory::bytes_until_nul(findarg));
     let mut ret_fname: Option<std::ffi::CString> = None;
 
-    let mut fname_list = call_findfunc(&findarg_cstr, K_BOOL_VAR_FALSE_CONST);
-    let fname_count = fname_list.as_ref().map_or(0, |l| l.lv_len);
+    let fname_list = call_findfunc(&findarg_cstr, K_BOOL_VAR_FALSE_CONST);
+    let fname_count = fname_list.as_ref().map_or(0, |l| l.lv_len.get());
 
     if fname_count == 0 {
         let _ = semsg!(gettext(E_CANT_FIND_FILE_STR_IN_PATH), &findarg_cstr);
     } else if count > fname_count {
         let _ = semsg!(gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH), &findarg_cstr);
-    } else if let Some(li) =
-        crate::eval::typval::tv_list_find_opt(fname_list.as_deref_mut(), count - 1)
+    } else if let Some(li) = crate::eval::typval::tv_list_find_opt(fname_list.as_deref(), count - 1)
     {
         let tv = &li.li_tv;
         if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
@@ -10009,7 +10008,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     }
 
     if let Some(l) = fname_list {
-        tv_list_free(Some(l));
+        tv_list_free(Some(&l));
     }
 
     if let Some(ref mut rf) = ret_fname {
@@ -12576,7 +12575,7 @@ fn ex_terminal(eap: &mut Exarg) {
         tv_list_alloc_ret(&mut shell_tv, 0);
         for arg in argv {
             tv_list_append_string(
-                shell_tv.vval.v_list().borrow_mut(),
+                &shell_tv.vval.v_list(),
                 Some(arg.as_c_str()),
                 arg.as_bytes().len() as isize,
             );

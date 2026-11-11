@@ -27,7 +27,7 @@ use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
-    TvDict, TvList, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    TvDict, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string,
 };
 use crate::eval::{ESC, eval_to_string, get_v_event, restore_v_event};
@@ -1307,12 +1307,12 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: RegIdx) {
     let list = reg.with(|r| {
         let list = tv_list_alloc(r.y_array.len() as isize);
         for item in &r.y_array {
-            crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
+            crate::eval::typval::tv_list_append_bytes(&list, item.as_bytes());
         }
         list
     });
-    list.lv_lock = VAR_FIXED;
-    tv_dict_add_list(&mut *dict, c"regcontents", Some(list));
+    list.lv_lock.set(VAR_FIXED);
+    tv_dict_add_list(&mut *dict, c"regcontents", Some(&list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     add_regtype_to_dict(Some(PutReg::Idx(reg)), &mut *dict, &mut buf);
@@ -1386,20 +1386,20 @@ fn put_do_autocmd(
 
     if regname == i32::from(b'.') {
         if !g_st().last_insert_ga.is_empty() {
-            crate::eval::typval::tv_list_append_bytes(&mut *list, &g_st().last_insert_ga);
+            crate::eval::typval::tv_list_append_bytes(&list, &g_st().last_insert_ga);
         }
     } else if let Some(insert) = insert {
-        crate::eval::typval::tv_list_append_bytes(&mut *list, insert.as_bytes());
+        crate::eval::typval::tv_list_append_bytes(&list, insert.as_bytes());
     } else if let Some(r) = reg {
         r.with(|reg| {
             for item in &reg.y_array {
-                crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
+                crate::eval::typval::tv_list_append_bytes(&list, item.as_bytes());
             }
         });
     }
 
-    list.lv_lock = VAR_FIXED;
-    tv_dict_add_list(&mut *v_event, c"regcontents", Some(list));
+    list.lv_lock.set(VAR_FIXED);
+    tv_dict_add_list(&mut *v_event, c"regcontents", Some(&list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     buf[0] = regname as u8;
@@ -2579,10 +2579,10 @@ pub fn get_reg_type(regname: i32, reg_width: Option<&mut Colnr>) -> MotionType {
     })
 }
 
-fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> Option<&'static mut TvList> {
+fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> Option<crate::eval::typval::ListId> {
     let s = s?;
     let list = tv_list_alloc(1);
-    tv_list_append_string(&mut *list, Some(s.as_c_str()), -1);
+    tv_list_append_string(&list, Some(s.as_c_str()), -1);
     Some(list)
 }
 
@@ -2637,7 +2637,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
     })
 }
 
-pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mut TvList> {
+pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<crate::eval::typval::ListId> {
     if regname == i32::from(b'=') {
         if (flags & K_GREG_NO_EXPR) != 0 {
             return None;
@@ -2668,7 +2668,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mu
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
         for item in &reg.y_array {
-            crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
+            crate::eval::typval::tv_list_append_bytes(&list, item.as_bytes());
         }
         Some(list)
     })

@@ -213,9 +213,9 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut argsl: i32 = 0;
     if arg1.v_type == VarType::VarList {
         args = arg1.vval.v_list_opt();
-        argsl = args.as_deref().map_or(0, |a| a.lv_len);
+        argsl = args.map_or(0, |a| a.lv_len.get());
         for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(
-            args.as_deref().and_then(|a| a.first_opt()),
+            args.and_then(|a| a.first_opt()),
         )) {
             if li.li_tv.v_type != VarType::VarString {
                 semsg!(

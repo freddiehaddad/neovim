@@ -312,7 +312,7 @@ fn filter_map_string(
 }
 
 fn filter_map_list(
-    mut l: Option<&mut TvList>,
+    l: Option<&TvList>,
     filtermap: FilterMap,
     arg_errmsg: &CStr,
     expr: &mut TypVal,
@@ -325,25 +325,25 @@ fn filter_map_list(
         }
         if l.is_none()
             || (filtermap == FilterMap::Filter
-                && value_check_lock(tv_list_locked(l.as_deref()), Some(arg_errmsg), TV_TRANSLATE))
+                && value_check_lock(tv_list_locked(l), Some(arg_errmsg), TV_TRANSLATE))
         {
             return;
         }
 
-        let mut l_ret: Option<&mut TvList> = None;
+        let mut l_ret = crate::eval::typval::ListId::NULL;
         if filtermap == FilterMap::MapNew {
             tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
-            l_ret = rettv.vval.v_list_opt();
+            l_ret = rettv.vval.v_list();
         }
         set_vim_var_type(VV_KEY, VarType::VarNumber);
 
-        let prev_lock = tv_list_locked(l.as_deref());
+        let prev_lock = tv_list_locked(l);
         if prev_lock == VAR_UNLOCKED {
-            tv_list_set_lock(l.as_deref_mut(), VAR_LOCKED);
+            tv_list_set_lock(l, VAR_LOCKED);
         }
 
         let mut idx: i64 = 0;
-        let mut li = tv_list_first(l.as_deref());
+        let mut li = tv_list_first(l);
         while let Some(cur_li) = li {
             if filtermap == FilterMap::Map
                 && value_check_lock(cur_li.li_tv.v_lock, Some(arg_errmsg), TV_TRANSLATE)
@@ -369,10 +369,10 @@ fn filter_map_list(
                 newtv.v_lock = VAR_UNLOCKED;
                 cur_li.li_tv = newtv;
             } else if filtermap == FilterMap::MapNew {
-                tv_list_append_owned_tv(l_ret.as_deref_mut().unwrap(), newtv);
+                tv_list_append_owned_tv(&l_ret, newtv);
             }
             if filtermap == FilterMap::Filter && rem {
-                li = tv_list_item_remove(l.as_deref_mut().unwrap(), cur_li);
+                li = tv_list_item_remove(l.unwrap(), cur_li);
             } else {
                 li = cur_li.next_opt();
             }
@@ -474,19 +474,18 @@ pub fn f_foreach(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// `"add(list, item)"` function (`f_add`).
 pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-    let arg0 = &argvars[0];
-    if arg0.v_type == VarType::VarList {
-        let l = arg0.vval.v_list_opt();
+    if argvars[0].v_type == VarType::VarList {
+        let l = argvars[0].vval.v_list();
         if !value_check_lock(
-            tv_list_locked(l.as_deref()),
+            tv_list_locked(l.opt()),
             Some(c"add() argument"),
             TV_TRANSLATE,
         ) {
-            tv_list_append_tv(l.unwrap(), &mut argvars[1]);
+            tv_list_append_tv(&l, &mut argvars[1]);
             tv_copy(&argvars[0], rettv);
         }
-    } else if arg0.v_type == VarType::VarBlob {
-        if let Some(b) = arg0.vval.v_blob().rc()
+    } else if argvars[0].v_type == VarType::VarBlob {
+        if let Some(b) = argvars[0].vval.v_blob().rc()
             && !value_check_lock(b.bv_lock.get(), Some(c"add() argument"), TV_TRANSLATE)
         {
             let mut error = false;
@@ -541,8 +540,8 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
     n
 }
 
-fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i64 {
-    if tv_list_len(l.as_deref()) == 0 {
+fn count_list(l: Option<&TvList>, needle: &TypVal, idx: i64, ic: bool) -> i64 {
+    if tv_list_len(l) == 0 {
         return 0;
     }
     let li = tv_list_find(l, idx as i32);
@@ -686,13 +685,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
         let mut error = false;
         let l1_opt = argvars[0].vval.v_list_opt();
 
-        if !is_new
-            && value_check_lock(
-                tv_list_locked(l1_opt.as_deref()),
-                Some(arg_errmsg),
-                TV_TRANSLATE,
-            )
-        {
+        if !is_new && value_check_lock(tv_list_locked(l1_opt), Some(arg_errmsg), TV_TRANSLATE) {
             return;
         }
 
@@ -703,7 +696,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 return;
             }
         }
-        let l1_ref = l1.borrow_mut();
+        let l1_ref = &*l1;
 
         if let Some(l2) = argvars[1].vval.v_list_opt() {
             let mut item = crate::eval::typval::ListitemId::NULL;
@@ -712,7 +705,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
                 if error {
                     if is_new {
-                        tv_list_unref(l1.opt_mut());
+                        tv_list_unref(l1.opt());
                     }
                     return;
                 }
@@ -722,7 +715,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     if item.is_null() {
                         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
-                            tv_list_unref(l1.opt_mut());
+                            tv_list_unref(l1.opt());
                         }
                         return;
                     }
@@ -818,11 +811,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         semsg!(E_LISTBLOBARG, c"insert()");
     } else {
         let mut l = arg0.vval.v_list_opt();
-        if value_check_lock(
-            tv_list_locked(l.as_deref()),
-            Some(c"insert() argument"),
-            TV_TRANSLATE,
-        ) {
+        if value_check_lock(tv_list_locked(l), Some(c"insert() argument"), TV_TRANSLATE) {
             return;
         }
 
@@ -835,11 +824,8 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
 
         let mut item = crate::eval::typval::ListitemId::NULL;
-        if before != (tv_list_len(l.as_deref()) as i64) {
-            item = crate::eval::typval::ListitemId::from(tv_list_find(
-                l.as_deref_mut(),
-                before as i32,
-            ));
+        if before != (tv_list_len(l) as i64) {
+            item = crate::eval::typval::ListitemId::from(tv_list_find(l, before as i32));
             if item.is_null() {
                 semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                 l = None;
@@ -889,13 +875,9 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else if arg0.v_type == VarType::VarList {
-        let mut l = arg0.vval.v_list_opt();
-        if !value_check_lock(
-            tv_list_locked(l.as_deref()),
-            Some(c"reverse() argument"),
-            TV_TRANSLATE,
-        ) {
-            tv_list_reverse(l.as_deref_mut().unwrap());
+        let l = arg0.vval.v_list_opt();
+        if !value_check_lock(tv_list_locked(l), Some(c"reverse() argument"), TV_TRANSLATE) {
+            tv_list_reverse(l.unwrap());
             tv_list_set_ret(rettv, l);
         }
     }

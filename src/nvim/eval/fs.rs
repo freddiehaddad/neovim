@@ -1504,7 +1504,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
     }
 
     let l = rettv.vval.v_list_ref();
-    while maxline < 0 || i64::from(tv_list_len(Some(&*l))) < maxline {
+    while maxline < 0 || i64::from(tv_list_len(Some(l))) < maxline {
         let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
 
         let mut p_idx: usize = 0; // Position in buf.
@@ -1542,14 +1542,14 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
                 start_idx = p_idx + 1; // Step over newline.
                 if maxline < 0 {
-                    if i64::from(tv_list_len(Some(&*l))) > -maxline {
-                        debug_assert_eq!(i64::from(tv_list_len(Some(&*l))), 1 + (-maxline));
+                    if i64::from(tv_list_len(Some(l))) > -maxline {
+                        debug_assert_eq!(i64::from(tv_list_len(Some(l))), 1 + (-maxline));
 
-                        let first_li = tv_list_first(Some(&*l)).unwrap();
+                        let first_li = tv_list_first(Some(l)).unwrap();
                         tv_list_item_remove(l, first_li);
                     }
-                } else if i64::from(tv_list_len(Some(&*l))) >= maxline {
-                    debug_assert_eq!(i64::from(tv_list_len(Some(&*l))), maxline);
+                } else if i64::from(tv_list_len(Some(l))) >= maxline {
+                    debug_assert_eq!(i64::from(tv_list_len(Some(l))), maxline);
 
                     break;
                 }
@@ -1602,7 +1602,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
             p_idx += 1;
         }
 
-        if (maxline >= 0 && i64::from(tv_list_len(Some(&*l))) >= maxline) || readlen <= 0 {
+        if (maxline >= 0 && i64::from(tv_list_len(Some(l))) >= maxline) || readlen <= 0 {
             break;
         }
         if start_idx < p_idx {
@@ -1965,9 +1965,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     if argvars[0].v_type == VarType::VarList {
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(
-            argvars[0].vval.v_list_opt().as_deref(),
-        )) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
             if !tv_check_str_or_nr(&li.li_tv) {
                 return;
             }
@@ -2058,7 +2056,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             } else if argvars[0].v_type == VarType::VarString {
                 write_string(&mut fp, argvars[0].vval.v_string_bytes())
             } else {
-                write_list(&mut fp, argvars[0].vval.v_list_opt().as_deref(), binary)
+                write_list(&mut fp, argvars[0].vval.v_list_opt(), binary)
             };
             if write_ok {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);

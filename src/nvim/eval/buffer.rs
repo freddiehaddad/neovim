@@ -174,7 +174,7 @@ fn set_buffer_lines(
             return;
         }
 
-        li = l.lv_first;
+        li = l.lv_first.get();
     } else {
         line = Some(typval_tostring(Some(lines), false));
     }
@@ -417,7 +417,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let mut li = l.lv_first;
+                let mut li = l.lv_first.get();
                 let str_ = tv_get_string(&li.li_tv);
                 let new_str = concat_str(text.to_bytes(), str_.to_bytes());
                 crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
@@ -433,7 +433,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     if g_st().did_emsg == did_emsg_before {
         if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
-            let li = l.lv_first;
+            let li = l.lv_first.get();
 
             set_buffer_lines(
                 buf.opt_mut(),
@@ -444,7 +444,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             );
 
             if rettv.vval.v_number() == 0 {
-                tv_list_item_remove(l.borrow_mut(), li.borrow_mut());
+                tv_list_item_remove(&l, li.borrow_mut());
 
                 set_buffer_lines(buf.opt_mut(), lnum, true, &mut *lines, &mut *rettv);
             }
@@ -460,7 +460,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let li = l.lv_last;
+                let li = l.lv_last.get();
                 let str_ = tv_get_string(&li.li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {
@@ -716,14 +716,14 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
             if wp.w_buffer == buf {
-                tv_list_append_number(&mut *windows, wp.handle as Varnumber);
+                tv_list_append_number(&windows, wp.handle as Varnumber);
             }
         }
     }
-    tv_dict_add_list(&mut *dict, c"windows", Some(windows));
+    tv_dict_add_list(&mut *dict, c"windows", Some(&windows));
 
     if buf_has_signs(&*buf) {
-        tv_dict_add_list(&mut *dict, c"signs", Some(get_buffer_signs(buf)));
+        tv_dict_add_list(&mut *dict, c"signs", Some(&get_buffer_signs(buf)));
     }
 
     tv_dict_add_nr(&mut *dict, c"lastused", buf.b_last_used);

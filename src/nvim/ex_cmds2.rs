@@ -780,11 +780,11 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
     let mut len: usize = 0;
     if let Some(script) = script_get(eap, &mut len) {
         let args = tv_list_alloc(3);
-        crate::eval::typval::tv_list_append_string(&mut *args, Some(script.as_c_str()), -1);
-        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
+        crate::eval::typval::tv_list_append_string(&args, Some(script.as_c_str()), -1);
+        tv_list_append_number(&args, eap.line1 as Varnumber);
+        tv_list_append_number(&args, eap.line2 as Varnumber);
 
-        eval_call_provider(name, c"execute", &mut *args, true);
+        eval_call_provider(name, c"execute", &args, true);
     }
 }
 
@@ -795,23 +795,23 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
 
         let args = tv_list_alloc(3);
         tv_list_append_string(
-            &mut *args,
+            &args,
             Some(CStr::from_bytes_until_nul(&buffer).unwrap_or(c"")),
             -1,
         );
-        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-        eval_call_provider(name, c"execute_file", &mut *args, true);
+        tv_list_append_number(&args, eap.line1 as Varnumber);
+        tv_list_append_number(&args, eap.line2 as Varnumber);
+        eval_call_provider(name, c"execute_file", &args, true);
     }
 }
 
 fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
     if !eap.skip {
         let args = tv_list_alloc(3);
-        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-        tv_list_append_string(&mut *args, eap.arg.as_opt_cstr(), -1);
-        eval_call_provider(name, c"do_range", &mut *args, true);
+        tv_list_append_number(&args, eap.line1 as Varnumber);
+        tv_list_append_number(&args, eap.line2 as Varnumber);
+        tv_list_append_string(&args, eap.arg.as_opt_cstr(), -1);
+        eval_call_provider(name, c"do_range", &args, true);
     }
 }
 

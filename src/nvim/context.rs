@@ -505,7 +505,7 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     object_to_vim(array_obj(array), &mut list_tv, err);
 
     assert_eq!(list_tv.v_type, VarType::VarList);
-    if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list_opt().as_deref()) {
+    if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list_opt()) {
         sbuf = buf;
     } else {
         api_set_error!(

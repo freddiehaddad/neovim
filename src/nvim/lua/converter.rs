@@ -270,9 +270,9 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                     if cur.special {
                         let kv_pair = tv_list_alloc(2);
                         let s_tv = decode_string(slice, true);
-                        tv_list_append_owned_tv(&mut *kv_pair, s_tv);
+                        tv_list_append_owned_tv(&kv_pair, s_tv);
                         tv_list_append_owned_tv(
-                            &mut *kv_pair,
+                            &kv_pair,
                             TypVal {
                                 v_type: VarType::VarUnknown,
                                 v_lock: VAR_UNLOCKED,
@@ -280,11 +280,8 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                             },
                         );
                         stack.push(cur);
-                        tv_list_append_list(
-                            cur.tv_mut(ret_tv).vval.v_list().borrow_mut(),
-                            Some(kv_pair),
-                        );
-                        let last = tv_list_last(Some(&*kv_pair)).unwrap();
+                        tv_list_append_list(&cur.tv_mut(ret_tv).vval.v_list(), Some(&kv_pair));
+                        let last = tv_list_last(Some(&kv_pair)).unwrap();
                         cur = TVPopStackItem {
                             tv: TVPopTarget::ListItem(last.li_id),
                             list_len: 0,
@@ -319,7 +316,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                 }
                 lua_rawgeti_safe(lstate, -1, tv_list_len(list.opt()) + 1);
                 tv_list_append_owned_tv(
-                    list.borrow_mut(),
+                    &list,
                     TypVal {
                         v_type: VarType::VarUnknown,
                         v_lock: VAR_UNLOCKED,
@@ -400,11 +397,10 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                     match table_props.table_type {
                         ObjectType::ObjectTypeArray => {
                             let l = tv_list_alloc(table_props.maxidx as isize);
-                            l.lua_table_ref = table_ref;
-                            tv_list_ref(Some(&mut *l));
+                            l.lua_table_ref.set(table_ref);
+                            tv_list_ref(Some(&l));
                             cur.tv_mut(ret_tv).v_type = VarType::VarList;
-                            cur.tv_mut(ret_tv).vval =
-                                crate::eval::typval::TypvalVval::List(l.lv_id);
+                            cur.tv_mut(ret_tv).vval = crate::eval::typval::TypvalVval::List(l);
                             cur.list_len = table_props.maxidx;
                             if table_props.maxidx != 0 {
                                 cur.container = true;
@@ -434,7 +430,11 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                     )
                                     .unwrap();
                                     cur.tv = TVPopTarget::DictItem(val_di.di_id);
-                                    cur.tv_mut(ret_tv).vval.v_list().lua_table_ref = table_ref;
+                                    cur.tv_mut(ret_tv)
+                                        .vval
+                                        .v_list()
+                                        .lua_table_ref
+                                        .set(table_ref);
                                     cur.list_len = table_props.string_keys_num;
                                 } else {
                                     let d = tv_dict_alloc();
@@ -552,10 +552,10 @@ fn lua_check_self_reference(
     let mut backref = mpstack.len();
     while backref > 0 {
         let mpval = &mpstack[backref - 1];
-        let matched = match (container, &mpval.data) {
-            (MPContainerRef::Dict(d1), &MPConvStackData::Dict { dict: d2, .. }) => d1 == d2,
-            (MPContainerRef::List(l1), &MPConvStackData::List { list: l2, .. }) => l1 == l2,
-            (MPContainerRef::Pairs(l1), &MPConvStackData::Pairs { list: l2, .. }) => l1 == l2,
+        let matched = match (&container, &mpval.data) {
+            (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. }) => d1 == d2,
+            (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. }) => l1 == l2,
+            (MPContainerRef::Pairs(l1), MPConvStackData::Pairs { list: l2, .. }) => l1 == l2,
             _ => false,
         };
         if matched {
@@ -633,26 +633,29 @@ fn lua_convert_one_value(
             }
         }
         VarType::VarList => {
-            let mut list = tv_ref.vval.v_list();
+            let list = tv_ref.vval.v_list();
             if list.is_null() || tv_list_len(list.opt()) == 0 {
                 lua_createtable_safe(lstate, 0, 0);
             } else {
-                let saved_copy_id = list.lv_copy_id;
-                if lua_check_self_reference(
+                let saved_copy_id = list.lv_copy_id.get();
+                let mut copy_id_val = saved_copy_id;
+                let self_ref = lua_check_self_reference(
                     lstate,
-                    MPContainerRef::List(list),
-                    &mut list.lv_copy_id,
+                    MPContainerRef::List(list.clone()),
+                    &mut copy_id_val,
                     mpstack,
                     copy_id,
-                ) {
+                );
+                list.lv_copy_id.set(copy_id_val);
+                if self_ref {
                     return true;
                 }
                 lua_conv_list_start(lstate, tv_list_len(list.opt()));
                 mpstack.push(MPConvStackVal {
                     saved_copy_id,
                     data: MPConvStackData::List {
-                        list,
                         li: tv_list_first(list.opt()).into(),
+                        list,
                     },
                 });
             }
@@ -679,8 +682,7 @@ fn lua_convert_one_value(
             {
                 let mut mp_idx = NUM_MSGPACK_TYPES;
                 for i in 0..NUM_MSGPACK_TYPES {
-                    if eval_msgpack_type_list(i).is_some_and(|tl| type_di.di_tv.vval.v_list() == tl)
-                    {
+                    if type_di.di_tv.vval.v_list() == eval_msgpack_type_list(i) {
                         mp_idx = i;
                         break;
                     }
@@ -749,23 +751,26 @@ fn lua_convert_one_value(
                         }
                         K_MP_ARRAY => {
                             if val_di.di_tv.v_type == VarType::VarList {
-                                let mut val_list = val_di.di_tv.vval.v_list();
-                                let saved_copy_id = val_list.lv_copy_id;
-                                if lua_check_self_reference(
+                                let val_list = val_di.di_tv.vval.v_list();
+                                let saved_copy_id = val_list.lv_copy_id.get();
+                                let mut copy_id_val = saved_copy_id;
+                                let self_ref = lua_check_self_reference(
                                     lstate,
-                                    MPContainerRef::List(val_list),
-                                    &mut val_list.lv_copy_id,
+                                    MPContainerRef::List(val_list.clone()),
+                                    &mut copy_id_val,
                                     mpstack,
                                     copy_id,
-                                ) {
+                                );
+                                val_list.lv_copy_id.set(copy_id_val);
+                                if self_ref {
                                     return true;
                                 }
                                 lua_conv_list_start(lstate, tv_list_len(val_list.opt()));
                                 mpstack.push(MPConvStackVal {
                                     saved_copy_id,
                                     data: MPConvStackData::List {
-                                        list: val_list,
                                         li: tv_list_first(val_list.opt()).into(),
+                                        list: val_list,
                                     },
                                 });
                                 handled_special = true;
@@ -773,7 +778,7 @@ fn lua_convert_one_value(
                         }
                         K_MP_MAP => {
                             if val_di.di_tv.v_type == VarType::VarList {
-                                let mut val_list = val_di.di_tv.vval.v_list();
+                                let val_list = val_di.di_tv.vval.v_list();
                                 if val_list.is_null() || tv_list_len(val_list.opt()) == 0 {
                                     lua_conv_empty_dict(lstate);
                                     handled_special = true;
@@ -792,14 +797,17 @@ fn lua_convert_one_value(
                                         li = li.li_next;
                                     }
                                     if all_pairs {
-                                        let saved_copy_id = val_list.lv_copy_id;
-                                        if lua_check_self_reference(
+                                        let saved_copy_id = val_list.lv_copy_id.get();
+                                        let mut copy_id_val = saved_copy_id;
+                                        let self_ref = lua_check_self_reference(
                                             lstate,
-                                            MPContainerRef::Pairs(val_list),
-                                            &mut val_list.lv_copy_id,
+                                            MPContainerRef::Pairs(val_list.clone()),
+                                            &mut copy_id_val,
                                             mpstack,
                                             copy_id,
-                                        ) {
+                                        );
+                                        val_list.lv_copy_id.set(copy_id_val);
+                                        if self_ref {
                                             return true;
                                         }
                                         lua_conv_dict_start(
@@ -809,8 +817,8 @@ fn lua_convert_one_value(
                                         mpstack.push(MPConvStackVal {
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
-                                                list: val_list,
                                                 li: tv_list_first(val_list.opt()).into(),
+                                                list: val_list,
                                             },
                                         });
                                         handled_special = true;
@@ -906,13 +914,14 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 &mut di.di_tv
             }
             MPConvStackData::List {
-                mut list,
+                ref list,
                 ref mut li,
             } => {
                 let cur_li = *li;
                 if cur_li.is_null() {
+                    let list = list.clone();
                     mpstack.pop();
-                    list.lv_copy_id = saved_copy_id;
+                    list.lv_copy_id.set(saved_copy_id);
                     lua_rawset_safe(lstate, -3);
                     continue;
                 } else if cur_li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt()))
@@ -925,10 +934,11 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 *li = cur_li.li_next;
                 &mut cur_li.li_tv
             }
-            MPConvStackData::Pairs { mut list, li } => {
+            MPConvStackData::Pairs { ref list, li } => {
                 if li.is_null() {
+                    let list = list.clone();
                     mpstack.pop();
-                    list.lv_copy_id = saved_copy_id;
+                    list.lv_copy_id.set(saved_copy_id);
                     lua_rawset_safe(lstate, -3);
                     continue;
                 } else if li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt())) {

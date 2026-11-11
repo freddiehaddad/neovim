@@ -3096,7 +3096,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 semsg!(tr(E_INVARG2), c"pos");
                 return;
             }
-            if tv_list_len(di.di_tv.vval.v_list_opt().as_deref()) != 3 {
+            if tv_list_len(di.di_tv.vval.v_list_opt()) != 3 {
                 semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
                 return;
             }

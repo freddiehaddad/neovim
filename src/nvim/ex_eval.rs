@@ -125,7 +125,7 @@ pub struct Except {
 
 impl Drop for Except {
     fn drop(&mut self) {
-        tv_list_unref(self.stacktrace.opt_mut());
+        tv_list_unref(self.stacktrace.opt());
     }
 }
 
@@ -431,7 +431,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
     };
 
     let stacktrace = stacktrace_create();
-    tv_list_ref(Some(&mut *stacktrace));
+    tv_list_ref(Some(&stacktrace));
 
     let excp = std::rc::Rc::new(Except {
         r#type,
@@ -439,7 +439,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         messages,
         throw_name,
         throw_lnum,
-        stacktrace: crate::eval::typval::ListId::from(stacktrace),
+        stacktrace,
     });
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
@@ -529,7 +529,7 @@ pub fn discard_current_exception() {
 fn catch_exception(excp: &std::rc::Rc<Except>) {
     g_st().caught_stack.push(excp.clone());
     set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
-    set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt_mut());
+    set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt());
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
             format_to_buf_safelen!(
@@ -587,7 +587,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
     g_st().caught_stack.pop();
     if let Some(top) = g_st().caught_stack.last() {
         set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
-        set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt_mut());
+        set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt());
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
                 format_to_buf_safelen!(

@@ -53,10 +53,10 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     };
 
     if let Some(l1) = tv1.vval.v_list_opt() {
-        tv_list_extend(l1, Some(&*l2), None);
+        tv_list_extend(l1, Some(l2), None);
     } else {
-        tv1.vval = crate::eval::typval::TypvalVval::List(l2.lv_id);
-        l2.lv_refcount += 1;
+        tv1.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(l2));
+        l2.lv_refcount.set(l2.lv_refcount.get() + 1);
     }
 
     true

@@ -21,8 +21,8 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redraw_winline};
 use crate::errors::*;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
-    EvalFuncData, TvList, TypVal, VarType, Varnumber, tv_dict_add_list, tv_dict_add_nr,
-    tv_dict_alloc, tv_dict_alloc_ret, tv_get_string, tv_list_alloc, tv_list_append_dict,
+    EvalFuncData, TypVal, VarType, Varnumber, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc,
+    tv_dict_alloc_ret, tv_get_string, tv_list_alloc, tv_list_append_dict,
 };
 use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{Exarg, UNDO_HASH_SIZE, expr_map_locked};
@@ -2814,7 +2814,7 @@ pub fn curbuf_is_changed_fn() -> bool {
     buf_is_changed_fn(curbuf_mut())
 }
 
-fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> &'static mut TvList {
+fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> crate::eval::typval::ListId {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
 
     let mut uhp = first_uhp;
@@ -2839,10 +2839,10 @@ fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> &'static mut TvLi
         let alt_next = uhp_ref(&*buf, uh).uh_alt_next;
         let prev = uhp_ref(&*buf, uh).uh_prev;
         if alt_next.is_some() {
-            tv_dict_add_list(&mut *dict, c"alt", Some(u_eval_tree(buf, alt_next)));
+            tv_dict_add_list(&mut *dict, c"alt", Some(&u_eval_tree(buf, alt_next)));
         }
 
-        tv_list_append_dict(&mut *list, Some(dict));
+        tv_list_append_dict(&list, Some(dict));
         uhp = prev;
     }
 
@@ -2883,7 +2883,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_dict_add_nr(dict, c"time_cur", buf.b_u_time_cur as Varnumber);
     tv_dict_add_nr(dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
 
-    tv_dict_add_list(dict, c"entries", Some(u_eval_tree(buf, buf.b_u_oldhead)));
+    tv_dict_add_list(dict, c"entries", Some(&u_eval_tree(buf, buf.b_u_oldhead)));
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.

@@ -549,25 +549,25 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_list(&self) -> ListId {
-        match *self {
-            Self::List(p) => p,
+    pub fn v_list(&self) -> ListId {
+        match self {
+            Self::List(p) => p.clone(),
             _ => ListId::NULL,
         }
     }
 
     #[inline]
-    pub fn v_list_ref(&self) -> &'static mut TvList {
-        match *self {
-            Self::List(p) => p.borrow_mut(),
+    pub fn v_list_ref(&self) -> &TvList {
+        match self {
+            Self::List(p) => p.opt().expect("null list"),
             _ => panic!("null list"),
         }
     }
 
     #[inline]
-    pub fn v_list_opt(&self) -> Option<&'static mut TvList> {
-        match *self {
-            Self::List(p) => p.opt_mut(),
+    pub fn v_list_opt(&self) -> Option<&TvList> {
+        match self {
+            Self::List(p) => p.opt(),
             _ => None,
         }
     }
@@ -843,118 +843,170 @@ impl Drop for Listitem {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct ListId(pub Option<std::num::NonZeroU32>);
+#[derive(Clone, Default)]
+pub struct ListId(Option<std::rc::Rc<TvList>>);
+
+impl PartialEq for ListId {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ListId {}
+
+impl std::fmt::Debug for ListId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ListId")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
 
 impl ListId {
     pub const NULL: Self = Self(None);
 
     #[inline(always)]
-    pub const fn from_slot(idx: usize) -> Self {
-        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    pub fn from_ref(l: &TvList) -> Self {
+        Self::from(l)
     }
 
     #[inline(always)]
-    pub fn from_ref(l: &mut TvList) -> Self {
-        l.lv_id
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
+    pub const fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
     #[inline(always)]
-    pub fn opt(self) -> Option<&'static TvList> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas().list_arena.get(idx).and_then(|s| s.as_deref())
+    pub fn opt(&self) -> Option<&TvList> {
+        self.0.as_deref()
     }
 
     #[inline(always)]
-    pub fn opt_mut(self) -> Option<&'static mut TvList> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .list_arena
-            .get_mut(idx)
-            .and_then(|s| s.as_deref_mut())
+    pub fn borrow(&self) -> &TvList {
+        self.opt().expect("null ListId")
     }
 
     #[inline(always)]
-    pub fn borrow(self) -> &'static TvList {
-        self.opt().expect("null or freed ListId")
+    pub fn rc(&self) -> Option<std::rc::Rc<TvList>> {
+        self.0.clone()
     }
 
     #[inline(always)]
-    pub fn borrow_mut(self) -> &'static mut TvList {
-        self.opt_mut().expect("null or freed ListId")
+    pub fn unwrap_rc(&self) -> std::rc::Rc<TvList> {
+        self.0.clone().expect("null ListId")
     }
 
     #[inline(always)]
-    pub fn as_ptr(self) -> *mut TvList {
-        self.opt_mut().map_or(ptr::null_mut(), ptr::from_mut)
+    pub fn as_ptr(&self) -> *const TvList {
+        self.opt().map_or(ptr::null(), ptr::from_ref)
+    }
+}
+
+impl From<std::rc::Rc<TvList>> for ListId {
+    #[inline(always)]
+    fn from(rc: std::rc::Rc<TvList>) -> Self {
+        Self(Some(rc))
+    }
+}
+
+impl From<&std::rc::Rc<TvList>> for ListId {
+    #[inline(always)]
+    fn from(rc: &std::rc::Rc<TvList>) -> Self {
+        Self(Some(rc.clone()))
+    }
+}
+
+impl From<Option<std::rc::Rc<TvList>>> for ListId {
+    #[inline(always)]
+    fn from(opt: Option<std::rc::Rc<TvList>>) -> Self {
+        Self(opt)
+    }
+}
+
+impl From<&ListId> for ListId {
+    #[inline(always)]
+    fn from(id: &ListId) -> Self {
+        id.clone()
+    }
+}
+
+impl From<Option<ListId>> for ListId {
+    #[inline(always)]
+    fn from(opt: Option<ListId>) -> Self {
+        opt.unwrap_or(Self::NULL)
     }
 }
 
 impl From<&TvList> for ListId {
     #[inline(always)]
     fn from(l: &TvList) -> Self {
-        l.lv_id
+        Self(l.self_weak.upgrade())
     }
 }
 
 impl From<&mut TvList> for ListId {
     #[inline(always)]
     fn from(l: &mut TvList) -> Self {
-        l.lv_id
+        Self(l.self_weak.upgrade())
     }
 }
 
 impl From<Option<&TvList>> for ListId {
     #[inline(always)]
     fn from(opt: Option<&TvList>) -> Self {
-        opt.map_or(Self::NULL, |l| l.lv_id)
+        Self(opt.and_then(|l| l.self_weak.upgrade()))
     }
 }
 
 impl From<Option<&mut TvList>> for ListId {
     #[inline(always)]
     fn from(opt: Option<&mut TvList>) -> Self {
-        opt.map_or(Self::NULL, |l| l.lv_id)
+        Self(opt.and_then(|l| l.self_weak.upgrade()))
     }
 }
 
 impl PartialEq<TvList> for ListId {
     #[inline(always)]
     fn eq(&self, other: &TvList) -> bool {
-        self.0.is_some() && *self == other.lv_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), other))
     }
 }
 
 impl PartialEq<&TvList> for ListId {
     #[inline(always)]
     fn eq(&self, other: &&TvList) -> bool {
-        self.0.is_some() && *self == other.lv_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), *other))
     }
 }
 
 impl PartialEq<&mut TvList> for ListId {
     #[inline(always)]
     fn eq(&self, other: &&mut TvList) -> bool {
-        self.0.is_some() && *self == other.lv_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), *other))
     }
 }
 
-impl PartialEq<*const TvList> for ListId {
+impl PartialEq<ListId> for &TvList {
     #[inline(always)]
-    fn eq(&self, other: &*const TvList) -> bool {
-        ptr::eq(self.as_ptr().cast_const(), *other)
+    fn eq(&self, other: &ListId) -> bool {
+        other == self
     }
 }
 
-impl PartialEq<*mut TvList> for ListId {
+impl PartialEq<ListId> for &mut TvList {
     #[inline(always)]
-    fn eq(&self, other: &*mut TvList) -> bool {
-        ptr::eq(self.as_ptr(), *other)
+    fn eq(&self, other: &ListId) -> bool {
+        other == self
     }
 }
 
@@ -967,57 +1019,50 @@ impl std::ops::Deref for ListId {
     }
 }
 
-impl std::ops::DerefMut for ListId {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.borrow_mut()
-    }
-}
-
 #[repr(C)]
 pub struct TvList {
-    pub lv_first: ListitemId,
-    pub lv_last: ListitemId,
-    pub lv_watch: Vec<std::rc::Rc<Listwatch>>,
-    pub lv_idx_item: ListitemId,
-    pub lv_copylist: ListId,
-    pub lv_gc_idx: Option<usize>,
-    pub lv_refcount: i32,
-    pub lv_len: i32,
-    pub lv_idx: i32,
-    pub lv_copy_id: i32,
-    pub lv_lock: i32,
-    pub lua_table_ref: i32,
-    pub lv_id: ListId,
+    pub self_weak: std::rc::Weak<Self>,
+    pub lv_first: std::cell::Cell<ListitemId>,
+    pub lv_last: std::cell::Cell<ListitemId>,
+    pub lv_watch: std::cell::RefCell<Vec<std::rc::Rc<Listwatch>>>,
+    pub lv_idx_item: std::cell::Cell<ListitemId>,
+    pub lv_copylist: crate::api::private::validate::CloneCell<ListId>,
+    pub lv_gc_idx: std::cell::Cell<Option<usize>>,
+    pub lv_refcount: std::cell::Cell<i32>,
+    pub lv_len: std::cell::Cell<i32>,
+    pub lv_idx: std::cell::Cell<i32>,
+    pub lv_copy_id: std::cell::Cell<i32>,
+    pub lv_lock: std::cell::Cell<i32>,
+    pub lua_table_ref: std::cell::Cell<i32>,
 }
 
 impl TvList {
-    pub const fn new() -> Self {
-        Self {
-            lv_first: ListitemId::NULL,
-            lv_last: ListitemId::NULL,
-            lv_watch: Vec::new(),
-            lv_idx_item: ListitemId::NULL,
-            lv_copylist: ListId::NULL,
-            lv_gc_idx: None,
-            lv_refcount: 0,
-            lv_len: 0,
-            lv_idx: 0,
-            lv_copy_id: 0,
-            lv_lock: 0,
-            lua_table_ref: LUA_NOREF,
-            lv_id: ListId::NULL,
-        }
+    pub fn new_rc(refcount: i32) -> std::rc::Rc<Self> {
+        std::rc::Rc::new_cyclic(|weak| Self {
+            self_weak: weak.clone(),
+            lv_first: std::cell::Cell::new(ListitemId::NULL),
+            lv_last: std::cell::Cell::new(ListitemId::NULL),
+            lv_watch: std::cell::RefCell::new(Vec::new()),
+            lv_idx_item: std::cell::Cell::new(ListitemId::NULL),
+            lv_copylist: crate::api::private::validate::CloneCell::new(ListId::NULL),
+            lv_gc_idx: std::cell::Cell::new(None),
+            lv_refcount: std::cell::Cell::new(refcount),
+            lv_len: std::cell::Cell::new(0),
+            lv_idx: std::cell::Cell::new(0),
+            lv_copy_id: std::cell::Cell::new(0),
+            lv_lock: std::cell::Cell::new(0),
+            lua_table_ref: std::cell::Cell::new(LUA_NOREF),
+        })
     }
 
     #[inline]
     pub fn first_opt(&self) -> Option<&'static mut Listitem> {
-        self.lv_first.opt_mut()
+        self.lv_first.get().opt_mut()
     }
 
     #[inline]
     pub fn last_opt(&self) -> Option<&'static mut Listitem> {
-        self.lv_last.opt_mut()
+        self.lv_last.get().opt_mut()
     }
 }
 
@@ -1026,7 +1071,9 @@ impl Drop for TvList {
         if let Some(idx) = self.lv_gc_idx.take() {
             gc_unregister_list(idx);
         }
-        nlua_clear_ref(&mut self.lua_table_ref);
+        let mut r = self.lua_table_ref.get();
+        nlua_clear_ref(&mut r);
+        self.lua_table_ref.set(r);
     }
 }
 
@@ -1495,8 +1542,6 @@ pub(crate) struct TypvalArenas {
     free_dicts: Vec<usize>,
     listitem_arena: Vec<Option<Box<Listitem>>>,
     free_listitems: Vec<usize>,
-    list_arena: Vec<Option<Box<TvList>>>,
-    free_lists: Vec<usize>,
 }
 
 impl TypvalArenas {
@@ -1508,8 +1553,6 @@ impl TypvalArenas {
             free_dicts: Vec::new(),
             listitem_arena: Vec::new(),
             free_listitems: Vec::new(),
-            list_arena: Vec::new(),
-            free_lists: Vec::new(),
         }
     }
 }
@@ -1584,7 +1627,7 @@ pub fn tv_dict_hi2di(hi: &Hashitem) -> &'static mut Dictitem {
 }
 
 #[inline]
-pub fn tv_list_set_ret(tv: &mut TypVal, l: Option<&mut TvList>) {
+pub fn tv_list_set_ret(tv: &mut TypVal, l: Option<&TvList>) {
     tv_list_set_ret_inline(tv, l)
 }
 
@@ -1629,17 +1672,17 @@ pub const fn tv_is_func(tv: &TypVal) -> bool {
 }
 
 #[inline]
-fn tv_list_ref_inline(l: Option<&mut TvList>) {
+fn tv_list_ref_inline(l: Option<&TvList>) {
     if let Some(l) = l {
-        l.lv_refcount += 1;
+        l.lv_refcount.set(l.lv_refcount.get() + 1);
     }
 }
 
 #[inline]
-fn tv_list_set_ret_inline(tv: &mut TypVal, l: Option<&mut TvList>) {
+fn tv_list_set_ret_inline(tv: &mut TypVal, l: Option<&TvList>) {
     let l_id = l.map_or(ListId::NULL, |l_ref| {
-        l_ref.lv_refcount += 1;
-        l_ref.lv_id
+        l_ref.lv_refcount.set(l_ref.lv_refcount.get() + 1);
+        ListId::from(l_ref)
     });
     tv.v_type = VarType::VarList;
     tv.vval = crate::eval::typval::TypvalVval::List(l_id);
@@ -1647,13 +1690,13 @@ fn tv_list_set_ret_inline(tv: &mut TypVal, l: Option<&mut TvList>) {
 
 #[inline]
 fn tv_list_locked_inline(l: Option<&TvList>) -> VarLockStatus {
-    l.map_or(VAR_FIXED, |l| l.lv_lock)
+    l.map_or(VAR_FIXED, |l| l.lv_lock.get())
 }
 
 #[inline]
-pub fn tv_list_ref(l: Option<&mut TvList>) {
+pub fn tv_list_ref(l: Option<&TvList>) {
     if let Some(l) = l {
-        l.lv_refcount += 1;
+        l.lv_refcount.set(l.lv_refcount.get() + 1);
     }
 }
 
@@ -1694,7 +1737,7 @@ pub fn list_iter_ptr(start: Option<&mut Listitem>) -> ListPtrIter {
 }
 
 #[inline]
-pub fn tv_list_set_lock(l: Option<&mut TvList>, lock: VarLockStatus) {
+pub fn tv_list_set_lock(l: Option<&TvList>, lock: VarLockStatus) {
     tv_list_set_lock_inline(l, lock)
 }
 
@@ -1704,12 +1747,12 @@ pub fn tv_blob_len(b: Option<&TvBlob>) -> i32 {
 }
 
 #[inline]
-fn tv_list_set_lock_inline(l: Option<&mut TvList>, lock: VarLockStatus) {
+fn tv_list_set_lock_inline(l: Option<&TvList>, lock: VarLockStatus) {
     if l.is_none() {
         debug_assert_eq!(lock, VAR_FIXED);
         return;
     }
-    l.unwrap().lv_lock = lock;
+    l.unwrap().lv_lock.set(lock);
 }
 
 #[inline]
@@ -1755,8 +1798,8 @@ impl<'a> Iterator for TvListIter<'a> {
 
 #[inline]
 pub fn tv_list_iter(l: Option<&TvList>) -> TvListIter<'_> {
-    let cur = l.map_or(ListitemId::NULL, |l| l.lv_first);
-    let last = l.map_or(ListitemId::NULL, |l| l.lv_last);
+    let cur = l.map_or(ListitemId::NULL, |l| l.lv_first.get());
+    let last = l.map_or(ListitemId::NULL, |l| l.lv_last.get());
     TvListIter {
         cur,
         last,
@@ -1766,7 +1809,7 @@ pub fn tv_list_iter(l: Option<&TvList>) -> TvListIter<'_> {
 
 #[inline]
 fn tv_list_len_inline(l: Option<&TvList>) -> i32 {
-    l.map_or(0, |l| l.lv_len)
+    l.map_or(0, |l| l.lv_len.get())
 }
 
 #[inline]
@@ -1780,12 +1823,12 @@ fn tv_list_uidx_inline(l: Option<&TvList>, mut n: i32) -> i32 {
 
 #[inline]
 fn tv_list_first_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
-    l.and_then(|l| l.lv_first.opt_mut())
+    l.and_then(|l| l.lv_first.get().opt_mut())
 }
 
 #[inline]
 fn tv_list_last_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
-    l.and_then(|l| l.lv_last.opt_mut())
+    l.and_then(|l| l.lv_last.get().opt_mut())
 }
 
 #[inline]
@@ -1889,10 +1932,7 @@ fn free_listitem_slot(item: &mut Listitem) {
 }
 
 /// Remove a list item from a List and free it.
-pub fn tv_list_item_remove(
-    l: &mut TvList,
-    item_in: &mut Listitem,
-) -> Option<&'static mut Listitem> {
+pub fn tv_list_item_remove(l: &TvList, item_in: &mut Listitem) -> Option<&'static mut Listitem> {
     let item = ListitemId::from(item_in);
     let next_item = item.li_next;
 
@@ -1903,108 +1943,68 @@ pub fn tv_list_item_remove(
 }
 
 /// Add a watcher to a list.
-pub fn tv_list_watch_add(l: &mut TvList, lw: std::rc::Rc<Listwatch>) {
-    l.lv_watch.push(lw);
+pub fn tv_list_watch_add(l: &TvList, lw: std::rc::Rc<Listwatch>) {
+    l.lv_watch.borrow_mut().push(lw);
 }
 
 /// Remove a watcher from a list.
-pub fn tv_list_watch_remove(l: &mut TvList, lwrem: &std::rc::Rc<Listwatch>) {
-    if let Some(pos) = l
-        .lv_watch
-        .iter()
-        .position(|lw| std::rc::Rc::ptr_eq(lw, lwrem))
-    {
-        l.lv_watch.remove(pos);
+pub fn tv_list_watch_remove(l: &TvList, lwrem: &std::rc::Rc<Listwatch>) {
+    let mut watch = l.lv_watch.borrow_mut();
+    if let Some(pos) = watch.iter().position(|lw| std::rc::Rc::ptr_eq(lw, lwrem)) {
+        watch.remove(pos);
     }
 }
 
 /// Advance watchers to the next item.
-fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
-    for lw in &l.lv_watch {
+fn tv_list_watch_fix(l: &TvList, item: &Listitem) {
+    for lw in l.lv_watch.borrow().iter() {
         if lw.lw_item.get() == *item {
             lw.lw_item.set(item.li_next);
         }
     }
 }
 
-fn tv_list_alloc_slot(refcount: i32) -> &'static mut TvList {
-    let st = tv_arenas();
-    let idx = if let Some(idx) = st.free_lists.pop() {
-        let id = ListId::from_slot(idx);
-        st.list_arena[idx] = Some(Box::new(TvList {
-            lv_first: ListitemId::NULL,
-            lv_last: ListitemId::NULL,
-            lv_watch: Vec::new(),
-            lv_idx_item: ListitemId::NULL,
-            lv_copylist: ListId::NULL,
-            lv_gc_idx: None,
-            lv_refcount: refcount,
-            lv_len: 0,
-            lv_idx: 0,
-            lv_copy_id: 0,
-            lv_lock: 0,
-            lua_table_ref: LUA_NOREF,
-            lv_id: id,
-        }));
-        idx
-    } else {
-        let idx = st.list_arena.len();
-        let id = ListId::from_slot(idx);
-        st.list_arena.push(Some(Box::new(TvList {
-            lv_first: ListitemId::NULL,
-            lv_last: ListitemId::NULL,
-            lv_watch: Vec::new(),
-            lv_idx_item: ListitemId::NULL,
-            lv_copylist: ListId::NULL,
-            lv_gc_idx: None,
-            lv_refcount: refcount,
-            lv_len: 0,
-            lv_idx: 0,
-            lv_copy_id: 0,
-            lv_lock: 0,
-            lua_table_ref: LUA_NOREF,
-            lv_id: id,
-        })));
-        idx
-    };
-    st.list_arena[idx].as_deref_mut().unwrap()
-}
-
 /// Allocate an empty list.
-#[allow(unsafe_code)]
-#[unsafe(no_mangle)]
-pub extern "C" fn tv_list_alloc(_len: isize) -> &'static mut TvList {
-    let list = tv_list_alloc_slot(0);
-    gc_register_list(list);
+pub fn tv_list_alloc(_len: isize) -> ListId {
+    let list = ListId::from(TvList::new_rc(0));
+    gc_register_list(&list);
     list
 }
 
+#[allow(unsafe_code)]
+#[unsafe(export_name = "tv_list_alloc")]
+pub extern "C" fn tv_list_alloc_ffi(len: isize) -> *const TvList {
+    let list = tv_list_alloc(len);
+    ptr::from_ref(&*list)
+}
+
 /// Allocate an empty static list (`lv_refcount = DO_NOT_FREE_CNT`, not registered in GC).
-pub fn tv_list_alloc_static() -> &'static mut TvList {
-    tv_list_alloc_slot(DO_NOT_FREE_CNT)
+pub fn tv_list_alloc_static() -> ListId {
+    ListId::from(TvList::new_rc(DO_NOT_FREE_CNT))
 }
 
 /// Unreference a static list initialized with `DO_NOT_FREE_CNT`.
-pub fn unref_var_list(l: &mut TvList) {
-    l.lv_refcount -= DO_NOT_FREE_CNT - 1;
+pub fn unref_var_list(l: &TvList) {
+    l.lv_refcount
+        .set(l.lv_refcount.get() - (DO_NOT_FREE_CNT - 1));
     tv_list_unref(Some(l));
 }
 
-/// Free a heap-allocated `TvList` slot in the arena.
-pub fn tv_list_free_slot(l: &mut TvList) {
-    if let Some(nz) = l.lv_id.0 {
-        let idx = (nz.get() - 1) as usize;
-        let st = tv_arenas();
-        let dropped = st.list_arena[idx].take();
-        st.free_lists.push(idx);
-        drop(dropped);
+/// Free a heap-allocated `TvList` slot.
+pub fn tv_list_free_slot(l: &TvList) {
+    if let Some(idx) = l.lv_gc_idx.take() {
+        gc_unregister_list(idx);
     }
+    l.lv_copylist.set(ListId::NULL);
+    let mut r = l.lua_table_ref.get();
+    nlua_clear_ref(&mut r);
+    l.lua_table_ref.set(r);
 }
 
 /// Initialize a static list with 10 items.
-pub fn tv_list_init_static10(l: &mut TvList) {
+pub fn tv_list_init_static10(l: &TvList) {
     tv_list_free_contents(l);
-    l.lv_refcount = DO_NOT_FREE_CNT;
+    l.lv_refcount.set(DO_NOT_FREE_CNT);
     for _ in 0..10 {
         let li = tv_list_item_alloc();
         tv_list_append(l, li);
@@ -2013,27 +2013,26 @@ pub fn tv_list_init_static10(l: &mut TvList) {
 }
 
 /// Free items contained in a list.
-pub fn tv_list_free_contents(l: &mut TvList) {
-    let mut item = l.lv_first;
+pub fn tv_list_free_contents(l: &TvList) {
+    let mut item = l.lv_first.get();
     while !item.is_null() {
-        l.lv_first = item.li_next;
+        l.lv_first.set(item.li_next);
         free_listitem_slot(item.borrow_mut());
-        item = l.lv_first;
+        item = l.lv_first.get();
     }
-    l.lv_len = 0;
-    l.lv_idx_item = ListitemId::NULL;
-    l.lv_last = ListitemId::NULL;
-    debug_assert!(l.lv_watch.is_empty());
+    l.lv_len.set(0);
+    l.lv_idx_item.set(ListitemId::NULL);
+    l.lv_last.set(ListitemId::NULL);
+    debug_assert!(l.lv_watch.borrow().is_empty());
 }
 
 /// Free a list, including all items it points to.
-#[allow(unsafe_code)]
-#[unsafe(no_mangle)]
-pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
+pub fn tv_list_free(l: Option<&TvList>) {
     let Some(l_ref) = l else {
         return;
     };
-    if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && l_ref.lv_gc_idx.is_some() {
+    let _hold = ListId::from(l_ref);
+    if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && l_ref.lv_gc_idx.get().is_some() {
         return;
     }
 
@@ -2041,24 +2040,32 @@ pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
     tv_list_free_slot(l_ref);
 }
 
+#[allow(unsafe_code)]
+#[unsafe(export_name = "tv_list_free")]
+pub unsafe extern "C" fn tv_list_free_ffi(l: *const TvList) {
+    if !l.is_null() {
+        tv_list_free(Some(unsafe { &*l }));
+    }
+}
+
 /// Unreference a list.
-pub fn tv_list_unref(l: Option<&mut TvList>) {
+pub fn tv_list_unref(l: Option<&TvList>) {
     if let Some(l_ref) = l {
-        l_ref.lv_refcount -= 1;
-        if l_ref.lv_refcount <= 0 {
+        l_ref.lv_refcount.set(l_ref.lv_refcount.get() - 1);
+        if l_ref.lv_refcount.get() <= 0 {
             tv_list_free(Some(l_ref));
         }
     }
 }
 
 /// Remove items "item" to "item2" from list "l".
-pub fn tv_list_drop_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
+pub fn tv_list_drop_items(l: &TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
     let item = ListitemId::from_ref(item_in);
     let item2 = ListitemId::from_ref(item2_in);
     let mut end_next = item2.li_next;
     let mut ip = item;
     while ip != end_next {
-        l.lv_len -= 1;
+        l.lv_len.set(l.lv_len.get() - 1);
 
         tv_list_watch_fix(l, &ip);
 
@@ -2067,20 +2074,20 @@ pub fn tv_list_drop_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut
 
     let mut item_prev = item.li_prev;
     if end_next.is_null() {
-        l.lv_last = item_prev;
+        l.lv_last.set(item_prev);
     } else {
         end_next.li_prev = item_prev;
     }
     if item_prev.is_null() {
-        l.lv_first = end_next;
+        l.lv_first.set(end_next);
     } else {
         item_prev.li_next = end_next;
     }
-    l.lv_idx_item = ListitemId::NULL;
+    l.lv_idx_item.set(ListitemId::NULL);
 }
 
 /// Like tv_list_drop_items, but also frees all removed items.
-pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
+pub fn tv_list_remove_items(l: &TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
     let item = ListitemId::from(item_in);
     let item2 = ListitemId::from(item2_in);
     tv_list_drop_items(l, item.borrow_mut(), item2.borrow_mut());
@@ -2097,28 +2104,28 @@ pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &m
 
 /// Move items "item" to "item2" from list "l" to the end of the list "tgt_l".
 pub fn tv_list_move_items(
-    l: &mut TvList,
+    l: &TvList,
     item_in: &mut Listitem,
     item2_in: &mut Listitem,
-    tgt_l: &mut TvList,
+    tgt_l: &TvList,
     cnt: i32,
 ) {
     let mut item = ListitemId::from_ref(item_in);
     let mut item2 = ListitemId::from_ref(item2_in);
-    tv_list_drop_items(&mut *l, item.borrow_mut(), item2.borrow_mut());
-    item.li_prev = tgt_l.lv_last;
+    tv_list_drop_items(l, item.borrow_mut(), item2.borrow_mut());
+    item.li_prev = tgt_l.lv_last.get();
     item2.li_next = ListitemId::NULL;
-    if let Some(last_ref) = tgt_l.lv_last.opt_mut() {
+    if let Some(last_ref) = tgt_l.lv_last.get().opt_mut() {
         last_ref.li_next = item;
     } else {
-        tgt_l.lv_first = item;
+        tgt_l.lv_first.set(item);
     }
-    tgt_l.lv_last = item2;
-    tgt_l.lv_len += cnt;
+    tgt_l.lv_last.set(item2);
+    tgt_l.lv_len.set(tgt_l.lv_len.get() + cnt);
 }
 
 /// Insert list item.
-pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item_opt: Option<&mut Listitem>) {
+pub fn tv_list_insert(l: &TvList, ni: &mut Listitem, item_opt: Option<&mut Listitem>) {
     let Some(item_ref) = item_opt else {
         tv_list_append(l, ni);
         return;
@@ -2129,48 +2136,48 @@ pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item_opt: Option<&mut L
     ni.li_next = item;
     if let Some(prev_ref) = item.li_prev.opt_mut() {
         prev_ref.li_next = ni_ptr;
-        l.lv_idx_item = ListitemId::NULL;
+        l.lv_idx_item.set(ListitemId::NULL);
     } else {
-        l.lv_first = ni_ptr;
-        l.lv_idx += 1;
+        l.lv_first.set(ni_ptr);
+        l.lv_idx.set(l.lv_idx.get() + 1);
     }
 
     item.li_prev = ni_ptr;
-    l.lv_len += 1;
+    l.lv_len.set(l.lv_len.get() + 1);
 }
 
 /// Insert Vimscript value into a list.
-pub fn tv_list_insert_tv(l: &mut TvList, tv: &mut TypVal, item: Option<&mut Listitem>) {
+pub fn tv_list_insert_tv(l: &TvList, tv: &mut TypVal, item: Option<&mut Listitem>) {
     let ni = tv_list_item_alloc();
     tv_copy(&*tv, &mut ni.li_tv);
     tv_list_insert(l, &mut *ni, item);
 }
 
 /// Append item to the end of list.
-pub fn tv_list_append(l: &mut TvList, item: &mut Listitem) {
+pub fn tv_list_append(l: &TvList, item: &mut Listitem) {
     let item_ptr = ListitemId::from(&mut *item);
-    if let Some(last_ref) = l.lv_last.opt_mut() {
+    if let Some(last_ref) = l.lv_last.get().opt_mut() {
         last_ref.li_next = item_ptr;
-        item.li_prev = l.lv_last;
-        l.lv_last = item_ptr;
+        item.li_prev = l.lv_last.get();
+        l.lv_last.set(item_ptr);
     } else {
-        l.lv_first = item_ptr;
-        l.lv_last = item_ptr;
+        l.lv_first.set(item_ptr);
+        l.lv_last.set(item_ptr);
         item.li_prev = ListitemId::NULL;
     }
-    l.lv_len += 1;
+    l.lv_len.set(l.lv_len.get() + 1);
     item.li_next = ListitemId::NULL;
 }
 
 /// Append Vimscript value to the end of list.
-pub fn tv_list_append_tv(l: &mut TvList, tv: &mut TypVal) {
+pub fn tv_list_append_tv(l: &TvList, tv: &mut TypVal) {
     let li = tv_list_item_alloc();
     tv_copy(&*tv, &mut li.li_tv);
     tv_list_append(l, &mut *li);
 }
 
 /// Like tv_list_append_tv(), but tv is moved to a list.
-pub fn tv_list_append_owned_tv(l: &mut TvList, tv: TypVal) -> &'static mut TypVal {
+pub fn tv_list_append_owned_tv(l: &TvList, tv: TypVal) -> &'static mut TypVal {
     let li = tv_list_item_alloc();
     li.li_tv = tv;
     tv_list_append(l, li);
@@ -2178,10 +2185,10 @@ pub fn tv_list_append_owned_tv(l: &mut TvList, tv: TypVal) -> &'static mut TypVa
 }
 
 /// Append a list to a list as one item.
-pub fn tv_list_append_list(l: &mut TvList, itemlist: Option<&mut TvList>) {
+pub fn tv_list_append_list(l: &TvList, itemlist: Option<&TvList>) {
     let itemlist_id = itemlist.map_or(ListId::NULL, |il| {
-        il.lv_refcount += 1;
-        il.lv_id
+        il.lv_refcount.set(il.lv_refcount.get() + 1);
+        ListId::from(il)
     });
     tv_list_append_owned_tv(
         l,
@@ -2194,7 +2201,7 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: Option<&mut TvList>) {
 }
 
 /// Append a dictionary to a list.
-pub fn tv_list_append_dict(l: &mut TvList, dict: Option<&mut TvDict>) {
+pub fn tv_list_append_dict(l: &TvList, dict: Option<&mut TvDict>) {
     let dict_id = dict.map_or(DictId::NULL, |d| {
         d.dv_refcount += 1;
         d.dv_id
@@ -2211,7 +2218,7 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: Option<&mut TvDict>) {
 
 /// Make a copy of "str" and append it as an item to list "l".
 #[inline]
-pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
+pub fn tv_list_append_bytes(l: &TvList, bytes: &[u8]) {
     tv_list_append_owned_tv(
         l,
         TypVal {
@@ -2222,7 +2229,7 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
     );
 }
 
-pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
+pub fn tv_list_append_string(l: &TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
         None => None,
         Some(s) if len >= 0 => {
@@ -2244,7 +2251,7 @@ pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
 }
 
 /// Append number to the list.
-pub fn tv_list_append_number(l: &mut TvList, n: Varnumber) {
+pub fn tv_list_append_number(l: &TvList, n: Varnumber) {
     tv_list_append_owned_tv(
         l,
         TypVal {
@@ -2258,19 +2265,19 @@ pub fn tv_list_append_number(l: &mut TvList, n: Varnumber) {
 /// Make a copy of list.
 pub fn tv_list_copy(
     conv: Option<&Vimconv>,
-    mut orig: Option<&mut TvList>,
+    orig: Option<&TvList>,
     deep: bool,
     copy_id: i32,
-) -> Option<&'static mut TvList> {
-    orig.as_ref()?;
+) -> Option<ListId> {
+    let orig = orig?;
 
-    let copy = tv_list_alloc(tv_list_len_inline(orig.as_deref()) as isize);
-    tv_list_ref_inline(Some(&mut *copy));
+    let copy = tv_list_alloc(tv_list_len_inline(Some(orig)) as isize);
+    tv_list_ref_inline(Some(&copy));
     if copy_id != 0 {
-        orig.as_deref_mut().unwrap().lv_copy_id = copy_id;
-        orig.as_deref_mut().unwrap().lv_copylist = ListId::from(&mut *copy);
+        orig.lv_copy_id.set(copy_id);
+        orig.lv_copylist.set(copy.clone());
     }
-    for item in crate::eval::typval::list_iter_mut(orig.unwrap().first_opt()) {
+    for item in crate::eval::typval::list_iter_mut(orig.first_opt()) {
         if g_st().got_int {
             break;
         }
@@ -2278,13 +2285,13 @@ pub fn tv_list_copy(
         if deep {
             if !var_item_copy(conv, &mut item.li_tv, &mut ni.li_tv, deep, copy_id) {
                 free_listitem_slot(ni);
-                tv_list_unref(Some(copy));
+                tv_list_unref(Some(&copy));
                 return None;
             }
         } else {
             tv_copy(&item.li_tv, &mut ni.li_tv);
         }
-        tv_list_append(&mut *copy, &mut *ni);
+        tv_list_append(&copy, &mut *ni);
     }
 
     Some(copy)
@@ -2292,7 +2299,7 @@ pub fn tv_list_copy(
 
 /// Get the list item in "l" with index "n1".
 pub fn tv_list_check_range_index_one(
-    l: Option<&mut TvList>,
+    l: Option<&TvList>,
     n1: &mut i32,
     quiet: bool,
 ) -> Option<&'static mut Listitem> {
@@ -2309,24 +2316,24 @@ pub fn tv_list_check_range_index_one(
 
 /// Check that "n2" can be used as the second index in a range of list "l".
 pub fn tv_list_check_range_index_two(
-    mut l: Option<&mut TvList>,
+    l: Option<&TvList>,
     n1: &mut i32,
     li1: Option<&Listitem>,
     n2: &mut i32,
     quiet: bool,
 ) -> bool {
     if *n2 < 0 {
-        let Some(ni) = tv_list_find(l.as_deref_mut(), *n2) else {
+        let Some(ni) = tv_list_find(l, *n2) else {
             if !quiet {
                 semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n2));
             }
             return false;
         };
-        *n2 = tv_list_idx_of_item(l.as_deref(), Some(ni));
+        *n2 = tv_list_idx_of_item(l, Some(ni));
     }
 
     if *n1 < 0 {
-        *n1 = tv_list_idx_of_item(l.as_deref(), li1);
+        *n1 = tv_list_idx_of_item(l, li1);
     }
     if *n2 < *n1 {
         if !quiet {
@@ -2339,7 +2346,7 @@ pub fn tv_list_check_range_index_two(
 
 /// Assign values from list "src" into a range of "dest".
 pub fn tv_list_assign_range(
-    dest: &mut TvList,
+    dest: &TvList,
     src: Option<&TvList>,
     idx1_arg: i32,
     idx2: i32,
@@ -2348,7 +2355,7 @@ pub fn tv_list_assign_range(
     varname: &CStr,
 ) -> bool {
     let mut idx1 = idx1_arg;
-    let first_li = ListitemId::from(tv_list_find_index(Some(&mut *dest), &mut idx1));
+    let first_li = ListitemId::from(tv_list_find_index(Some(dest), &mut idx1));
     let mut src_li: ListitemId;
 
     let mut idx = idx1;
@@ -2412,7 +2419,7 @@ pub fn tv_list_assign_range(
 
 /// Flatten up to "maxitems" in "list", starting at "first" to depth "maxdepth".
 pub fn tv_list_flatten(
-    list: &mut TvList,
+    list: &TvList,
     first_opt: Option<&mut Listitem>,
     maxitems: i64,
     maxdepth: i64,
@@ -2423,7 +2430,7 @@ pub fn tv_list_flatten(
 
     let first = ListitemId::from(first_opt);
     let mut item = if first.is_null() {
-        list.lv_first
+        list.lv_first.get()
     } else {
         first
     };
@@ -2447,8 +2454,8 @@ pub fn tv_list_flatten(
                     .borrow()
                     .li_prev
                     .opt()
-                    .map_or_else(|| list.lv_first, |prev| prev.li_next);
-                let sub_len = itemlist.opt().map_or(0, |l| i64::from(l.lv_len));
+                    .map_or_else(|| list.lv_first.get(), |prev| prev.li_next);
+                let sub_len = itemlist.opt().map_or(0, |l| i64::from(l.lv_len.get()));
                 tv_list_flatten(list, sub_first.opt_mut(), sub_len, maxdepth - 1);
             }
 
@@ -2471,9 +2478,9 @@ fn tv_blob2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
     for i in 0..tv_blob_len_inline(Some(blob)) {
         let l2 = tv_list_alloc(2);
-        tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
-        tv_list_append_number(&mut *l2, i64::from(i));
-        tv_list_append_number(&mut *l2, i64::from(tv_blob_get_inline(blob, i)));
+        tv_list_append_list(rettv.vval.v_list_ref(), Some(&l2));
+        tv_list_append_number(&l2, i64::from(i));
+        tv_list_append_number(&l2, i64::from(tv_blob_get_inline(blob, i)));
     }
 }
 
@@ -2486,16 +2493,16 @@ fn tv_dict2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let l = argvars[0].vval.v_list_opt();
 
-    tv_list_alloc_ret(&mut *rettv, tv_list_len_inline(l.as_deref()) as isize);
+    tv_list_alloc_ret(&mut *rettv, tv_list_len_inline(l) as isize);
     let Some(l) = l else {
         return;
     };
 
     for (idx, li) in (0 as Varnumber..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
         let l2 = tv_list_alloc(2);
-        tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
-        tv_list_append_number(&mut *l2, idx);
-        tv_list_append_tv(&mut *l2, &mut li.li_tv);
+        tv_list_append_list(rettv.vval.v_list_ref(), Some(&l2));
+        tv_list_append_number(&l2, idx);
+        tv_list_append_tv(&l2, &mut li.li_tv);
     }
 }
 
@@ -2513,16 +2520,16 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
             break;
         }
         let l2 = tv_list_alloc(2);
-        tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
-        tv_list_append_number(&mut *l2, idx);
-        tv_list_append_string(&mut *l2, Some(p), len as isize);
+        tv_list_append_list(rettv.vval.v_list_ref(), Some(&l2));
+        tv_list_append_number(&l2, idx);
+        tv_list_append_string(&l2, Some(p), len as isize);
         p = crate::memory::CStrSubslice::advance(p, len as usize);
         idx += 1;
     }
 }
 
 /// Extend first list with the second.
-pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut Listitem>) {
+pub fn tv_list_extend(l1: &TvList, l2: Option<&TvList>, bef_opt: Option<&mut Listitem>) {
     let mut todo = tv_list_len_inline(l2);
     if todo == 0 {
         return;
@@ -2546,23 +2553,19 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut
 }
 
 /// Concatenate lists into a new list.
-pub fn tv_list_concat(
-    mut l1: Option<&mut TvList>,
-    mut l2: Option<&mut TvList>,
-    tv: &mut TypVal,
-) -> bool {
+pub fn tv_list_concat(l1: Option<&TvList>, l2: Option<&TvList>, tv: &mut TypVal) -> bool {
     tv.v_type = VarType::VarList;
     tv.v_lock = VAR_UNLOCKED;
     let l = if l1.is_none() && l2.is_none() {
         None
     } else if l1.is_none() {
-        tv_list_copy(None, l2.as_deref_mut(), false, 0)
+        tv_list_copy(None, l2, false, 0)
     } else {
-        let mut copy = tv_list_copy(None, l1.as_deref_mut(), false, 0);
-        if let Some(ref mut copy_ref) = copy
+        let copy = tv_list_copy(None, l1, false, 0);
+        if let Some(ref copy_ref) = copy
             && l2.is_some()
         {
-            tv_list_extend(copy_ref, l2.as_deref(), None);
+            tv_list_extend(copy_ref, l2, None);
         }
         copy
     };
@@ -2574,12 +2577,12 @@ pub fn tv_list_concat(
     true
 }
 
-fn tv_list_slice(ol: Option<&mut TvList>, mut n1: Varnumber, n2: Varnumber) -> &'static mut TvList {
+fn tv_list_slice(ol: Option<&TvList>, mut n1: Varnumber, n2: Varnumber) -> ListId {
     let l = tv_list_alloc((n2 - n1 + 1) as isize);
     let mut item = tv_list_find_opt(ol, n1 as i32);
     while n1 <= n2 {
         let cur = item.unwrap();
-        tv_list_append_tv(&mut *l, &mut cur.li_tv);
+        tv_list_append_tv(&l, &mut cur.li_tv);
         item = cur.next_opt();
         n1 += 1;
     }
@@ -2594,7 +2597,7 @@ pub fn tv_list_slice_or_index(
     rettv: &mut TypVal,
     verbose: bool,
 ) -> bool {
-    let len = i64::from(tv_list_len_inline(rettv.vval.v_list_opt().as_deref()));
+    let len = i64::from(tv_list_len_inline(rettv.vval.v_list_opt()));
     let mut n1 = n1_arg;
     let mut n2 = n2_arg;
 
@@ -2624,7 +2627,7 @@ pub fn tv_list_slice_or_index(
         }
         let l = tv_list_slice(rettv.vval.v_list_opt(), n1, n2);
         tv_clear(&mut *rettv);
-        tv_list_set_ret_inline(rettv, Some(l));
+        tv_list_set_ret_inline(rettv, Some(&l));
     } else {
         let found = tv_list_find_opt(rettv.vval.v_list_opt(), n1 as i32).unwrap();
         let mut var1 = tv_initial_value();
@@ -2637,7 +2640,7 @@ pub fn tv_list_slice_or_index(
 
 fn list_join_inner(
     gap: &mut Vec<u8>,
-    l: &mut TvList,
+    l: &TvList,
     sep: &CStr,
     join_vec: &mut Vec<std::ffi::CString>,
 ) -> bool {
@@ -2684,8 +2687,8 @@ fn list_join_inner(
 }
 
 /// Join list into a string using given separator.
-pub fn tv_list_join(gap: &mut Vec<u8>, l: Option<&mut TvList>, sep: &CStr) -> bool {
-    let len = tv_list_len_inline(l.as_deref());
+pub fn tv_list_join(gap: &mut Vec<u8>, l: Option<&TvList>, sep: &CStr) -> bool {
+    let len = tv_list_len_inline(l);
     if len == 0 {
         return true;
     }
@@ -2748,11 +2751,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// "remove({list})" function.
 pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &CStr) {
     let l = argvars[0].vval.v_list_opt();
-    if value_check_lock(
-        tv_list_locked_inline(l.as_deref()),
-        Some(arg_errmsg),
-        TV_TRANSLATE,
-    ) {
+    if value_check_lock(tv_list_locked_inline(l), Some(arg_errmsg), TV_TRANSLATE) {
         return;
     }
     let Some(l) = l else {
@@ -2765,7 +2764,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
     if error {
         return;
     }
-    let Some(item) = tv_list_find_opt(Some(&mut *l), idx as i32) else {
+    let Some(item) = tv_list_find_opt(Some(l), idx as i32) else {
         semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), idx);
         return;
     };
@@ -2779,7 +2778,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         if error {
             return;
         }
-        let Some(item2) = tv_list_find_opt(Some(&mut *l), end as i32) else {
+        let Some(item2) = tv_list_find_opt(Some(l), end as i32) else {
             semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), end);
             return;
         };
@@ -2798,13 +2797,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             emsg(tr(E_INVRANGE));
         } else {
             let tgt = tv_list_alloc_ret(rettv, cnt as isize);
-            tv_list_move_items(
-                l,
-                item_ptr.borrow_mut(),
-                item2_ptr.borrow_mut(),
-                &mut *tgt,
-                cnt,
-            );
+            tv_list_move_items(l, item_ptr.borrow_mut(), item2_ptr.borrow_mut(), &tgt, cnt);
         }
     }
 }
@@ -3013,8 +3006,8 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut Sortinfo) {
     info.item_compare_keys_ready = true;
 }
 
-fn do_sort(l: &mut TvList, info: &mut Sortinfo) {
-    let len = tv_list_len_inline(Some(&*l));
+fn do_sort(l: &TvList, info: &mut Sortinfo) {
+    let len = tv_list_len_inline(Some(l));
     let mut ptrs = Vec::with_capacity(len.max(0) as usize);
 
     for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
@@ -3041,10 +3034,10 @@ fn do_sort(l: &mut TvList, info: &mut Sortinfo) {
         ptrs.sort_by(|a, b| item_compare2(a, b, false, info).cmp(&0));
     }
     if !info.item_compare_func_err {
-        l.lv_first = ListitemId::NULL;
-        l.lv_last = ListitemId::NULL;
-        l.lv_idx_item = ListitemId::NULL;
-        l.lv_len = 0;
+        l.lv_first.set(ListitemId::NULL);
+        l.lv_last.set(ListitemId::NULL);
+        l.lv_idx_item.set(ListitemId::NULL);
+        l.lv_len.set(0);
         for si in &ptrs {
             tv_list_append(l, si.item_mut());
         }
@@ -3054,13 +3047,12 @@ fn do_sort(l: &mut TvList, info: &mut Sortinfo) {
     }
 }
 
-fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
+fn do_uniq(l: Option<&TvList>, info: &mut Sortinfo) {
     info.item_compare_func_err = false;
     info.item_compare_keys_ready = false;
     let use_custom = info.item_compare_func.is_some() || !info.item_compare_partial.is_null();
 
     let mut li = l
-        .as_deref()
         .and_then(|l| l.first_opt())
         .map_or(ListitemId::NULL, |first| first.li_next);
     while let Some(cur_li) = li.opt_mut() {
@@ -3081,10 +3073,7 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
             item_compare2(&prev_si, &cur_si, true, info)
         };
         if cmp == 0 {
-            li = ListitemId::from(tv_list_item_remove(
-                l.as_deref_mut().unwrap(),
-                li.borrow_mut(),
-            ));
+            li = ListitemId::from(tv_list_item_remove(l.unwrap(), li.borrow_mut()));
         } else {
             li = cur_li.li_next;
         }
@@ -3182,20 +3171,20 @@ fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
     } else {
         c"uniq() argument"
     };
-    let mut l = argvars[0].vval.v_list_opt();
+    let l = argvars[0].vval.v_list();
     if !value_check_lock(
-        tv_list_locked_inline(l.as_deref()),
+        tv_list_locked_inline(l.opt()),
         Some(arg_errmsg),
         TV_TRANSLATE,
     ) {
-        tv_list_set_ret_inline(rettv, l.as_deref_mut());
+        tv_list_set_ret_inline(rettv, l.opt());
 
-        let len = tv_list_len_inline(l.as_deref());
+        let len = tv_list_len_inline(l.opt());
         if len > 1 && parse_sort_uniq_args(argvars, &mut info) {
             if sort {
-                do_sort(l.unwrap(), &mut info);
+                do_sort(l.borrow(), &mut info);
             } else {
-                do_uniq(l, &mut info);
+                do_uniq(l.opt(), &mut info);
             }
         }
     }
@@ -3240,24 +3229,26 @@ pub fn tv_list_equal(l1: Option<&TvList>, l2: Option<&TvList>, ic: bool) -> bool
 }
 
 /// Reverse list in-place.
-pub fn tv_list_reverse(l: &mut TvList) {
-    if tv_list_len_inline(Some(&*l)) <= 1 {
+pub fn tv_list_reverse(l: &TvList) {
+    if tv_list_len_inline(Some(l)) <= 1 {
         return;
     }
-    std::mem::swap(&mut l.lv_first, &mut l.lv_last);
+    let old_first = l.lv_first.get();
+    l.lv_first.set(l.lv_last.get());
+    l.lv_last.set(old_first);
     let mut li = l.first_opt();
     while let Some(cur) = li {
         std::mem::swap(&mut cur.li_next, &mut cur.li_prev);
         li = cur.next_opt();
     }
-    l.lv_idx = l.lv_len - l.lv_idx - 1;
+    l.lv_idx.set(l.lv_len.get() - l.lv_idx.get() - 1);
 }
 
 /// Locate item with a given index in a list and return it.
-pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static mut Listitem> {
-    l.as_ref()?;
+pub fn tv_list_find(l: Option<&TvList>, mut n: i32) -> Option<&'static mut Listitem> {
+    let l = l?;
 
-    n = tv_list_uidx_inline(l.as_deref(), n);
+    n = tv_list_uidx_inline(Some(l), n);
     if n == -1 {
         return None;
     }
@@ -3265,23 +3256,23 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static m
     let mut idx: i32;
     let mut item: ListitemId;
 
-    if !l.as_deref_mut().unwrap().lv_idx_item.is_null() {
-        if n < l.as_deref_mut().unwrap().lv_idx / 2 {
-            item = l.as_deref_mut().unwrap().lv_first;
+    if !l.lv_idx_item.get().is_null() {
+        if n < l.lv_idx.get() / 2 {
+            item = l.lv_first.get();
             idx = 0;
-        } else if n > (l.as_deref_mut().unwrap().lv_idx + l.as_deref_mut().unwrap().lv_len) / 2 {
-            item = l.as_deref_mut().unwrap().lv_last;
-            idx = l.as_deref_mut().unwrap().lv_len - 1;
+        } else if n > (l.lv_idx.get() + l.lv_len.get()) / 2 {
+            item = l.lv_last.get();
+            idx = l.lv_len.get() - 1;
         } else {
-            item = l.as_deref_mut().unwrap().lv_idx_item;
-            idx = l.as_deref_mut().unwrap().lv_idx;
+            item = l.lv_idx_item.get();
+            idx = l.lv_idx.get();
         }
-    } else if n < l.as_deref_mut().unwrap().lv_len / 2 {
-        item = l.as_deref_mut().unwrap().lv_first;
+    } else if n < l.lv_len.get() / 2 {
+        item = l.lv_first.get();
         idx = 0;
     } else {
-        item = l.as_deref_mut().unwrap().lv_last;
-        idx = l.as_deref_mut().unwrap().lv_len - 1;
+        item = l.lv_last.get();
+        idx = l.lv_len.get() - 1;
     }
 
     while n > idx {
@@ -3294,23 +3285,19 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static m
     }
 
     debug_assert_eq!(idx, n);
-    l.as_deref_mut().unwrap().lv_idx = idx;
-    l.unwrap().lv_idx_item = item;
+    l.lv_idx.set(idx);
+    l.lv_idx_item.set(item);
 
     item.opt_mut()
 }
 
 /// Locate item with a given index in a list and return a mutable reference if present.
-pub fn tv_list_find_opt(l: Option<&mut TvList>, n: i32) -> Option<&'static mut Listitem> {
+pub fn tv_list_find_opt(l: Option<&TvList>, n: i32) -> Option<&'static mut Listitem> {
     tv_list_find(l, n)
 }
 
 /// Get list item l[n] as a number.
-pub fn tv_list_find_nr(
-    l: Option<&mut TvList>,
-    n: i32,
-    mut ret_error: Option<&mut bool>,
-) -> Varnumber {
+pub fn tv_list_find_nr(l: Option<&TvList>, n: i32, mut ret_error: Option<&mut bool>) -> Varnumber {
     let Some(li) = tv_list_find_opt(l, n) else {
         if let Some(ref mut p) = ret_error {
             **p = true;
@@ -3325,7 +3312,7 @@ pub fn tv_list_find_nr(
 
 /// Get list item l[n] as a string.
 pub fn tv_list_find_str(
-    l: Option<&mut TvList>,
+    l: Option<&TvList>,
     n: i32,
 ) -> Option<std::borrow::Cow<'static, std::ffi::CStr>> {
     let Some(li) = tv_list_find_opt(l, n) else {
@@ -3335,8 +3322,8 @@ pub fn tv_list_find_str(
     Some(tv_get_string(&li.li_tv))
 }
 
-fn tv_list_find_index(mut l: Option<&mut TvList>, idx: &mut i32) -> Option<&'static mut Listitem> {
-    let mut li = tv_list_find(l.as_deref_mut(), *idx);
+fn tv_list_find_index(l: Option<&TvList>, idx: &mut i32) -> Option<&'static mut Listitem> {
+    let mut li = tv_list_find(l, *idx);
     if li.is_some() {
         return li;
     }
@@ -3968,10 +3955,10 @@ pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
 }
 
 /// Add a list entry to dictionary.
-pub fn tv_dict_add_list(d: &mut TvDict, key: &CStr, mut list: Option<&mut TvList>) -> bool {
+pub fn tv_dict_add_list(d: &mut TvDict, key: &CStr, list: Option<&TvList>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarList;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::List(ListId::from(list.as_deref_mut()));
+    item.di_tv.vval = crate::eval::typval::TypvalVval::List(ListId::from(list));
     if !tv_dict_add(d, item) {
         item.di_tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
         tv_dict_item_free(item);
@@ -4527,11 +4514,11 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 }
 
 /// Allocate an empty list for a return value.
-pub fn tv_list_alloc_ret(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList {
+pub fn tv_list_alloc_ret(ret_tv: &mut TypVal, len: isize) -> ListId {
     let l = tv_list_alloc(len);
-    tv_list_set_ret_inline(ret_tv, Some(l));
+    tv_list_set_ret_inline(ret_tv, Some(&l));
     ret_tv.v_lock = VAR_UNLOCKED;
-    &mut *l
+    l
 }
 
 pub fn tv_dict_alloc_lock(lock: VarLockStatus) -> &'static mut TvDict {
@@ -4573,10 +4560,10 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
             DictListType::Items => {
                 let sub_l = tv_list_alloc(2);
                 tv_item.v_type = VarType::VarList;
-                tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l.lv_id);
-                tv_list_ref_inline(Some(&mut *sub_l));
-                tv_list_append_string(&mut *sub_l, Some(key_cstr), -1);
-                tv_list_append_tv(&mut *sub_l, &mut di.di_tv);
+                tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l.clone());
+                tv_list_ref_inline(Some(&sub_l));
+                tv_list_append_string(&sub_l, Some(key_cstr), -1);
+                tv_list_append_tv(&sub_l, &mut di.di_tv);
             }
         }
 
@@ -4740,33 +4727,31 @@ fn nothing_convert_one_value(
             });
         }
         VarType::VarList => {
-            let mut list = tv.vval.v_list();
+            let list = tv.vval.v_list();
             if list.is_null() || tv_list_len_inline(list.opt()) == 0 {
-                tv_list_unref(list.opt_mut());
+                tv_list_unref(list.opt());
                 tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
-            let saved_copy_id = list.lv_copy_id;
+            let saved_copy_id = list.lv_copy_id.get();
             if saved_copy_id == copy_id {
                 return true;
             }
 
             tv.v_lock = VAR_UNLOCKED;
             tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
-            if list.lv_refcount > 1 {
-                list.lv_refcount -= 1;
+            if list.lv_refcount.get() > 1 {
+                list.lv_refcount.set(list.lv_refcount.get() - 1);
                 return true;
             }
 
-            list.lv_copy_id = copy_id;
+            list.lv_copy_id.set(copy_id);
 
+            let first_li = list.lv_first.get();
             let mpsv = MPConvStackVal {
                 saved_copy_id,
-                data: MPConvStackData::List {
-                    list,
-                    li: list.lv_first,
-                },
+                data: MPConvStackData::List { list, li: first_li },
             };
             mpstack.push(mpsv);
         }
@@ -4852,15 +4837,16 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 &mut di.di_tv
             }
             MPConvStackData::List {
-                mut list,
+                ref list,
                 ref mut li,
             } => {
                 let cur_li = *li;
                 if cur_li.is_null() {
+                    let list_cl = list.clone();
                     mpstack.pop();
 
-                    list.lv_copy_id = saved_copy_id;
-                    tv_list_unref(list.opt_mut());
+                    list_cl.lv_copy_id.set(saved_copy_id);
+                    tv_list_unref(list_cl.opt());
 
                     continue;
                 }
@@ -5045,9 +5031,9 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
         }
         VarType::VarList => {
             if let Some(l) = tv.vval.v_list_opt()
-                && !(check_refcount && l.lv_refcount > 1)
+                && !(check_refcount && l.lv_refcount.get() > 1)
             {
-                l.lv_lock = change_lock(lock, l.lv_lock);
+                l.lv_lock.set(change_lock(lock, l.lv_lock.get()));
                 if !(0..=1).contains(&deep) {
                     for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
                         tv_item_lock(&mut li.li_tv, deep - 1, lock, check_refcount);
@@ -5083,7 +5069,7 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
 pub fn tv_islocked(tv: &TypVal) -> bool {
     tv.v_lock == VAR_LOCKED
         || (tv.v_type == VarType::VarList
-            && tv_list_locked_inline(tv.vval.v_list_opt().as_deref()) == VAR_LOCKED)
+            && tv_list_locked_inline(tv.vval.v_list_opt()) == VAR_LOCKED)
         || (tv.v_type == VarType::VarDict
             && tv
                 .vval
@@ -5103,7 +5089,7 @@ pub fn tv_check_lock(tv: &TypVal, name: Option<&CStr>, name_len: usize) -> bool 
         }
         VarType::VarList => {
             if let Some(l) = tv.vval.v_list_opt() {
-                lock = l.lv_lock;
+                lock = l.lv_lock.get();
             }
         }
         VarType::VarDict => {
@@ -5178,11 +5164,7 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     match tv1.v_type {
         VarType::VarList => {
             RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let r = tv_list_equal(
-                tv1.vval.v_list_opt().as_deref(),
-                tv2.vval.v_list_opt().as_deref(),
-                ic,
-            );
+            let r = tv_list_equal(tv1.vval.v_list_opt(), tv2.vval.v_list_opt(), ic);
             RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
             r
         }
@@ -5702,7 +5684,7 @@ pub fn tv2bool(tv: &TypVal) -> bool {
         VarType::VarFloat => tv.vval.v_float() != 0.0,
         VarType::VarPartial => !tv.vval.v_partial().is_null(),
         VarType::VarFunc | VarType::VarString => !tv.vval.v_string_is_empty(),
-        VarType::VarList => tv.vval.v_list_opt().is_some_and(|l| l.lv_len > 0),
+        VarType::VarList => tv.vval.v_list_opt().is_some_and(|l| l.lv_len.get() > 0),
         VarType::VarDict => tv
             .vval
             .v_dict_opt()
@@ -5744,107 +5726,97 @@ mod tests {
 
             // Basic alloc, append_number, find, reverse
             let l = tv_list_alloc(0);
-            l.lv_refcount = 1;
-            tv_list_append_number(&mut *l, 10);
-            tv_list_append_number(&mut *l, 20);
-            tv_list_append_number(&mut *l, 30);
-            assert_eq!(tv_list_len_inline(Some(&*l)), 3);
+            l.lv_refcount.set(1);
+            tv_list_append_number(&l, 10);
+            tv_list_append_number(&l, 20);
+            tv_list_append_number(&l, 30);
+            assert_eq!(tv_list_len_inline(Some(&l)), 3);
 
-            let item1 = tv_list_find(Some(&mut *l), 1).unwrap();
+            let item1 = tv_list_find(Some(&l), 1).unwrap();
             assert_eq!(item1.li_tv.vval.v_number(), 20);
-            assert_eq!(tv_list_idx_of_item(Some(&*l), Some(item1)), 1);
-            assert_eq!(tv_list_idx_of_item(Some(&*l), None), -1);
+            assert_eq!(tv_list_idx_of_item(Some(&l), Some(item1)), 1);
+            assert_eq!(tv_list_idx_of_item(Some(&l), None), -1);
 
             let mut err = false;
-            assert_eq!(tv_list_find_nr(Some(&mut *l), 0, Some(&mut err)), 10);
+            assert_eq!(tv_list_find_nr(Some(&l), 0, Some(&mut err)), 10);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(Some(&mut *l), -1, Some(&mut err)), 30);
+            assert_eq!(tv_list_find_nr(Some(&l), -1, Some(&mut err)), 30);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(Some(&mut *l), 10, Some(&mut err)), -1);
+            assert_eq!(tv_list_find_nr(Some(&l), 10, Some(&mut err)), -1);
             assert!(err);
 
-            tv_list_reverse(&mut *l);
-            let first = tv_list_find(Some(&mut *l), 0).unwrap();
+            tv_list_reverse(&l);
+            let first = tv_list_find(Some(&l), 0).unwrap();
             assert_eq!(first.li_tv.vval.v_number(), 30);
 
             // Watchers + item_remove + drop_items + remove_items
             let lw1 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new(l.lv_first),
+                lw_item: std::cell::Cell::new(l.lv_first.get()),
             });
             let lw2 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new(l.lv_last),
+                lw_item: std::cell::Cell::new(l.lv_last.get()),
             });
-            tv_list_watch_add(&mut *l, lw1.clone());
-            tv_list_watch_add(&mut *l, lw2.clone());
+            tv_list_watch_add(&l, lw1.clone());
+            tv_list_watch_add(&l, lw2.clone());
 
-            let first = l.lv_first;
+            let first = l.lv_first.get();
             let second = first.li_next.as_ptr();
-            let next_after_first = tv_list_item_remove(l, first.borrow_mut());
+            let next_after_first = tv_list_item_remove(&l, first.borrow_mut());
             assert_eq!(
                 next_after_first.map_or(ptr::null_mut(), ptr::from_mut),
                 second
             );
             assert_eq!(lw1.lw_item.get(), second);
-            assert_eq!(tv_list_len_inline(Some(&*l)), 2);
+            assert_eq!(tv_list_len_inline(Some(&l)), 2);
 
-            tv_list_watch_remove(&mut *l, &lw1);
-            tv_list_watch_remove(&mut *l, &lw2);
-            tv_list_unref(Some(l));
+            tv_list_watch_remove(&l, &lw1);
+            tv_list_watch_remove(&l, &lw2);
+            tv_list_unref(Some(&l));
 
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
             let l2 = tv_list_alloc(0);
-            l2.lv_refcount = 1;
-            tv_list_append_string(&mut *l2, Some(c"hello"), 5);
-            tv_list_append_string(&mut *l2, Some(c"world"), -1);
+            l2.lv_refcount.set(1);
+            tv_list_append_string(&l2, Some(c"hello"), 5);
+            tv_list_append_string(&l2, Some(c"world"), -1);
             let mut tv_ins = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(99),
             };
             let first2 = l2.first_opt();
-            tv_list_insert_tv(l2, &mut tv_ins, first2);
-            assert_eq!(tv_list_len_inline(Some(&*l2)), 3);
-            assert_eq!(tv_list_find_nr(Some(&mut *l2), 0, None), 99);
-            assert_eq!(
-                tv_list_find_str(Some(&mut *l2), 1).as_deref(),
-                Some(c"hello")
-            );
-            assert_eq!(
-                tv_list_find_str(Some(&mut *l2), 2).as_deref(),
-                Some(c"world")
-            );
+            tv_list_insert_tv(&l2, &mut tv_ins, first2);
+            assert_eq!(tv_list_len_inline(Some(&l2)), 3);
+            assert_eq!(tv_list_find_nr(Some(&l2), 0, None), 99);
+            assert_eq!(tv_list_find_str(Some(&l2), 1).as_deref(), Some(c"hello"));
+            assert_eq!(tv_list_find_str(Some(&l2), 2).as_deref(), Some(c"world"));
 
             // copy, extend, concat, join, equal
-            let mut l2_copy = tv_list_copy(None, Some(&mut *l2), true, 0);
-            l2_copy.as_deref_mut().unwrap().lv_refcount = 1;
-            assert!(tv_list_equal(Some(&*l2), l2_copy.as_deref(), false));
+            let l2_copy = tv_list_copy(None, Some(&l2), true, 0);
+            l2_copy.as_ref().unwrap().lv_refcount.set(1);
+            assert!(tv_list_equal(Some(&l2), l2_copy.as_deref(), false));
             assert!(tv_list_equal(None, None, false));
-            assert!(!tv_list_equal(Some(&*l2), None, false));
+            assert!(!tv_list_equal(Some(&l2), None, false));
 
             let mut joined: Vec<u8> = Vec::new();
-            assert!(tv_list_join(&mut joined, Some(&mut *l2), c", "));
+            assert!(tv_list_join(&mut joined, Some(&l2), c", "));
             assert_eq!(joined.as_slice(), b"99, hello, world");
 
             let mut cat_tv = tv_initial_value();
-            assert!(tv_list_concat(
-                Some(&mut *l2),
-                l2_copy.as_deref_mut(),
-                &mut cat_tv
-            ));
-            assert_eq!(tv_list_len_inline(cat_tv.vval.v_list_opt().as_deref()), 6);
+            assert!(tv_list_concat(Some(&l2), l2_copy.as_deref(), &mut cat_tv));
+            assert_eq!(tv_list_len_inline(cat_tv.vval.v_list_opt()), 6);
             tv_clear(&mut cat_tv);
 
-            tv_list_extend(&mut *l2, l2_copy.as_deref(), None);
-            assert_eq!(tv_list_len_inline(Some(&*l2)), 6);
+            tv_list_extend(&l2, l2_copy.as_deref(), None);
+            assert_eq!(tv_list_len_inline(Some(&l2)), 6);
 
             // remove_items range
-            let first_item = l2.lv_first;
+            let first_item = l2.lv_first.get();
             let second_item = first_item.li_next;
-            tv_list_remove_items(&mut *l2, first_item.borrow_mut(), second_item.borrow_mut());
-            assert_eq!(tv_list_len_inline(Some(&*l2)), 4);
+            tv_list_remove_items(&l2, first_item.borrow_mut(), second_item.borrow_mut());
+            assert_eq!(tv_list_len_inline(Some(&l2)), 4);
 
-            tv_list_unref(l2_copy);
-            tv_list_unref(Some(l2));
+            tv_list_unref(l2_copy.as_deref());
+            tv_list_unref(Some(&l2));
             crate::globals::g_st().emsg_skip -= 1;
         }
     }
@@ -5980,17 +5952,17 @@ mod tests {
         {
             // [&l [1], *l, *l]
             let inner = tv_list_alloc(1);
-            tv_list_append_number(&mut *inner, 1);
+            tv_list_append_number(&inner, 1);
             let outer = tv_list_alloc(3);
-            outer.lv_refcount = 1;
+            outer.lv_refcount.set(1);
             for _ in 0..3 {
-                tv_list_append_list(&mut *outer, Some(&mut *inner));
+                tv_list_append_list(&outer, Some(&inner));
             }
-            assert_eq!(inner.lv_refcount, 3);
+            assert_eq!(inner.lv_refcount.get(), 3);
             let mut tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(outer.lv_id),
+                vval: TypvalVval::List(outer),
             };
             tv_clear(&mut tv);
             assert!(tv.vval.v_list().is_null());
@@ -5998,15 +5970,15 @@ mod tests {
             // [&l [], *l, *l]
             let empty_inner = tv_list_alloc(0);
             let outer2 = tv_list_alloc(3);
-            outer2.lv_refcount = 1;
+            outer2.lv_refcount.set(1);
             for _ in 0..3 {
-                tv_list_append_list(&mut *outer2, Some(&mut *empty_inner));
+                tv_list_append_list(&outer2, Some(&empty_inner));
             }
-            assert_eq!(empty_inner.lv_refcount, 3);
+            assert_eq!(empty_inner.lv_refcount.get(), 3);
             let mut tv2 = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(outer2.lv_id),
+                vval: TypvalVval::List(outer2),
             };
             tv_clear(&mut tv2);
             assert!(tv2.vval.v_list().is_null());
@@ -6018,14 +5990,14 @@ mod tests {
                     assert!(tv_dict_add_nr(&mut *d_inner, c"a", 1));
                 }
                 let outer_d = tv_list_alloc(2);
-                outer_d.lv_refcount = 1;
-                tv_list_append_dict(&mut *outer_d, Some(&mut *d_inner));
-                tv_list_append_dict(&mut *outer_d, Some(&mut *d_inner));
+                outer_d.lv_refcount.set(1);
+                tv_list_append_dict(&outer_d, Some(&mut *d_inner));
+                tv_list_append_dict(&outer_d, Some(&mut *d_inner));
                 assert_eq!(d_inner.dv_refcount, 2);
                 let mut tv_d = TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(outer_d.lv_id),
+                    vval: TypvalVval::List(outer_d),
                 };
                 tv_clear(&mut tv_d);
                 assert!(tv_d.vval.v_list().is_null());

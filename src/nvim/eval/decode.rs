@@ -5,9 +5,10 @@ use crate::charset::vim_slice2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_alloc_ret, tv_clear, tv_dict_add,
-    tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc,
-    tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
+    ListId, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_alloc_ret, tv_clear,
+    tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_list_alloc, tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv,
+    tv_list_len, tv_list_ref,
 };
 use crate::eval::vars::eval_msgpack_type_list;
 use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len};
@@ -44,8 +45,8 @@ struct JsonContainerStackItem {
 
 impl JsonContainerStackItem {
     #[inline]
-    fn special_val_opt(&self) -> Option<&'static mut TvList> {
-        self.special_val.opt_mut()
+    fn special_val_opt(&self) -> Option<&TvList> {
+        self.special_val.opt()
     }
 }
 
@@ -68,9 +69,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let type_di = tv_dict_item_alloc_len(b"_TYPE");
     type_di.di_tv.v_type = VarType::VarList;
     type_di.di_tv.v_lock = VAR_UNLOCKED;
-    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(
-        eval_msgpack_type_list(mp_type),
-    ));
+    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(eval_msgpack_type_list(mp_type));
     tv_list_ref(type_di.di_tv.vval.v_list_opt());
     tv_dict_add(&mut *dict, type_di);
 
@@ -86,16 +85,16 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList {
+pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> ListId {
     let list = tv_list_alloc(len);
-    tv_list_ref(Some(&mut *list));
+    tv_list_ref(Some(&list));
     create_special_dict(
         ret_tv,
         K_MP_MAP,
         TypVal {
             v_type: VarType::VarList,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::List(list.lv_id),
+            vval: TypvalVval::List(list.clone()),
         },
     );
     list
@@ -155,8 +154,7 @@ fn json_decoder_pop(
     }
 
     if last_container.container.v_type == VarType::VarList {
-        if tv_list_len(last_container.container.vval.v_list_opt().as_deref()) != 0 && !obj.didcomma
-        {
+        if tv_list_len(last_container.container.vval.v_list_opt()) != 0 && !obj.didcomma {
             json_err(
                 c"E474: Expected comma before list item: %s",
                 &buf[val_location..],
@@ -180,9 +178,9 @@ fn json_decoder_pop(
         let mut key = stack.pop().unwrap();
         if let Some(special_val) = last_container.special_val_opt() {
             let kv_pair = tv_list_alloc(2);
-            tv_list_append_list(special_val, Some(kv_pair));
-            tv_list_append_owned_tv(&mut *kv_pair, key.val);
-            tv_list_append_owned_tv(&mut *kv_pair, obj.val);
+            tv_list_append_list(special_val, Some(&kv_pair));
+            tv_list_append_owned_tv(&kv_pair, key.val);
+            tv_list_append_owned_tv(&kv_pair, obj.val);
         } else {
             assert!(!(key.is_special_string || key.val.vval.v_string_is_null()));
             let obj_di = tv_dict_item_alloc(key.val.vval.v_string_cstr_or_empty());
@@ -667,7 +665,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                             .ht_used
                             == 0
                     } else {
-                        tv_list_len(last_container.container.vval.v_list_opt().as_deref()) == 0
+                        tv_list_len(last_container.container.vval.v_list_opt()) == 0
                     };
                     if didcomma {
                         json_err(c"E474: Duplicate comma: %s", &buf[p..]);
@@ -845,11 +843,11 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                 }
                 b'[' => {
                     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                    tv_list_ref(Some(&mut *list));
+                    tv_list_ref(Some(&list));
                     let tv = TypVal {
                         v_type: VarType::VarList,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::List(list.lv_id),
+                        vval: TypvalVval::List(list),
                     };
                     container_stack.push(JsonContainerStackItem {
                         stack_index: stack.len(),
@@ -873,8 +871,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     let mut val_list = crate::eval::typval::ListId::NULL;
                     if next_map_special {
                         next_map_special = false;
-                        val_list =
-                            decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW).lv_id;
+                        val_list = decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW);
                     } else {
                         let dict = tv_dict_alloc();
                         dict.dv_refcount += 1;
@@ -940,20 +937,20 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
         };
     } else {
         let list = tv_list_alloc(4);
-        tv_list_ref(Some(&mut *list));
+        tv_list_ref(Some(&list));
         create_special_dict(
             rettv,
             K_MP_INTEGER,
             TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(list.lv_id),
+                vval: TypvalVval::List(list.clone()),
             },
         );
-        tv_list_append_number(&mut *list, 1);
-        tv_list_append_number(&mut *list, ((val >> 62) & 0x3) as i64);
-        tv_list_append_number(&mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
-        tv_list_append_number(&mut *list, (val & 0x7FFF_FFFF) as i64);
+        tv_list_append_number(&list, 1);
+        tv_list_append_number(&list, ((val >> 62) & 0x3) as i64);
+        tv_list_append_number(&list, ((val >> 31) & 0x7FFF_FFFF) as i64);
+        tv_list_append_number(&list, (val & 0x7FFF_FFFF) as i64);
     }
 }
 
@@ -983,7 +980,7 @@ fn typval_parse_enter(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: 
                 let list = parent.data[1].list();
                 let li = crate::eval::typval::tv_list_item_alloc();
                 let li_id = li.li_id;
-                crate::eval::typval::tv_list_append(&mut *list, li);
+                crate::eval::typval::tv_list_append(list, li);
                 target = MpackData::ListItem(li_id);
             }
             MpackTokenType::MpackTokenMap => {
@@ -1085,10 +1082,9 @@ fn typval_parse_enter(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: 
         }
         MpackTokenType::MpackTokenArray => {
             let list = tv_list_alloc(node.tok.length as isize);
-            tv_list_ref(Some(&mut *list));
-            let list_id = list.lv_id;
+            tv_list_ref(Some(&list));
 
-            node.data[1] = MpackData::List(list_id);
+            node.data[1] = MpackData::List(list.clone());
 
             write_target_tv(
                 parser,
@@ -1098,7 +1094,7 @@ fn typval_parse_enter(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: 
                 TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list_id),
+                    vval: TypvalVval::List(list),
                 },
             );
         }
@@ -1141,10 +1137,10 @@ fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: u
             let ext_type = parser.items[node_idx].tok.data.ext_type();
             let bytes = parser.items[node_idx].data[1].take_owned_bytes();
             let list = tv_list_alloc(2);
-            tv_list_ref(Some(&mut *list));
-            tv_list_append_number(&mut *list, i64::from(ext_type));
+            tv_list_ref(Some(&list));
+            tv_list_append_number(&list, i64::from(ext_type));
             let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-            tv_list_append_list(&mut *list, Some(ext_val_list));
+            tv_list_append_list(&list, Some(&ext_val_list));
             let mut tv = TypVal::new();
             create_special_dict(
                 &mut tv,
@@ -1152,10 +1148,10 @@ fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: u
                 TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list.lv_id),
+                    vval: TypvalVval::List(list),
                 },
             );
-            encode_list_write(Some(&mut *ext_val_list), &bytes[..tok_len]);
+            encode_list_write(Some(&ext_val_list), &bytes[..tok_len]);
             write_target_tv(parser, root_tv, node_idx, &target, tv);
         }
         MpackTokenType::MpackTokenMap => {
@@ -1204,9 +1200,9 @@ fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: u
                 let list = decode_create_map_special_dict(&mut tv, len as isize);
                 for pair in &mut items[..len] {
                     let kv_pair = tv_list_alloc(2);
-                    tv_list_append_list(&mut *list, Some(kv_pair));
-                    tv_list_append_owned_tv(&mut *kv_pair, std::mem::take(&mut pair[0]));
-                    tv_list_append_owned_tv(&mut *kv_pair, std::mem::take(&mut pair[1]));
+                    tv_list_append_list(&list, Some(&kv_pair));
+                    tv_list_append_owned_tv(&kv_pair, std::mem::take(&mut pair[0]));
+                    tv_list_append_owned_tv(&kv_pair, std::mem::take(&mut pair[1]));
                 }
             }
             write_target_tv(parser, root_tv, node_idx, &target, tv);

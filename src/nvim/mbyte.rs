@@ -3315,7 +3315,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
     }
 
     let l = argvars[0].vval.v_list_ref();
-    let table_size = tv_list_len(Some(&*l)) as usize;
+    let table_size = tv_list_len(Some(l)) as usize;
     let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
     if table_size != 0 {
         for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
@@ -3330,7 +3330,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
             let mut n1: Varnumber = 0;
             let mut n2: Varnumber = 0;
             let mut n3: Varnumber = 0;
-            for lili in crate::eval::typval::list_iter_ptr(tv_list_first(Some(&*li_l))) {
+            for lili in crate::eval::typval::list_iter_ptr(tv_list_first(Some(li_l))) {
                 let lili_tv = &lili.li_tv;
                 if lili_tv.v_type != VarType::VarNumber {
                     break;
@@ -3396,10 +3396,10 @@ pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     tv_list_alloc_ret(rettv, table.len() as isize);
     for &entry_data in &table {
         let entry = tv_list_alloc(3);
-        tv_list_append_number(&mut *entry, entry_data.first);
-        tv_list_append_number(&mut *entry, entry_data.last);
-        tv_list_append_number(&mut *entry, Varnumber::from(entry_data.width));
-        tv_list_append_list(rettv.vval.v_list_ref(), Some(entry));
+        tv_list_append_number(&entry, entry_data.first);
+        tv_list_append_number(&entry, entry_data.last);
+        tv_list_append_number(&entry, Varnumber::from(entry_data.width));
+        tv_list_append_list(rettv.vval.v_list_ref(), Some(&entry));
     }
 }
 

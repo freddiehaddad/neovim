@@ -816,16 +816,16 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
             if let Some(d) = menu_get_recursive(Some(child), modes)
                 && tv_dict_len(Some(&*d)) > 0
             {
-                tv_list_append_dict(&mut *children_list, Some(d));
+                tv_list_append_dict(&children_list, Some(d));
             }
         }
-        tv_dict_add_list(&mut *dict, c"submenus", Some(children_list));
+        tv_dict_add_list(&mut *dict, c"submenus", Some(&children_list));
     }
     Some(dict)
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-pub fn menu_get(path_name: &CStr, modes: i32, list: &mut TvList) -> bool {
+pub fn menu_get(path_name: &CStr, modes: i32, list: &TvList) -> bool {
     let root = get_root_menu();
     if !path_name.is_empty() {
         let Some(menu) = find_menu(root, path_name, modes) else {
@@ -1904,9 +1904,9 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
         }
     } else {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        tv_dict_add_list(dict, c"submenus", Some(l));
+        tv_dict_add_list(dict, c"submenus", Some(&l));
         for child in &menu.children {
-            tv_list_append_string(&mut *l, Some(child.dname.as_c_str()), -1);
+            tv_list_append_string(&l, Some(child.dname.as_c_str()), -1);
         }
     }
 }
@@ -1936,10 +1936,10 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if menu_name.is_empty() {
         if !menus.is_empty() && (menus[0].modes & modes) != 0 {
             let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-            tv_dict_add_list(retdict, c"submenus", Some(l));
+            tv_dict_add_list(retdict, c"submenus", Some(&l));
             for topmenu in menus {
                 if !menu_is_hidden(topmenu.dname.as_bytes()) {
-                    tv_list_append_string(&mut *l, Some(topmenu.dname.as_c_str()), -1);
+                    tv_list_append_string(&l, Some(topmenu.dname.as_c_str()), -1);
                 }
             }
         }

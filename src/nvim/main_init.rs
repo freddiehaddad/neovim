@@ -632,7 +632,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if g_st().recoverymode && fname.is_none() {
         let mut items_tv = crate::eval::typval::TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
-        recover_names(None, false, items_tv.vval.v_list().borrow_mut());
+        recover_names(None, false, &items_tv.vval.v_list());
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
         nlua_call_typval(c"vim._core.swapfile", c"list_swaps", &mut lua_args, None);
         tv_clear(&mut lua_args[0]);
@@ -655,7 +655,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         time_msg_if_enabled(c"reading ShaDa");
     }
     if get_vim_var_list(VV_OLDFILES).is_none() {
-        set_vim_var_list(VV_OLDFILES, Some(tv_list_alloc(0)));
+        set_vim_var_list(VV_OLDFILES, Some(&tv_list_alloc(0)));
     }
 
     handle_quickfix(&mut params);
@@ -1725,11 +1725,11 @@ fn set_argf_var() {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
             let _ = vim_full_name(Some(fname), g_st().name_buff_bytes_mut(), false);
-            tv_list_append_string(&mut *list, Some(g_st().name_buff_cstr()), -1);
+            tv_list_append_string(&list, Some(g_st().name_buff_cstr()), -1);
         }
     }
-    tv_list_set_lock(Some(&mut *list), VAR_FIXED);
-    set_vim_var_list(VV_ARGF, Some(list));
+    tv_list_set_lock(Some(&list), VAR_FIXED);
+    set_vim_var_list(VV_ARGF, Some(&list));
 }
 
 fn init_params(paramp: &mut Mparm, argv: Vec<std::ffi::CString>) {

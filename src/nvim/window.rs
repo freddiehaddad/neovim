@@ -6296,7 +6296,7 @@ fn check_window_scroll_resize(
     mut size_count: Option<&mut i32>,
     first_scroll_win: &mut Option<&'static mut WinInfoInfo>,
     first_size_win: &mut Option<&'static mut WinInfoInfo>,
-    mut winlist: Option<&mut TvList>,
+    winlist: Option<&TvList>,
     mut v_event: Option<&mut TvDict>,
 ) {
     let mut tot_width: i32 = 0;
@@ -6322,7 +6322,7 @@ fn check_window_scroll_resize(
         let size_changed = !event_ignored(EVENT_WINRESIZED, eiw)
             && (wp.w_last_width != wp.w_width || wp.w_last_height != wp.w_height);
         if size_changed {
-            if let Some(ref mut wl) = winlist {
+            if let Some(wl) = winlist {
                 let tv = TypVal {
                     v_type: VarType::VarNumber,
                     v_lock: VAR_UNLOCKED,
@@ -6433,16 +6433,10 @@ pub fn may_trigger_win_scrolled_resized() {
         return;
     }
 
-    let mut windows_list: Option<&'static mut TvList> = None;
+    let mut windows_list: Option<crate::eval::typval::ListId> = None;
     if trigger_resize {
         let wl = tv_list_alloc(size_count as isize);
-        check_window_scroll_resize(
-            None,
-            &mut dummy_scroll,
-            &mut dummy_size,
-            Some(&mut *wl),
-            None,
-        );
+        check_window_scroll_resize(None, &mut dummy_scroll, &mut dummy_size, Some(&wl), None);
         windows_list = Some(wl);
     }
 
@@ -6482,7 +6476,7 @@ pub fn may_trigger_win_scrolled_resized() {
         set_bufref(&mut scroll_bufref, sw.w_buffer.opt_mut());
     }
 
-    if let Some(windows_list) = windows_list {
+    if let Some(ref windows_list) = windows_list {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 

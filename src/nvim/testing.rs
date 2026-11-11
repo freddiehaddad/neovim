@@ -558,7 +558,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             }
         } else if arg1.v_type == VarType::VarList {
             let list = arg1.vval.v_list_opt();
-            let list_len = tv_list_len(list.as_deref());
+            let list_len = tv_list_len(list);
             if !(1..=2).contains(&list_len) {
                 wrong_arg_msg = Some(
                     c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings",

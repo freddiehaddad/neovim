@@ -561,7 +561,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
 }
 
 fn stacktrace_push_item(
-    l: &mut TvList,
+    l: &TvList,
     fp: Option<&UserFunc>,
     event: Option<&CStr>,
     lnum: Linenr,
@@ -587,7 +587,7 @@ fn stacktrace_push_item(
 }
 
 /// Create the stacktrace from `exestack`.
-pub fn stacktrace_create() -> &'static mut TvList {
+pub fn stacktrace_create() -> crate::eval::typval::ListId {
     let entries = EXESTACK.with(|c| c.borrow().clone());
     let l = tv_list_alloc(entries.len() as isize);
 
@@ -595,7 +595,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
         let mut lnum = entry.es_lnum;
 
         if entry.es_type == ETYPE_SCRIPT {
-            stacktrace_push_item(&mut *l, None, None, lnum, entry.name_cstr());
+            stacktrace_push_item(&l, None, None, lnum, entry.name_cstr());
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
             let sctx = fp.as_deref().unwrap().uf_script_ctx.get();
@@ -605,7 +605,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(&mut *l, fp.as_deref(), None, lnum, Some(&filepath));
+            stacktrace_push_item(&l, fp.as_deref(), None, lnum, Some(&filepath));
         } else if entry.es_type == ETYPE_AUCMD {
             let sctx = entry.es_info.aucmd_sctx();
             let filepath = if sctx.sc_sid > 0 {
@@ -614,7 +614,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(&mut *l, None, entry.name_cstr(), lnum, Some(&filepath));
+            stacktrace_push_item(&l, None, entry.name_cstr(), lnum, Some(&filepath));
         }
     }
     l
@@ -623,9 +623,9 @@ pub fn stacktrace_create() -> &'static mut TvList {
 /// getstacktrace() function
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let l = stacktrace_create();
+    l.lv_refcount.set(l.lv_refcount.get() + 1);
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(l.lv_id);
-    l.lv_refcount += 1;
+    rettv.vval = crate::eval::typval::TypvalVval::List(l);
 }
 
 fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
@@ -3081,7 +3081,7 @@ pub fn get_sourced_lnum(fgetline: &LineGetter) -> Linenr {
     }
 }
 
-fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
+fn get_script_local_funcs(sid: Scid) -> crate::eval::typval::ListId {
     let functbl = func_tbl_values();
     let l = tv_list_alloc(functbl.len() as isize);
 
@@ -3095,7 +3095,7 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
             } else {
                 fp_ref.uf_name.as_c_str()
             };
-            tv_list_append_string(&mut *l, Some(name), -1);
+            tv_list_append_string(&l, Some(name), -1);
         }
     }
 
@@ -3163,7 +3163,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 tv_dict_add_list(
                     &mut *d,
                     c"functions",
-                    Some(get_script_local_funcs(sid as Scid)),
+                    Some(&get_script_local_funcs(sid as Scid)),
                 );
             }
         }

@@ -1402,8 +1402,7 @@ fn qf_setup_state(
         if tv.v_type == VarType::VarString {
             pstate.source = QfInputSource::Str(tv.vval.v_string_owned(), 0);
         } else if tv.v_type == VarType::VarList {
-            pstate.source =
-                QfInputSource::List(tv_list_first(tv.vval.v_list_opt().as_deref()).into());
+            pstate.source = QfInputSource::List(tv_list_first(tv.vval.v_list_opt()).into());
         }
     } else {
         pstate.source = QfInputSource::Buf {
@@ -4188,8 +4187,8 @@ fn call_qftf_func(
     qf_winid: i32,
     start_idx: i32,
     end_idx: i32,
-) -> Option<&'static mut TvList> {
-    let mut qftf_list: Option<&'static mut TvList> = None;
+) -> Option<crate::eval::typval::ListId> {
+    let mut qftf_list: Option<crate::eval::typval::ListId> = None;
 
     if QF_STATE.with(|s| s.qftf_recursive.get()) {
         return None;
@@ -4233,7 +4232,10 @@ fn call_qftf_func(
         if callback_call(cb, 1, &mut args, &mut rettv) {
             if rettv.v_type == VarType::VarList {
                 tv_list_ref(rettv.vval.v_list_opt());
-                qftf_list = rettv.vval.v_list().opt_mut();
+                let l = rettv.vval.v_list();
+                if !l.is_null() {
+                    qftf_list = Some(l);
+                }
             }
             tv_clear(&mut rettv);
         }
@@ -4328,7 +4330,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
             ml_delete(lnum + 1);
         }
 
-        tv_list_unref(qftf_list);
+        tv_list_unref(qftf_list.as_deref());
     }
 
     check_lnums(true);
@@ -5790,14 +5792,14 @@ fn unload_dummy_buffer(buf: &mut FileBuf, dirname_start: &CStr) {
     restore_start_dir(dirname_start);
 }
 
-fn get_qfline_items(qfp: &mut Qfline, list: &mut TvList) -> bool {
+fn get_qfline_items(qfp: &mut Qfline, list: &TvList) -> bool {
     let mut bufnum = qfp.qf_fnum;
     if bufnum != 0 && buflist_findnr(bufnum).is_none() {
         bufnum = 0;
     }
 
     let dict = tv_dict_alloc();
-    tv_list_append_dict(&mut *list, Some(dict));
+    tv_list_append_dict(list, Some(dict));
 
     let buf = [qfp.qf_type, 0];
     let buflen: usize = if buf[0] == 0 { 0 } else { 1 };
@@ -5835,7 +5837,7 @@ fn get_errorlist(
     wp: Option<&WinInfoInfo>,
     mut qf_idx: i32,
     eidx: i32,
-    list: &mut TvList,
+    list: &TvList,
 ) -> bool {
     let qi_rc;
     let qi: &QfInfo = if let Some(qi) = qi_arg {
@@ -5925,10 +5927,10 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         None,
     ) > 0
     {
-        get_errorlist(Some(&qi), None, 0, 0, &mut *l);
+        get_errorlist(Some(&qi), None, 0, 0, &l);
     }
 
-    tv_dict_add_list(retdict, c"items", Some(l));
+    tv_dict_add_list(retdict, c"items", Some(&l));
     true
 }
 
@@ -6045,7 +6047,7 @@ fn qf_getprop_defaults(
     }
     if status && (flags & QF_GETLIST_ITEMS) != 0 {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        status = tv_dict_add_list(retdict, c"items", Some(l));
+        status = tv_dict_add_list(retdict, c"items", Some(&l));
     }
     if status && (flags & QF_GETLIST_NR) != 0 {
         status = tv_dict_add_nr(retdict, c"nr", 0);
@@ -6100,8 +6102,8 @@ fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvD
 
 fn qf_getprop_items(qi: &QfInfo, qf_idx: i32, eidx: i32, retdict: &mut TvDict) -> bool {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    get_errorlist(Some(qi), None, qf_idx, eidx, &mut *l);
-    tv_dict_add_list(retdict, c"items", Some(l));
+    get_errorlist(Some(qi), None, qf_idx, eidx, &l);
+    tv_dict_add_list(retdict, c"items", Some(&l));
     true
 }
 
@@ -6536,7 +6538,7 @@ fn qf_setprop_items(qi: &QfInfo, qf_idx: i32, di: &mut Dictitem, action: i32) ->
     qf_add_entries(
         qi,
         qf_idx,
-        di.di_tv.vval.v_list_opt().as_deref(),
+        di.di_tv.vval.v_list_opt(),
         title_save.as_deref(),
         if action == b' ' as i32 {
             b'a' as i32
@@ -7395,7 +7397,7 @@ fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut
     }
 
     QF_STATE.with(|s| s.set_qf_ll_recursive.set(s.set_qf_ll_recursive.get() + (1)));
-    let l = args[0].vval.v_list_opt().map(|r| &*r);
+    let l = args[0].vval.v_list_opt();
     if set_errorlist(wp, l, i32::from(action), title, what) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }

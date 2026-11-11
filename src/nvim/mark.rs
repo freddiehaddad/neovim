@@ -2029,13 +2029,7 @@ pub fn mark_mb_adjustpos(buf: &mut FileBuf, lp: &mut CursorPos) {
 }
 
 /// Add information about mark `mname` to list `l` (`add_mark`).
-fn add_mark(
-    l: &mut TvList,
-    mname: &CStr,
-    pos: &CursorPos,
-    bufnr: i32,
-    fname: Option<&CStr>,
-) -> bool {
+fn add_mark(l: &TvList, mname: &CStr, pos: &CursorPos, bufnr: i32, fname: Option<&CStr>) -> bool {
     if pos.lnum <= 0 {
         return true;
     }
@@ -2044,20 +2038,20 @@ fn add_mark(
     tv_list_append_dict(l, Some(d));
 
     let lpos = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    tv_list_append_number(&mut *lpos, i64::from(bufnr));
-    tv_list_append_number(&mut *lpos, i64::from(pos.lnum));
+    tv_list_append_number(&lpos, i64::from(bufnr));
+    tv_list_append_number(&lpos, i64::from(pos.lnum));
     tv_list_append_number(
-        &mut *lpos,
+        &lpos,
         i64::from(if pos.col < MAXCOL {
             pos.col + 1
         } else {
             MAXCOL
         }),
     );
-    tv_list_append_number(&mut *lpos, i64::from(pos.coladd));
+    tv_list_append_number(&lpos, i64::from(pos.coladd));
 
     if !tv_dict_add_str_len(&mut *d, c"mark", Some(mname.to_bytes()))
-        || !tv_dict_add_list(&mut *d, c"pos", Some(lpos))
+        || !tv_dict_add_list(&mut *d, c"pos", Some(&lpos))
         || fname.is_some_and(|f| !tv_dict_add_str(&mut *d, c"file", Some(f)))
     {
         return false;
@@ -2067,7 +2061,7 @@ fn add_mark(
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
-pub fn get_buf_local_marks(buf: &FileBuf, l: &mut TvList) {
+pub fn get_buf_local_marks(buf: &FileBuf, l: &TvList) {
     let mut mname: [u8; 3] = [b'\'', b' ', 0];
 
     for i in 0..NMARKS {
@@ -2101,7 +2095,7 @@ pub fn get_raw_global_mark(name: u8) -> Xfmark {
 }
 
 /// Get information about global marks (`get_global_marks`).
-pub fn get_global_marks(l: &mut TvList) {
+pub fn get_global_marks(l: &TvList) {
     let mut mname: [u8; 3] = [b'\'', b' ', 0];
 
     for (i, fm) in g_st().namedfm[..(NMARKS + EXTRA_MARKS)].iter().enumerate() {

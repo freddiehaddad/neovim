@@ -1123,7 +1123,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> &'static mut TvDict {
     d
 }
 
-pub fn get_buffer_signs(buf: &mut FileBuf) -> &'static mut TvList {
+pub fn get_buffer_signs(buf: &mut FileBuf) -> crate::eval::typval::ListId {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let mut itr = MarkTreeIter::new();
     let b = &buf.b_marktree;
@@ -1132,7 +1132,7 @@ pub fn get_buffer_signs(buf: &mut FileBuf) -> &'static mut TvList {
     while itr.x.is_some() {
         let mark = marktree_itr_current(b, &itr);
         if !mt_end(mark) && mt_decor_sign(mark) {
-            tv_list_append_dict(&mut *l, Some(sign_get_placed_info_dict(mark)));
+            tv_list_append_dict(&l, Some(sign_get_placed_info_dict(mark)));
         }
         marktree_itr_next(b, &mut itr);
     }
@@ -1145,15 +1145,15 @@ fn sign_get_placed_in_buf(
     lnum: Linenr,
     sign_id: i32,
     group: Option<&CStr>,
-    retlist: &mut TvList,
+    retlist: &TvList,
 ) {
     let d = tv_dict_alloc();
-    tv_list_append_dict(&mut *retlist, Some(d));
+    tv_list_append_dict(retlist, Some(d));
 
     tv_dict_add_nr(&mut *d, c"bufnr", i64::from(buf.b_fnum));
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    tv_dict_add_list(&mut *d, c"signs", Some(l));
+    tv_dict_add_list(&mut *d, c"signs", Some(&l));
 
     let ns = group_get_ns(group);
     if !buf_has_signs(buf) || ns < 0 {
@@ -1186,7 +1186,7 @@ fn sign_get_placed_in_buf(
     if !signs.is_empty() {
         signs.sort_by(sign_row_cmp_slice);
         for mark in signs {
-            tv_list_append_dict(&mut *l, Some(sign_get_placed_info_dict(mark)));
+            tv_list_append_dict(&l, Some(sign_get_placed_info_dict(mark)));
         }
     }
 }
@@ -1196,7 +1196,7 @@ fn sign_get_placed(
     lnum: Linenr,
     id: i32,
     group: Option<&CStr>,
-    retlist: &mut TvList,
+    retlist: &TvList,
 ) {
     if let Some(buf) = buf {
         sign_get_placed_in_buf(buf, lnum, id, group, retlist);
@@ -1401,7 +1401,7 @@ fn sign_define_from_dict(name: Option<&CStr>, dict: Option<&TvDict>) -> i32 {
     }
 }
 
-fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
+fn sign_define_multiple(l: Option<&TvList>, retlist: &TvList) {
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
         if li.li_tv.v_type == VarType::VarDict {
@@ -1416,10 +1416,7 @@ fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
 pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-        sign_define_multiple(
-            argvars[0].vval.v_list_opt().as_deref(),
-            rettv.vval.v_list_ref(),
-        );
+        sign_define_multiple(argvars[0].vval.v_list_opt(), rettv.vval.v_list_ref());
         return;
     }
 
@@ -1659,7 +1656,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     }
 
     let l = argvars[0].vval.v_list_opt();
-    for li in tv_list_iter(l.as_deref()) {
+    for li in tv_list_iter(l) {
         let mut sign_id: i32 = -1;
         if li.li_tv.v_type == VarType::VarDict {
             sign_id = sign_place_from_dict(
@@ -1676,7 +1673,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     }
 }
 
-fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
+fn sign_undefine_multiple(l: Option<&TvList>, retlist: &TvList) {
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
         if let Some(name) = tv_get_string_chk(&li.li_tv)
@@ -1691,10 +1688,7 @@ fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
 pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-        sign_undefine_multiple(
-            argvars[0].vval.v_list_opt().as_deref(),
-            rettv.vval.v_list_ref(),
-        );
+        sign_undefine_multiple(argvars[0].vval.v_list_opt(), rettv.vval.v_list_ref());
         return;
     }
 
@@ -1774,7 +1768,7 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     }
 
     let l = argvars[0].vval.v_list_opt();
-    for li in tv_list_iter(l.as_deref()) {
+    for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
         if li.li_tv.v_type == VarType::VarDict {
             retval = sign_unplace_from_dict(None, li.li_tv.vval.v_dict_opt().as_deref());

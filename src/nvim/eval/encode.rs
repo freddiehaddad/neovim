@@ -61,7 +61,7 @@ impl ListReaderState {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
     Dict(crate::eval::typval::DictId),
     List(crate::eval::typval::ListId),
@@ -108,14 +108,14 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
+pub fn encode_list_write(list: Option<&TvList>, buf: &[u8]) {
     if buf.is_empty() {
         return;
     }
     let len = buf.len();
     let mut line_end_idx = 0usize;
 
-    if let Some(li) = list.as_deref_mut().and_then(|l| l.last_opt()) {
+    if let Some(li) = list.and_then(|l| l.last_opt()) {
         line_end_idx = buf.iter().position(|&b| b == b'\n').unwrap_or(len);
         if line_end_idx != 0 {
             let line_length = line_end_idx;
@@ -144,9 +144,9 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
             for (dst_b, &src_b) in line_buf.iter_mut().zip(&buf[line_start_idx..line_end_idx]) {
                 *dst_b = if src_b == 0 { b'\n' } else { src_b };
             }
-            crate::eval::typval::tv_list_append_bytes(list.as_deref_mut().unwrap(), &line_buf);
+            crate::eval::typval::tv_list_append_bytes(list.unwrap(), &line_buf);
         } else {
-            tv_list_append_string(list.as_deref_mut().unwrap(), None, 0);
+            tv_list_append_string(list.unwrap(), None, 0);
         }
         line_end_idx += 1;
     }
@@ -263,7 +263,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
         return false;
     };
     if type_di.di_tv.v_type != VarType::VarList
-        || eval_msgpack_type_list(K_MP_STRING).is_none_or(|tl| type_di.di_tv.vval.v_list() != tl)
+        || type_di.di_tv.vval.v_list() != eval_msgpack_type_list(K_MP_STRING)
     {
         return false;
     }
@@ -304,7 +304,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 let key_bytes = key.as_bytes();
                 msg_ga.extend_from_slice(&key_bytes[..key_bytes.len().min(1020)]);
             }
-            MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
+            MPConvStackData::List { ref list, li } | MPConvStackData::Pairs { ref list, li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
                 let first = crate::eval::typval::ListitemId::from(tv_list_first(list.opt()));
                 let idx = if li == first {
@@ -928,13 +928,13 @@ impl EncodeBackend<'_> {
         }
         let find_backref = || -> usize {
             for (idx, mpval) in mpstack.iter().enumerate() {
-                match (container, &mpval.data) {
-                    (MPContainerRef::Dict(d1), &MPConvStackData::Dict { dict: d2, .. })
+                match (&container, &mpval.data) {
+                    (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. })
                         if d1 == d2 =>
                     {
                         return idx;
                     }
-                    (MPContainerRef::List(l1), &MPConvStackData::List { list: l2, .. })
+                    (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. })
                         if l1 == l2 =>
                     {
                         return idx;
@@ -1057,18 +1057,21 @@ fn convert_one_value(
             });
         }
         VarType::VarList => {
-            let mut list = tv_ref.vval.v_list();
+            let list = tv_ref.vval.v_list();
             if list.is_null() || tv_list_len(list.opt()) == 0 {
                 backend.conv_empty_list();
             } else {
-                let saved_copy_id = list.lv_copy_id;
-                if let Some(done_ok) = backend.check_self_reference(
-                    MPContainerRef::List(list),
-                    &mut list.lv_copy_id,
+                let saved_copy_id = list.lv_copy_id.get();
+                let mut copy_id_val = saved_copy_id;
+                let res = backend.check_self_reference(
+                    MPContainerRef::List(list.clone()),
+                    &mut copy_id_val,
                     mpstack,
                     copy_id,
                     objname,
-                ) {
+                );
+                list.lv_copy_id.set(copy_id_val);
+                if let Some(done_ok) = res {
                     return done_ok;
                 }
 
@@ -1077,8 +1080,8 @@ fn convert_one_value(
                 mpstack.push(MPConvStackVal {
                     saved_copy_id,
                     data: MPConvStackData::List {
-                        list,
                         li: tv_list_first(list.opt()).into(),
+                        list,
                     },
                 });
             }
@@ -1106,8 +1109,7 @@ fn convert_one_value(
             {
                 let mut mp_idx = NUM_MSGPACK_TYPES;
                 for i in 0..NUM_MSGPACK_TYPES {
-                    if eval_msgpack_type_list(i).is_some_and(|tl| type_di.di_tv.vval.v_list() == tl)
-                    {
+                    if type_di.di_tv.vval.v_list() == eval_msgpack_type_list(i) {
                         mp_idx = i;
                         break;
                     }
@@ -1178,15 +1180,18 @@ fn convert_one_value(
                         }
                         K_MP_ARRAY => {
                             if val_di.di_tv.v_type == VarType::VarList {
-                                let mut val_list = val_di.di_tv.vval.v_list();
-                                let saved_copy_id = val_list.lv_copy_id;
-                                if let Some(done_ok) = backend.check_self_reference(
-                                    MPContainerRef::List(val_list),
-                                    &mut val_list.lv_copy_id,
+                                let val_list = val_di.di_tv.vval.v_list();
+                                let saved_copy_id = val_list.lv_copy_id.get();
+                                let mut copy_id_val = saved_copy_id;
+                                let res = backend.check_self_reference(
+                                    MPContainerRef::List(val_list.clone()),
+                                    &mut copy_id_val,
                                     mpstack,
                                     copy_id,
                                     objname,
-                                ) {
+                                );
+                                val_list.lv_copy_id.set(copy_id_val);
+                                if let Some(done_ok) = res {
                                     return done_ok;
                                 }
 
@@ -1195,8 +1200,8 @@ fn convert_one_value(
                                 mpstack.push(MPConvStackVal {
                                     saved_copy_id,
                                     data: MPConvStackData::List {
-                                        list: val_list,
                                         li: tv_list_first(val_list.opt()).into(),
+                                        list: val_list,
                                     },
                                 });
 
@@ -1205,7 +1210,7 @@ fn convert_one_value(
                         }
                         K_MP_MAP => {
                             if val_di.di_tv.v_type == VarType::VarList {
-                                let mut val_list = val_di.di_tv.vval.v_list();
+                                let val_list = val_di.di_tv.vval.v_list();
                                 if val_list.is_null() || tv_list_len(val_list.opt()) == 0 {
                                     backend.conv_empty_dict();
                                     handled_special = true;
@@ -1225,14 +1230,17 @@ fn convert_one_value(
                                         li = li.li_next;
                                     }
                                     if all_pairs {
-                                        let saved_copy_id = val_list.lv_copy_id;
-                                        if let Some(done_ok) = backend.check_self_reference(
-                                            MPContainerRef::Pairs(val_list),
-                                            &mut val_list.lv_copy_id,
+                                        let saved_copy_id = val_list.lv_copy_id.get();
+                                        let mut copy_id_val = saved_copy_id;
+                                        let res = backend.check_self_reference(
+                                            MPContainerRef::Pairs(val_list.clone()),
+                                            &mut copy_id_val,
                                             mpstack,
                                             copy_id,
                                             objname,
-                                        ) {
+                                        );
+                                        val_list.lv_copy_id.set(copy_id_val);
+                                        if let Some(done_ok) = res {
                                             return done_ok;
                                         }
 
@@ -1242,8 +1250,8 @@ fn convert_one_value(
                                         mpstack.push(MPConvStackVal {
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
-                                                list: val_list,
                                                 li: tv_list_first(val_list.opt()).into(),
+                                                list: val_list,
                                             },
                                         });
 
@@ -1361,14 +1369,15 @@ fn encode_vim_with_backend(
                 &mut di.di_tv
             }
             MPConvStackData::List {
-                mut list,
+                ref list,
                 ref mut li,
             } => {
                 let cur_li = *li;
                 if cur_li.is_null() {
+                    let list = list.clone();
                     mpstack.pop();
 
-                    list.lv_copy_id = saved_copy_id;
+                    list.lv_copy_id.set(saved_copy_id);
 
                     backend.conv_list_end();
                     continue;
@@ -1382,11 +1391,12 @@ fn encode_vim_with_backend(
 
                 &mut cur_li.li_tv
             }
-            MPConvStackData::Pairs { mut list, li } => {
+            MPConvStackData::Pairs { ref list, li } => {
                 if li.is_null() {
+                    let list = list.clone();
                     mpstack.pop();
 
-                    list.lv_copy_id = saved_copy_id;
+                    list.lv_copy_id.set(saved_copy_id);
 
                     backend.conv_dict_end();
                     continue;
@@ -1610,12 +1620,12 @@ mod tests {
         use crate::eval::typval::{tv_list_alloc, tv_list_append_string, tv_list_free};
 
         let list = tv_list_alloc(2);
-        tv_list_append_string(list, Some(c"a\nb"), -1);
-        tv_list_append_string(list, Some(c"c"), -1);
-        let buf = encode_vim_list_to_buf(Some(list)).unwrap();
+        tv_list_append_string(&list, Some(c"a\nb"), -1);
+        tv_list_append_string(&list, Some(c"c"), -1);
+        let buf = encode_vim_list_to_buf(Some(&list)).unwrap();
         assert_eq!(buf.len(), 5);
         assert_eq!(&buf[..], b"a\0b\nc");
-        tv_list_free(Some(list));
+        tv_list_free(Some(&list));
     }
 
     #[test]
@@ -1629,10 +1639,10 @@ mod tests {
             let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
                 let l = tv_list_alloc(0);
                 for &chunk in chunks {
-                    encode_list_write(Some(&mut *l), chunk);
+                    encode_list_write(Some(&l), chunk);
                 }
-                assert_eq!(l.lv_len as usize, expected.len());
-                let mut li = l.lv_first;
+                assert_eq!(l.lv_len.get() as usize, expected.len());
+                let mut li = l.lv_first.get();
                 for &exp in expected {
                     assert!(!li.is_null());
                     let li_ref = li.borrow();
@@ -1640,7 +1650,7 @@ mod tests {
                     assert_eq!(li_ref.li_tv.vval.v_string_opt_bytes(), exp);
                     li = li_ref.li_next;
                 }
-                tv_list_free(Some(l));
+                tv_list_free(Some(&l));
             };
 
             check(&[b""], &[]);

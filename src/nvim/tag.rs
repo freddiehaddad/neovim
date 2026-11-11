@@ -977,7 +977,8 @@ fn select_tag_match(
 
         let extra_d = tv_dict_alloc();
         tv_dict_add_list(&mut *extra_d, c"items", items_tv.vval.v_list_opt());
-        items_tv.vval.v_list_ref().lv_refcount += 1;
+        let list_ref = items_tv.vval.v_list_ref();
+        list_ref.lv_refcount.set(list_ref.lv_refcount.get() + 1);
         tv_dict_add_str(&mut *extra_d, c"tagname", Some(name));
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
@@ -1064,7 +1065,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(&mut *list, Some(dict));
+            tv_list_append_dict(&list, Some(dict));
 
             tv_dict_add_str(
                 &mut *dict,
@@ -1089,13 +1090,13 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
         format_to_buf!(g_st().iobuff_bytes_mut(), c"ltag %s", tag);
         set_errorlist(
             Some(curwin_mut()),
-            Some(&*list),
+            Some(&list),
             b' ' as i32,
             Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
             None,
         );
 
-        tv_list_free(Some(list));
+        tv_list_free(Some(&list));
 
         true
     }
@@ -1325,7 +1326,7 @@ fn find_tagfunc_tags(
     }
     let taglist = rettv.vval.v_list_opt();
 
-    for li in tv_list_iter(taglist.as_deref()) {
+    for li in tv_list_iter(taglist) {
         let mut res_name: Option<&std::ffi::CStr> = None;
         let mut res_fname: Option<&std::ffi::CStr> = None;
         let mut res_cmd: Option<&std::ffi::CStr> = None;
@@ -3110,11 +3111,7 @@ fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-pub fn get_tags(
-    list: &mut TvList,
-    pat: &std::ffi::CStr,
-    buf_fname: Option<&std::ffi::CStr>,
-) -> bool {
+pub fn get_tags(list: &TvList, pat: &std::ffi::CStr, buf_fname: Option<&std::ffi::CStr>) -> bool {
     {
         let mut matches: Vec<Vec<u8>> = Vec::new();
 
@@ -3136,7 +3133,7 @@ pub fn get_tags(
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(&mut *list, Some(dict));
+            tv_list_append_dict(list, Some(dict));
 
             let full_fname = tag_full_fname(&mut tp);
             let tag_slice = Some(tp.tagname);
@@ -3217,27 +3214,27 @@ fn get_tag_details(tag: &mut Taggy, retdict: &mut TvDict) {
     }
 
     let pos = tv_list_alloc(4);
-    tv_dict_add_list(retdict, c"from", Some(pos));
+    tv_dict_add_list(retdict, c"from", Some(&pos));
 
     let fmark = &mut tag.fmark;
     tv_list_append_number(
-        &mut *pos,
+        &pos,
         if fmark.fnum != -1 {
             fmark.fnum as Varnumber
         } else {
             0
         },
     );
-    tv_list_append_number(&mut *pos, fmark.mark.lnum as Varnumber);
+    tv_list_append_number(&pos, fmark.mark.lnum as Varnumber);
     tv_list_append_number(
-        &mut *pos,
+        &pos,
         if fmark.mark.col == MAXCOL {
             MAXCOL as Varnumber
         } else {
             (fmark.mark.col + 1) as Varnumber
         },
     );
-    tv_list_append_number(&mut *pos, fmark.mark.coladd as Varnumber);
+    tv_list_append_number(&pos, fmark.mark.coladd as Varnumber);
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
@@ -3245,11 +3242,11 @@ pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &mut TvDict) {
     tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen as Varnumber);
     tv_dict_add_nr(retdict, c"curidx", (wp.w_tagstackidx + 1) as Varnumber);
     let l = tv_list_alloc(2);
-    tv_dict_add_list(retdict, c"items", Some(l));
+    tv_dict_add_list(retdict, c"items", Some(&l));
 
     for i in 0..wp.w_tagstacklen as usize {
         let d = tv_dict_alloc();
-        tv_list_append_dict(l, Some(d));
+        tv_list_append_dict(&l, Some(d));
         get_tag_details(&mut wp.w_tagstack[i], d);
     }
 }
@@ -3350,7 +3347,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
             emsg(gettext(E_LISTREQ));
             return false;
         }
-        l = di_items.di_tv.vval.v_list_opt().map(|r| &*r);
+        l = di_items.di_tv.vval.v_list_opt();
     }
 
     if let Some(di_curidx) = tv_dict_find_opt(d, c"curidx", -1) {

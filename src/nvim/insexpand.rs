@@ -3515,7 +3515,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
         tv_dict_unref(matchdict.opt_mut());
     }
     if !matchlist.is_null() {
-        tv_list_unref(matchlist.opt_mut());
+        tv_list_unref(matchlist.opt());
     }
 }
 
@@ -3631,7 +3631,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
     if let Some(di_words) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"words", 5)
         && di_words.di_tv.v_type == VAR_LIST
     {
-        ins_compl_add_list(di_words.di_tv.vval.v_list_opt().as_deref());
+        ins_compl_add_list(di_words.di_tv.vval.v_list_opt());
     }
 }
 
@@ -3758,7 +3758,7 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
     } else {
         let startcol = tv_get_number_chk(&argvars[0], None) as Colnr;
         if startcol > 0 {
-            set_completion(startcol - 1, argvars[1].vval.v_list_opt().as_deref());
+            set_completion(startcol - 1, argvars[1].vval.v_list_opt());
         }
     }
 }
@@ -3967,13 +3967,13 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         let has_matches = (what_flag & CI_WHAT_MATCHES) != 0;
         let has_completed = (what_flag & CI_WHAT_COMPLETED) != 0;
         if has_items || has_matches {
-            li = crate::eval::typval::ListId::from(tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST));
+            li = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
             let key = if has_matches && !has_items {
                 c"matches"
             } else {
                 c"items"
             };
-            ret = tv_dict_add_list(retdict, key, li.opt_mut());
+            ret = tv_dict_add_list(retdict, key, li.opt());
         }
         if ret
             && (what_flag & CI_WHAT_SELECTED) != 0
@@ -3991,7 +3991,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
-                            tv_list_append_dict(li.borrow_mut(), Some(di));
+                            tv_list_append_dict(&li, Some(di));
                             fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                         }
                         if curr_num == Some(match_.cp_number) {

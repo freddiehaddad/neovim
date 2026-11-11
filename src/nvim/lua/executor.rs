@@ -2231,7 +2231,7 @@ pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
     if arg.v_type == VarType::VarDict {
         arg.vval.v_dict().lua_table_ref != LUA_NOREF
     } else if arg.v_type == VarType::VarList {
-        arg.vval.v_list().lua_table_ref != LUA_NOREF
+        arg.vval.v_list().lua_table_ref.get() != LUA_NOREF
     } else {
         false
     }
@@ -2241,7 +2241,7 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<std::ffi::CString
     let table_ref = if arg.v_type == VarType::VarDict {
         arg.vval.v_dict().lua_table_ref
     } else if arg.v_type == VarType::VarList {
-        arg.vval.v_list().lua_table_ref
+        arg.vval.v_list().lua_table_ref.get()
     } else {
         LUA_NOREF
     };

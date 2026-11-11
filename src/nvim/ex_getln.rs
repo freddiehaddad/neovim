@@ -3801,19 +3801,19 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     break 'color_cmdline_error;
                 }
                 let l = li_tv.vval.v_list_opt();
-                if tv_list_len(l.as_deref()) != 3 {
+                if tv_list_len(l) != 3 {
                     g_st().msg_scroll = 1;
                     msg_putchar(b'\n' as i32);
                     smsg!(
                         HLF_E,
                         gettext(c"E5402: List item %i has incorrect length: %d /= 3"),
                         i,
-                        tv_list_len(l.as_deref()),
+                        tv_list_len(l),
                     );
                     printed_errmsg = true;
                     break 'color_cmdline_error;
                 }
-                let mut inner = crate::eval::typval::tv_list_iter(l.as_deref());
+                let mut inner = crate::eval::typval::tv_list_iter(l);
                 let first_li = inner.next().unwrap();
                 let second_li = inner.next().unwrap();
                 let last_li = inner.next().unwrap();
@@ -5110,7 +5110,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
         }
     }
     *lenp = buf.len();
-    tv_list_free(Some(l));
+    tv_list_free(Some(&l));
     if !eap.skip {
         Some(std::ffi::CString::new(buf).unwrap_or_default())
     } else {

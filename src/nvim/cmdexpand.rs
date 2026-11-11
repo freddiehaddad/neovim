@@ -5515,8 +5515,8 @@ fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
         return false;
     };
 
-    expand_process_user_list(Some(&*retlist), matches, xp);
-    tv_list_unref(Some(retlist));
+    expand_process_user_list(Some(&retlist), matches, xp);
+    tv_list_unref(Some(&retlist));
     true
 }
 
@@ -5530,7 +5530,7 @@ fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
 
     let retlist = rettv.vval.v_list();
     expand_process_user_list(retlist.opt(), matches, xp);
-    tv_list_unref(retlist.opt_mut());
+    tv_list_unref(retlist.opt());
     true
 }
 
@@ -5996,13 +5996,13 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     if ret {
         let li = tv_list_alloc(xpc.xp_numfiles as isize);
 
-        ret = tv_dict_add_list(retdict, c"matches", Some(li));
+        ret = tv_dict_add_list(retdict, c"matches", Some(&li));
 
         let files = xpc.xp_files.as_slice();
         let mut idx: usize = 0;
         while ret && (idx as i32) < xpc.xp_numfiles {
             tv_list_append_string(
-                &mut *li,
+                &li,
                 Some(files[idx].as_c_str()),
                 files[idx].as_bytes().len() as isize,
             );

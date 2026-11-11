@@ -1036,7 +1036,7 @@ pub fn ml_recover(checkext: bool) {
         let mut items_tv = TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
 
-        recover_names(Some(fname_cstr), true, items_tv.vval.v_list().borrow_mut());
+        recover_names(Some(fname_cstr), true, &items_tv.vval.v_list());
 
         let n_swaps = tv_list_len(items_tv.vval.v_list().opt());
 
@@ -1702,7 +1702,7 @@ fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvList) {
+pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList) {
     #[cfg(unix)]
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]

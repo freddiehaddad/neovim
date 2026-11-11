@@ -1249,8 +1249,8 @@ fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: i32, mut i: i32) ->
 fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
     let force = (flags & K_SHA_DA_FORCEIT) != 0;
-    let get_old_files = (flags & K_SHA_DA_GET_OLDFILES) != 0
-        && (force || tv_list_len(oldfiles_list.as_deref()) == 0);
+    let get_old_files =
+        (flags & K_SHA_DA_GET_OLDFILES) != 0 && (force || tv_list_len(oldfiles_list) == 0);
     let want_marks = (flags & K_SHA_DA_WANT_MARKS) != 0;
     let no_opt = (flags & K_SHA_DA_NO_OPT) != 0;
     let argcount = crate::arglist::argcount();
@@ -1317,9 +1317,8 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
     if get_old_files && (oldfiles_list.is_none() || force) {
         let new_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        let new_list_id = new_list.lv_id;
-        set_vim_var_list(VV_OLDFILES, Some(new_list));
-        oldfiles_list = new_list_id.opt_mut();
+        set_vim_var_list(VV_OLDFILES, Some(&new_list));
+        oldfiles_list = get_vim_var_list(VV_OLDFILES);
     }
 
     loop {
@@ -1556,7 +1555,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
             ShadaEntryType::SDItemChange | ShadaEntryType::SDItemLocalMark => {
                 let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
                 if get_old_files && oldfiles_set.insert(PathKey(fname_cstr.to_owned())) {
-                    let ol = oldfiles_list.as_deref_mut().unwrap();
+                    let ol = oldfiles_list.unwrap();
                     crate::eval::typval::tv_list_append_string(ol, Some(fname_cstr), -1);
                 }
                 if !want_marks {
@@ -2643,8 +2642,8 @@ fn shada_write(
                     VarType::VarList => {
                         let l = vartv.vval.v_list();
                         let copy_id = get_copy_id();
-                        if !set_ref_in_list_items(l.opt_mut(), copy_id, None)
-                            && copy_id == l.lv_copy_id
+                        if !set_ref_in_list_items(l.opt(), copy_id, None)
+                            && copy_id == l.lv_copy_id.get()
                         {
                             tv_clear(&mut vartv);
                             skip = true;
