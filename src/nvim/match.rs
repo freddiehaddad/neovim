@@ -917,13 +917,13 @@ fn matchadd_dict_arg<'a>(
         return false;
     }
 
-    if let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"conceal", 7) {
+    if let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt(), c"conceal", 7) {
         *conceal_char = Some(std::borrow::Cow::Owned(
             tv_get_string(&di.tv()).into_owned(),
         ));
     }
 
-    let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"window", 6) else {
+    let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt(), c"window", 6) else {
         return true;
     };
 
@@ -969,27 +969,27 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 let len = format_to_buf!(&mut buf, c"pos%d", (i + 1) as i32);
                 let _ = len;
                 tv_dict_add_list(
-                    &mut *dict,
+                    &dict,
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
                     Some(&l),
                 );
             }
         } else {
-            tv_dict_add_str(&mut *dict, c"pattern", cur.mit_pattern.as_deref());
+            tv_dict_add_str(&dict, c"pattern", cur.mit_pattern.as_deref());
         }
         let group_name = syn_id2name(cur.mit_hlg_id);
-        tv_dict_add_str(&mut *dict, c"group", Some(&group_name));
-        tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
+        tv_dict_add_str(&dict, c"group", Some(&group_name));
+        tv_dict_add_nr(&dict, c"priority", cur.mit_priority as Varnumber);
+        tv_dict_add_nr(&dict, c"id", cur.mit_id as Varnumber);
 
         if cur.mit_conceal_char != 0 {
             let mut buf = [0u8; MB_MAXCHAR + 1];
             let buflen = utf_char2bytes(cur.mit_conceal_char, &mut buf) as usize;
             buf[buflen] = 0;
-            tv_dict_add_str_len(&mut *dict, c"conceal", Some(&buf[..buflen]));
+            tv_dict_add_str_len(&dict, c"conceal", Some(&buf[..buflen]));
         }
 
-        tv_list_append_dict(rettv.vval.v_list_ref(), Some(dict));
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(&dict));
     }
 }
 
@@ -1038,7 +1038,8 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut match_add_failed = false;
     for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
-        let d = li.tv().vval.v_dict_ref();
+        let d_id = li.tv().vval.v_dict();
+        let d = d_id.borrow();
         if tv_dict_find_opt(Some(d), c"pattern", 7).is_none() {
             if s.is_null() {
                 let list = tv_list_alloc(9);

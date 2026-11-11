@@ -1838,14 +1838,14 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         let d = argvars[1].vval.v_dict_opt();
 
         if allow_number {
-            allow_number = tv_dict_get_bool(d.as_deref(), c"number", 1) != 0;
-        } else if tv_dict_has_key(d.as_deref(), c"number") {
+            allow_number = tv_dict_get_bool(d, c"number", 1) != 0;
+        } else if tv_dict_has_key(d, c"number") {
             semsg!(gettext(E_INVARG2), c"number");
         }
 
-        simplify = tv_dict_get_bool(d.as_deref(), c"simplify", 1) != 0;
+        simplify = tv_dict_get_bool(d, c"simplify", 1) != 0;
 
-        if let Some(cursor_str) = tv_dict_get_string(d.as_deref(), c"cursor") {
+        if let Some(cursor_str) = tv_dict_get_string(d, c"cursor") {
             if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
                 semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
             } else {

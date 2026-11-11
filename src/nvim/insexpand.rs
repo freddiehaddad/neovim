@@ -982,18 +982,18 @@ fn do_autocmd_completedone(c: i32, mode: i32, word: Option<&NvimString>) {
     if let Some(word) = word
         && !word.data.is_null()
     {
-        tv_dict_add_str_len(&mut *v_event, c"complete_word", Some(word.as_bytes()));
+        tv_dict_add_str_len(&v_event, c"complete_word", Some(word.as_bytes()));
     } else {
-        tv_dict_add_str_len(&mut *v_event, c"complete_word", Some(b""));
+        tv_dict_add_str_len(&v_event, c"complete_word", Some(b""));
     }
 
     let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
     match CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
         Some(mode_cstr) => {
-            tv_dict_add_str_len(&mut *v_event, c"complete_type", Some(mode_cstr.to_bytes()));
+            tv_dict_add_str_len(&v_event, c"complete_type", Some(mode_cstr.to_bytes()));
         }
         None => {
-            tv_dict_add_str_len(&mut *v_event, c"complete_type", Some(b""));
+            tv_dict_add_str_len(&v_event, c"complete_type", Some(b""));
         }
     }
 
@@ -1004,11 +1004,11 @@ fn do_autocmd_completedone(c: i32, mode: i32, word: Option<&NvimString>) {
     } else {
         c"discard"
     };
-    tv_dict_add_str(&mut *v_event, c"reason", Some(reason));
-    tv_dict_set_keys_readonly(&mut *v_event);
+    tv_dict_add_str(&v_event, c"reason", Some(reason));
+    tv_dict_set_keys_readonly(&v_event);
 
     ins_apply_autocmds(EVENT_COMPLETEDONE);
-    restore_v_event(&mut *v_event, &mut save_v_event);
+    restore_v_event(&v_event, &mut save_v_event);
 }
 
 /// Check that character "c" is part of the item currently being completed.
@@ -1708,12 +1708,12 @@ fn pum_enough_matches() -> bool {
     i >= 2
 }
 
-fn ins_compl_dict_alloc(match_idx: Option<usize>) -> &'static mut TvDict {
+fn ins_compl_dict_alloc(match_idx: Option<usize>) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc_lock(VAR_FIXED);
     if let Some(idx) = match_idx {
         COMPL_LIST.with(|c| {
             if let Some(m) = c.borrow_mut().get_mut(idx) {
-                fill_complete_info_dict(&mut *dict, m, false);
+                fill_complete_info_dict(&dict, m, false);
             }
         });
     }
@@ -1734,9 +1734,9 @@ fn trigger_complete_changed_event(cur: i32) {
         };
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_dict(&mut *v_event, c"completed_item", Some(item));
-        pum_set_event_info(&mut *v_event);
-        tv_dict_set_keys_readonly(&mut *v_event);
+        tv_dict_add_dict(&v_event, c"completed_item", Some(&item));
+        pum_set_event_info(&v_event);
+        tv_dict_set_keys_readonly(&v_event);
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
         g_st().textlock += 1;
@@ -1744,7 +1744,7 @@ fn trigger_complete_changed_event(cur: i32) {
         g_st().textlock -= 1;
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
 
-        restore_v_event(&mut *v_event, &mut save_v_event);
+        restore_v_event(&v_event, &mut save_v_event);
     }
 }
 
@@ -2565,7 +2565,7 @@ pub fn ins_compl_clear() {
     INSEXPAND.with(|s| s.compl_from_nonkeyword.set(false));
     INSEXPAND.with(|s| s.compl_autostarted.set(false));
     INSEXPAND.with(|s| s.compl_num_bests.set(0));
-    set_vim_var_dict(VV_COMPLETED_ITEM, Some(tv_dict_alloc_lock(VAR_FIXED)));
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(&tv_dict_alloc_lock(VAR_FIXED)));
 }
 
 pub fn ins_compl_active() -> bool {
@@ -3506,13 +3506,13 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     } else if !matchlist.is_null() {
         ins_compl_add_list(matchlist.opt());
     } else if !matchdict.is_null() {
-        ins_compl_add_dict(matchdict.borrow_mut());
+        ins_compl_add_dict(&matchdict);
     }
 
     g_st().state_global = save_state;
 
     if !matchdict.is_null() {
-        tv_dict_unref(matchdict.opt_mut());
+        tv_dict_unref(matchdict.opt());
     }
     if !matchlist.is_null() {
         tv_list_unref(matchlist.opt());
@@ -3616,7 +3616,7 @@ fn ins_compl_add_list(list: Option<&TvList>) {
     }
 }
 
-fn ins_compl_add_dict(dict: &mut TvDict) {
+fn ins_compl_add_dict(dict: &TvDict) {
     INSEXPAND.with(|s| s.compl_opt_refresh_always.set(false));
     if let Some(di_refresh) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"refresh", 7)
         && di_refresh.tv().v_type == VAR_STRING
@@ -3853,7 +3853,7 @@ fn ins_compl_update_sequence_numbers() {
     }
 }
 
-fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool) {
+fn fill_complete_info_dict(di: &TvDict, match_: &mut Compl, add_match: bool) {
     tv_dict_add_str_len(
         di,
         c"word",
@@ -3892,7 +3892,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool)
     }
 }
 
-fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
+fn get_complete_info(what_list: Option<&TvList>, retdict: &TvDict) {
     let mut what_flag: i32;
 
     if let Some(what_list) = what_list {
@@ -3994,8 +3994,8 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
-                            tv_list_append_dict(&li, Some(di));
-                            fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
+                            tv_list_append_dict(&li, Some(&di));
+                            fill_complete_info_dict(&di, match_, has_matches && has_items);
                         }
                         if curr_num == Some(match_.cp_number) {
                             selected_idx = list_idx;
@@ -4026,10 +4026,10 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             let di = tv_dict_alloc();
             COMPL_LIST.with(|c| {
                 if let Some(curr) = c.borrow_mut().get_mut(curr_idx) {
-                    fill_complete_info_dict(&mut *di, curr, false);
+                    fill_complete_info_dict(&di, curr, false);
                 }
             });
-            let _ = tv_dict_add_dict(retdict, c"completed", Some(di));
+            let _ = tv_dict_add_dict(retdict, c"completed", Some(&di));
         }
     }
 }
@@ -5487,7 +5487,7 @@ pub fn ins_compl_delete(new_leader: bool) {
     }
 
     changed_cline_bef_curs(curwin_mut());
-    set_vim_var_dict(VV_COMPLETED_ITEM, Some(tv_dict_alloc_lock(VAR_FIXED)));
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(&tv_dict_alloc_lock(VAR_FIXED)));
 }
 
 fn ins_compl_expand_multiple(str_slice: &[u8]) {
@@ -5684,7 +5684,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     });
 
     let dict = ins_compl_dict_alloc(shown_idx);
-    set_vim_var_dict(VV_COMPLETED_ITEM, Some(dict));
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(&dict));
     INSEXPAND.with(|s| {
         s.compl_hi_on_autocompl_longest
             .set(insert_prefix && move_cursor)

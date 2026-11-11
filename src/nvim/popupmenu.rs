@@ -1661,7 +1661,7 @@ pub fn pum_get_height() -> i32 {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-pub fn pum_set_event_info(dict: &mut TvDict) {
+pub fn pum_set_event_info(dict: &TvDict) {
     if !pum_visible() {
         return;
     }

@@ -325,9 +325,9 @@ pub fn may_trigger_modechanged() {
 
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let v_event = get_v_event(&mut save_v_event);
-    tv_dict_add_str(&mut *v_event, c"new_mode", Some(curr_cstr));
-    tv_dict_add_str(&mut *v_event, c"old_mode", Some(old_cstr));
-    tv_dict_set_keys_readonly(&mut *v_event);
+    tv_dict_add_str(&v_event, c"new_mode", Some(curr_cstr));
+    tv_dict_add_str(&v_event, c"old_mode", Some(old_cstr));
+    tv_dict_set_keys_readonly(&v_event);
 
     format_to_buf!(&mut pattern_buf[..], c"%s:%s", old_cstr, curr_cstr,);
 
@@ -340,7 +340,7 @@ pub fn may_trigger_modechanged() {
     );
     g_st().last_mode = curr_mode;
 
-    restore_v_event(&mut *v_event, &mut save_v_event);
+    restore_v_event(&v_event, &mut save_v_event);
 }
 
 #[inline]

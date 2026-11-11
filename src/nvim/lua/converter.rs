@@ -291,7 +291,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                         };
                     } else {
                         let di = tv_dict_item_alloc_len(slice);
-                        if !tv_dict_add(cur.tv_mut(ret_tv).vval.v_dict().borrow_mut(), &di) {
+                        if !tv_dict_add(&cur.tv_mut(ret_tv).vval.v_dict(), &di) {
                             std::process::abort();
                         }
                         stack.push(cur);
@@ -410,11 +410,10 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                         ObjectType::ObjectTypeDict => {
                             if table_props.string_keys_num == 0 {
                                 let d = tv_dict_alloc();
-                                d.dv_refcount += 1;
-                                d.lua_table_ref = table_ref;
+                                d.dv_refcount.set(d.dv_refcount.get() + 1);
+                                d.lua_table_ref.set(table_ref);
                                 cur.tv_mut(ret_tv).v_type = VarType::VarDict;
-                                cur.tv_mut(ret_tv).vval =
-                                    crate::eval::typval::TypvalVval::Dict(d.dv_id);
+                                cur.tv_mut(ret_tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                             } else {
                                 cur.special = table_props.has_string_with_nul;
                                 if table_props.has_string_with_nul {
@@ -437,11 +436,11 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                     cur.list_len = table_props.string_keys_num;
                                 } else {
                                     let d = tv_dict_alloc();
-                                    d.dv_refcount += 1;
-                                    d.lua_table_ref = table_ref;
+                                    d.dv_refcount.set(d.dv_refcount.get() + 1);
+                                    d.lua_table_ref.set(table_ref);
                                     cur.tv_mut(ret_tv).v_type = VarType::VarDict;
                                     cur.tv_mut(ret_tv).vval =
-                                        crate::eval::typval::TypvalVval::Dict(d.dv_id);
+                                        crate::eval::typval::TypvalVval::Dict(d);
                                 }
                                 cur.container = true;
                                 cur.idx = nlua_gettop(lstate);
@@ -668,7 +667,7 @@ fn lua_convert_one_value(
             }
         }
         VarType::VarDict => {
-            let mut dict = tv_ref.vval.v_dict();
+            let dict = tv_ref.vval.v_dict();
             if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 lua_conv_empty_dict(lstate);
                 return true;
@@ -853,14 +852,17 @@ fn lua_convert_one_value(
                 }
             }
             if !handled_special {
-                let saved_copy_id = dict.dv_copy_id;
-                if lua_check_self_reference(
+                let saved_copy_id = dict.dv_copy_id.get();
+                let mut copy_id_val = saved_copy_id;
+                let self_ref = lua_check_self_reference(
                     lstate,
-                    MPContainerRef::Dict(dict),
-                    &mut dict.dv_copy_id,
+                    MPContainerRef::Dict(dict.clone()),
+                    &mut copy_id_val,
                     mpstack,
                     copy_id,
-                ) {
+                );
+                dict.dv_copy_id.set(copy_id_val);
+                if self_ref {
                     return true;
                 }
                 let used = dict.dv_hashtab.ht_used.get();
@@ -896,14 +898,15 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
         let next_tv: TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
-                mut dict,
+                ref dict,
                 ref mut hi_idx,
                 ref mut todo,
                 ..
             } => {
+                let dict = dict.clone();
                 if *todo == 0 {
                     mpstack.pop();
-                    dict.dv_copy_id = saved_copy_id;
+                    dict.dv_copy_id.set(saved_copy_id);
                     lua_rawset_safe(lstate, -3);
                     continue;
                 } else if *todo != dict.dv_hashtab.ht_used.get() {

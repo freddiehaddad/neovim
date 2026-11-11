@@ -464,16 +464,16 @@ fn fuzzy_match_in_list(
         {
             let d = tv.vval.v_dict_ref();
             if let Some(k) = key {
-                itemstr_cow = tv_dict_get_string(Some(&*d), k);
+                itemstr_cow = tv_dict_get_string(Some(d), k);
                 itemstr = itemstr_cow.as_deref();
             } else {
-                d.dv_refcount += 1;
-                let d_id = d.dv_id;
+                d.dv_refcount.set(d.dv_refcount.get() + 1);
+                let d_id = d.id();
                 let mut argv = [
                     TypVal {
                         v_type: VarType::VarDict,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::Dict(d_id),
+                        vval: TypvalVval::Dict(d_id.clone()),
                     },
                     TypVal {
                         v_type: VarType::VarUnknown,
@@ -486,7 +486,7 @@ fn fuzzy_match_in_list(
                 {
                     itemstr = rettv.vval.v_string_cstr();
                 }
-                tv_dict_unref(d_id.opt_mut());
+                tv_dict_unref(d_id.opt());
             }
         }
 
@@ -597,7 +597,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         }
 
         let d = arg2.vval.v_dict_ref();
-        if let Some(di_key) = tv_dict_find_opt(Some(&*d), c"key", -1) {
+        if let Some(di_key) = tv_dict_find_opt(Some(d), c"key", -1) {
             let di_tv = di_key.tv();
             let key_cstr = di_tv.vval.v_string_cstr();
             if di_tv.v_type != VarType::VarString
@@ -607,12 +607,12 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                 return;
             }
             key_owned = key_cstr.map(CStr::to_owned);
-        } else if !tv_dict_get_callback(Some(&mut *d), c"text_cb", -1, &mut cb) {
+        } else if !tv_dict_get_callback(Some(d), c"text_cb", -1, &mut cb) {
             semsg!(E_INVARGVAL, c"text_cb");
             return;
         }
 
-        if let Some(di_limit) = tv_dict_find_opt(Some(&*d), c"limit", -1) {
+        if let Some(di_limit) = tv_dict_find_opt(Some(d), c"limit", -1) {
             if di_limit.tv().v_type != VarType::VarNumber {
                 callback_free(&mut cb);
                 semsg!(E_INVARGVAL, c"limit");
@@ -621,7 +621,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             max_matches = tv_get_number_chk(&di_limit.tv(), None) as i32;
         }
 
-        if tv_dict_has_key(Some(&*d), c"matchseq") {
+        if tv_dict_has_key(Some(d), c"matchseq") {
             matchseq = true;
         }
     }

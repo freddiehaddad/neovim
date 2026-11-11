@@ -613,22 +613,22 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             word_vec.extend_from_slice(&badptr_bytes[org_off..end_off]);
             word_vec.push(0);
             tv_dict_add_str(
-                &mut *d,
+                &d,
                 c"word",
                 Some(CStr::from_bytes_until_nul(&word_vec).unwrap_or_default()),
             );
         } else {
-            tv_dict_add_str(&mut *d, c"word", Some(stp.st_word.as_c_str()));
+            tv_dict_add_str(&d, c"word", Some(stp.st_word.as_c_str()));
         }
         if sug.su_badlen < stp.st_orglen {
             let org_len = (stp.st_orglen as usize).min(badptr_bytes.len());
-            tv_dict_add_str_len(&mut *d, c"extra", Some(&badptr_bytes[..org_len]));
+            tv_dict_add_str_len(&d, c"extra", Some(&badptr_bytes[..org_len]));
         }
-        tv_dict_add_nr(&mut *d, c"score", stp.st_score as i64);
+        tv_dict_add_nr(&d, c"score", stp.st_score as i64);
         if (sps_st(|st| st.sps_flags.get()) & (SPS_DOUBLE | SPS_BEST)) != 0 {
-            tv_dict_add_nr(&mut *d, c"altscore", stp.st_altscore as i64);
+            tv_dict_add_nr(&d, c"altscore", stp.st_altscore as i64);
             tv_dict_add_bool(
-                &mut *d,
+                &d,
                 c"salscore",
                 if stp.st_salscore {
                     K_BOOL_VAR_TRUE_CONST
@@ -640,7 +640,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         let item = TypVal {
             v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(d.dv_id),
+            vval: TypvalVval::Dict(d),
         };
         tv_list_append_tv(items_tv.vval.v_list_ref(), &item);
     }

@@ -4233,14 +4233,14 @@ fn call_qftf_func(
         let mut rettv: TypVal = TypVal::new();
 
         let dict = tv_dict_alloc_lock(VAR_FIXED);
-        tv_dict_add_nr(dict, c"quickfix", Varnumber::from(is_qf));
-        tv_dict_add_nr(dict, c"winid", Varnumber::from(qf_winid));
-        tv_dict_add_nr(dict, c"id", Varnumber::from(qf_id));
-        tv_dict_add_nr(dict, c"start_idx", Varnumber::from(start_idx));
-        tv_dict_add_nr(dict, c"end_idx", Varnumber::from(end_idx));
-        dict.dv_refcount += 1;
+        tv_dict_add_nr(&dict, c"quickfix", Varnumber::from(is_qf));
+        tv_dict_add_nr(&dict, c"winid", Varnumber::from(qf_winid));
+        tv_dict_add_nr(&dict, c"id", Varnumber::from(qf_id));
+        tv_dict_add_nr(&dict, c"start_idx", Varnumber::from(start_idx));
+        tv_dict_add_nr(&dict, c"end_idx", Varnumber::from(end_idx));
+        dict.dv_refcount.set(dict.dv_refcount.get() + 1);
         args[0].v_type = VarType::VarDict;
-        args[0].vval = crate::eval::typval::TypvalVval::Dict(dict.dv_id);
+        args[0].vval = crate::eval::typval::TypvalVval::Dict(dict.clone());
 
         g_st().textlock += 1;
         if callback_call(cb, 1, &mut args, &mut rettv) {
@@ -4254,7 +4254,7 @@ fn call_qftf_func(
             tv_clear(&mut rettv);
         }
         g_st().textlock -= 1;
-        tv_dict_unref(Some(dict));
+        tv_dict_unref(Some(&dict));
     }
     if let Some(ref mut cb) = qfl_cb {
         callback_free(cb);
@@ -5814,32 +5814,32 @@ fn get_qfline_items(qfp: &mut Qfline, list: &TvList) -> bool {
     }
 
     let dict = tv_dict_alloc();
-    tv_list_append_dict(list, Some(dict));
+    tv_list_append_dict(list, Some(&dict));
 
     let buf = [qfp.qf_type, 0];
     let buflen: usize = if buf[0] == 0 { 0 } else { 1 };
-    if !tv_dict_add_nr(&mut *dict, c"bufnr", Varnumber::from(bufnum))
-        || !tv_dict_add_nr(&mut *dict, c"lnum", Varnumber::from(qfp.qf_lnum))
-        || !tv_dict_add_nr(&mut *dict, c"end_lnum", Varnumber::from(qfp.qf_end_lnum))
-        || !tv_dict_add_nr(&mut *dict, c"col", Varnumber::from(qfp.qf_col))
-        || !tv_dict_add_nr(&mut *dict, c"end_col", Varnumber::from(qfp.qf_end_col))
-        || !tv_dict_add_nr(&mut *dict, c"vcol", Varnumber::from(qfp.qf_viscol))
-        || !tv_dict_add_nr(&mut *dict, c"nr", Varnumber::from(qfp.qf_nr))
+    if !tv_dict_add_nr(&dict, c"bufnr", Varnumber::from(bufnum))
+        || !tv_dict_add_nr(&dict, c"lnum", Varnumber::from(qfp.qf_lnum))
+        || !tv_dict_add_nr(&dict, c"end_lnum", Varnumber::from(qfp.qf_end_lnum))
+        || !tv_dict_add_nr(&dict, c"col", Varnumber::from(qfp.qf_col))
+        || !tv_dict_add_nr(&dict, c"end_col", Varnumber::from(qfp.qf_end_col))
+        || !tv_dict_add_nr(&dict, c"vcol", Varnumber::from(qfp.qf_viscol))
+        || !tv_dict_add_nr(&dict, c"nr", Varnumber::from(qfp.qf_nr))
         || !tv_dict_add_str(
-            &mut *dict,
+            &dict,
             c"module",
             Some(qfp.qf_module.as_deref().unwrap_or(c"")),
         )
         || !tv_dict_add_str(
-            &mut *dict,
+            &dict,
             c"pattern",
             Some(qfp.qf_pattern.as_deref().unwrap_or(c"")),
         )
-        || !tv_dict_add_str(&mut *dict, c"text", Some(qfp.qf_text.as_c_str()))
-        || !tv_dict_add_str_len(&mut *dict, c"type", Some(&buf[..buflen]))
+        || !tv_dict_add_str(&dict, c"text", Some(qfp.qf_text.as_c_str()))
+        || !tv_dict_add_str_len(&dict, c"type", Some(&buf[..buflen]))
         || (qfp.qf_user_data.v_type != VarType::VarUnknown
-            && !tv_dict_add_tv(&mut *dict, b"user_data", &mut qfp.qf_user_data))
-        || !tv_dict_add_nr(&mut *dict, c"valid", Varnumber::from(qfp.qf_valid))
+            && !tv_dict_add_tv(&dict, b"user_data", &mut qfp.qf_user_data))
+        || !tv_dict_add_nr(&dict, c"valid", Varnumber::from(qfp.qf_valid))
     {
         std::process::abort();
     }
@@ -5903,7 +5903,7 @@ fn get_errorlist(
     true
 }
 
-fn qf_get_list_from_lines(what: &mut TvDict, di: &Dictitem, retdict: &mut TvDict) -> bool {
+fn qf_get_list_from_lines(what: &TvDict, di: &Dictitem, retdict: &TvDict) -> bool {
     if di.tv().v_type != VarType::VarList || di.tv().vval.v_list().is_null() {
         return false;
     }
@@ -5961,7 +5961,7 @@ fn qf_winid(qi: Option<&QfInfo>) -> i32 {
     0
 }
 
-fn qf_getprop_qfbufnr(qi: Option<&QfInfo>, retdict: &mut TvDict) -> bool {
+fn qf_getprop_qfbufnr(qi: Option<&QfInfo>, retdict: &TvDict) -> bool {
     let mut bufnum: i32 = 0;
     if let Some(qi) = qi
         && buflist_findnr(qi.qf_bufnr.get()).is_some()
@@ -6020,7 +6020,7 @@ fn qf_getprop_keys2flags(what: &TvDict, loclist: bool) -> i32 {
     flags
 }
 
-fn qf_getprop_qfidx(qi: &QfInfo, what: &mut TvDict) -> i32 {
+fn qf_getprop_qfidx(qi: &QfInfo, what: &TvDict) -> i32 {
     let mut qf_idx = qi.qf_curlist.get();
     if let Some(di) = tv_dict_find_opt(Some(what), c"nr", 2) {
         let di_tv = di.tv();
@@ -6054,12 +6054,7 @@ fn qf_getprop_qfidx(qi: &QfInfo, what: &mut TvDict) -> i32 {
     qf_idx
 }
 
-fn qf_getprop_defaults(
-    qi: Option<&QfInfo>,
-    flags: i32,
-    locstack: bool,
-    retdict: &mut TvDict,
-) -> bool {
+fn qf_getprop_defaults(qi: Option<&QfInfo>, flags: i32, locstack: bool, retdict: &TvDict) -> bool {
     let mut status = true;
 
     if (flags & QF_GETLIST_TITLE) != 0 {
@@ -6094,7 +6089,7 @@ fn qf_getprop_defaults(
         status = tv_dict_add_nr(retdict, c"filewinid", 0);
     }
     if status && (flags & QF_GETLIST_QFBUFNR) != 0 {
-        status = qf_getprop_qfbufnr(qi, &mut *retdict);
+        status = qf_getprop_qfbufnr(qi, retdict);
     }
     if status && (flags & QF_GETLIST_QFTF) != 0 {
         status = tv_dict_add_str_len(retdict, c"quickfixtextfunc", Some(b""));
@@ -6103,11 +6098,11 @@ fn qf_getprop_defaults(
     status
 }
 
-fn qf_getprop_title(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
+fn qf_getprop_title(qfl: &mut QfList, retdict: &TvDict) -> bool {
     tv_dict_add_str(retdict, c"title", qfl.qf_title.as_deref())
 }
 
-fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvDict) -> bool {
+fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &TvDict) -> bool {
     let mut winid: ObjHandle = 0;
 
     if let Some(wp) = wp
@@ -6120,14 +6115,14 @@ fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvD
     tv_dict_add_nr(retdict, c"filewinid", Varnumber::from(winid))
 }
 
-fn qf_getprop_items(qi: &QfInfo, qf_idx: i32, eidx: i32, retdict: &mut TvDict) -> bool {
+fn qf_getprop_items(qi: &QfInfo, qf_idx: i32, eidx: i32, retdict: &TvDict) -> bool {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     get_errorlist(Some(qi), None, qf_idx, eidx, &l);
     tv_dict_add_list(retdict, c"items", Some(&l));
     true
 }
 
-fn qf_getprop_ctx(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
+fn qf_getprop_ctx(qfl: &mut QfList, retdict: &TvDict) -> bool {
     if let Some(ref ctx) = qfl.qf_ctx {
         let di = tv_dict_item_alloc_len(b"context");
         tv_copy(ctx, &mut di.tv_mut());
@@ -6141,7 +6136,7 @@ fn qf_getprop_ctx(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     }
 }
 
-fn qf_getprop_idx(qfl: &mut QfList, mut eidx: i32, retdict: &mut TvDict) -> bool {
+fn qf_getprop_idx(qfl: &mut QfList, mut eidx: i32, retdict: &TvDict) -> bool {
     if eidx == 0 {
         eidx = qfl.qf_index;
         if qf_list_empty(Some(&*qfl)) {
@@ -6151,7 +6146,7 @@ fn qf_getprop_idx(qfl: &mut QfList, mut eidx: i32, retdict: &mut TvDict) -> bool
     tv_dict_add_nr(retdict, c"idx", Varnumber::from(eidx))
 }
 
-fn qf_getprop_qftf(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
+fn qf_getprop_qftf(qfl: &mut QfList, retdict: &TvDict) -> bool {
     if qfl.qf_qftf_cb.cb_type() != K_CALLBACK_NONE_CONST {
         let mut tv: TypVal = TypVal::new();
         callback_put(&qfl.qf_qftf_cb, &mut tv);
@@ -6163,7 +6158,7 @@ fn qf_getprop_qftf(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     }
 }
 
-fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut TvDict) -> bool {
+fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &TvDict, retdict: &TvDict) -> bool {
     let mut status = true;
     let mut qf_idx = INVALID_QFIDX;
 
@@ -6259,7 +6254,7 @@ fn qf_setprop_qftf(qfl: &mut QfList, di: &Dictitem) -> bool {
 
 fn qf_add_entry_from_dict(
     qfl: &mut QfList,
-    d: &mut TvDict,
+    d: &TvDict,
     first_entry: bool,
     valid_entry: &mut bool,
 ) -> QfStatus {
@@ -6449,11 +6444,15 @@ fn qf_add_entries(
     let mut entry_to_select_index: i32 = 0;
 
     for (i, li) in tv_list_iter(list).enumerate() {
-        let li_tv = li.tv();
-        if li_tv.v_type == VarType::VarDict
-            && let Some(d) = li_tv.vval.v_dict_opt()
-        {
-            drop(li_tv);
+        let d_id = {
+            let li_tv = li.tv();
+            if li_tv.v_type == VarType::VarDict {
+                li_tv.vval.v_dict()
+            } else {
+                crate::eval::typval::DictId::NULL
+            }
+        };
+        if let Some(d) = d_id.opt() {
             retval = qf_add_entry_from_dict(qfl, d, i == 0, &mut valid_entry);
             if retval == QfStatus::Fail {
                 break;

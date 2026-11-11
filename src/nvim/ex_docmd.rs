@@ -9217,14 +9217,14 @@ fn ex_restart(eap: &mut Exarg) {
     if !eap.forceit {
         let extra_d = tv_dict_alloc();
         tv_dict_add_str(
-            &mut *extra_d,
+            &extra_d,
             c"quit_cmd",
             Some(eap.do_ecmd_cmd.as_deref().unwrap_or(c"")),
         );
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(extra_d.dv_id),
+            vval: TypvalVval::Dict(extra_d),
         };
         nlua_call_excmd(
             c"vim._core.server",
@@ -9368,7 +9368,7 @@ fn ex_restart(eap: &mut Exarg) {
     };
 
     let env = create_environment(None, false, false, false, None);
-    tv_dict_add_str(&mut *env, ENV_STARTREASON, Some(startreason));
+    tv_dict_add_str(&env, ENV_STARTREASON, Some(startreason));
 
     let on_stdout = CallbackReader::none();
     let mut on_err = CallbackReader::none();

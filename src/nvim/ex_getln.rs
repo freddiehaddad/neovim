@@ -1119,13 +1119,13 @@ fn command_line_enter(
             let dict = get_v_event(&mut save_v_event);
             let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
-            tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
+            tv_dict_add_str(&dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
-                &mut *dict,
+                &dict,
                 c"cmdlevel",
                 get_cmdline_info().level.get() as Varnumber,
             );
-            tv_dict_set_keys_readonly(&mut *dict);
+            tv_dict_set_keys_readonly(&dict);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
             apply_autocmds(
@@ -1135,7 +1135,7 @@ fn command_line_enter(
                 false,
                 curbuf_opt_mut(),
             );
-            restore_v_event(&mut *dict, &mut save_v_event);
+            restore_v_event(&dict, &mut save_v_event);
             try_leave(&tstate, &mut err);
 
             if error_set(&err) {
@@ -1203,15 +1203,15 @@ fn command_line_enter(
             let dict = get_v_event(&mut save_v_event);
             let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
-            tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
+            tv_dict_add_str(&dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
-                &mut *dict,
+                &dict,
                 c"cmdlevel",
                 get_cmdline_info().level.get() as Varnumber,
             );
-            tv_dict_set_keys_readonly(&mut *dict);
+            tv_dict_set_keys_readonly(&dict);
             tv_dict_add_bool(
-                &mut *dict,
+                &dict,
                 c"abort",
                 if s.gotesc {
                     K_BOOL_VAR_TRUE_CONST
@@ -1231,10 +1231,10 @@ fn command_line_enter(
                 curbuf_opt_mut(),
             );
             try_leave(&tstate, &mut err);
-            if tv_dict_get_number(Some(&*dict), c"abort") != 0 {
+            if tv_dict_get_number(Some(&dict), c"abort") != 0 {
                 s.gotesc = true;
             }
-            restore_v_event(&mut *dict, &mut save_v_event);
+            restore_v_event(&dict, &mut save_v_event);
         }
 
         g_st().cmdmsg_rl = false;
@@ -3248,13 +3248,13 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
         let firstcbuf: [u8; 2] = [firstc as u8, 0];
         let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
-        tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
+        tv_dict_add_str(&dict, c"cmdtype", Some(firstc_cstr));
         tv_dict_add_nr(
-            &mut *dict,
+            &dict,
             c"cmdlevel",
             get_cmdline_info().level.get() as Varnumber,
         );
-        tv_dict_set_keys_readonly(&mut *dict);
+        tv_dict_set_keys_readonly(&dict);
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         apply_autocmds(
@@ -3264,7 +3264,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
             false,
             curbuf_opt_mut(),
         );
-        restore_v_event(&mut *dict, &mut save_v_event);
+        restore_v_event(&dict, &mut save_v_event);
         try_leave(&tstate, &mut err);
         if error_set(&err) {
             if !ui_has(K_UIMESSAGES) {
@@ -3732,7 +3732,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 try_enter(&mut tstate);
                 err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s";
                 dgc_ret = tv_dict_get_callback(
-                    Some(&mut *get_globvar_dict()),
+                    Some(&get_globvar_dict()),
                     c"Nvim_color_cmdline",
                     18,
                     &mut color_cb,
@@ -5144,12 +5144,13 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut xp_name_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+    let dict;
     if argvars[0].v_type == VarType::VarDict {
         if argvars[1].v_type != VarType::VarUnknown {
             emsg(gettext(c"E5050: {opts} must be the only argument"));
             return;
         }
-        let dict = argvars[0].vval.v_dict();
+        dict = argvars[0].vval.v_dict();
         let dict_ref = dict.opt();
         let Some(p_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"prompt", 6, &mut prompt_buf, Some(c""))
@@ -5176,7 +5177,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             };
             xp_name_cow = Some(xp_cstr);
         }
-        if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
+        if !tv_dict_get_callback(dict.opt(), c"highlight", 9, &mut input_callback) {
             return;
         }
     } else {

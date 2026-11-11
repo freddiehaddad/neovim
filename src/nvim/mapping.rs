@@ -2389,9 +2389,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 
     let (which, is_abbr, d) = if dict_only {
         let d = argvars[0].vval.v_dict();
-        let d_opt = d.opt();
-        let which = tv_dict_get_string(d_opt, c"mode");
-        let is_abbr = tv_dict_get_bool(d_opt, c"abbr", -1) as i32;
+        let which = tv_dict_get_string(d.opt(), c"mode").map(std::borrow::Cow::into_owned);
+        let is_abbr = tv_dict_get_bool(d.opt(), c"abbr", -1) as i32;
         let Some(which) = which else {
             emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
             return;
@@ -2400,7 +2399,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
             return;
         }
-        (which, is_abbr, d)
+        (std::borrow::Cow::Owned(which), is_abbr, d)
     } else {
         let Some(which) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
             return;

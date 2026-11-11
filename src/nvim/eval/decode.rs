@@ -74,16 +74,16 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
         v_lock: VAR_UNLOCKED,
         vval: crate::eval::typval::TypvalVval::List(mp_list),
     });
-    tv_dict_add(&mut *dict, &type_di);
+    tv_dict_add(&dict, &type_di);
 
     let val_di = tv_dict_item_alloc_len(b"_VAL");
     val_di.set_tv(val);
-    tv_dict_add(&mut *dict, &val_di);
-    dict.dv_refcount += 1;
+    tv_dict_add(&dict, &val_di);
+    dict.dv_refcount.set(dict.dv_refcount.get() + 1);
     *rettv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Dict(dict.dv_id),
+        vval: TypvalVval::Dict(dict),
     };
 }
 
@@ -216,8 +216,7 @@ fn json_decoder_pop(
         if last_container.special_val.is_null()
             && (obj.is_special_string
                 || obj.val.vval.v_string_is_null()
-                || tv_dict_find(dict.as_deref(), obj.val.vval.v_string_cstr_or_empty(), -1)
-                    .is_some())
+                || tv_dict_find(dict, obj.val.vval.v_string_cstr_or_empty(), -1).is_some())
         {
             let mut v = obj.val;
             tv_clear(&mut v);
@@ -878,11 +877,11 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         val_list = decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW);
                     } else {
                         let dict = tv_dict_alloc();
-                        dict.dv_refcount += 1;
+                        dict.dv_refcount.set(dict.dv_refcount.get() + 1);
                         tv = TypVal {
                             v_type: VarType::VarDict,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval::Dict(dict.dv_id),
+                            vval: TypvalVval::Dict(dict),
                         };
                     }
                     container_stack.push(JsonContainerStackItem {
@@ -1169,16 +1168,16 @@ fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: u
             let mut tv = TypVal::new();
             if can_be_dict {
                 let dict = tv_dict_alloc();
-                dict.dv_refcount += 1;
+                dict.dv_refcount.set(dict.dv_refcount.get() + 1);
                 tv = TypVal {
                     v_type: VarType::VarDict,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Dict(dict.dv_id),
+                    vval: TypvalVval::Dict(dict.clone()),
                 };
                 for pair in &items[..len] {
                     let di =
                         crate::eval::typval::tv_dict_item_alloc_len(pair[0].vval.v_string_bytes());
-                    if !tv_dict_add(&mut *dict, &di) {
+                    if !tv_dict_add(&dict, &di) {
                         for (_, d) in dict.dv_hashtab.iter_items() {
                             d.set_tv(TypVal {
                                 v_type: VarType::VarSpecial,

@@ -305,7 +305,9 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
             ga_concat_literal(&mut msg_ga, b", ");
         }
         match v.data {
-            MPConvStackData::Dict { dict, hi_idx, .. } => {
+            MPConvStackData::Dict {
+                ref dict, hi_idx, ..
+            } => {
                 let hi = dict.dv_hashtab.slot(hi_idx.saturating_sub(1));
                 let mut key_tv = TypVal {
                     v_type: VarType::VarString,
@@ -1108,7 +1110,7 @@ fn convert_one_value(
             }
         }
         VarType::VarDict => {
-            let mut dict = tv_ref.vval.v_dict();
+            let dict = tv_ref.vval.v_dict();
             if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 backend.conv_empty_dict();
                 return true;
@@ -1305,14 +1307,17 @@ fn convert_one_value(
                 }
             }
             if !handled_special {
-                let saved_copy_id = dict.dv_copy_id;
-                if let Some(done_ok) = backend.check_self_reference(
-                    MPContainerRef::Dict(dict),
-                    &mut dict.dv_copy_id,
+                let saved_copy_id = dict.dv_copy_id.get();
+                let mut copy_id_val = saved_copy_id;
+                let self_ref = backend.check_self_reference(
+                    MPContainerRef::Dict(dict.clone()),
+                    &mut copy_id_val,
                     mpstack,
                     copy_id,
                     objname,
-                ) {
+                );
+                dict.dv_copy_id.set(copy_id_val);
+                if let Some(done_ok) = self_ref {
                     return done_ok;
                 }
 
@@ -1354,15 +1359,16 @@ fn encode_vim_with_backend(
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
         let next_tv: TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
-                mut dict,
+                ref dict,
                 mut hi_idx,
                 ref mut todo,
                 ..
             } => {
+                let dict = dict.clone();
                 if *todo == 0 {
                     mpstack.pop();
 
-                    dict.dv_copy_id = saved_copy_id;
+                    dict.dv_copy_id.set(saved_copy_id);
 
                     backend.conv_dict_end();
                     continue;
@@ -1487,21 +1493,24 @@ fn encode_vim_with_backend(
                         } else {
                             pt.pt_dict.get()
                         };
-                        if let Some(dict) = dict.opt_mut() {
+                        if let Some(dict) = dict.opt() {
                             let used = dict.dv_hashtab.ht_used.get();
                             backend.conv_func_before_self(used as isize);
                             if used == 0 {
                                 backend.conv_empty_dict();
                                 continue;
                             }
-                            let saved_copy_id = dict.dv_copy_id;
-                            if let Some(done_ok) = backend.check_self_reference(
+                            let saved_copy_id = dict.dv_copy_id.get();
+                            let mut copy_id_val = saved_copy_id;
+                            let self_ref = backend.check_self_reference(
                                 MPContainerRef::Dict(dict.into()),
-                                &mut dict.dv_copy_id,
+                                &mut copy_id_val,
                                 &mpstack,
                                 copy_id,
                                 objname,
-                            ) {
+                            );
+                            dict.dv_copy_id.set(copy_id_val);
+                            if let Some(done_ok) = self_ref {
                                 if !done_ok {
                                     return false;
                                 }

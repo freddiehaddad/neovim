@@ -173,35 +173,38 @@ fn fill_assert_error(
         if atype != AssertType::NotEqual
             && exp_tv.v_type == VarType::VarDict
             && got_tv.v_type == VarType::VarDict
-            && let (Some(exp_d), Some(got_d)) = (exp_tv.vval.v_dict_opt(), got_tv.vval.v_dict_opt())
+            && !exp_tv.vval.v_dict().is_null()
+            && !got_tv.vval.v_dict().is_null()
         {
+            let exp_d = exp_tv.vval.v_dict();
+            let got_d = got_tv.vval.v_dict();
             did_copy = true;
             let new_exp_d = tv_dict_alloc();
             let new_got_d = tv_dict_alloc();
-            exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d.dv_id);
-            got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d.dv_id);
+            exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d.clone());
+            got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d.clone());
 
             for (_hi, di1) in exp_d.dv_hashtab.iter_items() {
                 let hi_key = CStr::from_bytes_until_nul(&di1.di_key).unwrap_or(c"");
                 let hi_bytes = hi_key.to_bytes();
-                let item2 = crate::eval::typval::tv_dict_find_opt(Some(&*got_d), hi_key, -1);
+                let item2 = crate::eval::typval::tv_dict_find_opt(Some(&got_d), hi_key, -1);
                 if let Some(item2) = item2 {
                     if !tv_equal(&di1.tv(), &item2.tv(), false) {
-                        tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.tv_mut());
-                        tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut item2.tv_mut());
+                        tv_dict_add_tv(&new_exp_d, hi_bytes, &mut di1.tv_mut());
+                        tv_dict_add_tv(&new_got_d, hi_bytes, &mut item2.tv_mut());
                     } else {
                         omitted += 1;
                     }
                 } else {
-                    tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.tv_mut());
+                    tv_dict_add_tv(&new_exp_d, hi_bytes, &mut di1.tv_mut());
                 }
             }
 
             for (_hi, di2) in got_d.dv_hashtab.iter_items() {
                 let hi_key = CStr::from_bytes_until_nul(&di2.di_key).unwrap_or(c"");
                 let hi_bytes = hi_key.to_bytes();
-                if crate::eval::typval::tv_dict_find_opt(Some(&*exp_d), hi_key, -1).is_none() {
-                    tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut di2.tv_mut());
+                if crate::eval::typval::tv_dict_find_opt(Some(&exp_d), hi_key, -1).is_none() {
+                    tv_dict_add_tv(&new_got_d, hi_bytes, &mut di2.tv_mut());
                 }
             }
         }

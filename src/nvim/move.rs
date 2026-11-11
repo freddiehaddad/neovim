@@ -1200,10 +1200,10 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         &mut *wp, &mut pos, &mut row, &mut scol, &mut ccol, &mut ecol, false,
     );
 
-    tv_dict_add_nr(dict, c"row", Varnumber::from(row));
-    tv_dict_add_nr(dict, c"col", Varnumber::from(scol));
-    tv_dict_add_nr(dict, c"curscol", Varnumber::from(ccol));
-    tv_dict_add_nr(dict, c"endcol", Varnumber::from(ecol));
+    tv_dict_add_nr(&dict, c"row", Varnumber::from(row));
+    tv_dict_add_nr(&dict, c"col", Varnumber::from(scol));
+    tv_dict_add_nr(&dict, c"curscol", Varnumber::from(ccol));
+    tv_dict_add_nr(&dict, c"endcol", Varnumber::from(ecol));
 }
 
 /// Convert a virtual (screen) column to a character column (1-based).

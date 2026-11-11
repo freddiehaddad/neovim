@@ -14,7 +14,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, Linenr, check_cursor_col};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, TvDict, TypVal, TypvalVval, VarType, Varnumber,
+    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, TypVal, TypvalVval, VarType, Varnumber,
     callback_free, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list,
     tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
     tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
@@ -671,46 +671,30 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
-fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
+fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
-    tv_dict_add_nr(&mut *dict, c"bufnr", buf.b_fnum as Varnumber);
-    tv_dict_add_str(&mut *dict, c"name", Some(buf.ffname_cstr()));
+    tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum as Varnumber);
+    tv_dict_add_str(&dict, c"name", Some(buf.ffname_cstr()));
     let lnum = if g_st().curbuf == buf {
         curwin_mut().w_cursor.lnum
     } else {
         buflist_findlnum(buf)
     };
-    tv_dict_add_nr(&mut *dict, c"lnum", lnum as Varnumber);
+    tv_dict_add_nr(&dict, c"lnum", lnum as Varnumber);
+    tv_dict_add_nr(&dict, c"linecount", buf.b_ml.ml_line_count as Varnumber);
+    tv_dict_add_nr(&dict, c"loaded", Varnumber::from(buf.b_ml.ml_mfp.is_some()));
+    tv_dict_add_nr(&dict, c"listed", buf.b_p_bl as Varnumber);
+    tv_dict_add_nr(&dict, c"changed", Varnumber::from(buf_is_changed_fn(buf)));
+    tv_dict_add_nr(&dict, c"changedtick", buf_get_changedtick(&*buf));
     tv_dict_add_nr(
-        &mut *dict,
-        c"linecount",
-        buf.b_ml.ml_line_count as Varnumber,
-    );
-    tv_dict_add_nr(
-        &mut *dict,
-        c"loaded",
-        Varnumber::from(buf.b_ml.ml_mfp.is_some()),
-    );
-    tv_dict_add_nr(&mut *dict, c"listed", buf.b_p_bl as Varnumber);
-    tv_dict_add_nr(
-        &mut *dict,
-        c"changed",
-        Varnumber::from(buf_is_changed_fn(buf)),
-    );
-    tv_dict_add_nr(&mut *dict, c"changedtick", buf_get_changedtick(&*buf));
-    tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"hidden",
         Varnumber::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows == 0),
     );
-    tv_dict_add_nr(
-        &mut *dict,
-        c"command",
-        Varnumber::from(bt_cmdwin(Some(&*buf))),
-    );
+    tv_dict_add_nr(&dict, c"command", Varnumber::from(bt_cmdwin(Some(&*buf))));
 
-    tv_dict_add_dict(&mut *dict, c"variables", Some(buf.b_vars()));
+    tv_dict_add_dict(&dict, c"variables", Some(&buf.b_vars()));
 
     let windows = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     for tp in for_all_tabpages_ptr() {
@@ -720,13 +704,13 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
             }
         }
     }
-    tv_dict_add_list(&mut *dict, c"windows", Some(&windows));
+    tv_dict_add_list(&dict, c"windows", Some(&windows));
 
     if buf_has_signs(&*buf) {
-        tv_dict_add_list(&mut *dict, c"signs", Some(&get_buffer_signs(buf)));
+        tv_dict_add_list(&dict, c"signs", Some(&get_buffer_signs(buf)));
     }
 
-    tv_dict_add_nr(&mut *dict, c"lastused", buf.b_last_used);
+    tv_dict_add_nr(&dict, c"lastused", buf.b_last_used);
 
     dict
 }
@@ -768,7 +752,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let d = get_buffer_info(&mut *buf);
-        tv_list_append_dict(rettv.vval.v_list_ref(), Some(d));
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(&d));
         if !argbuf.is_null() {
             return;
         }

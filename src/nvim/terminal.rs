@@ -1039,8 +1039,8 @@ pub fn terminal_close(term_id: TermId, status: i32) {
     if handle_get_buffer_opt(buf_handle).is_some() && !is_autocmd_blocked() {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
-        tv_dict_add_nr(&mut *dict, c"status", i64::from(status));
-        tv_dict_set_keys_readonly(&mut *dict);
+        tv_dict_add_nr(&dict, c"status", i64::from(status));
+        tv_dict_set_keys_readonly(&dict);
 
         let mut data_items = [KeyValuePair {
             key: cstr_slice_as_string(b"pos\0"),
@@ -1064,7 +1064,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
             false,
         );
 
-        restore_v_event(&mut *dict, &mut save_v_event);
+        restore_v_event(&dict, &mut save_v_event);
     }
 }
 
@@ -1911,7 +1911,7 @@ fn buf_set_term_title(buf: Option<&mut FileBuf>, title: &[u8]) {
     let mut err = Error::new();
     buf_ref.b_locked += 1;
     dict_set_var(
-        buf_ref.b_vars(),
+        &buf_ref.b_vars(),
         cstr_slice_as_string(b"term_title\0"),
         string_obj(NvimString::from_bytes(title)),
         false,

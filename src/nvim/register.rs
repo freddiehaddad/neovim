@@ -640,7 +640,7 @@ pub fn do_record(c: i32) -> bool {
         let mut p_vec = get_recorded().into_bytes_with_nul();
         vim_unescape_ks(&mut p_vec);
         tv_dict_add_str(
-            &mut *dict,
+            &dict,
             c"regcontents",
             Some(CStr::from_bytes_until_nul(&p_vec).unwrap_or_default()),
         );
@@ -649,14 +649,14 @@ pub fn do_record(c: i32) -> bool {
         buf[0] = REG_STATE.with(|s| s.do_record_regname.get()) as u8;
         buf[1] = 0;
         tv_dict_add_str(
-            &mut *dict,
+            &dict,
             c"regname",
             Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
         );
-        tv_dict_set_keys_readonly(&mut *dict);
+        tv_dict_set_keys_readonly(&dict);
 
         apply_autocmds(EVENT_RECORDINGLEAVE, None, None, false, curbuf_opt_mut());
-        restore_v_event(&mut *dict, &mut save_v_event);
+        restore_v_event(&dict, &mut save_v_event);
         g_st().reg_recorded = g_st().reg_recording;
         g_st().reg_recording = 0;
         if opt_vars().p_ch == 0 || ui_has(K_UIMESSAGES) {
@@ -1286,7 +1286,7 @@ pub fn format_reg_type(reg_type: MotionType, reg_width: Colnr, buf: &mut [u8]) -
     }
 }
 
-fn add_regtype_to_dict(reg: Option<PutReg<'_>>, dict: &mut TvDict, buf: &mut [u8]) {
+fn add_regtype_to_dict(reg: Option<PutReg<'_>>, dict: &TvDict, buf: &mut [u8]) {
     let (y_type, y_width) = reg.map_or((MotionType::MtCharWise, 0), |r| {
         r.with(|reg| (reg.y_type, reg.y_width))
     });
@@ -1312,21 +1312,21 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: RegIdx) {
         list
     });
     list.lv_lock.set(VAR_FIXED);
-    tv_dict_add_list(&mut *dict, c"regcontents", Some(&list));
+    tv_dict_add_list(&dict, c"regcontents", Some(&list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
-    add_regtype_to_dict(Some(PutReg::Idx(reg)), &mut *dict, &mut buf);
+    add_regtype_to_dict(Some(PutReg::Idx(reg)), &dict, &mut buf);
 
     buf[0] = oap.regname as u8;
     buf[1] = 0;
     tv_dict_add_str(
-        &mut *dict,
+        &dict,
         c"regname",
         Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
     );
 
     tv_dict_add_bool(
-        &mut *dict,
+        &dict,
         c"inclusive",
         if oap.inclusive {
             K_BOOL_VAR_TRUE_CONST
@@ -1338,13 +1338,13 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: RegIdx) {
     buf[0] = get_op_char(oap.op_type) as u8;
     buf[1] = 0;
     tv_dict_add_str(
-        &mut *dict,
+        &dict,
         c"operator",
         Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
     );
 
     tv_dict_add_bool(
-        &mut *dict,
+        &dict,
         c"visual",
         if oap.is_visual {
             K_BOOL_VAR_TRUE_CONST
@@ -1353,11 +1353,11 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: RegIdx) {
         },
     );
 
-    tv_dict_set_keys_readonly(&mut *dict);
+    tv_dict_set_keys_readonly(&dict);
     g_st().textlock += 1;
     apply_autocmds(EVENT_TEXTYANKPOST, None, None, false, curbuf_opt_mut());
     g_st().textlock -= 1;
-    restore_v_event(&mut *dict, &mut save_v_event);
+    restore_v_event(&dict, &mut save_v_event);
 
     REG_STATE.with(|s| s.textyankpost_recursive.set(false));
 }
@@ -1399,22 +1399,22 @@ fn put_do_autocmd(
     }
 
     list.lv_lock.set(VAR_FIXED);
-    tv_dict_add_list(&mut *v_event, c"regcontents", Some(&list));
+    tv_dict_add_list(&v_event, c"regcontents", Some(&list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     buf[0] = regname as u8;
     buf[1] = 0;
     let buflen = if buf[0] == 0 { 0 } else { 1 };
-    tv_dict_add_str_len(&mut *v_event, c"regname", Some(&buf[..buflen]));
+    tv_dict_add_str_len(&v_event, c"regname", Some(&buf[..buflen]));
 
     buf[0] = if dir == BACKWARD { b'P' } else { b'p' };
     buf[1] = 0;
-    tv_dict_add_str_len(&mut *v_event, c"operator", Some(&buf[..1]));
+    tv_dict_add_str_len(&v_event, c"operator", Some(&buf[..1]));
 
-    add_regtype_to_dict(reg, &mut *v_event, &mut buf);
+    add_regtype_to_dict(reg, &v_event, &mut buf);
 
     tv_dict_add_bool(
-        &mut *v_event,
+        &v_event,
         c"visual",
         if g_st().visual_global.active {
             K_BOOL_VAR_TRUE_CONST
@@ -1423,7 +1423,7 @@ fn put_do_autocmd(
         },
     );
 
-    tv_dict_set_keys_readonly(&mut *v_event);
+    tv_dict_set_keys_readonly(&v_event);
 
     REG_STATE.with(|s| s.put_autocmd_recursive.set(true));
     g_st().textlock += 1;
@@ -1435,7 +1435,7 @@ fn put_do_autocmd(
     g_st().textlock -= 1;
     REG_STATE.with(|s| s.put_autocmd_recursive.set(false));
 
-    restore_v_event(&mut *v_event, &mut save_v_event);
+    restore_v_event(&v_event, &mut save_v_event);
 }
 
 pub fn op_yank(oap: &mut Oparg, message: bool) -> bool {

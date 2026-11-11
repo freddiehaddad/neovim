@@ -8,7 +8,7 @@ use crate::cursor::{Colnr, Linenr, check_cursor};
 use crate::errors::*;
 use crate::eval::funcs::execute_common;
 use crate::eval::typval::{
-    EvalFuncData, TvDict, TvList, TypVal, VarType, Varnumber, tv_check_for_nonnull_dict_arg,
+    EvalFuncData, TvList, TypVal, VarType, Varnumber, tv_check_for_nonnull_dict_arg,
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
     tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number, tv_get_number_chk,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list,
@@ -387,63 +387,59 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
 }
 
 /// Information about a window as a dictionary (`get_win_info`).
-fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> &'static mut TvDict {
+fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
     validate_botline_win(&mut *wp);
 
-    tv_dict_add_nr(&mut *dict, c"tabnr", tpnr as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"winnr", winnr as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"winid", wp.handle as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"height", wp.w_view_height as Varnumber);
+    tv_dict_add_nr(&dict, c"tabnr", tpnr as Varnumber);
+    tv_dict_add_nr(&dict, c"winnr", winnr as Varnumber);
+    tv_dict_add_nr(&dict, c"winid", wp.handle as Varnumber);
+    tv_dict_add_nr(&dict, c"height", wp.w_view_height as Varnumber);
+    tv_dict_add_nr(&dict, c"status_height", wp.w_status_height as Varnumber);
+    tv_dict_add_nr(&dict, c"winrow", (wp.w_winrow + 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"topline", wp.w_topline as Varnumber);
+    tv_dict_add_nr(&dict, c"botline", (wp.w_botline - 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"leftcol", wp.w_leftcol as Varnumber);
+    tv_dict_add_nr(&dict, c"winbar", wp.w_winbar_height as Varnumber);
+    tv_dict_add_nr(&dict, c"width", wp.w_view_width as Varnumber);
+    tv_dict_add_nr(&dict, c"bufnr", wp.buf_mut().b_fnum as Varnumber);
+    tv_dict_add_nr(&dict, c"wincol", (wp.w_wincol + 1) as Varnumber);
+    tv_dict_add_nr(&dict, c"textoff", win_col_off(wp) as Varnumber);
     tv_dict_add_nr(
-        &mut *dict,
-        c"status_height",
-        wp.w_status_height as Varnumber,
-    );
-    tv_dict_add_nr(&mut *dict, c"winrow", (wp.w_winrow + 1) as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"topline", wp.w_topline as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"botline", (wp.w_botline - 1) as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"leftcol", wp.w_leftcol as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"winbar", wp.w_winbar_height as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"width", wp.w_view_width as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"bufnr", wp.buf_mut().b_fnum as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"wincol", (wp.w_wincol + 1) as Varnumber);
-    tv_dict_add_nr(&mut *dict, c"textoff", win_col_off(wp) as Varnumber);
-    tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"terminal",
         Varnumber::from(bt_terminal(wp.buf_opt())),
     );
     tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"quickfix",
         Varnumber::from(bt_quickfix(wp.buf_opt())),
     );
     tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"loclist",
         Varnumber::from(bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.is_null()),
     );
 
-    tv_dict_add_dict(&mut *dict, c"variables", Some(wp.w_vars()));
+    tv_dict_add_dict(&dict, c"variables", Some(&wp.w_vars()));
 
     dict
 }
 
 /// Information about a tab page as a dictionary (`get_tabpage_info`).
-fn get_tabpage_info(tp: &TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
+fn get_tabpage_info(tp: &TabPageInfo, tp_idx: i32) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
-    tv_dict_add_nr(&mut *dict, c"tabnr", tp_idx as Varnumber);
+    tv_dict_add_nr(&dict, c"tabnr", tp_idx as Varnumber);
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     for wp in win_iter_mut(first_win_in_tab(tp)) {
         tv_list_append_number(&l, wp.handle as Varnumber);
     }
-    tv_dict_add_list(&mut *dict, c"windows", Some(&l));
+    tv_dict_add_list(&dict, c"windows", Some(&l));
 
-    tv_dict_add_dict(&mut *dict, c"variables", Some(tp.tp_vars()));
+    tv_dict_add_dict(&dict, c"variables", Some(&tp.tp_vars()));
 
     dict
 }
@@ -477,7 +473,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             continue;
         }
         let d = get_tabpage_info(&tp, tpnr);
-        tv_list_append_dict(rettv.vval.v_list_ref(), Some(d));
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(&d));
         if !tparg.is_null() {
             return;
         }
@@ -508,7 +504,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 continue;
             }
             let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });
-            tv_list_append_dict(rettv.vval.v_list_ref(), Some(d));
+            tv_list_append_dict(rettv.vval.v_list_ref(), Some(&d));
             if !wparg.is_null() {
                 return;
             }
@@ -723,17 +719,17 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         }
 
         let d = argvars[2].vval.v_dict_opt();
-        if tv_dict_get_bool(d.as_deref(), c"vertical", 0) != 0 {
+        if tv_dict_get_bool(d, c"vertical", 0) != 0 {
             flags |= WSP_VERT;
         }
-        if let Some(di) = crate::eval::typval::tv_dict_find_opt(d.as_deref(), c"rightbelow", -1) {
+        if let Some(di) = crate::eval::typval::tv_dict_find_opt(d, c"rightbelow", -1) {
             flags |= if tv_get_bool(&di.tv()) != 0 {
                 WSP_BELOW
             } else {
                 WSP_ABOVE
             };
         }
-        size = tv_dict_get_number(d.as_deref(), c"size") as i32;
+        size = tv_dict_get_number(d, c"size") as i32;
     }
 
     if is_ctx_win(wp.borrow()) || text_or_buf_locked() || !check_split_disallowed(wp.opt()) {
@@ -876,16 +872,16 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let dict = argvars[0].vval.v_dict_opt();
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"lnum", 4) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"lnum", 4) {
         curwin_mut().w_cursor.lnum = tv_get_number(&di.tv()) as Linenr;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"col", 3) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"col", 3) {
         curwin_mut().w_cursor.col = tv_get_number(&di.tv()) as Colnr;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"coladd", 6) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"coladd", 6) {
         curwin_mut().w_cursor.coladd = tv_get_number(&di.tv()) as Colnr;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topline", 7) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"topline", 7) {
         let prev_topline = curwin_mut().w_topline;
         set_topline(curwin_mut(), tv_get_number(&di.tv()) as Linenr);
         if curwin_mut().w_topline != prev_topline {
@@ -894,17 +890,17 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
     }
     let mut vs = Viewstate::default();
     save_viewstate(curwin_mut(), &mut vs);
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"curswant", 8) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"curswant", 8) {
         vs.vs_curswant = tv_get_number(&di.tv()) as Colnr;
         vs.vs_set_curswant = false;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topfill", 7) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"topfill", 7) {
         vs.vs_topfill = tv_get_number(&di.tv()) as i32;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"leftcol", 7) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"leftcol", 7) {
         vs.vs_leftcol = tv_get_number(&di.tv()) as Colnr;
     }
-    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"skipcol", 7) {
+    if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"skipcol", 7) {
         vs.vs_skipcol = tv_get_number(&di.tv()) as Colnr;
     }
     restore_viewstate(curwin_mut(), &vs);
@@ -924,18 +920,18 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
 
-    tv_dict_add_nr(dict, c"lnum", curwin_mut().w_cursor.lnum as Varnumber);
-    tv_dict_add_nr(dict, c"col", curwin_mut().w_cursor.col as Varnumber);
-    tv_dict_add_nr(dict, c"coladd", curwin_mut().w_cursor.coladd as Varnumber);
+    tv_dict_add_nr(&dict, c"lnum", curwin_mut().w_cursor.lnum as Varnumber);
+    tv_dict_add_nr(&dict, c"col", curwin_mut().w_cursor.col as Varnumber);
+    tv_dict_add_nr(&dict, c"coladd", curwin_mut().w_cursor.coladd as Varnumber);
     update_curswant();
     let mut vs = Viewstate::default();
     save_viewstate(curwin_mut(), &mut vs);
-    tv_dict_add_nr(dict, c"curswant", vs.vs_curswant as Varnumber);
+    tv_dict_add_nr(&dict, c"curswant", vs.vs_curswant as Varnumber);
 
-    tv_dict_add_nr(dict, c"topline", vs.vs_topline as Varnumber);
-    tv_dict_add_nr(dict, c"topfill", vs.vs_topfill as Varnumber);
-    tv_dict_add_nr(dict, c"leftcol", vs.vs_leftcol as Varnumber);
-    tv_dict_add_nr(dict, c"skipcol", vs.vs_skipcol as Varnumber);
+    tv_dict_add_nr(&dict, c"topline", vs.vs_topline as Varnumber);
+    tv_dict_add_nr(&dict, c"topfill", vs.vs_topfill as Varnumber);
+    tv_dict_add_nr(&dict, c"leftcol", vs.vs_leftcol as Varnumber);
+    tv_dict_add_nr(&dict, c"skipcol", vs.vs_skipcol as Varnumber);
 }
 
 /// `winwidth(nr)` function (`f_winwidth`).

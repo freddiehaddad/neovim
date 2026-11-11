@@ -715,8 +715,8 @@ impl WinInfoInfo {
     }
 
     #[inline]
-    pub fn w_vars(&self) -> &'static mut TvDict {
-        self.w_winvar.tv().vval.v_dict().borrow_mut()
+    pub fn w_vars(&self) -> crate::eval::typval::DictId {
+        self.w_winvar.tv().vval.v_dict()
     }
 }
 
@@ -829,8 +829,8 @@ impl TabPageInfo {
     }
 
     #[inline]
-    pub fn tp_vars(&self) -> &'static mut TvDict {
-        self.tp_winvar.get().tv().vval.v_dict().borrow_mut()
+    pub fn tp_vars(&self) -> crate::eval::typval::DictId {
+        self.tp_winvar.get().tv().vval.v_dict()
     }
 }
 
@@ -4940,7 +4940,7 @@ fn alloc_tabpage() -> crate::globals::TabpagePtr {
     g_st().tabpage_handles.insert(handle, tp.clone());
 
     let winvar = crate::eval::typval::tv_dict_item_alloc_static();
-    init_var_dict(tv_dict_alloc(), &winvar, VAR_SCOPE);
+    init_var_dict(&tv_dict_alloc(), &winvar, VAR_SCOPE);
     tp.tp_winvar.set(winvar);
     tp.tp_ch_used.set(opt_vars().p_ch);
 
@@ -4951,8 +4951,8 @@ impl Drop for TabPageInfo {
     fn drop(&mut self) {
         if let Some(tp_winvar) = self.tp_winvar.get().opt() {
             if !tp_winvar.tv().vval.v_dict().is_null() {
-                vars_clear(&mut self.tp_vars().dv_hashtab);
-                unref_var_dict(&mut *self.tp_vars());
+                vars_clear(&self.tp_vars().dv_hashtab);
+                unref_var_dict(&self.tp_vars());
             }
             crate::eval::typval::tv_dict_item_free_slot(tp_winvar);
             self.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
@@ -4969,8 +4969,8 @@ pub fn free_tabpage(tp: Option<&TabPageInfo>) {
         }
         if let Some(tp_winvar) = tp_ref.tp_winvar.get().opt() {
             if !tp_winvar.tv().vval.v_dict().is_null() {
-                vars_clear(&mut tp_ref.tp_vars().dv_hashtab);
-                unref_var_dict(&mut *tp_ref.tp_vars());
+                vars_clear(&tp_ref.tp_vars().dv_hashtab);
+                unref_var_dict(&tp_ref.tp_vars());
             }
             crate::eval::typval::tv_dict_item_free_slot(tp_winvar);
             tp_ref.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
@@ -5932,7 +5932,7 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 
     new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static();
-    init_var_dict(tv_dict_alloc(), &new_wp.w_winvar, VAR_SCOPE);
+    init_var_dict(&tv_dict_alloc(), &new_wp.w_winvar, VAR_SCOPE);
 
     block_autocmds();
     if !hidden {
@@ -5985,8 +5985,8 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
         wp.w_p_lcs_chars.multispace = Vec::new();
         wp.w_p_lcs_chars.leadmultispace = Vec::new();
 
-        vars_clear(&mut (*wp).w_vars().dv_hashtab);
-        unref_var_dict(&mut *(*wp).w_vars());
+        vars_clear(&(*wp).w_vars().dv_hashtab);
+        unref_var_dict(&(*wp).w_vars());
 
         if g_st().prevwin == wp {
             g_st().prevwin = crate::globals::WinPtr::NULL;
@@ -6267,9 +6267,9 @@ fn make_win_info_dict(
     topfill: i32,
     leftcol: i32,
     skipcol: i32,
-) -> Option<&'static mut TvDict> {
+) -> Option<crate::eval::typval::DictId> {
     let d = tv_dict_alloc();
-    d.dv_refcount = 1;
+    d.dv_refcount.set(1);
 
     let entries: [(&CStr, i32); 6] = [
         (c"width", width),
@@ -6286,8 +6286,8 @@ fn make_win_info_dict(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(i64::from(val)),
         };
-        if !tv_dict_add_tv(&mut *d, key.to_bytes(), &mut tv) {
-            tv_dict_unref(Some(d));
+        if !tv_dict_add_tv(&d, key.to_bytes(), &mut tv) {
+            tv_dict_unref(Some(&d));
             return None;
         }
     }
@@ -6299,7 +6299,7 @@ fn check_window_scroll_resize(
     first_scroll_win: &mut Option<&'static mut WinInfoInfo>,
     first_size_win: &mut Option<&'static mut WinInfoInfo>,
     winlist: Option<&TvList>,
-    mut v_event: Option<&mut TvDict>,
+    v_event: Option<&TvDict>,
 ) {
     let mut tot_width: i32 = 0;
     let mut tot_height: i32 = 0;
@@ -6352,7 +6352,7 @@ fn check_window_scroll_resize(
         }
 
         if (size_changed || scroll_changed)
-            && let Some(ref mut ve) = v_event
+            && let Some(ve) = v_event
         {
             let width = wp.w_width - wp.w_last_width;
             let height = wp.w_height - wp.w_last_height;
@@ -6367,16 +6367,11 @@ fn check_window_scroll_resize(
             let mut winid = [0u8; NUMBUFLEN];
             let key_len = format_to_buf!(&mut winid[..], c"%d", wp.handle);
             let _ = key_len;
-            let mut d_ptr = crate::eval::typval::DictId::from(&*d);
-            if !tv_dict_add_dict(
-                ve,
-                crate::memory::bytes_as_cstr(&winid),
-                Some(d_ptr.borrow_mut()),
-            ) {
-                tv_dict_unref(Some(d_ptr.borrow_mut()));
+            if !tv_dict_add_dict(ve, crate::memory::bytes_as_cstr(&winid), Some(&d)) {
+                tv_dict_unref(Some(&d));
                 break;
             }
-            d_ptr.dv_refcount -= 1;
+            d.dv_refcount.set(d.dv_refcount.get() - 1);
 
             tot_width += width.abs();
             tot_height += height.abs();
@@ -6397,11 +6392,10 @@ fn check_window_scroll_resize(
             tot_skipcol,
         )
     {
-        let mut alldict_ptr = crate::eval::typval::DictId::from(&*alldict);
-        if !tv_dict_add_dict(v_event, c"all", Some(alldict_ptr.borrow_mut())) {
-            tv_dict_unref(Some(alldict_ptr.borrow_mut()));
+        if !tv_dict_add_dict(v_event, c"all", Some(&alldict)) {
+            tv_dict_unref(Some(&alldict));
         } else {
-            alldict_ptr.dv_refcount -= 1;
+            alldict.dv_refcount.set(alldict.dv_refcount.get() - 1);
         }
     }
 }
@@ -6442,17 +6436,11 @@ pub fn may_trigger_win_scrolled_resized() {
         windows_list = Some(wl);
     }
 
-    let mut scroll_dict: Option<&'static mut TvDict> = None;
+    let mut scroll_dict: Option<crate::eval::typval::DictId> = None;
     if trigger_scroll {
         let sd = tv_dict_alloc();
-        sd.dv_refcount = 1;
-        check_window_scroll_resize(
-            None,
-            &mut dummy_scroll,
-            &mut dummy_size,
-            None,
-            Some(&mut *sd),
-        );
+        sd.dv_refcount.set(1);
+        check_window_scroll_resize(None, &mut dummy_scroll, &mut dummy_size, None, Some(&sd));
         scroll_dict = Some(sd);
     }
 
@@ -6482,8 +6470,8 @@ pub fn may_trigger_win_scrolled_resized() {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        if tv_dict_add_list(&mut *v_event, c"windows", Some(windows_list)) {
-            tv_dict_set_keys_readonly(&mut *v_event);
+        if tv_dict_add_list(&v_event, c"windows", Some(windows_list)) {
+            tv_dict_set_keys_readonly(&v_event);
             let buf = if bufref_valid(Some(&resize_bufref)) {
                 resize_bufref.br_buf
             } else {
@@ -6504,15 +6492,15 @@ pub fn may_trigger_win_scrolled_resized() {
                 win.opt(),
             );
         }
-        restore_v_event(&mut *v_event, &mut save_v_event);
+        restore_v_event(&v_event, &mut save_v_event);
     }
 
-    if let Some(scroll_dict) = scroll_dict {
+    if let Some(ref scroll_dict) = scroll_dict {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        tv_dict_extend(&mut *v_event, &mut *scroll_dict, b"move");
-        tv_dict_set_keys_readonly(&mut *v_event);
+        tv_dict_extend(&v_event, scroll_dict, b"move");
+        tv_dict_set_keys_readonly(&v_event);
         tv_dict_unref(Some(scroll_dict));
 
         let buf = if bufref_valid(Some(&scroll_bufref)) {
@@ -6535,7 +6523,7 @@ pub fn may_trigger_win_scrolled_resized() {
             win.opt(),
         );
 
-        restore_v_event(&mut *v_event, &mut save_v_event);
+        restore_v_event(&v_event, &mut save_v_event);
     }
 
     WIN_STATE.with(|s| s.win_scrolled_resized_recursive.set(false));

@@ -933,7 +933,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
         }
 
-        vars_clear(&mut cwp.w_vars().dv_hashtab);
+        vars_clear(&cwp.w_vars().dv_hashtab);
 
         let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
 

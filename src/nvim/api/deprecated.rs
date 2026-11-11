@@ -564,15 +564,7 @@ pub fn buffer_set_var(
     let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &mut *buf.b_vars(),
-        name,
-        value,
-        false,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&buf.b_vars(), name, value, false, true, Some(arena), err)
 }
 
 /// Removes a buffer-scoped (b:) variable
@@ -595,7 +587,7 @@ pub fn buffer_del_var(
         return OBJECT_NIL;
     };
     dict_set_var(
-        &mut *buf.b_vars(),
+        &buf.b_vars(),
         name,
         OBJECT_NIL,
         true,
@@ -626,15 +618,7 @@ pub fn window_set_var(
     let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &mut *win.w_vars(),
-        name,
-        value,
-        false,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&win.w_vars(), name, value, false, true, Some(arena), err)
 }
 
 /// Removes a window-scoped (w:) variable
@@ -657,7 +641,7 @@ pub fn window_del_var(
         return OBJECT_NIL;
     };
     dict_set_var(
-        &mut *win.w_vars(),
+        &win.w_vars(),
         name,
         OBJECT_NIL,
         true,
@@ -689,15 +673,7 @@ pub fn tabpage_set_var(
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &mut *tab.tp_vars(),
-        name,
-        value,
-        false,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&tab.tp_vars(), name, value, false, true, Some(arena), err)
 }
 
 /// Removes a tab-scoped (t:) variable
@@ -720,7 +696,7 @@ pub fn tabpage_del_var(
         return OBJECT_NIL;
     };
     dict_set_var(
-        &mut *tab.tp_vars(),
+        &tab.tp_vars(),
         name,
         OBJECT_NIL,
         true,
@@ -737,7 +713,7 @@ pub fn tabpage_del_var(
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn vim_set_var(name: NvimString, value: Object, arena: &mut Arena, err: &mut Error) -> Object {
     dict_set_var(
-        &mut *get_globvar_dict(),
+        &get_globvar_dict(),
         name,
         value,
         false,
@@ -753,7 +729,7 @@ pub fn vim_set_var(name: NvimString, value: Object, arena: &mut Arena, err: &mut
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn vim_del_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
     dict_set_var(
-        &mut *get_globvar_dict(),
+        &get_globvar_dict(),
         name,
         OBJECT_NIL,
         true,

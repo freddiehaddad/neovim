@@ -181,12 +181,12 @@ fn convert_one_value(
                 });
                 return;
             }
-            let saved_copy_id = dict.dv_copy_id;
+            let saved_copy_id = dict.dv_copy_id.get();
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
-            dict.dv_copy_id = copy_id;
+            dict.dv_copy_id.set(copy_id);
             let used = dict.dv_hashtab.ht_used.get();
             let d_obj = arena_dict_opt(arena, used);
             stack.push(Object {
@@ -286,11 +286,11 @@ pub fn vim_to_object(
                 first,
             } => {
                 if *todo == 0 {
-                    let mut dict_ptr = *dict;
+                    let dict_ptr = dict.clone();
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    dict_ptr.dv_copy_id = saved;
+                    dict_ptr.dv_copy_id.set(saved);
 
                     pop_into_parent_dict(&mut stack);
                     continue;
@@ -400,11 +400,11 @@ pub fn object_to_vim_take_luaref(
             for item in d.as_mut_slice() {
                 let di = crate::eval::typval::tv_dict_item_alloc_len(item.key.as_bytes());
                 object_to_vim_take_luaref(&mut item.value, &mut di.tv_mut(), take_luaref, _err);
-                tv_dict_add(&mut *dict, &di);
+                tv_dict_add(&dict, &di);
             }
-            dict.dv_refcount += 1;
+            dict.dv_refcount.set(dict.dv_refcount.get() + 1);
             tv_ref.v_type = VarType::VarDict;
-            tv_ref.vval = TypvalVval::Dict(dict.dv_id);
+            tv_ref.vval = TypvalVval::Dict(dict);
         }
         ObjectType::ObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();

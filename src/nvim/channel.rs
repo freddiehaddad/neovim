@@ -10,10 +10,9 @@ use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, K_CALLBACK_NONE_CONST, ListId, TvDict, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
-    Varnumber, callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find,
-    tv_dict_free, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref,
-    tv_list_unref,
+    Callback, K_CALLBACK_NONE_CONST, ListId, TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber,
+    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
 };
 use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, callback_call, get_v_event, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
@@ -430,10 +429,10 @@ pub fn channel_job_start(
     cwd: Option<&CStr>,
     pty_width: u16,
     pty_height: u16,
-    env: Option<&'static mut TvDict>,
+    env: Option<crate::eval::typval::DictId>,
     status_out: &mut Varnumber,
 ) -> Option<&'static mut Channel> {
-    let env_ptr = crate::eval::typval::DictId::from(env);
+    let env_ptr = env.unwrap_or(crate::eval::typval::DictId::NULL);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
     let chan_id = chan.id;
     chan.on_data = on_stdout;
@@ -443,7 +442,7 @@ pub fn channel_job_start(
     if pty {
         if detach {
             semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
-            if let Some(env_ref) = env_ptr.opt_mut() {
+            if let Some(env_ref) = env_ptr.opt() {
                 tv_dict_free(env_ref);
             }
             drop(argv);
@@ -517,7 +516,7 @@ pub fn channel_job_start(
     if status != 0 {
         semsg!(gettext(E_JOBSPAWN), uv_strerror(status), &cmd,);
 
-        if let Some(env_ref) = chan.uv.proc_.env.opt_mut() {
+        if let Some(env_ref) = chan.uv.proc_.env.opt() {
             tv_dict_free(env_ref);
         }
         let proc_status = chan.uv.proc_.status;
@@ -529,7 +528,7 @@ pub fn channel_job_start(
     }
 
     drop(cmd);
-    if let Some(env_ref) = chan.uv.proc_.env.opt_mut() {
+    if let Some(env_ref) = chan.uv.proc_.env.opt() {
         tv_dict_free(env_ref);
     }
 
@@ -825,8 +824,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                 if tv_dict_find(reader.self_dict.opt(), reader_type, -1).is_none() {
                     let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
-                    let _ =
-                        tv_dict_add_list(reader.self_dict.borrow_mut(), reader_type, Some(&data));
+                    let _ = tv_dict_add_list(&reader.self_dict, reader_type, Some(&data));
                 } else {
                     semsg!(gettext(E_STREAMKEY), reader_type, chan.id,);
                 }
@@ -1069,12 +1067,12 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
         &mut crate::api::private::validate::Error::new(),
     );
     assert_eq!(retval.v_type, VarType::VarDict);
-    let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict_opt());
-    tv_dict_set_keys_readonly(&mut *dict);
+    let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());
+    tv_dict_set_keys_readonly(&dict);
 
     let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut());
 
-    restore_v_event(&mut *dict, &mut save_v_event);
+    restore_v_event(&dict, &mut save_v_event);
     arena_mem_free(arena_finish(&mut arena));
     channel_decref(chan);
 }

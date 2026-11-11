@@ -94,7 +94,7 @@ pub fn nvim_tabpage_set_var(tabpage: Tabpage, name: NvimString, value: Object, e
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return;
     };
-    dict_set_var(&mut *tab.tp_vars(), name, value, false, false, None, err);
+    dict_set_var(&tab.tp_vars(), name, value, false, false, None, err);
 }
 
 /// Removes a tab-scoped (t:) variable
@@ -107,7 +107,7 @@ pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error)
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return;
     };
-    dict_set_var(&mut *tab.tp_vars(), name, nil_obj(), true, false, None, err);
+    dict_set_var(&tab.tp_vars(), name, nil_obj(), true, false, None, err);
 }
 
 /// Gets the current window in a tabpage

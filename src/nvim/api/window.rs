@@ -235,7 +235,7 @@ pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut 
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
     };
-    dict_set_var(&mut *w.w_vars(), name, value, false, false, None, err);
+    dict_set_var(&w.w_vars(), name, value, false, false, None, err);
 }
 
 /// Removes a window-scoped (w:) variable
@@ -249,7 +249,7 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
     };
-    dict_set_var(&mut *w.w_vars(), name, OBJECT_NIL, true, false, None, err);
+    dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false, None, err);
 }
 
 /// Gets the window position in display cells. First position is zero.

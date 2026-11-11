@@ -13,7 +13,7 @@ use crate::context::K_CTX_KEEP_DIRS;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 use crate::cursor::Linenr;
 use crate::eval::typval::{
-    TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
     tv_dict_item_remove, tv_dict_watcher_notify,
 };
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
@@ -57,7 +57,6 @@ use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::win_find_tabpage;
 use std::ffi::CStr;
-use std::ptr;
 
 static REGEX_META: [(&CStr, extern "C-unwind" fn(*mut lua_State) -> i32); 4] = [
     (c"__gc", regex_gc),
@@ -316,29 +315,29 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
     1
 }
 
-fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
+fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<crate::eval::typval::DictId> {
     let scope = luaL_checkstring(lstate, 1);
     let handle = luaL_checkinteger_safe(lstate, 2) as ObjHandle;
     let mut dict = crate::eval::typval::DictId::NULL;
     let mut err = Error::new();
 
     match scope.to_bytes() {
-        b"g" => dict = get_globvar_dict().dv_id,
-        b"v" => dict = get_vimvar_dict().dv_id,
+        b"g" => dict = get_globvar_dict(),
+        b"v" => dict = get_vimvar_dict(),
         b"b" => {
             if let Some(buf) = find_buffer_by_handle(handle, &mut err) {
-                dict = buf.b_vars().dv_id;
+                dict = buf.b_vars();
             }
         }
         b"w" => {
             let win = find_window_by_handle(handle, &mut err);
             if !win.is_null() {
-                dict = win.w_vars().dv_id;
+                dict = win.w_vars();
             }
         }
         b"t" => {
             if let Some(tabpage) = find_tab_by_handle(handle, &mut err) {
-                dict = tabpage.tp_vars().dv_id;
+                dict = tabpage.tp_vars();
             }
         }
         _ => {
@@ -356,7 +355,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
         lua_error_safe(lstate);
         return None;
     }
-    dict.opt_mut()
+    (!dict.is_null()).then_some(dict)
 }
 
 pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
@@ -368,7 +367,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
     let del = nlua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
     let mut err = Error::new();
-    let di_opt = dict_check_writable(dict, &key, del, &mut err);
+    let di_opt = dict_check_writable(&dict, &key, del, &mut err);
     if err.err_type != ErrorType::ErrorTypeNone {
         luaL_where_safe(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
@@ -378,7 +377,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         return 0;
     }
 
-    let watched = tv_dict_is_watched(Some(&*dict));
+    let watched = tv_dict_is_watched(Some(&dict));
 
     if del {
         let Some(di) = di_opt else {
@@ -386,9 +385,9 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         };
         if watched {
             let di_tv = di.tv().clone();
-            tv_dict_watcher_notify(dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&di_tv));
+            tv_dict_watcher_notify(&dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&di_tv));
         }
-        tv_dict_item_remove(dict, &di);
+        tv_dict_item_remove(&dict, &di);
     } else {
         let mut tv: TypVal = TypVal::new();
 
@@ -401,7 +400,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
         let di = if let Some(di) = di_opt {
             let mut type_error = false;
-            if ptr::eq(dict, get_vimvar_dict())
+            if dict == get_vimvar_dict()
                 && !before_set_vvar(key.as_cstr(), &di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);
@@ -421,7 +420,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             di
         } else {
             let new_di = tv_dict_item_alloc_len(key.as_bytes());
-            let _ = tv_dict_add(dict, &new_di);
+            let _ = tv_dict_add(&dict, &new_di);
             new_di
         };
 
@@ -429,7 +428,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
         if watched {
             tv_dict_watcher_notify(
-                dict,
+                &dict,
                 key.as_opt_cstr().unwrap_or(c""),
                 Some(&tv),
                 Some(&oldtv),
@@ -450,12 +449,12 @@ pub extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
     let len = name_bytes.len();
     let name_cstr = crate::memory::bytes_as_cstr(name_with_nul);
 
-    let mut di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
-    if di.is_none() && ptr::eq(dict, get_globvar_dict()) {
+    let mut di = tv_dict_find(Some(&dict), name_cstr, len as isize);
+    if di.is_none() && dict == get_globvar_dict() {
         if !script_autoload(name_bytes, false) || aborting() {
             return 0;
         }
-        di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
+        di = tv_dict_find(Some(&dict), name_cstr, len as isize);
     }
     let Some(di) = di else {
         return 0;

@@ -3072,27 +3072,27 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
         let dict = argvars[0].vval.v_dict_opt();
-        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"timeout", -1) {
+        if let Some(di) = tv_dict_find_opt(dict, c"timeout", -1) {
             timeout = tv_get_number_chk(&di.tv(), Some(&mut error)) as i32;
             if error {
                 return;
             }
         }
-        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"maxcount", -1) {
+        if let Some(di) = tv_dict_find_opt(dict, c"maxcount", -1) {
             maxcount = tv_get_number_chk(&di.tv(), Some(&mut error)) as i32;
             if error {
                 return;
             }
         }
-        recompute = tv_dict_get_bool(dict.as_deref(), c"recompute", i32::from(recompute)) != 0;
-        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pattern", -1) {
+        recompute = tv_dict_get_bool(dict, c"recompute", i32::from(recompute)) != 0;
+        if let Some(di) = tv_dict_find_opt(dict, c"pattern", -1) {
             let di_tv = di.tv();
             let Some(pat) = tv_get_string_chk(&di_tv) else {
                 return;
             };
             pattern = Some(pat.into_owned());
         }
-        if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pos", -1) {
+        if let Some(di) = tv_dict_find_opt(dict, c"pos", -1) {
             let di_tv = di.tv();
             if di_tv.v_type != VarType::VarList {
                 semsg!(tr(E_INVARG2), c"pos");

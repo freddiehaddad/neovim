@@ -91,7 +91,7 @@ fn filter_map_one(
 }
 
 fn filter_map_dict(
-    mut d: Option<&mut TvDict>,
+    d: Option<&TvDict>,
     filtermap: FilterMap,
     arg_errmsg: &CStr,
     expr: &mut TypVal,
@@ -102,36 +102,34 @@ fn filter_map_dict(
             rettv.v_type = VarType::VarDict;
             rettv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::NULL);
         }
-        if d.is_none()
-            || (filtermap == FilterMap::Filter
-                && value_check_lock(
-                    d.as_deref_mut().unwrap().dv_lock,
-                    Some(arg_errmsg),
-                    TV_TRANSLATE,
-                ))
+        let Some(d) = d else {
+            return;
+        };
+        if filtermap == FilterMap::Filter
+            && value_check_lock(d.dv_lock.get(), Some(arg_errmsg), TV_TRANSLATE)
         {
             return;
         }
 
-        let mut d_ret: Option<&mut TvDict> = None;
+        let mut d_ret: Option<&TvDict> = None;
         if filtermap == FilterMap::MapNew {
             tv_dict_alloc_ret(rettv);
             d_ret = rettv.vval.v_dict_opt();
         }
 
-        let prev_lock = d.as_deref_mut().unwrap().dv_lock;
-        if d.as_deref_mut().unwrap().dv_lock == VAR_UNLOCKED {
-            d.as_deref_mut().unwrap().dv_lock = VAR_LOCKED;
+        let prev_lock = d.dv_lock.get();
+        if prev_lock == VAR_UNLOCKED {
+            d.dv_lock.set(VAR_LOCKED);
         }
-        hash_lock(&d.as_deref_mut().unwrap().dv_hashtab);
+        hash_lock(&d.dv_hashtab);
 
-        let mut todo = d.as_deref_mut().unwrap().dv_hashtab.ht_used.get();
-        let len = d.as_deref_mut().unwrap().dv_hashtab.array_len();
+        let mut todo = d.dv_hashtab.ht_used.get();
+        let len = d.dv_hashtab.array_len();
         for i in 0..len {
             if todo == 0 {
                 break;
             }
-            let di_id = d.as_deref_mut().unwrap().dv_hashtab.slot(i).hi_di;
+            let di_id = d.dv_hashtab.slot(i).hi_di;
             if let Some(di) = di_id.opt() {
                 todo -= 1;
                 if filtermap == FilterMap::Map
@@ -159,11 +157,8 @@ fn filter_map_dict(
                     newtv.v_lock = VAR_UNLOCKED;
                     di.set_tv(newtv);
                 } else if filtermap == FilterMap::MapNew {
-                    let add_res = tv_dict_add_tv(
-                        d_ret.as_deref_mut().unwrap(),
-                        di.key_cstr().to_bytes(),
-                        &mut newtv,
-                    );
+                    let add_res =
+                        tv_dict_add_tv(d_ret.unwrap(), di.key_cstr().to_bytes(), &mut newtv);
                     tv_clear(&mut newtv);
                     if !add_res {
                         break;
@@ -174,14 +169,14 @@ fn filter_map_dict(
                     {
                         break;
                     }
-                    d.as_deref_mut().unwrap().dv_hashtab.remove_at(i);
+                    d.dv_hashtab.remove_at(i);
                     tv_dict_item_free(di);
                 }
             }
         }
 
-        hash_unlock(&d.as_deref_mut().unwrap().dv_hashtab);
-        d.unwrap().dv_lock = prev_lock;
+        hash_unlock(&d.dv_hashtab);
+        d.dv_lock.set(prev_lock);
     }
 }
 
@@ -629,18 +624,14 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             return;
         };
 
-        if !is_new && value_check_lock(d1_ref.dv_lock, Some(arg_errmsg), TV_TRANSLATE) {
+        if !is_new && value_check_lock(d1_ref.dv_lock.get(), Some(arg_errmsg), TV_TRANSLATE) {
             return;
         }
 
         let mut d1 = crate::eval::typval::DictId::from_ref(d1_ref);
         if is_new {
-            d1 = crate::eval::typval::DictId::from(tv_dict_copy(
-                None,
-                Some(d1_ref),
-                false,
-                get_copy_id(),
-            ));
+            d1 = tv_dict_copy(None, Some(d1_ref), false, get_copy_id())
+                .unwrap_or(crate::eval::typval::DictId::NULL);
             if d1.is_null() {
                 return;
             }
@@ -653,7 +644,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             if arg2.v_type != VarType::VarUnknown {
                 let Some(act) = tv_get_string_chk(arg2) else {
                     if is_new {
-                        tv_dict_unref(d1.opt_mut());
+                        tv_dict_unref(d1.opt());
                     }
                     return;
                 };
@@ -662,13 +653,13 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let action_bytes = action.to_bytes();
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {
-                        tv_dict_unref(d1.opt_mut());
+                        tv_dict_unref(d1.opt());
                     }
                     semsg!(E_INVARG2, action);
                     return;
                 }
             }
-            tv_dict_extend(d1.borrow_mut(), d2, action.to_bytes());
+            tv_dict_extend(&d1, d2, action.to_bytes());
         }
 
         if is_new {

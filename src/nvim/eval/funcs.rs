@@ -47,8 +47,8 @@ use crate::eval::encode::{
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_extend;
 use crate::eval::typval::{
-    Callback, Dictitem, EvalFuncData, TV_TRANSLATE, TvBlob, TvDict, TvFloat, TvList, TvPartial,
-    TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber, callback_free, check_repeat_count,
+    Callback, Dictitem, EvalFuncData, TV_TRANSLATE, TvBlob, TvFloat, TvList, TvPartial, TypVal,
+    TypvalVval, VAR_UNLOCKED, VarType, Varnumber, callback_free, check_repeat_count,
     tv_blob_alloc_ret, tv_blob_get, tv_blob_len, tv_blob_set_range, tv_check_for_buffer_arg,
     tv_check_for_dict_arg, tv_check_for_list_arg, tv_check_for_list_or_blob_arg,
     tv_check_for_lnum_arg, tv_check_for_nonempty_string_arg, tv_check_for_nonnull_dict_arg,
@@ -1530,7 +1530,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             &func_cstr,
             &mut argvars[1],
             partial.rc(),
-            selfdict.opt_mut(),
+            selfdict.opt(),
             &mut *rettv,
         );
     }
@@ -1977,7 +1977,7 @@ pub fn f_empty(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             n = tv_list_len(argvars[0].vval.v_list_opt()) == 0;
         }
         VarType::VarDict => {
-            n = tv_dict_len(argvars[0].vval.v_dict_opt().as_deref()) == 0;
+            n = tv_dict_len(argvars[0].vval.v_dict_opt()) == 0;
         }
         VarType::VarBool => {
             n = argvars[0].vval.v_bool() != K_BOOL_VAR_TRUE_CONST;
@@ -2274,7 +2274,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     if argvars[1].v_type == VarType::VarDict
         && tv_dict_get_bool(
-            argvars[1].vval.v_dict_opt().as_deref(),
+            argvars[1].vval.v_dict_opt(),
             c"errmsg",
             K_BOOL_VAR_FALSE_CONST,
         ) != 0
@@ -2564,14 +2564,16 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 if dict_idx > 0 {
-                    pt.pt_dict.set(argvars[dict_idx].vval.v_dict());
-                    pt.pt_dict.get().dv_refcount += 1;
+                    let d = argvars[dict_idx].vval.v_dict();
+                    d.dv_refcount.set(d.dv_refcount.get() + 1);
+                    pt.pt_dict.set(d);
                 } else if let Some(arg_pt_ref) = arg_pt.opt() {
-                    pt.pt_dict.set(arg_pt_ref.pt_dict.get());
-                    pt.pt_auto.set(arg_pt_ref.pt_auto.get());
-                    if !pt.pt_dict.get().is_null() {
-                        pt.pt_dict.get().dv_refcount += 1;
+                    let d = arg_pt_ref.pt_dict.get();
+                    if !d.is_null() {
+                        d.dv_refcount.set(d.dv_refcount.get() + 1);
                     }
+                    pt.pt_dict.set(d);
+                    pt.pt_auto.set(arg_pt_ref.pt_auto.get());
                 }
 
                 pt.pt_refcount.set(1);
@@ -2695,7 +2697,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             } else if what.to_bytes() == b"dict" {
                 what_is_dict = true;
                 if !pt.pt_dict.get().is_null() {
-                    tv_dict_set_ret(rettv, pt.pt_dict.get().opt_mut());
+                    tv_dict_set_ret(rettv, pt.pt_dict.get().opt());
                 }
             } else if what.to_bytes() == b"args" {
                 rettv.v_type = VarType::VarList;
@@ -2724,10 +2726,10 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     required -= pt_argc;
                 }
 
-                tv_dict_add_nr(dict, c"required", Varnumber::from(required));
-                tv_dict_add_nr(dict, c"optional", Varnumber::from(optional));
+                tv_dict_add_nr(&dict, c"required", Varnumber::from(required));
+                tv_dict_add_nr(&dict, c"optional", Varnumber::from(optional));
                 tv_dict_add_bool(
-                    dict,
+                    &dict,
                     c"varargs",
                     if varargs {
                         K_BOOL_VAR_TRUE_CONST
@@ -2794,22 +2796,21 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             continue;
         }
         let d = tv_dict_alloc();
-        tv_list_append_dict(&l, Some(d));
+        tv_list_append_dict(&l, Some(&d));
 
         tv_dict_add_nr(
-            &mut *d,
+            &d,
             c"lnum",
             Varnumber::from(buf_ref.b_changelist[i].mark.lnum),
         );
 
         tv_dict_add_nr(
-            &mut *d,
+            &d,
             c"col",
             Varnumber::from(buf_ref.b_changelist[i].mark.col),
         );
-
         tv_dict_add_nr(
-            &mut *d,
+            &d,
             c"coladd",
             Varnumber::from(buf_ref.b_changelist[i].mark.coladd),
         );
@@ -2893,9 +2894,9 @@ pub fn f_getcharpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 /// "getcharsearch()" function
 pub fn f_getcharsearch(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
-    tv_dict_add_str(dict, c"char", Some(&last_csearch()));
-    tv_dict_add_nr(dict, c"forward", Varnumber::from(last_csearch_forward()));
-    tv_dict_add_nr(dict, c"until", Varnumber::from(last_csearch_until()));
+    tv_dict_add_str(&dict, c"char", Some(&last_csearch()));
+    tv_dict_add_nr(&dict, c"forward", Varnumber::from(last_csearch_forward()));
+    tv_dict_add_nr(&dict, c"until", Varnumber::from(last_csearch_until()));
 }
 
 /// "getfontname()" function
@@ -2924,29 +2925,21 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             continue;
         }
         let d = tv_dict_alloc();
-        tv_list_append_dict(&l, Some(d));
+        tv_list_append_dict(&l, Some(&d));
         tv_dict_add_nr(
-            &mut *d,
+            &d,
             c"lnum",
             Varnumber::from(wp.w_jumplist[i].fmark.mark.lnum),
         );
+        tv_dict_add_nr(&d, c"col", Varnumber::from(wp.w_jumplist[i].fmark.mark.col));
         tv_dict_add_nr(
-            &mut *d,
-            c"col",
-            Varnumber::from(wp.w_jumplist[i].fmark.mark.col),
-        );
-        tv_dict_add_nr(
-            &mut *d,
+            &d,
             c"coladd",
             Varnumber::from(wp.w_jumplist[i].fmark.mark.coladd),
         );
-        tv_dict_add_nr(
-            &mut *d,
-            c"bufnr",
-            Varnumber::from(wp.w_jumplist[i].fmark.fnum),
-        );
+        tv_dict_add_nr(&d, c"bufnr", Varnumber::from(wp.w_jumplist[i].fmark.fnum));
         if let Some(ref fname) = wp.w_jumplist[i].fname {
-            tv_dict_add_str(&mut *d, c"filename", Some(fname.as_c_str()));
+            tv_dict_add_str(&d, c"filename", Some(fname.as_c_str()));
         }
     }
 }
@@ -3026,8 +3019,10 @@ fn getregionpos(
     let is_select_exclusive: bool;
     let type_cow;
     let type_cstr: &CStr;
+    let d_id;
     if argvars[2].v_type == VarType::VarDict {
-        let d = argvars[2].vval.v_dict().opt();
+        d_id = argvars[2].vval.v_dict();
+        let d = d_id.opt();
 
         is_select_exclusive = tv_dict_get_bool(
             d,
@@ -3243,8 +3238,8 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     if argvars[2].v_type == VarType::VarDict {
         let d = argvars[2].vval.v_dict_opt();
-        allow_eol = tv_dict_get_bool(d.as_deref(), c"eol", 0) != 0;
-        bounds_only = tv_dict_get_bool(d.as_deref(), c"bounds", 0) != 0;
+        allow_eol = tv_dict_get_bool(d, c"eol", 0) != 0;
+        bounds_only = tv_dict_get_bool(d, c"bounds", 0) != 0;
     }
 
     let tab_p1 = crate::cursor::CursorPos {
@@ -3947,7 +3942,7 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     let mut startidx: Varnumber = 0;
     if argvars[2].v_type == VarType::VarDict {
-        startidx = tv_dict_get_number_def(argvars[2].vval.v_dict_opt().as_deref(), c"startidx", 0);
+        startidx = tv_dict_get_number_def(argvars[2].vval.v_dict_opt(), c"startidx", 0);
     }
 
     let mut save_val = tv_initial_value();
@@ -4093,7 +4088,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 end_cstr,
             );
         } else if lv.ll_tv.is_null() {
-            if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, None, 1) {
+            if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, false, 1) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
                     (di.di_flags.get() & DI_FLAGS_LOCK) != 0 || tv_islocked(&di.tv()),
                 ));
@@ -4200,7 +4195,7 @@ pub fn create_environment(
     pty: bool,
     set_nvim_addr: bool,
     pty_term_name: Option<&CStr>,
-) -> &'static mut TvDict {
+) -> crate::eval::typval::DictId {
     let env = tv_dict_alloc();
 
     if !clear_env {
@@ -4221,35 +4216,35 @@ pub fn create_environment(
             let name_cstr = name_owned.as_deref().unwrap_or(item_name);
             #[cfg(not(windows))]
             let name_cstr = item_name;
-            tv_dict_add_str(&mut *env, name_cstr, item_val);
+            tv_dict_add_str(&env, name_cstr, item_val);
         });
 
         if pty {
             for &ignored in PTY_IGNORED_ENV_VARS {
-                if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), ignored, -1) {
-                    tv_dict_item_remove(&mut *env, &dv);
+                if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&env), ignored, -1) {
+                    tv_dict_item_remove(&env, &dv);
                 }
             }
             if opt_vars().p_tgc {
-                tv_dict_add_str(&mut *env, c"COLORTERM", Some(c"truecolor"));
+                tv_dict_add_str(&env, c"COLORTERM", Some(c"truecolor"));
             }
         }
     }
 
     if pty {
-        if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), c"TERM", 4) {
-            tv_dict_item_remove(&mut *env, &dv);
+        if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&env), c"TERM", 4) {
+            tv_dict_item_remove(&env, &dv);
         }
-        tv_dict_add_str(&mut *env, c"TERM", pty_term_name);
+        tv_dict_add_str(&env, c"TERM", pty_term_name);
     }
 
     if set_nvim_addr {
         let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
         if !nvim_addr.to_bytes().is_empty() {
-            if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), c"NVIM", 4) {
-                tv_dict_item_remove(&mut *env, &dv);
+            if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&env), c"NVIM", 4) {
+                tv_dict_item_remove(&env, &dv);
             }
-            tv_dict_add_str(&mut *env, c"NVIM", Some(&nvim_addr));
+            tv_dict_add_str(&env, c"NVIM", Some(&nvim_addr));
         }
     }
 
@@ -4271,30 +4266,30 @@ pub fn create_environment(
                     };
                     let name_cstr = name_owned.as_deref().unwrap_or_else(|| var.key_cstr());
                     if let Some(dv) = crate::eval::typval::tv_dict_find_opt(
-                        Some(&*env),
+                        Some(&env),
                         name_cstr,
                         namelen as isize,
                     ) {
-                        tv_dict_item_remove(&mut *env, &dv);
+                        tv_dict_item_remove(&env, &dv);
                     }
                     let var_tv = var.tv();
-                    tv_dict_add_str(&mut *env, name_cstr, Some(&tv_get_string(&var_tv)));
+                    tv_dict_add_str(&env, name_cstr, Some(&tv_get_string(&var_tv)));
                 }
             }
         }
         #[cfg(not(windows))]
         {
-            tv_dict_extend(&mut *env, job_env.tv().vval.v_dict_ref(), b"force");
+            tv_dict_extend(&env, job_env.tv().vval.v_dict_ref(), b"force");
         }
     }
 
     if pty {
         for &req in REQUIRED_ENV_VARS {
             let len = req.to_bytes().len();
-            if tv_dict_find(Some(&*env), req, len as isize).is_none()
+            if tv_dict_find(Some(&env), req, len as isize).is_none()
                 && let Some(env_var) = os_getenv_cstr(req)
             {
-                tv_dict_add_str(&mut *env, req, Some(env_var.as_c_str()));
+                tv_dict_add_str(&env, req, Some(env_var.as_c_str()));
             }
         }
     }
@@ -4407,12 +4402,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
 
-        if !common_job_callbacks(
-            job_opts.borrow_mut(),
-            &mut on_stdout,
-            &mut on_stderr,
-            &mut on_exit,
-        ) {
+        if !common_job_callbacks(&job_opts, &mut on_stdout, &mut on_stderr, &mut on_exit) {
             return;
         }
     }
@@ -4559,7 +4549,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             buf.b_locked += 1;
 
             dict_set_var(
-                buf.b_vars(),
+                &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_id")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
@@ -4573,7 +4563,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             api_clear_error(&mut err);
             dict_set_var(
-                buf.b_vars(),
+                &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_pid")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
@@ -4809,7 +4799,7 @@ pub fn f_len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
         VarType::VarDict => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(
-                argvars[0].vval.v_dict_opt().as_deref(),
+                argvars[0].vval.v_dict_opt(),
             ) as Varnumber);
         }
         VarType::VarUnknown
@@ -5198,22 +5188,22 @@ fn get_matches_in_str(
         }
 
         let d = tv_dict_alloc();
-        tv_list_append_dict(mlist, Some(d));
+        tv_list_append_dict(mlist, Some(&d));
 
         if matchbuf {
-            tv_dict_add_nr(&mut *d, c"lnum", Varnumber::from(idx));
+            tv_dict_add_nr(&d, c"lnum", Varnumber::from(idx));
         } else {
-            tv_dict_add_nr(&mut *d, c"idx", Varnumber::from(idx));
+            tv_dict_add_nr(&d, c"idx", Varnumber::from(idx));
         }
 
         let match_start = rmp.start_offset(0, str_cstr);
         let match_end = rmp.end_offset(0, str_cstr);
-        tv_dict_add_nr(&mut *d, c"byteidx", match_start as Varnumber);
+        tv_dict_add_nr(&d, c"byteidx", match_start as Varnumber);
 
-        tv_dict_add_str_len(&mut *d, c"text", Some(&rmp.span_bytes(0)));
+        tv_dict_add_str_len(&d, c"text", Some(&rmp.span_bytes(0)));
         if submatches {
             let sml = tv_list_alloc((NSUBEXP - 1) as isize);
-            tv_dict_add_list(&mut *d, c"submatches", Some(&sml));
+            tv_dict_add_list(&d, c"submatches", Some(&sml));
             for i in 1..NSUBEXP {
                 if rmp.endp[i].is_null() {
                     tv_list_append_string(&sml, Some(c""), 0);
@@ -5437,7 +5427,7 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
         }
     } else if tv.v_type == VarType::VarDict {
         let d = tv.vval.v_dict_opt();
-        if tv_dict_len(d.as_deref()) == 0 {
+        if tv_dict_len(d) == 0 {
             return;
         }
         for (_, di) in d.unwrap().dv_hashtab.iter_items() {
@@ -5770,7 +5760,7 @@ pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// "pum_getpos()" function
 pub fn f_pum_getpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    pum_set_event_info(tv_dict_alloc_ret(rettv));
+    pum_set_event_info(&tv_dict_alloc_ret(rettv));
 }
 
 /// "pumvisible()" function
@@ -5974,7 +5964,7 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let Some(list) = get_reg_contents_list(regname, K_GREG_EXPR_SRC) else {
         return;
     };
-    tv_dict_add_list(dict, c"regcontents", Some(&list));
+    tv_dict_add_list(&dict, c"regcontents", Some(&list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     let mut reglen: Colnr = 0;
@@ -5994,16 +5984,16 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         crate::register::MotionType::MtUnknown => std::process::abort(),
     };
-    tv_dict_add_str_len(dict, c"regtype", Some(&buf[..buflen]));
+    tv_dict_add_str_len(&dict, c"regtype", Some(&buf[..buflen]));
 
     buf[0] = get_register_name(get_unname_register()) as u8;
     buf[1] = 0;
     buflen = usize::from(buf[0] != 0);
     if regname == b'"' as i32 {
-        tv_dict_add_str_len(dict, c"points_to", Some(&buf[..buflen]));
+        tv_dict_add_str_len(&dict, c"points_to", Some(&buf[..buflen]));
     } else {
         tv_dict_add_bool(
-            dict,
+            &dict,
             c"isunnamed",
             if regname == i32::from(buf[0]) {
                 K_BOOL_VAR_TRUE_CONST
@@ -7239,7 +7229,8 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut regcontents: Option<TypVal> = None;
     let mut pointreg: u8 = 0;
     if argvars[1].v_type == VarType::VarDict {
-        let d = argvars[1].vval.v_dict().opt();
+        let d_id = argvars[1].vval.v_dict();
+        let d = d_id.opt();
         if tv_dict_len(d) == 0 {
             write_reg_contents_lst(
                 i32::from(regname),
@@ -7468,14 +7459,14 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut on_data = CallbackReader::none();
         if argvars[2].v_type == VarType::VarDict {
             let opts = argvars[2].vval.v_dict();
-            let mut opts_opt = argvars[2].vval.v_dict_opt();
-            rpc = tv_dict_get_number(opts_opt.as_deref(), c"rpc") != 0;
-            trust = tv_dict_get_bool(opts_opt.as_deref(), c"trust", 1) != 0;
+            let opts_opt = argvars[2].vval.v_dict_opt();
+            rpc = tv_dict_get_number(opts_opt, c"rpc") != 0;
+            trust = tv_dict_get_bool(opts_opt, c"trust", 1) != 0;
 
-            if !tv_dict_get_callback(opts_opt.as_deref_mut(), c"on_data", 7, &mut on_data.cb) {
+            if !tv_dict_get_callback(opts_opt, c"on_data", 7, &mut on_data.cb) {
                 break 'cleanup;
             }
-            on_data.buffered = tv_dict_get_number(opts_opt.as_deref(), c"data_buffered") != 0;
+            on_data.buffered = tv_dict_get_number(opts_opt, c"data_buffered") != 0;
             if on_data.buffered && on_data.cb.cb_type() == K_CALLBACK_NONE_CONST {
                 on_data.self_dict = opts;
             }
@@ -7503,22 +7494,17 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     let mut on_stdin = CallbackReader::none();
     let opts = argvars[0].vval.v_dict();
-    let mut opts_opt = argvars[0].vval.v_dict_opt();
-    let rpc = tv_dict_get_number(opts_opt.as_deref(), c"rpc") != 0;
+    let opts_opt = argvars[0].vval.v_dict_opt();
+    let rpc = tv_dict_get_number(opts_opt, c"rpc") != 0;
 
-    if !tv_dict_get_callback(opts_opt.as_deref_mut(), c"on_stdin", 8, &mut on_stdin.cb) {
+    if !tv_dict_get_callback(opts_opt, c"on_stdin", 8, &mut on_stdin.cb) {
         return;
     }
-    if !tv_dict_get_callback(
-        opts_opt.as_deref_mut(),
-        c"on_print",
-        8,
-        &mut g_st().on_print,
-    ) {
+    if !tv_dict_get_callback(opts_opt, c"on_print", 8, &mut g_st().on_print) {
         return;
     }
 
-    on_stdin.buffered = tv_dict_get_number(opts_opt.as_deref(), c"stdin_buffered") != 0;
+    on_stdin.buffered = tv_dict_get_number(opts_opt, c"stdin_buffered") != 0;
     if on_stdin.buffered && on_stdin.cb.cb_type() == K_CALLBACK_NONE_CONST {
         on_stdin.self_dict = opts;
     }
@@ -7988,7 +7974,7 @@ pub fn f_swapfilelist(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// "swapinfo(swap_filename)" function
 pub fn f_swapinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    swapfile_dict(&tv_get_string(&argvars[0]), tv_dict_alloc_ret(rettv));
+    swapfile_dict(&tv_get_string(&argvars[0]), &tv_dict_alloc_ret(rettv));
 }
 
 /// "swapname(expr)" function
@@ -8307,7 +8293,7 @@ pub fn f_timer_start(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
         let dict = argvars[2].vval.v_dict_opt();
-        if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"repeat", 6) {
+        if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"repeat", 6) {
             repeat = tv_get_number(&di.tv()) as i32;
             if repeat == 0 {
                 repeat = 1;

@@ -769,8 +769,8 @@ impl FileBuf {
     }
 
     #[inline]
-    pub fn b_vars(&self) -> &'static mut crate::eval::typval::TvDict {
-        self.b_bufvar.tv().vval.v_dict().borrow_mut()
+    pub fn b_vars(&self) -> crate::eval::typval::DictId {
+        self.b_bufvar.tv().vval.v_dict()
     }
 }
 
@@ -1838,12 +1838,12 @@ fn free_buffer(buf: &mut FileBuf) {
 
     free_buffer_stuff(buf_ref, K_BFF_CLEAR_WIN_INFO);
 
-    if buf_ref.b_vars().dv_refcount > DO_NOT_FREE_CNT {
+    if buf_ref.b_vars().dv_refcount.get() > DO_NOT_FREE_CNT {
         let changedtick_copy = tv_dict_item_copy(&buf_ref.changedtick_di);
-        tv_dict_add(&mut *buf_ref.b_vars(), &changedtick_copy);
+        tv_dict_add(&buf_ref.b_vars(), &changedtick_copy);
     }
 
-    unref_var_dict(&mut *buf_ref.b_vars());
+    unref_var_dict(&buf_ref.b_vars());
 
     aubuflocal_remove(buf_ref);
 
@@ -1884,7 +1884,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
         let changedtick_idx = hash_find_idx(&buf.b_vars().dv_hashtab, c"changedtick");
         hash_remove(&buf.b_vars().dv_hashtab, changedtick_idx);
     }
-    vars_clear(&mut buf.b_vars().dv_hashtab);
+    vars_clear(&buf.b_vars().dv_hashtab);
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
         buf_init_changedtick(buf);
     }
@@ -2773,7 +2773,7 @@ fn buf_init_changedtick(buf: &mut FileBuf) {
         vval: TypvalVval::Number(tick),
     });
     buf.changedtick_di.di_flags.set(DI_FLAGS_RO | DI_FLAGS_FIX);
-    tv_dict_add(&mut *buf.b_vars(), &buf.changedtick_di);
+    tv_dict_add(&buf.b_vars(), &buf.changedtick_di);
 }
 
 /// Add a file name to the buffer list.
@@ -2847,7 +2847,7 @@ pub fn buflist_new(
     if g_st().curbuf != buf || g_st().curbuf.is_null() {
         let buf_ref = FileBuf::alloc();
         buf = crate::globals::BufPtr::from(&mut *buf_ref);
-        init_var_dict(tv_dict_alloc(), &buf_ref.b_bufvar, VAR_SCOPE);
+        init_var_dict(&tv_dict_alloc(), &buf_ref.b_bufvar, VAR_SCOPE);
         buf_init_changedtick(buf_ref);
     }
 
@@ -4929,7 +4929,7 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
         let new_val = buf.changedtick_di.tv().clone();
         buf.b_locked += 1;
         tv_dict_watcher_notify(
-            &mut *buf.b_vars(),
+            &buf.b_vars(),
             buf.changedtick_di.key_cstr(),
             Some(&new_val),
             Some(&old_val),

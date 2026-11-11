@@ -738,17 +738,17 @@ fn remove_menu(menup: &mut Vec<Vimmenu>, name: &CStr, modes: i32, silent: bool) 
 }
 
 /// Export menus recursively (`menu_get_recursive`).
-fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut TvDict> {
+fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<crate::eval::typval::DictId> {
     let menu = menu?;
     if (menu.modes & modes) == 0 {
         return None;
     }
 
     let dict = tv_dict_alloc();
-    tv_dict_add_str(&mut *dict, c"name", Some(menu.dname.as_c_str()));
-    tv_dict_add_nr(&mut *dict, c"priority", i64::from(menu.priority));
+    tv_dict_add_str(&dict, c"name", Some(menu.dname.as_c_str()));
+    tv_dict_add_nr(&dict, c"priority", i64::from(menu.priority));
     tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"hidden",
         i64::from(menu_is_hidden(menu.dname.as_bytes())),
     );
@@ -756,32 +756,32 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
     if menu.mnemonic != 0 {
         let mut buf = [0u8; MB_MAXCHAR + 1];
         let buflen = utf_char2bytes(menu.mnemonic, &mut buf) as usize;
-        tv_dict_add_str_len(&mut *dict, c"shortcut", Some(&buf[..buflen]));
+        tv_dict_add_str_len(&dict, c"shortcut", Some(&buf[..buflen]));
     }
 
     if let Some(ref actext) = menu.actext {
-        tv_dict_add_str(&mut *dict, c"actext", Some(actext.as_c_str()));
+        tv_dict_add_str(&dict, c"actext", Some(actext.as_c_str()));
     }
 
     if (menu.modes & MENU_TIP_MODE) != 0
         && let Some(ref tip) = menu.strings[MENU_INDEX_TIP as usize]
     {
-        tv_dict_add_str(&mut *dict, c"tooltip", Some(tip.as_c_str()));
+        tv_dict_add_str(&dict, c"tooltip", Some(tip.as_c_str()));
     }
 
     if menu.children.is_empty() {
         let commands = tv_dict_alloc();
-        tv_dict_add_dict(&mut *dict, c"mappings", Some(commands));
+        tv_dict_add_dict(&dict, c"mappings", Some(&commands));
 
         for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
             if (menu.modes & modes & (1 << bit)) != 0 {
                 let impl_dict = tv_dict_alloc();
                 let s_bytes = menu.strings[bit].as_ref().map_or(&[][..], |s| s.as_bytes());
                 let rhs = str2special_save(s_bytes, false, K_FALSE);
-                tv_dict_add_str(&mut *impl_dict, c"rhs", Some(rhs.as_c_str()));
-                tv_dict_add_nr(&mut *impl_dict, c"silent", i64::from(menu.silent[bit]));
+                tv_dict_add_str(&impl_dict, c"rhs", Some(rhs.as_c_str()));
+                tv_dict_add_nr(&impl_dict, c"silent", i64::from(menu.silent[bit]));
                 tv_dict_add_nr(
-                    &mut *impl_dict,
+                    &impl_dict,
                     c"enabled",
                     if (menu.enabled & (1 << bit)) != 0 {
                         1
@@ -790,7 +790,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
                     },
                 );
                 tv_dict_add_nr(
-                    &mut *impl_dict,
+                    &impl_dict,
                     c"noremap",
                     if menu.noremap[bit] == REMAP_NONE {
                         1
@@ -799,7 +799,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
                     },
                 );
                 tv_dict_add_nr(
-                    &mut *impl_dict,
+                    &impl_dict,
                     c"sid",
                     if menu.noremap[bit] == REMAP_SCRIPT {
                         1
@@ -807,19 +807,19 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
                         0
                     },
                 );
-                tv_dict_add_dict(&mut *commands, mode_cstr, Some(impl_dict));
+                tv_dict_add_dict(&commands, mode_cstr, Some(&impl_dict));
             }
         }
     } else {
         let children_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         for child in &menu.children {
             if let Some(d) = menu_get_recursive(Some(child), modes)
-                && tv_dict_len(Some(&*d)) > 0
+                && tv_dict_len(Some(&d)) > 0
             {
-                tv_list_append_dict(&children_list, Some(d));
+                tv_list_append_dict(&children_list, Some(&d));
             }
         }
-        tv_dict_add_list(&mut *dict, c"submenus", Some(&children_list));
+        tv_dict_add_list(&dict, c"submenus", Some(&children_list));
     }
     Some(dict)
 }
@@ -832,17 +832,17 @@ pub fn menu_get(path_name: &CStr, modes: i32, list: &TvList) -> bool {
             return false;
         };
         if let Some(d) = menu_get_recursive(Some(menu), modes)
-            && tv_dict_len(Some(&*d)) > 0
+            && tv_dict_len(Some(&d)) > 0
         {
-            tv_list_append_dict(list, Some(d));
+            tv_list_append_dict(list, Some(&d));
         }
         return true;
     }
     for menu in root.iter() {
         if let Some(d) = menu_get_recursive(Some(menu), modes)
-            && tv_dict_len(Some(&*d)) > 0
+            && tv_dict_len(Some(&d)) > 0
         {
-            tv_list_append_dict(list, Some(d));
+            tv_list_append_dict(list, Some(&d));
         }
     }
     true
@@ -1836,7 +1836,7 @@ fn menu_translate_tab_and_shift(buf: &mut [u8]) -> usize {
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
-fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
+fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &TvDict) {
     tv_dict_add_str(dict, c"name", Some(menu.name.as_c_str()));
     tv_dict_add_str(dict, c"display", Some(menu.dname.as_c_str()));
     if let Some(ref actext) = menu.actext {
@@ -1936,7 +1936,7 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if menu_name.is_empty() {
         if !menus.is_empty() && (menus[0].modes & modes) != 0 {
             let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-            tv_dict_add_list(retdict, c"submenus", Some(&l));
+            tv_dict_add_list(&retdict, c"submenus", Some(&l));
             for topmenu in menus {
                 if !menu_is_hidden(topmenu.dname.as_bytes()) {
                     tv_list_append_string(&l, Some(topmenu.dname.as_c_str()), -1);
@@ -1973,6 +1973,6 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if let Some(found) = found
         && (found.modes & modes) != 0
     {
-        menuitem_getinfo(found, modes, retdict);
+        menuitem_getinfo(found, modes, &retdict);
     }
 }

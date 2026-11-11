@@ -229,7 +229,7 @@ fn call_function_impl(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    self_dict: Option<&mut TvDict>,
+    self_dict: Option<&TvDict>,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {

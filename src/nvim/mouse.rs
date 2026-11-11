@@ -2199,8 +2199,8 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     let d = tv_dict_alloc_ret(rettv);
 
-    tv_dict_add_nr(d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
-    tv_dict_add_nr(d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
+    tv_dict_add_nr(&d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
+    tv_dict_add_nr(&d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
 
     if let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) {
         let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
@@ -2215,12 +2215,12 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             }
         }
     }
-    tv_dict_add_nr(d, c"winid", winid);
-    tv_dict_add_nr(d, c"winrow", winrow);
-    tv_dict_add_nr(d, c"wincol", wincol);
-    tv_dict_add_nr(d, c"line", Varnumber::from(lnum));
-    tv_dict_add_nr(d, c"column", column);
-    tv_dict_add_nr(d, c"coladd", Varnumber::from(coladd));
+    tv_dict_add_nr(&d, c"winid", winid);
+    tv_dict_add_nr(&d, c"winrow", winrow);
+    tv_dict_add_nr(&d, c"wincol", wincol);
+    tv_dict_add_nr(&d, c"line", Varnumber::from(lnum));
+    tv_dict_add_nr(&d, c"column", column);
+    tv_dict_add_nr(&d, c"coladd", Varnumber::from(coladd));
 }
 
 #[cfg(test)]

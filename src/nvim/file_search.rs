@@ -1552,21 +1552,17 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
         crate::memory::copy_bytes_to_c_buf(&mut buf, scope_cstr.to_bytes());
 
         if pre {
-            tv_dict_add_str(&mut *dict, c"directory", new_dir_opt);
+            tv_dict_add_str(&dict, c"directory", new_dir_opt);
         } else {
-            tv_dict_add_str(&mut *dict, c"cwd", new_dir_opt);
+            tv_dict_add_str(&dict, c"cwd", new_dir_opt);
         }
-        tv_dict_add_str(
-            &mut *dict,
-            c"scope",
-            Some(crate::memory::bytes_as_cstr(&buf)),
-        );
+        tv_dict_add_str(&dict, c"scope", Some(crate::memory::bytes_as_cstr(&buf)));
         tv_dict_add_bool(
-            &mut *dict,
+            &dict,
             c"changed_window",
             i32::from(cause == K_CD_CAUSE_WINDOW),
         );
-        tv_dict_set_keys_readonly(&mut *dict);
+        tv_dict_set_keys_readonly(&dict);
 
         match cause {
             K_CD_CAUSE_MANUAL | K_CD_CAUSE_WINDOW | K_CD_CAUSE_BUFFER => {}
@@ -1584,7 +1580,7 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
             curbuf_opt_mut(),
         );
 
-        restore_v_event(&mut *dict, &mut save_v_event);
+        restore_v_event(&dict, &mut save_v_event);
 
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
     }

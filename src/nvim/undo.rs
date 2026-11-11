@@ -2820,29 +2820,25 @@ fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> crate::eval::typv
     let mut uhp = first_uhp;
     while let Some(uh) = uhp {
         let dict = tv_dict_alloc();
-        tv_dict_add_nr(&mut *dict, c"seq", uhp_ref(&*buf, uh).uh_seq as Varnumber);
-        tv_dict_add_nr(&mut *dict, c"time", uhp_ref(&*buf, uh).uh_time as Varnumber);
+        tv_dict_add_nr(&dict, c"seq", uhp_ref(&*buf, uh).uh_seq as Varnumber);
+        tv_dict_add_nr(&dict, c"time", uhp_ref(&*buf, uh).uh_time as Varnumber);
         if Some(uh) == buf.b_u_newhead {
-            tv_dict_add_nr(&mut *dict, c"newhead", 1);
+            tv_dict_add_nr(&dict, c"newhead", 1);
         }
         if Some(uh) == buf.b_u_curhead {
-            tv_dict_add_nr(&mut *dict, c"curhead", 1);
+            tv_dict_add_nr(&dict, c"curhead", 1);
         }
         if uhp_ref(&*buf, uh).uh_save_nr > 0 {
-            tv_dict_add_nr(
-                &mut *dict,
-                c"save",
-                uhp_ref(&*buf, uh).uh_save_nr as Varnumber,
-            );
+            tv_dict_add_nr(&dict, c"save", uhp_ref(&*buf, uh).uh_save_nr as Varnumber);
         }
 
         let alt_next = uhp_ref(&*buf, uh).uh_alt_next;
         let prev = uhp_ref(&*buf, uh).uh_prev;
         if alt_next.is_some() {
-            tv_dict_add_list(&mut *dict, c"alt", Some(&u_eval_tree(buf, alt_next)));
+            tv_dict_add_list(&dict, c"alt", Some(&u_eval_tree(buf, alt_next)));
         }
 
-        tv_list_append_dict(&list, Some(dict));
+        tv_list_append_dict(&list, Some(&dict));
         uhp = prev;
     }
 
@@ -2876,14 +2872,14 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     };
 
-    tv_dict_add_nr(dict, c"synced", Varnumber::from(buf.b_u_synced));
-    tv_dict_add_nr(dict, c"seq_last", buf.b_u_seq_last as Varnumber);
-    tv_dict_add_nr(dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
-    tv_dict_add_nr(dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
-    tv_dict_add_nr(dict, c"time_cur", buf.b_u_time_cur as Varnumber);
-    tv_dict_add_nr(dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
+    tv_dict_add_nr(&dict, c"synced", Varnumber::from(buf.b_u_synced));
+    tv_dict_add_nr(&dict, c"seq_last", buf.b_u_seq_last as Varnumber);
+    tv_dict_add_nr(&dict, c"save_last", buf.b_u_save_nr_last as Varnumber);
+    tv_dict_add_nr(&dict, c"seq_cur", buf.b_u_seq_cur as Varnumber);
+    tv_dict_add_nr(&dict, c"time_cur", buf.b_u_time_cur as Varnumber);
+    tv_dict_add_nr(&dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
 
-    tv_dict_add_list(dict, c"entries", Some(&u_eval_tree(buf, buf.b_u_oldhead)));
+    tv_dict_add_list(&dict, c"entries", Some(&u_eval_tree(buf, buf.b_u_oldhead)));
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.

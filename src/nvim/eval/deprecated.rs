@@ -315,7 +315,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     if arg1.v_type == VarType::VarUnknown {
         must_free = true;
         arg1.v_type = VarType::VarDict;
-        arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc().dv_id);
+        arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
     }
 
     if arg1.v_type != VarType::VarDict {
@@ -326,7 +326,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     let dict = arg1.vval.v_dict();
     tv_dict_add_bool(arg1.vval.v_dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
-    if must_free && let Some(dict_ref) = dict.opt_mut() {
+    if must_free && let Some(dict_ref) = dict.opt() {
         tv_dict_free(dict_ref);
     }
 }

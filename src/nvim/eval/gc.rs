@@ -23,12 +23,12 @@ std::thread_local! {
 }
 
 #[inline]
-pub fn gc_register_dict(d: &mut TvDict) {
+pub fn gc_register_dict(d: &TvDict) {
     GC_STATE.with(|st| {
         let mut dicts = st.gc_dicts.borrow_mut();
         let idx = dicts.len();
-        dicts.push(d.dv_id);
-        d.dv_gc_idx = Some(idx);
+        dicts.push(DictId::from(d));
+        d.dv_gc_idx.set(Some(idx));
     });
 }
 
@@ -37,12 +37,12 @@ pub fn gc_unregister_dict(idx: usize) {
     let Ok(moved_opt) = GC_STATE.try_with(|st| {
         let mut dicts = st.gc_dicts.borrow_mut();
         dicts.swap_remove(idx);
-        dicts.get(idx).copied()
+        dicts.get(idx).cloned()
     }) else {
         return;
     };
-    if let Some(mut moved) = moved_opt {
-        moved.dv_gc_idx = Some(idx);
+    if let Some(moved) = moved_opt {
+        moved.dv_gc_idx.set(Some(idx));
     }
 }
 
@@ -90,15 +90,14 @@ pub fn gc_dicts_len() -> usize {
 }
 
 #[inline]
-pub fn gc_dict_at(idx: usize) -> &'static mut TvDict {
-    let id = GC_STATE.with(|st| st.gc_dicts.borrow()[idx]);
-    id.borrow_mut()
+pub fn gc_dict_at(idx: usize) -> DictId {
+    GC_STATE.with(|st| st.gc_dicts.borrow()[idx].clone())
 }
 
 #[inline]
 pub fn gc_free_dict_at(idx: usize) {
-    let id = GC_STATE.with(|st| st.gc_dicts.borrow()[idx]);
-    crate::eval::typval::tv_dict_free_slot(id.borrow_mut());
+    let id = GC_STATE.with(|st| st.gc_dicts.borrow()[idx].clone());
+    crate::eval::typval::tv_dict_free_slot(&id);
 }
 
 #[inline]

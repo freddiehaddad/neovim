@@ -1832,7 +1832,7 @@ pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std:
 }
 
 /// For Vimscript `swapinfo()`.
-pub fn swapfile_dict(fname: &CStr, d: &mut TvDict) {
+pub fn swapfile_dict(fname: &CStr, d: &TvDict) {
     let fd = os_open(fname, O_RDONLY, 0);
     if fd >= 0 {
         if let Some(b0) = ZeroBlock::read_from_fd(fd) {

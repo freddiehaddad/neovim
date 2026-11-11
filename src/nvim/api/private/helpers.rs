@@ -284,7 +284,7 @@ pub fn api_clear_string(s: &mut NvimString) {
 
 #[inline]
 pub fn tv_dict_is_watched(d: Option<&TvDict>) -> bool {
-    d.is_some() && !d.unwrap().watchers.is_empty()
+    d.is_some_and(|d| !d.watchers.borrow().is_empty())
 }
 
 pub trait IntoDictKey {
@@ -431,7 +431,7 @@ pub fn dict_get_value(
 }
 
 pub fn dict_check_writable(
-    dict: &mut TvDict,
+    dict: &TvDict,
     key: &NvimString,
     del: bool,
     err: &mut Error,
@@ -456,7 +456,7 @@ pub fn dict_check_writable(
         } else if del && (di.di_flags.get() & DI_FLAGS_FIX) != 0 {
             api_set_error!(err, ErrorType::ErrorTypeException, c"Key is fixed: %s", key,);
         }
-    } else if dict.dv_lock != 0 {
+    } else if dict.dv_lock.get() != 0 {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
     } else if key.size == 0 {
         api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
@@ -468,7 +468,7 @@ pub fn dict_check_writable(
 
 /// Set a value in a scope dict (`dict_set_var`).
 pub fn dict_set_var(
-    dict: &mut TvDict,
+    dict: &TvDict,
     key: NvimString,
     value: Object,
     del: bool,
@@ -482,7 +482,7 @@ pub fn dict_set_var(
         return rv;
     }
 
-    let watched = tv_dict_is_watched(Some(&*dict));
+    let watched = tv_dict_is_watched(Some(dict));
     if del {
         let Some(di) = di_opt else {
             api_set_error!(
@@ -502,7 +502,7 @@ pub fn dict_set_var(
             rv = vim_to_object(&mut di_tv, arena, false);
         }
 
-        tv_dict_item_remove(&mut *dict, &di);
+        tv_dict_item_remove(dict, &di);
     } else {
         let mut tv: TypVal = TypVal::new();
         object_to_vim(value, &mut tv, err);
@@ -514,7 +514,7 @@ pub fn dict_set_var(
                 rv = vim_to_object(&mut di_tv, arena, false);
             }
             let mut type_error = false;
-            if ptr::eq(dict, get_vimvar_dict())
+            if ptr::eq(dict, &*get_vimvar_dict())
                 && !before_set_vvar(key.as_cstr(), &di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);

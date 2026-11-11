@@ -2565,11 +2565,11 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                     api_clear_error(&mut err);
                     continue;
                 }
-                tv_dict_add_tv(&mut *v_event, item.key.as_bytes(), &mut tv);
+                tv_dict_add_tv(&v_event, item.key.as_bytes(), &mut tv);
                 tv_clear(&mut tv);
             }
         }
-        tv_dict_set_keys_readonly(&mut *v_event);
+        tv_dict_set_keys_readonly(&v_event);
 
         let win = curwin_ptr();
         let mut aco: CtxSwitch = CtxSwitch::new();
@@ -2590,7 +2590,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
         ctx_restore(&mut aco);
 
-        restore_v_event(&mut *v_event, &mut save_v_event);
+        restore_v_event(&v_event, &mut save_v_event);
     }
     if let Some(data_obj) = data {
         api_free_object(data_obj);
@@ -3823,8 +3823,8 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let dict = get_v_event(&mut save_v_event);
     assert!(chanid < i64::MAX as u64);
-    tv_dict_add_nr(&mut *dict, c"chan", chanid as Varnumber);
-    tv_dict_set_keys_readonly(&mut *dict);
+    tv_dict_add_nr(&dict, c"chan", chanid as Varnumber);
+    tv_dict_set_keys_readonly(&dict);
     apply_autocmds(
         if attached {
             EVENT_UIENTER
@@ -3836,7 +3836,7 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         false,
         curbuf_opt_mut(),
     );
-    restore_v_event(&mut *dict, &mut save_v_event);
+    restore_v_event(&dict, &mut save_v_event);
 
     AU_STATE.with(|s| s.uienter_recursive.set(false));
 }

@@ -24,7 +24,7 @@ use crate::eval::typval::{
     TypVal, TypvalVval, VarType, tv_clear, tv_copy, tv_list_alloc, tv_list_len,
 };
 use crate::eval::vars::{
-    VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
+    VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_dict, get_vim_var_list, set_vim_var_list,
 };
 use crate::eval::{
     K_LIST_LEN_UNKNOWN_CONST, VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA,
@@ -1168,7 +1168,8 @@ fn var_shada_iter(
     rettv: &mut TypVal,
     flavour: VarFlavour,
 ) -> Option<usize> {
-    let globvarht = get_globvar_ht();
+    let globvar_dict = get_globvar_dict();
+    let globvarht = &globvar_dict.dv_hashtab;
     let hinum = globvarht.array_len();
     *name = None;
     let mut idx = if let Some(i) = iter {
@@ -2634,10 +2635,10 @@ fn shada_write(
                         skip = true;
                     }
                     VarType::VarDict => {
-                        let di = vartv.vval.v_dict().borrow_mut();
+                        let di = vartv.vval.v_dict();
                         let copy_id = get_copy_id();
-                        if !set_ref_in_ht(Some(&mut di.dv_hashtab), copy_id, None)
-                            && copy_id == di.dv_copy_id
+                        if !set_ref_in_ht(Some(&di.dv_hashtab), copy_id, None)
+                            && copy_id == di.dv_copy_id.get()
                         {
                             tv_clear(&mut vartv);
                             skip = true;

@@ -2035,7 +2035,7 @@ fn add_mark(l: &TvList, mname: &CStr, pos: &CursorPos, bufnr: i32, fname: Option
     }
 
     let d = tv_dict_alloc();
-    tv_list_append_dict(l, Some(d));
+    tv_list_append_dict(l, Some(&d));
 
     let lpos = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     tv_list_append_number(&lpos, i64::from(bufnr));
@@ -2050,9 +2050,9 @@ fn add_mark(l: &TvList, mname: &CStr, pos: &CursorPos, bufnr: i32, fname: Option
     );
     tv_list_append_number(&lpos, i64::from(pos.coladd));
 
-    if !tv_dict_add_str_len(&mut *d, c"mark", Some(mname.to_bytes()))
-        || !tv_dict_add_list(&mut *d, c"pos", Some(&lpos))
-        || fname.is_some_and(|f| !tv_dict_add_str(&mut *d, c"file", Some(f)))
+    if !tv_dict_add_str_len(&d, c"mark", Some(mname.to_bytes()))
+        || !tv_dict_add_list(&d, c"pos", Some(&lpos))
+        || fname.is_some_and(|f| !tv_dict_add_str(&d, c"file", Some(f)))
     {
         return false;
     }

@@ -311,8 +311,8 @@ impl Funcdict {
     }
 
     #[inline]
-    pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        self.fd_dict.opt_mut()
+    pub fn dict_opt(&self) -> Option<&TvDict> {
+        self.fd_dict.opt()
     }
 
     #[inline]
@@ -875,7 +875,7 @@ pub fn deref_func_name<'a>(
         **partialp = None;
     }
 
-    let Some(v) = crate::eval::vars::find_var_opt(name, *lenp as usize, None, no_autoload as i32)
+    let Some(v) = crate::eval::vars::find_var_opt(name, *lenp as usize, false, no_autoload as i32)
     else {
         return std::borrow::Cow::Borrowed(name);
     };
@@ -1166,7 +1166,7 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
 }
 
 /// Add a number variable `name` to dict `dp` with value `nr`.
-fn add_nr_var(dp: &mut TvDict, name: &std::ffi::CStr, nr: Varnumber) {
+fn add_nr_var(dp: &TvDict, name: &std::ffi::CStr, nr: Varnumber) {
     let v = tv_dict_item_alloc(name);
     v.di_flags
         .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
@@ -1183,9 +1183,9 @@ impl Drop for Funccall {
         if crate::globals::g_st().exiting {
             return;
         }
-        if let Some(vars) = self.fc_l_vars.get().opt_mut() {
-            vars_clear(&mut vars.dv_hashtab);
-            if vars.dv_refcount >= DO_NOT_FREE_CNT / 2 {
+        if let Some(vars) = self.fc_l_vars.get().opt() {
+            vars_clear(&vars.dv_hashtab);
+            if vars.dv_refcount.get() >= DO_NOT_FREE_CNT / 2 {
                 unref_var_dict(vars);
             } else {
                 tv_dict_free_slot(vars);
@@ -1194,9 +1194,9 @@ impl Drop for Funccall {
         if let Some(v) = self.fc_l_vars_var.get().opt() {
             tv_dict_item_free_slot(v);
         }
-        if let Some(avars) = self.fc_l_avars.get().opt_mut() {
-            vars_clear(&mut avars.dv_hashtab);
-            if avars.dv_refcount >= DO_NOT_FREE_CNT / 2 {
+        if let Some(avars) = self.fc_l_avars.get().opt() {
+            vars_clear(&avars.dv_hashtab);
+            if avars.dv_refcount.get() >= DO_NOT_FREE_CNT / 2 {
                 unref_var_dict(avars);
             } else {
                 tv_dict_free_slot(avars);
@@ -1229,18 +1229,18 @@ fn cleanup_function_call(fc: &Funccall) {
 
     UF_STATE.with(|s| s.current_funccal.set(fc.fc_caller.get()));
 
-    if may_free_fc && fc.fc_l_vars.get().dv_refcount == DO_NOT_FREE_CNT {
-        vars_clear(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab);
+    if may_free_fc && fc.fc_l_vars.get().dv_refcount.get() == DO_NOT_FREE_CNT {
+        vars_clear(&fc.fc_l_vars.get().dv_hashtab);
     } else {
         free_fc = false;
     }
 
-    if may_free_fc && fc.fc_l_avars.get().dv_refcount == DO_NOT_FREE_CNT {
-        vars_clear_ext(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, false);
+    if may_free_fc && fc.fc_l_avars.get().dv_refcount.get() == DO_NOT_FREE_CNT {
+        vars_clear_ext(&fc.fc_l_avars.get().dv_hashtab, false);
     } else {
         free_fc = false;
 
-        for (_, di) in fc.fc_l_avars.get().borrow_mut().dv_hashtab.iter_items() {
+        for (_, di) in fc.fc_l_avars.get().dv_hashtab.iter_items() {
             let tv_val = di.tv().clone();
             tv_copy(&tv_val, &mut di.tv_mut());
         }
@@ -1414,9 +1414,9 @@ pub fn create_funccal(fp: Option<&UserFunc>, rettv: TypVal) -> std::rc::Rc<Funcc
     fc.fc_func.set(fp_ptr);
     func_ptr_ref(fp);
     *fc.fc_rettv.borrow_mut() = rettv;
-    fc.fc_l_vars.set(tv_dict_alloc_static().dv_id);
+    fc.fc_l_vars.set(tv_dict_alloc_static());
     fc.fc_l_vars_var.set(tv_dict_item_alloc_static());
-    fc.fc_l_avars.set(tv_dict_alloc_static().dv_id);
+    fc.fc_l_avars.set(tv_dict_alloc_static());
     fc.fc_l_avars_var.set(tv_dict_item_alloc_static());
     fc
 }
@@ -1429,7 +1429,7 @@ pub fn call_user_func(
     rettv: &mut TypVal,
     firstline: Linenr,
     lastline: Linenr,
-    selfdict_in: Option<&mut TvDict>,
+    selfdict_in: Option<&TvDict>,
 ) {
     let selfdict = DictId::from(selfdict_in);
     let mut using_sandbox = false;
@@ -1471,41 +1471,29 @@ pub fn call_user_func(
         islambda = true;
     }
 
-    init_var_dict(
-        fc.fc_l_vars.get().borrow_mut(),
-        &fc.fc_l_vars_var.get(),
-        VAR_DEF_SCOPE,
-    );
+    init_var_dict(&fc.fc_l_vars.get(), &fc.fc_l_vars_var.get(), VAR_DEF_SCOPE);
 
     if !selfdict.is_null() {
         let v = tv_dict_item_alloc_len(b"self");
         v.di_flags
             .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
+        selfdict.dv_refcount.set(selfdict.dv_refcount.get() + 1);
         v.set_tv(TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
             vval: crate::eval::typval::TypvalVval::Dict(selfdict),
         });
 
-        {
-            let mut selfdict = selfdict;
-            selfdict.dv_refcount += 1;
-        }
-
-        hash_add(&fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
+        hash_add(&fc.fc_l_vars.get().dv_hashtab, &v);
     }
 
-    init_var_dict(
-        fc.fc_l_avars.get().borrow_mut(),
-        &fc.fc_l_avars_var.get(),
-        VAR_SCOPE,
-    );
+    init_var_dict(&fc.fc_l_avars.get(), &fc.fc_l_avars_var.get(), VAR_SCOPE);
 
     let uf_args_len = fp.uf_args.borrow().len() as i32;
     let uf_def_args_len = fp.uf_def_args.borrow().len() as i32;
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
         add_nr_var(
-            fc.fc_l_avars.get().borrow_mut(),
+            &fc.fc_l_avars.get(),
             c"0",
             if argcount >= uf_args_len {
                 Varnumber::from(argcount - uf_args_len)
@@ -1514,7 +1502,7 @@ pub fn call_user_func(
             },
         );
     }
-    fc.fc_l_avars.get().dv_lock = VAR_FIXED;
+    fc.fc_l_avars.get().dv_lock.set(VAR_FIXED);
     let varlist = tv_list_alloc_static();
     tv_list_set_lock(Some(&varlist), VAR_FIXED);
     fc.fc_l_varlist.set(varlist);
@@ -1527,20 +1515,16 @@ pub fn call_user_func(
             v_lock: VAR_FIXED,
             vval: crate::eval::typval::TypvalVval::List(fc.fc_l_varlist.get()),
         });
-        hash_add(&fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
+        hash_add(&fc.fc_l_avars.get().dv_hashtab, &v);
     }
 
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
         add_nr_var(
-            fc.fc_l_avars.get().borrow_mut(),
+            &fc.fc_l_avars.get(),
             c"firstline",
             Varnumber::from(firstline),
         );
-        add_nr_var(
-            fc.fc_l_avars.get().borrow_mut(),
-            c"lastline",
-            Varnumber::from(lastline),
-        );
+        add_nr_var(&fc.fc_l_avars.get(), c"lastline", Varnumber::from(lastline));
     }
 
     let mut default_arg_err = false;
@@ -1605,9 +1589,9 @@ pub fn call_user_func(
         if addlocal {
             let tv_val = v.tv().clone();
             tv_copy(&tv_val, &mut v.tv_mut());
-            hash_add(&fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
+            hash_add(&fc.fc_l_vars.get().dv_hashtab, &v);
         } else {
-            hash_add(&fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
+            hash_add(&fc.fc_l_avars.get().dv_hashtab, &v);
         }
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
@@ -1867,7 +1851,7 @@ fn call_user_func_check(
     argvars: &mut [TypVal],
     rettv: &mut TypVal,
     funcexe: &mut Funcexe,
-    selfdict: Option<&mut TvDict>,
+    selfdict: Option<&TvDict>,
 ) -> i32 {
     if (fp.uf_flags.get() & FC_LUAREF) != 0 {
         let argslice = if argcount <= 0 {
@@ -1999,7 +1983,7 @@ pub fn func_call(
     name: &CStr,
     args: &mut TypVal,
     partial: Option<std::rc::Rc<TvPartial>>,
-    selfdict: Option<&mut TvDict>,
+    selfdict: Option<&TvDict>,
     rettv: &mut TypVal,
 ) -> bool {
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
@@ -2105,7 +2089,7 @@ pub fn call_func(
     let mut name_owned: Option<std::ffi::CString> = None;
     let mut argcount = argcount_in;
     let mut use_argv = false;
-    let mut selfdict = funcexe.fe_selfdict;
+    let mut selfdict = funcexe.fe_selfdict.clone();
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
     let mut argv_base = 0;
@@ -2260,7 +2244,7 @@ pub fn call_func(
                         active_argv,
                         rettv,
                         &mut *funcexe,
-                        selfdict.opt_mut(),
+                        selfdict.opt(),
                     );
                 }
             }
@@ -2492,7 +2476,7 @@ pub fn trans_function_name(
 
     if let Some(ll_tv) = lv.ll_tv.opt() {
         if fdp.is_some() {
-            fdp.as_deref_mut().unwrap().fd_dict = lv.ll_dict;
+            fdp.as_deref_mut().unwrap().fd_dict = lv.ll_dict.clone();
             fdp.as_deref_mut().unwrap().fd_newkey = lv.ll_newkey.take();
             fdp.as_deref_mut().unwrap().fd_di = lv.ll_di;
         }
@@ -3300,7 +3284,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 ret_free!();
             }
         }
-        if !fudi.fd_dict.is_null() && fudi.fd_dict.dv_scope == VAR_DEF_SCOPE {
+        if !fudi.fd_dict.is_null() && fudi.fd_dict.dv_scope.get() == VAR_DEF_SCOPE {
             emsg(gettext(c"E862: Cannot use g: here"));
             ret_free!();
         }
@@ -3388,9 +3372,8 @@ pub fn ex_function(eap: &mut Exarg) {
 
     let mut namelen = 0usize;
     if fudi.fd_dict.is_null() {
-        let mut ht_opt: Option<&'static mut Hashtab> = None;
         let name_cstr = name_owned.as_deref().unwrap_or(c"");
-        let v = find_var(name_cstr, name_cstr.to_bytes().len(), Some(&mut ht_opt), 0);
+        let v = find_var(name_cstr, name_cstr.to_bytes().len(), true, 0);
         if v.is_some_and(|v| v.tv().v_type == VarType::VarFunc) {
             emsg_funcname(
                 c"E707: Function name conflicts with variable: %s",
@@ -3442,7 +3425,11 @@ pub fn ex_function(eap: &mut Exarg) {
             erret!();
         }
         if fudi.fd_di.is_null() {
-            if value_check_lock(fudi.fd_dict.dv_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
+            if value_check_lock(
+                fudi.fd_dict.dv_lock.get(),
+                Some(eap.arg.as_cstr()),
+                TV_CSTRING,
+            ) {
                 erret!();
             }
         } else if value_check_lock(fudi.fd_di.tv().v_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
@@ -3494,7 +3481,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if fudi.fd_di.is_null() {
                 let di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_c_str());
                 fudi.fd_di = di;
-                if !tv_dict_add(&mut fudi.fd_dict, &fudi.fd_di) {
+                if !tv_dict_add(&fudi.fd_dict, &fudi.fd_di) {
                     crate::eval::typval::tv_dict_item_free(&fudi.fd_di);
                     erret!();
                 }
@@ -3763,15 +3750,15 @@ pub fn func_ptr_ref(fp: Option<&UserFunc>) {
 #[inline]
 fn fc_referenced(fc: &Funccall) -> bool {
     fc.fc_l_varlist.get().lv_refcount.get() != DO_NOT_FREE_CNT
-        || fc.fc_l_vars.get().dv_refcount != DO_NOT_FREE_CNT
-        || fc.fc_l_avars.get().dv_refcount != DO_NOT_FREE_CNT
+        || fc.fc_l_vars.get().dv_refcount.get() != DO_NOT_FREE_CNT
+        || fc.fc_l_avars.get().dv_refcount.get() != DO_NOT_FREE_CNT
         || fc.fc_refcount.get() > 0
 }
 
 fn can_free_funccal(fc: &Funccall, copy_id: i32) -> bool {
     fc.fc_l_varlist.get().lv_copy_id.get() != copy_id
-        && fc.fc_l_vars.get().dv_copy_id != copy_id
-        && fc.fc_l_avars.get().dv_copy_id != copy_id
+        && fc.fc_l_vars.get().dv_copy_id.get() != copy_id
+        && fc.fc_l_avars.get().dv_copy_id.get() != copy_id
         && fc.fc_copy_id.get() != copy_id
 }
 
@@ -4089,7 +4076,9 @@ pub fn ex_call(eap: &mut Exarg) {
     };
 
     if !fudi.fd_dict.is_null() {
-        fudi.fd_dict.borrow_mut().dv_refcount += 1;
+        fudi.fd_dict
+            .dv_refcount
+            .set(fudi.fd_dict.dv_refcount.get() + 1);
     }
 
     let mut len = tofree_cstr.as_bytes().len() as i32;
@@ -4111,7 +4100,7 @@ pub fn ex_call(eap: &mut Exarg) {
 
     if startarg.to_bytes().first().copied().unwrap_or(0) != b'(' {
         semsg!(gettext(E_MISSINGPAREN), eap.arg);
-        tv_dict_unref(fudi.fd_dict.opt_mut());
+        tv_dict_unref(fudi.fd_dict.opt());
         return;
     }
 
@@ -4121,7 +4110,7 @@ pub fn ex_call(eap: &mut Exarg) {
     } else {
         let mut funcexe = Funcexe::new();
         funcexe.fe_partial = crate::eval::typval::PartialId::from(partial_opt);
-        funcexe.fe_selfdict = fudi.fd_dict;
+        funcexe.fe_selfdict = fudi.fd_dict.clone();
         funcexe.fe_firstline = eap.line1;
         funcexe.fe_lastline = eap.line2;
         funcexe.fe_found_var = found_var;
@@ -4140,7 +4129,7 @@ pub fn ex_call(eap: &mut Exarg) {
         }
     }
 
-    tv_dict_unref(fudi.fd_dict.opt_mut());
+    tv_dict_unref(fudi.fd_dict.opt());
     drop(tofree_owned);
 }
 
@@ -4279,7 +4268,7 @@ pub fn func_has_abort(fcp: &Funccall) -> i32 {
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
+pub fn make_partial(selfdict: &TvDict, rettv: &mut TypVal) {
     let mut fp: Option<std::rc::Rc<UserFunc>> = None;
     let mut fname_buf = [0u8; FLEN_FIXED + 1];
     let mut error = 0;
@@ -4312,8 +4301,8 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     {
         let pt = crate::eval::typval::tv_partial_alloc();
         pt.pt_refcount.set(1);
-        pt.pt_dict.set(selfdict.dv_id);
-        selfdict.dv_refcount += 1;
+        pt.pt_dict.set(selfdict.id());
+        selfdict.dv_refcount.set(selfdict.dv_refcount.get() + 1);
         pt.pt_auto.set(true);
         if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
             pt.set_name(crate::eval::typval::tv_take_string(rettv));
@@ -4411,16 +4400,21 @@ fn get_funccal_for_vars_opt() -> Option<std::rc::Rc<Funccall>> {
         return None;
     }
     let funccal = get_funccal()?;
-    (funccal.fc_l_vars.get().dv_refcount != 0).then_some(funccal)
+    (funccal.fc_l_vars.get().dv_refcount.get() != 0).then_some(funccal)
 }
 
-pub fn get_funccal_local_dict() -> Option<&'static mut TvDict> {
-    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_vars.get().opt_mut())
+pub fn get_funccal_local_dict() -> Option<DictId> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let d = fc.fc_l_vars.get();
+        (!d.is_null()).then_some(d)
+    })
 }
 
-pub fn get_funccal_local_ht() -> Option<&'static mut Hashtab> {
-    get_funccal_for_vars_opt()
-        .and_then(|fc| fc.fc_l_vars.get().opt_mut().map(|d| &mut d.dv_hashtab))
+pub fn get_funccal_local_ht() -> Option<*const Hashtab> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let d = fc.fc_l_vars.get();
+        (!d.is_null()).then(|| &raw const d.dv_hashtab)
+    })
 }
 
 pub fn get_funccal_local_var() -> Option<DictitemId> {
@@ -4430,13 +4424,18 @@ pub fn get_funccal_local_var() -> Option<DictitemId> {
     })
 }
 
-pub fn get_funccal_args_dict() -> Option<&'static mut TvDict> {
-    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_avars.get().opt_mut())
+pub fn get_funccal_args_dict() -> Option<DictId> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let d = fc.fc_l_avars.get();
+        (!d.is_null()).then_some(d)
+    })
 }
 
-pub fn get_funccal_args_ht() -> Option<&'static mut Hashtab> {
-    get_funccal_for_vars_opt()
-        .and_then(|fc| fc.fc_l_avars.get().opt_mut().map(|d| &mut d.dv_hashtab))
+pub fn get_funccal_args_ht() -> Option<*const Hashtab> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let d = fc.fc_l_avars.get();
+        (!d.is_null()).then(|| &raw const d.dv_hashtab)
+    })
 }
 
 pub fn get_funccal_args_var() -> Option<DictitemId> {
@@ -4448,10 +4447,10 @@ pub fn get_funccal_args_var() -> Option<DictitemId> {
 
 pub fn list_func_vars(first: &mut i32) {
     if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
-        && cur_funccal().fc_l_vars.get().dv_refcount > 0
+        && cur_funccal().fc_l_vars.get().dv_refcount.get() > 0
     {
         list_hashtable_vars(
-            &mut cur_funccal().fc_l_vars.get().dv_hashtab,
+            &cur_funccal().fc_l_vars.get().dv_hashtab,
             c"l:",
             0,
             &mut *first,
@@ -4459,16 +4458,16 @@ pub fn list_func_vars(first: &mut i32) {
     }
 }
 
-pub fn get_current_funccal_dict(ht: &Hashtab) -> Option<&'static mut TvDict> {
+pub fn get_current_funccal_dict(ht: &Hashtab) -> Option<DictId> {
     if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
         && ptr::eq(ht, &raw const cur_funccal().fc_l_vars.get().dv_hashtab)
     {
-        return cur_funccal().fc_l_vars.get().opt_mut();
+        return Some(cur_funccal().fc_l_vars.get());
     }
     None
 }
 
-pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>) -> Option<usize> {
+pub fn find_hi_in_scoped_ht(name: &CStr, pdict: &mut Option<DictId>) -> Option<usize> {
     if UF_STATE.with(|s| s.current_funccal.get()).is_null()
         || cur_funccal().func_rc().uf_scoped.get().is_null()
     {
@@ -4485,16 +4484,19 @@ pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>)
             .set(cur_funccal().func_rc().uf_scoped.get())
     });
     while !UF_STATE.with(|s| s.current_funccal.get()).is_null() {
-        let ht = find_var_ht(name, namelen, &mut varname_opt);
-        if let Some(ht_ref) = ht
+        let ht_dict = find_var_ht(name, namelen, &mut varname_opt);
+        if let Some(ht_dict) = ht_dict
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
             let len = namelen
                 .saturating_sub((varname.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize));
             let varname_bytes = varname.to_bytes();
-            let idx = hash_find_len_idx(&*ht_ref, &varname_bytes[..len.min(varname_bytes.len())]);
-            if !hashitem_empty(&ht_ref.slot(idx)) {
-                *pht = Some(ht_ref);
+            let idx = hash_find_len_idx(
+                &ht_dict.dv_hashtab,
+                &varname_bytes[..len.min(varname_bytes.len())],
+            );
+            if !hashitem_empty(&ht_dict.dv_hashtab.slot(idx)) {
+                *pdict = Some(ht_dict);
                 found_idx = Some(idx);
                 break;
             }
@@ -4531,12 +4533,12 @@ pub fn find_var_in_scoped_ht(
             .set(cur_funccal().func_rc().uf_scoped.get())
     });
     while !UF_STATE.with(|s| s.current_funccal.get()).is_null() {
-        let ht = find_var_ht(&name_cstr, namelen, &mut varname_opt);
-        if let Some(ht_ref) = ht
+        let ht_dict = find_var_ht(&name_cstr, namelen, &mut varname_opt);
+        if let Some(ht_dict) = ht_dict
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
             v = find_var_in_ht(
-                ht_ref,
+                &ht_dict.dv_hashtab,
                 i32::from(name_slice.first().copied().unwrap_or(0)),
                 varname,
                 namelen.saturating_sub(
@@ -4566,15 +4568,9 @@ pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
             continue;
         };
         fc.fc_copy_id.set(copy_id + 1);
-        if set_ref_in_ht(
-            Some(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab),
-            copy_id + 1,
-            None,
-        ) || set_ref_in_ht(
-            Some(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab),
-            copy_id + 1,
-            None,
-        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id + 1, None)
+        if set_ref_in_ht(Some(&fc.fc_l_vars.get().dv_hashtab), copy_id + 1, None)
+            || set_ref_in_ht(Some(&fc.fc_l_avars.get().dv_hashtab), copy_id + 1, None)
+            || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id + 1, None)
         {
             return true;
         }
@@ -4599,15 +4595,9 @@ fn set_ref_in_defer(fc: &Funccall, copy_id: i32) -> bool {
 fn set_ref_in_funccal(fc: &Funccall, copy_id: i32) -> bool {
     if fc.fc_copy_id.get() != copy_id {
         fc.fc_copy_id.set(copy_id);
-        if set_ref_in_ht(
-            Some(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab),
-            copy_id,
-            None,
-        ) || set_ref_in_ht(
-            Some(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab),
-            copy_id,
-            None,
-        ) || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id, None)
+        if set_ref_in_ht(Some(&fc.fc_l_vars.get().dv_hashtab), copy_id, None)
+            || set_ref_in_ht(Some(&fc.fc_l_avars.get().dv_hashtab), copy_id, None)
+            || set_ref_in_list_items(fc.fc_l_varlist.get().opt(), copy_id, None)
             || set_ref_in_defer(fc, copy_id)
             || set_ref_in_func(None, fc.fc_func.get().rc().as_deref(), copy_id)
         {

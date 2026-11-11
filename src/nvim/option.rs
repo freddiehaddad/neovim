@@ -44,7 +44,7 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::encode::encode_tv2string;
 use crate::eval::typval::{
-    Callback, TvDict, TypVal, callback_copy, callback_free, callback_put, tv_clear, tv_dict_add_tv,
+    Callback, TypVal, callback_copy, callback_free, callback_put, tv_clear, tv_dict_add_tv,
     tv_dict_alloc,
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
@@ -8245,7 +8245,7 @@ pub fn fish_like_shell() -> bool {
 }
 
 /// Get window or buffer local options.
-pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
+pub fn get_winbuf_options(bufopt: i32) -> crate::eval::typval::DictId {
     let d = tv_dict_alloc();
 
     for opt_idx in 0..K_OPT_COUNT {
@@ -8258,7 +8258,7 @@ pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
             if varp.is_some() {
                 let ov = opt_from_varp(opt_idx, varp);
                 let mut opt_tv = opt_to_tv(ov.clone(), true);
-                tv_dict_add_tv(&mut *d, opt.fullname.to_bytes(), &mut opt_tv);
+                tv_dict_add_tv(&d, opt.fullname.to_bytes(), &mut opt_tv);
                 tv_clear(&mut opt_tv);
                 optval_free_read(opt_idx, ov);
             }

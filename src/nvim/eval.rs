@@ -367,11 +367,11 @@ pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<std::rc::Rc<TvBlob>>) {
 }
 
 #[inline]
-pub fn tv_dict_set_ret(tv: &mut TypVal, d: Option<&mut TvDict>) {
+pub fn tv_dict_set_ret(tv: &mut TypVal, d: Option<&TvDict>) {
     tv.v_type = VarType::VarDict;
     tv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(d));
     if let Some(d_ref) = tv.vval.v_dict_opt() {
-        d_ref.dv_refcount += 1;
+        d_ref.dv_refcount.set(d_ref.dv_refcount.get() + 1);
     }
 }
 
@@ -396,7 +396,7 @@ fn tv_list_item_next(li: &Listitem) -> Option<crate::eval::typval::ListitemId> {
     li.next_opt()
 }
 
-pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
+pub fn get_v_event(sve: &mut SaveVEvent) -> crate::eval::typval::DictId {
     let v_event = get_vim_var_dict(VV_EVENT);
 
     if v_event.dv_hashtab.ht_used.get() > 0 {
@@ -408,8 +408,8 @@ pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
     v_event
 }
 
-pub fn restore_v_event(v_event: &mut TvDict, sve: &mut SaveVEvent) {
-    tv_dict_free_contents(&mut *v_event);
+pub fn restore_v_event(v_event: &TvDict, sve: &mut SaveVEvent) {
+    tv_dict_free_contents(v_event);
     if sve.sve_did_save {
         v_event
             .dv_hashtab
@@ -1057,10 +1057,9 @@ fn get_lval_dict_item<'a>(
     lp.ll_list = crate::eval::typval::ListId::NULL;
 
     if lp.tv_mut().vval.v_dict().is_null() {
-        lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc().dv_id);
-        {
-            lp.tv_mut().vval.v_dict().dv_refcount += 1;
-        }
+        let d = tv_dict_alloc();
+        d.dv_refcount.set(d.dv_refcount.get() + 1);
+        lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(d);
     }
     let dict = lp.tv_mut().vval.v_dict();
     lp.ll_dict = dict;
@@ -1071,11 +1070,11 @@ fn get_lval_dict_item<'a>(
     );
 
     if let Some(rettv) = rettv.as_deref()
-        && lp.ll_dict.dv_scope != 0
+        && lp.ll_dict.dv_scope.get() != 0
     {
         let key_cstr = (len != -1).then(|| bytes_to_cstring(&key.to_bytes()[..len as usize]));
         let key_ref = key_cstr.as_deref().unwrap_or(key);
-        let wrong = (lp.ll_dict.dv_scope == VAR_DEF_SCOPE
+        let wrong = (lp.ll_dict.dv_scope.get() == VAR_DEF_SCOPE
             && tv_is_func(rettv)
             && var_wrong_func_name(key_ref, lp.ll_di.is_null()))
             || !valid_varname(key_ref);
@@ -1093,7 +1092,7 @@ fn get_lval_dict_item<'a>(
     if lp.ll_di.is_null() {
         if lp.ll_dict == get_vimvar_dict()
             || get_funccal_args_ht()
-                .is_some_and(|aht| ptr::eq(&raw mut lp.ll_dict.borrow_mut().dv_hashtab, aht))
+                .is_some_and(|aht| ptr::eq(&raw const lp.ll_dict.dv_hashtab, aht))
         {
             semsg!(gettext(E_ILLVAR), name);
             return GLV_FAIL;
@@ -1452,17 +1451,12 @@ pub fn get_lval<'a>(
         return Some(p_cstr);
     }
 
-    let mut ht: Option<&'static mut Hashtab> = None;
     let ll_name = lp.ll_name_cstr().unwrap_or(c"");
 
     let v = find_var(
         ll_name,
         lp.ll_name_len,
-        if (flags & GLV_READ_ONLY) != 0 {
-            None
-        } else {
-            Some(&mut ht)
-        },
+        (flags & GLV_READ_ONLY) == 0,
         flags & GLV_NO_AUTOLOAD,
     );
     if v.is_none() && !quiet {
@@ -1587,7 +1581,7 @@ pub fn set_var_lval(
         if lp.ll_newkey.is_none() {
             lp.tv_mut().v_lock
         } else {
-            lp.tv_mut().vval.v_dict().dv_lock
+            lp.tv_mut().vval.v_dict().dv_lock.get()
         },
         lp.ll_name_cstr(),
         TV_CSTRING,
@@ -1610,7 +1604,7 @@ pub fn set_var_lval(
         );
     } else {
         let mut oldtv = tv_initial_value();
-        let dict = lp.ll_dict;
+        let dict = lp.ll_dict.clone();
         let watched = tv_dict_is_watched(dict.opt());
 
         if is_const {
@@ -1628,14 +1622,12 @@ pub fn set_var_lval(
                 semsg!(gettext(E_DICTKEY), newkey_cstr);
                 return;
             }
-            if tv_dict_wrong_func_name(lp.tv_mut().vval.v_dict().borrow_mut(), rettv, newkey_cstr)
-                != 0
-            {
+            if tv_dict_wrong_func_name(&lp.tv_mut().vval.v_dict(), rettv, newkey_cstr) != 0 {
                 return;
             }
 
             let di = tv_dict_item_alloc(newkey_cstr);
-            if !tv_dict_add(lp.tv_mut().vval.v_dict().borrow_mut(), &di) {
+            if !tv_dict_add(&lp.tv_mut().vval.v_dict(), &di) {
                 tv_dict_item_free(&di);
                 return;
             }
@@ -1680,16 +1672,11 @@ pub fn set_var_lval(
             let new_tv = lp.ll_tv.opt().map(|r| r.clone());
             if oldtv.v_type == VarType::VarUnknown {
                 let newkey_cstr = lp.ll_newkey.as_ref().unwrap().as_c_str();
-                tv_dict_watcher_notify(dict.borrow_mut(), newkey_cstr, new_tv.as_ref(), None);
+                tv_dict_watcher_notify(&dict, newkey_cstr, new_tv.as_ref(), None);
             } else {
                 let di_ = &lp.ll_di;
                 let di_key_cstr = di_.key_cstr();
-                tv_dict_watcher_notify(
-                    dict.borrow_mut(),
-                    di_key_cstr,
-                    new_tv.as_ref(),
-                    Some(&oldtv),
-                );
+                tv_dict_watcher_notify(&dict, di_key_cstr, new_tv.as_ref(), Some(&oldtv));
                 tv_clear(&mut oldtv);
             }
         }
@@ -2959,7 +2946,7 @@ fn call_func_rettv(
     evalarg: Option<&mut Evalarg>,
     rettv: &mut TypVal,
     evaluate: bool,
-    selfdict: Option<&mut TvDict>,
+    selfdict: Option<&TvDict>,
     basetv: Option<&mut TypVal>,
     lua_funcname: Option<&CStr>,
 ) -> bool {
@@ -3487,7 +3474,7 @@ fn eval_index_inner(
                 }
             };
 
-            let item = tv_dict_find_opt(rettv.vval.v_dict_opt().as_deref(), key, keylen);
+            let item = tv_dict_find_opt(rettv.vval.v_dict_opt(), key, keylen);
 
             if item.is_none() && verbose {
                 if keylen > 0 {
@@ -4212,8 +4199,8 @@ fn free_unref_items(copy_id: i32) -> i32 {
 
     for idx in (0..gc_dicts_len()).rev() {
         let dd_ref = gc_dict_at(idx);
-        if (dd_ref.dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
-            tv_dict_free_contents(dd_ref);
+        if (dd_ref.dv_copy_id.get() & COPYID_MASK) != (copy_id & COPYID_MASK) {
+            tv_dict_free_contents(&dd_ref);
             did_free = true;
         }
     }
@@ -4231,7 +4218,7 @@ fn free_unref_items(copy_id: i32) -> i32 {
     let mut i = gc_dicts_len();
     while i > 0 {
         i -= 1;
-        if (gc_dict_at(i).dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
+        if (gc_dict_at(i).dv_copy_id.get() & COPYID_MASK) != (copy_id & COPYID_MASK) {
             gc_free_dict_at(i);
         }
     }
@@ -4253,7 +4240,7 @@ fn free_unref_items(copy_id: i32) -> i32 {
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
 pub fn set_ref_in_ht(
-    ht: Option<&mut Hashtab>,
+    ht: Option<&Hashtab>,
     copy_id: i32,
     mut list_stack: Option<&mut ListStack>,
 ) -> bool {
@@ -4275,7 +4262,7 @@ pub fn set_ref_in_ht(
     }
 
     while let Some(next_d) = ht_stack.pop() {
-        if !abort && let Some(d_ref) = next_d.opt_mut() {
+        if !abort && let Some(d_ref) = next_d.opt() {
             for (_, di) in d_ref.dv_hashtab.iter_items() {
                 let mut item_tv = di.tv().clone();
                 abort = abort
@@ -4328,23 +4315,26 @@ pub fn set_ref_in_list_items(
 }
 
 fn set_ref_in_item_dict(
-    mut dd: Option<&mut TvDict>,
+    dd: Option<&TvDict>,
     copy_id: i32,
     mut ht_stack: Option<&mut HtStack>,
     mut list_stack: Option<&mut ListStack>,
 ) -> bool {
-    if dd.is_none() || dd.as_deref_mut().unwrap().dv_copy_id == copy_id {
+    let Some(dd) = dd else {
+        return false;
+    };
+    if dd.dv_copy_id.get() == copy_id {
         return false;
     }
 
-    dd.as_deref_mut().unwrap().dv_copy_id = copy_id;
+    dd.dv_copy_id.set(copy_id);
     let Some(ref mut ht_stack_ref) = ht_stack else {
-        return set_ref_in_ht(Some(&mut dd.unwrap().dv_hashtab), copy_id, list_stack);
+        return set_ref_in_ht(Some(&dd.dv_hashtab), copy_id, list_stack);
     };
 
-    ht_stack_ref.push(dd.as_deref().unwrap().dv_id);
+    ht_stack_ref.push(dd.id());
 
-    for watcher in &mut dd.unwrap().watchers {
+    for watcher in dd.watchers.borrow().iter() {
         set_ref_in_callback(
             &watcher.callback,
             copy_id,
@@ -4495,7 +4485,7 @@ fn eval_dict(
 
     let mut d = crate::eval::typval::DictId::NULL;
     if evaluate {
-        d = crate::eval::typval::DictId::from(tv_dict_alloc());
+        d = tv_dict_alloc();
     }
     let mut tvkey = tv_initial_value();
     tv.v_type = VarType::VarUnknown;
@@ -4508,7 +4498,7 @@ fn eval_dict(
             eval1(arg, &mut tvkey, evalarg.as_deref_mut())
         };
         if !key_res {
-            if let Some(d_ref) = d.opt_mut() {
+            if let Some(d_ref) = d.opt() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4516,7 +4506,7 @@ fn eval_dict(
         if arg.to_bytes_with_nul()[0] != b':' {
             semsg!(gettext(c"E720: Missing colon in Dictionary: %s"), *arg,);
             tv_clear(&mut tvkey);
-            if let Some(d_ref) = d.opt_mut() {
+            if let Some(d_ref) = d.opt() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4524,7 +4514,7 @@ fn eval_dict(
         if evaluate {
             let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
                 tv_clear(&mut tvkey);
-                if let Some(d_ref) = d.opt_mut() {
+                if let Some(d_ref) = d.opt() {
                     tv_dict_free(d_ref);
                 }
                 return Some(false);
@@ -4535,7 +4525,7 @@ fn eval_dict(
         *arg = crate::charset::skipwhite_at(arg, 1);
         if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
             tv_clear(&mut tvkey);
-            if let Some(d_ref) = d.opt_mut() {
+            if let Some(d_ref) = d.opt() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4549,7 +4539,7 @@ fn eval_dict(
                 );
                 tv_clear(&mut tvkey);
                 tv_clear(&mut tv);
-                if let Some(d_ref) = d.opt_mut() {
+                if let Some(d_ref) = d.opt() {
                     tv_dict_free(d_ref);
                 }
                 return Some(false);
@@ -4557,7 +4547,7 @@ fn eval_dict(
             let item = tv_dict_item_alloc(key_cstr);
             tv.v_lock = VAR_UNLOCKED;
             item.set_tv(std::mem::take(&mut tv));
-            if !tv_dict_add(d.borrow_mut(), &item) {
+            if !tv_dict_add(&d, &item) {
                 tv_dict_item_free(&item);
             }
         }
@@ -4573,7 +4563,7 @@ fn eval_dict(
         }
         if !had_comma {
             semsg!(gettext(c"E722: Missing comma in Dictionary: %s"), *arg,);
-            if let Some(d_ref) = d.opt_mut() {
+            if let Some(d_ref) = d.opt() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4582,7 +4572,7 @@ fn eval_dict(
 
     if arg.to_bytes_with_nul()[0] != b'}' {
         semsg!(gettext(E_723_END), *arg,);
-        if let Some(d_ref) = d.opt_mut() {
+        if let Some(d_ref) = d.opt() {
             tv_dict_free(d_ref);
         }
         return Some(false);
@@ -4590,7 +4580,7 @@ fn eval_dict(
 
     *arg = crate::charset::skipwhite_at(arg, 1);
     if evaluate {
-        tv_dict_set_ret(rettv, d.opt_mut());
+        tv_dict_set_ret(rettv, d.opt());
     }
 
     Some(true)
@@ -5021,7 +5011,7 @@ fn set_ref_in_callback_reader(
         let mut tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(reader.self_dict),
+            vval: TypvalVval::Dict(reader.self_dict.clone()),
         };
         return set_ref_in_item(&mut tv, copy_id, ht_stack, list_stack);
     }
@@ -5036,12 +5026,12 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &VimTimer) {
     let list = rettv.vval.v_list_ref();
     let dict = tv_dict_alloc();
 
-    tv_list_append_dict(list, Some(dict));
-    tv_dict_add_nr(&mut *dict, c"id", Varnumber::from(timer.timer_id));
-    tv_dict_add_nr(&mut *dict, c"time", timer.timeout);
-    tv_dict_add_nr(&mut *dict, c"paused", Varnumber::from(timer.paused.get()));
+    tv_list_append_dict(list, Some(&dict));
+    tv_dict_add_nr(&dict, c"id", Varnumber::from(timer.timer_id));
+    tv_dict_add_nr(&dict, c"time", timer.timeout);
+    tv_dict_add_nr(&dict, c"paused", Varnumber::from(timer.paused.get()));
     tv_dict_add_nr(
-        &mut *dict,
+        &dict,
         c"repeat",
         if timer.repeat_count.get() < 0 {
             -1
@@ -5051,7 +5041,7 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &VimTimer) {
     );
 
     let di = tv_dict_item_alloc(c"callback");
-    if !tv_dict_add(&mut *dict, &di) {
+    if !tv_dict_add(&dict, &di) {
         tv_dict_item_free(&di);
     } else {
         callback_put(&timer.callback, &mut di.tv_mut());
@@ -5968,7 +5958,7 @@ pub fn handle_subscript<'a>(
                 evalarg.as_deref_mut(),
                 rettv,
                 evaluate,
-                selfdict.opt_mut(),
+                selfdict.opt(),
                 None,
                 lua_funcname,
             );
@@ -5979,7 +5969,7 @@ pub fn handle_subscript<'a>(
                 }
                 ret = false;
             }
-            tv_dict_unref(selfdict.opt_mut());
+            tv_dict_unref(selfdict.opt());
             selfdict = crate::eval::typval::DictId::NULL;
         } else if arg.to_bytes_with_nul()[0] == b'-' {
             if arg.to_bytes().get(2) == Some(&b'{') {
@@ -5988,11 +5978,11 @@ pub fn handle_subscript<'a>(
                 ret = eval_method(arg, rettv, evalarg.as_deref_mut(), verbose);
             }
         } else {
-            tv_dict_unref(selfdict.opt_mut());
+            tv_dict_unref(selfdict.opt());
             if rettv.v_type == VarType::VarDict {
                 selfdict = rettv.vval.v_dict();
                 if !selfdict.is_null() {
-                    selfdict.dv_refcount += 1;
+                    selfdict.dv_refcount.set(selfdict.dv_refcount.get() + 1);
                 }
             } else {
                 selfdict = crate::eval::typval::DictId::NULL;
@@ -6004,17 +5994,17 @@ pub fn handle_subscript<'a>(
         }
     }
 
-    if let Some(selfdict_ref) = selfdict.opt_mut()
+    if let Some(selfdict_ref) = selfdict.opt()
         && tv_is_func(rettv)
     {
         set_selfdict(rettv, selfdict_ref);
     }
 
-    tv_dict_unref(selfdict.opt_mut());
+    tv_dict_unref(selfdict.opt());
     ret
 }
 
-pub fn set_selfdict(rettv: &mut TypVal, selfdict: &mut TvDict) {
+pub fn set_selfdict(rettv: &mut TypVal, selfdict: &TvDict) {
     if rettv.v_type == VarType::VarPartial
         && let Some(pt) = tv_partial(&*rettv)
         && !pt.pt_auto.get()
@@ -6114,13 +6104,15 @@ pub fn var_item_copy(
                 });
                 return ret;
             };
-            if copy_id != 0 && from_dict.dv_copy_id == copy_id {
-                to.vval = crate::eval::typval::TypvalVval::Dict(from_dict.dv_copydict);
-                to.vval.v_dict_ref().dv_refcount += 1;
+            if copy_id != 0 && from_dict.dv_copy_id.get() == copy_id {
+                let cd = from_dict.dv_copydict.get();
+                cd.dv_refcount.set(cd.dv_refcount.get() + 1);
+                to.vval = crate::eval::typval::TypvalVval::Dict(cd);
             } else {
-                to.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(
-                    tv_dict_copy(conv, Some(from_dict), deep, copy_id),
-                ));
+                to.vval = crate::eval::typval::TypvalVval::Dict(
+                    tv_dict_copy(conv, Some(from_dict), deep, copy_id)
+                        .unwrap_or(crate::eval::typval::DictId::NULL),
+                );
             }
             if to.vval.v_dict().is_null() {
                 ret = false;
@@ -6484,24 +6476,24 @@ pub fn do_string_sub(
 
 /// Common code for getting job callbacks for `jobstart`.
 pub fn common_job_callbacks(
-    vopts: &mut TvDict,
+    vopts: &TvDict,
     on_stdout: &mut CallbackReader,
     on_stderr: &mut CallbackReader,
     on_exit: &mut Callback,
 ) -> bool {
-    if tv_dict_get_callback(Some(&mut *vopts), c"on_stdout", 9, &mut on_stdout.cb)
-        && tv_dict_get_callback(Some(&mut *vopts), c"on_stderr", 9, &mut on_stderr.cb)
-        && tv_dict_get_callback(Some(&mut *vopts), c"on_exit", 7, on_exit)
+    if tv_dict_get_callback(Some(vopts), c"on_stdout", 9, &mut on_stdout.cb)
+        && tv_dict_get_callback(Some(vopts), c"on_stderr", 9, &mut on_stderr.cb)
+        && tv_dict_get_callback(Some(vopts), c"on_exit", 7, on_exit)
     {
         on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
         on_stderr.buffered = tv_dict_get_number(Some(vopts), c"stderr_buffered") != 0;
         if on_stdout.buffered && on_stdout.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stdout.self_dict = vopts.dv_id;
+            on_stdout.self_dict = vopts.id();
         }
         if on_stderr.buffered && on_stderr.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stderr.self_dict = vopts.dv_id;
+            on_stderr.self_dict = vopts.id();
         }
-        vopts.dv_refcount += 1;
+        vopts.dv_refcount.set(vopts.dv_refcount.get() + 1);
         return true;
     }
 
@@ -6824,11 +6816,7 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             tv_clear(typ1);
             return false;
         } else {
-            let mut eq = tv_dict_equal(
-                typ1.vval.v_dict_opt().as_deref(),
-                typ2.vval.v_dict_opt().as_deref(),
-                ic,
-            );
+            let mut eq = tv_dict_equal(typ1.vval.v_dict_opt(), typ2.vval.v_dict_opt(), ic);
             if expr_type == EXPR_NEQUAL {
                 eq = !eq;
             }
@@ -6949,8 +6937,8 @@ impl Lval {
     }
 
     #[inline]
-    pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        self.ll_dict.opt_mut()
+    pub fn dict_opt(&self) -> Option<&TvDict> {
+        self.ll_dict.opt()
     }
 
     #[inline]

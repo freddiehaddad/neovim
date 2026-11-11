@@ -1221,7 +1221,7 @@ pub fn nvim_buf_set_var(buf: Buffer, name: NvimString, value: Object, err: &mut 
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    dict_set_var(&mut *b.b_vars(), name, value, false, false, None, err);
+    dict_set_var(&b.b_vars(), name, value, false, false, None, err);
 }
 
 /// Removes a buffer-scoped (b:) variable
@@ -1235,7 +1235,7 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    dict_set_var(&mut *b.b_vars(), name, OBJECT_NIL, true, false, None, err);
+    dict_set_var(&b.b_vars(), name, OBJECT_NIL, true, false, None, err);
 }
 
 /// Gets the full/absolute filepath of the buffer, or the buffer name for non-file buffers.

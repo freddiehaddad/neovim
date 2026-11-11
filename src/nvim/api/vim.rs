@@ -1061,15 +1061,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_var(String name, Object value, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
-    dict_set_var(
-        &mut *get_globvar_dict(),
-        name,
-        value,
-        false,
-        false,
-        None,
-        err,
-    );
+    dict_set_var(&get_globvar_dict(), name, value, false, false, None, err);
 }
 
 /// Removes a global (g:) variable.
@@ -1078,15 +1070,7 @@ pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_var(String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_del_var(name: NvimString, err: &mut Error) {
-    dict_set_var(
-        &mut *get_globvar_dict(),
-        name,
-        nil_obj(),
-        true,
-        false,
-        None,
-        err,
-    );
+    dict_set_var(&get_globvar_dict(), name, nil_obj(), true, false, None, err);
 }
 
 /// Gets a v: variable.
@@ -1096,7 +1080,7 @@ pub fn nvim_del_var(name: NvimString, err: &mut Error) {
 /// @return         Variable value
 // DLLEXPORT Object nvim_get_vvar(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_vvar(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    dict_get_value(Some(&*get_vimvar_dict()), name, Some(arena), err)
+    dict_get_value(Some(&get_vimvar_dict()), name, Some(arena), err)
 }
 
 /// Sets a v: variable, if it is not readonly.
@@ -1106,15 +1090,7 @@ pub fn nvim_get_vvar(name: NvimString, arena: &mut Arena, err: &mut Error) -> Ob
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_vvar(String name, Object value, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
-    dict_set_var(
-        &mut *get_vimvar_dict(),
-        name,
-        value,
-        false,
-        false,
-        None,
-        err,
-    );
+    dict_set_var(&get_vimvar_dict(), name, value, false, false, None, err);
 }
 
 /// Prints a message given by a list of `[text, hl_group]` "chunks". Emits a |Progress| event if

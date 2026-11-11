@@ -5982,21 +5982,21 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     if xpc.xp_files.capacity() == 0 {
         return;
     }
-    let retdict = rettv.vval.v_dict().borrow_mut();
+    let retdict = rettv.vval.v_dict();
     let mut ret = CMDLINE_ORIG.with(|cell| {
         let orig = cell.borrow();
-        tv_dict_add_str_len(retdict, c"cmdline_orig", orig.as_deref())
+        tv_dict_add_str_len(&retdict, c"cmdline_orig", orig.as_deref())
     });
     if ret {
-        ret = tv_dict_add_nr(retdict, c"pum_visible", i64::from(pum_visible()));
+        ret = tv_dict_add_nr(&retdict, c"pum_visible", i64::from(pum_visible()));
     }
     if ret {
-        ret = tv_dict_add_nr(retdict, c"selected", i64::from(xpc.xp_selected));
+        ret = tv_dict_add_nr(&retdict, c"selected", i64::from(xpc.xp_selected));
     }
     if ret {
         let li = tv_list_alloc(xpc.xp_numfiles as isize);
 
-        ret = tv_dict_add_list(retdict, c"matches", Some(&li));
+        ret = tv_dict_add_list(&retdict, c"matches", Some(&li));
 
         let files = xpc.xp_files.as_slice();
         let mut idx: usize = 0;

@@ -2976,7 +2976,7 @@ fn line_count_info(
     i
 }
 
-pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
+pub fn cursor_pos_info(dict: Option<&TvDict>) {
     let mut buf1 = [0u8; 50];
     let mut buf2 = [0u8; 40];
     let mut byte_count: Varnumber = 0;
@@ -3254,17 +3254,13 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
         }
     }
 
-    if dict.is_some() {
-        tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"words", word_count);
-        tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"chars", char_count);
-        tv_dict_add_nr(
-            dict.as_deref_mut().unwrap(),
-            c"bytes",
-            byte_count + bom_count,
-        );
+    if let Some(dict) = dict {
+        tv_dict_add_nr(dict, c"words", word_count);
+        tv_dict_add_nr(dict, c"chars", char_count);
+        tv_dict_add_nr(dict, c"bytes", byte_count + bom_count);
 
         tv_dict_add_nr(
-            dict.as_deref_mut().unwrap(),
+            dict,
             if l_visual_active {
                 c"visual_bytes"
             } else {
@@ -3273,7 +3269,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             byte_count_cursor,
         );
         tv_dict_add_nr(
-            dict.as_deref_mut().unwrap(),
+            dict,
             if l_visual_active {
                 c"visual_chars"
             } else {
@@ -3282,7 +3278,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             char_count_cursor,
         );
         tv_dict_add_nr(
-            dict.unwrap(),
+            dict,
             if l_visual_active {
                 c"visual_words"
             } else {

@@ -216,9 +216,9 @@ impl Scriptvar {
 
 impl Drop for Scriptvar {
     fn drop(&mut self) {
-        if let Some(dict) = self.sv_dict.opt_mut() {
-            crate::eval::vars::vars_clear(&mut dict.dv_hashtab);
-            if dict.dv_refcount >= crate::buffer::DO_NOT_FREE_CNT / 2 {
+        if let Some(dict) = self.sv_dict.opt() {
+            crate::eval::vars::vars_clear(&dict.dv_hashtab);
+            if dict.dv_refcount.get() >= crate::buffer::DO_NOT_FREE_CNT / 2 {
                 crate::eval::vars::unref_var_dict(dict);
             } else {
                 crate::eval::typval::tv_dict_free_slot(dict);
@@ -351,7 +351,9 @@ pub fn script_item_name(id: Scid) -> Option<std::ffi::CString> {
 pub fn script_item_vars(
     id: Scid,
 ) -> (crate::eval::typval::DictitemId, crate::eval::typval::DictId) {
-    with_script_item(id, |si| (si.sn_vars.sv_var.clone(), si.sn_vars.sv_dict))
+    with_script_item(id, |si| {
+        (si.sn_vars.sv_var.clone(), si.sn_vars.sv_dict.clone())
+    })
 }
 
 #[inline]
@@ -568,21 +570,20 @@ fn stacktrace_push_item(
     filepath: Option<&CStr>,
 ) {
     let d = tv_dict_alloc_lock(VAR_FIXED);
+    if let Some(fp) = fp {
+        tv_dict_add_func(&d, c"funcref", fp);
+    }
+    if let Some(ev) = event {
+        tv_dict_add_str(&d, c"event", Some(ev));
+    }
+    tv_dict_add_nr(&d, c"lnum", Varnumber::from(lnum));
+    tv_dict_add_str(&d, c"filepath", filepath);
+
     let tv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_LOCKED,
-        vval: TypvalVval::Dict(d.dv_id),
+        vval: TypvalVval::Dict(d),
     };
-
-    if let Some(fp) = fp {
-        tv_dict_add_func(&mut *d, c"funcref", fp);
-    }
-    if let Some(ev) = event {
-        tv_dict_add_str(&mut *d, c"event", Some(ev));
-    }
-    tv_dict_add_nr(&mut *d, c"lnum", Varnumber::from(lnum));
-    tv_dict_add_str(&mut *d, c"filepath", filepath);
-
     tv_list_append_tv(l, &tv);
 }
 
@@ -3120,8 +3121,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let mut pat_owned: Option<std::ffi::CString> = None;
     if argvars[0].v_type == VarType::VarDict {
         let arg_dict = argvars[0].vval.v_dict_opt();
-        if let Some(sid_di) = crate::eval::typval::tv_dict_find_opt(arg_dict.as_deref(), c"sid", 3)
-        {
+        if let Some(sid_di) = crate::eval::typval::tv_dict_find_opt(arg_dict, c"sid", 3) {
             let mut error = false;
             sid = tv_get_number_chk(&sid_di.tv(), Some(&mut error));
             if error {
@@ -3132,7 +3132,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 return;
             }
         } else {
-            pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict.as_deref(), c"name");
+            pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name");
             if let Some(ref pat) = pat_owned {
                 regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
             }
@@ -3144,27 +3144,24 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     let mut i = if sid > 0 { sid } else { 1 };
     while (i == sid || sid <= 0) && i <= Varnumber::from(script_items_len()) {
-        let (sn_opt, sv_dict) =
-            with_script_item(i as Scid, |si| (si.sn_name.clone(), si.sn_vars.sv_dict));
+        let (sn_opt, sv_dict) = with_script_item(i as Scid, |si| {
+            (si.sn_name.clone(), si.sn_vars.sv_dict.clone())
+        });
 
         if let Some(ref sn) = sn_opt
             && (!filterpat || vim_regexec(&mut regmatch, sn, 0))
         {
             let d = tv_dict_alloc();
-            tv_list_append_dict(l, Some(d));
-            tv_dict_add_str(&mut *d, c"name", Some(sn.as_c_str()));
-            tv_dict_add_nr(&mut *d, c"sid", i);
-            tv_dict_add_nr(&mut *d, c"version", 1);
-            tv_dict_add_bool(&mut *d, c"autoload", K_FALSE);
+            tv_list_append_dict(l, Some(&d));
+            tv_dict_add_str(&d, c"name", Some(sn.as_c_str()));
+            tv_dict_add_nr(&d, c"sid", i);
+            tv_dict_add_nr(&d, c"version", 1);
+            tv_dict_add_bool(&d, c"autoload", K_FALSE);
 
             if sid > 0 {
-                let var_dict = tv_dict_copy(None, sv_dict.opt_mut(), true, get_copy_id());
-                tv_dict_add_dict(&mut *d, c"variables", var_dict);
-                tv_dict_add_list(
-                    &mut *d,
-                    c"functions",
-                    Some(&get_script_local_funcs(sid as Scid)),
-                );
+                let var_dict = tv_dict_copy(None, sv_dict.opt(), true, get_copy_id());
+                tv_dict_add_dict(&d, c"variables", var_dict.as_deref());
+                tv_dict_add_list(&d, c"functions", Some(&get_script_local_funcs(sid as Scid)));
             }
         }
 
