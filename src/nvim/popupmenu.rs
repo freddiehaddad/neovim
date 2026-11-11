@@ -586,7 +586,7 @@ pub fn pum_display(
         }
 
         let mut pvwin: Option<&mut WinInfoInfo> = None;
-        for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
+        for wp in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
             if wp.w_onebuf_opt.wo_pvw {
                 pvwin = Some(wp);
                 break;
@@ -1444,7 +1444,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
         {
             let curwin_save = curwin_ptr();
-            let curtab_save = g_st().curtab;
+            let curtab_save = g_st().curtab.clone();
 
             if use_float {
                 block_autocmds();
@@ -1541,7 +1541,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         || (g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()))
                     {
                         if g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()) {
-                            goto_tabpage_tp(curtab_save.opt_mut(), false, false);
+                            goto_tabpage_tp(curtab_save.opt(), false, false);
                         }
 
                         if ins_compl_active() && !resized {

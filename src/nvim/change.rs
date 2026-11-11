@@ -118,7 +118,7 @@ pub const fn replace_normal(s: i32) -> bool {
 #[inline]
 fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             f(wp);
         }
     }
@@ -288,7 +288,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
     for win in for_all_windows_mut() {
         if win.w_buffer == (&raw mut *buf) {
             if win.w_onebuf_opt.wo_diff && diff_internal() != 0 {
-                curtab_mut().tp_diff_update = 1;
+                curtab_mut().tp_diff_update.set(1);
                 diff_update_line(lnum);
             }
 

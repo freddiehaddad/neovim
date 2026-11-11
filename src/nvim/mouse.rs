@@ -275,16 +275,16 @@ fn move_tab_to_mouse() {
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
-        g_st().curtab
+        g_st().curtab.clone()
     } else {
         crate::globals::TabpagePtr::from(find_tabpage(c1))
     };
     if g_st().curtab == tp {
-        if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+        if !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
             tabpage_close(false);
         }
     } else if !tp.is_null() {
-        tabpage_close_other(tp.borrow_mut(), false);
+        tabpage_close_other(tp.borrow(), false);
     }
 }
 

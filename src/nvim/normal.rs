@@ -2448,9 +2448,9 @@ fn normal_check(s: &mut NormalState) -> i32 {
         normal_check_window_scrolled(s);
         normal_check_safe_state(s);
 
-        if curtab_mut().tp_diff_update != 0 || curtab_mut().tp_diff_invalid != 0 {
+        if curtab_mut().tp_diff_update.get() != 0 || curtab_mut().tp_diff_invalid.get() != 0 {
             ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
-            curtab_mut().tp_diff_update = 0;
+            curtab_mut().tp_diff_update.set(0);
         }
 
         if g_st().diff_need_scrollbind {

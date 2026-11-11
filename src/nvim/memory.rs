@@ -241,7 +241,8 @@ pub fn free_all_mem() {
         block_autocmds();
 
         opt_vars().p_ea = false;
-        if !g_st().first_tabpage.is_null() && !crate::globals::first_tabpage_mut().tp_next.is_null()
+        if !g_st().first_tabpage.is_null()
+            && !crate::globals::first_tabpage_mut().tp_next.get().is_null()
         {
             do_cmdline_cmd(c"tabonly!");
         }
@@ -280,7 +281,7 @@ pub fn free_all_mem() {
         free_signs();
         set_expr_line(None);
         if !g_st().curtab.is_null() {
-            diff_clear(curtab_mut());
+            diff_clear(&curtab_mut());
         }
         clear_sb_text(true);
 
@@ -327,8 +328,10 @@ pub fn free_all_mem() {
         reset_last_sourcing();
 
         if !g_st().first_tabpage.is_null() {
-            free_tabpage(g_st().first_tabpage.opt_mut());
+            let first_tp = g_st().first_tabpage.clone();
+            free_tabpage(first_tp.opt());
             g_st().first_tabpage = crate::globals::TabpagePtr::NULL;
+            g_st().curtab = crate::globals::TabpagePtr::NULL;
         }
 
         msg_hist_clear(0);

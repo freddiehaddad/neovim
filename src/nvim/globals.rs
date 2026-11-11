@@ -945,8 +945,8 @@ pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
 }
 
 #[inline(always)]
-pub fn curtab_mut() -> &'static mut TabPageInfo {
-    g_st().curtab.borrow_mut()
+pub fn curtab_mut() -> TabpagePtr {
+    g_st().curtab.clone()
 }
 
 #[inline(always)]
@@ -1055,7 +1055,7 @@ macro_rules! impl_sym_graph_eq {
     };
 }
 
-impl_sym_graph_eq!(WinInfoInfo, FileBuf, TabPageInfo);
+impl_sym_graph_eq!(WinInfoInfo, FileBuf);
 
 impl<T> Eq for GraphPtr<T> {}
 
@@ -1394,7 +1394,164 @@ impl<T> GraphPtr<T> {
 
 pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
-pub type TabpagePtr = GraphPtr<TabPageInfo>;
+
+#[repr(transparent)]
+#[derive(Clone, Default)]
+pub struct TabpagePtr(Option<std::rc::Rc<TabPageInfo>>);
+
+impl PartialEq for TabpagePtr {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TabpagePtr {}
+
+impl PartialEq<&TabPageInfo> for TabpagePtr {
+    #[inline(always)]
+    fn eq(&self, other: &&TabPageInfo) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+    }
+}
+
+impl PartialEq<&mut TabPageInfo> for TabpagePtr {
+    #[inline(always)]
+    fn eq(&self, other: &&mut TabPageInfo) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+    }
+}
+
+impl PartialEq<TabpagePtr> for &TabPageInfo {
+    #[inline(always)]
+    fn eq(&self, other: &TabpagePtr) -> bool {
+        other == self
+    }
+}
+
+impl PartialEq<TabpagePtr> for &mut TabPageInfo {
+    #[inline(always)]
+    fn eq(&self, other: &TabpagePtr) -> bool {
+        other == self
+    }
+}
+
+impl std::fmt::Debug for TabpagePtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TabpagePtr")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
+
+impl TabpagePtr {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn is_null(&self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(&self) -> Option<&TabPageInfo> {
+        self.0.as_deref()
+    }
+
+    #[inline(always)]
+    pub fn borrow(&self) -> &TabPageInfo {
+        self.opt().expect("null TabpagePtr")
+    }
+
+    #[inline(always)]
+    pub fn rc(&self) -> Option<std::rc::Rc<TabPageInfo>> {
+        self.0.clone()
+    }
+
+    #[inline(always)]
+    pub fn unwrap_rc(&self) -> std::rc::Rc<TabPageInfo> {
+        self.0.clone().expect("null TabpagePtr")
+    }
+}
+
+impl From<std::rc::Rc<TabPageInfo>> for TabpagePtr {
+    #[inline(always)]
+    fn from(rc: std::rc::Rc<TabPageInfo>) -> Self {
+        Self(Some(rc))
+    }
+}
+
+impl From<&std::rc::Rc<TabPageInfo>> for TabpagePtr {
+    #[inline(always)]
+    fn from(rc: &std::rc::Rc<TabPageInfo>) -> Self {
+        Self(Some(rc.clone()))
+    }
+}
+
+impl From<Option<std::rc::Rc<TabPageInfo>>> for TabpagePtr {
+    #[inline(always)]
+    fn from(opt: Option<std::rc::Rc<TabPageInfo>>) -> Self {
+        Self(opt)
+    }
+}
+
+impl From<&TabpagePtr> for TabpagePtr {
+    #[inline(always)]
+    fn from(p: &TabpagePtr) -> Self {
+        p.clone()
+    }
+}
+
+impl From<Option<TabpagePtr>> for TabpagePtr {
+    #[inline(always)]
+    fn from(opt: Option<TabpagePtr>) -> Self {
+        opt.unwrap_or(Self::NULL)
+    }
+}
+
+impl From<&TabPageInfo> for TabpagePtr {
+    #[inline(always)]
+    fn from(r: &TabPageInfo) -> Self {
+        Self(r.self_weak.upgrade())
+    }
+}
+
+impl From<&mut TabPageInfo> for TabpagePtr {
+    #[inline(always)]
+    fn from(r: &mut TabPageInfo) -> Self {
+        Self(r.self_weak.upgrade())
+    }
+}
+
+impl From<Option<&TabPageInfo>> for TabpagePtr {
+    #[inline(always)]
+    fn from(opt: Option<&TabPageInfo>) -> Self {
+        Self(opt.and_then(|r| r.self_weak.upgrade()))
+    }
+}
+
+impl From<Option<&mut TabPageInfo>> for TabpagePtr {
+    #[inline(always)]
+    fn from(opt: Option<&mut TabPageInfo>) -> Self {
+        Self(opt.and_then(|r| r.self_weak.upgrade()))
+    }
+}
+
+impl std::ops::Deref for TabpagePtr {
+    type Target = TabPageInfo;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
 
 #[repr(transparent)]
 #[derive(Clone, Default)]
@@ -1561,7 +1718,7 @@ pub fn curwin_handle() -> WinPtr {
 
 #[inline(always)]
 pub fn curtab_handle() -> TabpagePtr {
-    g_st().curtab
+    g_st().curtab.clone()
 }
 
 pub struct BufMutIter(BufPtr);
@@ -1664,7 +1821,7 @@ pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if g_st().curtab == tp {
         g_st().firstwin
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.get()
     })
 }
 
@@ -1683,7 +1840,7 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if g_st().curtab == tp {
         g_st().firstwin
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.get()
     })
 }
 
@@ -1708,37 +1865,41 @@ pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
 pub struct TabMutIter(TabpagePtr);
 
 impl Iterator for TabMutIter {
-    type Item = &'static mut TabPageInfo;
+    type Item = TabpagePtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.tp_next;
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.tp_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 pub struct TabPtrIter(TabpagePtr);
 
 impl Iterator for TabPtrIter {
-    type Item = &'static mut TabPageInfo;
+    type Item = TabpagePtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.tp_next;
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.tp_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 #[inline(always)]
 pub fn for_all_tabpages_mut() -> TabMutIter {
-    TabMutIter(g_st().first_tabpage)
+    TabMutIter(g_st().first_tabpage.clone())
 }
 
 #[inline(always)]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
-    TabPtrIter(g_st().first_tabpage)
+    TabPtrIter(g_st().first_tabpage.clone())
 }
 
 pub struct FrameMutIter(FramePtr);
@@ -1965,8 +2126,8 @@ pub fn topframe_mut() -> FramePtr {
 }
 
 #[inline(always)]
-pub fn first_tabpage_mut() -> &'static mut TabPageInfo {
-    g_st().first_tabpage.borrow_mut()
+pub fn first_tabpage_mut() -> TabpagePtr {
+    g_st().first_tabpage.clone()
 }
 
 #[inline(always)]

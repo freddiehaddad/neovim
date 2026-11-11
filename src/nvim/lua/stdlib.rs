@@ -651,7 +651,7 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             switched = ctx_switch(
                 &mut cs,
                 win.opt_mut(),
-                tab,
+                tab.as_deref(),
                 buf.opt_mut(),
                 K_CTX_NO_DISPLAY | dirs | if !win.is_null() { K_CTX_VALIDATE } else { 0 },
             );

@@ -1621,7 +1621,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     }
     if !cl_bufs.is_empty() {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(&tp) {
                 if cl_bufs.contains(&(wp.w_buffer.as_ptr() as usize)) {
                     wp.w_changelistidx = wp.buf_mut().b_changelistlen;
                 }
@@ -2545,7 +2545,7 @@ fn shada_write(
     let mut packer = packer_buffer_for_file(&mut *sd_writer);
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             set_last_cursor(&mut *wp);
         }
     }

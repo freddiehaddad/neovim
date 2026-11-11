@@ -59,11 +59,11 @@ pub fn win_new_float(
 
         let win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp));
         debug_assert!(!win_tp.is_null());
-        if (win_tp == g_st().curtab.as_ptr()
+        if (win_tp == g_st().curtab
             && g_st().firstwin == wp
             && ptr::eq(lastwin_nofloating(None), wp))
-            || win_tp != g_st().curtab.as_ptr()
-                && win_tp.tp_firstwin == wp
+            || win_tp != g_st().curtab
+                && win_tp.tp_firstwin.get() == wp
                 && ptr::eq(lastwin_nofloating(win_tp.opt()), wp)
         {
             api_set_error!(
@@ -76,11 +76,11 @@ pub fn win_new_float(
         let tp = if win_tp == g_st().curtab {
             crate::globals::TabpagePtr::NULL
         } else {
-            win_tp
+            win_tp.clone()
         };
         let mut dir: i32 = 0;
 
-        winframe_remove(wp, &mut dir, tp.opt_mut(), None);
+        winframe_remove(wp, &mut dir, tp.opt(), None);
 
         if !wp.w_frame.is_null() {
             wp.w_frame.clear_links();
@@ -88,14 +88,14 @@ pub fn win_new_float(
 
         wp.w_frame = crate::globals::FramePtr::NULL;
 
-        win_remove(wp, tp.opt_mut());
+        win_remove(wp, tp.opt());
 
-        if win_tp == g_st().curtab.as_ptr() {
+        if win_tp == g_st().curtab {
             last_status(false);
             win_comp_pos();
         }
         let prev = lastwin_nofloating(tp.opt());
-        win_append(Some(prev), wp, tp.opt_mut());
+        win_append(Some(prev), wp, tp.opt());
         wp
     } else {
         let mut tp_last = if last {
@@ -109,14 +109,12 @@ pub fn win_new_float(
             if parent_wp.is_null() {
                 return None;
             }
-            let tp_ref = win_find_tabpage(parent_wp.borrow())?;
-            let tp = crate::globals::TabpagePtr::from(tp_ref);
-            tp_last =
-                crate::globals::WinPtr::from(lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
-                    None
-                } else {
-                    tp.opt()
-                }));
+            let tp = win_find_tabpage(parent_wp.borrow())?;
+            tp_last = crate::globals::WinPtr::from(lastwin_nofloating(if tp == g_st().curtab {
+                None
+            } else {
+                tp.opt()
+            }));
         }
         let wp = win_alloc(tp_last.opt_mut(), false);
         win_init(wp, curwin_mut(), 0);
@@ -410,10 +408,10 @@ pub fn win_float_find_altwin(
     };
 
     debug_assert!(g_st().curtab != tp);
-    let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.opt()) {
-        tp.tp_prevwin
+    let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.get().opt()) {
+        tp.tp_prevwin.get()
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.get()
     };
     if let Some(wp_ref) = wp.opt_mut()
         && wp != win
@@ -421,7 +419,7 @@ pub fn win_float_find_altwin(
     {
         wp_ref
     } else {
-        tp.tp_firstwin.borrow_mut()
+        tp.tp_firstwin.get().borrow_mut()
     }
 }
 

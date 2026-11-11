@@ -1019,7 +1019,7 @@ fn set_options_default(opt_flags: i32) {
     }
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_mut(&*tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             win_comp_scroll(wp);
         }
     }
@@ -2655,8 +2655,8 @@ pub fn did_set_buflisted<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_cmdheight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let old_value = args.os_oldval.data.integer();
 
-    if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
-        opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
+    if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1) {
+        opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1);
     }
 
     if (opt_vars().p_ch != old_value
@@ -2983,7 +2983,7 @@ pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
     let win = args.os_win;
     let tab = if win == curwin_ptr() {
-        g_st().curtab
+        g_st().curtab.clone()
     } else {
         crate::globals::TabpagePtr::from(win_find_tabpage(win.borrow()))
     };
@@ -3098,7 +3098,7 @@ pub fn did_set_swapfile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'textwidth' option value.
 pub fn did_set_textwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             check_colorcolumn(None::<&CStr>, Some(&mut *wp));
         }
     }
@@ -5805,7 +5805,7 @@ pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: i3
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum OptTarget {
     Global,
     Win(WinPtr),
@@ -5837,7 +5837,13 @@ fn switch_option_context(
             }
             let mut cs = CtxSwitch::new();
             let tab = win.opt().and_then(win_find_tabpage);
-            if !ctx_switch(&mut cs, win.opt_mut(), tab, None, K_CTX_NO_DISPLAY) {
+            if !ctx_switch(
+                &mut cs,
+                win.opt_mut(),
+                tab.as_deref(),
+                None,
+                K_CTX_NO_DISPLAY,
+            ) {
                 ctx_restore(&mut cs);
                 if !error_set(err) {
                     api_set_error!(
@@ -5867,12 +5873,12 @@ fn switch_option_context(
             let OptTarget::Tab(tab) = from else {
                 return false;
             };
-            if tab == g_st().curtab.as_ptr() {
+            if tab == g_st().curtab {
                 return false;
             }
-            *ctx = OptSavedCtx::Tab(g_st().curtab);
-            unuse_tabpage(curtab_mut());
-            use_tabpage(tab.borrow_mut());
+            *ctx = OptSavedCtx::Tab(g_st().curtab.clone());
+            unuse_tabpage(&curtab_mut());
+            use_tabpage(tab.borrow());
             true
         }
         _ => unreachable!(),
@@ -5886,8 +5892,8 @@ fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
             ctx_restore(cs);
         }
         (K_OPT_SCOPE_TAB, OptSavedCtx::Tab(saved_curtab)) => {
-            unuse_tabpage(curtab_mut());
-            use_tabpage(saved_curtab.borrow_mut());
+            unuse_tabpage(&curtab_mut());
+            use_tabpage(saved_curtab.borrow());
         }
         _ => {}
     }
@@ -5927,8 +5933,8 @@ pub fn set_option_value_for(
     value_replaced: bool,
     err: &mut Error,
 ) {
-    if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, from)
-        && tab != g_st().curtab.as_ptr()
+    if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, &from)
+        && *tab != g_st().curtab
     {
         assert!(opt_idx == K_OPT_CMDHEIGHT);
         if value.obj_type != ObjectType::ObjectTypeInteger {
@@ -5940,8 +5946,7 @@ pub fn set_option_value_for(
             return;
         }
 
-        let mut tab = tab;
-        tab.tp_ch_used = value.data.integer();
+        tab.tp_ch_used.set(value.data.integer());
 
         return;
     }

@@ -587,13 +587,13 @@ pub fn nvim_set_option_value(
     let is_array = value.obj_type == ObjectType::ObjectTypeArray;
     let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
 
-    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, to) {
-        b
+    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &to) {
+        *b
     } else {
         g_st().curbuf
     };
-    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, to) {
-        w
+    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &to) {
+        *w
     } else {
         crate::globals::curwin_handle()
     };
@@ -816,13 +816,13 @@ pub fn nvim_get_option_info2(
         return Dict::new();
     }
 
-    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, from) {
-        b
+    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &from) {
+        *b
     } else {
         g_st().curbuf
     };
-    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, from) {
-        w
+    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &from) {
+        *w
     } else {
         crate::globals::curwin_handle()
     };

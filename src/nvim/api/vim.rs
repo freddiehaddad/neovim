@@ -1344,14 +1344,14 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
 pub fn nvim_list_wins(arena: &mut Arena) -> Array {
     let mut n = 0usize;
     for tp in for_all_tabpages_mut() {
-        for _wp in for_all_windows_in_tab_mut(tp) {
+        for _wp in for_all_windows_in_tab_mut(&tp) {
             n += 1;
         }
     }
 
     let mut rv = arena_array(arena, n);
     for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             add_c(&mut rv, window_obj(wp.handle));
         }
     }
@@ -1380,7 +1380,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     if w.w_buffer != g_st().curbuf {
         reset_visual_and_resel();
     }
-    goto_tabpage_win(win_find_tabpage(&*w).unwrap(), w);
+    goto_tabpage_win(&win_find_tabpage(&*w).unwrap(), w);
     try_leave(&tstate, err);
 }
 
@@ -1645,7 +1645,7 @@ pub fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    goto_tabpage_tp(Some(tp), true, true);
+    goto_tabpage_tp(Some(&tp), true, true);
     try_leave(&tstate, err);
 }
 

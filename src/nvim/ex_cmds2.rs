@@ -308,7 +308,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
     for tp in for_all_tabpages_ptr() {
         if g_st().curtab != tp {
-            for wp2 in win_iter_mut(first_win_in_tab(&mut *tp)) {
+            for wp2 in win_iter_mut(first_win_in_tab(&tp)) {
                 add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum);
             }
         }
@@ -376,8 +376,8 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut wiped = false;
         if buf != g_st().curbuf.as_ptr() {
             let mut found = false;
-            let mut tp = g_st().first_tabpage;
-            while let Some(tp_ref) = tp.opt_mut()
+            let mut tp = g_st().first_tabpage.clone();
+            while let Some(tp_ref) = tp.opt()
                 && !found
             {
                 for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
@@ -385,7 +385,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf.opt_mut());
 
-                        goto_tabpage_win(tp.borrow_mut(), wp);
+                        goto_tabpage_win(tp.borrow(), wp);
 
                         if !bufref_valid(Some(&bufref)) {
                             wiped = true;
@@ -395,7 +395,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     }
                 }
 
-                tp = tp.tp_next;
+                tp = tp.tp_next.get();
             }
         }
 
@@ -494,7 +494,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
         let mut next_fnum: i32 = 0;
         let mut i: i32 = 0;
         let mut wp = g_st().firstwin;
-        let mut tp = g_st().first_tabpage;
+        let mut tp = g_st().first_tabpage.clone();
         match eap.cmdidx {
             Cmdidx::CmdWindo => {
                 while !wp.is_null() && i + 1 < eap.line1 {
@@ -507,7 +507,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 while !tp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    tp = tp.tp_next;
+                    tp = tp.tp_next.get();
                 }
             }
             Cmdidx::CmdArgdo => {
@@ -592,9 +592,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     break;
                 }
                 debug_assert!(!tp.is_null());
-                goto_tabpage_tp(tp.opt_mut(), true, true);
+                goto_tabpage_tp(tp.opt(), true, true);
 
-                tp = tp.tp_next;
+                tp = tp.tp_next.get();
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
                 for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {
@@ -835,9 +835,9 @@ pub fn ex_drop(eap: &mut Exarg) {
     let buf = crate::globals::BufPtr::from(buflist_findnr(curwin_arglist().ae_fnum));
 
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
+        for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.w_buffer == buf {
-                goto_tabpage_win(&mut *tp, wp);
+                goto_tabpage_win(&tp, wp);
                 curwin_mut().w_arg_idx = 0;
                 if !buf_is_changed_fn(curbuf_mut()) {
                     let save_ar = curbuf_mut().b_p_ar;

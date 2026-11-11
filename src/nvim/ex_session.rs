@@ -279,7 +279,7 @@ fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &mut u32) -> bool {
 fn put_view(
     fd: &CFile,
     wp: &mut WinInfoInfo,
-    tp: &mut TabPageInfo,
+    tp: &TabPageInfo,
     add_edit: bool,
     flagp: &mut u32,
     current_arg_idx: i32,
@@ -301,7 +301,7 @@ fn put_view(
             &entries,
             ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                 || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
-                || tp.tp_localdir.is_some()
+                || tp.tp_localdir.get().is_some()
                 || wp.w_localdir.is_some(),
             &mut *flagp,
         ) {
@@ -664,7 +664,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         }
 
         let mut restore_stal = false;
-        if opt_vars().p_stal == 1 && !crate::globals::first_tabpage_mut().tp_next.is_null() {
+        if opt_vars().p_stal == 1 && !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
             if !put_line(fd, c"set stal=2") {
                 return false;
             }
@@ -673,12 +673,15 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
             for tp in for_all_tabpages_mut() {
-                if !tp.tp_next.is_null() && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe") {
+                if !tp.tp_next.get().is_null()
+                    && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe")
+                {
                     return false;
                 }
             }
 
-            if !crate::globals::first_tabpage_mut().tp_next.is_null() && !put_line(fd, c"tabrewind")
+            if !crate::globals::first_tabpage_mut().tp_next.get().is_null()
+                && !put_line(fd, c"tabrewind")
             {
                 return false;
             }
@@ -686,7 +689,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         let mut restore_height_width = false;
         for tp_iter in for_all_tabpages_ptr() {
-            let mut tp = crate::globals::TabpagePtr::from(&*tp_iter);
+            let mut tp = tp_iter;
             let mut need_tabnext = false;
             let mut cnr: i32 = 1;
             let tab_firstwin;
@@ -697,20 +700,20 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     tab_firstwin = g_st().firstwin;
                     tab_topframe = g_st().topframe.clone();
                 } else {
-                    tab_firstwin = tp.tp_firstwin;
-                    tab_topframe = tp.tp_topframe.clone();
+                    tab_firstwin = tp.tp_firstwin.get();
+                    tab_topframe = tp.tp_topframe.get();
                 }
                 if g_st().first_tabpage != tp {
                     need_tabnext = true;
                 }
             } else {
-                tp = g_st().curtab;
+                tp = g_st().curtab.clone();
                 tab_firstwin = g_st().firstwin;
                 tab_topframe = g_st().topframe.clone();
             }
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
-                && let Some(tp_localdir) = &(tp.borrow().tp_localdir)
+                && let Some(tp_localdir) = tp.tp_localdir.get()
             {
                 if need_tabnext && !put_line(fd, c"tabnext") {
                     return false;
@@ -813,7 +816,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if !put_view(
                     fd,
                     wp_ref,
-                    tp.borrow_mut(),
+                    tp.borrow(),
                     edited_win != wp,
                     &mut opt_vars().ssop_flags,
                     cur_arg_idx,
@@ -1022,7 +1025,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 } else {
                     &mut opt_vars().ssop_flags
                 };
-                failed |= !put_view(&fd, curwin_mut(), curtab_mut(), !using_vdir, flagp, -1);
+                failed |= !put_view(&fd, curwin_mut(), &curtab_mut(), !using_vdir, flagp, -1);
             }
             if !write_bytes(&fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                 failed = true;

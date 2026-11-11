@@ -1669,7 +1669,7 @@ fn did_set_global_chars_option<'a>(
     }
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             let opt = if what == CharsOption::Listchars {
                 wp.w_onebuf_opt.wo_lcs.to_owned()
             } else {
@@ -2779,7 +2779,7 @@ pub fn did_set_spellsuggest<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 pub fn did_set_splitkeep<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_mut(&*tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             wp.w_prev_height = wp.w_height;
             wp.w_prev_winrow = wp.w_winrow;
         }
@@ -3834,7 +3834,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
         return Some(E_CONFLICTS_WITH_VALUE_OF_FILLCHARS);
     }
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             let wo_lcs = wp.w_onebuf_opt.wo_lcs.to_owned();
             if set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None).is_some() {
                 return Some(E_CONFLICTS_WITH_VALUE_OF_LISTCHARS);

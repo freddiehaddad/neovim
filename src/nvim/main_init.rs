@@ -131,8 +131,8 @@ use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
 use crate::version::{MAIN_EXITFREE, list_version};
 use crate::window::{
-    TabPageInfo, goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first,
-    win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
+    goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first, win_close,
+    win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
 use std::ffi::CStr;
 use std::io::Write;
@@ -695,7 +695,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     edit_buffers(&mut params);
 
     if params.diff_mode != 0 {
-        for wp in win_iter_ptr(curtab_mut().tp_firstwin.as_ptr()) {
+        for wp in win_iter_ptr(curtab_mut().tp_firstwin.get().as_ptr()) {
             if !wp.w_arg_idx_invalid {
                 diff_win_options(&mut *wp, true);
             }
@@ -882,14 +882,14 @@ pub fn getout(mut exitval: i32) -> ! {
     invoke_all_defer();
 
     if g_st().v_dying <= 1 {
-        let mut next_tp: Option<&'static mut TabPageInfo>;
-        let mut tp_opt = g_st().first_tabpage.opt_mut();
+        let mut next_tp: Option<crate::globals::TabpagePtr>;
+        let mut tp_opt = (!g_st().first_tabpage.is_null()).then(|| g_st().first_tabpage.clone());
         while let Some(tp) = tp_opt {
             next_tp = tp.next_opt();
             let first_wp = if g_st().curtab == tp {
                 g_st().firstwin.as_ptr()
             } else {
-                tp.tp_firstwin.as_ptr()
+                tp.tp_firstwin.get().as_ptr()
             };
             for wp in win_iter_mut(first_wp) {
                 if !buf_valid(wp.buf_opt()) {
@@ -912,7 +912,8 @@ pub fn getout(mut exitval: i32) -> ! {
                     {
                         buf_set_changedtick(buf_now, -1);
                     }
-                    next_tp = g_st().first_tabpage.opt_mut();
+                    next_tp =
+                        (!g_st().first_tabpage.is_null()).then(|| g_st().first_tabpage.clone());
                     break;
                 }
             }
@@ -1933,7 +1934,7 @@ fn create_windows(parmp: &mut Mparm) {
                     set_curwin(g_st().firstwin.as_ptr());
                 }
             } else if parmp.window_layout == WIN_TABS {
-                if curtab_mut().tp_next.is_null() {
+                if curtab_mut().tp_next.get().is_null() {
                     break;
                 }
                 goto_tabpage(0);
@@ -2010,7 +2011,7 @@ fn edit_buffers(parmp: &mut Mparm) {
 
         if advance {
             if parmp.window_layout == WIN_TABS {
-                if curtab_mut().tp_next.is_null() {
+                if curtab_mut().tp_next.get().is_null() {
                     break;
                 }
                 goto_tabpage(0);

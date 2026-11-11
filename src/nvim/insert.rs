@@ -3456,7 +3456,7 @@ fn ins_pageup() {
     undisplay_dollar();
 
     if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-        if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+        if !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
             start_arrow(Some(curwin_mut().w_cursor), true, NUL as i32);
             goto_tabpage(-1);
         }
@@ -3500,7 +3500,7 @@ fn ins_pagedown() {
     undisplay_dollar();
 
     if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-        if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+        if !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
             start_arrow(Some(curwin_mut().w_cursor), true, NUL as i32);
             goto_tabpage(0);
         }

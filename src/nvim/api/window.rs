@@ -335,10 +335,10 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
     try_wrap(err, || {
         if is_ctx_win(w.borrow()) {
             emsg(gettext(E_AUTOCMD_CLOSE));
-        } else if tabpage == g_st().curtab.as_ptr() {
+        } else if tabpage == g_st().curtab {
             win_close(w.borrow_mut(), false, false);
         } else {
-            win_close_othertab(w.borrow_mut(), 0, tabpage.borrow_mut(), false);
+            win_close_othertab(w.borrow_mut(), 0, tabpage.borrow(), false);
         }
     });
 }
@@ -363,10 +363,10 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         ex_win_close(
             force,
             w,
-            if tabpage == g_st().curtab.as_ptr() {
+            if tabpage == g_st().curtab {
                 None
             } else {
-                tabpage.opt_mut()
+                tabpage.opt()
             },
         );
     });
@@ -397,7 +397,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
         if ctx_switch(
             &mut cs,
             w.opt_mut(),
-            tabpage.opt_mut(),
+            tabpage.opt(),
             None,
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {

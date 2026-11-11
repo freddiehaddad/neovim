@@ -2345,14 +2345,14 @@ pub fn autocmd_register(
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
             && !(has_event(EVENT_WINSCROLLED) || has_event(EVENT_WINRESIZED))
         {
-            let save_curtab = g_st().curtab;
+            let save_curtab = g_st().curtab.clone();
             for tp in for_all_tabpages_ptr() {
-                unuse_tabpage(curtab_mut());
-                use_tabpage(tp);
+                unuse_tabpage(&curtab_mut());
+                use_tabpage(&tp);
                 snapshot_windows_scroll_size();
             }
-            unuse_tabpage(curtab_mut());
-            use_tabpage(save_curtab.borrow_mut());
+            unuse_tabpage(&curtab_mut());
+            use_tabpage(save_curtab.borrow());
         }
 
         std::rc::Rc::new(AutoPat {
@@ -2807,7 +2807,7 @@ pub fn apply_autocmds_group(
             {
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
-                    for wp in for_all_windows_in_tab_mut(&*tp) {
+                    for wp in for_all_windows_in_tab_mut(&tp) {
                         if wp.w_buffer == buf
                             && !event_ignored(event, wp.w_onebuf_opt.wo_eiw.as_cstr())
                         {

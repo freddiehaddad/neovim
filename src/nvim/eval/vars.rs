@@ -2682,7 +2682,7 @@ pub fn find_var_in_ht(
             b'v' => get_vimvars_var().di_id,
             b'b' => curbuf_mut().b_bufvar,
             b'w' => curwin_mut().w_winvar,
-            b't' => curtab_mut().tp_winvar,
+            b't' => curtab_mut().tp_winvar.get(),
             b'l' => crate::eval::typval::DictitemId::from(get_funccal_local_var()),
             b'a' => crate::eval::typval::DictitemId::from(get_funccal_args_var()),
             _ => crate::eval::typval::DictitemId::NULL,
@@ -3201,7 +3201,7 @@ fn get_var_from(
     rettv: &mut TypVal,
     deftv: &mut TypVal,
     htname: i32,
-    tp_in: Option<&mut TabPageInfo>,
+    tp_in: Option<&TabPageInfo>,
     win_in: Option<&mut WinInfoInfo>,
     buf_in: Option<&mut FileBuf>,
 ) {
@@ -3221,14 +3221,13 @@ fn get_var_from(
         && !win.is_null()
         && (htname != b'b' as i32 || !buf.is_null())
     {
-        let need_switch_win =
-            !(tp == g_st().curtab.as_ptr() && win == curwin_ptr()) && !do_change_curbuf;
+        let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
                 &mut switchwin,
                 win.opt_mut(),
-                tp.opt_mut(),
+                tp.opt(),
                 None,
                 K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
             )
@@ -3258,7 +3257,7 @@ fn get_var_from(
                 } else if htname == b'w' as i32 {
                     win.w_winvar
                 } else {
-                    tp.tp_winvar
+                    tp.tp_winvar.get()
                 };
                 tv_copy(&v.borrow().di_tv, rettv);
                 done = true;
@@ -3268,7 +3267,7 @@ fn get_var_from(
                 } else if htname == b'w' as i32 {
                     &mut win.borrow_mut().w_vars().dv_hashtab
                 } else {
-                    &mut tp.borrow_mut().tp_vars().dv_hashtab
+                    &mut tp.borrow().tp_vars().dv_hashtab
                 };
 
                 if let Some(v) =
@@ -3298,12 +3297,10 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab
+        g_st().curtab.clone()
     };
-    let win = crate::globals::WinPtr::from(
-        tp.opt_mut()
-            .and_then(|tp| find_win_by_nr(&head[off], Some(tp))),
-    );
+    let win =
+        crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
     let varname = tv_get_string_chk(&head[off + 1]);
 
     get_var_from(
@@ -3311,7 +3308,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
         rettv,
         &mut tail[0],
         b'w' as i32,
-        tp.opt_mut(),
+        tp.opt(),
         win.opt_mut(),
         None,
     );
@@ -3464,12 +3461,10 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab
+        g_st().curtab.clone()
     };
-    let win = crate::globals::WinPtr::from(
-        tp.opt_mut()
-            .and_then(|tp| find_win_by_nr(&head[off], Some(tp))),
-    );
+    let win =
+        crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
     let varname_opt = tv_get_string_chk(&head[off + 1]);
 
     if win.is_null() {
@@ -3485,7 +3480,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         || ctx_switch(
             &mut switchwin,
             win.opt_mut(),
-            tp.opt_mut(),
+            tp.opt(),
             None,
             K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
         )
@@ -3673,11 +3668,11 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let tp = crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(arg0, None) as i32));
     let mut win = crate::globals::WinPtr::NULL;
 
-    if let Some(tp_ref) = tp.opt_mut() {
-        win = if g_st().curtab == tp_ref || tp_ref.tp_firstwin.is_null() {
+    if let Some(tp_ref) = tp.opt() {
+        win = if g_st().curtab == tp_ref || tp_ref.tp_firstwin.get().is_null() {
             g_st().firstwin
         } else {
-            tp_ref.tp_firstwin
+            tp_ref.tp_firstwin.get()
         };
     }
 
@@ -3686,7 +3681,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         &mut *rettv,
         arg2,
         b't' as i32,
-        tp.opt_mut(),
+        tp.opt(),
         win.opt_mut(),
         None,
     );
@@ -3715,7 +3710,7 @@ pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         &mut *rettv,
         arg2,
         b'b' as i32,
-        Some(curtab_mut()),
+        Some(&curtab_mut()),
         Some(curwin_mut()),
         buf,
     );
@@ -3743,14 +3738,14 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
 
-    let save_curtab = g_st().curtab;
-    let save_lu_tp = g_st().lastused_tabpage;
-    goto_tabpage_tp(Some(tp_ref), false, false);
+    let save_curtab = g_st().curtab.clone();
+    let save_lu_tp = g_st().lastused_tabpage.clone();
+    goto_tabpage_tp(Some(&tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
 
     if valid_tabpage(save_curtab.opt()) {
-        goto_tabpage_tp(save_curtab.opt_mut(), false, false);
+        goto_tabpage_tp(save_curtab.opt(), false, false);
         if valid_tabpage(save_lu_tp.opt()) {
             g_st().lastused_tabpage = save_lu_tp;
         }

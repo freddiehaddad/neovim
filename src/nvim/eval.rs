@@ -4133,7 +4133,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(&tp) {
                 abort = abort || set_ref_in_item(&mut wp.w_winvar.di_tv, copy_id, None, None);
             }
         }
@@ -4147,7 +4147,13 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for tp in for_all_tabpages_mut() {
-            abort = abort || set_ref_in_item(&mut tp.tp_winvar.di_tv, copy_id, None, None);
+            abort = abort
+                || set_ref_in_item(
+                    &mut tp.tp_winvar.get().borrow_mut().di_tv,
+                    copy_id,
+                    None,
+                    None,
+                );
         }
     }
 

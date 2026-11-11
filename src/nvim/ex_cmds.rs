@@ -1230,7 +1230,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
     if dest >= line2 {
         mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, K_EXTMARK_NOOP);
         for tab in for_all_tabpages_ptr() {
-            for win in for_all_windows_in_tab_mut(&*tab) {
+            for win in for_all_windows_in_tab_mut(&tab) {
                 if win.w_buffer == g_st().curbuf {
                     fold_move_range(&mut win.w_folds, line1, line2, dest);
                 }
@@ -1245,7 +1245,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
     } else {
         mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, K_EXTMARK_NOOP);
         for tab in for_all_tabpages_ptr() {
-            for win in for_all_windows_in_tab_mut(&*tab) {
+            for win in for_all_windows_in_tab_mut(&tab) {
                 if win.w_buffer == g_st().curbuf {
                     fold_move_range(&mut win.w_folds, dest + 1, line1 - 1, line2);
                 }
@@ -2924,7 +2924,7 @@ pub fn do_ecmd(
             curwin_init();
 
             for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(&*tp) {
+                for win in for_all_windows_in_tab_mut(&tp) {
                     if win.w_buffer == g_st().curbuf {
                         fold_update_all(win);
                     }

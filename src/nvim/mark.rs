@@ -876,7 +876,7 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
         fmarks_check_one(&mut g_st().namedfm[i], &name, buf);
     }
 
-    for wp in win_iter_mut(first_win_in_tab(curtab_mut())) {
+    for wp in win_iter_mut(first_win_in_tab(&curtab_mut())) {
         for i in 0..(wp.w_jumplistlen as usize) {
             fmarks_check_one(&mut wp.w_jumplist[i], &name, buf);
         }
@@ -1443,7 +1443,7 @@ pub fn mark_adjust_buf(
         }
         let mut found_one = false;
         for tab in for_all_tabpages_ptr() {
-            for win in win_iter_ptr(first_win_in_tab(&mut *tab)) {
+            for win in win_iter_ptr(first_win_in_tab(&tab)) {
                 found_one |= qf_mark_adjust(buf, Some(&*win), line1, line2, amount, amount_after);
             }
         }
@@ -1484,7 +1484,7 @@ pub fn mark_adjust_buf(
     }
 
     for tab in for_all_tabpages_ptr() {
-        for win in win_iter_ptr(first_win_in_tab(&mut *tab)) {
+        for win in win_iter_ptr(first_win_in_tab(&tab)) {
             if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 for i in 0..(win.w_jumplistlen as usize) {
                     if win.w_jumplist[i].fmark.fnum == fnum {
@@ -1731,7 +1731,7 @@ pub fn mark_col_adjust(
         spaces_removed,
     );
 
-    for win in win_iter_ptr(first_win_in_tab(curtab_mut())) {
+    for win in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
         for i in 0..(win.w_jumplistlen as usize) {
             if win.w_jumplist[i].fmark.fnum == fnum {
                 col_adjust(

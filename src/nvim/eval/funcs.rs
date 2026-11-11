@@ -211,7 +211,7 @@ use crate::ui::{
 };
 use crate::ui_compositor::ui_comp_get_grid_at_coord;
 use crate::version::{has_nvim_version, has_vim_patch};
-use crate::window::{TabPageInfo, WinInfoInfo, find_tabpage};
+use crate::window::{WinInfoInfo, find_tabpage};
 use std::ffi::CStr;
 
 pub type SpecialVarValue = i32;
@@ -1653,7 +1653,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
 
     let mut wp = curwin_ptr();
     if argvars[1].v_type != VarType::VarUnknown {
-        let mut tp: Option<&'static mut TabPageInfo> = None;
+        let mut tp: Option<crate::globals::TabpagePtr> = None;
         let Some(wp_ref) = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, Some(&mut tp)) else {
             return;
         };
@@ -4885,7 +4885,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
     if argvars[1].v_type != VarType::VarUnknown {
         let id = tv_get_number(&argvars[1]) as i32;
-        let mut tp: Option<&'static mut TabPageInfo> = None;
+        let mut tp: Option<crate::globals::TabpagePtr> = None;
         if let Some(wp_ref) = win_id2wp_tp(id, Some(&mut tp))
             && tp.is_some()
         {
@@ -8212,7 +8212,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         wp = if g_st().curtab == tp {
             g_st().firstwin
         } else {
-            tp.tp_firstwin
+            tp.tp_firstwin.get()
         };
     }
     if !wp.is_null() {
@@ -8370,7 +8370,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     'theend: {
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
-            let mut tp: Option<&'static mut TabPageInfo> = None;
+            let mut tp: Option<crate::globals::TabpagePtr> = None;
             let Some(wp_ref) = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, Some(&mut tp))
             else {
                 break 'theend;

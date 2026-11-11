@@ -28,7 +28,7 @@ use crate::memory::{Arena, ArenaMem, arena_finish};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
-use crate::window::{TabPageInfo, WinInfoInfo};
+use crate::window::WinInfoInfo;
 use std::ffi::CStr;
 use std::ptr;
 
@@ -602,14 +602,14 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinP
     rv
 }
 
-pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static mut TabPageInfo> {
+pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
     if tabpage == 0 {
-        return g_st().curtab.opt_mut();
+        return (!g_st().curtab.is_null()).then(|| g_st().curtab.clone());
     }
     let rv = g_st()
         .tabpage_handles
         .get(&tabpage)
-        .copied()
+        .cloned()
         .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
@@ -620,7 +620,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static 
         );
         return None;
     }
-    rv.opt_mut()
+    Some(rv)
 }
 
 #[inline]
@@ -641,7 +641,7 @@ pub fn find_window_by_handle_mut(
 pub fn find_tab_by_handle_mut(
     tabpage: Tabpage,
     err: &mut Error,
-) -> Option<&'static mut TabPageInfo> {
+) -> Option<crate::globals::TabpagePtr> {
     find_tab_by_handle(tabpage, err)
 }
 

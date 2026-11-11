@@ -700,7 +700,7 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
         for wp in win_iter_mut(if g_st().curtab == tp {
             g_st().firstwin.as_ptr()
         } else {
-            tp.tp_firstwin.as_ptr()
+            tp.tp_firstwin.get().as_ptr()
         }) {
             if wp.w_buffer == buf
                 && wp.w_minscwidth == SCL_NUM

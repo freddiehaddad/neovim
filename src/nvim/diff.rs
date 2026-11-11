@@ -190,7 +190,7 @@ struct DiffState {
     diff_a_works: std::cell::Cell<TriState>,
     next_diff_id: std::cell::Cell<u64>,
     diff_finger_dp_idx: std::cell::Cell<Option<usize>>,
-    diff_finger_tp: std::cell::Cell<crate::globals::TabpagePtr>,
+    diff_finger_tp: crate::api::private::validate::CloneCell<crate::globals::TabpagePtr>,
     diff_finger_idx: std::cell::Cell<i32>,
     diff_finger_lnum: std::cell::Cell<Linenr>,
     f_diff_hlid_prev_lnum: std::cell::Cell<Linenr>,
@@ -215,7 +215,9 @@ impl DiffState {
             diff_a_works: std::cell::Cell::new(K_NONE),
             next_diff_id: std::cell::Cell::new(1),
             diff_finger_dp_idx: std::cell::Cell::new(None),
-            diff_finger_tp: std::cell::Cell::new(crate::globals::TabpagePtr::NULL),
+            diff_finger_tp: crate::api::private::validate::CloneCell::new(
+                crate::globals::TabpagePtr::NULL,
+            ),
             diff_finger_idx: std::cell::Cell::new(-1),
             diff_finger_lnum: std::cell::Cell::new(0),
             f_diff_hlid_prev_lnum: std::cell::Cell::new(0),
@@ -247,9 +249,9 @@ fn diff_flags() -> i32 {
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set_dip & (1u64 << idx)) != 0
 }
-fn diff_scan_start(tp: &mut TabPageInfo, idx: i32, lnum: Linenr) -> usize {
-    let tp_ptr = crate::globals::TabpagePtr::from(&mut *tp);
-    let dp_len = tp.tp_diffs.len();
+fn diff_scan_start(tp: &TabPageInfo, idx: i32, lnum: Linenr) -> usize {
+    let tp_ptr = crate::globals::TabpagePtr::from(tp);
+    let dp_len = tp.tp_diffs.borrow().len();
     diff_st(|st| {
         if let Some(dp_idx) = st.diff_finger_dp_idx.get()
             && st.diff_finger_tp.get() == tp_ptr
@@ -263,8 +265,8 @@ fn diff_scan_start(tp: &mut TabPageInfo, idx: i32, lnum: Linenr) -> usize {
         }
     })
 }
-fn diff_scan_remember(tp: &mut TabPageInfo, idx: i32, lnum: Linenr, dp_idx: Option<usize>) {
-    let tp_ptr = crate::globals::TabpagePtr::from(&mut *tp);
+fn diff_scan_remember(tp: &TabPageInfo, idx: i32, lnum: Linenr, dp_idx: Option<usize>) {
+    let tp_ptr = crate::globals::TabpagePtr::from(tp);
     diff_st(|st| {
         st.diff_finger_tp.set(tp_ptr);
         st.diff_finger_idx.set(idx);
@@ -274,10 +276,10 @@ fn diff_scan_remember(tp: &mut TabPageInfo, idx: i32, lnum: Linenr, dp_idx: Opti
 }
 pub fn diff_buf_delete(buf: &FileBuf) {
     for tp in for_all_tabpages_ptr() {
-        let i = diff_buf_idx(buf, &*tp);
+        let i = diff_buf_idx(buf, &tp);
         if i != DB_COUNT as i32 {
-            tp.tp_diffbuf[i as usize] = crate::globals::BufPtr::NULL;
-            tp.tp_diff_invalid = 1;
+            tp.tp_diffbuf[i as usize].set(crate::globals::BufPtr::NULL);
+            tp.tp_diff_invalid.set(1);
             if g_st().curtab == tp {
                 g_st().need_diff_redraw = true;
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -294,10 +296,10 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
             }
         }
         if !found_win {
-            let i = diff_buf_idx(win.buf_mut(), curtab_mut());
+            let i = diff_buf_idx(win.buf_mut(), &curtab_mut());
             if i != DB_COUNT as i32 {
-                curtab_mut().tp_diffbuf[i as usize] = crate::globals::BufPtr::NULL;
-                curtab_mut().tp_diff_invalid = 1;
+                curtab_mut().tp_diffbuf[i as usize].set(crate::globals::BufPtr::NULL);
+                curtab_mut().tp_diff_invalid.set(1);
                 diff_redraw(true);
             }
         }
@@ -306,13 +308,13 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
     }
 }
 pub fn diff_buf_add(buf: &mut FileBuf) {
-    if diff_buf_idx(buf, curtab_mut()) != DB_COUNT as i32 {
+    if diff_buf_idx(buf, &curtab_mut()) != DB_COUNT as i32 {
         return;
     }
     for i in 0..DB_COUNT {
-        if curtab_mut().tp_diffbuf[i].is_null() {
-            curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::from(&mut *buf);
-            curtab_mut().tp_diff_invalid = 1;
+        if curtab_mut().tp_diffbuf[i].get().is_null() {
+            curtab_mut().tp_diffbuf[i].set(crate::globals::BufPtr::from(&mut *buf));
+            curtab_mut().tp_diff_invalid.set(1);
             diff_redraw(true);
             return;
         }
@@ -324,9 +326,9 @@ pub fn diff_buf_add(buf: &mut FileBuf) {
 }
 fn diff_buf_clear() {
     for i in 0..DB_COUNT {
-        if !curtab_mut().tp_diffbuf[i].is_null() {
-            curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::NULL;
-            curtab_mut().tp_diff_invalid = 1;
+        if !curtab_mut().tp_diffbuf[i].get().is_null() {
+            curtab_mut().tp_diffbuf[i].set(crate::globals::BufPtr::NULL);
+            curtab_mut().tp_diff_invalid.set(1);
             diff_redraw(true);
         }
     }
@@ -334,7 +336,7 @@ fn diff_buf_clear() {
 fn diff_buf_idx(buf: &FileBuf, tp: &TabPageInfo) -> i32 {
     let mut idx: usize = 0;
     while idx < DB_COUNT {
-        if tp.tp_diffbuf[idx] == buf {
+        if tp.tp_diffbuf[idx].get() == buf {
             break;
         }
         idx += 1;
@@ -343,9 +345,9 @@ fn diff_buf_idx(buf: &FileBuf, tp: &TabPageInfo) -> i32 {
 }
 pub fn diff_invalidate(buf: &FileBuf) {
     for tp in for_all_tabpages_ptr() {
-        let i = diff_buf_idx(buf, &*tp);
+        let i = diff_buf_idx(buf, &tp);
         if i != DB_COUNT as i32 {
-            tp.tp_diff_invalid = 1;
+            tp.tp_diff_invalid.set(1);
             if g_st().curtab == tp {
                 diff_redraw(true);
             }
@@ -360,14 +362,14 @@ pub fn diff_mark_adjust(
     amount_after: Linenr,
 ) {
     for tp in for_all_tabpages_mut() {
-        let idx = diff_buf_idx(buf, tp);
+        let idx = diff_buf_idx(buf, &tp);
         if idx != DB_COUNT as i32 {
-            diff_mark_adjust_tp(tp, idx as usize, line1, line2, amount, amount_after);
+            diff_mark_adjust_tp(&tp, idx as usize, line1, line2, amount, amount_after);
         }
     }
 }
 fn diff_mark_adjust_tp(
-    tp: &mut TabPageInfo,
+    tp: &TabPageInfo,
     idx: usize,
     line1: Linenr,
     line2: Linenr,
@@ -376,8 +378,8 @@ fn diff_mark_adjust_tp(
 ) {
     diff_st(|st| st.diff_finger_dp_idx.set(None));
     if diff_internal() != 0 {
-        tp.tp_diff_invalid = 1;
-        tp.tp_diff_update = 1;
+        tp.tp_diff_invalid.set(1);
+        tp.tp_diff_update.set(1);
     }
     let inserted: Linenr;
     let mut deleted: Linenr;
@@ -395,52 +397,69 @@ fn diff_mark_adjust_tp(
     let mut dp_idx: usize = 0;
     let mut lnum_deleted = line1;
     loop {
-        let dp_past_line2 = dp_idx >= tp.tp_diffs.len()
-            || (&tp.tp_diffs)[dp_idx].df_lnum[idx] - 1 > line2
-            || (line2 == MAXLNUM && (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line1);
+        let dp_past_line2 = {
+            let diffs = tp.tp_diffs.borrow();
+            dp_idx >= diffs.len()
+                || diffs[dp_idx].df_lnum[idx] - 1 > line2
+                || (line2 == MAXLNUM && diffs[dp_idx].df_lnum[idx] > line1)
+        };
         let dprev_before_line1 = match dprev_idx {
             None => true,
-            Some(pi) => (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx] < line1,
+            Some(pi) => {
+                let diffs = tp.tp_diffs.borrow();
+                diffs[pi].df_lnum[idx] + diffs[pi].df_count[idx] < line1
+            }
         };
         let busy = diff_st(|st| st.diff_busy.get());
         if dp_past_line2 && dprev_before_line1 && !busy {
-            let dprev_copy =
-                dprev_idx.map(|pi| ((&tp.tp_diffs)[pi].df_lnum, (&tp.tp_diffs)[pi].df_count));
+            let dprev_copy = dprev_idx.map(|pi| {
+                let diffs = tp.tp_diffs.borrow();
+                (diffs[pi].df_lnum, diffs[pi].df_count)
+            });
             let dnext_idx = diff_alloc_new(tp, dp_idx);
             dp_idx += 1;
-            (&mut tp.tp_diffs)[dnext_idx].df_lnum[idx] = line1;
-            (&mut tp.tp_diffs)[dnext_idx].df_count[idx] = inserted;
-            for i in 0..DB_COUNT {
-                if !tp.tp_diffbuf[i].is_null() && i != idx {
-                    (&mut tp.tp_diffs)[dnext_idx].df_lnum[i] = match dprev_copy {
-                        None => line1,
-                        Some((prev_lnum, prev_count)) => {
-                            line1 + (prev_lnum[i] + prev_count[i])
-                                - (prev_lnum[idx] + prev_count[idx])
-                        }
-                    };
-                    (&mut tp.tp_diffs)[dnext_idx].df_count[i] = deleted;
+            {
+                let mut diffs = tp.tp_diffs.borrow_mut();
+                diffs[dnext_idx].df_lnum[idx] = line1;
+                diffs[dnext_idx].df_count[idx] = inserted;
+                for i in 0..DB_COUNT {
+                    if !tp.tp_diffbuf[i].get().is_null() && i != idx {
+                        diffs[dnext_idx].df_lnum[i] = match dprev_copy {
+                            None => line1,
+                            Some((prev_lnum, prev_count)) => {
+                                line1 + (prev_lnum[i] + prev_count[i])
+                                    - (prev_lnum[idx] + prev_count[idx])
+                            }
+                        };
+                        diffs[dnext_idx].df_count[i] = deleted;
+                    }
                 }
             }
         }
-        if dp_idx >= tp.tp_diffs.len() {
+        if dp_idx >= tp.tp_diffs.borrow().len() {
             break;
         }
-        let last = (&tp.tp_diffs)[dp_idx].df_lnum[idx] + (&tp.tp_diffs)[dp_idx].df_count[idx] - 1;
+        let last = {
+            let diffs = tp.tp_diffs.borrow();
+            diffs[dp_idx].df_lnum[idx] + diffs[dp_idx].df_count[idx] - 1
+        };
         if last >= line1 - 1 {
             if busy {
-                if (&tp.tp_diffs)[dp_idx].df_lnum[idx] > line2 {
-                    (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
+                let mut diffs = tp.tp_diffs.borrow_mut();
+                if diffs[dp_idx].df_lnum[idx] > line2 {
+                    diffs[dp_idx].df_lnum[idx] += amount_after;
                 }
                 dprev_idx = Some(dp_idx);
                 dp_idx += 1;
                 continue;
             }
-            if (&tp.tp_diffs)[dp_idx].df_lnum[idx] - Linenr::from(deleted + inserted != 0) > line2 {
+            if tp.tp_diffs.borrow()[dp_idx].df_lnum[idx] - Linenr::from(deleted + inserted != 0)
+                > line2
+            {
                 if amount_after == 0 {
                     break;
                 }
-                (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += amount_after;
+                tp.tp_diffs.borrow_mut()[dp_idx].df_lnum[idx] += amount_after;
             } else {
                 let mut check_unchanged = false;
                 if deleted > 0 {
@@ -448,10 +467,12 @@ fn diff_mark_adjust_tp(
                     let mut off: Linenr = 0;
                     let next_lnum = tp
                         .tp_diffs
+                        .borrow()
                         .as_slice()
                         .get(dp_idx + 1)
                         .map(|nd| nd.df_lnum[idx]);
-                    let dp = &mut (&mut tp.tp_diffs)[dp_idx];
+                    let mut diffs = tp.tp_diffs.borrow_mut();
+                    let dp = &mut diffs[dp_idx];
                     if dp.df_lnum[idx] >= line1 {
                         if last <= line2 {
                             if let Some(nl) = next_lnum
@@ -489,7 +510,7 @@ fn diff_mark_adjust_tp(
                         dp.df_count[idx] -= deleted;
                     }
                     for i in 0..DB_COUNT {
-                        if !tp.tp_diffbuf[i].is_null() && i != idx {
+                        if !tp.tp_diffbuf[i].get().is_null() && i != idx {
                             if dp.df_lnum[i] > off {
                                 dp.df_lnum[i] -= off;
                             } else {
@@ -498,27 +519,35 @@ fn diff_mark_adjust_tp(
                             dp.df_count[i] += n;
                         }
                     }
-                } else if (&tp.tp_diffs)[dp_idx].df_lnum[idx] <= line1 {
-                    (&mut tp.tp_diffs)[dp_idx].df_count[idx] += inserted;
+                } else if tp.tp_diffs.borrow()[dp_idx].df_lnum[idx] <= line1 {
+                    tp.tp_diffs.borrow_mut()[dp_idx].df_count[idx] += inserted;
                     check_unchanged = true;
                 } else {
-                    (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += inserted;
+                    tp.tp_diffs.borrow_mut()[dp_idx].df_lnum[idx] += inserted;
                 }
                 if check_unchanged {
                     diff_check_unchanged(tp, dp_idx);
                 }
             }
         }
+        let can_merge = if let Some(pi) = dprev_idx {
+            let diffs = tp.tp_diffs.borrow();
+            !diffs[dp_idx].is_linematched
+                && !diff_st(|st| st.diff_busy.get())
+                && diffs[pi].df_lnum[idx] + diffs[pi].df_count[idx] == diffs[dp_idx].df_lnum[idx]
+        } else {
+            false
+        };
         if let Some(pi) = dprev_idx
-            && !(&tp.tp_diffs)[dp_idx].is_linematched
-            && !diff_st(|st| st.diff_busy.get())
-            && (&tp.tp_diffs)[pi].df_lnum[idx] + (&tp.tp_diffs)[pi].df_count[idx]
-                == (&tp.tp_diffs)[dp_idx].df_lnum[idx]
+            && can_merge
         {
-            let dp_counts = (&tp.tp_diffs)[dp_idx].df_count;
-            for (i, &c) in dp_counts.iter().enumerate() {
-                if !tp.tp_diffbuf[i].is_null() {
-                    (&mut tp.tp_diffs)[pi].df_count[i] += c;
+            let dp_counts = tp.tp_diffs.borrow()[dp_idx].df_count;
+            {
+                let mut diffs = tp.tp_diffs.borrow_mut();
+                for (i, &c) in dp_counts.iter().enumerate() {
+                    if !tp.tp_diffbuf[i].get().is_null() {
+                        diffs[pi].df_count[i] += c;
+                    }
                 }
             }
             diff_free(tp, dp_idx);
@@ -528,10 +557,10 @@ fn diff_mark_adjust_tp(
         }
     }
     let mut i_dp = 0;
-    while i_dp < tp.tp_diffs.len() {
+    while i_dp < tp.tp_diffs.borrow().len() {
         let mut i = 0;
         while i < DB_COUNT {
-            if !tp.tp_diffbuf[i].is_null() && (&tp.tp_diffs)[i_dp].df_count[i] != 0 {
+            if !tp.tp_diffbuf[i].get().is_null() && tp.tp_diffs.borrow()[i_dp].df_count[i] != 0 {
                 break;
             }
             i += 1;
@@ -547,14 +576,14 @@ fn diff_mark_adjust_tp(
         g_st().diff_need_scrollbind = true;
     }
 }
-fn diff_alloc_new(tp: &mut TabPageInfo, idx: usize) -> usize {
+fn diff_alloc_new(tp: &TabPageInfo, idx: usize) -> usize {
     let df_id = diff_st(|st| {
         let id = st.next_diff_id.get();
         st.next_diff_id.set(id + 1);
         st.diff_finger_dp_idx.set(None);
         id
     });
-    tp.tp_diffs.insert(
+    tp.tp_diffs.borrow_mut().insert(
         idx,
         DiffBlock {
             df_id,
@@ -567,14 +596,14 @@ fn diff_alloc_new(tp: &mut TabPageInfo, idx: usize) -> usize {
     );
     idx
 }
-fn diff_free(tp: &mut TabPageInfo, idx: usize) {
+fn diff_free(tp: &TabPageInfo, idx: usize) {
     diff_st(|st| st.diff_finger_dp_idx.set(None));
-    tp.tp_diffs.remove(idx);
+    tp.tp_diffs.borrow_mut().remove(idx);
 }
-fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
+fn diff_check_unchanged(tp: &TabPageInfo, dp_idx: usize) {
     let mut i_org = 0;
     while i_org < DB_COUNT {
-        if !tp.tp_diffbuf[i_org].is_null() {
+        if !tp.tp_diffbuf[i_org].get().is_null() {
             break;
         }
         i_org += 1;
@@ -582,39 +611,38 @@ fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
     if i_org == DB_COUNT {
         return;
     }
-    if !diff_check_sanity(tp, &(&tp.tp_diffs)[dp_idx]) {
+    if !diff_check_sanity(tp, &tp.tp_diffs.borrow()[dp_idx]) {
         return;
     }
     let mut off_org: Linenr = 0;
     let mut off_new: Linenr = 0;
     let mut dir = FORWARD;
     loop {
-        while (&tp.tp_diffs)[dp_idx].df_count[i_org] > 0 {
+        while tp.tp_diffs.borrow()[dp_idx].df_count[i_org] > 0 {
             if dir == BACKWARD {
-                off_org = (&tp.tp_diffs)[dp_idx].df_count[i_org] - 1;
+                off_org = tp.tp_diffs.borrow()[dp_idx].df_count[i_org] - 1;
             }
+            let lnum_org = tp.tp_diffs.borrow()[dp_idx].df_lnum[i_org] + off_org;
             let line_org = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
                 tp.diffbuf_mut(i_org),
-                (&tp.tp_diffs)[dp_idx].df_lnum[i_org] + off_org,
+                lnum_org,
             ));
             let mut i_new = i_org + 1;
             while i_new < DB_COUNT {
-                if tp.tp_diffbuf[i_new].is_null() {
+                if tp.tp_diffbuf[i_new].get().is_null() {
                     i_new += 1;
                     continue;
                 }
                 if dir == BACKWARD {
-                    off_new = (&tp.tp_diffs)[dp_idx].df_count[i_new] - 1;
+                    off_new = tp.tp_diffs.borrow()[dp_idx].df_count[i_new] - 1;
                 }
-                if off_new < 0 || off_new >= (&tp.tp_diffs)[dp_idx].df_count[i_new] {
+                if off_new < 0 || off_new >= tp.tp_diffs.borrow()[dp_idx].df_count[i_new] {
                     break;
                 }
+                let lnum_new = tp.tp_diffs.borrow()[dp_idx].df_lnum[i_new] + off_new;
                 if diff_cmp(
                     line_org.to_bytes(),
-                    crate::memline::ml_get_buf_slice(
-                        tp.diffbuf_mut(i_new),
-                        (&tp.tp_diffs)[dp_idx].df_lnum[i_new] + off_new,
-                    ),
+                    crate::memline::ml_get_buf_slice(tp.diffbuf_mut(i_new), lnum_new),
                 ) != 0
                 {
                     break;
@@ -624,12 +652,13 @@ fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
             if i_new != DB_COUNT {
                 break;
             }
+            let mut diffs = tp.tp_diffs.borrow_mut();
             for idx in i_org..DB_COUNT {
-                if !tp.tp_diffbuf[idx].is_null() {
+                if !tp.tp_diffbuf[idx].get().is_null() {
                     if dir == FORWARD {
-                        (&mut tp.tp_diffs)[dp_idx].df_lnum[idx] += 1;
+                        diffs[dp_idx].df_lnum[idx] += 1;
                     }
-                    (&mut tp.tp_diffs)[dp_idx].df_count[idx] -= 1;
+                    diffs[dp_idx].df_count[idx] -= 1;
                 }
             }
         }
@@ -864,7 +893,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
         for anchor_i in 0..=num_anchors {
             let mut orig_diff: Vec<DiffBlock> = Vec::new();
             if anchor_i != 0 {
-                orig_diff = std::mem::take(&mut curtab_mut().tp_diffs);
+                orig_diff = std::mem::take(&mut *curtab_mut().tp_diffs.borrow_mut());
             }
             let mut lnum_start = if anchor_i == 0 {
                 1
@@ -878,7 +907,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
             };
             let buf = curtab_mut().diffbuf_mut(idx_orig);
             if !diff_write(buf, &mut dio.dio_orig, lnum_start, lnum_end) {
-                diff_clear(curtab_mut());
+                diff_clear(&curtab_mut());
                 break 'theend;
             }
             for (idx_new, anchor_row) in
@@ -913,7 +942,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
             clear_diffin(&mut dio.dio_orig);
             if anchor_i != 0 {
                 diff_st(|st| st.diff_finger_dp_idx.set(None));
-                for dp in &mut curtab_mut().tp_diffs {
+                for dp in curtab_mut().tp_diffs.borrow_mut().iter_mut() {
                     for (idx, anchor_row) in anchors.iter().enumerate() {
                         if anchor_row[anchor_i - 1] > 0 {
                             dp.df_lnum[idx] += anchor_row[anchor_i - 1] - 1;
@@ -921,8 +950,8 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                     }
                 }
                 if !orig_diff.is_empty() {
-                    orig_diff.append(&mut curtab_mut().tp_diffs);
-                    curtab_mut().tp_diffs = orig_diff;
+                    orig_diff.append(&mut *curtab_mut().tp_diffs.borrow_mut());
+                    *curtab_mut().tp_diffs.borrow_mut() = orig_diff;
                 }
             }
         }
@@ -940,13 +969,13 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
         diff_st(|st| st.diff_need_update.set(true));
         return;
     }
-    let had_diffs = !curtab_mut().tp_diffs.is_empty();
-    diff_clear(curtab_mut());
-    curtab_mut().tp_diff_invalid = 0;
+    let had_diffs = !curtab_mut().tp_diffs.borrow().is_empty();
+    diff_clear(&curtab_mut());
+    curtab_mut().tp_diff_invalid.set(0);
     'theend: {
         let mut idx_orig = 0;
         while idx_orig < DB_COUNT {
-            if !curtab_mut().tp_diffbuf[idx_orig].is_null() {
+            if !curtab_mut().tp_diffbuf[idx_orig].get().is_null() {
                 break;
             }
             idx_orig += 1;
@@ -956,7 +985,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
         }
         let mut idx_new = idx_orig + 1;
         while idx_new < DB_COUNT {
-            if !curtab_mut().tp_diffbuf[idx_new].is_null() {
+            if !curtab_mut().tp_diffbuf[idx_new].get().is_null() {
                 break;
             }
             idx_new += 1;
@@ -982,7 +1011,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
         diff_try_update(&mut diffio, idx_orig, eap);
         curwin_mut().w_valid_cursor.lnum = 0;
     }
-    if had_diffs || !curtab_mut().tp_diffs.is_empty() {
+    if had_diffs || !curtab_mut().tp_diffs.borrow().is_empty() {
         diff_redraw(true);
         window_layout_lock();
         apply_autocmds(EVENT_DIFFUPDATED, None, None, false, curbuf_opt_mut());
@@ -1478,9 +1507,9 @@ pub fn ex_diffoff(eap: &mut Exarg) {
     }
     if !diffwin {
         diff_st(|st| st.diff_need_update.set(false));
-        curtab_mut().tp_diff_invalid = 0;
-        curtab_mut().tp_diff_update = 0;
-        diff_clear(curtab_mut());
+        curtab_mut().tp_diff_invalid.set(0);
+        curtab_mut().tp_diff_update.set(0);
+        diff_clear(&curtab_mut());
     }
     if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32) {
         do_cmdline_cmd(c"set sbo-=hor");
@@ -1542,10 +1571,10 @@ fn process_hunk(
     notsetp: &mut bool,
 ) {
     let mut dp_idx = *dp_idx_p;
-    while dp_idx < curtab_mut().tp_diffs.len()
+    while dp_idx < curtab_mut().tp_diffs.borrow().len()
         && hunk.lnum_orig
-            > (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_orig]
-                + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_orig]
+            > curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[idx_orig]
+                + curtab_mut().tp_diffs.borrow()[dp_idx].df_count[idx_orig]
     {
         if *notsetp {
             diff_copy_entry(dp_idx, idx_orig, idx_new);
@@ -1553,72 +1582,81 @@ fn process_hunk(
         dp_idx += 1;
         *notsetp = true;
     }
-    if dp_idx < curtab_mut().tp_diffs.len()
+    if dp_idx < curtab_mut().tp_diffs.borrow().len()
         && hunk.lnum_orig
-            <= (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_orig]
-                + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_orig]
-        && hunk.lnum_orig + hunk.count_orig >= (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_orig]
+            <= curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[idx_orig]
+                + curtab_mut().tp_diffs.borrow()[dp_idx].df_count[idx_orig]
+        && hunk.lnum_orig + hunk.count_orig
+            >= curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[idx_orig]
     {
         let mut dpl_idx = dp_idx;
-        while dpl_idx + 1 < curtab_mut().tp_diffs.len() {
+        while dpl_idx + 1 < curtab_mut().tp_diffs.borrow().len() {
             if hunk.lnum_orig + hunk.count_orig
-                < (&curtab_mut().tp_diffs)[dpl_idx + 1].df_lnum[idx_orig]
+                < curtab_mut().tp_diffs.borrow()[dpl_idx + 1].df_lnum[idx_orig]
             {
                 break;
             }
             dpl_idx += 1;
         }
-        let dpl_lnum = (&curtab_mut().tp_diffs)[dpl_idx].df_lnum;
-        let dpl_count = (&curtab_mut().tp_diffs)[dpl_idx].df_count;
-        let dp = &mut (&mut curtab_mut().tp_diffs)[dp_idx];
-        let mut off = dp.df_lnum[idx_orig] - hunk.lnum_orig;
-        if off > 0 {
-            for i in idx_orig..idx_new {
-                if !curtab_mut().tp_diffbuf[i].is_null() {
-                    dp.df_lnum[i] -= off;
-                    dp.df_count[i] += off;
+        let dpl_lnum = curtab_mut().tp_diffs.borrow()[dpl_idx].df_lnum;
+        let dpl_count = curtab_mut().tp_diffs.borrow()[dpl_idx].df_count;
+        {
+            let ct = curtab_mut();
+            let mut diffs = ct.tp_diffs.borrow_mut();
+            let dp = &mut diffs[dp_idx];
+            let mut off = dp.df_lnum[idx_orig] - hunk.lnum_orig;
+            if off > 0 {
+                for i in idx_orig..idx_new {
+                    if !ct.tp_diffbuf[i].get().is_null() {
+                        dp.df_lnum[i] -= off;
+                        dp.df_count[i] += off;
+                    }
+                }
+                dp.df_lnum[idx_new] = hunk.lnum_new;
+                dp.df_count[idx_new] = hunk.count_new;
+            } else if *notsetp {
+                dp.df_lnum[idx_new] = hunk.lnum_new + off;
+                dp.df_count[idx_new] = hunk.count_new - off;
+            } else {
+                let orig_size_in_dp = hunk
+                    .count_orig
+                    .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - hunk.lnum_orig);
+                let size_diff = hunk.count_new - orig_size_in_dp;
+                dp.df_count[idx_new] += size_diff;
+                off = hunk.lnum_new + hunk.count_new - (dp.df_lnum[idx_new] + dp.df_count[idx_new]);
+                if off > 0 {
+                    dp.df_count[idx_new] += off;
                 }
             }
-            dp.df_lnum[idx_new] = hunk.lnum_new;
-            dp.df_count[idx_new] = hunk.count_new;
-        } else if *notsetp {
-            dp.df_lnum[idx_new] = hunk.lnum_new + off;
-            dp.df_count[idx_new] = hunk.count_new - off;
-        } else {
-            let orig_size_in_dp = hunk
-                .count_orig
-                .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - hunk.lnum_orig);
-            let size_diff = hunk.count_new - orig_size_in_dp;
-            dp.df_count[idx_new] += size_diff;
-            off = hunk.lnum_new + hunk.count_new - (dp.df_lnum[idx_new] + dp.df_count[idx_new]);
-            if off > 0 {
-                dp.df_count[idx_new] += off;
+            off = (hunk.lnum_orig + hunk.count_orig) - (dpl_lnum[idx_orig] + dpl_count[idx_orig]);
+            if off < 0 {
+                if *notsetp || dp_idx != dpl_idx {
+                    dp.df_count[idx_new] += -off;
+                }
+                off = 0;
             }
-        }
-        off = (hunk.lnum_orig + hunk.count_orig) - (dpl_lnum[idx_orig] + dpl_count[idx_orig]);
-        if off < 0 {
-            if *notsetp || dp_idx != dpl_idx {
-                dp.df_count[idx_new] += -off;
+            for i in idx_orig..idx_new {
+                if !ct.tp_diffbuf[i].get().is_null() {
+                    dp.df_count[i] = dpl_lnum[i] + dpl_count[i] - dp.df_lnum[i] + off;
+                }
             }
-            off = 0;
-        }
-        for i in idx_orig..idx_new {
-            if !curtab_mut().tp_diffbuf[i].is_null() {
-                dp.df_count[i] = dpl_lnum[i] + dpl_count[i] - dp.df_lnum[i] + off;
+            if dpl_idx > dp_idx {
+                diff_st(|st| st.diff_finger_dp_idx.set(None));
+                diffs.drain((dp_idx + 1)..=dpl_idx);
             }
-        }
-        if dpl_idx > dp_idx {
-            diff_st(|st| st.diff_finger_dp_idx.set(None));
-            curtab_mut().tp_diffs.drain((dp_idx + 1)..=dpl_idx);
         }
     } else {
-        dp_idx = diff_alloc_new(curtab_mut(), dp_idx);
-        (&mut curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_orig] = hunk.lnum_orig;
-        (&mut curtab_mut().tp_diffs)[dp_idx].df_count[idx_orig] = hunk.count_orig;
-        (&mut curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_new] = hunk.lnum_new;
-        (&mut curtab_mut().tp_diffs)[dp_idx].df_count[idx_new] = hunk.count_new;
+        dp_idx = diff_alloc_new(&curtab_mut(), dp_idx);
+        {
+            let ct = curtab_mut();
+            let mut diffs = ct.tp_diffs.borrow_mut();
+            diffs[dp_idx].df_lnum[idx_orig] = hunk.lnum_orig;
+            diffs[dp_idx].df_count[idx_orig] = hunk.count_orig;
+            diffs[dp_idx].df_lnum[idx_new] = hunk.lnum_new;
+            diffs[dp_idx].df_count[idx_new] = hunk.count_new;
+        }
         for i in (idx_orig + 1)..idx_new {
-            if !curtab_mut().tp_diffbuf[i].is_null() {
+            if !curtab_mut().tp_diffbuf[i].get().is_null() {
                 diff_copy_entry(dp_idx, idx_orig, i);
             }
         }
@@ -1657,7 +1695,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
         }
         process_hunk(&mut dp_idx, idx_orig, idx_new, &hunk, &mut notset);
     }
-    while dp_idx < curtab_mut().tp_diffs.len() {
+    while dp_idx < curtab_mut().tp_diffs.borrow().len() {
         if notset {
             diff_copy_entry(dp_idx, idx_orig, idx_new);
         }
@@ -1669,17 +1707,21 @@ fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
     let off = if dp_idx == 0 {
         0
     } else {
-        let dprev = &(&curtab_mut().tp_diffs)[dp_idx - 1];
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
+        let dprev = &diffs[dp_idx - 1];
         (dprev.df_lnum[idx_orig] + dprev.df_count[idx_orig])
             - (dprev.df_lnum[idx_new] + dprev.df_count[idx_new])
     };
-    let dp = &mut (&mut curtab_mut().tp_diffs)[dp_idx];
+    let ct = curtab_mut();
+    let mut diffs = ct.tp_diffs.borrow_mut();
+    let dp = &mut diffs[dp_idx];
     dp.df_lnum[idx_new] = dp.df_lnum[idx_orig] - off;
     dp.df_count[idx_new] = dp.df_count[idx_orig];
 }
-pub fn diff_clear(tp: &mut TabPageInfo) {
+pub fn diff_clear(tp: &TabPageInfo) {
     diff_st(|st| st.diff_finger_dp_idx.set(None));
-    tp.tp_diffs.clear();
+    tp.tp_diffs.borrow_mut().clear();
 }
 pub fn diff_linematch(dp: &DiffBlock) -> bool {
     if (diff_flags() & DIFF_LINEMATCH) == 0 {
@@ -1687,7 +1729,7 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
     }
     let mut tsize: i32 = 0;
     for i in 0..DB_COUNT {
-        if !curtab_mut().tp_diffbuf[i].is_null() {
+        if !curtab_mut().tp_diffbuf[i].get().is_null() {
             if dp.df_count[i] < 0 {
                 return false;
             }
@@ -1699,7 +1741,7 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
 fn get_max_diff_length(dp: &DiffBlock) -> i32 {
     let mut maxlength: i32 = 0;
     for k in 0..DB_COUNT {
-        if !curtab_mut().tp_diffbuf[k].is_null() && dp.df_count[k] > maxlength {
+        if !curtab_mut().tp_diffbuf[k].get().is_null() && dp.df_count[k] > maxlength {
             maxlength = dp.df_count[k];
         }
     }
@@ -1713,7 +1755,8 @@ fn find_top_diff_block(
 ) {
     let mut localtopdiff: Option<usize> = None;
     let mut topdiffchange = false;
-    let diffs = &curtab_mut().tp_diffs;
+    let ct = curtab_mut();
+    let diffs = ct.tp_diffs.borrow();
     for topdiff in 0..diffs.len() {
         if localtopdiff.is_none() || topdiffchange {
             localtopdiff = Some(topdiff);
@@ -1758,7 +1801,8 @@ fn calculate_topfill_and_topline(
         fromidx,
         from_topline,
     );
-    let diffs = &curtab_mut().tp_diffs;
+    let ct = curtab_mut();
+    let diffs = ct.tp_diffs.borrow();
     let mut curdif = thistopdiff;
     while let Some(ci) = curdif
         && ci < diffs.len()
@@ -1822,9 +1866,11 @@ fn apply_linematch_results(dp_idx: usize, decisions: &[i32]) {
     let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
     let mut ndiffs: usize = 0;
     for (i, line_num) in line_numbers.iter_mut().enumerate().take(DB_COUNT) {
-        if !curtab_mut().tp_diffbuf[i].is_null() {
-            *line_num = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[i];
-            (&mut curtab_mut().tp_diffs)[dp_idx].df_count[i] = 0;
+        if !curtab_mut().tp_diffbuf[i].get().is_null() {
+            let ct = curtab_mut();
+            let mut diffs = ct.tp_diffs.borrow_mut();
+            *line_num = diffs[dp_idx].df_lnum[i];
+            diffs[dp_idx].df_count[i] = 0;
             outputmap[ndiffs] = i;
             ndiffs += 1;
         }
@@ -1832,30 +1878,32 @@ fn apply_linematch_results(dp_idx: usize, decisions: &[i32]) {
     let mut dp_s_idx = dp_idx;
     for (i, &dec) in decisions.iter().enumerate() {
         if i != 0 && decisions[i - 1] != dec {
-            dp_s_idx = diff_alloc_new(curtab_mut(), dp_s_idx + 1);
-            (&mut curtab_mut().tp_diffs)[dp_s_idx].is_linematched = true;
+            dp_s_idx = diff_alloc_new(&curtab_mut(), dp_s_idx + 1);
+            let ct = curtab_mut();
+            let mut diffs = ct.tp_diffs.borrow_mut();
+            diffs[dp_s_idx].is_linematched = true;
             for (j, &line_num) in line_numbers.iter().enumerate().take(DB_COUNT) {
-                if !curtab_mut().tp_diffbuf[j].is_null() {
-                    (&mut curtab_mut().tp_diffs)[dp_s_idx].df_lnum[j] = line_num;
-                    (&mut curtab_mut().tp_diffs)[dp_s_idx].df_count[j] = 0;
+                if !ct.tp_diffbuf[j].get().is_null() {
+                    diffs[dp_s_idx].df_lnum[j] = line_num;
+                    diffs[dp_s_idx].df_count[j] = 0;
                 }
             }
         }
         for j in 0..ndiffs {
             if (dec & (1 << j)) != 0 {
-                (&mut curtab_mut().tp_diffs)[dp_s_idx].df_count[outputmap[j]] += 1;
+                curtab_mut().tp_diffs.borrow_mut()[dp_s_idx].df_count[outputmap[j]] += 1;
                 line_numbers[outputmap[j]] += 1;
             }
         }
     }
-    (&mut curtab_mut().tp_diffs)[dp_idx].is_linematched = true;
+    curtab_mut().tp_diffs.borrow_mut()[dp_idx].is_linematched = true;
 }
 fn run_linematch_algorithm(dp_idx: usize) {
     let mut diffbufs_vec: [Vec<u8>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
     let mut diff_length: [i32; DB_COUNT] = [0; DB_COUNT];
     let mut ndiffs: usize = 0;
-    let dp_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum;
-    let dp_count = (&curtab_mut().tp_diffs)[dp_idx].df_count;
+    let dp_lnum = curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum;
+    let dp_count = curtab_mut().tp_diffs.borrow()[dp_idx].df_count;
     for i in 0..DB_COUNT {
         if let Some(buf) = curtab_mut().diffbuf_opt(i) {
             if dp_count[i] > 0 {
@@ -1887,16 +1935,16 @@ pub fn diff_check_with_linestatus(
     if let Some(linestatus) = linestatus.as_deref_mut() {
         *linestatus = 0;
     }
-    if curtab_mut().tp_diff_invalid != 0 {
+    if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    if curtab_mut().tp_diffs.is_empty() || !wp.w_onebuf_opt.wo_diff {
+    if curtab_mut().tp_diffs.borrow().is_empty() || !wp.w_onebuf_opt.wo_diff {
         return 0;
     }
     if lnum < 1 || lnum > wp.buf_mut().b_ml.ml_line_count + 1 {
         return 0;
     }
-    let idx = diff_buf_idx(wp.buf_mut(), curtab_mut());
+    let idx = diff_buf_idx(wp.buf_mut(), &curtab_mut());
     if idx == DB_COUNT as i32 {
         return 0;
     }
@@ -1905,59 +1953,63 @@ pub fn diff_check_with_linestatus(
         return 0;
     }
     let mut le: Option<usize> = None;
-    let mut dp_idx = diff_scan_start(curtab_mut(), idx, lnum);
-    while dp_idx < curtab_mut().tp_diffs.len() {
-        if (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx] <= lnum {
+    let mut dp_idx = diff_scan_start(&curtab_mut(), idx, lnum);
+    while dp_idx < curtab_mut().tp_diffs.borrow().len() {
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
+        if diffs[dp_idx].df_lnum[u_idx] <= lnum {
             le = Some(dp_idx);
         }
-        if lnum
-            <= (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
-                + (&curtab_mut().tp_diffs)[dp_idx].df_count[u_idx]
-        {
+        if lnum <= diffs[dp_idx].df_lnum[u_idx] + diffs[dp_idx].df_count[u_idx] {
             break;
         }
         dp_idx += 1;
     }
-    diff_scan_remember(curtab_mut(), idx, lnum, le);
-    if dp_idx >= curtab_mut().tp_diffs.len()
-        || lnum < (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
+    diff_scan_remember(&curtab_mut(), idx, lnum, le);
+    if dp_idx >= curtab_mut().tp_diffs.borrow().len()
+        || lnum < curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[u_idx]
     {
         return 0;
     }
-    if lnum >= wp.w_topline
-        && lnum < wp.w_botline
-        && !(&curtab_mut().tp_diffs)[dp_idx].is_linematched
-        && diff_linematch(&(&curtab_mut().tp_diffs)[dp_idx])
-        && diff_check_sanity(curtab_mut(), &(&curtab_mut().tp_diffs)[dp_idx])
-    {
+    let should_linematch = lnum >= wp.w_topline && lnum < wp.w_botline && {
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
+        !diffs[dp_idx].is_linematched
+            && diff_linematch(&diffs[dp_idx])
+            && diff_check_sanity(&ct, &diffs[dp_idx])
+    };
+    if should_linematch {
         run_linematch_algorithm(dp_idx);
     }
     let mut num_fill: i32 = 0;
-    while lnum
-        == (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx]
-            + (&curtab_mut().tp_diffs)[dp_idx].df_count[u_idx]
-    {
+    while {
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
+        lnum == diffs[dp_idx].df_lnum[u_idx] + diffs[dp_idx].df_count[u_idx]
+    } {
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
         if (diff_flags() & DIFF_FILLER) != 0 {
-            let maxcount = get_max_diff_length(&(&curtab_mut().tp_diffs)[dp_idx]);
-            num_fill += maxcount - (&curtab_mut().tp_diffs)[dp_idx].df_count[u_idx];
+            let maxcount = get_max_diff_length(&diffs[dp_idx]);
+            num_fill += maxcount - diffs[dp_idx].df_count[u_idx];
         }
-        if dp_idx + 1 < curtab_mut().tp_diffs.len()
-            && lnum >= (&curtab_mut().tp_diffs)[dp_idx + 1].df_lnum[u_idx]
-            && lnum
-                <= (&curtab_mut().tp_diffs)[dp_idx + 1].df_lnum[u_idx]
-                    + (&curtab_mut().tp_diffs)[dp_idx + 1].df_count[u_idx]
+        if dp_idx + 1 < diffs.len()
+            && lnum >= diffs[dp_idx + 1].df_lnum[u_idx]
+            && lnum <= diffs[dp_idx + 1].df_lnum[u_idx] + diffs[dp_idx + 1].df_count[u_idx]
         {
             dp_idx += 1;
         } else {
             break;
         }
     }
-    let dp = &(&curtab_mut().tp_diffs)[dp_idx];
+    let ct = curtab_mut();
+    let diffs = ct.tp_diffs.borrow();
+    let dp = &diffs[dp_idx];
     if lnum < dp.df_lnum[u_idx] + dp.df_count[u_idx] {
         let mut zero = false;
         let mut cmp = false;
         for i in 0..DB_COUNT {
-            if i != u_idx && !curtab_mut().tp_diffbuf[i].is_null() {
+            if i != u_idx && !ct.tp_diffbuf[i].get().is_null() {
                 if dp.df_count[i] == 0 {
                     zero = true;
                 } else {
@@ -1974,7 +2026,7 @@ pub fn diff_check_with_linestatus(
         if cmp {
             for i in 0..DB_COUNT {
                 if i != u_idx
-                    && !curtab_mut().tp_diffbuf[i].is_null()
+                    && !ct.tp_diffbuf[i].get().is_null()
                     && dp.df_count[i] != 0
                     && !diff_equal_entry(dp, u_idx, i)
                 {
@@ -2006,7 +2058,7 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
     if dp.df_count[idx1] != dp.df_count[idx2] {
         return false;
     }
-    if !diff_check_sanity(curtab_mut(), dp) {
+    if !diff_check_sanity(&curtab_mut(), dp) {
         return false;
     }
     for i in 0..dp.df_count[idx1] {
@@ -2091,28 +2143,30 @@ fn diff_cmp(s1: &[u8], s2: &[u8]) -> i32 {
     i32::from(!p1.is_empty() || !p2.is_empty())
 }
 pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
-    let fromidx = diff_buf_idx(fromwin.buf_mut(), curtab_mut());
+    let fromidx = diff_buf_idx(fromwin.buf_mut(), &curtab_mut());
     if fromidx == DB_COUNT as i32 {
         return;
     }
     let u_fromidx = fromidx as usize;
-    if curtab_mut().tp_diff_invalid != 0 {
+    if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
     let lnum = fromwin.w_topline;
     towin.w_topfill = 0;
-    let dp_opt = curtab_mut()
+    let dp_lnum_opt = curtab_mut()
         .tp_diffs
+        .borrow()
         .iter()
-        .find(|dp| lnum <= dp.df_lnum[u_fromidx] + dp.df_count[u_fromidx]);
-    if let Some(dp) = dp_opt {
-        let toidx = diff_buf_idx(towin.buf_mut(), curtab_mut());
+        .find(|dp| lnum <= dp.df_lnum[u_fromidx] + dp.df_count[u_fromidx])
+        .map(|dp| dp.df_lnum);
+    if let Some(dp_lnum) = dp_lnum_opt {
+        let toidx = diff_buf_idx(towin.buf_mut(), &curtab_mut());
         if toidx == DB_COUNT as i32 {
             return;
         }
         let u_toidx = toidx as usize;
-        towin.w_topline = lnum + (dp.df_lnum[u_toidx] - dp.df_lnum[u_fromidx]);
-        if lnum >= dp.df_lnum[u_fromidx] {
+        towin.w_topline = lnum + (dp_lnum[u_toidx] - dp_lnum[u_fromidx]);
+        if lnum >= dp_lnum[u_fromidx] {
             calculate_topfill_and_topline(
                 u_fromidx,
                 u_toidx,
@@ -2232,11 +2286,11 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     if result && (diff_flags() & DIFF_ANCHOR) != 0 {
         for tp in for_all_tabpages_mut() {
             if !buflocal {
-                tp.tp_diff_invalid = 1;
+                tp.tp_diff_invalid.set(1);
             } else {
                 for idx in 0..DB_COUNT {
-                    if tp.tp_diffbuf[idx] == g_st().curbuf {
-                        tp.tp_diff_invalid = 1;
+                    if tp.tp_diffbuf[idx].get() == g_st().curbuf {
+                        tp.tp_diff_invalid.set(1);
                         break;
                     }
                 }
@@ -2291,7 +2345,7 @@ pub fn diffopt_changed() -> bool {
     } else {
         if diff_flags() != flags || diff_st(|st| st.diff_algorithm.get()) != algorithm {
             for tp in for_all_tabpages_mut() {
-                tp.tp_diff_invalid = 1;
+                tp.tp_diff_invalid.set(1);
             }
         }
         let context = if has_dip_key(v, KEYSET_OPTIDX_DIP_CONTEXT) {
@@ -2336,13 +2390,14 @@ pub fn diff_update_line(lnum: Linenr) {
     if (diff_flags() & ALL_INLINE_DIFF) == 0 {
         return;
     }
-    let idx = diff_buf_idx(curbuf_mut(), curtab_mut());
+    let idx = diff_buf_idx(curbuf_mut(), &curtab_mut());
     if idx == DB_COUNT as i32 {
         return;
     }
     let u_idx = idx as usize;
     if let Some(dp) = curtab_mut()
         .tp_diffs
+        .borrow_mut()
         .iter_mut()
         .find(|dp| lnum <= dp.df_lnum[u_idx] + dp.df_count[u_idx])
     {
@@ -2401,7 +2456,7 @@ fn diff_find_change_simple(
     let mut added = true;
     let off = lnum - dp.df_lnum[idx];
     for i in 0..DB_COUNT {
-        if !curtab_mut().tp_diffbuf[i].is_null() && i != idx {
+        if !curtab_mut().tp_diffbuf[i].get().is_null() && i != idx {
             if off >= dp.df_count[i] {
                 continue;
             }
@@ -2508,44 +2563,41 @@ fn diff_refine_inline_char_highlight(linemap: &[Vec<LinemapEntry>; DB_COUNT], id
         let mut has_unmerged_gaps = false;
         let mut has_merged_gaps = false;
         let mut di: usize = 0;
-        while di + 1 < curtab_mut().tp_diffs.len() {
+        while di + 1 < curtab_mut().tp_diffs.borrow().len() {
             let lm = &linemap[idx1];
             let lm_len = lm.len() as i32;
-            if (&curtab_mut().tp_diffs)[di].df_lnum[idx1]
-                + (&curtab_mut().tp_diffs)[di].df_count[idx1]
-                > lm_len
-                || (&curtab_mut().tp_diffs)[di + 1].df_lnum[idx1] > lm_len
-            {
+            let (di_lnum, di_count, next_lnum, next_count) = {
+                let ct = curtab_mut();
+                let diffs = ct.tp_diffs.borrow();
+                (
+                    diffs[di].df_lnum,
+                    diffs[di].df_count,
+                    diffs[di + 1].df_lnum,
+                    diffs[di + 1].df_count,
+                )
+            };
+            if di_lnum[idx1] + di_count[idx1] > lm_len || next_lnum[idx1] > lm_len {
                 di += 1;
                 continue;
             }
-            let entry1 = &lm[((&curtab_mut().tp_diffs)[di].df_lnum[idx1]
-                + (&curtab_mut().tp_diffs)[di].df_count[idx1]
-                - 1) as usize];
-            let entry2 = &lm[((&curtab_mut().tp_diffs)[di + 1].df_lnum[idx1] - 1) as usize];
+            let entry1 = &lm[(di_lnum[idx1] + di_count[idx1] - 1) as usize];
+            let entry2 = &lm[(next_lnum[idx1] - 1) as usize];
             if entry1.lineoff != entry2.lineoff {
                 di += 1;
                 continue;
             }
-            let gap = (&curtab_mut().tp_diffs)[di + 1].df_lnum[idx1]
-                - ((&curtab_mut().tp_diffs)[di].df_lnum[idx1]
-                    + (&curtab_mut().tp_diffs)[di].df_count[idx1]);
+            let gap = next_lnum[idx1] - (di_lnum[idx1] + di_count[idx1]);
             if gap <= 3 {
                 let mut max_df_count: Linenr = 0;
                 for i in 0..DB_COUNT {
-                    max_df_count = max_df_count.max(
-                        (&curtab_mut().tp_diffs)[di].df_count[i]
-                            + (&curtab_mut().tp_diffs)[di + 1].df_count[i],
-                    );
+                    max_df_count = max_df_count.max(di_count[i] + next_count[i]);
                 }
                 if max_df_count >= gap * 4 {
-                    let next_lnum = (&curtab_mut().tp_diffs)[di + 1].df_lnum;
-                    let next_count = (&curtab_mut().tp_diffs)[di + 1].df_count;
                     for i in 0..DB_COUNT {
-                        (&mut curtab_mut().tp_diffs)[di].df_count[i] =
-                            next_lnum[i] + next_count[i] - (&curtab_mut().tp_diffs)[di].df_lnum[i];
+                        curtab_mut().tp_diffs.borrow_mut()[di].df_count[i] =
+                            next_lnum[i] + next_count[i] - di_lnum[i];
                     }
-                    diff_free(curtab_mut(), di + 1);
+                    diff_free(&curtab_mut(), di + 1);
                     has_merged_gaps = true;
                     continue;
                 } else {
@@ -2572,11 +2624,19 @@ fn diff_refine_inline_word_highlight(
     let mut pass: i32 = 1;
     loop {
         let mut di: usize = 0;
-        while di + 1 < curtab_mut().tp_diffs.len() {
-            let idx_entry1 = (&curtab_mut().tp_diffs)[di].df_lnum[idx1]
-                + (&curtab_mut().tp_diffs)[di].df_count[idx1]
-                - 2;
-            let idx_entry2 = (&curtab_mut().tp_diffs)[di + 1].df_lnum[idx1] - 1;
+        while di + 1 < curtab_mut().tp_diffs.borrow().len() {
+            let (di_lnum, di_count, next_lnum, next_count) = {
+                let ct = curtab_mut();
+                let diffs = ct.tp_diffs.borrow();
+                (
+                    diffs[di].df_lnum,
+                    diffs[di].df_count,
+                    diffs[di + 1].df_lnum,
+                    diffs[di + 1].df_count,
+                )
+            };
+            let idx_entry1 = di_lnum[idx1] + di_count[idx1] - 2;
+            let idx_entry2 = next_lnum[idx1] - 1;
             let lm1 = &linemap[idx1];
             let lm1_len = lm1.len() as i32;
             if idx_entry1 < 0 || idx_entry1 >= lm1_len || idx_entry2 < 0 || idx_entry2 >= lm1_len {
@@ -2615,15 +2675,15 @@ fn diff_refine_inline_word_highlight(
             if has_content && only_non_word {
                 let mut total_change_bytes: i64 = 0;
                 for (buf_i, lmi) in linemap.iter().enumerate() {
-                    if !curtab_mut().tp_diffbuf[buf_i].is_null() {
-                        for k in 0..(&curtab_mut().tp_diffs)[di].df_count[buf_i] {
-                            let idx = (&curtab_mut().tp_diffs)[di].df_lnum[buf_i] + k - 1;
+                    if !curtab_mut().tp_diffbuf[buf_i].get().is_null() {
+                        for k in 0..di_count[buf_i] {
+                            let idx = di_lnum[buf_i] + k - 1;
                             if let Some(entry) = lmi.get(idx as usize) {
                                 total_change_bytes += entry.num_bytes as i64;
                             }
                         }
-                        for k in 0..(&curtab_mut().tp_diffs)[di + 1].df_count[buf_i] {
-                            let idx = (&curtab_mut().tp_diffs)[di + 1].df_lnum[buf_i] + k - 1;
+                        for k in 0..next_count[buf_i] {
+                            let idx = next_lnum[buf_i] + k - 1;
                             if let Some(entry) = lmi.get(idx as usize) {
                                 total_change_bytes += entry.num_bytes as i64;
                             }
@@ -2631,16 +2691,13 @@ fn diff_refine_inline_word_highlight(
                     }
                 }
                 if total_change_bytes >= (gap_size * 2) as i64 {
-                    let next_lnum = (&curtab_mut().tp_diffs)[di + 1].df_lnum;
-                    let next_count = (&curtab_mut().tp_diffs)[di + 1].df_count;
                     for buf_i in 0..DB_COUNT {
-                        if !curtab_mut().tp_diffbuf[buf_i].is_null() {
-                            (&mut curtab_mut().tp_diffs)[di].df_count[buf_i] = next_lnum[buf_i]
-                                + next_count[buf_i]
-                                - (&curtab_mut().tp_diffs)[di].df_lnum[buf_i];
+                        if !curtab_mut().tp_diffbuf[buf_i].get().is_null() {
+                            curtab_mut().tp_diffs.borrow_mut()[di].df_count[buf_i] =
+                                next_lnum[buf_i] + next_count[buf_i] - di_lnum[buf_i];
                         }
                     }
-                    diff_free(curtab_mut(), di + 1);
+                    diff_free(&curtab_mut(), di + 1);
                     continue;
                 }
             }
@@ -2675,10 +2732,11 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         dio_internal: 1,
     };
     let flags = diff_flags();
-    let dp_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum;
-    let dp_count = (&curtab_mut().tp_diffs)[dp_idx].df_count;
-    let orig_diff = std::mem::take(&mut curtab_mut().tp_diffs);
-    let orig_diffbuf = curtab_mut().tp_diffbuf;
+    let dp_lnum = curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum;
+    let dp_count = curtab_mut().tp_diffs.borrow()[dp_idx].df_count;
+    let orig_diff = std::mem::take(&mut *curtab_mut().tp_diffs.borrow_mut());
+    let orig_diffbuf: [crate::globals::BufPtr; DB_COUNT] =
+        std::array::from_fn(|i| curtab_mut().tp_diffbuf[i].get());
     let mut linemap: [Vec<LinemapEntry>; DB_COUNT] = std::array::from_fn(|_| Vec::new());
     let mut changes: Vec<DifflineChange> = Vec::new();
     'done: {
@@ -2692,7 +2750,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 continue;
             }
             if dp_count[i] == 0 {
-                curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::NULL;
+                curtab_mut().tp_diffbuf[i].set(crate::globals::BufPtr::NULL);
                 continue;
             }
             if file1_idx == -1 {
@@ -2822,7 +2880,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         } else if (flags & DIFF_INLINE_CHAR) != 0 && file1_idx != -1 {
             diff_refine_inline_char_highlight(&linemap, file1_idx as usize);
         }
-        for new_diff in &curtab_mut().tp_diffs {
+        for new_diff in curtab_mut().tp_diffs.borrow().iter() {
             let mut change = DifflineChange {
                 dc_start: [0; DB_COUNT],
                 dc_end: [0; DB_COUNT],
@@ -2860,37 +2918,44 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         }
     }
     diff_st(|st| st.diff_algorithm.set(save_diff_algorithm));
-    diff_clear(curtab_mut());
-    curtab_mut().tp_diffs = orig_diff;
-    curtab_mut().tp_diffbuf = orig_diffbuf;
-    (&mut curtab_mut().tp_diffs)[dp_idx].df_changes = changes;
-    (&mut curtab_mut().tp_diffs)[dp_idx].has_changes = true;
+    diff_clear(&curtab_mut());
+    *curtab_mut().tp_diffs.borrow_mut() = orig_diff;
+    for (i, &b) in orig_diffbuf.iter().enumerate() {
+        curtab_mut().tp_diffbuf[i].set(b);
+    }
+    {
+        let ct = curtab_mut();
+        let mut diffs = ct.tp_diffs.borrow_mut();
+        diffs[dp_idx].df_changes = changes;
+        diffs[dp_idx].has_changes = true;
+    }
     clear_diffout(&mut dio.dio_diff);
 }
 pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffline) -> bool {
-    let idx = diff_buf_idx(wp.buf_mut(), curtab_mut());
+    let idx = diff_buf_idx(wp.buf_mut(), &curtab_mut());
     if idx == DB_COUNT as i32 {
         return false;
     }
     let u_idx = idx as usize;
     let Some(dp_idx) = curtab_mut()
         .tp_diffs
+        .borrow()
         .iter()
         .position(|dp| lnum < dp.df_lnum[u_idx] + dp.df_count[u_idx])
     else {
         return false;
     };
-    if !diff_check_sanity(curtab_mut(), &(&curtab_mut().tp_diffs)[dp_idx]) {
+    if !diff_check_sanity(&curtab_mut(), &curtab_mut().tp_diffs.borrow()[dp_idx]) {
         return false;
     }
-    let off = lnum - (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx];
+    let off = lnum - curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[u_idx];
     if (diff_flags() & ALL_INLINE_DIFF) == 0 {
         let mut change_start: i32 = MAXCOL;
         let mut change_end: i32 = -1;
         let ret = diff_find_change_simple(
             wp,
             lnum,
-            &(&curtab_mut().tp_diffs)[dp_idx],
+            &curtab_mut().tp_diffs.borrow()[dp_idx],
             u_idx,
             &mut change_start,
             &mut change_end,
@@ -2910,13 +2975,15 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
         diffline.changes.push(simple_change);
         diffline.is_simple = true;
         diffline.bufidx = idx;
-        diffline.lineoff = lnum - (&curtab_mut().tp_diffs)[dp_idx].df_lnum[u_idx];
+        diffline.lineoff = lnum - curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[u_idx];
         return ret;
     }
-    if !(&curtab_mut().tp_diffs)[dp_idx].has_changes {
+    if !curtab_mut().tp_diffs.borrow()[dp_idx].has_changes {
         diff_find_change_inline_diff(dp_idx);
     }
-    let dp = &mut (&mut curtab_mut().tp_diffs)[dp_idx];
+    let ct = curtab_mut();
+    let mut diffs = ct.tp_diffs.borrow_mut();
+    let dp = &mut diffs[dp_idx];
     let changes_len = dp.df_changes.len() as i32;
     let mut change_idx: i32 = 0;
     diffline.changes.clear();
@@ -2943,7 +3010,7 @@ pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffl
             if u_idx == i {
                 continue;
             }
-            if curtab_mut().tp_diffbuf[i].is_null() {
+            if curtab_mut().tp_diffbuf[i].get().is_null() {
                 continue;
             }
             let change = &dp.df_changes[(changes_len - 1) as usize];
@@ -2970,9 +3037,9 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
     let mut idx: i32 = -1;
     let mut other = false;
     for i in 0..DB_COUNT {
-        if tp.tp_diffbuf[i] == wp.w_buffer {
+        if tp.tp_diffbuf[i].get() == wp.w_buffer {
             idx = i as i32;
-        } else if !tp.tp_diffbuf[i].is_null() {
+        } else if !tp.tp_diffbuf[i].get().is_null() {
             other = true;
         }
     }
@@ -2980,17 +3047,18 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         return false;
     }
     let u_idx = idx as usize;
-    if g_st().curtab == tp && tp.tp_diff_invalid != 0 {
+    if g_st().curtab == tp && tp.tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    if tp.tp_diffs.is_empty() {
+    if tp.tp_diffs.borrow().is_empty() {
         return true;
     }
     let mut le: Option<usize> = None;
     let mut result = true;
-    let mut dp_idx = diff_scan_start(tp, idx, lnum);
-    while dp_idx < tp.tp_diffs.len() {
-        let dp = &tp.tp_diffs[dp_idx];
+    let mut dp_idx = diff_scan_start(&tp, idx, lnum);
+    while dp_idx < tp.tp_diffs.borrow().len() {
+        let diffs = tp.tp_diffs.borrow();
+        let dp = &diffs[dp_idx];
         if dp.df_lnum[u_idx] <= lnum {
             le = Some(dp_idx);
         }
@@ -3003,7 +3071,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         }
         dp_idx += 1;
     }
-    diff_scan_remember(tp, idx, lnum, le);
+    diff_scan_remember(&tp, idx, lnum, le);
     result
 }
 pub fn nv_diffgetput(put: bool, count: usize) {
@@ -3031,11 +3099,15 @@ pub fn nv_diffgetput(put: bool, count: usize) {
 }
 fn valid_diff(df_id: Option<u64>) -> Option<usize> {
     let id = df_id?;
-    curtab_mut().tp_diffs.iter().position(|dp| dp.df_id == id)
+    curtab_mut()
+        .tp_diffs
+        .borrow()
+        .iter()
+        .position(|dp| dp.df_id == id)
 }
 pub fn ex_diffgetput(eap: &mut Exarg) {
     let idx_other: usize;
-    let idx_cur_i = diff_buf_idx(curbuf_mut(), curtab_mut());
+    let idx_cur_i = diff_buf_idx(curbuf_mut(), &curtab_mut());
     if idx_cur_i == DB_COUNT as i32 {
         emsg(gettext(c"E99: Current buffer is not in diff mode"));
         return;
@@ -3045,7 +3117,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         let mut found_not_ma = false;
         let mut idx = 0;
         while idx < DB_COUNT {
-            if curtab_mut().tp_diffbuf[idx] != g_st().curbuf
+            if curtab_mut().tp_diffbuf[idx].get() != g_st().curbuf
                 && let Some(buf) = curtab_mut().diffbuf_opt(idx)
             {
                 if eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf) {
@@ -3065,7 +3137,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             return;
         }
         for i in (idx_other + 1)..DB_COUNT {
-            if curtab_mut().tp_diffbuf[i] != g_st().curbuf
+            if curtab_mut().tp_diffbuf[i].get() != g_st().curbuf
                 && let Some(buf) = curtab_mut().diffbuf_opt(i)
                 && (eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf))
             {
@@ -3097,7 +3169,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         if g_st().curbuf == &*buf {
             return;
         }
-        let idx_o = diff_buf_idx(&*buf, curtab_mut());
+        let idx_o = diff_buf_idx(&*buf, &curtab_mut());
         if idx_o == DB_COUNT as i32 {
             semsg!(gettext(c"E103: Buffer \"%s\" is not in diff mode"), eap.arg,);
             return;
@@ -3137,7 +3209,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     'theend: {
         if curbuf_mut().b_changed == 0 {
             change_warning(curbuf_mut(), 0);
-            if diff_buf_idx(curbuf_mut(), curtab_mut()) != idx_to as i32 {
+            if diff_buf_idx(curbuf_mut(), &curtab_mut()) != idx_to as i32 {
                 emsg(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY));
                 ctx_restore(&mut aco);
                 break 'theend;
@@ -3167,7 +3239,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     }
     check_cursor(curwin_mut());
     changed_line_abv_curs();
-    if curtab_mut().tp_diffs.is_empty() {
+    if curtab_mut().tp_diffs.borrow().is_empty() {
         for wp in for_all_windows_mut() {
             if wp.w_onebuf_opt.wo_diff
                 && wp.w_onebuf_opt.wo_fdm.first_byte() == b'd'
@@ -3195,35 +3267,44 @@ fn diffgetput(
 ) {
     let mut off: Linenr = 0;
     let mut dp_idx: usize = 0;
-    while dp_idx < curtab_mut().tp_diffs.len() {
+    while dp_idx < curtab_mut().tp_diffs.borrow().len() {
         if addr_count == 0 {
-            while dp_idx + 1 < curtab_mut().tp_diffs.len()
-                && (&curtab_mut().tp_diffs)[dp_idx + 1].df_lnum[idx_cur]
-                    == (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur]
-                        + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_cur]
-                && (&curtab_mut().tp_diffs)[dp_idx + 1].df_lnum[idx_cur] == line1 + off + 1
-            {
+            while {
+                let ct = curtab_mut();
+                let diffs = ct.tp_diffs.borrow();
+                dp_idx + 1 < diffs.len()
+                    && diffs[dp_idx + 1].df_lnum[idx_cur]
+                        == diffs[dp_idx].df_lnum[idx_cur] + diffs[dp_idx].df_count[idx_cur]
+                    && diffs[dp_idx + 1].df_lnum[idx_cur] == line1 + off + 1
+            } {
                 dp_idx += 1;
             }
         }
-        if (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur] > line2 + off {
+        if curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum[idx_cur] > line2 + off {
             break;
         }
         let mut dfree_lnum = [0; DB_COUNT];
         let mut dfree_count = [0; DB_COUNT];
         let mut did_free = false;
-        let mut lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_to];
-        let mut count = (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_to];
+        let (mut lnum, mut count, dp_lnum_cur, dp_count_cur, dp_lnum_from, dp_count_from) = {
+            let ct = curtab_mut();
+            let diffs = ct.tp_diffs.borrow();
+            let dp = &diffs[dp_idx];
+            (
+                dp.df_lnum[idx_to],
+                dp.df_count[idx_to],
+                dp.df_lnum[idx_cur],
+                dp.df_count[idx_cur],
+                dp.df_lnum[idx_from],
+                dp.df_count[idx_from],
+            )
+        };
         let undo_bot = lnum + count + Linenr::from(count == 0 && buf_is_empty(curbuf_mut()));
-        if (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur]
-            + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_cur]
-            > line1 + off
-            && u_save(lnum - 1, undo_bot)
-        {
+        if dp_lnum_cur + dp_count_cur > line1 + off && u_save(lnum - 1, undo_bot) {
             let mut start_skip: Linenr = 0;
             let mut end_skip: Linenr = 0;
             if addr_count > 0 {
-                start_skip = line1 + off - (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur];
+                start_skip = line1 + off - dp_lnum_cur;
                 if start_skip > 0 {
                     if start_skip > count {
                         lnum += count;
@@ -3235,23 +3316,13 @@ fn diffgetput(
                 } else {
                     start_skip = 0;
                 }
-                end_skip = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur]
-                    + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_cur]
-                    - 1
-                    - (line2 + off);
+                end_skip = dp_lnum_cur + dp_count_cur - 1 - (line2 + off);
                 if end_skip > 0 {
                     if idx_cur == idx_from {
-                        count = count.min(
-                            (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_cur]
-                                - start_skip
-                                - end_skip,
-                        );
+                        count = count.min(dp_count_cur - start_skip - end_skip);
                     } else {
                         count -= end_skip;
-                        end_skip = ((&curtab_mut().tp_diffs)[dp_idx].df_count[idx_from]
-                            - start_skip
-                            - count)
-                            .max(0);
+                        end_skip = (dp_count_from - start_skip - count).max(0);
                     }
                 } else {
                     end_skip = 0;
@@ -3265,9 +3336,8 @@ fn diffgetput(
                     added -= 1;
                 }
             }
-            let copy_count =
-                (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_from] - start_skip - end_skip;
-            let from_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_from];
+            let copy_count = dp_count_from - start_skip - end_skip;
+            let from_lnum = dp_lnum_from;
             for i in 0..copy_count {
                 let nr = from_lnum + start_skip + i;
                 let from_buf = curtab_mut().diffbuf_mut(idx_from);
@@ -3283,31 +3353,32 @@ fn diffgetput(
                     let _ = ml_delete(2);
                 }
             }
-            let new_count = (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_to] + added;
-            (&mut curtab_mut().tp_diffs)[dp_idx].df_count[idx_to] = new_count;
-            let mut target_id = Some((&curtab_mut().tp_diffs)[dp_idx].df_id);
+            let new_count = curtab_mut().tp_diffs.borrow()[dp_idx].df_count[idx_to] + added;
+            curtab_mut().tp_diffs.borrow_mut()[dp_idx].df_count[idx_to] = new_count;
+            let mut target_id = Some(curtab_mut().tp_diffs.borrow()[dp_idx].df_id);
             if start_skip == 0 && end_skip == 0 {
                 let mut i = 0;
                 while i < DB_COUNT {
-                    if !curtab_mut().tp_diffbuf[i].is_null()
+                    if !curtab_mut().tp_diffbuf[i].get().is_null()
                         && i != idx_from
                         && i != idx_to
-                        && !diff_equal_entry(&(&curtab_mut().tp_diffs)[dp_idx], idx_from, i)
+                        && !diff_equal_entry(&curtab_mut().tp_diffs.borrow()[dp_idx], idx_from, i)
                     {
                         break;
                     }
                     i += 1;
                 }
                 if i == DB_COUNT {
-                    dfree_lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum;
-                    dfree_count = (&curtab_mut().tp_diffs)[dp_idx].df_count;
+                    dfree_lnum = curtab_mut().tp_diffs.borrow()[dp_idx].df_lnum;
+                    dfree_count = curtab_mut().tp_diffs.borrow()[dp_idx].df_count;
                     did_free = true;
                     target_id = curtab_mut()
                         .tp_diffs
+                        .borrow()
                         .as_slice()
                         .get(dp_idx + 1)
                         .map(|d| d.df_id);
-                    diff_free(curtab_mut(), dp_idx);
+                    diff_free(&curtab_mut(), dp_idx);
                 }
             }
             if added != 0 {
@@ -3344,7 +3415,7 @@ fn diffgetput(
                 }
             }
             if !did_free {
-                (&mut curtab_mut().tp_diffs)[dp_idx].df_count[idx_to] = new_count;
+                curtab_mut().tp_diffs.borrow_mut()[dp_idx].df_count[idx_to] = new_count;
             }
             if idx_cur == idx_to {
                 off += added;
@@ -3358,7 +3429,7 @@ fn diffgetput(
 fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT], skip_idx: usize) {
     for wp in for_all_windows_ptr() {
         for i in 0..DB_COUNT {
-            if curtab_mut().tp_diffbuf[i] == wp.w_buffer && i != skip_idx {
+            if curtab_mut().tp_diffbuf[i].get() == wp.w_buffer && i != skip_idx {
                 fold_update(&mut *(wp), df_lnum[i], df_lnum[i] + df_count[i]);
             }
         }
@@ -3366,7 +3437,7 @@ fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT],
 }
 pub fn diff_mode_buf(buf: &FileBuf) -> bool {
     for tp in for_all_tabpages_mut() {
-        if diff_buf_idx(buf, tp) != DB_COUNT as i32 {
+        if diff_buf_idx(buf, &tp) != DB_COUNT as i32 {
             return true;
         }
     }
@@ -3374,22 +3445,23 @@ pub fn diff_mode_buf(buf: &FileBuf) -> bool {
 }
 pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
     let mut lnum = curwin_mut().w_cursor.lnum;
-    let idx = diff_buf_idx(curbuf_mut(), curtab_mut());
-    if idx == DB_COUNT as i32 || curtab_mut().tp_diffs.is_empty() {
+    let idx = diff_buf_idx(curbuf_mut(), &curtab_mut());
+    if idx == DB_COUNT as i32 || curtab_mut().tp_diffs.borrow().is_empty() {
         return false;
     }
     let u_idx = idx as usize;
-    if curtab_mut().tp_diff_invalid != 0 {
+    if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    if curtab_mut().tp_diffs.is_empty() {
+    if curtab_mut().tp_diffs.borrow().is_empty() {
         return false;
     }
     while {
         count -= 1;
         count >= 0
     } {
-        let diffs = &curtab_mut().tp_diffs;
+        let ct = curtab_mut();
+        let diffs = ct.tp_diffs.borrow();
         if dir == BACKWARD && lnum <= diffs[0].df_lnum[u_idx] {
             break;
         }
@@ -3414,20 +3486,23 @@ pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
 }
 fn diff_get_corresponding_line_int(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
     let mut baseline: Linenr = 0;
-    let idx1 = diff_buf_idx(buf1, curtab_mut());
-    let idx2 = diff_buf_idx(curbuf_mut(), curtab_mut());
-    if idx1 == DB_COUNT as i32 || idx2 == DB_COUNT as i32 || curtab_mut().tp_diffs.is_empty() {
+    let idx1 = diff_buf_idx(buf1, &curtab_mut());
+    let idx2 = diff_buf_idx(curbuf_mut(), &curtab_mut());
+    if idx1 == DB_COUNT as i32
+        || idx2 == DB_COUNT as i32
+        || curtab_mut().tp_diffs.borrow().is_empty()
+    {
         return lnum1;
     }
-    if curtab_mut().tp_diff_invalid != 0 {
+    if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    if curtab_mut().tp_diffs.is_empty() {
+    if curtab_mut().tp_diffs.borrow().is_empty() {
         return lnum1;
     }
     let u_idx1 = idx1 as usize;
     let u_idx2 = idx2 as usize;
-    for dp in &curtab_mut().tp_diffs {
+    for dp in curtab_mut().tp_diffs.borrow().iter() {
         if dp.df_lnum[u_idx1] > lnum1 {
             return lnum1 - baseline;
         }
@@ -3453,28 +3528,30 @@ pub fn diff_get_corresponding_line(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
     lnum.min(curbuf_mut().b_ml.ml_line_count)
 }
 pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
-    let idx = diff_buf_idx(curbuf_mut(), curtab_mut());
+    let idx = diff_buf_idx(curbuf_mut(), &curtab_mut());
     if idx == DB_COUNT as i32 {
         return 0;
     }
     let u_idx = idx as usize;
-    if curtab_mut().tp_diff_invalid != 0 {
+    if curtab_mut().tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    let Some(dp) = curtab_mut()
+    let Some((dp_lnum, dp_count)) = curtab_mut()
         .tp_diffs
+        .borrow()
         .iter()
         .find(|dp| lnum <= dp.df_lnum[u_idx] + dp.df_count[u_idx])
+        .map(|dp| (dp.df_lnum, dp.df_count))
     else {
         return wp.buf_mut().b_ml.ml_line_count - (curbuf_mut().b_ml.ml_line_count - lnum);
     };
-    let i = diff_buf_idx(wp.buf_mut(), curtab_mut());
+    let i = diff_buf_idx(wp.buf_mut(), &curtab_mut());
     if i == DB_COUNT as i32 {
         return 0;
     }
     let u_i = i as usize;
-    let n = lnum + (dp.df_lnum[u_i] - dp.df_lnum[u_idx]);
-    n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
+    let n = lnum + (dp_lnum[u_i] - dp_lnum[u_idx]);
+    n.min(dp_lnum[u_i] + dp_count[u_i])
 }
 fn parse_diff_ed(line: &[u8], hunk: &mut Diffhunk) -> bool {
     let mut p = line;

@@ -1510,7 +1510,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
         for wp in win_iter_mut(if g_st().curtab == tp {
             g_st().firstwin.as_ptr()
         } else {
-            tp.tp_firstwin.as_ptr()
+            tp.tp_firstwin.get().as_ptr()
         }) {
             if wp.w_buffer == b_ptr {
                 changed_window_setting(wp);
@@ -1707,7 +1707,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
         }
 
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(&*tp) {
+            for wp in for_all_windows_in_tab_ptr(&tp) {
                 if windows.contains(&(&raw mut *wp))
                     && wp.w_ns_set.insert(ns_id as u32)
                     && (*wp).buf_mut().b_extmark_ns.contains_key(&(ns_id as u32))
@@ -1729,7 +1729,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
         || (!set_scoped && g_st().namespace_localscope.remove(&(ns_id as u32)))
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(&tp) {
                 if wp.buf_mut().b_extmark_ns.contains_key(&(ns_id as u32)) {
                     changed_window_setting(wp);
                 }
@@ -1760,7 +1760,7 @@ pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDic
 
     let mut count = 0usize;
     for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             if wp.w_ns_set.contains(&(ns_id as u32)) {
                 count += 1;
             }
@@ -1770,7 +1770,7 @@ pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDic
     let mut windows = arena_array(arena, count);
 
     for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             if wp.w_ns_set.contains(&(ns_id as u32)) {
                 windows.push(integer_obj(i64::from(wp.handle)));
             }

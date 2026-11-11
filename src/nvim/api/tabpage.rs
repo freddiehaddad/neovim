@@ -42,16 +42,14 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return rv;
     };
-    let tab_ptr = std::ptr::from_ref(tab);
-
-    if !valid_tabpage(Some(tab)) {
+    if !valid_tabpage(Some(&tab)) {
         return rv;
     }
 
-    let first = if g_st().curtab == tab_ptr {
+    let first = if g_st().curtab == tab {
         g_st().firstwin
     } else {
-        tab.tp_firstwin
+        tab.tp_firstwin.get()
     };
     let n = win_iter_mut(first.as_ptr()).count();
 
@@ -122,15 +120,14 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return 0;
     };
-    let tab_ptr = std::ptr::from_ref(tab);
-    if !valid_tabpage(Some(tab)) {
+    if !valid_tabpage(Some(&tab)) {
         return 0;
     }
-    if g_st().curtab == tab_ptr {
+    if g_st().curtab == tab {
         return nvim_get_current_win();
     }
-    for wp in win_iter_ptr(tab.tp_firstwin.as_ptr()) {
-        if tab.tp_curwin == wp {
+    for wp in win_iter_ptr(tab.tp_firstwin.get().as_ptr()) {
+        if tab.tp_curwin.get() == wp {
             return wp.handle;
         }
     }
@@ -151,7 +148,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if wp.is_null() {
         return;
     }
-    if !tabpage_win_valid(Some(&*tp), wp.opt()) {
+    if !tabpage_win_valid(Some(&tp), wp.opt()) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -160,14 +157,14 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
         );
         return;
     }
-    if (&raw mut *tp) == g_st().curtab.as_ptr() {
+    if tp == g_st().curtab {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         win_goto(wp.borrow_mut());
         try_leave(&tstate, err);
-    } else if tp.tp_curwin != wp {
-        tp.tp_prevwin = tp.tp_curwin;
-        tp.tp_curwin = wp;
+    } else if tp.tp_curwin.get() != wp {
+        tp.tp_prevwin.set(tp.tp_curwin.get());
+        tp.tp_curwin.set(wp);
     }
 }
 
@@ -181,7 +178,7 @@ pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return 0;
     };
-    i64::from(tabpage_index(Some(tab)))
+    i64::from(tabpage_index(Some(&tab)))
 }
 
 /// Checks if a tabpage is valid

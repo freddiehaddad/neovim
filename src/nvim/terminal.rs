@@ -1102,7 +1102,7 @@ pub fn terminal_check_size(term_id: TermId) {
     let mut height: u16 = 0;
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             if !is_ctx_win(wp) && !wp.w_buffer.is_null() && (*wp).buf_mut().terminal == term_id {
                 let win_width = (wp.w_view_width - win_col_off(wp)).max(0) as u16;
                 width = width.max(win_width);
@@ -2437,7 +2437,7 @@ fn refresh_terminal(term_id: TermId) {
 
     if resized {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(&*tp) {
+            for wp in for_all_windows_in_tab_ptr(&tp) {
                 if !wp.w_buffer.is_null()
                     && (*wp).buf_mut().b_fnum == buf_handle
                     && wp.w_leftcol != 0
@@ -2683,7 +2683,7 @@ fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
     let ml_end = buf.b_ml.ml_line_count;
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_ptr(&*tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             if wp.w_buffer == buf {
                 if wp == curwin_ptr() && is_focused(term_id) {
                     terminal_check_cursor();

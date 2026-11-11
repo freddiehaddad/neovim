@@ -950,11 +950,11 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 }
 
 #[inline]
-pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
-    if (&raw mut *tp) == g_st().curtab.as_ptr() {
+pub fn first_win_in_tab(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
+    if g_st().curtab == tp {
         g_st().firstwin.borrow_mut()
     } else {
-        tp.tp_firstwin.borrow_mut()
+        tp.tp_firstwin.get().borrow_mut()
     }
 }
 
@@ -1474,7 +1474,7 @@ pub fn close_buffer(
 
     if is_curwin && win != curwin_handle() && win_valid {
         block_autocmds();
-        goto_tabpage_win(the_curtab.borrow_mut(), win.borrow_mut());
+        goto_tabpage_win(the_curtab.borrow(), win.borrow_mut());
         unblock_autocmds();
     }
 
@@ -1524,7 +1524,7 @@ pub fn close_buffer(
         }
         let b_fnum = buf.borrow().b_fnum;
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
+            for wp in for_all_windows_in_tab_mut(&tp) {
                 mark_forget_file(wp, b_fnum);
             }
         }
@@ -1596,7 +1596,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     let is_curbuf = g_st().curbuf == buf;
     let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
     let the_curwin = curwin_ptr();
-    let the_curtab = g_st().curtab;
+    let the_curtab = g_st().curtab.clone();
 
     buf.b_locked += 1;
     buf.b_locked_split += 1;
@@ -1640,7 +1640,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
         block_autocmds();
-        goto_tabpage_win(the_curtab.borrow_mut(), the_curwin.borrow_mut());
+        goto_tabpage_win(the_curtab.borrow(), the_curwin.borrow_mut());
         unblock_autocmds();
     }
     if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1666,7 +1666,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     }
 
     for tp in for_all_tabpages_ptr() {
-        for win in for_all_windows_in_tab_mut(&*tp) {
+        for win in for_all_windows_in_tab_mut(&tp) {
             if win.w_buffer == (&raw mut *buf) {
                 clear_folding(win);
             }
@@ -2362,7 +2362,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 let rv = ctx_switch(
                     &mut switchwin,
                     Some(firstwin_mut()),
-                    Some(curtab_mut()),
+                    Some(&curtab_mut()),
                     None,
                     K_CTX_NO_DISPLAY,
                 );
@@ -3809,7 +3809,7 @@ pub fn setfname(
             let mut in_use = false;
 
             for tab in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(&*tab) {
+                for win in for_all_windows_in_tab_mut(&tab) {
                     if win.w_buffer == obuf {
                         in_use = true;
                     }
@@ -4389,10 +4389,11 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     setpcmark();
 
     if had_tab > 0 {
-        goto_tabpage_tp(g_st().first_tabpage.opt_mut(), true, true);
+        let first_tp = g_st().first_tabpage.clone();
+        goto_tabpage_tp(first_tp.opt(), true, true);
     }
     loop {
-        let mut tpnext = curtab_mut().tp_next;
+        let mut tpnext = curtab_mut().tp_next.get();
         let mut wp = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
             g_st().lastwin.as_ptr()
         } else {
@@ -4436,7 +4437,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 } else {
                     g_st().firstwin.as_ptr()
                 });
-                tpnext = g_st().first_tabpage;
+                tpnext = g_st().first_tabpage.clone();
                 open_wins = 0;
             } else {
                 open_wins += 1;
@@ -4447,7 +4448,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if had_tab == 0 || tpnext.is_null() {
             break;
         }
-        goto_tabpage_tp(tpnext.opt_mut(), true, true);
+        goto_tabpage_tp(tpnext.opt(), true, true);
     }
 
     g_st().autocmd_no_enter += 1;

@@ -266,7 +266,7 @@ pub fn conceal_check_visual() {
         return;
     }
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_mut(&*tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             if g_st().curbuf != wp.w_buffer {
                 continue;
             }
@@ -402,16 +402,16 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
     g_st().columns_global = width;
     check_screensize();
     if !ui_has(K_UIMESSAGES) {
-        let max_p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
+        let max_p_ch = OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1);
         if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
             opt_vars().p_ch = max_p_ch.max(1);
-            curtab_mut().tp_ch_used = opt_vars().p_ch;
+            curtab_mut().tp_ch_used.set(opt_vars().p_ch);
         }
         for tp in for_all_tabpages_ptr() {
             if g_st().curtab != tp {
-                let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&mut *tp) + 1);
-                if tp.tp_ch_used > 0 && tp.tp_ch_used > max_tp_ch {
-                    tp.tp_ch_used = max_tp_ch.max(1);
+                let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&tp) + 1);
+                if tp.tp_ch_used.get() > 0 && tp.tp_ch_used.get() > max_tp_ch {
+                    tp.tp_ch_used.set(max_tp_ch.max(1));
                 }
             }
         }

@@ -59,7 +59,7 @@ use crate::path::{
 use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
 use crate::strings::{gettext, vim_strsave_shellescape};
-use crate::window::{TabPageInfo, WinInfoInfo, find_tabpage};
+use crate::window::{WinInfoInfo, find_tabpage};
 use std::ffi::CStr;
 
 use crate::api::vim::K_CD_SCOPE_GLOBAL;
@@ -508,7 +508,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         scope = K_CD_SCOPE_BUFFER;
     } else if curwin_mut().w_localdir.is_some() {
         scope = K_CD_SCOPE_WINDOW;
-    } else if curtab_mut().tp_localdir.is_some() {
+    } else if curtab_mut().tp_localdir.get().is_some() {
         scope = K_CD_SCOPE_TABPAGE;
     }
 
@@ -780,7 +780,7 @@ fn getcwd_scope_args(
     default_scope: i32,
     scope: &mut i32,
     win: &mut Option<&'static mut WinInfoInfo>,
-    tp: &mut Option<&'static mut TabPageInfo>,
+    tp: &mut Option<crate::globals::TabpagePtr>,
     buf: &mut Option<&'static mut FileBuf>,
 ) -> bool {
     const K_WIN_ARG: usize = 0;
@@ -883,7 +883,7 @@ fn getcwd_scope_args(
 
     // Find the window in `tp` by number.
     if argv[K_WIN_ARG] > 0 {
-        *win = find_win_by_nr(&argvars[0], tp.as_deref_mut());
+        *win = find_win_by_nr(&argvars[0], tp.as_deref());
 
         if win.is_none() {
             emsg(gettext(c"E5002: Cannot find window number."));
@@ -898,7 +898,7 @@ fn getcwd_scope_args(
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_INVALID;
     let mut win: Option<&'static mut WinInfoInfo> = None;
-    let mut tp: Option<&'static mut TabPageInfo> = None;
+    let mut tp: Option<crate::globals::TabpagePtr> = None;
     let mut buf: Option<&'static mut FileBuf> = None;
 
     rettv.v_type = VarType::VarString;
@@ -917,6 +917,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     let mut from: Option<&CStr> = None; // The local directory to copy.
+    let tp_localdir_owned;
     let mut cwd = vec![0u8; MAXPATHL];
 
     let mut cur_scope = scope;
@@ -928,7 +929,8 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
     if cur_scope == K_CD_SCOPE_TABPAGE {
-        from = tp.as_ref().unwrap().tp_localdir.as_deref();
+        tp_localdir_owned = tp.as_ref().unwrap().tp_localdir.get();
+        from = tp_localdir_owned.as_deref();
 
         if from.is_none() {
             cur_scope = K_CD_SCOPE_BUFFER;
@@ -1181,7 +1183,7 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_WINDOW;
     let mut win: Option<&'static mut WinInfoInfo> = None;
-    let mut tp: Option<&'static mut TabPageInfo> = None;
+    let mut tp: Option<crate::globals::TabpagePtr> = None;
     let mut buf: Option<&'static mut FileBuf> = None;
 
     rettv.v_type = VarType::VarNumber;
@@ -1212,7 +1214,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
         K_CD_SCOPE_TABPAGE => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                tp.unwrap().tp_localdir.is_some(),
+                tp.unwrap().tp_localdir.get().is_some(),
             ))
         }
         K_CD_SCOPE_GLOBAL => {

@@ -274,7 +274,7 @@ pub fn ui_refresh() {
                 None,
             );
             for tp in for_all_tabpages_mut() {
-                tp.tp_ch_used = i64::from(had_message);
+                tp.tp_ch_used.set(i64::from(had_message));
             }
         }
         msg_scroll_flush();

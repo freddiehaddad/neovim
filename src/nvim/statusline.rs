@@ -886,16 +886,15 @@ fn ui_ext_tabline_update() {
     let mut arena = Arena::new();
 
     let mut n_tabs: usize = 0;
-    let mut tp = g_st().first_tabpage;
+    let mut tp = g_st().first_tabpage.clone();
     while !tp.is_null() {
         n_tabs += 1;
-        tp = tp.tp_next;
+        tp = tp.tp_next.get();
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
-    tp = g_st().first_tabpage;
+    tp = g_st().first_tabpage.clone();
     while !tp.is_null() {
-        let tp_ref = tp.borrow();
         let mut tab_info = arena_dict(&mut arena, 2);
 
         put_c(
@@ -903,14 +902,14 @@ fn ui_ext_tabline_update() {
             c"tab",
             Object {
                 obj_type: ObjectType::ObjectTypeTabpage,
-                data: ObjectData::Integer(i64::from(tp_ref.handle)),
+                data: ObjectData::Integer(i64::from(tp.handle)),
             },
         );
 
         let cwp = if g_st().curtab == tp {
             curwin_ptr()
         } else {
-            tp_ref.tp_curwin
+            tp.tp_curwin.get()
         };
 
         get_trans_bufname(cwp.borrow_mut().buf_mut());
@@ -935,7 +934,7 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        tp = tp_ref.tp_next;
+        tp = tp.tp_next.get();
     }
 
     let mut n_buffers: usize = 0;
@@ -1022,10 +1021,10 @@ pub fn draw_tabline() {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
         grid_line_start(&mut g_st().default_gridview, 0);
-        let mut tp = g_st().first_tabpage;
+        let mut tp = g_st().first_tabpage.clone();
         while !tp.is_null() {
             tabcount += 1;
-            tp = tp.tp_next;
+            tp = tp.tp_next.get();
         }
 
         let tabwidth = (if tabcount > 0 {
@@ -1038,21 +1037,20 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = g_st().first_tabpage;
+        tp = g_st().first_tabpage.clone();
         while !tp.is_null() {
             if col >= g_st().columns_global - 4 {
                 break;
             }
 
-            let tp_ref = tp.borrow();
             let mut scol = col;
             let (cwp, mut wp) = if g_st().curtab == tp {
                 (curwin_ptr(), g_st().firstwin)
             } else {
-                (tp_ref.tp_curwin, tp_ref.tp_firstwin)
+                (tp.tp_curwin.get(), tp.tp_firstwin.get())
             };
 
-            if tp_ref.tp_topframe == g_st().topframe {
+            if tp.tp_topframe.get() == g_st().topframe {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
@@ -1060,7 +1058,7 @@ pub fn draw_tabline() {
                 col += 1;
             }
 
-            if tp_ref.tp_topframe != g_st().topframe {
+            if tp.tp_topframe.get() != g_st().topframe {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TP));
             }
 
@@ -1138,7 +1136,7 @@ pub fn draw_tabline() {
                 scol += 1;
             }
 
-            tp = tp_ref.tp_next;
+            tp = tp.tp_next.get();
         }
 
         for scol in col..g_st().columns_global {

@@ -3455,7 +3455,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     curbuf_mut().b_keep_filetype = false;
 
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_mut(&*tp) {
+        for wp in for_all_windows_in_tab_mut(&tp) {
             if wp.w_buffer == curwin_mut().w_buffer && !foldmethod_is_manual(wp) {
                 fold_update_all(wp);
             }
