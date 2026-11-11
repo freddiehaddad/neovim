@@ -326,12 +326,13 @@ impl KeySetLink {
     }
 
     #[inline]
-    pub fn field_copy<T, F: Copy>(&self, value: &T) -> F {
+    pub fn field_copy<T, F: Clone>(&self, value: &T) -> F {
         unsafe {
-            *std::ptr::from_ref(value)
+            (*std::ptr::from_ref(value)
                 .cast::<u8>()
                 .wrapping_add(self.ptr_off)
-                .cast::<F>()
+                .cast::<F>())
+            .clone()
         }
     }
 }
@@ -1704,7 +1705,7 @@ impl TSOwnedRanges {
 
 impl Drop for TSOwnedRanges {
     fn drop(&mut self) {
-        crate::memory::raw_dealloc(self.ptr.cast());
+        ts_free_ptr(self.ptr.cast());
     }
 }
 
@@ -1721,7 +1722,7 @@ impl TSOwnedCString {
 
 impl Drop for TSOwnedCString {
     fn drop(&mut self) {
-        crate::memory::raw_dealloc(self.ptr.cast());
+        ts_free_ptr(self.ptr.cast());
     }
 }
 
@@ -1741,20 +1742,123 @@ impl Drop for TSLuaLoggerOpts {
     }
 }
 
+const TS_ALLOC_ALIGN: usize = 16;
+const TS_HEADER_SIZE: usize = 16;
+
+#[inline(always)]
+fn ts_layout_with_header(size: usize) -> Option<std::alloc::Layout> {
+    let total = TS_HEADER_SIZE.checked_add(size.max(1))?;
+    std::alloc::Layout::from_size_align(total, TS_ALLOC_ALIGN).ok()
+}
+
+#[inline(always)]
+fn ts_sys_malloc(size: usize) -> *mut u8 {
+    let Some(layout) = ts_layout_with_header(size) else {
+        return std::ptr::null_mut();
+    };
+    let base = unsafe { std::alloc::alloc(layout) };
+    if base.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        std::ptr::write(base.cast::<usize>(), layout.size());
+        base.add(TS_HEADER_SIZE)
+    }
+}
+
+#[inline(always)]
+fn ts_free_ptr(ptr: *mut c_void) {
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let base = ptr.cast::<u8>().sub(TS_HEADER_SIZE);
+        let total_size = std::ptr::read(base.cast::<usize>());
+        let layout = std::alloc::Layout::from_size_align_unchecked(total_size, TS_ALLOC_ALIGN);
+        std::alloc::dealloc(base, layout);
+    }
+}
+
 unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
-    crate::memory::raw_alloc(size)
+    let mut ret = ts_sys_malloc(size.max(1));
+    if ret.is_null() {
+        crate::memory::try_to_free_memory();
+        ret = ts_sys_malloc(size.max(1));
+        if ret.is_null() {
+            crate::memory::out_of_memory_exit();
+        }
+    }
+    ret.cast()
 }
 
 unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
-    crate::memory::raw_calloc(count, size)
+    let (c, s) = if count != 0 && size != 0 {
+        (count, size)
+    } else {
+        (1, 1)
+    };
+    let alloc_zeroed = |c: usize, s: usize| -> *mut u8 {
+        let Some(byte_size) = c.checked_mul(s) else {
+            return std::ptr::null_mut();
+        };
+        let Some(layout) = ts_layout_with_header(byte_size) else {
+            return std::ptr::null_mut();
+        };
+        let base = unsafe { std::alloc::alloc_zeroed(layout) };
+        if base.is_null() {
+            return std::ptr::null_mut();
+        }
+        unsafe {
+            std::ptr::write(base.cast::<usize>(), layout.size());
+            base.add(TS_HEADER_SIZE)
+        }
+    };
+    let mut ret = alloc_zeroed(c, s);
+    if ret.is_null() {
+        crate::memory::try_to_free_memory();
+        ret = alloc_zeroed(c, s);
+        if ret.is_null() {
+            crate::memory::out_of_memory_exit();
+        }
+    }
+    ret.cast()
 }
 
 unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    crate::memory::raw_realloc(ptr, size)
+    if ptr.is_null() {
+        return unsafe { ts_malloc(size) };
+    }
+    let realloc_inner = |ptr: *mut c_void, size: usize| -> *mut u8 {
+        let Some(new_layout) = ts_layout_with_header(size) else {
+            return std::ptr::null_mut();
+        };
+        unsafe {
+            let old_base = ptr.cast::<u8>().sub(TS_HEADER_SIZE);
+            let old_total = std::ptr::read(old_base.cast::<usize>());
+            let old_layout =
+                std::alloc::Layout::from_size_align_unchecked(old_total, TS_ALLOC_ALIGN);
+            let new_base = std::alloc::realloc(old_base, old_layout, new_layout.size());
+            if new_base.is_null() {
+                return std::ptr::null_mut();
+            }
+            std::ptr::write(new_base.cast::<usize>(), new_layout.size());
+            new_base.add(TS_HEADER_SIZE)
+        }
+    };
+    let allocated_size = size.max(1);
+    let mut ret = realloc_inner(ptr, allocated_size);
+    if ret.is_null() {
+        crate::memory::try_to_free_memory();
+        ret = realloc_inner(ptr, allocated_size);
+        if ret.is_null() {
+            crate::memory::out_of_memory_exit();
+        }
+    }
+    ret.cast()
 }
 
 unsafe extern "C" fn ts_free(ptr: *mut c_void) {
-    crate::memory::raw_dealloc(ptr)
+    ts_free_ptr(ptr)
 }
 
 #[inline]

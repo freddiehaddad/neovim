@@ -92,7 +92,7 @@ pub struct ChannelCallFrame {
     pub request_id: u32,
     pub returned: std::cell::Cell<bool>,
     pub errored: std::cell::Cell<bool>,
-    pub result: std::cell::Cell<Object>,
+    pub result: crate::api::private::validate::CloneCell<Object>,
     pub result_mem: std::cell::Cell<ArenaMem>,
 }
 
@@ -142,7 +142,7 @@ impl RpcState {
 
 impl Drop for RpcState {
     fn drop(&mut self) {
-        api_free_dict(self.info);
+        api_free_dict(std::mem::take(&mut self.info));
     }
 }
 
@@ -318,7 +318,7 @@ pub fn rpc_send_call(
         request_id,
         returned: std::cell::Cell::new(false),
         errored: std::cell::Cell::new(false),
-        result: std::cell::Cell::new(OBJECT_NIL),
+        result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
         result_mem: std::cell::Cell::new(ArenaMem::NULL),
     });
     rpc.call_stack.push(frame.clone());
@@ -511,14 +511,14 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
             frame.errored.set(errored);
 
             if errored {
-                frame.result.set(p.error);
+                frame.result.set(p.error.clone());
             } else {
-                frame.result.set(p.result);
+                frame.result.set(p.result.clone());
             }
 
             frame.result_mem.set(arena_finish(&mut p.arena));
         } else {
-            let res = channel.unpacker_mut().result;
+            let res = channel.unpacker_mut().result.clone();
             if res.obj_type != ObjectType::ObjectTypeArray {
                 chan_close_on_err(
                     channel,
@@ -636,7 +636,7 @@ pub fn request_event(mut e: RequestEvent) {
     let is_open = find_channel_opt(e.chan_id).is_some_and(|c| !c.rpc.closed.get());
     if is_open {
         let fn_call = handler.r#fn.unwrap();
-        let mut result = fn_call(e.chan_id, e.args, &mut e.used_mem, &mut error);
+        let mut result = fn_call(e.chan_id, e.args.clone(), &mut e.used_mem, &mut error);
         if (e.r#type == MessageType::MessageTypeRequest
             || error.err_type != ErrorType::ErrorTypeNone)
             && let Some(channel) = find_channel_opt(e.chan_id)
@@ -969,7 +969,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
         std::process::abort();
     };
 
-    api_free_dict(chan.rpc.info);
+    api_free_dict(std::mem::take(&mut chan.rpc.info));
 
     chan.rpc.info = info;
 
@@ -995,17 +995,14 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
         return None;
     }
     let key_bytes = key.to_bytes();
-    let info = ct.rpc.info;
-    for i in 0..info.size {
-        let item = &info[i];
+    let info = &ct.rpc.info;
+    for item in info.as_slice() {
         if !item.key.data.is_null()
             && item.key.cstr_bytes() == key_bytes
             && item.value.obj_type == ObjectType::ObjectTypeString
+            && let Some(cstr) = item.value.data.as_opt_cstr()
         {
-            let val_str = item.value.data.string();
-            if !val_str.data.is_null() {
-                return Some(val_str.as_cstr());
-            }
+            return Some(cstr);
         }
     }
 
@@ -1035,14 +1032,14 @@ mod tests {
             request_id: 10,
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
-            result: std::cell::Cell::new(OBJECT_NIL),
+            result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
             result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         let f2 = std::rc::Rc::new(ChannelCallFrame {
             request_id: 20,
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
-            result: std::cell::Cell::new(OBJECT_NIL),
+            result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
             result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         rpc.call_stack.push(f1.clone());

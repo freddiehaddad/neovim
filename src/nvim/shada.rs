@@ -141,7 +141,7 @@ const KEYSET_OPTIDX_SHADA_REGISTER_RW: u32 = 5;
 const KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP: u32 = 8;
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict__shada_buflist_item {
     pub is_set_shada_buflist_item: OptionalKeys,
     pub l: Integer,
@@ -150,7 +150,7 @@ pub struct KeyDict__shada_buflist_item {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict__shada_mark {
     pub is_set_shada_mark: OptionalKeys,
     pub n: Integer,
@@ -171,7 +171,7 @@ pub struct KeyDict__shada_register {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict__shada_search_pat {
     pub is_set_shada_search_pat: OptionalKeys,
     pub magic: Boolean,
@@ -329,9 +329,9 @@ enum ShadaEntryData {
 
 impl ShadaEntryData {
     #[inline]
-    const fn header(&self) -> Dict {
+    fn header(&self) -> Dict {
         match self {
-            Self::Header(v) => *v,
+            Self::Header(v) => v.clone(),
             _ => unreachable!(),
         }
     }
@@ -353,9 +353,9 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    const fn search_pattern(&self) -> KeyDict__shada_search_pat {
+    fn search_pattern(&self) -> KeyDict__shada_search_pat {
         match self {
-            Self::SearchPattern(v) => *v,
+            Self::SearchPattern(v) => v.clone(),
             _ => unreachable!(),
         }
     }
@@ -1720,7 +1720,7 @@ fn shada_pack_entry(
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             let varname = cstr_as_string(gv_name_opt);
-            mpack_bin(varname, &mut sbuf);
+            mpack_bin(varname.clone(), &mut sbuf);
             let mut vardesc = [0u8; 256];
             let prefix = b"variable g:";
             vardesc[..prefix.len()].copy_from_slice(prefix);
@@ -1854,8 +1854,8 @@ fn shada_pack_entry(
             mpack_map(&mut sbuf, entry_map_size);
             mpack_str(static_cstr_as_string(c"rc"), &mut sbuf);
             mpack_array(&mut sbuf, r.contents.len() as u32);
-            for &s in &r.contents {
-                mpack_bin(s, &mut sbuf);
+            for s in &r.contents {
+                mpack_bin(s.clone(), &mut sbuf);
             }
             mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
             mpack_uint(&mut sbuf, u32::from(r.name));
@@ -1898,9 +1898,8 @@ fn shada_pack_entry(
         ShadaEntryType::SDItemHeader => {
             let hdr = entry.data.header();
             mpack_map(&mut sbuf, hdr.size as u32);
-            for i in 0..hdr.size {
-                let kv = hdr[i];
-                mpack_str(kv.key, &mut sbuf);
+            for kv in hdr.as_slice() {
+                mpack_str(kv.key.clone(), &mut sbuf);
                 match kv.value.obj_type {
                     ObjectType::ObjectTypeString => {
                         mpack_bin(kv.value.data.string(), &mut sbuf);
@@ -3522,7 +3521,7 @@ fn shada_read_next_item(
                             );
                         break 'parse_item false;
                     }
-                    it.pat = copy_string(it.pat, None);
+                    it.pat = copy_string(it.pat.clone(), None);
                 }
                 ShadaEntryType::SDItemChange
                 | ShadaEntryType::SDItemJump
@@ -3640,7 +3639,7 @@ fn shada_read_next_item(
                         break 'parse_item false;
                     }
                     for s in &mut it.rc {
-                        *s = copy_string(*s, None);
+                        *s = copy_string(s.clone(), None);
                     }
                     let reg = entry.data.reg_mut();
                     reg.contents = it.rc;

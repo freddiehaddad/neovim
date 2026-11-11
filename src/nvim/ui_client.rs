@@ -53,9 +53,9 @@ struct UiClientState {
     tui_width: std::cell::Cell<i32>,
     tui_height: std::cell::Cell<i32>,
     tui_rgb: std::cell::Cell<bool>,
-    restart_args: std::cell::Cell<Array>,
+    restart_args: crate::api::private::validate::CloneCell<Array>,
     restart_pending: std::cell::Cell<bool>,
-    restart_args_after_crash_exit: std::cell::Cell<Array>,
+    restart_args_after_crash_exit: crate::api::private::validate::CloneCell<Array>,
 }
 
 impl UiClientState {
@@ -65,9 +65,11 @@ impl UiClientState {
             tui_width: std::cell::Cell::new(0),
             tui_height: std::cell::Cell::new(0),
             tui_rgb: std::cell::Cell::new(false),
-            restart_args: std::cell::Cell::new(ARRAY_INIT),
+            restart_args: crate::api::private::validate::CloneCell::new(ARRAY_INIT),
             restart_pending: std::cell::Cell::new(false),
-            restart_args_after_crash_exit: std::cell::Cell::new(ARRAY_INIT),
+            restart_args_after_crash_exit: crate::api::private::validate::CloneCell::new(
+                ARRAY_INIT,
+            ),
         }
     }
 }
@@ -141,7 +143,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
-    let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
+    let mut opts_items: [KeyValuePair; 9] = [const { KeyValuePair::new() }; 9];
     let mut opts = Dict::from_buf(&mut opts_items);
     let mut put_opt = |k: &std::ffi::CStr, v: Object| {
         *opts.next_slot_mut() = KeyValuePair {
@@ -184,8 +186,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     let m = api_metadata();
     let mut version = Dict::new();
     debug_assert!(m.data.dict().size > 0);
-    for i in 0..m.data.dict().size {
-        let item = m.data.dict()[i];
+    for (i, item) in m.data.dict_slice().iter().enumerate() {
         if item.key.opt_bytes() == Some(b"version") {
             version = item.value.data.dict();
             break;
@@ -546,12 +547,9 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         }
         let cmdargs = args[1].data.array();
         let mut argv: Vec<CString> = Vec::with_capacity(cmdargs.size);
-        for i in 0..cmdargs.size {
-            let item = cmdargs[i];
+        for item in cmdargs.as_slice() {
             if item.obj_type == ObjectType::ObjectTypeString {
-                argv.push(crate::memory::bytes_to_cstring(
-                    item.data.string().cstr_bytes(),
-                ));
+                argv.push(crate::memory::bytes_to_cstring(item.data.cstr_bytes()));
             } else {
                 argv.push(CString::default());
             }
@@ -580,7 +578,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             return;
         }
         if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
-            let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
+            let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1].clone()];
             let chan_args = Array::from_slice(&mut chan_args_items[..2]);
             rpc_send_event(id, c"nvim_chan_set", chan_args);
         }
@@ -737,7 +735,7 @@ pub fn ui_client_event_option_set(args: Array) {
         log_ui_event_err(c"ui_client_event_option_set", c"option_set");
         return;
     }
-    with_tui_mut(|tui| tui_option_set(tui, args[0].data.string(), args[1]));
+    with_tui_mut(|tui| tui_option_set(tui, args[0].data.string(), args[1].clone()));
 }
 
 pub fn ui_client_event_chdir(args: Array) {

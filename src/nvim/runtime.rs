@@ -1020,8 +1020,7 @@ fn runtime_get_named_common(
             }
         }
 
-        for j in 0..pat.size {
-            let pat_item = pat[j];
+        for pat_item in pat.as_slice() {
             if pat_item.obj_type == ObjectType::ObjectTypeString {
                 let size = format_to_buf!(
                     &mut *buf_slice,

@@ -1814,9 +1814,9 @@ struct CmdexpandState {
     compl_selected: std::cell::Cell<i32>,
     filetype_expand_what: std::cell::Cell<FiletypeExpandWhat>,
     breakpt_expand_what: std::cell::Cell<BreakptExpandWhat>,
-    healthcheck_names: std::cell::Cell<Object>,
+    healthcheck_names: crate::api::private::validate::CloneCell<Object>,
     healthcheck_last_gen: std::cell::Cell<u32>,
-    arg1_lua_names: std::cell::Cell<Object>,
+    arg1_lua_names: crate::api::private::validate::CloneCell<Object>,
     arg1_lua_last_gen: std::cell::Cell<u32>,
     first_match: std::cell::Cell<i32>,
 }
@@ -1835,12 +1835,12 @@ impl CmdexpandState {
             compl_selected: std::cell::Cell::new(0),
             filetype_expand_what: std::cell::Cell::new(FiletypeExpandWhat::All),
             breakpt_expand_what: std::cell::Cell::new(BreakptExpandWhat::Add),
-            healthcheck_names: std::cell::Cell::new(Object {
+            healthcheck_names: crate::api::private::validate::CloneCell::new(Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             }),
             healthcheck_last_gen: std::cell::Cell::new(0),
-            arg1_lua_names: std::cell::Cell::new(Object {
+            arg1_lua_names: crate::api::private::validate::CloneCell::new(Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             }),
@@ -4586,12 +4586,14 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
                 .array()
                 .size
     {
-        let item = CMDEXP_STATE
+        let names = CMDEXP_STATE
             .with(|s| s.healthcheck_names.get())
             .data
-            .array()[idx as usize];
+            .array();
+        let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(item.data.string().as_cstr());
+            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), item.data.as_bytes());
+            return Some(g_st().name_buff_cstr());
         }
     }
     None
@@ -4646,9 +4648,11 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
                 .array()
                 .size
     {
-        let item = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array()[idx as usize];
+        let names = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array();
+        let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(item.data.string().as_cstr());
+            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), item.data.as_bytes());
+            return Some(g_st().name_buff_cstr());
         }
     }
     None

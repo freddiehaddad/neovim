@@ -1776,7 +1776,7 @@ fn ex_let_option<'a>(
     }
 
     if !is_tty_opt {
-        set_option_value_give_err(opt_idx, newval, opt_flags);
+        set_option_value_give_err(opt_idx, newval.clone(), opt_flags);
     }
 
     optval_free(curval);
@@ -3439,7 +3439,13 @@ fn set_option_from_tv(varname: &CStr, varp: &mut TypVal) {
 
     if !error {
         let mut errbuf_storage = [0u8; IOSIZE];
-        let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(&mut errbuf_storage));
+        let errmsg = set_option_value(
+            opt_idx,
+            value.clone(),
+            OPT_LOCAL,
+            true,
+            Some(&mut errbuf_storage),
+        );
         if let Some(errmsg) = errmsg {
             emsg(errmsg);
         }

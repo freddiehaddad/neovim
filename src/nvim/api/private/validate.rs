@@ -2,12 +2,53 @@
 
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
-use crate::memory::realloc_items;
+use std::rc::Rc;
+
+pub struct CloneCell<T>(std::cell::RefCell<T>);
+
+impl<T> CloneCell<T> {
+    #[inline]
+    pub const fn new(val: T) -> Self {
+        Self(std::cell::RefCell::new(val))
+    }
+
+    #[inline]
+    pub fn set(&self, val: T) {
+        *self.0.borrow_mut() = val;
+    }
+
+    #[inline]
+    pub fn replace(&self, val: T) -> T {
+        self.0.replace(val)
+    }
+}
+
+impl<T: Clone> CloneCell<T> {
+    #[inline]
+    pub fn get(&self) -> T {
+        self.0.borrow().clone()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum NvimStringData {
+    #[default]
+    Null,
+    Static(&'static [u8]),
+    Owned(Rc<Vec<u8>>),
+}
+
+impl NvimStringData {
+    #[inline]
+    pub const fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+}
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NvimString {
-    pub data: crate::globals::GraphPtr<u8>,
+    pub data: NvimStringData,
     pub size: usize,
 }
 
@@ -15,7 +56,7 @@ impl NvimString {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            data: crate::globals::GraphPtr::NULL,
+            data: NvimStringData::Null,
             size: 0,
         }
     }
@@ -23,17 +64,30 @@ impl NvimString {
     #[inline]
     pub const fn empty_cstr() -> Self {
         Self {
-            data: crate::globals::GraphPtr::new(c"".as_ptr().cast_mut().cast()),
+            data: NvimStringData::Static(b"\0"),
             size: 0,
         }
     }
 
     #[inline]
-    pub const fn from_cstr(s: &std::ffi::CStr) -> Self {
+    pub const fn from_static_cstr(s: &'static std::ffi::CStr) -> Self {
         Self {
-            data: crate::globals::GraphPtr::new(s.as_ptr().cast_mut().cast()),
+            data: NvimStringData::Static(s.to_bytes_with_nul()),
             size: s.to_bytes().len(),
         }
+    }
+
+    #[inline]
+    pub const fn from_static_bytes_len(bytes: &'static [u8], size: usize) -> Self {
+        Self {
+            data: NvimStringData::Static(if bytes.is_empty() { b"\0" } else { bytes }),
+            size,
+        }
+    }
+
+    #[inline]
+    pub fn from_cstr(s: &std::ffi::CStr) -> Self {
+        Self::from_bytes(s.to_bytes())
     }
 
     #[inline]
@@ -45,56 +99,70 @@ impl NvimString {
     }
 
     #[inline]
-    pub const fn from_bytes_len(bytes: &[u8], size: usize) -> Self {
-        let ptr = if bytes.is_empty() {
-            c"".as_ptr().cast::<u8>()
-        } else {
-            bytes.as_ptr()
-        };
+    pub fn zeroed(size: usize) -> Self {
         Self {
-            data: crate::globals::GraphPtr::new(ptr.cast_mut()),
+            data: NvimStringData::Owned(Rc::new(vec![0u8; size + 1])),
             size,
         }
     }
 
     #[inline]
-    pub const fn from_bytes(bytes: &[u8]) -> Self {
-        Self::from_bytes_len(bytes, bytes.len())
-    }
-
-    #[inline]
-    pub fn as_bytes(self) -> &'static [u8] {
-        if self.is_empty() {
-            c"".to_bytes()
-        } else {
-            self.data.ptr_slice(self.size)
+    pub fn from_bytes_len(bytes: &[u8], size: usize) -> Self {
+        let copy_len = size.min(bytes.len());
+        let mut v = vec![0u8; size + 1];
+        v[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        Self {
+            data: NvimStringData::Owned(Rc::new(v)),
+            size,
         }
     }
 
     #[inline]
-    pub fn slice(self, len: usize) -> &'static [u8] {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self::from_bytes_len(bytes, bytes.len())
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        match &self.data {
+            NvimStringData::Null => b"",
+            NvimStringData::Static(s) => &s[..self.size.min(s.len())],
+            NvimStringData::Owned(v) => &v[..self.size.min(v.len())],
+        }
+    }
+
+    #[inline]
+    pub fn slice(&self, len: usize) -> &[u8] {
         let b = self.as_bytes();
         &b[..len.min(b.len())]
     }
 
     #[inline]
     pub fn as_bytes_with_nul_mut(&mut self) -> &mut [u8] {
-        if self.data.is_null() {
-            &mut []
-        } else {
-            self.data.ptr_slice_mut(self.size + 1)
+        if matches!(self.data, NvimStringData::Null) {
+            return &mut [];
+        }
+        if let NvimStringData::Static(s) = self.data {
+            let mut v = vec![0u8; (self.size + 1).max(s.len())];
+            v[..s.len()].copy_from_slice(s);
+            self.data = NvimStringData::Owned(Rc::new(v));
+        }
+        match &mut self.data {
+            NvimStringData::Owned(rc) => {
+                let v = Rc::make_mut(rc);
+                if v.len() < self.size + 1 {
+                    v.resize(self.size + 1, 0);
+                }
+                &mut v[..self.size + 1]
+            }
+            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.size == 0 || self.data.is_null()
-    }
-
-    #[inline]
-    pub fn cstr_bytes(self) -> &'static [u8] {
+    pub fn cstr_bytes(&self) -> &[u8] {
         if self.data.is_null() {
-            c"".to_bytes()
+            b""
         } else if self.size == 0 {
             self.as_cstr().to_bytes()
         } else {
@@ -103,7 +171,7 @@ impl NvimString {
     }
 
     #[inline]
-    pub fn opt_bytes(self) -> Option<&'static [u8]> {
+    pub fn opt_bytes(&self) -> Option<&[u8]> {
         if self.data.is_null() {
             None
         } else {
@@ -112,41 +180,28 @@ impl NvimString {
     }
 
     #[inline]
-    pub fn first_byte(self) -> u8 {
+    pub fn first_byte(&self) -> u8 {
         self.cstr_bytes().first().copied().unwrap_or(0)
     }
 
     #[inline]
-    pub fn as_cstr(self) -> &'static std::ffi::CStr {
+    pub fn as_cstr(&self) -> &std::ffi::CStr {
         self.as_opt_cstr().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn as_opt_cstr(self) -> Option<&'static std::ffi::CStr> {
-        if self.data.is_null() {
-            return None;
-        }
-        let mut len = self.size;
-        if *self.data.wrapping_add(len).borrow() != 0 {
-            len = 0;
-            while *self.data.wrapping_add(len).borrow() != 0 {
-                len += 1;
-            }
-        }
-        let slice = self.data.ptr_slice(len + 1);
-        Some(crate::memory::bytes_as_cstr(slice))
+    pub fn as_opt_cstr(&self) -> Option<&std::ffi::CStr> {
+        let raw: &[u8] = match &self.data {
+            NvimStringData::Null => return None,
+            NvimStringData::Static(s) => s,
+            NvimStringData::Owned(v) => v.as_slice(),
+        };
+        Some(crate::memory::bytes_as_cstr(raw))
     }
 
     #[inline]
-    pub fn to_cstring(self) -> std::ffi::CString {
+    pub fn to_cstring(&self) -> std::ffi::CString {
         self.as_cstr().to_owned()
-    }
-}
-
-impl Default for NvimString {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -238,11 +293,11 @@ impl ObjectType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Array {
     pub size: usize,
     pub capacity: usize,
-    pub items: crate::globals::GraphPtr<Object>,
+    pub items: Option<Rc<Vec<Object>>>,
 }
 
 impl Array {
@@ -251,7 +306,20 @@ impl Array {
         Self {
             size: 0,
             capacity: 0,
-            items: crate::globals::GraphPtr::NULL,
+            items: None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(max_size: usize) -> Self {
+        Self {
+            size: 0,
+            capacity: max_size,
+            items: if max_size == 0 {
+                None
+            } else {
+                Some(Rc::new(vec![Object::new(); max_size]))
+            },
         }
     }
 
@@ -262,65 +330,66 @@ impl Array {
             size: len,
             capacity: len,
             items: if len == 0 {
-                crate::globals::GraphPtr::NULL
+                None
             } else {
-                crate::globals::GraphPtr::new(slice.as_mut_ptr())
+                Some(Rc::new(slice.iter_mut().map(std::mem::take).collect()))
             },
         }
     }
 
     #[inline(always)]
     pub fn from_buf(buf: &mut [Object]) -> Self {
-        let cap = buf.len();
-        Self {
-            size: 0,
-            capacity: cap,
-            items: if cap == 0 {
-                crate::globals::GraphPtr::NULL
-            } else {
-                crate::globals::GraphPtr::new(buf.as_mut_ptr())
-            },
-        }
+        Self::with_capacity(buf.len())
     }
 
     #[inline(always)]
     pub fn as_slice(&self) -> &[Object] {
-        if self.size == 0 || self.items.is_null() {
-            &[]
-        } else {
-            self.items.ptr_slice(self.size)
+        match &self.items {
+            Some(rc) => &rc[..self.size.min(rc.len())],
+            None => &[],
         }
     }
 
     #[inline(always)]
     pub fn as_mut_slice(&mut self) -> &mut [Object] {
-        if self.size == 0 || self.items.is_null() {
-            &mut []
-        } else {
-            self.items.ptr_slice_mut(self.size)
+        if self.size == 0 {
+            return &mut [];
         }
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(vec![Object::new(); self.size]));
+        let v = Rc::make_mut(rc);
+        if v.len() < self.size {
+            v.resize(self.size, Object::new());
+        }
+        &mut v[..self.size]
     }
 
     #[inline(always)]
-    pub fn next_slot_mut(&mut self) -> &'static mut Object {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(self.size).borrow_mut()
+    pub fn next_slot_mut(&mut self) -> &mut Object {
+        let idx = self.size;
+        &mut self[idx]
     }
 
     #[inline]
     pub fn push(&mut self, value: Object) {
-        if self.size == self.capacity {
-            self.capacity = if self.capacity != 0 {
-                self.capacity << 1
-            } else {
-                8
-            };
-            self.items = realloc_items(self.items, self.capacity);
-        }
-
-        *self.next_slot_mut() = value;
-
+        let idx = self.size;
         self.size += 1;
+        if self.capacity < self.size {
+            self.capacity = self.size.next_power_of_two().max(8);
+        }
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(Vec::with_capacity(self.capacity)));
+        let v = Rc::make_mut(rc);
+        if idx < v.len() {
+            v[idx] = value;
+        } else {
+            if v.len() < idx {
+                v.resize(idx, Object::new());
+            }
+            v.push(value);
+        }
     }
 }
 
@@ -329,32 +398,31 @@ impl std::ops::Index<usize> for Array {
 
     #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(index).borrow()
+        &self.items.as_ref().unwrap()[index]
     }
 }
 
 impl std::ops::IndexMut<usize> for Array {
     #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(index).borrow_mut()
-    }
-}
-
-impl Default for Array {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
+        let need_len = (index + 1).max(self.capacity).max(self.size);
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(vec![Object::new(); need_len]));
+        let v = Rc::make_mut(rc);
+        if v.len() <= index {
+            v.resize(index + 1, Object::new());
+        }
+        &mut v[index]
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Dict {
     pub size: usize,
     pub capacity: usize,
-    pub items: crate::globals::GraphPtr<KeyValuePair>,
+    pub items: Option<Rc<Vec<KeyValuePair>>>,
 }
 
 impl Dict {
@@ -363,7 +431,20 @@ impl Dict {
         Self {
             size: 0,
             capacity: 0,
-            items: crate::globals::GraphPtr::NULL,
+            items: None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(max_size: usize) -> Self {
+        Self {
+            size: 0,
+            capacity: max_size,
+            items: if max_size == 0 {
+                None
+            } else {
+                Some(Rc::new(vec![KeyValuePair::new(); max_size]))
+            },
         }
     }
 
@@ -374,65 +455,66 @@ impl Dict {
             size: len,
             capacity: len,
             items: if len == 0 {
-                crate::globals::GraphPtr::NULL
+                None
             } else {
-                crate::globals::GraphPtr::new(slice.as_mut_ptr())
+                Some(Rc::new(slice.iter_mut().map(std::mem::take).collect()))
             },
         }
     }
 
     #[inline(always)]
     pub fn from_buf(buf: &mut [KeyValuePair]) -> Self {
-        let cap = buf.len();
-        Self {
-            size: 0,
-            capacity: cap,
-            items: if cap == 0 {
-                crate::globals::GraphPtr::NULL
-            } else {
-                crate::globals::GraphPtr::new(buf.as_mut_ptr())
-            },
-        }
+        Self::with_capacity(buf.len())
     }
 
     #[inline(always)]
     pub fn as_slice(&self) -> &[KeyValuePair] {
-        if self.size == 0 || self.items.is_null() {
-            &[]
-        } else {
-            self.items.ptr_slice(self.size)
+        match &self.items {
+            Some(rc) => &rc[..self.size.min(rc.len())],
+            None => &[],
         }
     }
 
     #[inline(always)]
     pub fn as_mut_slice(&mut self) -> &mut [KeyValuePair] {
-        if self.size == 0 || self.items.is_null() {
-            &mut []
-        } else {
-            self.items.ptr_slice_mut(self.size)
+        if self.size == 0 {
+            return &mut [];
         }
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(vec![KeyValuePair::new(); self.size]));
+        let v = Rc::make_mut(rc);
+        if v.len() < self.size {
+            v.resize(self.size, KeyValuePair::new());
+        }
+        &mut v[..self.size]
     }
 
     #[inline(always)]
-    pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(self.size).borrow_mut()
+    pub fn next_slot_mut(&mut self) -> &mut KeyValuePair {
+        let idx = self.size;
+        &mut self[idx]
     }
 
     #[inline]
     pub fn push(&mut self, value: KeyValuePair) {
-        if self.size == self.capacity {
-            self.capacity = if self.capacity != 0 {
-                self.capacity << 1
-            } else {
-                8
-            };
-            self.items = realloc_items(self.items, self.capacity);
-        }
-
-        *self.next_slot_mut() = value;
-
+        let idx = self.size;
         self.size += 1;
+        if self.capacity < self.size {
+            self.capacity = self.size.next_power_of_two().max(8);
+        }
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(Vec::with_capacity(self.capacity)));
+        let v = Rc::make_mut(rc);
+        if idx < v.len() {
+            v[idx] = value;
+        } else {
+            if v.len() < idx {
+                v.resize(idx, KeyValuePair::new());
+            }
+            v.push(value);
+        }
     }
 }
 
@@ -441,28 +523,27 @@ impl std::ops::Index<usize> for Dict {
 
     #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(index).borrow()
+        &self.items.as_ref().unwrap()[index]
     }
 }
 
 impl std::ops::IndexMut<usize> for Dict {
     #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        debug_assert!(!self.items.is_null());
-        self.items.wrapping_add(index).borrow_mut()
-    }
-}
-
-impl Default for Dict {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
+        let need_len = (index + 1).max(self.capacity).max(self.size);
+        let rc = self
+            .items
+            .get_or_insert_with(|| Rc::new(vec![KeyValuePair::new(); need_len]));
+        let v = Rc::make_mut(rc);
+        if v.len() <= index {
+            v.resize(index + 1, KeyValuePair::new());
+        }
+        &mut v[index]
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub enum ObjectData {
     #[default]
     Nil,
@@ -477,8 +558,8 @@ pub enum ObjectData {
 
 impl ObjectData {
     #[inline]
-    pub const fn boolean(self) -> bool {
-        match self {
+    pub const fn boolean(&self) -> bool {
+        match *self {
             Self::Boolean(b) => b,
             Self::Integer(i) => i != 0,
             _ => false,
@@ -486,8 +567,8 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn integer(self) -> i64 {
-        match self {
+    pub const fn integer(&self) -> i64 {
+        match *self {
             Self::Integer(i) => i,
             Self::Boolean(b) => b as i64,
             Self::LuaRef(r) => r as i64,
@@ -504,8 +585,8 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn floating(self) -> f64 {
-        match self {
+    pub const fn floating(&self) -> f64 {
+        match *self {
             Self::Floating(f) => f,
             Self::Integer(i) => i as f64,
             _ => 0.0,
@@ -513,18 +594,66 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn string(self) -> NvimString {
+    pub fn string(&self) -> NvimString {
         match self {
-            Self::String(s) => s,
+            Self::String(s) => s.clone(),
             _ => NvimString::new(),
         }
     }
 
     #[inline]
-    pub const fn array(self) -> Array {
+    pub fn as_cstr(&self) -> &std::ffi::CStr {
         match self {
-            Self::Array(a) => a,
+            Self::String(s) => s.as_cstr(),
+            _ => c"",
+        }
+    }
+
+    #[inline]
+    pub fn as_opt_cstr(&self) -> Option<&std::ffi::CStr> {
+        match self {
+            Self::String(s) => s.as_opt_cstr(),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::String(s) => s.as_bytes(),
+            _ => &[],
+        }
+    }
+
+    #[inline]
+    pub fn cstr_bytes(&self) -> &[u8] {
+        match self {
+            Self::String(s) => s.cstr_bytes(),
+            _ => &[0],
+        }
+    }
+
+    #[inline]
+    pub fn string_mut(&mut self) -> &mut NvimString {
+        match self {
+            Self::String(s) => s,
+            _ => std::process::abort(),
+        }
+    }
+
+    #[inline]
+    pub fn array(&self) -> Array {
+        match self {
+            Self::Array(a) => a.clone(),
             _ => Array::new(),
+        }
+    }
+
+    #[inline]
+    pub fn array_slice(&self) -> &[Object] {
+        match self {
+            Self::Array(a) => a.as_slice(),
+            _ => &[],
         }
     }
 
@@ -537,10 +666,18 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn dict(self) -> Dict {
+    pub fn dict(&self) -> Dict {
         match self {
-            Self::Dict(d) => d,
+            Self::Dict(d) => d.clone(),
             _ => Dict::new(),
+        }
+    }
+
+    #[inline]
+    pub fn dict_slice(&self) -> &[KeyValuePair] {
+        match self {
+            Self::Dict(d) => d.as_slice(),
+            _ => &[],
         }
     }
 
@@ -553,8 +690,8 @@ impl ObjectData {
     }
 
     #[inline]
-    pub const fn luaref(self) -> i32 {
-        match self {
+    pub const fn luaref(&self) -> i32 {
+        match *self {
             Self::LuaRef(r) => r,
             Self::Integer(i) => i as i32,
             _ => 0,
@@ -563,7 +700,7 @@ impl ObjectData {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Object {
     pub obj_type: ObjectType,
     pub data: ObjectData,
@@ -587,7 +724,7 @@ impl Default for Object {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct KeyValuePair {
     pub key: NvimString,
     pub value: Object,

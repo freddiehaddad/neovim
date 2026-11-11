@@ -516,7 +516,7 @@ pub fn op_reg_set_previous(name: u8) -> bool {
 pub fn update_yankreg_width(reg: &mut Yankreg) {
     if reg.y_type == MotionType::MtBlockWise {
         let mut maxlen: usize = 0;
-        for &item in &reg.y_array {
+        for item in &reg.y_array {
             let rowlen = mb_string2cells_len(item.as_bytes());
             maxlen = maxlen.max(rowlen);
         }
@@ -572,7 +572,11 @@ pub fn yank_register_mline(regname: i32, reg: &mut Option<RegIdx>) -> bool {
 
 pub fn copy_register(name: i32) -> Yankreg {
     get_yank_register(name, YankRegMode::Paste).with(|reg| {
-        let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
+        let y_array = reg
+            .y_array
+            .iter()
+            .map(|s| copy_string_global(s.clone()))
+            .collect();
         Yankreg {
             y_array,
             y_allocated: reg.y_allocated,
@@ -736,7 +740,7 @@ fn execreg_line_continuation(lines: &[NvimString], idx: &mut usize) -> Vec<u8> {
         }
     }
 
-    let first_line = lines[cmd_start];
+    let first_line = &lines[cmd_start];
     if !first_line.data.is_null() && first_line.size > 0 {
         buf.extend_from_slice(first_line.as_bytes());
     }
@@ -1171,8 +1175,8 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
                 && !curr_reg.y_array.is_empty()
                 && !newreg.y_array.is_empty()
             {
-                let last_old = *curr_reg.y_array.last().unwrap();
-                let first_new = newreg.y_array[0];
+                let last_old = curr_reg.y_array.last().unwrap().clone();
+                let first_new = newreg.y_array[0].clone();
                 let mut pnew = Vec::with_capacity(last_old.size + first_new.size);
                 pnew.extend_from_slice(last_old.as_bytes());
                 pnew.extend_from_slice(first_new.as_bytes());
@@ -1186,7 +1190,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
                 y_idx = 0;
             }
             while y_idx < newreg.y_array.len() {
-                curr_reg.y_array.push(newreg.y_array[y_idx]);
+                curr_reg.y_array.push(newreg.y_array[y_idx].clone());
                 y_idx += 1;
             }
             newreg.y_array.clear();
@@ -1302,7 +1306,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: RegIdx) {
 
     let list = reg.with(|r| {
         let list = tv_list_alloc(r.y_array.len() as isize);
-        for &item in &r.y_array {
+        for item in &r.y_array {
             crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
         }
         list
@@ -1388,7 +1392,7 @@ fn put_do_autocmd(
         crate::eval::typval::tv_list_append_bytes(&mut *list, insert.as_bytes());
     } else if let Some(r) = reg {
         r.with(|reg| {
-            for &item in &reg.y_array {
+            for item in &reg.y_array {
                 crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
             }
         });
@@ -1830,7 +1834,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
             curwin_mut().w_cursor.coladd = 0;
             bd.textcol = 0;
 
-            for (i, &y_item) in y_array.iter().enumerate() {
+            for (i, y_item) in y_array.iter().enumerate() {
                 let mut spaces: i32 = 0;
                 let mut lines_appended: i32 = 0;
 
@@ -2286,7 +2290,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 }
 
                 curbuf_mut().b_op_end.lnum = new_lnum;
-                let last_item = y_array[y_size - 1];
+                let last_item = &y_array[y_size - 1];
                 col = ((last_item.size as Colnr) - lendiff).max(0);
                 if col > 1 {
                     curbuf_mut().b_op_end.col = col - 1;
@@ -2612,7 +2616,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
         }
 
         let mut len: usize = 0;
-        for (i, &item) in reg.y_array.iter().enumerate() {
+        for (i, item) in reg.y_array.iter().enumerate() {
             len += item.size;
             if reg.y_type == MotionType::MtLineWise || i < reg.y_array.len() - 1 {
                 len += 1;
@@ -2620,7 +2624,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
         }
 
         let mut out: Vec<u8> = Vec::with_capacity(len);
-        for (i, &item) in reg.y_array.iter().enumerate() {
+        for (i, item) in reg.y_array.iter().enumerate() {
             if item.size > 0 {
                 out.extend_from_slice(item.as_bytes());
             }
@@ -2663,7 +2667,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mu
         }
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
-        for &item in &reg.y_array {
+        for item in &reg.y_array {
             crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
         }
         Some(list)

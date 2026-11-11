@@ -2861,7 +2861,7 @@ pub fn modify_keymap(
             opts.callback = LUA_NOREF;
         }
         if has_key(opts.is_set_keymap, KEYSET_OPTIDX_KEYMAP_DESC) {
-            parsed_args.desc = Some(string_to_cstr(opts.desc));
+            parsed_args.desc = Some(string_to_cstr(opts.desc.clone()));
         }
     }
     parsed_args.buffer = !global;

@@ -61,15 +61,15 @@ pub struct KeyDict_option {
     pub dry_run: Boolean,
 }
 
-fn validate_option_value_args(
-    opts: &mut KeyDict_option,
+fn validate_option_value_args<'a>(
+    opts: &'a mut KeyDict_option,
     name: &CStr,
     allow_tab: bool,
     opt_idxp: &mut OptIndex,
     opt_flags: &mut i32,
     scope: &mut OptScope,
     from: &mut OptTarget,
-    filetype: Option<&mut Option<&CStr>>,
+    filetype: Option<&mut Option<&'a CStr>>,
     operation: Option<&mut SetOp>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
@@ -455,7 +455,7 @@ pub fn nvim_option_to_object(
     let option = get_option(opt_idx);
     let flags = option.flags;
     let schema = option.schema;
-    let str_cstr = value.data.string().as_cstr();
+    let str_cstr = value.data.as_cstr();
     let bytes = str_cstr.to_bytes();
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
@@ -612,15 +612,15 @@ pub fn nvim_set_option_value(
     for i in 0..count {
         let mut single_arr_item;
         let mut single_dict_item;
-        let mut item = value;
+        let mut item = value.clone();
         if per_item && is_array {
-            single_arr_item = [value.data.array()[i]];
+            single_arr_item = [value.data.array()[i].clone()];
             item = Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(Array::from_slice(&mut single_arr_item)),
             };
         } else if per_item {
-            single_dict_item = [value.data.dict()[i]];
+            single_dict_item = [value.data.dict()[i].clone()];
             item = Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(Dict::from_slice(&mut single_dict_item)),
@@ -629,6 +629,7 @@ pub fn nvim_set_option_value(
 
         let mut error = false;
         let optval_right = optval_from_obj(opt_idx, item, operation, &mut error);
+        let right_type = optval_right.obj_type;
 
         if error {
             api_err_exp(
@@ -643,11 +644,10 @@ pub fn nvim_set_option_value(
 
         let mut arg_buf: Vec<u8> = Vec::new();
 
-        match optval_right.obj_type {
+        match right_type {
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
             ObjectType::ObjectTypeString => {
-                let optval_escaped =
-                    escape_option_str_cmdline(optval_right.data.string().as_bytes());
+                let optval_escaped = escape_option_str_cmdline(optval_right.data.as_bytes());
                 let escaped_bytes = optval_escaped.as_bytes();
                 arg_buf.reserve(1 + escaped_bytes.len());
                 arg_buf.push(b'=');
@@ -657,10 +657,10 @@ pub fn nvim_set_option_value(
                 arg_buf = format!("={}", optval_right.data.integer()).into_bytes();
             }
             ObjectType::ObjectTypeBoolean => {
-                merged_val = optval_right;
+                merged_val = optval_right.clone();
             }
             ObjectType::ObjectTypeLuaRef => {
-                merged_val = copy_object(optval_right, None);
+                merged_val = copy_object(optval_right.clone(), None);
             }
             _ => {
                 std::process::abort();
@@ -669,8 +669,7 @@ pub fn nvim_set_option_value(
 
         optval_free(optval_right);
 
-        if optval_right.obj_type == ObjectType::ObjectTypeInteger
-            || optval_right.obj_type == ObjectType::ObjectTypeString
+        if right_type == ObjectType::ObjectTypeInteger || right_type == ObjectType::ObjectTypeString
         {
             let mut oldval = if i == 0 {
                 optval_own(opt_idx, opt_from_varp(opt_idx, varp))
@@ -725,7 +724,7 @@ pub fn nvim_set_option_value(
         with_script_context(channel_id, || {
             set_option_value_for(
                 opt_idx,
-                merged_val,
+                merged_val.clone(),
                 opt_flags,
                 scope,
                 to,
@@ -735,7 +734,7 @@ pub fn nvim_set_option_value(
         });
     }
 
-    let rv = nvim_option_to_object(name, merged_val, arena, err);
+    let rv = nvim_option_to_object(name, merged_val.clone(), arena, err);
     optval_free(merged_val);
     rv
 }

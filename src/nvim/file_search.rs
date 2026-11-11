@@ -332,7 +332,7 @@ pub fn vim_findfile_init(
         }
 
         if search_ctx.ffsc_start_dir.data.is_null() {
-            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path, None);
+            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path.clone(), None);
             if let Some(first) = search_ctx.ffsc_fix_path.as_bytes_with_nul_mut().first_mut() {
                 *first = 0;
             }
@@ -373,12 +373,12 @@ pub fn vim_findfile_init(
                     ) as usize;
                 }
             } else {
-                let p = path_tail(search_ctx.ffsc_fix_path.as_cstr()).as_ptr();
+                let fix_cstr = search_ctx.ffsc_fix_path.as_cstr();
+                let tail_off = fix_cstr.to_bytes().len() - path_tail(fix_cstr).to_bytes().len();
                 let mut len = search_ctx.ffsc_fix_path.size as i32;
 
-                if (p as usize) > (search_ctx.ffsc_fix_path.data.as_ptr() as usize) {
-                    len = ((p as usize) - (search_ctx.ffsc_fix_path.data.as_ptr() as usize)) as i32
-                        - 1;
+                if tail_off > 0 {
+                    len = (tail_off - 1) as i32;
                     let fix_bytes = search_ctx.ffsc_fix_path.as_bytes();
                     if len >= 2
                         && fix_bytes.starts_with(b"..")

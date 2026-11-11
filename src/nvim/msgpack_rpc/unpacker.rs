@@ -171,8 +171,11 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
                 || parent.tok.r#type == MpackTokenType::MpackTokenBin
             {
                 let pos = parent.pos;
-                let mut s = parent.data[0].object_mut().data.string();
-                let data = s.as_bytes_with_nul_mut();
+                let data = parent.data[0]
+                    .object_mut()
+                    .data
+                    .string_mut()
+                    .as_bytes_with_nul_mut();
                 if chunk_len > 0 {
                     data[pos..pos + chunk_len].copy_from_slice(node.tok.data.chunk_bytes());
                 }
@@ -312,7 +315,7 @@ pub fn unpack(mut bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
         );
     }
 
-    unpacker.result
+    std::mem::take(&mut unpacker.result)
 }
 
 /// Initialize an `Unpacker` (`unpacker_init`).
@@ -556,7 +559,7 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
 
         match p.state {
             1 => {
-                p.error = p.result;
+                p.error = std::mem::take(&mut p.result);
                 p.state = 2;
                 need_parse = true;
             }

@@ -90,7 +90,7 @@ const KEYSET_OPTIDX_GET_HIGHLIGHT_NAME: u64 = 3;
 const KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE: u64 = 4;
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_get_highlight {
     pub is_set_get_highlight: OptionalKeys,
     pub id: Integer,
@@ -1004,30 +1004,31 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
                 (
                     g.sg_rgb_fg,
                     if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-                        dict.fg
+                        dict.fg.clone()
                     } else {
-                        dict.foreground
+                        dict.foreground.clone()
                     },
                 ),
                 (
                     g.sg_rgb_bg,
                     if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-                        dict.bg
+                        dict.bg.clone()
                     } else {
-                        dict.background
+                        dict.background.clone()
                     },
                 ),
                 (
                     g.sg_rgb_sp,
                     if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-                        dict.sp
+                        dict.sp.clone()
                     } else {
-                        dict.special
+                        dict.special.clone()
                     },
                 ),
             ];
             let mut new_indices = [g.sg_rgb_fg_idx, g.sg_rgb_bg_idx, g.sg_rgb_sp_idx];
-            for (j, &(val, name)) in cinputs.iter().enumerate() {
+            for (j, (val, name)) in cinputs.iter().enumerate() {
+                let val = *val;
                 let dest_ref = &mut new_indices[j];
                 if name.obj_type != ObjectType::ObjectTypeNil {
                     if val < 0 {
@@ -1035,7 +1036,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
                     } else if name.obj_type == ObjectType::ObjectTypeString
                         && name.data.string().size > 0
                     {
-                        name_to_color(name.data.string().as_cstr(), dest_ref);
+                        name_to_color(name.data.as_cstr(), dest_ref);
                     } else {
                         *dest_ref = K_COLOR_IDX_HEX;
                     }

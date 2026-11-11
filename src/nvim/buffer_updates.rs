@@ -218,7 +218,7 @@ pub fn buf_updates_send_changes(
             },
             integer_obj(i64::from(firstline - 1)),
             integer_obj(i64::from(firstline - 1) + num_removed),
-            array_obj(linedata),
+            array_obj(linedata.clone()),
             boolean_obj(false),
         ];
         let args = Array::from_slice(&mut items[..6]);

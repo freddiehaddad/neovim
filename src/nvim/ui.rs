@@ -911,7 +911,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             fast,
             cb_ref,
             Some(name),
-            args,
+            args.clone(),
             K_RET_NIL_BOOL,
             None,
             Some(&mut err),
@@ -934,7 +934,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
     if !handled {
         for ui_rc in ui_rcs() {
-            remote_ui_event(&mut ui_rc.borrow_mut(), name, args);
+            remote_ui_event(&mut ui_rc.borrow_mut(), name, args.clone());
         }
     }
 }
@@ -1096,7 +1096,7 @@ macro_rules! ui_call_event_guarded {
 
 pub fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
     ui_call_loop!(true, c"mode_info_set", |ui| {
-        remote_ui_mode_info_set(ui, enabled, cursor_styles)
+        remote_ui_mode_info_set(ui, enabled, cursor_styles.clone())
     });
 }
 
@@ -1122,7 +1122,7 @@ pub fn ui_call_mouse_off() {
 
 pub fn ui_call_mode_change(mode: NvimString, mode_idx: Integer) {
     ui_call_loop!(true, c"mode_change", |ui| {
-        remote_ui_mode_change(ui, mode, mode_idx)
+        remote_ui_mode_change(ui, mode.clone(), mode_idx)
     });
 }
 
@@ -1142,34 +1142,65 @@ pub fn ui_call_suspend() {
     ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
 }
 
-#[allow(unsafe_code)]
-#[unsafe(no_mangle)]
-pub extern "C" fn ui_call_set_title(title: NvimString) {
-    ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CAbiString {
+    pub data: *const u8,
+    pub size: usize,
 }
 
-pub fn ui_call_set_icon(icon: NvimString) {
-    ui_call_loop!(true, c"set_icon", |ui| remote_ui_set_icon(ui, icon));
-}
-
-pub fn ui_call_screenshot(path: NvimString) {
-    ui_call_loop!(true, c"screenshot", |ui| remote_ui_screenshot(ui, path));
-}
-
-pub fn ui_call_option_set(name: NvimString, value: Object) {
-    ui_call_loop!(true, c"option_set", |ui| {
-        remote_ui_option_set(ui, name, value)
+pub fn ui_call_set_title(title: NvimString) {
+    ui_call_loop!(true, c"set_title", |ui| {
+        remote_ui_set_title(ui, title.clone())
     });
 }
 
 #[allow(unsafe_code)]
-#[unsafe(no_mangle)]
-pub extern "C" fn ui_call_chdir(path: NvimString) {
-    ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
+#[unsafe(export_name = "ui_call_set_title")]
+pub unsafe extern "C" fn ui_call_set_title_ffi(title: CAbiString) {
+    let s = if title.data.is_null() {
+        NvimString::new()
+    } else {
+        NvimString::from_bytes(unsafe { std::slice::from_raw_parts(title.data, title.size) })
+    };
+    ui_call_set_title(s);
+}
+
+pub fn ui_call_set_icon(icon: NvimString) {
+    ui_call_loop!(true, c"set_icon", |ui| remote_ui_set_icon(ui, icon.clone()));
+}
+
+pub fn ui_call_screenshot(path: NvimString) {
+    ui_call_loop!(true, c"screenshot", |ui| {
+        remote_ui_screenshot(ui, path.clone())
+    });
+}
+
+pub fn ui_call_option_set(name: NvimString, value: Object) {
+    ui_call_loop!(true, c"option_set", |ui| {
+        remote_ui_option_set(ui, name.clone(), value.clone())
+    });
+}
+
+pub fn ui_call_chdir(path: NvimString) {
+    ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path.clone()));
+}
+
+#[allow(unsafe_code)]
+#[unsafe(export_name = "ui_call_chdir")]
+pub unsafe extern "C" fn ui_call_chdir_ffi(path: CAbiString) {
+    let s = if path.data.is_null() {
+        NvimString::new()
+    } else {
+        NvimString::from_bytes(unsafe { std::slice::from_raw_parts(path.data, path.size) })
+    };
+    ui_call_chdir(s);
 }
 
 pub fn ui_call_ui_send(content: NvimString) {
-    ui_call_loop!(true, c"ui_send", |ui| remote_ui_ui_send(ui, content));
+    ui_call_loop!(true, c"ui_send", |ui| {
+        remote_ui_ui_send(ui, content.clone())
+    });
 }
 
 pub fn ui_call_default_colors_set(
@@ -1191,13 +1222,13 @@ pub fn ui_call_hl_attr_define(
     info: Array,
 ) {
     ui_call_loop!(true, c"hl_attr_define", |ui| {
-        remote_ui_hl_attr_define(ui, id, rgb_attrs, cterm_attrs, info)
+        remote_ui_hl_attr_define(ui, id, rgb_attrs, cterm_attrs, info.clone())
     });
 }
 
 pub fn ui_call_hl_group_set(name: NvimString, id: Integer) {
     ui_call_loop!(true, c"hl_group_set", |ui| {
-        remote_ui_hl_group_set(ui, name, id)
+        remote_ui_hl_group_set(ui, name.clone(), id)
     });
 }
 
@@ -1375,9 +1406,9 @@ pub fn ui_call_msg_set_pos(
     zindex: Integer,
     compindex: Integer,
 ) {
-    ui_comp_msg_set_pos(grid, row, scrolled, sep_char, zindex, compindex);
+    ui_comp_msg_set_pos(grid, row, scrolled, sep_char.clone(), zindex, compindex);
     ui_call_loop!(!ui.composed, c"msg_set_pos", |ui| {
-        remote_ui_msg_set_pos(ui, grid, row, scrolled, sep_char, zindex, compindex)
+        remote_ui_msg_set_pos(ui, grid, row, scrolled, sep_char.clone(), zindex, compindex)
     });
 }
 
@@ -1586,6 +1617,6 @@ pub fn ui_call_error_exit(status: Integer) {
 
 pub fn ui_call_set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
     ui_call_loop!(true, c"_set_restart_on_crash_exit", |ui| {
-        remote_ui_set_restart_on_crash_exit(ui, progpath, argv)
+        remote_ui_set_restart_on_crash_exit(ui, progpath.clone(), argv.clone())
     });
 }

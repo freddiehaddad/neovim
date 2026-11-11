@@ -1190,7 +1190,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             c"client",
             Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(chan.rpc.info),
+                data: ObjectData::Dict(chan.rpc.info.clone()),
             },
         );
 

@@ -1278,9 +1278,11 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     let EvalFuncData::ApiHandler(handler) = fptr else {
         return;
     };
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
+    let mut args_storage = [const {
+        Object {
+            obj_type: ObjectType::ObjectTypeNil,
+            data: ObjectData::Boolean(false),
+        }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();
@@ -1312,9 +1314,11 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
 /// Invokes a Lua-implemented vimfn/"f_xx" function from Vimscript.
 pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
+    let mut args_storage = [const {
+        Object {
+            obj_type: ObjectType::ObjectTypeNil,
+            data: ObjectData::Boolean(false),
+        }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();

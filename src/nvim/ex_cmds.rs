@@ -3839,7 +3839,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         let cmd_owned = ptr_cstr!(cmd, eap).to_owned();
         if sub_joining_lines(
             eap,
-            pat,
+            pat.clone(),
             sub_owned.as_deref().unwrap_or(c""),
             &cmd_owned,
             cmdpreview_ns <= 0,

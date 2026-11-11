@@ -375,7 +375,7 @@ pub fn mpack_object(cur: &mut Object, packer: &mut PackerBuffer) {
             mpack_map(packer, dict.size as u32);
             for it in dict.as_mut_slice() {
                 mpack_check_buffer(packer);
-                mpack_str(it.key, packer);
+                mpack_str(it.key.clone(), packer);
                 mpack_object(&mut it.value, packer);
             }
         }

@@ -742,7 +742,7 @@ fn atom_emit(atom: &CmdAtom) {
         dict_put(&mut data, c"atoms", array_obj(atoms));
     }
     let buf = atom.origin.buf.buf_opt().unwrap_or_else(curbuf_mut);
-    let mut obj = dict_obj(data);
+    let mut obj = dict_obj(data.clone());
     aucmd_defer(
         EVENT_CMDATOM,
         Some(TYPE_NAMES[atom.r#type as usize]),

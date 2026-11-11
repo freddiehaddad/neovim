@@ -1031,7 +1031,7 @@ pub fn nvim_call_atomic(
     let mut i = 0usize;
     'theend: {
         while i < calls.size {
-            let item = calls[i];
+            let item = &calls[i];
             if item.obj_type != ObjectType::ObjectTypeArray {
                 api_err_exp(
                     err,
@@ -1046,7 +1046,7 @@ pub fn nvim_call_atomic(
                 api_err_exp(err, c"'calls' item", c"2-item Array", None);
                 break 'theend;
             }
-            let first = call[0];
+            let first = &call[0];
             if first.obj_type != ObjectType::ObjectTypeString {
                 api_err_exp(
                     err,
@@ -1057,7 +1057,7 @@ pub fn nvim_call_atomic(
                 break 'theend;
             }
             let name = first.data.string();
-            let second = call[1];
+            let second = &call[1];
             if second.obj_type != ObjectType::ObjectTypeArray {
                 api_err_exp(
                     err,
@@ -1079,7 +1079,7 @@ pub fn nvim_call_atomic(
             if error_set(&nested_error) {
                 break;
             }
-            add_c(&mut results, copy_object(result, Some(arena)));
+            add_c(&mut results, copy_object(result.clone(), Some(arena)));
             if handler.ret_alloc {
                 api_free_object(result);
             }

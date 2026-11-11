@@ -846,7 +846,7 @@ fn set_init_expand_env() {
         if let Some(p) = p {
             let ov = cstr_to_obj(Some(p));
             if opt.var().is_some() {
-                set_option_varp(opt_idx, opt.var(), ov);
+                set_option_varp(opt_idx, opt.var(), ov.clone());
             }
             change_option_default(opt_idx, ov);
         }
@@ -951,7 +951,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val;
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
-        && let Some(s) = option_expand(opt_idx, def_val.data.string().as_opt_cstr())
+        && let Some(s) = option_expand(opt_idx, def_val.data.as_opt_cstr())
     {
         def_val = cstr_as_obj(Some(s));
     }
@@ -982,7 +982,12 @@ fn change_option_default(opt_idx: OptIndex, value: Object) {
 fn set_option_default(opt_idx: OptIndex, opt_flags: i32) {
     let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
     let def_val = get_option_default(opt_idx, opt_flags);
-    set_option_direct(opt_idx, def_val, opt_flags, g_st().current_sctx.sc_sid);
+    set_option_direct(
+        opt_idx,
+        def_val.clone(),
+        opt_flags,
+        g_st().current_sctx.sc_sid,
+    );
     optval_free_read(opt_idx, def_val);
 
     if opt_idx == K_OPT_SCROLL {
@@ -1111,7 +1116,7 @@ fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>)
         return;
     }
     let optval = cstr_as_obj(Some(val));
-    set_option_direct(idx, optval, 0, SID_NONE);
+    set_option_direct(idx, optval.clone(), 0, SID_NONE);
     change_option_default(idx, copy_object(optval, None));
 }
 
@@ -1707,7 +1712,7 @@ pub fn get_option_newval(
     }
 
     let oldval = if oldval_override.is_some() {
-        *oldval_override.as_deref_mut().unwrap()
+        oldval_override.as_deref_mut().unwrap().clone()
     } else {
         let oldval_is_global = option_is_global_local(opt_idx) && (opt_flags & OPT_LOCAL) != 0;
         optval_own(
@@ -1812,7 +1817,7 @@ pub fn get_option_newval(
             newval = integer_obj(newval_num);
         }
         ObjectType::ObjectTypeString => {
-            let oldval_str = oldval.data.string().as_opt_cstr();
+            let oldval_str = oldval.data.as_opt_cstr();
             let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
             newval = cstr_to_obj(Some(&*newval_str));
         }
@@ -1865,7 +1870,7 @@ fn do_one_set_option<'a>(
     let nextchar = i32::from(p.first().copied().unwrap_or(0));
     let opt = get_option(opt_idx);
     let flags = opt.flags;
-    let varp = get_varp_scope(opt, opt_flags);
+    let varp = get_varp_scope(opt.clone(), opt_flags);
 
     let mut errmsg: Option<&'static CStr> = None;
     if !validate_opt_idx(curwin_mut(), opt_idx, opt_flags, flags, prefix, &mut errmsg) {
@@ -1900,7 +1905,7 @@ fn do_one_set_option<'a>(
             gotocmdline(true);
             *did_show = true;
         }
-        showoneopt(opt, opt_flags);
+        showoneopt(opt.clone(), opt_flags);
 
         if opt_vars().p_verbose > 0 {
             if varp.is_some() && varp == opt.var() {
@@ -3595,7 +3600,7 @@ macro_rules! cstr_def_val {
         const S: &CStr = $s;
         Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(NvimString::from_cstr(S)),
+            data: ObjectData::String(NvimString::from_static_cstr(S)),
         }
     }};
 }
@@ -4054,7 +4059,7 @@ thread_local! {
 /// Return information for option at `opt_idx` (`get_option`).
 pub fn get_option(opt_idx: OptIndex) -> Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    OPTIONS.with(|opts| opts.borrow()[opt_idx as usize])
+    OPTIONS.with(|opts| opts.borrow()[opt_idx as usize].clone())
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -4819,9 +4824,7 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 pub fn optval_free(o: Object) {
     match o.obj_type {
         ObjectType::ObjectTypeString => {
-            if o.data.string().data.as_ptr().cast_const() != EMPTY_STRING_OPTION.as_ptr() {
-                api_free_string(o.data.string());
-            }
+            api_free_string(o.data.string());
         }
         ObjectType::ObjectTypeLuaRef => {
             api_free_luaref(o.data.luaref());
@@ -4898,7 +4901,7 @@ fn optval_snapshot(value: Object) -> Object {
 
 fn optval_snapshot_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     let value = opt_from_varp(opt_idx, varp);
-    let snapshot = optval_snapshot(value);
+    let snapshot = optval_snapshot(value.clone());
     optval_free_read(opt_idx, value);
     snapshot
 }
@@ -5046,7 +5049,7 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
             let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
                 &[][..]
             } else {
-                o.data.string().as_bytes()
+                o.data.as_bytes()
             };
             if !quote {
                 return crate::memory::bytes_to_cstring(slice);
@@ -5104,12 +5107,12 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
     } else if o.obj_type == ObjectType::ObjectTypeArray {
         let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
         for ai in 0..o.data.array().size {
-            let item = o.data.array()[ai];
+            let item = o.data.array()[ai].clone();
             if item.obj_type != ObjectType::ObjectTypeString {
                 *error = true;
                 return nil_obj();
             }
-            let s_cstr = item.data.string().as_cstr();
+            let s_cstr = item.data.as_cstr();
             if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
                 continue;
             }
@@ -5120,8 +5123,8 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
         let dict = o.data.dict();
         let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
         for di in 0..dict.size {
-            let k = dict[di].key;
-            let v = dict[di].value;
+            let k = &dict[di].key;
+            let v = &dict[di].value;
             if is_flaglist {
                 if !(v.obj_type == ObjectType::ObjectTypeNil
                     || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
@@ -5130,7 +5133,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                 }
             } else if v.obj_type == ObjectType::ObjectTypeString {
                 let k_bytes = k.cstr_bytes();
-                let v_bytes = v.data.string().cstr_bytes();
+                let v_bytes = v.data.cstr_bytes();
                 let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
                 kv.extend_from_slice(k_bytes);
                 kv.push(b':');
@@ -5257,7 +5260,7 @@ fn is_option_local_value_unset(opt_idx: OptIndex) -> bool {
     }
     let opt = get_option(opt_idx);
     let local_value = opt_from_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL));
-    let is_unset = optval_is_unset_local(opt_idx, local_value);
+    let is_unset = optval_is_unset_local(opt_idx, local_value.clone());
     optval_free_read(opt_idx, local_value);
     is_unset
 }
@@ -5291,8 +5294,8 @@ fn did_set_option<'a>(
     }
 
     if errmsg.is_some() {
-        set_option_varp(opt_idx, varp, args.os_oldval);
-        optval_free(args.os_oldval);
+        set_option_varp(opt_idx, varp, args.os_oldval.clone());
+        optval_free(args.os_oldval.clone());
         return errmsg;
     }
 
@@ -5312,20 +5315,20 @@ fn did_set_option<'a>(
         set_option_sctx(opt_idx, opt_flags, script_ctx);
     }
 
-    optval_free(args.os_oldval);
+    optval_free(args.os_oldval.clone());
 
     let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
 
     if scope_both {
         if option_is_global_local(opt_idx) {
-            let varp_local = get_varp_scope(opt, OPT_LOCAL);
+            let varp_local = get_varp_scope(opt.clone(), OPT_LOCAL);
             if varp_local.is_some() {
                 set_option_varp(opt_idx, varp_local, unset_obj());
             }
         } else {
-            let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+            let varp_global = get_varp_scope(opt.clone(), OPT_GLOBAL);
             if varp_global.is_some() && varp_global != varp {
-                set_option_varp(opt_idx, varp_global, new_value);
+                set_option_varp(opt_idx, varp_global, new_value.clone());
             }
         }
     }
@@ -5411,7 +5414,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
     let mut errmsg: Option<&'a CStr> = None;
     let opt = get_option(opt_idx);
 
-    if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, *newval) {
+    if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, newval.clone()) {
         return None;
     }
 
@@ -5419,7 +5422,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         if opt_flags == OPT_GLOBAL {
             errmsg = Some(tr(c"Cannot unset global option value"));
         } else {
-            let varp = get_varp_scope_from(opt, OPT_GLOBAL, buf, Some(&mut *win));
+            let varp = get_varp_scope_from(opt.clone(), OPT_GLOBAL, buf, Some(&mut *win));
             *newval = if option_is_global_local(opt_idx) {
                 unset_obj()
             } else {
@@ -5428,8 +5431,8 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         }
     } else if newval.obj_type == ObjectType::ObjectTypeLuaRef {
         assert!(is_callback_option(opt_idx));
-    } else if !option_has_type(opt_idx, optval_type(*newval)) {
-        let rep = optval_to_cstr(*newval, true);
+    } else if !option_has_type(opt_idx, optval_type(newval.clone())) {
+        let rep = optval_to_cstr(newval.clone(), true);
         let type_str = optval_type_name(opt.opt_type);
         errmsg = if let Some(errbuf) = args.os_errbuf.take() {
             format_to_buf!(
@@ -5437,7 +5440,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
                 gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
                 opt.fullname,
                 type_str,
-                optval_type_name(optval_type(*newval)),
+                optval_type_name(optval_type(newval.clone())),
                 &rep,
             );
             Some(crate::memory::bytes_as_cstr(errbuf))
@@ -5459,9 +5462,9 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
     if opt.immutable {
         let oldval = opt_from_varp(
             opt_idx,
-            get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win)),
+            get_varp_scope_from(opt.clone(), opt_flags, buf, Some(&mut *win)),
         );
-        let unchanged = option_equal(oldval, *newval);
+        let unchanged = option_equal(oldval.clone(), newval.clone());
         optval_free_read(opt_idx, oldval);
         if !unchanged {
             return Some(E_UNSUPPORTEDOPTION);
@@ -5469,11 +5472,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
     }
     let schema = opt.schema;
     if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
-        errmsg = opt_strings_check(
-            newval.data.string().as_bytes(),
-            schema,
-            args.os_errbuf.take(),
-        );
+        errmsg = opt_strings_check(newval.data.as_bytes(), schema, args.os_errbuf.take());
         if errmsg.is_some() {
             return errmsg;
         }
@@ -5490,7 +5489,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         args.os_varp = varp;
         args.os_oldval = opt_from_varp(opt_idx, varp);
         let validate_err = validate_cb(args);
-        optval_free_read(opt_idx, args.os_oldval);
+        optval_free_read(opt_idx, args.os_oldval.clone());
         args.os_oldval = nil_obj();
         return validate_err;
     }
@@ -5515,7 +5514,7 @@ fn set_option<'a>(
         os_idx: opt_idx,
         os_flags: opt_flags,
         os_oldval: nil_obj(),
-        os_newval: value,
+        os_newval: value.clone(),
         os_prep: crate::optionstr::OptSetPrep::None,
         os_value_checked: false,
         os_value_changed: false,
@@ -5533,7 +5532,7 @@ fn set_option<'a>(
         }
 
         errmsg = validate_and_prepare_option_value(&mut args);
-        value = args.os_newval;
+        value = args.os_newval.clone();
 
         if errmsg.is_none()
             && value.obj_type == ObjectType::ObjectTypeString
@@ -5541,14 +5540,14 @@ fn set_option<'a>(
             && value.data.string().size > 0
         {
             let mut cb = Callback::NONE;
-            if !option_set_callback_func(value.data.string().as_bytes(), &mut cb) {
+            if !option_set_callback_func(value.data.as_bytes(), &mut cb) {
                 errmsg = Some(E_INVARG);
             }
             callback_free(&mut cb);
         }
     } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
         errmsg = opt_strings_check(
-            value.data.string().as_bytes(),
+            value.data.as_bytes(),
             opt_dict_schema(opt_idx).unwrap().schema,
             args.os_errbuf.take(),
         );
@@ -5574,8 +5573,7 @@ fn set_option<'a>(
             let allow_comma = (flags & K_OPT_FLAG_COMMA) != 0;
             let allow_space =
                 opt_idx == K_OPT_CDPATH || opt_idx == K_OPT_PATH || opt_idx == K_OPT_TAGS;
-            let mut s = value.data.string();
-            let str_slice = s.as_bytes_with_nul_mut();
+            let str_slice = value.data.string_mut().as_bytes_with_nul_mut();
             let mut i = 0;
             while i < str_slice.len() && str_slice[i] != 0 {
                 if str_slice[i] != b'\\'
@@ -5599,10 +5597,10 @@ fn set_option<'a>(
     let varp = if scope_both && option_is_global_local(opt_idx) {
         opt.var()
     } else {
-        get_varp_scope(opt, opt_flags)
+        get_varp_scope(opt.clone(), opt_flags)
     };
-    let varp_local = get_varp_scope(opt, OPT_LOCAL);
-    let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+    let varp_local = get_varp_scope(opt.clone(), OPT_LOCAL);
+    let varp_global = get_varp_scope(opt.clone(), OPT_GLOBAL);
 
     let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
 
@@ -5613,14 +5611,14 @@ fn set_option<'a>(
     if !direct {
         saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
         saved_old_local_value = if is_opt_local_unset {
-            copy_object(saved_old_global_value, None)
+            copy_object(saved_old_global_value.clone(), None)
         } else {
             optval_snapshot_varp(opt_idx, varp_local)
         };
         saved_used_value = if scope_local && is_opt_local_unset {
-            optval_snapshot_varp(opt_idx, get_varp(opt))
+            optval_snapshot_varp(opt_idx, get_varp(opt.clone()))
         } else {
-            optval_snapshot(old_value)
+            optval_snapshot(old_value.clone())
         };
     }
 
@@ -5636,17 +5634,17 @@ fn set_option<'a>(
     }
 
     if varp.is_some() {
-        set_option_varp(opt_idx, varp, value);
+        set_option_varp(opt_idx, varp, value.clone());
     }
     if value.obj_type == ObjectType::ObjectTypeUnset {
         value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
     }
     if !direct {
-        saved_new_value = optval_snapshot(value);
+        saved_new_value = optval_snapshot(value.clone());
     }
     args.os_varp = varp;
     args.os_oldval = old_value;
-    args.os_newval = value;
+    args.os_newval = value.clone();
     args.os_buf = g_st().curbuf;
     args.os_win = crate::globals::curwin_ptr();
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
@@ -5659,14 +5657,14 @@ fn set_option<'a>(
             apply_optionset_autocmd(
                 opt_idx,
                 opt_flags,
-                saved_used_value,
-                saved_old_global_value,
-                saved_old_local_value,
-                saved_new_value,
+                saved_used_value.clone(),
+                saved_old_global_value.clone(),
+                saved_old_local_value.clone(),
+                saved_new_value.clone(),
             );
         }
         if (opt.flags & K_OPT_FLAG_UIOPTION) != 0 {
-            ui_call_option_set(cstr_as_string(Some(opt.fullname)), saved_new_value);
+            ui_call_option_set(cstr_as_string(Some(opt.fullname)), saved_new_value.clone());
         }
     }
 
@@ -5960,10 +5958,10 @@ fn showoptions(all: bool, opt_flags: i32) {
             let mut varp = OptVar::None;
             if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
                 if !option_is_global_only(opt_idx) {
-                    varp = get_varp_scope(opt, opt_flags);
+                    varp = get_varp_scope(opt.clone(), opt_flags);
                 }
             } else {
-                varp = get_varp(opt);
+                varp = get_varp(opt.clone());
             }
             if varp.is_some() && (all || optval_default(opt_idx, varp) == 0) {
                 let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
@@ -6003,7 +6001,7 @@ fn showoptions(all: bool, opt_flags: i32) {
             let mut i = row as usize;
             while i < item_count {
                 msg_advance(col);
-                showoneopt(items[i], opt_flags);
+                showoneopt(items[i].clone(), opt_flags);
                 col += INC;
                 i += rows as usize;
             }
@@ -6022,7 +6020,7 @@ fn optval_default(opt_idx: OptIndex, varp: OptVar) -> i32 {
     let current_val = opt_from_varp(opt_idx, varp);
     let default_val = get_option(opt_idx).def_val;
 
-    let is_default = option_equal(current_val, default_val);
+    let is_default = option_equal(current_val.clone(), default_val);
     optval_free_read(opt_idx, current_val);
     i32::from(is_default)
 }
@@ -6049,8 +6047,8 @@ fn showoneopt(opt: Vimoption, opt_flags: i32) {
     g_st().silent_mode = false;
     g_st().info_message = true;
 
-    let opt_idx = get_opt_idx(opt);
-    let varp = get_varp_scope(opt, opt_flags);
+    let opt_idx = get_opt_idx(opt.clone());
+    let varp = get_varp_scope(opt.clone(), opt_flags);
 
     if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         let val_int = if opt.immutable {
@@ -6101,7 +6099,7 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                     continue;
                 }
 
-                let mut varp = get_varp_scope(opt, opt_flags);
+                let mut varp = get_varp_scope(opt.clone(), opt_flags);
                 if varp.is_none() {
                     continue;
                 }
@@ -6122,7 +6120,7 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                         continue;
                     }
                     if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
-                        let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
+                        let varp_fresh = get_varp_scope(opt.clone(), OPT_GLOBAL);
                         if optval_default(opt_idx, varp_fresh) == 0 {
                             round = 1;
                             varp_local = varp;
@@ -6223,7 +6221,7 @@ fn put_set_value(
     let name = opt.fullname;
     let flags = opt.flags;
 
-    if varp != opt.var() && optval_is_unset_local(opt_idx, value) {
+    if varp != opt.var() && optval_is_unset_local(opt_idx, value.clone()) {
         return true;
     }
 
@@ -6318,7 +6316,7 @@ fn put_set(
     let ret = if value.obj_type == ObjectType::ObjectTypeLuaRef {
         true
     } else {
-        put_set_value(fd, cmd, opt_idx, varp, value)
+        put_set_value(fd, cmd, opt_idx, varp, value.clone())
     };
     optval_free_read(opt_idx, value);
     ret
@@ -6380,7 +6378,7 @@ pub fn get_varp_scope_from(
     buf: &mut FileBuf,
     mut win: Option<&mut WinInfoInfo>,
 ) -> OptVar {
-    let opt_idx = get_opt_idx(p);
+    let opt_idx = get_opt_idx(p.clone());
 
     if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
         if option_is_window_local(opt_idx) {
@@ -6453,7 +6451,7 @@ pub fn get_option_varp_scope_from(
 }
 
 pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinInfoInfo>) -> OptVar {
-    let opt_idx = get_opt_idx(p);
+    let opt_idx = get_opt_idx(p.clone());
 
     if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
         return p.var();
@@ -7800,7 +7798,7 @@ pub fn expand_setting_subtract(
 
 fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let opt = get_option(opt_idx);
-    let vp = get_varp_scope(opt, opt_flags);
+    let vp = get_varp_scope(opt.clone(), opt_flags);
     assert!(vp.is_some());
 
     let mut wc: OptInt = 0;
@@ -7832,7 +7830,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     }
 
     let o = opt_from_varp(opt_idx, vp);
-    let s = optval_to_cstr(o, false);
+    let s = optval_to_cstr(o.clone(), false);
     crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
 }
@@ -8188,10 +8186,10 @@ pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
         if (bufopt != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_BUF))
             || (bufopt == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN))
         {
-            let varp = get_varp(opt);
+            let varp = get_varp(opt.clone());
             if varp.is_some() {
                 let ov = opt_from_varp(opt_idx, varp);
-                let mut opt_tv = opt_to_tv(ov, true);
+                let mut opt_tv = opt_to_tv(ov.clone(), true);
                 tv_dict_add_tv(&mut *d, opt.fullname.to_bytes(), &mut opt_tv);
                 tv_clear(&mut opt_tv);
                 optval_free_read(opt_idx, ov);
@@ -8260,8 +8258,9 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
     let mut retval = arena_dict(arena, K_OPT_COUNT as usize);
     for opt_idx in 0..K_OPT_COUNT {
         let opt = get_option(opt_idx);
+        let fullname = opt.fullname;
         let opt_dict = option_info_dict(opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
-        put_c(&mut retval, opt.fullname, dict_obj(opt_dict));
+        put_c(&mut retval, fullname, dict_obj(opt_dict));
     }
     retval
 }
@@ -8273,7 +8272,7 @@ fn option_info_dict(
     win: &mut WinInfoInfo,
     arena: &mut Arena,
 ) -> Dict {
-    let opt_idx = get_opt_idx(opt);
+    let opt_idx = get_opt_idx(opt.clone());
     let mut dict = arena_dict(arena, 13);
 
     put_c(&mut dict, c"name", cstr_as_obj(Some(opt.fullname)));
@@ -8354,7 +8353,7 @@ fn option_info_dict(
         &mut dict,
         c"type",
         cstr_as_obj(Some(optval_type_name(
-            get_option(get_opt_idx(opt)).opt_type,
+            get_option(get_opt_idx(opt.clone())).opt_type,
         ))),
     );
     put_c(&mut dict, c"default", opt.def_val);

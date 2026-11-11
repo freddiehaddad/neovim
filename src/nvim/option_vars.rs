@@ -332,8 +332,6 @@ impl Drop for Winopt {
     }
 }
 
-pub static EMPTY_STRING_OPTION: [u8; 1] = [0; 1];
-
 pub struct OptionVars {
     pub p_ambw: OptString,
     pub p_acd: bool,
@@ -1439,7 +1437,6 @@ mod tests {
         assert_eq!({ opt_vars().dy_escape_width }, 2);
         assert_eq!({ opt_vars().p_mousescroll_vert }, 3);
         assert_eq!({ opt_vars().p_mousescroll_hor }, 6);
-        assert_eq!(EMPTY_STRING_OPTION[0], 0);
         assert!(opt_vars().p_vfile.is_empty());
     }
 }

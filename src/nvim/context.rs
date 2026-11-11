@@ -307,7 +307,7 @@ pub fn ctx_free(ctx: &mut Context) {
             }
         }
     }
-    api_free_array(ctx.funcs);
+    api_free_array(std::mem::take(&mut ctx.funcs));
     *ctx = CONTEXT_INIT;
 }
 
@@ -546,7 +546,7 @@ pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
     put_c(
         &mut rv,
         c"funcs",
-        array_obj(copy_array(ctx.funcs, Some(arena))),
+        array_obj(copy_array(ctx.funcs.clone(), Some(arena))),
     );
     rv
 }
@@ -555,7 +555,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
     let mut types: CtxStateFlags = 0;
     let mut i = 0usize;
     while i < dict.size && !error_set(err) {
-        let item = dict[i];
+        let item = &dict[i];
         i += 1;
         if item.value.obj_type != ObjectType::ObjectTypeArray {
             continue;
@@ -574,7 +574,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
             ctx.gvars = array_to_string(item.value.data.array(), err);
         } else if item.key.opt_bytes() == Some(b"funcs") {
             types |= K_CTX_FUNCS;
-            ctx.funcs = copy_object(item.value, None).data.array();
+            ctx.funcs = copy_object(item.value.clone(), None).data.array();
         }
     }
     types

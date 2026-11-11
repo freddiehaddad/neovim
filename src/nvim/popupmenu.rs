@@ -669,7 +669,7 @@ fn pum_compute_text_attrs(
         if (g_st().state_global & MODE_CMDLINE) != 0 {
             cmdline_compl_pattern().map(std::borrow::Cow::Owned)
         } else {
-            ins_compl_leader().map(std::borrow::Cow::Borrowed)
+            ins_compl_leader().map(std::borrow::Cow::Owned)
         };
     let leader = leader.filter(|s| !s.is_empty())?;
 
@@ -1277,7 +1277,7 @@ fn pum_preview_set_text(
         0,
         -1,
         false,
-        replacement,
+        replacement.clone(),
         &mut arena,
         &mut err,
     );

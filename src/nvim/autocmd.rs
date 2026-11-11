@@ -2536,7 +2536,7 @@ pub fn aucmd_defer(
         fname_io: fname_io.map(CStr::to_owned),
         group,
         buf: buf.b_fnum,
-        data: data.map(|d| copy_object(*d, None)),
+        data: data.map(|d| copy_object(d.clone(), None)),
     });
 
     multiqueue_put_event(
@@ -2558,10 +2558,9 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         if let Some(ref data_obj) = data
             && data_obj.obj_type == ObjectType::ObjectTypeDict
         {
-            for i in 0..data_obj.data.dict().size {
-                let item = data_obj.data.dict()[i];
+            for item in data_obj.data.dict_slice() {
                 let mut tv: TypVal = TypVal::new();
-                object_to_vim(item.value, &mut tv, &mut err);
+                object_to_vim(item.value.clone(), &mut tv, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     api_clear_error(&mut err);
                     continue;
@@ -2607,7 +2606,14 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
         let new = boolean_obj(new_val);
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(buf), 0);
-        apply_optionset_autocmd_now(K_OPT_MODIFIED, OPT_LOCAL, old, old, old, new);
+        apply_optionset_autocmd_now(
+            K_OPT_MODIFIED,
+            OPT_LOCAL,
+            old.clone(),
+            old.clone(),
+            old,
+            new,
+        );
         ctx_restore(&mut aco);
     }
 }
@@ -3004,7 +3010,7 @@ pub fn apply_autocmds_group(
             if patcmd.lastpat.is_some() {
                 let arg_bufnr = patcmd.arg_bufnr.clone();
                 ACTIVE_APC_LIST.with(|cell| cell.borrow_mut().push(arg_bufnr.clone()));
-                patcmd.data = data.copied();
+                patcmd.data = data.cloned();
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if let Some(eap) = eap {
@@ -3162,7 +3168,10 @@ pub extern "C" fn unblock_autocmds() {
         && has_event(EVENT_TERMRESPONSE)
     {
         let sequence = cstr_to_string(Some(&get_vim_var_str(VV_TERMRESPONSE)));
-        do_termresponse_autocmd(sequence, AU_STATE.with(|s| s.termresponse_chan_id.get()));
+        do_termresponse_autocmd(
+            sequence.clone(),
+            AU_STATE.with(|s| s.termresponse_chan_id.get()),
+        );
         api_free_string(sequence);
     }
 }
@@ -3240,9 +3249,11 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
 
 fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
     if callback.cb_type() == K_CALLBACK_LUA {
-        let mut data_items = [KeyValuePair {
-            key: NvimString::new(),
-            value: boolean_obj(false),
+        let mut data_items = [const {
+            KeyValuePair {
+                key: NvimString::new(),
+                value: boolean_obj(false),
+            }
         }; 8];
         let mut size = 0usize;
 
@@ -3277,10 +3288,10 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
         };
         size += 1;
 
-        if let Some(data_val) = apc.data {
+        if let Some(ref data_val) = apc.data {
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"data"),
-                value: data_val,
+                value: data_val.clone(),
             };
             size += 1;
         }

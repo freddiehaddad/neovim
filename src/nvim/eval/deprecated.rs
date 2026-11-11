@@ -51,9 +51,11 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
+    let mut args_storage = [const {
+        Object {
+            obj_type: ObjectType::ObjectTypeNil,
+            data: ObjectData::Boolean(false),
+        }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();
@@ -99,9 +101,11 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
+    let mut args_storage = [const {
+        Object {
+            obj_type: ObjectType::ObjectTypeNil,
+            data: ObjectData::Boolean(false),
+        }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     let mut arena = Arena::new();

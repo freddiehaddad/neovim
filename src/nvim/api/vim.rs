@@ -185,7 +185,7 @@ pub struct KeyDict_runtime {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_echo_opts {
     pub is_set_echo_opts: OptionalKeys,
     pub err: Boolean,
@@ -209,14 +209,14 @@ pub struct KeyDict_open_term {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_context {
     pub is_set_context: OptionalKeys,
     pub types: Array,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_chan_set {
     pub is_set_chan_set: OptionalKeys,
     pub addr: NvimString,
@@ -225,7 +225,7 @@ pub struct KeyDict_chan_set {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_eval_statusline {
     pub is_set_eval_statusline: OptionalKeys,
     pub winid: Window,
@@ -238,14 +238,14 @@ pub struct KeyDict_eval_statusline {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_complete_set {
     pub is_set_complete_set: OptionalKeys,
     pub info: NvimString,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_redraw {
     pub is_set_redraw: OptionalKeys,
     pub flush: Boolean,
@@ -264,7 +264,7 @@ pub type HlMessage = Vec<HlMessageChunk>;
 use crate::api::ui::MAX_SCHAR_SIZE;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct MessageData {
     pub source: NvimString,
     pub percent: Integer,
@@ -1255,11 +1255,11 @@ pub fn nvim_echo(
     }
 
     let mut msg_data = MessageData {
-        source: opts.source,
+        source: opts.source.clone(),
         percent: if has_percent { opts.percent } else { -1 },
-        title: opts.title,
-        status: opts.status,
-        data: opts.data,
+        title: opts.title.clone(),
+        status: opts.status.clone(),
+        data: opts.data.clone(),
     };
 
     let save_nwr = g_st().need_wait_return;
@@ -1273,7 +1273,7 @@ pub fn nvim_echo(
     }
     msg_ext_no_fast();
     id = msg_multihl(
-        opts.id,
+        opts.id.clone(),
         &mut hl_msg,
         kind,
         history,
@@ -1710,7 +1710,7 @@ pub fn nvim_paste(
         return retval;
     }
 
-    let lines = string_to_array(data, crlf, arena);
+    let lines = string_to_array(data.clone(), crlf, arena);
     let mut args_items = [array_obj(lines), integer_obj(phase)];
     let args = Array::from_slice(&mut args_items[..2]);
     let rv = nlua_exec(
@@ -1729,7 +1729,7 @@ pub fn nvim_paste(
     }
     let null_str = NvimString::new();
     if !PASTE_CANCELLED.get() && (phase == -1 || phase == 1) {
-        paste_store(channel_id, K_FALSE, null_str, crlf);
+        paste_store(channel_id, K_FALSE, null_str.clone(), crlf);
     }
     if !PASTE_CANCELLED.get() {
         paste_store(channel_id, K_NONE, data, crlf);
@@ -1770,7 +1770,7 @@ pub fn nvim_put(
 ) {
     let mut reg = crate::register::EMPTY_YANKREG;
     if !validate_s(
-        prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
+        prepare_yankreg_from_object(&mut reg, reg_type.clone(), lines.size),
         c"type",
         reg_type.as_opt_cstr(),
         err,
@@ -1783,15 +1783,15 @@ pub fn nvim_put(
 
     reg.y_array = Vec::with_capacity(lines.size);
     reg.y_allocated = true;
-    for i in 0..lines.size {
-        let item = lines[i];
+    for item in lines.as_slice() {
         if !validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type, err) {
             return;
         }
         let line = item.data.string();
+        let line_size = line.size;
         let mut copied = copy_string(line, None);
-        if line.size > 0 {
-            for b in &mut copied.as_bytes_with_nul_mut()[..line.size] {
+        if line_size > 0 {
+            for b in &mut copied.as_bytes_with_nul_mut()[..line_size] {
                 if *b == NUL as u8 {
                     *b = NL as u8;
                 }
@@ -1872,15 +1872,14 @@ pub fn nvim_get_color_map(arena: &mut Arena) -> Dict {
 // DLLEXPORT Dict nvim_get_context(Dict(context) *opts, Arena *arena, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut Error) -> Dict {
     let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
-        opts.types
+        opts.types.clone()
     } else {
         Array::new()
     };
 
     let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { K_CTX_ALL };
     if types.size > 0 {
-        for i in 0..types.size {
-            let item = types[i];
+        for item in types.as_slice() {
             if item.obj_type == ObjectType::ObjectTypeString {
                 let s = item.data.string();
                 match s.cstr_bytes() {
@@ -2106,7 +2105,7 @@ pub fn nvim_set_client_info(
     arena: &mut Arena,
     _err: &mut Error,
 ) {
-    let mut info_items = [KeyValuePair::default(); 5];
+    let mut info_items = [const { KeyValuePair::new() }; 5];
     let mut info = Dict::from_buf(&mut info_items);
     put_c(&mut info, c"name", string_obj(name));
 
@@ -2120,7 +2119,7 @@ pub fn nvim_set_client_info(
     if !has_major {
         let mut v = arena_dict(arena, version.size + 1);
         if version.size != 0 {
-            v.as_mut_slice().copy_from_slice(version.as_slice());
+            v.as_mut_slice().clone_from_slice(version.as_slice());
             v.size = version.size;
         }
         put_c(&mut v, c"major", integer_obj(0));
@@ -3077,7 +3076,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     if has_range {
-        let r = opts.range;
+        let r = &opts.range;
         let ok = r.size == 2
             && r[0].obj_type == ObjectType::ObjectTypeInteger
             && r[1].obj_type == ObjectType::ObjectTypeInteger

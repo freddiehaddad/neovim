@@ -1373,24 +1373,6 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub(crate) fn ptr_slice<'a>(self, len: usize) -> &'a [T] {
-        if self.0.is_null() || len == 0 {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(self.0.cast_const(), len) }
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn ptr_slice_mut<'a>(self, len: usize) -> &'a mut [T] {
-        if self.0.is_null() || len == 0 {
-            &mut []
-        } else {
-            unsafe { std::slice::from_raw_parts_mut(self.0, len) }
-        }
-    }
-
-    #[inline(always)]
     pub fn into_box(self) -> Box<T> {
         unsafe { Box::from_raw(self.0) }
     }

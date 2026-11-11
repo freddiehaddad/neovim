@@ -650,8 +650,7 @@ fn apply_termdefs(tui: &mut TUIData) {
     let mut err_count = 0usize;
 
     let dict = rv.data.dict();
-    for i in 0..dict.size {
-        let kv = dict[i];
+    for kv in dict.as_slice() {
         let key_bytes = if kv.key.data.is_null() {
             &[][..]
         } else {
@@ -672,7 +671,7 @@ fn apply_termdefs(tui: &mut TUIData) {
             continue;
         }
 
-        let val = kv.value;
+        let val = &kv.value;
         match target {
             TermdefFieldTarget::BoolBackColorErase => {
                 tui.ti.back_color_erase = val.data.boolean();
@@ -713,8 +712,7 @@ fn apply_termdefs(tui: &mut TUIData) {
                 }
                 tui.ti.keys[idx][0] = None;
                 tui.ti.keys[idx][1] = None;
-                for key_map_idx in 0..arr.size {
-                    let key_mapping = arr[key_map_idx];
+                for (key_map_idx, key_mapping) in arr.as_slice().iter().enumerate() {
                     if key_mapping.obj_type != ObjectType::ObjectTypeString {
                         let msg = format!(
                             "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}[{key_map_idx}]: expected type 'string'\n"
@@ -1647,9 +1645,8 @@ fn tui_cursor_reset_style(tui: &mut TUIData) {
 
 fn decode_cursor_entry(args: Dict) -> Cursorentry {
     let mut r = shape_table_entry(0);
-    for i in 0..args.size {
-        let item = args[i];
-        let value = item.value;
+    for item in args.as_slice() {
+        let value = &item.value;
         match item.key.cstr_bytes() {
             b"cursor_shape" => r.shape = tui_cursor_decode_shape(value.data.string()),
             b"blinkon" => r.blinkon = value.data.integer() as i32,
@@ -1670,8 +1667,7 @@ pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array
 
     assert!(args.size != 0);
 
-    for i in 0..args.size {
-        let item = args[i];
+    for (i, item) in args.as_slice().iter().enumerate() {
         assert!(item.obj_type == ObjectType::ObjectTypeDict);
         let r = decode_cursor_entry(item.data.dict());
         tui.cursor_shapes[i] = r;

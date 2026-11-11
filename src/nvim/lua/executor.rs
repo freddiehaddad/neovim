@@ -705,8 +705,8 @@ extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> i3
         return lua_error_safe(lstate);
     }
 
-    let ret = runtime_get_named_thread(is_lua, pat, all);
-    nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
+    let ret = runtime_get_named_thread(is_lua, pat.clone(), all);
+    nlua_push_array(lstate, ret.clone(), K_NLUA_PUSH_SPECIAL);
     api_free_array(ret);
     api_free_array(pat);
 
@@ -1980,18 +1980,17 @@ fn nlua_call_pop_retval(
         K_RET_OBJECT => nlua_pop_object_opt(lstate, false, arena, perr),
         K_RET_MULTI => {
             let nres = nlua_gettop(lstate) - pretop;
-            let mut res = crate::api::private::helpers::arena_array_opt(
-                arena.as_deref_mut(),
-                nres.max(0) as usize,
-            );
-            for i in 0..(nres as usize) {
-                *res.items.wrapping_add((nres as usize) - i - 1) =
+            let nres_u = nres.max(0) as usize;
+            let mut res =
+                crate::api::private::helpers::arena_array_opt(arena.as_deref_mut(), nres_u);
+            res.size = nres_u;
+            for i in 0..nres_u {
+                res[nres_u - i - 1] =
                     nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
                 if error_set(perr) {
                     return OBJECT_NIL;
                 }
             }
-            res.size = nres.max(0) as usize;
             Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(res),
@@ -2196,13 +2195,12 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
             let mut results = Vec::with_capacity(completions.size);
 
             let mut all_strings = true;
-            for i in 0..completions.size {
-                let v = completions[i];
+            for v in completions.as_slice() {
                 if v.obj_type != ObjectType::ObjectTypeString {
                     all_strings = false;
                     break;
                 }
-                results.push(crate::memory::bytes_to_cstring(v.data.string().as_bytes()));
+                results.push(crate::memory::bytes_to_cstring(v.data.as_bytes()));
             }
             NLUA_EXPAND_RESULTS.with(|r| *r.borrow_mut() = results);
 

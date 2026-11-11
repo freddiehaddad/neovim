@@ -420,7 +420,7 @@ struct ExGetlnState {
     last_prompt_id: std::cell::Cell<u32>,
     cmdline_level: std::cell::Cell<i32>,
     new_cmdpos: std::cell::Cell<i32>,
-    cmdline_block: std::cell::Cell<Array>,
+    cmdline_block: crate::api::private::validate::CloneCell<Array>,
     getln_interrupted_highlight: std::cell::Cell<bool>,
     cedit_key: std::cell::Cell<i32>,
     cmdpreview_bufnr: std::cell::Cell<ObjHandle>,
@@ -435,7 +435,7 @@ impl ExGetlnState {
             last_prompt_id: std::cell::Cell::new(0),
             cmdline_level: std::cell::Cell::new(0),
             new_cmdpos: std::cell::Cell::new(0),
-            cmdline_block: std::cell::Cell::new(Array::new()),
+            cmdline_block: crate::api::private::validate::CloneCell::new(Array::new()),
             getln_interrupted_highlight: std::cell::Cell::new(false),
             cedit_key: std::cell::Cell::new(-1),
             cmdpreview_bufnr: std::cell::Cell::new(0),
@@ -4083,7 +4083,7 @@ pub fn ui_ext_cmdline_block_append(indent: usize, line: &[u8]) {
     let mut content = Array::new();
     array_add(&mut content, array_obj(item));
     let mut blk = GETLN_STATE.with(|s| s.cmdline_block.get());
-    array_add(&mut blk, array_obj(content));
+    array_add(&mut blk, array_obj(content.clone()));
     GETLN_STATE.with(|s| s.cmdline_block.set(blk));
     if GETLN_STATE.with(|s| s.cmdline_block.get()).size > 1 {
         ui_call_cmdline_block_append(content);

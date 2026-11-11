@@ -283,9 +283,8 @@ pub fn nvim_ui_attach(
     });
     let ui: &mut RemoteUI = &mut ui_box;
 
-    for i in 0..options.size {
-        let item = options[i];
-        ui_set_option(ui, true, item.key, item.value, err);
+    for item in options.as_slice() {
+        ui_set_option(ui, true, item.key.clone(), item.value.clone(), err);
         if error_set(err) {
             return;
         }
@@ -394,7 +393,7 @@ pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
         let mut ui = ui_rc.borrow_mut();
         let chan = find_channel_opt(ui.channel_id).unwrap();
         let addr = chan.addr.as_deref();
-        let mut cfg_items: [KeyValuePair; 2] = [KeyValuePair::new(); 2];
+        let mut cfg_items: [KeyValuePair; 2] = [const { KeyValuePair::new() }; 2];
         let mut chan_config = Dict::from_buf(&mut cfg_items);
         *chan_config.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(c"detach")),
@@ -414,7 +413,7 @@ pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
             if via_addr {
                 cstr_as_obj(addr)
             } else {
-                string_obj(listen_addr)
+                string_obj(listen_addr.clone())
             },
             dict_obj(chan_config),
         ];
@@ -904,7 +903,7 @@ pub fn remote_ui_grid_clear(ui: &mut RemoteUI, grid: Integer) {
 
 // DLLEXPORT void remote_ui_grid_resize(RemoteUI *ui, Integer grid, Integer width, Integer height);
 pub fn remote_ui_grid_resize(ui: &mut RemoteUI, grid: Integer, width: Integer, height: Integer) {
-    let mut args_items = [Object::default(); 3];
+    let mut args_items = [const { Object::new() }; 3];
     let mut size = 0;
     if ui.ui_ext[K_UILINEGRID] {
         args_items[size] = integer_obj(grid);
@@ -1037,9 +1036,9 @@ pub fn remote_ui_hl_attr_define(
         return;
     }
 
-    let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
+    let mut rgb_items = [const { KeyValuePair::new() }; HLATTRS_DICT_SIZE];
     let mut rgb = Dict::from_buf(&mut rgb_items);
-    let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
+    let mut cterm_items = [const { KeyValuePair::new() }; HLATTRS_DICT_SIZE];
     let mut cterm = Dict::from_buf(&mut cterm_items);
     let mut arena = Arena::new();
     hlattrs2dict(&mut rgb, None, rgb_attrs, true, false, Some(&mut arena));
@@ -1077,7 +1076,7 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
     }
     ui.hl_id = id;
     let mut arena = Arena::new();
-    let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
+    let mut dict_items = [const { KeyValuePair::new() }; HLATTRS_DICT_SIZE];
     let mut dict = Dict::from_buf(&mut dict_items);
     hlattrs2dict(
         &mut dict,
@@ -1347,7 +1346,7 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
         } else {
             new_item[0] = dict_obj(DICT_INIT);
         }
-        new_item[1] = item[1];
+        new_item[1] = item[1].clone();
         new_item.size = 2;
         new_contents[i] = array_obj(new_item);
     }
@@ -1360,7 +1359,7 @@ fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Arra
     let contents = args[0].data.array();
     new_args[0] = array_obj(translate_contents(ui, contents, arena));
     for i in 1..args.size {
-        new_args[i] = args[i];
+        new_args[i] = args[i].clone();
     }
     new_args.size = args.size;
     new_args
@@ -1402,7 +1401,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                 let items = args[0].data.array();
                 let mut new_items = arena_array(&mut arena, items.size);
                 for i in 0..items.size {
-                    new_items[i] = items[i].data.array()[0];
+                    new_items[i] = items[i].data.array()[0].clone();
                 }
                 new_items.size = items.size;
                 let mut new_args_items: [Object; 1] = [array_obj(new_items)];
@@ -1412,7 +1411,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                     Array::from_slice(&mut new_args_items[..1]),
                 );
                 if args[1].data.integer() != -1 {
-                    new_args_items[0] = args[1];
+                    new_args_items[0] = args[1].clone();
                     push_call(
                         ui,
                         c"wildmenu_select",

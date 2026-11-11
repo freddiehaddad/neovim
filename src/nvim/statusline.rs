@@ -809,7 +809,7 @@ fn win_redr_stl_expr(
         }
 
         if ui_event {
-            ui_call_msg_ruler(content);
+            ui_call_msg_ruler(content.clone());
             with_stl_state(|st| st.did_show_ext_ruler.set(true));
             api_free_array(content);
         } else {
@@ -2697,7 +2697,7 @@ pub fn build_stl_str_hl_slice(
 
     if opt_idx != K_OPT_INVALID && g_st().did_emsg > did_emsg_before {
         let def = get_option_default(opt_idx, opt_scope);
-        set_option_direct(opt_idx, def, opt_scope, SID_ERROR);
+        set_option_direct(opt_idx, def.clone(), opt_scope, SID_ERROR);
         optval_free_read(opt_idx, def);
     }
 

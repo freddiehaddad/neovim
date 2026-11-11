@@ -652,7 +652,7 @@ pub fn nvim_win_resize(
     let mut from_left = true;
 
     if has_key(opts.is_set_win_resize, KEYSET_OPTIDX_WIN_RESIZE_ANCHOR) {
-        let anchor = opts.anchor;
+        let anchor = &opts.anchor;
         let anchor_bytes = opts.anchor.as_bytes();
         let is_height = anchor_bytes == b"top" || anchor_bytes == b"bottom";
         let is_width = anchor_bytes == b"left" || anchor_bytes == b"right";

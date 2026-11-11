@@ -247,7 +247,7 @@ fn call_function_impl(
     let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut i = 0usize;
     while i < args.size {
-        object_to_vim(args[i], &mut vim_args[i], err);
+        object_to_vim(args[i].clone(), &mut vim_args[i], err);
         i += 1;
     }
 
@@ -367,7 +367,7 @@ pub fn nvim_call_dict_function(
             mustfree = true;
         }
         ObjectType::ObjectTypeDict => {
-            object_to_vim(dict, &mut rettv, err);
+            object_to_vim(dict.clone(), &mut rettv, err);
         }
         _ => {
             api_err_exp(err, c"dict argument", c"String or Dict", None);

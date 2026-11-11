@@ -295,7 +295,7 @@ struct Compl {
     cp_cpt_source_idx: i32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ComplMeta {
     cp_str: NvimString,
     cp_flags: i32,
@@ -307,9 +307,9 @@ struct ComplMeta {
 
 impl Compl {
     #[inline]
-    const fn meta(&self) -> ComplMeta {
+    fn meta(&self) -> ComplMeta {
         ComplMeta {
-            cp_str: self.cp_str,
+            cp_str: self.cp_str.clone(),
             cp_flags: self.cp_flags,
             cp_number: self.cp_number,
             cp_score: self.cp_score,
@@ -459,7 +459,7 @@ struct InsexpandState {
     compl_preselect_idx: std::cell::Cell<Option<usize>>,
     compl_num_bests: std::cell::Cell<i32>,
     compl_enter_selects: std::cell::Cell<bool>,
-    compl_leader: std::cell::Cell<NvimString>,
+    compl_leader: crate::api::private::validate::CloneCell<NvimString>,
     compl_get_longest: std::cell::Cell<bool>,
     compl_used_match: std::cell::Cell<bool>,
     compl_was_interrupted: std::cell::Cell<bool>,
@@ -468,7 +468,7 @@ struct InsexpandState {
     compl_started: std::cell::Cell<bool>,
     ctrl_x_mode: std::cell::Cell<i32>,
     compl_matches: std::cell::Cell<i32>,
-    cpt_compl_pattern: std::cell::Cell<NvimString>,
+    cpt_compl_pattern: crate::api::private::validate::CloneCell<NvimString>,
     compl_direction: std::cell::Cell<Direction>,
     compl_shows_dir: std::cell::Cell<Direction>,
     compl_pending: std::cell::Cell<i32>,
@@ -478,7 +478,7 @@ struct InsexpandState {
     compl_lnum: std::cell::Cell<Linenr>,
     compl_ins_end_col: std::cell::Cell<Colnr>,
     compl_longest_end_col: std::cell::Cell<Colnr>,
-    compl_orig_text: std::cell::Cell<NvimString>,
+    compl_orig_text: crate::api::private::validate::CloneCell<NvimString>,
     compl_cont_mode: std::cell::Cell<i32>,
     compl_curr_win: std::cell::Cell<crate::globals::WinPtr>,
     compl_curr_buf: std::cell::Cell<crate::globals::BufPtr>,
@@ -496,7 +496,7 @@ struct InsexpandState {
     spell_bad_len: std::cell::Cell<usize>,
     compl_selected_item: std::cell::Cell<i32>,
     cpt_sources_index: std::cell::Cell<i32>,
-    adjusted_leader: std::cell::Cell<NvimString>,
+    adjusted_leader: crate::api::private::validate::CloneCell<NvimString>,
     next_buf_wp: std::cell::Cell<crate::globals::WinPtr>,
     next_state_cleared: std::cell::Cell<bool>,
 }
@@ -511,7 +511,7 @@ impl InsexpandState {
             compl_preselect_idx: std::cell::Cell::new(None),
             compl_num_bests: std::cell::Cell::new(0),
             compl_enter_selects: std::cell::Cell::new(false),
-            compl_leader: std::cell::Cell::new(empty_nvim_string()),
+            compl_leader: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
             compl_get_longest: std::cell::Cell::new(false),
             compl_used_match: std::cell::Cell::new(false),
             compl_was_interrupted: std::cell::Cell::new(false),
@@ -520,7 +520,7 @@ impl InsexpandState {
             compl_started: std::cell::Cell::new(false),
             ctrl_x_mode: std::cell::Cell::new(CTRL_X_NORMAL),
             compl_matches: std::cell::Cell::new(0),
-            cpt_compl_pattern: std::cell::Cell::new(empty_nvim_string()),
+            cpt_compl_pattern: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
             compl_direction: std::cell::Cell::new(FORWARD),
             compl_shows_dir: std::cell::Cell::new(FORWARD),
             compl_pending: std::cell::Cell::new(0),
@@ -534,7 +534,7 @@ impl InsexpandState {
             compl_lnum: std::cell::Cell::new(0),
             compl_ins_end_col: std::cell::Cell::new(0),
             compl_longest_end_col: std::cell::Cell::new(0),
-            compl_orig_text: std::cell::Cell::new(empty_nvim_string()),
+            compl_orig_text: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
             compl_cont_mode: std::cell::Cell::new(0),
             compl_curr_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
             compl_curr_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
@@ -552,7 +552,7 @@ impl InsexpandState {
             spell_bad_len: std::cell::Cell::new(0),
             compl_selected_item: std::cell::Cell::new(-1),
             cpt_sources_index: std::cell::Cell::new(-1),
-            adjusted_leader: std::cell::Cell::new(empty_nvim_string()),
+            adjusted_leader: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
             next_buf_wp: std::cell::Cell::new(crate::globals::WinPtr::NULL),
             next_state_cleared: std::cell::Cell::new(false),
         }
@@ -1072,7 +1072,8 @@ fn ins_compl_infercase_gettext<'a>(
         }
     }
 
-    let orig_bytes = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+    let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+    let orig_bytes = orig_str.as_bytes();
     // Rule 1: Were any chars converted to lower?
     {
         let mut rem = orig_bytes;
@@ -1181,7 +1182,8 @@ pub fn ins_compl_add_infercase(
 
         let mut compl_char_len: i32 = 0;
         {
-            let mut rem = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+            let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+            let mut rem = orig_str.as_bytes();
             while !rem.is_empty() {
                 let step = utf_ptr2len(rem) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
@@ -1393,7 +1395,7 @@ fn ins_compl_add(
         INSEXPAND.with(|s| s.compl_preselect_idx.set(Some(insert_idx)));
     }
 
-    if !meta_at_original_text(meta) {
+    if !meta_at_original_text(meta.clone()) {
         compl_strings_add(meta.cp_str.as_bytes());
     }
 
@@ -1472,22 +1474,22 @@ fn ins_compl_insert_bytes(p: &[u8], mut len: i32) {
 }
 
 /// Get current completion leader.
-pub fn ins_compl_leader() -> Option<&'static CStr> {
+pub fn ins_compl_leader() -> Option<std::ffi::CString> {
     if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-        Some(INSEXPAND.with(|s| s.compl_leader.get()).as_cstr())
+        Some(INSEXPAND.with(|s| s.compl_leader.get()).to_cstring())
     } else if !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null() {
-        Some(INSEXPAND.with(|s| s.compl_orig_text.get()).as_cstr())
+        Some(INSEXPAND.with(|s| s.compl_orig_text.get()).to_cstring())
     } else {
         None
     }
 }
 
 #[inline]
-fn ins_compl_leader_slice() -> &'static [u8] {
+fn ins_compl_leader_str() -> NvimString {
     if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-        INSEXPAND.with(|s| s.compl_leader.get()).as_bytes()
+        INSEXPAND.with(|s| s.compl_leader.get())
     } else {
-        INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes()
+        INSEXPAND.with(|s| s.compl_orig_text.get())
     }
 }
 
@@ -1568,12 +1570,8 @@ fn ins_compl_longest_match(match_: ComplMeta) {
         return;
     }
 
-    let leader_ptr = INSEXPAND
-        .with(|s| s.compl_leader.get())
-        .data
-        .as_ptr()
-        .cast::<u8>();
-    let leader_slice = INSEXPAND.with(|s| s.compl_leader.get()).cstr_bytes();
+    let leader_str = INSEXPAND.with(|s| s.compl_leader.get());
+    let leader_slice = leader_str.cstr_bytes();
     let s_slice = match_.cp_str.cstr_bytes();
     let mut p_off = 0usize;
     let mut s_off = 0usize;
@@ -1595,7 +1593,7 @@ fn ins_compl_longest_match(match_: ComplMeta) {
         s_off += (crate::mbyte::utfc_ptr2len(s_rem) as usize).min(s_rem.len());
     }
 
-    if p_off < leader_slice.len() && !leader_ptr.is_null() {
+    if p_off < leader_slice.len() && !leader_str.data.is_null() {
         let new_leader = cbuf_to_string(&leader_slice[..p_off]);
         clear_compl_leader();
         INSEXPAND.with(|st| st.compl_leader.set(new_leader));
@@ -1890,16 +1888,16 @@ fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> i32) {
         let saved_ptrs = [
             INSEXPAND
                 .with(|s| s.compl_curr_idx.get())
-                .map(|i| list[i].cp_str.data),
+                .map(|i| list[i].cp_str.data.clone()),
             INSEXPAND
                 .with(|s| s.compl_shown_idx.get())
-                .map(|i| list[i].cp_str.data),
+                .map(|i| list[i].cp_str.data.clone()),
             INSEXPAND
                 .with(|s| s.compl_old_idx.get())
-                .map(|i| list[i].cp_str.data),
+                .map(|i| list[i].cp_str.data.clone()),
             INSEXPAND
                 .with(|s| s.compl_preselect_idx.get())
-                .map(|i| list[i].cp_str.data),
+                .map(|i| list[i].cp_str.data.clone()),
         ];
 
         let range = if orig_idx == 0 {
@@ -1918,28 +1916,28 @@ fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> i32) {
             }
         });
 
-        if let Some(p) = saved_ptrs[0] {
+        if let Some(ref p) = saved_ptrs[0] {
             INSEXPAND.with(|s| {
                 s.compl_curr_idx
-                    .set(list.iter().position(|m| m.cp_str.data == p))
+                    .set(list.iter().position(|m| &m.cp_str.data == p))
             });
         }
-        if let Some(p) = saved_ptrs[1] {
+        if let Some(ref p) = saved_ptrs[1] {
             INSEXPAND.with(|s| {
                 s.compl_shown_idx
-                    .set(list.iter().position(|m| m.cp_str.data == p))
+                    .set(list.iter().position(|m| &m.cp_str.data == p))
             });
         }
-        if let Some(p) = saved_ptrs[2] {
+        if let Some(ref p) = saved_ptrs[2] {
             INSEXPAND.with(|s| {
                 s.compl_old_idx
-                    .set(list.iter().position(|m| m.cp_str.data == p))
+                    .set(list.iter().position(|m| &m.cp_str.data == p))
             });
         }
-        if let Some(p) = saved_ptrs[3] {
+        if let Some(ref p) = saved_ptrs[3] {
             INSEXPAND.with(|s| {
                 s.compl_preselect_idx
-                    .set(list.iter().position(|m| m.cp_str.data == p))
+                    .set(list.iter().position(|m| &m.cp_str.data == p))
             });
         }
     });
@@ -2360,8 +2358,9 @@ fn ins_compl_files(
     buf_slice: &mut [u8],
     dir: &mut Direction,
 ) {
+    let leader_str = ins_compl_leader_str();
     let leader_slice = if cot_fuzzy() {
-        ins_compl_leader_slice()
+        leader_str.as_bytes()
     } else {
         &[]
     };
@@ -2732,7 +2731,8 @@ fn ins_compl_fuzzy_sort() {
 fn ins_compl_new_leader() {
     ins_compl_del_pum();
     ins_compl_delete(true);
-    let lead_b = INSEXPAND.with(|s| s.compl_leader.get()).as_bytes();
+    let lead_str = INSEXPAND.with(|s| s.compl_leader.get());
+    let lead_b = lead_str.as_bytes();
     let skip = (get_compl_len().max(0) as usize).min(lead_b.len());
     ins_compl_insert_bytes(&lead_b[skip..], -1);
     INSEXPAND.with(|s| s.compl_used_match.set(false));
@@ -2859,31 +2859,34 @@ pub fn ins_compl_addfrommatch() {
     let len = curwin_mut().w_cursor.col - INSEXPAND.with(|s| s.compl_col.get());
     let shown_idx = INSEXPAND.with(|s| s.compl_shown_idx.get()).unwrap();
     let shown = compl_meta_at(shown_idx);
-    let mut s_bytes: &[u8] = shown.cp_str.as_bytes();
-    if (s_bytes.len() as i32) <= len {
+    let mut s_str = shown.cp_str.clone();
+    if (s_str.as_bytes().len() as i32) <= len {
         if !meta_at_original_text(shown) {
             return;
         }
 
-        s_bytes = &[];
+        s_str = empty_nvim_string();
         let mut cp_idx = compl_next_idx(shown_idx);
         while let Some(ci) = cp_idx
             && ci != 0
         {
             let cp = compl_meta_at(ci);
             if INSEXPAND.with(|s| s.compl_leader.get()).data.is_null()
-                || ins_compl_equal(cp, INSEXPAND.with(|s| s.compl_leader.get()).as_bytes())
+                || ins_compl_equal(
+                    cp.clone(),
+                    INSEXPAND.with(|s| s.compl_leader.get()).as_bytes(),
+                )
             {
-                s_bytes = cp.cp_str.as_bytes();
+                s_str = cp.cp_str;
                 break;
             }
             cp_idx = compl_next_idx(ci);
         }
-        if (s_bytes.len() as i32) <= len {
+        if (s_str.as_bytes().len() as i32) <= len {
             return;
         }
     }
-    let c = utf_ptr2char(&s_bytes[len as usize..]);
+    let c = utf_ptr2char(&s_str.as_bytes()[len as usize..]);
     ins_compl_addleader(c);
 }
 
@@ -2992,7 +2995,9 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
         || c == CTRL_E
     {
         let ptr_opt = if INSEXPAND.with(|s| s.compl_used_match.get()) && c != CTRL_E {
-            curr_meta.and_then(|curr| curr.cp_str.as_opt_cstr())
+            curr_meta
+                .as_ref()
+                .and_then(|curr| curr.cp_str.as_opt_cstr())
         } else {
             None
         };
@@ -3054,14 +3059,16 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
 
     if c == CTRL_E {
         ins_compl_delete(false);
-        let p_slice: Option<&[u8]> = if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-            Some(INSEXPAND.with(|s| s.compl_leader.get()).as_bytes())
+        let p_str: Option<NvimString> = if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null()
+        {
+            Some(INSEXPAND.with(|s| s.compl_leader.get()))
         } else if !compl_list_is_empty() {
-            Some(INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes())
+            Some(INSEXPAND.with(|s| s.compl_orig_text.get()))
         } else {
             None
         };
-        if let Some(p_b) = p_slice {
+        if let Some(ref p_s) = p_str {
+            let p_b = p_s.as_bytes();
             let compl_len = get_compl_len();
             if (p_b.len() as i32) > compl_len {
                 let start = compl_len.max(0) as usize;
@@ -3209,19 +3216,21 @@ pub fn ins_compl_prep(c: i32) -> bool {
 
 fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
     let mut len: usize = 0;
+    let leader_str = INSEXPAND.with(|s| s.compl_leader.get());
     let ptr_cstr = match ptr_arg {
         Some(s) => s,
         None => {
-            if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-                INSEXPAND.with(|s| s.compl_leader.get()).as_cstr()
+            if !leader_str.data.is_null() {
+                leader_str.as_cstr()
             } else {
                 return;
             }
         }
     };
     let ptr_bytes = ptr_cstr.to_bytes();
-    if !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null() {
-        let orig_bytes = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+    let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+    if !orig_str.data.is_null() {
+        let orig_bytes = orig_str.as_bytes();
         len = orig_bytes
             .iter()
             .zip(ptr_bytes.iter())
@@ -4365,7 +4374,7 @@ fn fuzzy_longest_match() {
         i += 1;
     }
 
-    let prefix = compl_best_matches[0].cp_str;
+    let prefix = compl_best_matches[0].cp_str.clone();
     let mut prefix_len = prefix.size as i32;
 
     for best in &compl_best_matches[1..] {
@@ -4391,7 +4400,8 @@ fn fuzzy_longest_match() {
         }
     }
 
-    let lead_b = ins_compl_leader_slice();
+    let lead_str = ins_compl_leader_str();
+    let lead_b = lead_str.as_bytes();
     let leader_len = lead_b.len();
     let pref_b = prefix.as_bytes();
 
@@ -4405,7 +4415,8 @@ fn fuzzy_longest_match() {
 
 fn get_next_filename_completion() {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
-    let mut leader_slice = ins_compl_leader_slice();
+    let mut leader_str = ins_compl_leader_str();
+    let mut leader_slice = leader_str.as_bytes();
     let leader_len = leader_slice.len();
     let mut in_fuzzy_collect = cot_fuzzy() && leader_len > 0;
     let need_collect_bests = in_fuzzy_collect && INSEXPAND.with(|s| s.compl_get_longest.get());
@@ -4416,19 +4427,16 @@ fn get_next_filename_completion() {
         #[cfg(windows)]
         {
             if !INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-                path_to_slash(
-                    INSEXPAND
-                        .with(|s| s.compl_leader.get())
-                        .as_bytes_with_nul_mut(),
-                );
+                let mut s = INSEXPAND.with(|s| s.compl_leader.get());
+                path_to_slash(s.as_bytes_with_nul_mut());
+                INSEXPAND.with(|st| st.compl_leader.set(s));
             } else if !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null() {
-                path_to_slash(
-                    INSEXPAND
-                        .with(|s| s.compl_orig_text.get())
-                        .as_bytes_with_nul_mut(),
-                );
+                let mut s = INSEXPAND.with(|s| s.compl_orig_text.get());
+                path_to_slash(s.as_bytes_with_nul_mut());
+                INSEXPAND.with(|st| st.compl_orig_text.set(s));
             }
-            leader_slice = ins_compl_leader_slice();
+            leader_str = ins_compl_leader_str();
+            leader_slice = leader_str.as_bytes();
         }
         if let Some(sep_idx) = leader_slice.iter().rposition(|&b| b == PATHSEP) {
             if sep_idx + 1 >= leader_slice.len() {
@@ -4712,7 +4720,8 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let mut len: i32 = 0;
     let in_fuzzy_collect =
         !compl_status_adding() && cot_fuzzy() && INSEXPAND.with(|s| s.compl_length.get()) > 0;
-    let leader_slice = ins_compl_leader_slice();
+    let leader_str = ins_compl_leader_str();
+    let leader_slice = leader_str.as_bytes();
     let mut score = FUZZY_SCORE_NONE;
     let in_curbuf = st.ins_buf == g_st().curbuf;
 
@@ -4828,7 +4837,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             continue;
         };
         if ins_compl_has_preinsert()
-            && crate::memory::bytes_until_nul(m_slice) == ins_compl_leader_slice()
+            && crate::memory::bytes_until_nul(m_slice) == ins_compl_leader_str().as_bytes()
         {
             continue;
         }
@@ -4885,7 +4894,7 @@ fn get_register_completion() {
         }
 
         for j in 0..reg.y_array.len() {
-            let str_val = reg.y_array[j];
+            let str_val = &reg.y_array[j];
             if str_val.data.is_null() {
                 continue;
             }
@@ -4897,9 +4906,10 @@ fn get_register_completion() {
                     continue;
                 }
 
-                let orig_bytes = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+                let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+                let orig_bytes = orig_str.as_bytes();
                 let str_prefix = &str_b[..orig_bytes.len().min(str_b.len())];
-                let matches = INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
+                let matches = orig_str.data.is_null()
                     || if opt_vars().p_ic {
                         str_prefix.eq_ignore_ascii_case(orig_bytes)
                     } else {
@@ -4934,9 +4944,10 @@ fn get_register_completion() {
                         len = crate::mbyte::utfc_slice2len(rem).max(1).min(rem.len());
                     }
 
-                    let orig_bytes = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+                    let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+                    let orig_bytes = orig_str.as_bytes();
                     let p_prefix = &rem[..orig_bytes.len().min(rem.len())];
-                    let matches = INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
+                    let matches = orig_str.data.is_null()
                         || if opt_vars().p_ic {
                             p_prefix.eq_ignore_ascii_case(orig_bytes)
                         } else {
@@ -5059,7 +5070,8 @@ fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
         if b.b_p_bl && b.b_sfname.is_some() {
             let tail = path_tail(b.sfname_cstr());
-            let orig_bytes = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+            let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+            let orig_bytes = orig_str.as_bytes();
             let tail_b = tail.to_bytes();
             if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {
                 ins_compl_add(
@@ -5408,9 +5420,11 @@ fn ins_compl_update_shown_match() {
 pub fn ins_compl_delete(new_leader: bool) {
     let mut orig_col: i32 = 0;
     if new_leader {
-        let orig_slice = INSEXPAND.with(|s| s.compl_orig_text.get()).cstr_bytes();
+        let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+        let orig_slice = orig_str.cstr_bytes();
         let mut orig_off = 0usize;
-        let mut leader = ins_compl_leader_slice();
+        let leader_str = ins_compl_leader_str();
+        let mut leader = leader_str.as_bytes();
         while orig_off < orig_slice.len()
             && !leader.is_empty()
             && utf_ptr2char(&orig_slice[orig_off..]) == utf_ptr2char(leader)
@@ -5545,11 +5559,12 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<NvimS
                         || (cur_source != -1 && cpt_source_at(cur_source as usize).cs_flag == b'.'))
                 {
                     if first.data.is_null() {
-                        let lead_b = ins_compl_leader_slice();
+                        let lead_str = ins_compl_leader_str();
+                        let lead_b = lead_str.as_bytes();
                         let lead_len = lead_b.len();
                         let cp_b = compl.cp_str.as_bytes();
                         if lead_b == &cp_b[..lead_len.min(cp_b.len())] {
-                            first = compl.cp_str;
+                            first = compl.cp_str.clone();
                             len = compl.cp_str.size as i32;
                         }
                     } else {
@@ -5829,11 +5844,11 @@ fn find_next_completion_match(
         }
 
         let shown = compl_meta_opt(INSEXPAND.with(|s| s.compl_shown_idx.get())).unwrap();
-        let leader = get_leader_for_startcol(Some(shown), false);
+        let leader = get_leader_for_startcol(Some(shown.clone()), false);
 
-        if !meta_at_original_text(shown)
+        if !meta_at_original_text(shown.clone())
             && !leader.data.is_null()
-            && !ins_compl_equal(shown, leader.as_bytes())
+            && !ins_compl_equal(shown.clone(), leader.as_bytes())
             && !(cot_fuzzy() && shown.cp_score != FUZZY_SCORE_NONE)
         {
             todo += 1;
@@ -5902,7 +5917,8 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
     if !started && ins_compl_preinsert_longest() {
         ins_compl_insert(true, true);
     } else if compl_no_insert && !started && !compl_preinsert {
-        let orig_b = INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes();
+        let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
+        let orig_b = orig_str.as_bytes();
         let skip = (get_compl_len().max(0) as usize).min(orig_b.len());
         ins_compl_insert_bytes(&orig_b[skip..], -1);
         INSEXPAND.with(|s| s.compl_used_match.set(false));
@@ -5917,7 +5933,8 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
             ins_compl_insert(compl_preinsert || preinsert_longest, preinsert_longest);
         } else {
             debug_assert!(!INSEXPAND.with(|s| s.compl_leader.get()).data.is_null());
-            let lead_b = INSEXPAND.with(|s| s.compl_leader.get()).as_bytes();
+            let lead_str = INSEXPAND.with(|s| s.compl_leader.get());
+            let lead_b = lead_str.as_bytes();
             let skip = (get_compl_len().max(0) as usize).min(lead_b.len());
             ins_compl_insert_bytes(&lead_b[skip..], -1);
         }
@@ -6724,7 +6741,7 @@ fn ins_compl_show_statusmsg() {
     if g_st().edit_submode_extra.is_none() {
         let curr_idx = INSEXPAND.with(|s| s.compl_curr_idx.get()).unwrap();
         let curr = compl_meta_at(curr_idx);
-        if meta_at_original_text(curr) {
+        if meta_at_original_text(curr.clone()) {
             g_st().edit_submode_extra = Some(gettext(c"Back at original").to_owned());
             g_st().edit_submode_highl = HLF_W;
         } else if (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_S_IPOS) != 0 {
@@ -7091,13 +7108,13 @@ fn remove_old_matches() {
 
         let shown_ptr = INSEXPAND
             .with(|s| s.compl_shown_idx.get())
-            .map(|i| list[i].cp_str.data);
+            .map(|i| list[i].cp_str.data.clone());
         let preselect_ptr = INSEXPAND
             .with(|s| s.compl_preselect_idx.get())
-            .map(|i| list[i].cp_str.data);
+            .map(|i| list[i].cp_str.data.clone());
         let old_ptr = INSEXPAND
             .with(|s| s.compl_old_idx.get())
-            .map(|i| list[i].cp_str.data);
+            .map(|i| list[i].cp_str.data.clone());
 
         let mut i = 0;
         while i < list.len() {
@@ -7169,7 +7186,7 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
     set_compl_globals(startcol, curwin_mut().w_cursor.col, true);
 
     if !cpt_src.cs_refresh_always {
-        ins_compl_insert_bytes(ins_compl_leader_slice(), -1);
+        ins_compl_insert_bytes(ins_compl_leader_str().as_bytes(), -1);
     }
 
     expand_by_function(

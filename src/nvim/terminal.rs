@@ -486,7 +486,7 @@ fn main_loop_events_mut() -> MultiQueue {
 
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
-    NvimString::from_bytes_len(bytes, bytes.len() - 1)
+    NvimString::from_static_bytes_len(bytes, bytes.len() - 1)
 }
 
 pub struct TermRequestEvent {
@@ -1597,7 +1597,7 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
     }
     let mut buff: Vec<u8> = Vec::with_capacity(y_slice[0].size);
     for _ in 0..count {
-        for (j, &item) in y_slice.iter().enumerate() {
+        for (j, item) in y_slice.iter().enumerate() {
             if j > 0 {
                 let term_now = curbuf_mut().terminal;
                 #[cfg(windows)]
@@ -2735,7 +2735,7 @@ fn is_focused(term_id: TermId) -> bool {
 fn get_config_string(buf: &mut FileBuf, key: &[u8]) -> Option<std::ffi::CString> {
     let mut err = Error::new();
     let key_str = NvimString::from_bytes(key);
-    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str, None, &mut err);
+    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str.clone(), None, &mut err);
     api_clear_error(&mut err);
     if obj.obj_type == ObjectType::ObjectTypeNil {
         obj = dict_get_value(Some(&*get_globvar_dict()), key_str, None, &mut err);

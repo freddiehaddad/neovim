@@ -24,16 +24,12 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 
 use crate::mark::setmark_pos;
 use crate::memline::ml_get_buf;
-use crate::memory::{
-    Arena, ArenaMem, arena_alloc, arena_alloc_opt, arena_finish, arena_memdupz, arena_memdupz_opt,
-    free_items, raw_dealloc,
-};
+use crate::memory::{Arena, ArenaMem, arena_finish};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
 use crate::window::{TabPageInfo, WinInfoInfo};
 use std::ffi::CStr;
-use std::mem::size_of;
 use std::ptr;
 
 pub(crate) const MAXLNUM: i64 = 0x7fffffff;
@@ -139,7 +135,7 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 
 #[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString::from_cstr(s)
+    NvimString::from_static_cstr(s)
 }
 
 #[inline]
@@ -149,11 +145,8 @@ pub fn cstr_as_obj(s: Option<&CStr>) -> Object {
 
 #[inline]
 pub fn add_c(array: &mut Array, item: Object) {
-    debug_assert!(!array.items.is_null() && array.size < array.capacity);
-    {
-        *array.next_slot_mut() = item;
-    }
-    array.size += 1;
+    debug_assert!(array.size < array.capacity);
+    array.push(item);
 }
 
 #[inline]
@@ -194,7 +187,7 @@ pub struct HlMessageChunk {
 
 impl Drop for HlMessageChunk {
     fn drop(&mut self) {
-        api_free_string(self.text);
+        api_free_string(std::mem::take(&mut self.text));
     }
 }
 
@@ -286,9 +279,7 @@ pub const fn error_init() -> Error {
 
 #[inline]
 pub fn api_clear_string(s: &mut NvimString) {
-    api_free_string(*s);
-    s.data = crate::globals::GraphPtr::NULL;
-    s.size = 0;
+    api_free_string(std::mem::take(s));
 }
 
 #[inline]
@@ -316,30 +307,21 @@ impl IntoDictKey for &CStr {
 
 #[inline]
 pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
-    debug_assert!(!dict.items.is_null() && dict.size < dict.capacity);
-    {
-        *dict.next_slot_mut() = KeyValuePair {
-            key: key.into_dict_key(),
-            value: val,
-        };
-    }
-    dict.size += 1;
+    debug_assert!(dict.size < dict.capacity);
+    dict.push(KeyValuePair {
+        key: key.into_dict_key(),
+        value: val,
+    });
 }
 
 #[inline]
-pub fn cbuf_to_arena_str(arena: &mut Arena, buf: &[u8]) -> NvimString {
-    NvimString {
-        data: arena_memdupz(arena, buf),
-        size: buf.len(),
-    }
+pub fn cbuf_to_arena_str(_arena: &mut Arena, buf: &[u8]) -> NvimString {
+    NvimString::from_bytes(buf)
 }
 
 #[inline]
-pub fn cbuf_to_arena_str_opt(arena: Option<&mut Arena>, buf: &[u8]) -> NvimString {
-    NvimString {
-        data: arena_memdupz_opt(arena, buf),
-        size: buf.len(),
-    }
+pub fn cbuf_to_arena_str_opt(_arena: Option<&mut Arena>, buf: &[u8]) -> NvimString {
+    NvimString::from_bytes(buf)
 }
 
 #[inline]
@@ -449,7 +431,7 @@ pub fn dict_get_value(
 
 pub fn dict_check_writable(
     dict: &mut TvDict,
-    key: NvimString,
+    key: &NvimString,
     del: bool,
     err: &mut Error,
 ) -> Option<&'static mut Dictitem> {
@@ -494,7 +476,7 @@ pub fn dict_set_var(
     err: &mut Error,
 ) -> Object {
     let mut rv = OBJECT_NIL;
-    let di_opt = dict_check_writable(dict, key, del, err);
+    let di_opt = dict_check_writable(dict, &key, del, err);
     if error_set(err) {
         return rv;
     }
@@ -664,13 +646,9 @@ pub fn find_tab_by_handle_mut(
 }
 
 pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
-    let Some(str_) = str_ else {
-        return NvimString::new();
-    };
-    let len = str_.to_bytes().len();
-    NvimString {
-        data: arena_memdupz_opt(None, str_.to_bytes()),
-        size: len,
+    match str_ {
+        Some(str_) => NvimString::from_bytes(str_.to_bytes()),
+        None => NvimString::new(),
     }
 }
 
@@ -679,17 +657,11 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 }
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
-    NvimString {
-        data: arena_memdupz_opt(None, bytes),
-        size: bytes.len(),
-    }
+    NvimString::from_bytes(bytes)
 }
 
 pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
-    NvimString {
-        data: arena_memdupz_opt(None, buf),
-        size: buf.len(),
-    }
+    NvimString::from_bytes(buf)
 }
 
 pub fn cstrn_as_string(str_: &[u8]) -> NvimString {
@@ -817,66 +789,34 @@ pub fn buf_get_text(
 }
 
 pub fn api_free_string(value: NvimString) {
-    if !value.data.is_null() {
-        raw_dealloc(value.data.as_ptr().cast());
-    }
+    drop(value);
 }
 
-pub fn arena_array(arena: &mut Arena, max_size: usize) -> Array {
-    Array {
-        size: 0,
-        capacity: max_size,
-        items: crate::globals::GraphPtr::new(
-            arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
-        ),
-    }
+pub fn arena_array(_arena: &mut Arena, max_size: usize) -> Array {
+    Array::with_capacity(max_size)
 }
 
 #[inline]
-pub fn arena_array_opt(arena: Option<&mut Arena>, max_size: usize) -> Array {
-    Array {
-        size: 0,
-        capacity: max_size,
-        items: crate::globals::GraphPtr::new(
-            arena_alloc_opt(arena, size_of::<Object>() * max_size, true).cast(),
-        ),
-    }
+pub fn arena_array_opt(_arena: Option<&mut Arena>, max_size: usize) -> Array {
+    Array::with_capacity(max_size)
 }
 
-pub fn arena_dict(arena: &mut Arena, max_size: usize) -> Dict {
-    Dict {
-        size: 0,
-        capacity: max_size,
-        items: crate::globals::GraphPtr::new(
-            arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
-        ),
-    }
+pub fn arena_dict(_arena: &mut Arena, max_size: usize) -> Dict {
+    Dict::with_capacity(max_size)
 }
 
 #[inline]
-pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
-    Dict {
-        size: 0,
-        capacity: max_size,
-        items: crate::globals::GraphPtr::new(
-            arena_alloc_opt(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
-        ),
-    }
+pub fn arena_dict_opt(_arena: Option<&mut Arena>, max_size: usize) -> Dict {
+    Dict::with_capacity(max_size)
 }
 
-pub fn arena_zeroed_string(arena: &mut Arena, size: usize) -> NvimString {
-    NvimString {
-        data: crate::memory::arena_allocz(arena, size),
-        size,
-    }
+pub fn arena_zeroed_string(_arena: &mut Arena, size: usize) -> NvimString {
+    NvimString::zeroed(size)
 }
 
-pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
+pub fn arena_bytes(_arena: &mut Arena, bytes: &[u8]) -> NvimString {
     if !bytes.is_empty() {
-        NvimString {
-            data: arena_memdupz(arena, bytes),
-            size: bytes.len(),
-        }
+        NvimString::from_bytes(bytes)
     } else {
         NvimString::empty_cstr()
     }
@@ -890,10 +830,7 @@ pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
 pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
     match arena {
         Some(a) => arena_bytes(a, bytes),
-        None => NvimString {
-            data: arena_memdupz_opt(None, bytes),
-            size: bytes.len(),
-        },
+        None => NvimString::from_bytes(bytes),
     }
 }
 
@@ -902,15 +839,18 @@ pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimStri
     arena_bytes_opt(arena, str_.as_bytes())
 }
 
-pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
-    let len = arr.len();
-    let mut ret = arena_array(arena, len);
-    ret.size = len;
-    if len > 0 {
-        ret.as_mut_slice().copy_from_slice(arr);
+pub fn arena_take_arraybuilder(_arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
+    let taken = std::mem::take(arr);
+    let len = taken.len();
+    Array {
+        size: len,
+        capacity: len,
+        items: if len == 0 {
+            None
+        } else {
+            Some(std::rc::Rc::new(taken))
+        },
     }
-    *arr = Vec::new();
-    ret
 }
 
 pub fn api_free_object(value: Object) {
@@ -931,18 +871,18 @@ pub fn api_free_object(value: Object) {
 }
 
 pub fn api_free_array(value: Array) {
-    for &item in value.as_slice() {
-        api_free_object(item);
+    for item in value.as_slice() {
+        api_free_object(item.clone());
     }
-    free_items(value.items);
+    drop(value);
 }
 
 pub fn api_free_dict(value: Dict) {
-    for &item in value.as_slice() {
-        api_free_string(item.key);
-        api_free_object(item.value);
+    for item in value.as_slice() {
+        api_free_string(item.key.clone());
+        api_free_object(item.value.clone());
     }
-    free_items(value.items);
+    drop(value);
 }
 
 pub fn api_clear_error(value: &mut Error) {
@@ -953,12 +893,9 @@ pub fn api_clear_error(value: &mut Error) {
     value.err_type = ErrorType::ErrorTypeNone;
 }
 
-pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
+pub fn copy_string(str_: NvimString, _arena: Option<&mut Arena>) -> NvimString {
     if !str_.data.is_null() {
-        NvimString {
-            data: arena_memdupz_opt(arena, str_.as_bytes()),
-            size: str_.size,
-        }
+        NvimString::from_bytes(str_.as_bytes())
     } else {
         NvimString::new()
     }
@@ -967,7 +904,7 @@ pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
 pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
     let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
     for i in 0..array.size {
-        rv[i] = copy_object(array[i], arena.as_deref_mut());
+        rv[i] = copy_object(array[i].clone(), arena.as_deref_mut());
     }
     rv.size = array.size;
     rv
@@ -976,11 +913,11 @@ pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
 pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
     let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
     for i in 0..dict.size {
-        let item = dict[i];
-        let k_copy = copy_string(item.key, arena.as_deref_mut());
+        let item = &dict[i];
+        let k_copy = copy_string(item.key.clone(), arena.as_deref_mut());
         rv[i] = KeyValuePair {
-            key: cstr_as_string(k_copy.as_opt_cstr()),
-            value: copy_object(item.value, arena.as_deref_mut()),
+            key: k_copy,
+            value: copy_object(item.value.clone(), arena.as_deref_mut()),
         };
     }
     rv.size = dict.size;
@@ -1078,7 +1015,7 @@ pub const fn api_typename(t: ObjectType) -> &'static std::ffi::CStr {
 pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     let mut hl_msg = HlMessage::new();
     for i in 0..chunks.size {
-        let item = chunks[i];
+        let item = &chunks[i];
         if item.obj_type != ObjectType::ObjectTypeArray {
             api_err_exp(
                 err,
@@ -1101,7 +1038,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
 
         let str_ = copy_string(chunk[0].data.string(), None);
         let hl_id = if chunk.size == 2 {
-            object_to_hl_id(chunk[1], c"text highlight", err)
+            object_to_hl_id(chunk[1].clone(), c"text highlight", err)
         } else if is_err {
             HLF_E
         } else {
@@ -1122,7 +1059,7 @@ pub fn api_dict_to_keydict<T>(
         return false;
     };
     for i in 0..dict.size {
-        let k = dict[i].key;
+        let k = dict[i].key.clone();
         let key_bytes = k.as_bytes();
         let Some(field) = hashy_fn(key_bytes) else {
             api_set_error!(
@@ -1143,12 +1080,12 @@ pub fn api_dict_to_keydict<T>(
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
         match field_type {
-            ObjectType::ObjectTypeNil => *field.field_mut::<T, Object>(retval) = *value,
+            ObjectType::ObjectTypeNil => *field.field_mut::<T, Object>(retval) = value.clone(),
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
                     if value.obj_type != ObjectType::ObjectTypeNil {
-                        hl_id = object_to_hl_id(*value, k.as_cstr(), err);
+                        hl_id = object_to_hl_id(value.clone(), k.as_cstr(), err);
                         if error_set(err) {
                             return false;
                         }
@@ -1187,7 +1124,7 @@ pub fn api_dict_to_keydict<T>(
             }
             ObjectType::ObjectTypeBoolean => {
                 *field.field_mut::<T, Boolean>(retval) =
-                    api_object_to_bool(*value, field_name, false, err);
+                    api_object_to_bool(value.clone(), field_name, false, err);
 
                 if error_set(err) {
                     return false;
@@ -1356,14 +1293,14 @@ pub fn api_luarefs_free_keydict<T>(dict: &T, table: &[KeySetLink]) {
 }
 
 pub fn api_luarefs_free_array(value: Array) {
-    for &item in value.as_slice() {
-        api_luarefs_free_object(item);
+    for item in value.as_slice() {
+        api_luarefs_free_object(item.clone());
     }
 }
 
 pub fn api_luarefs_free_dict(value: Dict) {
-    for &item in value.as_slice() {
-        api_luarefs_free_object(item.value);
+    for item in value.as_slice() {
+        api_luarefs_free_object(item.value.clone());
     }
 }
 
@@ -1469,14 +1406,14 @@ pub fn api_set_sctx(channel_id: u64) -> Sctx {
 
 struct ApiMetadataState {
     mem_for_metadata: std::cell::Cell<ArenaMem>,
-    metadata_obj: std::cell::Cell<Object>,
+    metadata_obj: crate::api::private::validate::CloneCell<Object>,
 }
 
 impl ApiMetadataState {
     const fn new() -> Self {
         Self {
             mem_for_metadata: std::cell::Cell::new(ArenaMem::NULL),
-            metadata_obj: std::cell::Cell::new(OBJECT_NIL),
+            metadata_obj: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
         }
     }
 }
@@ -4275,7 +4212,7 @@ mod tests {
         );
         let s = cstr_to_string(Some(c"hello"));
         assert_eq!(s.size, 5);
-        let cstr = string_to_cstr(s);
+        let cstr = string_to_cstr(s.clone());
         assert_eq!(cstr.to_str().unwrap(), "hello");
         api_free_string(s);
 

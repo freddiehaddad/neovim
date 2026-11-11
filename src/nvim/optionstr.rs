@@ -408,7 +408,7 @@ pub type OptDidSetCb = Option<for<'a> fn(&mut Optset<'a>) -> Option<&'a CStr>>;
 pub type OptExpandCb = Option<fn(&mut Optexpand, &mut Vec<std::ffi::CString>) -> bool>;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Vimoption {
     pub fullname: &'static std::ffi::CStr,
     pub shortname: Option<&'static std::ffi::CStr>,
@@ -1211,7 +1211,7 @@ pub fn did_set_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate named string values without updating derived flags.
 pub fn validate_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt = get_option(args.os_idx);
-    let value = args.os_newval.data.string().as_cstr();
+    let value = args.os_newval.data.as_cstr();
     opt_strings_flags(
         value,
         opt_values(args.os_idx),
@@ -2152,7 +2152,7 @@ pub fn did_set_foldignore<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let value = args.os_newval.data.string().as_cstr();
+    let value = args.os_newval.data.as_cstr();
     let Some(p) = vim_strchr(value, b',' as i32) else {
         return Some(E_COMMA_REQUIRED);
     };
@@ -2560,7 +2560,7 @@ pub fn validate_shortmess<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'showbreak' option.
 pub fn validate_showbreak<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let mut s = args.os_newval.data.string().cstr_bytes();
+    let mut s = args.os_newval.data.cstr_bytes();
     while !s.is_empty() {
         if ptr2cells(s) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
@@ -2671,7 +2671,7 @@ pub fn did_set_spelllang<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'spelloptions' option is changed.
 pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt_flags = args.os_flags;
-    let val = args.os_newval.data.string().as_cstr();
+    let val = args.os_newval.data.as_cstr();
 
     if (opt_flags & OPT_LOCAL) == 0
         && opt_strings_flags(
@@ -2849,7 +2849,7 @@ pub fn did_set_titlestring<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
 pub fn validate_vartabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let val_bytes = args.os_newval.data.string().cstr_bytes();
+    let val_bytes = args.os_newval.data.cstr_bytes();
     let mut prev_comma = false;
     for (idx, &b) in val_bytes.iter().enumerate() {
         if ascii_isdigit(b) {
@@ -3793,7 +3793,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
 
 pub fn validate_previewpopup<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
-    let cstr = args.os_newval.data.string().as_cstr();
+    let cstr = args.os_newval.data.as_cstr();
     if !win_previewpopup_config(cstr, &mut fconfig) {
         return Some(E_INVARG);
     }

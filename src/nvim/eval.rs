@@ -3543,7 +3543,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
         };
         debug_assert!(value.obj_type != ObjectType::ObjectTypeNil);
 
-        *rettv = opt_to_tv(value, true);
+        *rettv = opt_to_tv(value.clone(), true);
         optval_free(value);
     } else if working && !is_tty_opt && is_option_hidden(opt_idx) {
         ret = false;

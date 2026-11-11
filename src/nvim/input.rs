@@ -3280,7 +3280,14 @@ pub fn paste_repeat(count: i32) {
     let mut err = Error::new();
     let mut i = 0;
     while !aborted && i < count {
-        nvim_paste(LUA_INTERNAL_CALL, str_, false, -1, &mut arena, &mut err);
+        nvim_paste(
+            LUA_INTERNAL_CALL,
+            str_.clone(),
+            false,
+            -1,
+            &mut arena,
+            &mut err,
+        );
         aborted = err.err_type != ErrorType::ErrorTypeNone;
         i += 1;
     }

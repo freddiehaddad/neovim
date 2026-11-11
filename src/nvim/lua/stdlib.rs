@@ -368,7 +368,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
     let del = nlua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
     let mut err = Error::new();
-    let di_opt = dict_check_writable(dict, key, del, &mut err);
+    let di_opt = dict_check_writable(dict, &key, del, &mut err);
     if err.err_type != ErrorType::ErrorTypeNone {
         luaL_where_safe(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());

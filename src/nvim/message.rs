@@ -143,8 +143,8 @@ struct MessageState {
     progress_msg_target: std::cell::Cell<i32>,
     verbose_did_open: std::cell::Cell<bool>,
     keep_msg_more: std::cell::Cell<bool>,
-    msg_ext_id: std::cell::Cell<MsgID>,
-    msg_ext_chunks: std::cell::Cell<Array>,
+    msg_ext_id: crate::api::private::validate::CloneCell<MsgID>,
+    msg_ext_chunks: crate::api::private::validate::CloneCell<Array>,
     msg_ext_last_attr: std::cell::Cell<Sattr>,
     msg_ext_last_hl_id: std::cell::Cell<i32>,
     msg_ext_history: std::cell::Cell<bool>,
@@ -175,11 +175,11 @@ impl MessageState {
             progress_msg_target: std::cell::Cell::new(PROGRESS_TARGET_CMD),
             verbose_did_open: std::cell::Cell::new(false),
             keep_msg_more: std::cell::Cell::new(false),
-            msg_ext_id: std::cell::Cell::new(Object {
+            msg_ext_id: crate::api::private::validate::CloneCell::new(Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(1),
             }),
-            msg_ext_chunks: std::cell::Cell::new(Array::new()),
+            msg_ext_chunks: crate::api::private::validate::CloneCell::new(Array::new()),
             msg_ext_last_attr: std::cell::Cell::new(-1),
             msg_ext_last_hl_id: std::cell::Cell::new(0),
             msg_ext_history: std::cell::Cell::new(false),
@@ -595,7 +595,7 @@ fn format_progress_message(
             hl_id = syn_check_group(b"WarningMsg");
         }
         updated_msg.push(HlMessageChunk {
-            text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
+            text: copy_string(msg_data.as_deref_mut().unwrap().title.clone(), None),
             hl_id,
         });
         updated_msg.push(HlMessageChunk {
@@ -617,7 +617,7 @@ fn format_progress_message(
     if !updated_msg.is_empty() {
         for chunk in hl_msg {
             updated_msg.push(HlMessageChunk {
-                text: copy_string(chunk.text, None),
+                text: copy_string(chunk.text.clone(), None),
                 hl_id: chunk.hl_id,
             });
         }
@@ -652,7 +652,7 @@ pub fn msg_multihl(
     let mut hl_msg_updated = false;
     // don't display progress message in cmd when target doesn't have cmd
     if kind.is_some_and(|k| k.to_bytes() == b"progress") {
-        do_autocmd_progress(id, hl_msg, msg_data.as_deref_mut());
+        do_autocmd_progress(id.clone(), hl_msg, msg_data.as_deref_mut());
         if (MSG_STATE.with(|s| s.progress_msg_target.get()) & PROGRESS_TARGET_CMD) == 0 {
             *needs_msg_clear = true;
             return id;
@@ -680,14 +680,20 @@ pub fn msg_multihl(
     }
 
     g_st().msg_ext_skip_flush = true;
-    MSG_STATE.with(|s| s.msg_ext_id.set(id));
+    MSG_STATE.with(|s| s.msg_ext_id.set(id.clone()));
 
     for chunk in active_msg {
         MSG_STATE.with(|s| s.is_multihl.set(s.is_multihl.get() + (1)));
         if err {
             emsg_multiline(chunk.text.as_cstr(), kind.unwrap_or(c""), chunk.hl_id, true);
         } else {
-            msg_multiline(chunk.text, chunk.hl_id, true, false, &mut need_clear);
+            msg_multiline(
+                chunk.text.clone(),
+                chunk.hl_id,
+                true,
+                false,
+                &mut need_clear,
+            );
         }
         assert!(
             !ui_has(K_UIMESSAGES)
@@ -1437,16 +1443,17 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
         .iter()
         .map(|chunk| Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(chunk.text),
+            data: ObjectData::String(chunk.text.clone()),
         })
         .collect();
     let messages = Array::from_slice(&mut messages_vec);
 
-    let empty_pair = KeyValuePair {
-        key: NvimString::new(),
-        value: NIL_OBJ,
-    };
-    let mut data_items = [empty_pair; 7];
+    let mut data_items = [const {
+        KeyValuePair {
+            key: NvimString::new(),
+            value: NIL_OBJ,
+        }
+    }; 7];
     let mut data_size = 0usize;
     let mut put_c = |key: &'static CStr, value: Object| {
         data_items[data_size] = KeyValuePair {
@@ -1478,28 +1485,28 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
             c"source",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().source),
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().source.clone()),
             },
         );
         put_c(
             c"status",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().status),
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().status.clone()),
             },
         );
         put_c(
             c"title",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().title),
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().title.clone()),
             },
         );
         put_c(
             c"data",
             Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data),
+                data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data.clone()),
             },
         );
     }
@@ -1699,7 +1706,7 @@ pub fn ex_messages(eap: &mut Exarg) {
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(copy_string(chunk.text, None)),
+                        data: ObjectData::String(copy_string(chunk.text.clone(), None)),
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::ObjectTypeInteger,
@@ -1744,7 +1751,7 @@ pub fn ex_messages(eap: &mut Exarg) {
         }
     }
     if entries.size > 0 {
-        ui_call_msg_history_show(entries, eap.skip);
+        ui_call_msg_history_show(entries.clone(), eap.skip);
         api_free_array(entries);
     }
 }
@@ -3807,7 +3814,7 @@ pub fn msg_ext_ui_flush() {
 
         ui_call_msg_show(
             kind_str,
-            tofree,
+            tofree.clone(),
             g_st().msg_ext_overwrite,
             MSG_STATE.with(|s| s.msg_ext_history.get()),
             MSG_STATE.with(|s| s.msg_ext_append.get()),
@@ -3861,7 +3868,7 @@ pub fn msg_ext_flush_showmode() {
         MSG_STATE.with(|s| s.showmode_clear.set(has_last_attr));
         msg_ext_emit_chunk();
         let tofree = msg_ext_init_chunks();
-        ui_call_msg_showmode(tofree);
+        ui_call_msg_showmode(tofree.clone());
         api_free_array(tofree);
     }
 }

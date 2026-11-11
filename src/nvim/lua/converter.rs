@@ -1009,17 +1009,17 @@ pub fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
         let _ = lua_setmetatable_safe(lstate, -2);
     }
     for item in dict.as_mut_slice() {
-        nlua_push_string(lstate, item.key, flags);
+        nlua_push_string(lstate, item.key.clone(), flags);
         nlua_push_object(lstate, &mut item.value, flags);
         lua_rawset_safe(lstate, -3);
     }
 }
 
 /// Convert given `Array` to Lua table (`nlua_push_Array`).
-pub fn nlua_push_array(lstate: *mut lua_State, array: Array, flags: i32) {
+pub fn nlua_push_array(lstate: *mut lua_State, mut array: Array, flags: i32) {
     lua_createtable_safe(lstate, array.size as i32, 0);
-    for i in 0..array.size {
-        nlua_push_object(lstate, array.items.wrapping_add(i).borrow_mut(), flags);
+    for (i, item) in array.as_mut_slice().iter_mut().enumerate() {
+        nlua_push_object(lstate, item, flags);
         lua_rawseti_safe(lstate, -2, (i as i32) + 1);
     }
 }
@@ -1434,38 +1434,44 @@ pub fn nlua_pop_object_opt(
                 let table_props = nlua_traverse_table(lstate);
                 match table_props.table_type {
                     ObjectType::ObjectTypeArray => {
-                        cur_obj = Object {
-                            obj_type: ObjectType::ObjectTypeArray,
-                            data: ObjectData::Array(Array::new()),
-                        };
                         if table_props.maxidx != 0 {
-                            cur_obj.data = ObjectData::Array(arena_array_opt(
-                                arena.as_deref_mut(),
-                                table_props.maxidx,
-                            ));
                             stack.push(ObjPopStackItem {
-                                obj: cur_obj,
+                                obj: Object {
+                                    obj_type: ObjectType::ObjectTypeArray,
+                                    data: ObjectData::Array(arena_array_opt(
+                                        arena.as_deref_mut(),
+                                        table_props.maxidx,
+                                    )),
+                                },
                                 next_key: None,
                             });
                             pushed_container = true;
+                        } else {
+                            cur_obj = Object {
+                                obj_type: ObjectType::ObjectTypeArray,
+                                data: ObjectData::Array(Array::new()),
+                            };
                         }
                     }
                     ObjectType::ObjectTypeDict => {
-                        cur_obj = Object {
-                            obj_type: ObjectType::ObjectTypeDict,
-                            data: ObjectData::Dict(Dict::new()),
-                        };
                         if table_props.string_keys_num != 0 {
-                            cur_obj.data = ObjectData::Dict(arena_dict_opt(
-                                arena.as_deref_mut(),
-                                table_props.string_keys_num,
-                            ));
                             stack.push(ObjPopStackItem {
-                                obj: cur_obj,
+                                obj: Object {
+                                    obj_type: ObjectType::ObjectTypeDict,
+                                    data: ObjectData::Dict(arena_dict_opt(
+                                        arena.as_deref_mut(),
+                                        table_props.string_keys_num,
+                                    )),
+                                },
                                 next_key: None,
                             });
                             pushed_container = true;
                             lua_pushnil_safe(lstate);
+                        } else {
+                            cur_obj = Object {
+                                obj_type: ObjectType::ObjectTypeDict,
+                                data: ObjectData::Dict(Dict::new()),
+                            };
                         }
                     }
                     ObjectType::ObjectTypeFloat => {

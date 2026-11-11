@@ -238,7 +238,7 @@ pub fn set_clipboard(mut name: i32, reg_idx: RegIdx) {
         let extra = usize::from(reg.y_type != MotionType::MtCharWise);
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
-        for &item in &reg.y_array {
+        for item in &reg.y_array {
             tv_list_append_bytes(&mut *lines, item.as_bytes());
         }
 

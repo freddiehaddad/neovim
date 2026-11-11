@@ -797,7 +797,7 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
     let mut arena = Arena::new();
     let mut err = Error::new();
     let input = if !text.data.is_null() {
-        *text
+        text.clone()
     } else {
         NvimString::new()
     };
@@ -1171,7 +1171,7 @@ pub fn mc_vsel_refresh() {
         check_cursor(curwin_mut());
         g_st().visual_global.active = false;
         g_st().visual_global.select = false;
-        nvim_feedkeys(span, cstr_as_string(Some(c"nix")), false);
+        nvim_feedkeys(span.clone(), cstr_as_string(Some(c"nix")), false);
         if !g_st().visual_global.active {
             continue;
         }

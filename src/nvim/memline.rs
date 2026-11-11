@@ -1750,7 +1750,11 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
             }
         } else {
             for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
-                names_vec.push(concat_fnames(dir_name, cstr_as_string(Some(pat)), true));
+                names_vec.push(concat_fnames(
+                    dir_name.clone(),
+                    cstr_as_string(Some(pat)),
+                    true,
+                ));
             }
         }
 

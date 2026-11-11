@@ -436,7 +436,7 @@ pub fn nvim_buf_set_lines(
     }
 
     let disallow_nl = channel_id != VIML_INTERNAL_CALL;
-    if !check_string_array(replacement, c"replacement string", disallow_nl, err) {
+    if !check_string_array(replacement.clone(), c"replacement string", disallow_nl, err) {
         return;
     }
 
@@ -685,7 +685,7 @@ pub fn nvim_buf_set_text(
 
     let disallow_nl = channel_id != VIML_INTERNAL_CALL;
     if replacement.size != 0
-        && !check_string_array(replacement, c"replacement string", disallow_nl, err)
+        && !check_string_array(replacement.clone(), c"replacement string", disallow_nl, err)
     {
         return;
     }

@@ -2410,7 +2410,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     let mut bufname_cstr = if let Some(dir) = directory
         && !vim_isAbsName(fname.to_bytes())
     {
-        let mut joined = concat_fnames(cstr_as_string(Some(dir)), fname_str, true);
+        let mut joined = concat_fnames(cstr_as_string(Some(dir)), fname_str.clone(), true);
         if !os_path_exists(&joined) {
             let dir2 = qf_guess_filepath(qfl, fname);
             joined = if let Some(dir2) = dir2 {
@@ -2507,7 +2507,7 @@ fn qf_guess_filepath<'a>(qfl: &'a mut QfList, filename: &CStr) -> Option<&'a CSt
     for i in (0..top_idx).rev() {
         let fullname_cstr = concat_fnames(
             cstr_as_string(Some(stack[i].as_c_str())),
-            filename_str,
+            filename_str.clone(),
             true,
         );
         if os_path_exists(&fullname_cstr) {

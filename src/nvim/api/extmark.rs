@@ -166,7 +166,7 @@ pub struct KeyDict_set_decoration_provider {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_ns_opts {
     pub is_set_ns_opts: OptionalKeys,
     pub wins: Array,
@@ -801,13 +801,13 @@ pub fn nvim_buf_set_extmark(
             if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
                 let arr = opts.hl_group.data.array();
                 if arr.size >= 1 {
-                    hl.hl_id = object_to_hl_id(arr[0], c"hl_group item", err);
+                    hl.hl_id = object_to_hl_id(arr[0].clone(), c"hl_group item", err);
                     if error_set(err) {
                         break 'error;
                     }
                 }
                 for i in 1..arr.size {
-                    let hl_id = object_to_hl_id(arr[i], c"hl_group item", err);
+                    let hl_id = object_to_hl_id(arr[i].clone(), c"hl_group item", err);
                     if error_set(err) {
                         break 'error;
                     }
@@ -816,7 +816,7 @@ pub fn nvim_buf_set_extmark(
                     }
                 }
             } else {
-                hl.hl_id = object_to_hl_id(opts.hl_group, c"hl_group", err);
+                hl.hl_id = object_to_hl_id(opts.hl_group.clone(), c"hl_group", err);
                 if error_set(err) {
                     break 'error;
                 }
@@ -906,7 +906,7 @@ pub fn nvim_buf_set_extmark(
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT) {
             virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
-                opts.virt_text,
+                opts.virt_text.clone(),
                 err,
                 Some(&mut virt_text.width),
                 false,
@@ -917,7 +917,7 @@ pub fn nvim_buf_set_extmark(
         }
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS) {
-            let str_val = opts.virt_text_pos;
+            let str_val = &opts.virt_text_pos;
             match str_val.cstr_bytes() {
                 b"eol" => virt_text.pos = K_VPOS_END_OF_LINE,
                 b"overlay" => virt_text.pos = K_VPOS_OVERLAY,
@@ -945,7 +945,7 @@ pub fn nvim_buf_set_extmark(
             });
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_MODE) {
-            let str_val = opts.hl_mode;
+            let str_val = &opts.hl_mode;
             match str_val.cstr_bytes() {
                 b"replace" => virt_text.hl_mode = K_HL_MODE_REPLACE,
                 b"combine" => virt_text.hl_mode = K_HL_MODE_COMBINE,
@@ -975,7 +975,7 @@ pub fn nvim_buf_set_extmark(
         };
         let mut virt_lines_overflow = K_VLOVERFLOW_TRUNC;
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW) {
-            let str_val = opts.virt_lines_overflow;
+            let str_val = &opts.virt_lines_overflow;
             match str_val.cstr_bytes() {
                 b"scroll" => virt_lines_overflow = K_VLOVERFLOW_SCROLL,
                 b"wrap" => virt_lines_overflow = K_VLOVERFLOW_WRAP,
@@ -989,9 +989,8 @@ pub fn nvim_buf_set_extmark(
         }
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES) {
-            let a = opts.virt_lines;
-            for j in 0..a.size {
-                let item = a[j];
+            let a = &opts.virt_lines;
+            for item in a.as_slice() {
                 if item.obj_type != ObjectType::ObjectTypeArray {
                     api_err_exp(
                         err,
@@ -1069,7 +1068,7 @@ pub fn nvim_buf_set_extmark(
         }
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_URL) {
-            url = Some(string_to_cstr(opts.url));
+            url = Some(string_to_cstr(opts.url.clone()));
             has_hl = true;
         }
 
@@ -1234,7 +1233,7 @@ pub fn nvim_buf_set_extmark(
                 let arr = opts.hl_group.data.array();
                 let mut i = arr.size - 1;
                 while i > 0 {
-                    let hl_id = object_to_hl_id(arr[i], c"hl_group item", err);
+                    let hl_id = object_to_hl_id(arr[i].clone(), c"hl_group item", err);
                     if hl_id > 0 {
                         let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                         sh.hl_id = hl_id;
@@ -1588,8 +1587,7 @@ pub fn parse_virt_text(
     let mut w: i32 = 0;
 
     'free_exit: {
-        for i in 0..chunks.size {
-            let item = chunks[i];
+        for item in chunks.as_slice() {
             if item.obj_type != ObjectType::ObjectTypeArray {
                 api_err_exp(
                     err,
@@ -1616,11 +1614,11 @@ pub fn parse_virt_text(
             let str_val = chunk[0].data.string();
             let mut hl_id: i32 = -1;
             if chunk.size == 2 {
-                let hl = chunk[1];
+                let hl = chunk[1].clone();
                 if hl.obj_type == ObjectType::ObjectTypeArray {
                     let arr = hl.data.array();
                     for j in 0..arr.size {
-                        hl_id = object_to_hl_id(arr[j], c"virt_text highlight", err);
+                        hl_id = object_to_hl_id(arr[j].clone(), c"virt_text highlight", err);
                         if error_set(err) {
                             break 'free_exit;
                         }

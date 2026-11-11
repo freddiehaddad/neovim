@@ -116,7 +116,7 @@ const KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET: u64 = 24;
 use crate::api::ui::MAX_SCHAR_SIZE;
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_win_config {
     pub is_set_win_config: OptionalKeys,
     pub external: Boolean,
@@ -1431,7 +1431,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
             return;
         }
         for i in 0..size {
-            let iytem = arr[i];
+            let iytem = &arr[i];
             let string: NvimString;
             let mut hl_id: i32 = 0;
             if iytem.obj_type == ObjectType::ObjectTypeArray {
@@ -1440,14 +1440,14 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                     api_err_exp(err, c"border", c"1 or 2-item Array", None);
                     return;
                 }
-                let first = iarr[0];
+                let first = &iarr[0];
                 if first.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(err, c"border", c"Array of Strings", None);
                     return;
                 }
                 string = first.data.string();
                 if iarr.size == 2 {
-                    hl_id = object_to_hl_id(iarr[1], c"border char highlight", err);
+                    hl_id = object_to_hl_id(iarr[1].clone(), c"border char highlight", err);
                     if error_set(err) {
                         return;
                     }
@@ -1561,7 +1561,11 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>, opt_bytes: &[u8], err: &
         string_obj(bytes_to_string(opt_bytes))
     };
 
-    parse_border_style(style, (fconfig.is_some()).then(|| fconfig.unwrap()), err);
+    parse_border_style(
+        style.clone(),
+        (fconfig.is_some()).then(|| fconfig.unwrap()),
+        err,
+    );
     api_free_object(style);
     !error_set(err)
 }
@@ -1581,7 +1585,7 @@ fn parse_win_config(
 
     'fail: {
         if config.relative.size > 0 {
-            if !parse_float_relative(config.relative, &mut fconfig.relative) {
+            if !parse_float_relative(config.relative.clone(), &mut fconfig.relative) {
                 api_err_invalid(err, c"relative", config.relative.as_opt_cstr(), 0, true);
                 break 'fail;
             }
@@ -1627,14 +1631,14 @@ fn parse_win_config(
                 api_err_conflict(err, c"split", c"floating windows");
                 break 'fail;
             }
-            if !parse_config_split(config.split, &mut fconfig.split) {
+            if !parse_config_split(config.split.clone(), &mut fconfig.split) {
                 api_err_invalid(err, c"split", config.split.as_opt_cstr(), 0, true);
                 break 'fail;
             }
         }
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
-            && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
+            && !parse_float_anchor(config.anchor.clone(), &mut fconfig.anchor)
         {
             api_err_invalid(err, c"anchor", config.anchor.as_opt_cstr(), 0, true);
             break 'fail;
@@ -1664,7 +1668,7 @@ fn parse_win_config(
 
                 break 'fail;
             } else {
-                if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
+                if !parse_float_bufpos(config.bufpos.clone(), &mut fconfig.bufpos) {
                     api_err_exp(err, c"bufpos", c"[row, col] array", None);
                     break 'fail;
                 }
@@ -1785,14 +1789,14 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            parse_bordertext(config.title, K_BORDER_TEXT_TITLE, fconfig, err);
+            parse_bordertext(config.title.clone(), K_BORDER_TEXT_TITLE, fconfig, err);
             if error_set(err) {
                 break 'fail;
             }
 
             if !parse_bordertext_pos(
                 wp.as_deref(),
-                config.title_pos,
+                config.title_pos.clone(),
                 K_BORDER_TEXT_TITLE,
                 fconfig,
                 err,
@@ -1810,14 +1814,14 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            parse_bordertext(config.footer, K_BORDER_TEXT_FOOTER, fconfig, err);
+            parse_bordertext(config.footer.clone(), K_BORDER_TEXT_FOOTER, fconfig, err);
             if error_set(err) {
                 break 'fail;
             }
 
             if !parse_bordertext_pos(
                 wp.as_deref(),
-                config.footer_pos,
+                config.footer_pos.clone(),
                 K_BORDER_TEXT_FOOTER,
                 fconfig,
                 err,
@@ -1834,7 +1838,7 @@ fn parse_win_config(
                 api_err_conflict(err, c"border", c"non-float window");
                 break 'fail;
             }
-            let border_style = config.border;
+            let border_style = config.border.clone();
             if border_style.obj_type != ObjectType::ObjectTypeNil {
                 parse_border_style(border_style, Some(&mut *fconfig), err);
                 if error_set(err) {

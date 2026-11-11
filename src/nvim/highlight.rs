@@ -111,7 +111,7 @@ pub const HLATTRS_INIT: HlAttrs = HlAttrs {
 };
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_highlight {
     pub is_set_highlight: OptionalKeys,
     pub altfont: Boolean,
@@ -483,9 +483,11 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     let mut valid_item = it.version >= hl_valid;
 
     if !valid_item && hl_def != LUA_NOREF && hl_st(|st| st.ns_get_hl_recursive.get()) == 0 {
-        let mut args_storage = [Object {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Integer(0),
+        let mut args_storage = [const {
+            Object {
+                obj_type: ObjectType::ObjectTypeNil,
+                data: ObjectData::Integer(0),
+            }
         }; 3];
         let mut args = Array::from_buf(&mut args_storage);
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
@@ -1584,27 +1586,27 @@ pub fn dict2hlattrs(
     );
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-        fg = object_to_color(dict.fg, c"fg", use_rgb, err);
+        fg = object_to_color(dict.fg.clone(), c"fg", use_rgb, err);
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FOREGROUND) {
-        fg = object_to_color(dict.foreground, c"foreground", use_rgb, err);
+        fg = object_to_color(dict.foreground.clone(), c"foreground", use_rgb, err);
     }
     if err.err_type != ErrorType::ErrorTypeNone {
         return hlattrs;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-        bg = object_to_color(dict.bg, c"bg", use_rgb, err);
+        bg = object_to_color(dict.bg.clone(), c"bg", use_rgb, err);
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BACKGROUND) {
-        bg = object_to_color(dict.background, c"background", use_rgb, err);
+        bg = object_to_color(dict.background.clone(), c"background", use_rgb, err);
     }
     if err.err_type != ErrorType::ErrorTypeNone {
         return hlattrs;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-        sp = object_to_color(dict.sp, c"sp", true, err);
+        sp = object_to_color(dict.sp.clone(), c"sp", true, err);
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SPECIAL) {
-        sp = object_to_color(dict.special, c"special", true, err);
+        sp = object_to_color(dict.special.clone(), c"special", true, err);
     }
     if err.err_type != ErrorType::ErrorTypeNone {
         return hlattrs;
@@ -1652,7 +1654,7 @@ pub fn dict2hlattrs(
         if !api_dict_to_keydict(
             &mut cterm,
             Some(key_dict_highlight_cterm_get_field),
-            dict.cterm,
+            dict.cterm.clone(),
             err,
         ) {
             return hlattrs;
@@ -1679,14 +1681,14 @@ pub fn dict2hlattrs(
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMFG) {
-        ctermfg = object_to_color(dict.ctermfg, c"ctermfg", false, err);
+        ctermfg = object_to_color(dict.ctermfg.clone(), c"ctermfg", false, err);
         if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
         }
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMBG) {
-        ctermbg = object_to_color(dict.ctermbg, c"ctermbg", false, err);
+        ctermbg = object_to_color(dict.ctermbg.clone(), c"ctermbg", false, err);
         if err.err_type != ErrorType::ErrorTypeNone {
             return hlattrs;
         }
@@ -1719,7 +1721,7 @@ pub fn dict2hlattrs(
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FONT) {
-        let str_ = dict.font;
+        let str_ = &dict.font;
         let bytes = str_.cstr_bytes();
         font = if str_.size > 0 && !is_none_str(bytes) {
             hl_add_font_idx(Some(bytes))

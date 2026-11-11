@@ -84,7 +84,7 @@ const KEYSET_OPTIDX_USER_COMMAND_COMPLETE: u64 = 10;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_cmd {
     pub is_set_cmd: OptionalKeys,
     pub cmd: NvimString,
@@ -109,7 +109,7 @@ pub struct KeyDict_cmd_magic {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_cmd_mods {
     pub is_set_cmd_mods: OptionalKeys,
     pub silent: Boolean,
@@ -135,7 +135,7 @@ pub struct KeyDict_cmd_mods {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_cmd_mods_filter {
     pub is_set_cmd_mods_filter: OptionalKeys,
     pub pattern: NvimString,
@@ -149,7 +149,7 @@ pub struct KeyDict_cmd_opts {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct KeyDict_user_command {
     pub is_set_user_command: OptionalKeys,
     pub addr: Object,
@@ -642,7 +642,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        let cmdname = arena_string(arena, cmd.cmd);
+        let cmdname = arena_string(arena, cmd.cmd.clone());
         ea.cmd = crate::strings::OwnedSlice::from_cstr(cmdname.as_cstr());
 
         let mut p_opt = find_ex_command(&mut ea, None);
@@ -652,7 +652,7 @@ pub fn nvim_cmd(
             && ascii_isupper(ea.cmd.first_byte())
             && has_event(EVENT_CMDUNDEFINED)
         {
-            let p_raw = arena_string(arena, cmd.cmd);
+            let p_raw = arena_string(arena, cmd.cmd.clone());
             let p_ev = p_raw.as_opt_cstr();
             let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_ev, p_ev, true, None);
             p_opt = if ret && !aborting() {
@@ -727,7 +727,7 @@ pub fn nvim_cmd(
         let mut count_from_first_arg = false;
         if has_key(mask, KEYSET_OPTIDX_CMD_ARGS) {
             if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
-                let first_arg = cmd.args[0];
+                let first_arg = &cmd.args[0];
                 let mut is_numeric = false;
                 let mut count_value: i64 = 0;
 
@@ -756,8 +756,7 @@ pub fn nvim_cmd(
 
             if !count_from_first_arg {
                 args = arena_array(arena, cmd.args.size);
-                for i in 0..cmd.args.size {
-                    let elem = cmd.args[i];
+                for elem in cmd.args.as_slice() {
                     match elem.obj_type {
                         ObjectType::ObjectTypeBoolean => {
                             let b = if elem.data.boolean() { b"1" } else { b"0" };
@@ -775,7 +774,7 @@ pub fn nvim_cmd(
                                 api_err_exp(err, c"command arg", c"non-whitespace", None);
                                 break 'end;
                             }
-                            add_c(&mut args, elem);
+                            add_c(&mut args, elem.clone());
                         }
                         _ => {
                             api_err_exp(
@@ -825,11 +824,10 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            let range = cmd.range;
+            let range = &cmd.range;
             ea.addr_count = range.size as i32;
 
-            for i in 0..range.size {
-                let elem = range[i];
+            for elem in range.as_slice() {
                 if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
                     api_err_exp(err, c"range element", c"non-negative Integer", None);
                     break 'end;
@@ -842,7 +840,7 @@ pub fn nvim_cmd(
             }
         }
 
-        build_cmdline_str(&mut cmdline_buf, &mut ea, args);
+        build_cmdline_str(&mut cmdline_buf, &mut ea, args.clone());
         ea.cmdline_buf = std::mem::take(&mut cmdline_buf);
         if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, true) {
             api_set_error!(
@@ -965,7 +963,7 @@ pub fn nvim_cmd(
             if !api_dict_to_keydict(
                 &mut magic,
                 Some(key_dict_cmd_magic_get_field),
-                cmd.magic,
+                cmd.magic.clone(),
                 err,
             ) {
                 break 'end;
@@ -993,7 +991,12 @@ pub fn nvim_cmd(
 
         if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
             let mut mods = KeyDict_cmd_mods::default();
-            if !api_dict_to_keydict(&mut mods, Some(key_dict_cmd_mods_get_field), cmd.mods, err) {
+            if !api_dict_to_keydict(
+                &mut mods,
+                Some(key_dict_cmd_mods_get_field),
+                cmd.mods.clone(),
+                err,
+            ) {
                 break 'end;
             }
 
@@ -1580,7 +1583,7 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            desc = opts.desc.data.string().as_opt_cstr();
+            desc = opts.desc.data.as_opt_cstr();
         }
 
         match cmd.obj_type {
@@ -1589,7 +1592,7 @@ pub fn create_user_command(
                 rep = c"";
             }
             ObjectType::ObjectTypeString => {
-                rep = cmd.data.string().as_cstr();
+                rep = cmd.data.as_cstr();
             }
             _ => {
                 api_err_exp(err, c"command", c"Function or String", None);

@@ -149,7 +149,8 @@ fn decor_provider_invoke(
                 debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
                 *res = ret.data.array();
                 return true;
-            } else if api_object_to_bool(ret, c"provider %s retval", default_true, &mut err) {
+            } else if api_object_to_bool(ret.clone(), c"provider %s retval", default_true, &mut err)
+            {
                 return true;
             }
         }
@@ -401,7 +402,7 @@ pub fn decor_providers_invoke_range(
                 if !status {
                     p.state = K_DECOR_PROVIDER_WIN_DISABLED;
                 } else if res.size >= 1 {
-                    let first = res[0];
+                    let first = &res[0];
                     if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
                         if !first.data.boolean() {
                             p.state = K_DECOR_PROVIDER_WIN_DISABLED;
@@ -410,7 +411,7 @@ pub fn decor_providers_invoke_range(
                         let row = first.data.integer();
                         let mut col: Integer = 0;
                         if res.size >= 2 {
-                            let second = res[1];
+                            let second = &res[1];
                             if matches!(second.obj_type, ObjectType::ObjectTypeInteger) {
                                 col = second.data.integer();
                             }

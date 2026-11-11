@@ -2691,7 +2691,7 @@ pub fn ex_spelldump(eap: &mut Exarg) {
     let spl = get_option_value(K_OPT_SPELLLANG, OPT_LOCAL);
     do_cmdline_cmd(c"new");
     set_option_value_give_err(K_OPT_SPELL, boolean_obj(true), OPT_LOCAL);
-    set_option_value_give_err(K_OPT_SPELLLANG, spl, OPT_LOCAL);
+    set_option_value_give_err(K_OPT_SPELLLANG, spl.clone(), OPT_LOCAL);
     optval_free(spl);
     if !buf_is_empty(curbuf_mut()) {
         return;
