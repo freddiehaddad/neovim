@@ -2019,8 +2019,8 @@ pub fn func_call(
 
     if !skip_call {
         let mut funcexe = Funcexe::new();
-        funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
-        funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
+        funcexe.fe_firstline = curwin_mut().w_cursor.get().lnum;
+        funcexe.fe_lastline = curwin_mut().w_cursor.get().lnum;
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = crate::eval::typval::PartialId::from(partial);
         funcexe.fe_selfdict = DictId::from(selfdict);
@@ -3842,9 +3842,9 @@ fn ex_call_inner<'a>(
                 emsg(gettext(E_INVRANGE));
                 break;
             }
-            curwin_mut().w_cursor.lnum = lnum;
-            curwin_mut().w_cursor.col = 0;
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_lnum(lnum);
+            curwin_mut().w_cursor.set_col(0);
+            curwin_mut().w_cursor.set_coladd(0);
         }
 
         *arg = startarg;

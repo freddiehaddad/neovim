@@ -1013,8 +1013,8 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
             ml_delete(line_count);
         }
     }
-    curwin_mut().w_cursor.lnum = 1;
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_lnum(1);
+    curwin_mut().w_cursor.set_col(0);
 
     if read_stdin {
         if !g_st().readonlymode.get() && !buf_is_empty(curbuf_mut()) {
@@ -1421,7 +1421,7 @@ pub fn close_buffer(
         if buf.borrow().b_nwindows.get() == 1 {
             set_last_cursor(win.borrow_mut());
         }
-        let cursor = win.borrow().w_cursor;
+        let cursor = win.borrow().w_cursor.get();
         buflist_setfpos(
             buf.borrow_mut(),
             win.opt_mut(),
@@ -2739,9 +2739,9 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 
     curwin_mut().w_s_owned.set(None);
 
-    curwin_mut().w_cursor.lnum = 1;
-    curwin_mut().w_cursor.col = 0;
-    curwin_mut().w_cursor.coladd = 0;
+    curwin_mut().w_cursor.set_lnum(1);
+    curwin_mut().w_cursor.set_col(0);
+    curwin_mut().w_cursor.set_coladd(0);
     curwin_mut().w_set_curswant.set(true);
     curwin_mut().w_topline_was_set.set(false);
 
@@ -2764,7 +2764,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         apply_autocmds(EVENT_BUFWINENTER, None, None, false, curbuf_opt_mut());
     }
 
-    if curwin_mut().w_cursor.lnum == 1 && inindent(0) {
+    if curwin_mut().w_cursor.get().lnum == 1 && inindent(0) {
         buflist_getfpos();
     }
 
@@ -3192,9 +3192,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
             .set(g_st().redrawing_disabled.get() - (1));
 
         if !opt_vars().p_sol.get() && col != 0 {
-            curwin_mut().w_cursor.col = col;
+            curwin_mut().w_cursor.set_col(col);
             check_cursor_col(curwin_mut());
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_coladd(0);
             curwin_mut().w_set_curswant.set(true);
         }
         if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
@@ -3218,15 +3218,15 @@ fn buflist_getfpos() {
         view: fm.view,
         additional_data: None,
     };
-    curwin_mut().w_cursor.lnum = fpos.lnum;
+    curwin_mut().w_cursor.set_lnum(fpos.lnum);
     check_cursor_lnum(curwin_mut());
 
     if opt_vars().p_sol.get() {
-        curwin_mut().w_cursor.col = 0;
+        curwin_mut().w_cursor.set_col(0);
     } else {
-        curwin_mut().w_cursor.col = fpos.col;
+        curwin_mut().w_cursor.set_col(fpos.col);
         check_cursor_col(curwin_mut());
-        curwin_mut().w_cursor.coladd = 0;
+        curwin_mut().w_cursor.set_coladd(0);
         curwin_mut().w_set_curswant.set(true);
     }
 
@@ -3845,7 +3845,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 &mut g_st().iobuff.borrow_mut()[len..IOSIZE],
                 gettext(c"line %lld"),
                 if g_st().curbuf.get() == buf {
-                    i64::from(curwin_mut().w_cursor.lnum)
+                    i64::from(curwin_mut().w_cursor.get().lnum)
                 } else {
                     i64::from(buflist_findlnum(&mut *buf))
                 },
@@ -4011,8 +4011,8 @@ pub fn buflist_add(fname: Option<&CStr>, flags: i32) -> i32 {
 
 /// Set alternate cursor position for the current buffer and window `win`.
 pub fn buflist_altfpos(win: &mut WinInfoInfo) {
-    let lnum = win.w_cursor.lnum;
-    let col = win.w_cursor.col;
+    let lnum = win.w_cursor.get().lnum;
+    let col = win.w_cursor.get().col;
     buflist_setfpos(curbuf_mut(), Some(win), lnum, col, true);
 }
 
@@ -4160,7 +4160,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     );
 
     let line_count = i64::from(curbuf_mut().b_ml.ml_line_count.get());
-    let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
+    let cur_lnum = i64::from(curwin_mut().w_cursor.get().lnum);
     if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         bufferlen +=
             format_to_buf_safelen!(&mut buffer_vec[bufferlen..], c"%s", gettext(NO_LINES_MSG));
@@ -4186,7 +4186,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         validate_virtcol(curwin_mut());
         bufferlen += col_print(
             &mut buffer_vec[bufferlen..],
-            curwin_mut().w_cursor.col + 1,
+            curwin_mut().w_cursor.get().col + 1,
             curwin_mut().w_virtcol.get() + 1,
         ) as usize;
     }

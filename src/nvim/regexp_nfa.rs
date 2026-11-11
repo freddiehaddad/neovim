@@ -1232,7 +1232,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 }
                 if c == b'l' as i32 {
                     if cur {
-                        n = i64::from(crate::globals::curwin_mut().w_cursor.lnum);
+                        n = i64::from(crate::globals::curwin_mut().w_cursor.get().lnum);
                     }
                     emit_fn(if cmp == b'<' as i32 {
                         NFA_LNUM_LT
@@ -1246,7 +1246,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                     }
                 } else if c == b'c' as i32 {
                     if cur {
-                        n = i64::from(crate::globals::curwin_mut().w_cursor.col) + 1;
+                        n = i64::from(crate::globals::curwin_mut().w_cursor.get().col) + 1;
                     }
                     emit_fn(if cmp == b'<' as i32 {
                         NFA_COL_LT
@@ -1258,7 +1258,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 } else {
                     if cur {
                         let mut vcol: Colnr = 0;
-                        let mut cursor = crate::globals::curwin_mut().w_cursor;
+                        let mut cursor = crate::globals::curwin_mut().w_cursor.get();
                         getvvcol(
                             crate::globals::curwin_mut(),
                             &mut cursor,
@@ -1267,7 +1267,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                             Some(&mut vcol),
                             0,
                         );
-                        crate::globals::curwin_mut().w_cursor = cursor;
+                        crate::globals::curwin_mut().w_cursor.set(cursor);
                         vcol += 1;
                         n = i64::from(vcol);
                     }
@@ -4496,8 +4496,8 @@ fn nfa_regmatch(
                         NFA_CURSOR => {
                             if !re_s.rex.reg_win.get().is_null()
                                 && re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get()
-                                    == re_s.rex.win_mut().w_cursor.lnum
-                                && re_s.rex.input_col() == re_s.rex.win_mut().w_cursor.col
+                                    == re_s.rex.win_mut().w_cursor.get().lnum
+                                && re_s.rex.input_col() == re_s.rex.win_mut().w_cursor.get().col
                             {
                                 add_here = true;
                                 add_state = t_st.out;

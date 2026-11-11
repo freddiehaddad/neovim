@@ -1499,7 +1499,7 @@ pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) ->
         || wp.w_onebuf_opt.wo_cole.get() < 2
         || (!check_cursor
             && wp == curwin_ptr()
-            && row + 1 == wp.w_cursor.lnum
+            && row + 1 == wp.w_cursor.get().lnum
             && !conceal_cursor_line(&*wp))
     {
         return false;

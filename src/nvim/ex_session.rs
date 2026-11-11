@@ -413,15 +413,15 @@ fn put_view(
 
     if do_cursor {
         if wp.w_view_height.get() <= 0 {
-            if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.lnum)) {
+            if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.get().lnum)) {
                 return false;
             }
         } else if !write_fmt(
             fd,
             format!(
                 "let s:l = {} - (({} * winheight(0) + {}) / {})\n",
-                wp.w_cursor.lnum,
-                wp.w_cursor.lnum - wp.w_topline.get(),
+                wp.w_cursor.get().lnum,
+                wp.w_cursor.get().lnum - wp.w_topline.get(),
                 wp.w_view_height.get() / 2,
                 wp.w_view_height.get()
             ),
@@ -432,12 +432,12 @@ fn put_view(
             fd,
             format!(
                 "if s:l < 1 | let s:l = 1 | endif\nkeepjumps exe s:l\nnormal! zt\nkeepjumps {}\n",
-                wp.w_cursor.lnum
+                wp.w_cursor.get().lnum
             ),
         ) {
             return false;
         }
-        if wp.w_cursor.col == 0 {
+        if wp.w_cursor.get().col == 0 {
             if !put_line(fd, c"normal! 0") {
                 return false;
             }

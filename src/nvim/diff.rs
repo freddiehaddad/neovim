@@ -1372,8 +1372,10 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         if bufref_valid(Some(&old_curbuf))
             && let Some(old_buf) = old_curbuf.buf_opt()
         {
-            curwin_mut().w_cursor.lnum =
-                diff_get_corresponding_line(old_buf, old_curwin.w_cursor.lnum);
+            curwin_mut().w_cursor.set_lnum(diff_get_corresponding_line(
+                old_buf,
+                old_curwin.w_cursor.get().lnum,
+            ));
         }
     }
     scroll_to_fraction(curwin_mut(), curwin_mut().w_height.get());
@@ -3134,8 +3136,8 @@ pub fn nv_diffgetput(put: bool, count: usize) {
         Cmdidx::CmdDiffget
     };
     ea.addr_count = 0;
-    ea.line1 = curwin_mut().w_cursor.lnum;
-    ea.line2 = curwin_mut().w_cursor.lnum;
+    ea.line1 = curwin_mut().w_cursor.get().lnum;
+    ea.line2 = curwin_mut().w_cursor.get().lnum;
     ex_diffgetput(&mut ea);
 }
 fn valid_diff(df_id: Option<u64>) -> Option<usize> {
@@ -3424,15 +3426,18 @@ fn diffgetput(
             }
             if added != 0 {
                 mark_adjust(lnum, lnum + count - 1, MAXLNUM, added, K_EXTMARK_NOOP);
-                if curwin_mut().w_cursor.lnum >= lnum {
-                    if curwin_mut().w_cursor.lnum >= lnum + count {
-                        curwin_mut().w_cursor.lnum += added;
-                        curwin_mut().w_cursor.lnum = curwin_mut()
-                            .w_cursor
-                            .lnum
-                            .min(curbuf_mut().b_ml.ml_line_count.get());
+                if curwin_mut().w_cursor.get().lnum >= lnum {
+                    if curwin_mut().w_cursor.get().lnum >= lnum + count {
+                        curwin_mut().w_cursor.add_lnum(added);
+                        curwin_mut().w_cursor.set_lnum(
+                            curwin_mut()
+                                .w_cursor
+                                .get()
+                                .lnum
+                                .min(curbuf_mut().b_ml.ml_line_count.get()),
+                        );
                     } else if added < 0 {
-                        curwin_mut().w_cursor.lnum = lnum;
+                        curwin_mut().w_cursor.set_lnum(lnum);
                     }
                 }
             }
@@ -3485,7 +3490,7 @@ pub fn diff_mode_buf(buf: &FileBuf) -> bool {
     false
 }
 pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
-    let mut lnum = curwin_mut().w_cursor.lnum;
+    let mut lnum = curwin_mut().w_cursor.get().lnum;
     let idx = diff_buf_idx(curbuf_mut(), &curtab_mut());
     if idx == DB_COUNT as i32 || curtab_mut().tp_diffs.borrow().is_empty() {
         return false;
@@ -3517,12 +3522,12 @@ pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
         }
     }
     lnum = lnum.min(curbuf_mut().b_ml.ml_line_count.get());
-    if lnum == curwin_mut().w_cursor.lnum {
+    if lnum == curwin_mut().w_cursor.get().lnum {
         return false;
     }
     setpcmark();
-    curwin_mut().w_cursor.lnum = lnum;
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_lnum(lnum);
+    curwin_mut().w_cursor.set_col(0);
     true
 }
 fn diff_get_corresponding_line_int(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
@@ -3554,10 +3559,10 @@ fn diff_get_corresponding_line_int(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
         }
         if dp.df_lnum[u_idx1] == lnum1
             && dp.df_count[u_idx1] == 0
-            && dp.df_lnum[u_idx2] <= curwin_mut().w_cursor.lnum
-            && dp.df_lnum[u_idx2] + dp.df_count[u_idx2] > curwin_mut().w_cursor.lnum
+            && dp.df_lnum[u_idx2] <= curwin_mut().w_cursor.get().lnum
+            && dp.df_lnum[u_idx2] + dp.df_count[u_idx2] > curwin_mut().w_cursor.get().lnum
         {
-            return curwin_mut().w_cursor.lnum;
+            return curwin_mut().w_cursor.get().lnum;
         }
         baseline =
             (dp.df_lnum[u_idx1] + dp.df_count[u_idx1]) - (dp.df_lnum[u_idx2] + dp.df_count[u_idx2]);

@@ -1472,8 +1472,8 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
 
         let mut rettv: TypVal = TypVal::new();
         let mut funcexe: Funcexe = Funcexe::new();
-        funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
-        funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
+        funcexe.fe_firstline = curwin_mut().w_cursor.get().lnum;
+        funcexe.fe_lastline = curwin_mut().w_cursor.get().lnum;
         funcexe.fe_evaluate = true;
         let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 

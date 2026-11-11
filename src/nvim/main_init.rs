@@ -693,7 +693,9 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
     if params.exmode {
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
+        curwin_mut()
+            .w_cursor
+            .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
     }
 
     apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
@@ -2151,7 +2153,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
         return;
     }
 
-    curwin_mut().w_cursor.lnum = 0;
+    curwin_mut().w_cursor.set_lnum(0);
     estack_push(ETYPE_ARGS, Some(gettext(c"pre-vimrc command line")), 0);
     {
         let mut v = g_st().current_sctx.get();
@@ -2172,8 +2174,8 @@ fn exe_pre_commands(parmp: &mut Mparm) {
 
 fn exe_commands(parmp: &mut Mparm) {
     g_st().msg_scroll.set(1);
-    if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
-        curwin_mut().w_cursor.lnum = 0;
+    if parmp.tagname.is_none() && curwin_mut().w_cursor.get().lnum <= 1 {
+        curwin_mut().w_cursor.set_lnum(0);
     }
     estack_push(ETYPE_ARGS, Some(c"command line"), 0);
     {
@@ -2196,8 +2198,8 @@ fn exe_commands(parmp: &mut Mparm) {
         v.sc_sid = 0;
         g_st().current_sctx.set(v);
     }
-    if curwin_mut().w_cursor.lnum == 0 {
-        curwin_mut().w_cursor.lnum = 1;
+    if curwin_mut().w_cursor.get().lnum == 0 {
+        curwin_mut().w_cursor.set_lnum(1);
     }
 
     g_st().msg_scroll.set(0);

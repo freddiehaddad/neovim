@@ -212,7 +212,7 @@ fn set_buffer_lines(
             if u_savesub(lnum) && ml_replace(lnum, line_cstr.to_bytes(), true) {
                 let new_len = line_cstr.to_bytes().len() as i32;
                 inserted_bytes(lnum, 0, old_len, new_len);
-                if is_curbuf && lnum == curwin_mut().w_cursor.lnum {
+                if is_curbuf && lnum == curwin_mut().w_cursor.get().lnum {
                     check_cursor_col(curwin_mut());
                 }
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
@@ -238,9 +238,9 @@ fn set_buffer_lines(
             for wp in win_iter_mut(first_win_in_tab(&tp)) {
                 if wp.w_buffer.get() == buf_ptr
                     && (wp.w_buffer.get() != g_st().curbuf.get() || wp == curwin_ptr())
-                    && wp.w_cursor.lnum > append_lnum
+                    && wp.w_cursor.get().lnum > append_lnum
                 {
-                    wp.w_cursor.lnum += added as Linenr;
+                    wp.w_cursor.add_lnum(added as Linenr);
                 }
             }
         }
@@ -317,13 +317,14 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
             if wp.w_buffer.get() == buf {
-                wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
-                    1
-                } else {
-                    wp.w_cursor.lnum - to_delete
-                };
-                if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
-                    wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count.get();
+                wp.w_cursor
+                    .set_lnum(if wp.w_cursor.get().lnum <= to_delete {
+                        1
+                    } else {
+                        wp.w_cursor.get().lnum - to_delete
+                    });
+                if wp.w_cursor.get().lnum > wp.buf_mut().b_ml.ml_line_count.get() {
+                    wp.w_cursor.set_lnum(wp.buf_mut().b_ml.ml_line_count.get());
                 }
             }
         }
@@ -340,8 +341,8 @@ pub fn prompt_invoke_callback() {
 
     ml_append(lnum, (c"").to_bytes(), 0, false);
     appended_lines_mark(lnum, 1);
-    curwin_mut().w_cursor.lnum = lnum + 1;
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_lnum(lnum + 1);
+    curwin_mut().w_cursor.set_col(0);
     curbuf_mut().b_prompt_start.mark.lnum = lnum + 1;
 
     if curbuf_mut().b_prompt_callback.cb_type() != K_CALLBACK_NONE_CONST {
@@ -663,13 +664,13 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(first_win_in_tab(&tp)) {
                 if wp.w_buffer.get() == buf_ptr {
-                    if wp.w_cursor.lnum > last {
-                        wp.w_cursor.lnum -= count as Linenr;
-                    } else if wp.w_cursor.lnum > first {
-                        wp.w_cursor.lnum = first;
+                    if wp.w_cursor.get().lnum > last {
+                        wp.w_cursor.sub_lnum(count as Linenr);
+                    } else if wp.w_cursor.get().lnum > first {
+                        wp.w_cursor.set_lnum(first);
                     }
-                    if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
-                        wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count.get();
+                    if wp.w_cursor.get().lnum > wp.buf_mut().b_ml.ml_line_count.get() {
+                        wp.w_cursor.set_lnum(wp.buf_mut().b_ml.ml_line_count.get());
                     }
                 }
             }
@@ -691,7 +692,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum.get() as Varnumber);
     tv_dict_add_str(&dict, c"name", Some(buf.ffname_cstr()));
     let lnum = if g_st().curbuf.get() == buf {
-        curwin_mut().w_cursor.lnum
+        curwin_mut().w_cursor.get().lnum
     } else {
         buflist_findlnum(buf)
     };
@@ -993,7 +994,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         let old_prompt = buf_prompt_text(&*buf).to_owned();
         let old_prompt_bytes = old_prompt.to_bytes();
         let old_prompt_len = old_prompt_bytes.len() as i32;
-        let mut cursor_col = curwin_mut().w_cursor.col;
+        let mut cursor_col = curwin_mut().w_cursor.get().col;
 
         let old_line_slice = crate::memline::ml_get_buf_slice(&mut *buf, prompt_lno);
         let old_line_len = old_line_slice.len() as Colnr;
@@ -1033,9 +1034,9 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         }
 
         if ptr::eq(curwin_mut().w_buffer.get().as_ptr(), buf)
-            && curwin_mut().w_cursor.lnum == prompt_lno
+            && curwin_mut().w_cursor.get().lnum == prompt_lno
         {
-            curwin_mut().w_cursor.col = cursor_col;
+            curwin_mut().w_cursor.set_col(cursor_col);
             check_cursor_col(curwin_mut());
         }
         changed_lines(&mut *buf, prompt_lno, 0, prompt_lno + 1, 0, true);

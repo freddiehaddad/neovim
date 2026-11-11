@@ -111,8 +111,8 @@ pub fn nvim_win_get_cursor(win: Window, arena: &mut Arena, err: &mut Error) -> A
     let mut rv = Array::new();
     if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
         rv = arena_array(arena, 2);
-        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.lnum)));
-        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.col)));
+        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().lnum)));
+        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().col)));
     }
     rv
 }
@@ -151,9 +151,9 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         return;
     }
 
-    w.w_cursor.lnum = row as Linenr;
-    w.w_cursor.col = col as Colnr;
-    w.w_cursor.coladd = 0;
+    w.w_cursor.set_lnum(row as Linenr);
+    w.w_cursor.set_col(col as Colnr);
+    w.w_cursor.set_coladd(0);
     check_cursor_col(w);
 
     w.w_set_curswant.set(true);

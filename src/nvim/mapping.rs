@@ -1750,7 +1750,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
 
     g_st().expr_map_lock.set(g_st().expr_map_lock.get() + (1));
     set_vim_var_char(c);
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
     let save_msg_col = g_st().msg_col.get();
     let save_msg_row = g_st().msg_row.get();
     if luaref != LUA_NOREF {
@@ -1769,7 +1769,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
         p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
     }
     g_st().expr_map_lock.set(g_st().expr_map_lock.get() - (1));
-    curwin_mut().w_cursor = save_cursor;
+    curwin_mut().w_cursor.set(save_cursor);
     g_st().msg_col.set(save_msg_col);
     g_st().msg_row.set(save_msg_row);
 

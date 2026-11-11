@@ -344,16 +344,16 @@ pub fn get_sw_value(buf: &mut FileBuf) -> i32 {
 }
 
 fn get_sw_value_pos(buf: &mut FileBuf, pos: &CursorPos, left: bool) -> i32 {
-    let save_cursor = curwin_mut().w_cursor;
-    curwin_mut().w_cursor = *pos;
+    let save_cursor = curwin_mut().w_cursor.get();
+    curwin_mut().w_cursor.set(*pos);
     let sw_value = get_sw_value_col(buf, get_nolist_virtcol(), left);
-    curwin_mut().w_cursor = save_cursor;
+    curwin_mut().w_cursor.set(save_cursor);
     sw_value
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
 pub fn get_sw_value_indent(buf: &mut FileBuf, left: bool) -> i32 {
-    let mut pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor.get();
     pos.col = getwhitecols_curline() as Colnr;
     get_sw_value_pos(buf, &pos, left)
 }
@@ -685,19 +685,19 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     newline_vec[s_idx..s_idx + line_usize]
         .copy_from_slice(&oldline_with_nul[p_off..p_off + line_usize]);
 
-    if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
+    if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.get().lnum) {
         let old_offset = p_off as Colnr;
         let new_offset = s_idx as Colnr;
 
         ml_replace(
-            curwin_mut().w_cursor.lnum,
+            curwin_mut().w_cursor.get().lnum,
             crate::memory::bytes_until_nul(&newline_vec),
             true,
         );
         if (flags & SIN_NOMARK) == 0 {
             extmark_splice_cols(
                 curbuf_mut(),
-                curwin_mut().w_cursor.lnum - 1,
+                curwin_mut().w_cursor.get().lnum - 1,
                 skipcols,
                 old_offset - skipcols,
                 new_offset - skipcols,
@@ -706,10 +706,10 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         }
 
         if (flags & SIN_CHANGED) != 0 {
-            changed_bytes(curwin_mut().w_cursor.lnum, 0);
+            changed_bytes(curwin_mut().w_cursor.get().lnum, 0);
         }
 
-        if g_st().saved_cursor.get().lnum == curwin_mut().w_cursor.lnum {
+        if g_st().saved_cursor.get().lnum == curwin_mut().w_cursor.get().lnum {
             if g_st().saved_cursor.get().col >= old_offset {
                 {
                     let mut v = g_st().saved_cursor.get();
@@ -727,7 +727,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         retval = true;
     }
     drop(newline_vec);
-    curwin_mut().w_cursor.col = ind_len;
+    curwin_mut().w_cursor.set_col(ind_len);
     retval
 }
 
@@ -925,7 +925,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
 pub fn inindent(extra: i32) -> bool {
     let line_slice = crate::cursor::get_cursor_line_slice();
     let col = (line_slice.len() - crate::charset::skipwhite_slice(line_slice).len()) as Colnr;
-    col >= curwin_mut().w_cursor.col + extra
+    col >= curwin_mut().w_cursor.get().col + extra
 }
 
 /// Handle reindenting a block of lines (`op_reindent`).
@@ -933,7 +933,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
     let mut i: i32 = 0;
     let mut first_changed: Linenr = 0;
     let mut last_changed: Linenr = 0;
-    let start_lnum = curwin_mut().w_cursor.lnum;
+    let start_lnum = curwin_mut().w_cursor.get().lnum;
 
     if !modifiable(curbuf_mut()) {
         emsg(gettext(E_MODIFIABLE));
@@ -964,8 +964,8 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     iobuff[copy_len] = 0;
                 }
 
-                let save_lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().w_cursor.lnum = start_lnum;
+                let save_lnum = curwin_mut().w_cursor.get().lnum;
+                curwin_mut().w_cursor.set_lnum(start_lnum);
                 let mut iob = *g_st().iobuff.borrow();
                 msg_progress(
                     Some(&mut iob),
@@ -978,7 +978,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     false,
                 );
                 *g_st().iobuff.borrow_mut() = iob;
-                curwin_mut().w_cursor.lnum = save_lnum;
+                curwin_mut().w_cursor.set_lnum(save_lnum);
             }
 
             if i != oap.line_count - 1
@@ -989,18 +989,18 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let amount = if rem.is_empty() { 0 } else { how() };
                 if amount >= 0 && set_indent(amount, 0) {
                     if first_changed == 0 {
-                        first_changed = curwin_mut().w_cursor.lnum;
+                        first_changed = curwin_mut().w_cursor.get().lnum;
                     }
-                    last_changed = curwin_mut().w_cursor.lnum;
+                    last_changed = curwin_mut().w_cursor.get().lnum;
                 }
             }
-            curwin_mut().w_cursor.lnum += 1;
-            curwin_mut().w_cursor.col = 0;
+            curwin_mut().w_cursor.add_lnum(1);
+            curwin_mut().w_cursor.set_col(0);
             i -= 1;
         }
     }
 
-    curwin_mut().w_cursor.lnum = start_lnum;
+    curwin_mut().w_cursor.set_lnum(start_lnum);
     beginline(BL_SOL | BL_FIX);
 
     if last_changed != 0 {
@@ -1079,7 +1079,7 @@ pub fn ins_try_si(c: i32) {
             None
         };
         if let Some(pos) = pos {
-            let old_pos = curwin_mut().w_cursor;
+            let old_pos = curwin_mut().w_cursor.get();
             let ptr_bytes = crate::memline::ml_get_slice(pos.lnum);
             let mut i = pos.col;
             if i > 0 {
@@ -1088,32 +1088,32 @@ pub fn ins_try_si(c: i32) {
                     i > 0 && ptr_bytes.get(i as usize).is_some_and(|&b| ascii_iswhite(b))
                 } {}
             }
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = i;
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(i);
             if ptr_bytes.get(i as usize) == Some(&b')')
                 && let Some(p2) = findmatch(None, b'(' as i32)
             {
-                curwin_mut().w_cursor = p2;
+                curwin_mut().w_cursor.set(p2);
             }
             let ind = get_indent();
-            curwin_mut().w_cursor = old_pos;
+            curwin_mut().w_cursor.set(old_pos);
             if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
                 change_indent(INDENT_SET, ind, 0, true);
             } else {
                 set_indent(ind, SIN_CHANGED);
             }
-        } else if curwin_mut().w_cursor.col > 0 {
+        } else if curwin_mut().w_cursor.get().col > 0 {
             let mut temp = true;
             if c == b'{' as i32
                 && g_st().ins_global.borrow().can_si_back
-                && curwin_mut().w_cursor.lnum > 1
+                && curwin_mut().w_cursor.get().lnum > 1
             {
-                let old_pos = curwin_mut().w_cursor;
+                let old_pos = curwin_mut().w_cursor.get();
                 let i = get_indent();
-                while curwin_mut().w_cursor.lnum > 1 {
-                    curwin_mut().w_cursor.lnum -= 1;
+                while curwin_mut().w_cursor.get().lnum > 1 {
+                    curwin_mut().w_cursor.sub_lnum(1);
                     let rem = crate::charset::skipwhite_slice(crate::memline::ml_get_slice(
-                        curwin_mut().w_cursor.lnum,
+                        curwin_mut().w_cursor.get().lnum,
                     ));
                     if !rem.is_empty() && rem[0] != b'#' {
                         break;
@@ -1122,7 +1122,7 @@ pub fn ins_try_si(c: i32) {
                 if get_indent() >= i {
                     temp = false;
                 }
-                curwin_mut().w_cursor = old_pos;
+                curwin_mut().w_cursor.set(old_pos);
             }
             if temp {
                 shift_line(true, false, 1, 1);
@@ -1130,7 +1130,7 @@ pub fn ins_try_si(c: i32) {
         }
     }
 
-    if curwin_mut().w_cursor.col > 0
+    if curwin_mut().w_cursor.get().col > 0
         && g_st().ins_global.borrow().can_si
         && c == b'#' as i32
         && inindent(0)
@@ -1143,7 +1143,7 @@ pub fn ins_try_si(c: i32) {
         .ins_global
         .borrow()
         .ai_col
-        .min(curwin_mut().w_cursor.col);
+        .min(curwin_mut().w_cursor.get().col);
     g_st().ins_global.borrow_mut().ai_col = ai_col;
 }
 
@@ -1155,21 +1155,21 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
         orig_line = get_cursor_line_slice().to_vec();
         orig_line.push(0);
-        orig_col = curwin_mut().w_cursor.col;
+        orig_col = curwin_mut().w_cursor.get().col;
     }
 
     let save_p_list = curwin_mut().w_onebuf_opt.wo_list.get();
     curwin_mut().w_onebuf_opt.wo_list.set(false);
-    let vc = getvcol_nolist(&mut curwin_mut().w_cursor);
+    let vc = curwin_mut().w_cursor.update_mut(getvcol_nolist);
     let mut vcol: i32 = vc;
 
-    let mut start_col: i32 = curwin_mut().w_cursor.col;
+    let mut start_col: i32 = curwin_mut().w_cursor.get().col;
 
-    let mut new_cursor_col: i32 = curwin_mut().w_cursor.col;
+    let mut new_cursor_col: i32 = curwin_mut().w_cursor.get().col;
     beginline(BL_WHITE);
-    new_cursor_col -= curwin_mut().w_cursor.col;
+    new_cursor_col -= curwin_mut().w_cursor.get().col;
 
-    let mut insstart_less: i32 = curwin_mut().w_cursor.col;
+    let mut insstart_less: i32 = curwin_mut().w_cursor.get().col;
 
     if new_cursor_col < 0 {
         vcol = get_indent() - vcol;
@@ -1194,15 +1194,15 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         );
         g_st().state_global.set(save_state);
     }
-    insstart_less -= curwin_mut().w_cursor.col;
+    insstart_less -= curwin_mut().w_cursor.get().col;
 
     if new_cursor_col >= 0 {
         if new_cursor_col == 0 {
             insstart_less = MAXCOL;
         }
-        new_cursor_col += curwin_mut().w_cursor.col;
+        new_cursor_col += curwin_mut().w_cursor.get().col;
     } else if (g_st().state_global.get() & MODE_INSERT) == 0 {
-        new_cursor_col = curwin_mut().w_cursor.col;
+        new_cursor_col = curwin_mut().w_cursor.get().col;
     } else {
         vcol = get_indent() - vcol;
         let end_vcol: Colnr = vcol.max(0);
@@ -1233,7 +1233,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         }
 
         if vcol != curwin_mut().w_virtcol.get() {
-            curwin_mut().w_cursor.col = new_cursor_col;
+            curwin_mut().w_cursor.set_col(new_cursor_col);
             let ptrlen = (curwin_mut().w_virtcol.get() - vcol) as usize;
             let mut ptr_vec = vec![b' '; ptrlen + 1];
             ptr_vec[ptrlen] = 0;
@@ -1245,12 +1245,12 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     }
 
     curwin_mut().w_onebuf_opt.wo_list.set(save_p_list);
-    curwin_mut().w_cursor.col = new_cursor_col.max(0);
+    curwin_mut().w_cursor.set_col(new_cursor_col.max(0));
     curwin_mut().w_set_curswant.set(true);
     changed_cline_bef_curs(curwin_mut());
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 {
-        if curwin_mut().w_cursor.lnum == g_st().ins_global.borrow().start.lnum
+        if curwin_mut().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
             && g_st().ins_global.borrow().start.col != 0
         {
             if g_st().ins_global.borrow().start.col <= insstart_less {
@@ -1267,27 +1267,27 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     }
 
     if replace_normal(g_st().state_global.get()) && start_col >= 0 {
-        while start_col > curwin_mut().w_cursor.col {
+        while start_col > curwin_mut().w_cursor.get().col {
             replace_join(0);
             start_col -= 1;
         }
-        while start_col < curwin_mut().w_cursor.col {
+        while start_col < curwin_mut().w_cursor.get().col {
             replace_push_nul();
             start_col += 1;
         }
     }
 
     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-        let new_col = curwin_mut().w_cursor.col;
+        let new_col = curwin_mut().w_cursor.get().col;
         let mut new_line = get_cursor_line_slice()[..new_col as usize].to_vec();
         new_line.push(0);
 
         ml_replace(
-            curwin_mut().w_cursor.lnum,
+            curwin_mut().w_cursor.get().lnum,
             crate::memory::bytes_until_nul(&orig_line),
             true,
         );
-        curwin_mut().w_cursor.col = orig_col;
+        curwin_mut().w_cursor.set_col(orig_col);
 
         g_st()
             .curbuf_splice_pending
@@ -1303,7 +1303,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         let delta = orig_col - new_col;
         extmark_splice_cols(
             curbuf_mut(),
-            curwin_mut().w_cursor.lnum - 1,
+            curwin_mut().w_cursor.get().lnum - 1,
             new_col,
             if delta < 0 { -delta } else { 0 },
             if delta > 0 { delta } else { 0 },
@@ -1380,12 +1380,12 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
     line_vec.push(0);
 
     ml_replace(
-        curwin_mut().w_cursor.lnum,
+        curwin_mut().w_cursor.get().lnum,
         crate::memory::bytes_until_nul(&line_vec),
         true,
     );
     drop(line_vec);
-    curwin_mut().w_cursor.col = ind_len;
+    curwin_mut().w_cursor.set_col(ind_len);
     true
 }
 
@@ -1597,10 +1597,10 @@ pub fn get_expr_indent() -> i32 {
     ) != 0;
     let save_sctx = g_st().current_sctx.get();
 
-    let save_pos = curwin_mut().w_cursor;
+    let save_pos = curwin_mut().w_cursor.get();
     let save_curswant = curwin_mut().w_curswant.get();
     let save_set_curswant = curwin_mut().w_set_curswant.get();
-    set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.lnum));
+    set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.get().lnum));
 
     g_st().textlock.set(g_st().textlock.get() + (1));
     g_st()
@@ -1614,7 +1614,7 @@ pub fn get_expr_indent() -> i32 {
 
     let save_state = g_st().state_global.get();
     g_st().state_global.set(MODE_INSERT);
-    curwin_mut().w_cursor = save_pos;
+    curwin_mut().w_cursor.set(save_pos);
     curwin_mut().w_curswant.set(save_curswant);
     curwin_mut().w_set_curswant.set(save_set_curswant);
     check_cursor(curwin_mut());
@@ -1639,8 +1639,8 @@ pub fn get_expr_indent() -> i32 {
 pub fn get_lisp_indent() -> i32 {
     let mut amount: i32;
 
-    let realpos = curwin_mut().w_cursor;
-    curwin_mut().w_cursor.col = 0;
+    let realpos = curwin_mut().w_cursor.get();
+    curwin_mut().w_cursor.set_col(0);
 
     let mut pos = findmatch(None, b'(' as i32);
     if let Some(paren) = pos {
@@ -1657,10 +1657,10 @@ pub fn get_lisp_indent() -> i32 {
         let mut parencount: i32 = 0;
 
         while {
-            curwin_mut().w_cursor.lnum -= 1;
-            curwin_mut().w_cursor.lnum >= pos.lnum
+            curwin_mut().w_cursor.sub_lnum(1);
+            curwin_mut().w_cursor.get().lnum >= pos.lnum
         } {
-            if linewhite(curwin_mut().w_cursor.lnum) {
+            if linewhite(curwin_mut().w_cursor.get().lnum) {
                 continue;
             }
 
@@ -1712,8 +1712,8 @@ pub fn get_lisp_indent() -> i32 {
         }
 
         if amount == -1 {
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = pos.col;
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(pos.col);
             let mut col = pos.col;
 
             let line_cstr = get_cursor_line_ptr();
@@ -1843,7 +1843,7 @@ pub fn get_lisp_indent() -> i32 {
     } else {
         amount = 0;
     }
-    curwin_mut().w_cursor = realpos;
+    curwin_mut().w_cursor.set(realpos);
 
     amount
 }
@@ -1876,7 +1876,7 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
     }
 
     change_indent(INDENT_SET, amount, 0, true);
-    if linewhite(curwin_mut().w_cursor.lnum) {
+    if linewhite(curwin_mut().w_cursor.get().lnum) {
         g_st().ins_global.borrow_mut().did_ai = true;
     }
 }
@@ -1916,12 +1916,12 @@ pub fn f_indent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// `lispindent(lnum)` function (`f_lispindent`).
 pub fn f_lispindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let pos = curwin_mut().w_cursor;
+    let pos = curwin_mut().w_cursor.get();
     let lnum = tv_get_lnum(&argvars[0]);
     if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
-        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.set_lnum(lnum);
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));
-        curwin_mut().w_cursor = pos;
+        curwin_mut().w_cursor.set(pos);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     }

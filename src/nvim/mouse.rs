@@ -454,27 +454,31 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
             if m_pos_flag != IN_BUFFER {
                 jump_flags = MOUSE_MAY_STOP_VIS;
             } else if g_st().visual_global.borrow().mode == b'V' as i32 {
-                if (curwin_mut().w_cursor.lnum <= g_st().visual_global.borrow().start.lnum
-                    && (m_pos.lnum < curwin_mut().w_cursor.lnum
+                if (curwin_mut().w_cursor.get().lnum <= g_st().visual_global.borrow().start.lnum
+                    && (m_pos.lnum < curwin_mut().w_cursor.get().lnum
                         || g_st().visual_global.borrow().start.lnum < m_pos.lnum))
-                    || (g_st().visual_global.borrow().start.lnum < curwin_mut().w_cursor.lnum
+                    || (g_st().visual_global.borrow().start.lnum < curwin_mut().w_cursor.get().lnum
                         && (m_pos.lnum < g_st().visual_global.borrow().start.lnum
-                            || curwin_mut().w_cursor.lnum < m_pos.lnum))
+                            || curwin_mut().w_cursor.get().lnum < m_pos.lnum))
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
                 }
-            } else if (ltoreq(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
-                && (lt(m_pos, curwin_mut().w_cursor)
-                    || lt(g_st().visual_global.borrow().start, m_pos)))
-                || (lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
-                    && (lt(m_pos, g_st().visual_global.borrow().start)
-                        || lt(curwin_mut().w_cursor, m_pos)))
+            } else if (ltoreq(
+                curwin_mut().w_cursor.get(),
+                g_st().visual_global.borrow().start,
+            ) && (lt(m_pos, curwin_mut().w_cursor.get())
+                || lt(g_st().visual_global.borrow().start, m_pos)))
+                || (lt(
+                    g_st().visual_global.borrow().start,
+                    curwin_mut().w_cursor.get(),
+                ) && (lt(m_pos, g_st().visual_global.borrow().start)
+                    || lt(curwin_mut().w_cursor.get(), m_pos)))
             {
                 jump_flags = MOUSE_MAY_STOP_VIS;
             } else if g_st().visual_global.borrow().mode == CTRL_V_CONST {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
-                let mut cursor = curwin_mut().w_cursor;
+                let mut cursor = curwin_mut().w_cursor.get();
                 getvcols(
                     curwin_mut(),
                     &mut cursor,
@@ -483,7 +487,7 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
                     &mut rightcol,
                     0,
                 );
-                curwin_mut().w_cursor = cursor;
+                curwin_mut().w_cursor.set(cursor);
                 let mut col = m_pos.col;
                 getvcol(curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
                 m_pos.col = col;
@@ -785,12 +789,15 @@ pub fn do_mouse(
             }
         } else if which_button == MOUSE_RIGHT && mouse_can_visual {
             if is_click && g_st().visual_global.borrow().active {
-                if lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
-                    start_visual = curwin_mut().w_cursor;
+                if lt(
+                    curwin_mut().w_cursor.get(),
+                    g_st().visual_global.borrow().start,
+                ) {
+                    start_visual = curwin_mut().w_cursor.get();
                     end_visual = g_st().visual_global.borrow().start;
                 } else {
                     start_visual = g_st().visual_global.borrow().start;
-                    end_visual = curwin_mut().w_cursor;
+                    end_visual = curwin_mut().w_cursor.get();
                 }
             }
             jump_flags |= MOUSE_MAY_VIS;
@@ -810,7 +817,7 @@ pub fn do_mouse(
     }
 
     let old_active = g_st().visual_global.borrow().active;
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
 
     if !g_st().visual_global.borrow().active || mouse_can_visual {
         jump_flags = jump_to_mouse(
@@ -826,12 +833,12 @@ pub fn do_mouse(
         && which_button == MOUSE_LEFT
     {
         if (jump_flags & MOUSE_FOLD_OPEN) != 0 {
-            open_fold(curwin_mut().w_cursor, 1);
+            open_fold(curwin_mut().w_cursor.get(), 1);
         } else {
-            close_fold(curwin_mut().w_cursor, 1);
+            close_fold(curwin_mut().w_cursor.get(), 1);
         }
         if curwin_ptr() == old_curwin {
-            curwin_mut().w_cursor = save_cursor;
+            curwin_mut().w_cursor.set(save_cursor);
         }
     }
 
@@ -965,35 +972,35 @@ pub fn do_mouse(
             } else {
                 end_visual.col = rightcol;
             }
-            if curwin_mut().w_cursor.lnum >= (start_visual.lnum + end_visual.lnum) / 2 {
+            if curwin_mut().w_cursor.get().lnum >= (start_visual.lnum + end_visual.lnum) / 2 {
                 end_visual.lnum = start_visual.lnum;
             }
 
-            start_visual = curwin_mut().w_cursor;
-            curwin_mut().w_cursor = end_visual;
+            start_visual = curwin_mut().w_cursor.get();
+            curwin_mut().w_cursor.set(end_visual);
             coladvance(curwin_mut(), end_visual.col);
-            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
-            curwin_mut().w_cursor = start_visual;
-        } else if lt(curwin_mut().w_cursor, start_visual) {
+            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor.get();
+            curwin_mut().w_cursor.set(start_visual);
+        } else if lt(curwin_mut().w_cursor.get(), start_visual) {
             g_st().visual_global.borrow_mut().start = end_visual;
-        } else if lt(end_visual, curwin_mut().w_cursor) {
+        } else if lt(end_visual, curwin_mut().w_cursor.get()) {
             g_st().visual_global.borrow_mut().start = start_visual;
         } else if end_visual.lnum == start_visual.lnum {
-            if curwin_mut().w_cursor.col - start_visual.col
-                > end_visual.col - curwin_mut().w_cursor.col
+            if curwin_mut().w_cursor.get().col - start_visual.col
+                > end_visual.col - curwin_mut().w_cursor.get().col
             {
                 g_st().visual_global.borrow_mut().start = start_visual;
             } else {
                 g_st().visual_global.borrow_mut().start = end_visual;
             }
         } else {
-            let diff = (curwin_mut().w_cursor.lnum - start_visual.lnum)
-                - (end_visual.lnum - curwin_mut().w_cursor.lnum);
+            let diff = (curwin_mut().w_cursor.get().lnum - start_visual.lnum)
+                - (end_visual.lnum - curwin_mut().w_cursor.get().lnum);
 
             if diff > 0 {
                 g_st().visual_global.borrow_mut().start = start_visual;
             } else if diff < 0
-                || curwin_mut().w_cursor.col < (start_visual.col + end_visual.col) / 2
+                || curwin_mut().w_cursor.get().col < (start_visual.col + end_visual.col) / 2
             {
                 g_st().visual_global.borrow_mut().start = end_visual;
             } else {
@@ -1050,7 +1057,7 @@ pub fn do_mouse(
         );
 
         if g_st().restart_edit.get() != 0 {
-            g_st().where_paste_started.set(curwin_mut().w_cursor);
+            g_st().where_paste_started.set(curwin_mut().w_cursor.get());
         }
         do_put(
             regname,
@@ -1104,7 +1111,7 @@ pub fn do_mouse(
             if g_st().visual_global.borrow().active {
                 mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
             } else {
-                g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor;
+                g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor.get();
                 mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
                 g_st().visual_global.borrow_mut().active = true;
                 g_st().visual_global.borrow_mut().reselect = 1;
@@ -1127,7 +1134,7 @@ pub fn do_mouse(
             let mut pos: Option<CursorPos> = None;
 
             if is_click {
-                end_visual = curwin_mut().w_cursor;
+                end_visual = curwin_mut().w_cursor.get();
                 while ascii_iswhite(gchar_pos(&mut end_visual)) {
                     inc(&mut end_visual);
                 }
@@ -1137,36 +1144,46 @@ pub fn do_mouse(
                 if oap.is_some()
                     && g_st().visual_global.borrow().mode == b'v' as i32
                     && !vim_iswordc(gchar_pos(&mut end_visual))
-                    && equalpos(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+                    && equalpos(
+                        curwin_mut().w_cursor.get(),
+                        g_st().visual_global.borrow().start,
+                    )
                 {
                     pos = findmatch(oap.as_deref_mut(), 0);
                     if let Some(p) = pos {
-                        curwin_mut().w_cursor = p;
+                        curwin_mut().w_cursor.set(p);
 
                         if oap.unwrap().motion_type == MT_LINE_WISE {
                             g_st().visual_global.borrow_mut().mode = b'V' as i32;
                         } else if opt_vars().p_sel.first_byte() == b'e' {
-                            if lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
+                            if lt(
+                                curwin_mut().w_cursor.get(),
+                                g_st().visual_global.borrow().start,
+                            ) {
                                 g_st().visual_global.borrow_mut().start.col += 1;
                             } else {
-                                curwin_mut().w_cursor.col += 1;
+                                curwin_mut().w_cursor.add_col(1);
                             }
                         }
                     }
                 }
             }
             if pos.is_none() && (is_click || is_drag) {
-                if lt(curwin_mut().w_cursor, mouse_st(|st| st.orig_cursor.get())) {
-                    find_start_of_word(&mut curwin_mut().w_cursor);
+                if lt(
+                    curwin_mut().w_cursor.get(),
+                    mouse_st(|st| st.orig_cursor.get()),
+                ) {
+                    curwin_mut().w_cursor.update_mut(find_start_of_word);
                     find_end_of_word(&mut g_st().visual_global.borrow_mut().start);
                 } else {
                     find_start_of_word(&mut g_st().visual_global.borrow_mut().start);
                     let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
                     if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
-                        curwin_mut().w_cursor.col +=
-                            crate::mbyte::utfc_slice2len(cur_pos_slice) as i32;
+                        curwin_mut()
+                            .w_cursor
+                            .add_col(crate::mbyte::utfc_slice2len(cur_pos_slice) as i32);
                     }
-                    find_end_of_word(&mut curwin_mut().w_cursor);
+                    curwin_mut().w_cursor.update_mut(find_end_of_word);
                 }
             }
             curwin_mut().w_set_curswant.set(true);
@@ -1198,7 +1215,7 @@ pub fn ins_mouse(c: i32) {
     let old_curwin = curwin_ptr();
 
     undisplay_dollar();
-    let tpos = curwin_mut().w_cursor;
+    let tpos = curwin_mut().w_cursor.get();
     if do_mouse(None, c, BACKWARD, 1, false) {
         let new_curwin = curwin_ptr();
 
@@ -1293,7 +1310,7 @@ pub fn ins_mousescroll(dir: i32) {
         undisplay_dollar();
     }
 
-    let orig_cursor = curwin_mut().w_cursor;
+    let orig_cursor = curwin_mut().w_cursor.get();
 
     do_mousescroll(&mut cap);
 
@@ -1301,7 +1318,7 @@ pub fn ins_mousescroll(dir: i32) {
     set_curwin(old_curwin);
     g_st().curbuf.set(curwin_mut().w_buffer.get());
 
-    if !equalpos(curwin_mut().w_cursor, orig_cursor) {
+    if !equalpos(curwin_mut().w_cursor.get(), orig_cursor) {
         start_arrow(Some(orig_cursor), true, 0);
         set_can_cindent(true);
     }
@@ -1520,7 +1537,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     }
 
     let old_curwin = curwin_ptr();
-    let old_cursor = curwin_mut().w_cursor;
+    let old_cursor = curwin_mut().w_cursor.get();
     let mut resolved = crate::globals::WinPtr::NULL;
     let mut lnum: Linenr = 0;
     let mut vcol: Colnr = 0;
@@ -1730,8 +1747,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             row = curwin_mut().w_view_height.get() - 1;
         } else if row == 0
             && g_st().mouse_dragging.get() > 0
-            && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count.get()
-            && curwin_mut().w_cursor.lnum == curwin_mut().w_topline.get()
+            && curwin_mut().w_cursor.get().lnum == curwin_mut().buf_mut().b_ml.ml_line_count.get()
+            && curwin_mut().w_cursor.get().lnum == curwin_mut().w_topline.get()
         {
             curwin_mut()
                 .w_valid
@@ -1754,7 +1771,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         );
         g_st().mouse_past_bottom.set(past_bottom);
     }
-    curwin_mut().w_cursor.lnum = lnum;
+    curwin_mut().w_cursor.set_lnum(lnum);
 
     if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.borrow().active {
         g_st().visual_global.borrow_mut().start = old_cursor;
@@ -1785,8 +1802,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         IN_BUFFER
     };
     if curwin_ptr() != old_curwin
-        || curwin_mut().w_cursor.lnum != old_cursor.lnum
-        || curwin_mut().w_cursor.col != old_cursor.col
+        || curwin_mut().w_cursor.get().lnum != old_cursor.lnum
+        || curwin_mut().w_cursor.get().col != old_cursor.col
     {
         count |= CURSOR_MOVED;
     }
@@ -1806,9 +1823,10 @@ fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
         return false;
     }
 
-    if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.lnum) {
-        curwin_mut().w_cursor.lnum = find_longest_lnum();
-        curwin_mut().w_cursor.col = 0;
+    if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.get().lnum)
+    {
+        curwin_mut().w_cursor.set_lnum(find_longest_lnum());
+        curwin_mut().w_cursor.set_col(0);
     }
 
     set_leftcol(leftcol)
@@ -2149,8 +2167,8 @@ fn scroll_line_len(lnum: Linenr) -> Colnr {
 fn find_longest_lnum() -> Linenr {
     let mut ret: Linenr = 0;
 
-    if curwin_mut().w_topline.get() <= curwin_mut().w_cursor.lnum
-        && curwin_mut().w_botline.get() > curwin_mut().w_cursor.lnum
+    if curwin_mut().w_topline.get() <= curwin_mut().w_cursor.get().lnum
+        && curwin_mut().w_botline.get() > curwin_mut().w_cursor.get().lnum
         && curwin_mut().w_botline.get() <= curbuf_mut().b_ml.ml_line_count.get() + 1
     {
         let mut max: Colnr = 0;
@@ -2161,14 +2179,14 @@ fn find_longest_lnum() -> Linenr {
                 max = len;
                 ret = lnum;
             } else if len == max
-                && (lnum - curwin_mut().w_cursor.lnum).abs()
-                    < (ret - curwin_mut().w_cursor.lnum).abs()
+                && (lnum - curwin_mut().w_cursor.get().lnum).abs()
+                    < (ret - curwin_mut().w_cursor.get().lnum).abs()
             {
                 ret = lnum;
             }
         }
     } else {
-        ret = curwin_mut().w_cursor.lnum;
+        ret = curwin_mut().w_cursor.get().lnum;
     }
 
     ret

@@ -721,7 +721,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
     }
 
     if buf_jump_open_win(buf).is_some() {
-        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.set_lnum(lnum);
         check_cursor_lnum(curwin_mut());
         beginline(BL_WHITE);
     } else {
@@ -846,7 +846,7 @@ fn sign_unplace_cmd(
     }
 
     if id == -1 {
-        lnum = curwin_mut().w_cursor.lnum;
+        lnum = curwin_mut().w_cursor.get().lnum;
         buf = curwin_mut().w_buffer.get().opt_mut();
     }
 

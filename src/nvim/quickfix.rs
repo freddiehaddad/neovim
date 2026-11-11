@@ -3040,8 +3040,8 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
 
 fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: Option<&CStr>) {
     if let Some(qf_pattern) = qf_pattern {
-        let save_cursor = curwin_mut().w_cursor;
-        curwin_mut().w_cursor.lnum = 0;
+        let save_cursor = curwin_mut().w_cursor.get();
+        curwin_mut().w_cursor.set_lnum(0);
         if do_search(
             None,
             b'/' as i32,
@@ -3054,20 +3054,22 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: 
             None,
         ) == 0
         {
-            curwin_mut().w_cursor = save_cursor;
+            curwin_mut().w_cursor.set(save_cursor);
         }
     } else {
         let mut i = qf_lnum;
         if i > 0 {
             i = i.min(curbuf_mut().b_ml.ml_line_count.get());
-            curwin_mut().w_cursor.lnum = i;
+            curwin_mut().w_cursor.set_lnum(i);
         }
         if qf_col > 0 {
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_coladd(0);
             if qf_viscol {
-                curwin_mut().w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
+                curwin_mut()
+                    .w_cursor
+                    .set_col(qf_screen_col_to_idx(qf_col - 1));
             } else {
-                curwin_mut().w_cursor.col = qf_col - 1;
+                curwin_mut().w_cursor.set_col(qf_col - 1);
             }
             curwin_mut().w_set_curswant.set(true);
             check_cursor(curwin_mut());
@@ -3114,7 +3116,7 @@ fn qf_jump_print_msg(
     gap.push(0);
 
     let i = g_st().msg_scroll.get();
-    if same_curbuf && curwin_mut().w_cursor.lnum == old_lnum {
+    if same_curbuf && curwin_mut().w_cursor.get().lnum == old_lnum {
         g_st().msg_scroll.set(1);
     } else if (g_st().msg_scrolled.get() == 0
         || (opt_vars().p_ch.get() == 0 && g_st().msg_scrolled.get() == 1))
@@ -3197,7 +3199,7 @@ fn qf_jump_to_buffer(
     print_message: bool,
 ) -> QfStatus {
     let old_curbuf = g_st().curbuf.get();
-    let old_lnum = curwin_mut().w_cursor.lnum;
+    let old_lnum = curwin_mut().w_cursor.get().lnum;
     let retval;
     let qfl_rc = qf_get_curlist(qi);
 
@@ -3751,7 +3753,7 @@ pub fn qf_view_result(split: bool) {
     }
 
     if split {
-        qf_jump_newwin(Some(qi), 0, curwin_mut().w_cursor.lnum, false, true);
+        qf_jump_newwin(Some(qi), 0, curwin_mut().w_cursor.get().lnum, false, true);
         do_cmdline_cmd(c"clearjumps");
         return;
     }
@@ -3946,8 +3948,8 @@ pub fn ex_copen(eap: &mut Exarg) {
 
     decr_quickfix_busy();
 
-    curwin_mut().w_cursor.lnum = lnum;
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_lnum(lnum);
+    curwin_mut().w_cursor.set_col(0);
     check_cursor(curwin_mut());
     update_topline(curwin_mut());
 }
@@ -3957,9 +3959,9 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
 
     set_curwin(&mut *win);
     g_st().curbuf.set(win.w_buffer.get());
-    curwin_mut().w_cursor.lnum = lnum;
-    curwin_mut().w_cursor.col = 0;
-    curwin_mut().w_cursor.coladd = 0;
+    curwin_mut().w_cursor.set_lnum(lnum);
+    curwin_mut().w_cursor.set_col(0);
+    curwin_mut().w_cursor.set_coladd(0);
     curwin_mut().w_curswant.set(0);
     update_topline(curwin_mut());
     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -3976,7 +3978,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
 
     if let Some(win_ref) = qf_find_win(qi) {
         let last_lnum = win_ref.buf_mut().b_ml.ml_line_count.get();
-        if win_ref.w_cursor.lnum != last_lnum {
+        if win_ref.w_cursor.get().lnum != last_lnum {
             qf_win_goto(win_ref, last_lnum);
         }
     }
@@ -5082,7 +5084,7 @@ pub fn ex_cbelow(eap: &mut Exarg) {
             BACKWARD
         };
 
-        let mut pos = curwin_mut().w_cursor;
+        let mut pos = curwin_mut().w_cursor.get();
         pos.col += 1;
         qf_find_nth_adj_entry(
             qfl,

@@ -1126,7 +1126,7 @@ pub fn spell_move_to(
     let mut found_one = false;
     let mut wrapped = false;
     let mut ret: usize = 0;
-    let mut lnum = wp.w_cursor.lnum;
+    let mut lnum = wp.w_cursor.get().lnum;
     let saved_decor_start = std::mem::replace(
         &mut *g_st().decor_state.borrow_mut(),
         crate::decoration::DecorState::new(),
@@ -1165,9 +1165,9 @@ pub fn spell_move_to(
             let end_off = len;
             while p_off < end_off {
                 if dir == BACKWARD
-                    && lnum == wp.w_cursor.lnum
+                    && lnum == wp.w_cursor.get().lnum
                     && !wrapped
-                    && (p_off as Colnr) >= wp.w_cursor.col
+                    && (p_off as Colnr) >= wp.w_cursor.get().col
                 {
                     break;
                 }
@@ -1185,9 +1185,9 @@ pub fn spell_move_to(
                         p_off as Colnr
                     };
                     if dir == BACKWARD
-                        || lnum != wp.w_cursor.lnum
+                        || lnum != wp.w_cursor.get().lnum
                         || wrapped
-                        || check_col > wp.w_cursor.col
+                        || check_col > wp.w_cursor.get().col
                     {
                         let col = p_off as Colnr;
                         let w_s = wp.w_s_ptr();
@@ -1212,7 +1212,7 @@ pub fn spell_move_to(
                                 coladd: 0,
                             };
                             if dir == FORWARD {
-                                wp.w_cursor = found_pos;
+                                wp.w_cursor.set(found_pos);
                                 if let Some(attrp_ref) = attrp {
                                     *attrp_ref = attr;
                                 }
@@ -1231,14 +1231,14 @@ pub fn spell_move_to(
                 capcol -= len as i32;
             }
             if dir == BACKWARD && found_pos.lnum != 0 {
-                wp.w_cursor = found_pos;
+                wp.w_cursor.set(found_pos);
                 ret = found_len;
                 break 'theend;
             }
             if curline {
                 break;
             }
-            if lnum == wp.w_cursor.lnum && wrapped {
+            if lnum == wp.w_cursor.get().lnum && wrapped {
                 break;
             }
             if dir == BACKWARD {
@@ -1266,7 +1266,7 @@ pub fn spell_move_to(
                         give_warning(gettext(BOT_TOP_MSG), true, false);
                     }
                 }
-                if lnum == wp.w_cursor.lnum && !found_one {
+                if lnum == wp.w_cursor.get().lnum && !found_one {
                     break;
                 }
                 if attr == HLF_COUNT {
@@ -2239,7 +2239,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     need_cap
 }
 pub fn ex_spellrepall(_eap: &mut Exarg) {
-    let pos = curwin_mut().w_cursor;
+    let pos = curwin_mut().w_cursor.get();
     let save_ws = opt_vars().p_ws.get();
     let mut prev_lnum: Linenr = 0;
     let (Some(repl_from_cstr), Some(repl_to_cstr)) =
@@ -2262,7 +2262,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     opt_vars().p_ws.set(false);
     g_st().sub_nsubs.set(0);
     g_st().sub_nlines.set(0);
-    curwin_mut().w_cursor.lnum = 0;
+    curwin_mut().w_cursor.set_lnum(0);
     while !g_st().got_int.get() {
         let frompat_cstr = crate::memory::bytes_as_cstr(&frompat_vec);
         if do_search(
@@ -2281,7 +2281,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
             break;
         }
         let line_slice = get_cursor_line_slice();
-        let col = curwin_mut().w_cursor.col as usize;
+        let col = curwin_mut().w_cursor.get().col as usize;
         if addlen <= 0
             || &line_slice[col..(col + repl_to_len).min(line_slice.len())] != repl_to_slice
         {
@@ -2292,26 +2292,26 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
             p_vec.extend_from_slice(&line_slice[col + repl_from_len..]);
             p_vec.push(0);
             let _ = ml_replace(
-                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.get().lnum,
                 crate::memory::bytes_until_nul(&p_vec),
                 true,
             );
             inserted_bytes(
-                curwin_mut().w_cursor.lnum,
-                curwin_mut().w_cursor.col,
+                curwin_mut().w_cursor.get().lnum,
+                curwin_mut().w_cursor.get().col,
                 repl_from_len as i32,
                 repl_to_len as i32,
             );
-            if curwin_mut().w_cursor.lnum != prev_lnum {
+            if curwin_mut().w_cursor.get().lnum != prev_lnum {
                 g_st().sub_nlines.set(g_st().sub_nlines.get() + (1));
-                prev_lnum = curwin_mut().w_cursor.lnum;
+                prev_lnum = curwin_mut().w_cursor.get().lnum;
             }
             g_st().sub_nsubs.set(g_st().sub_nsubs.get() + (1));
         }
-        curwin_mut().w_cursor.col += repl_to_len as Colnr;
+        curwin_mut().w_cursor.add_col(repl_to_len as Colnr);
     }
     opt_vars().p_ws.set(save_ws);
-    curwin_mut().w_cursor = pos;
+    curwin_mut().w_cursor.set(pos);
     if g_st().sub_nsubs.get() == 0 {
         semsg!(gettext(c"E753: Not found: %s"), &repl_from_cstr);
     } else {
@@ -3120,7 +3120,7 @@ pub fn spell_expand_check_cap(col: Colnr) {
     SPELL_PRIV_STATE.with(|s| {
         s.spell_expand_need_cap.set(check_need_cap(
             curwin_mut(),
-            curwin_mut().w_cursor.lnum,
+            curwin_mut().w_cursor.get().lnum,
             col,
         ))
     });

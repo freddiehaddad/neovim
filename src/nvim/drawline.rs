@@ -877,10 +877,10 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
     }
 
     if wp.w_onebuf_opt.wo_rnu.get() {
-        if wlv.lnum < wp.w_cursor.lnum {
+        if wlv.lnum < wp.w_cursor.get().lnum {
             return hl_combine_attr(win_hl_attr(&mut *wp, HLF_LNA), numhl_attr);
         }
-        if wlv.lnum > wp.w_cursor.lnum {
+        if wlv.lnum > wp.w_cursor.get().lnum {
             return hl_combine_attr(win_hl_attr(&mut *wp, HLF_LNB), numhl_attr);
         }
     }
@@ -1507,7 +1507,7 @@ pub fn win_line(
     let view_width = wp.w_view_width.get();
     let view_height = wp.w_view_height.get();
 
-    let in_curline = wp == curwin_ptr() && lnum == curwin_mut().w_cursor.lnum;
+    let in_curline = wp == curwin_ptr() && lnum == curwin_mut().w_cursor.get().lnum;
     let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
     let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST;
 
@@ -1553,7 +1553,7 @@ pub fn win_line(
     let mut search_attr_from_match = false;
     let mut has_decor = false;
     let mut conceal_spans = ConcealSpans::new();
-    let cursor_vcol = if lnum == wp.w_cursor.lnum && !has_fold {
+    let cursor_vcol = if lnum == wp.w_cursor.get().lnum && !has_fold {
         cursor_disp_vcol(wp)
     } else {
         wp.w_virtcol.get()
@@ -1680,12 +1680,20 @@ pub fn win_line(
 
         if g_st().visual_global.borrow().active && wp.w_buffer.get() == curwin_mut().w_buffer.get()
         {
-            let (mut top, bot) =
-                if ltoreq(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
-                    (curwin_mut().w_cursor, g_st().visual_global.borrow().start)
-                } else {
-                    (g_st().visual_global.borrow().start, curwin_mut().w_cursor)
-                };
+            let (mut top, bot) = if ltoreq(
+                curwin_mut().w_cursor.get(),
+                g_st().visual_global.borrow().start,
+            ) {
+                (
+                    curwin_mut().w_cursor.get(),
+                    g_st().visual_global.borrow().start,
+                )
+            } else {
+                (
+                    g_st().visual_global.borrow().start,
+                    curwin_mut().w_cursor.get(),
+                )
+            };
 
             lnum_in_visual_area = lnum >= top.lnum && lnum <= bot.lnum;
 
@@ -1756,11 +1764,11 @@ pub fn win_line(
         } else if g_st().search_global.hl_match.get()
             && wp == curwin_ptr()
             && !has_foldtext
-            && lnum >= curwin_mut().w_cursor.lnum
-            && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines.get()
+            && lnum >= curwin_mut().w_cursor.get().lnum
+            && lnum <= curwin_mut().w_cursor.get().lnum + g_st().search_global.match_lines.get()
         {
-            if lnum == curwin_mut().w_cursor.lnum {
-                let mut cursor = curwin_mut().w_cursor;
+            if lnum == curwin_mut().w_cursor.get().lnum {
+                let mut cursor = curwin_mut().w_cursor.get();
                 getvcol(
                     curwin_mut(),
                     &mut cursor,
@@ -1769,11 +1777,11 @@ pub fn win_line(
                     None,
                     GETVCOL_DISP,
                 );
-                curwin_mut().w_cursor = cursor;
+                curwin_mut().w_cursor.set(cursor);
             } else {
                 wlv.fromcol = 0;
             }
-            if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines.get() {
+            if lnum == curwin_mut().w_cursor.get().lnum + g_st().search_global.match_lines.get() {
                 let mut pos = CursorPos {
                     lnum,
                     col: g_st().search_global.match_endcol.get(),
@@ -2061,26 +2069,26 @@ pub fn win_line(
             let linecol = ((ptr as isize) - (line as isize)) as Colnr;
             let mut spell_hlf: Hlf = HLF_COUNT;
 
-            let pos = wp.w_cursor;
-            wp.w_cursor.lnum = lnum;
-            wp.w_cursor.col = linecol;
+            let pos = wp.w_cursor.get();
+            wp.w_cursor.set_lnum(lnum);
+            wp.w_cursor.set_col(linecol);
             let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, Some(&mut spell_hlf));
 
             line_cstr = ml_get_buf(wp.buf_mut(), lnum);
             line = line_cstr.as_ptr().cast_mut();
             ptr = line.wrapping_add(linecol as usize);
 
-            if len == 0 || wp.w_cursor.col > linecol {
+            if len == 0 || wp.w_cursor.get().col > linecol {
                 word_end = linecol + spell_to_word_end(ptr_cstr!(ptr).to_bytes(), wp) as i32 + 1;
             } else {
                 debug_assert!(len <= i32::MAX as usize);
-                word_end = wp.w_cursor.col + len as i32 + 1;
+                word_end = wp.w_cursor.get().col + len as i32 + 1;
 
                 if spell_hlf != HLF_COUNT {
                     spell_attr = g_st().highlight_attr[spell_hlf as usize].get();
                 }
             }
-            wp.w_cursor = pos;
+            wp.w_cursor.set(pos);
 
             if has_syntax {
                 syntax_start(wp, lnum);
@@ -2815,9 +2823,9 @@ pub fn win_line(
 
                             if spell_hlf != HLF_COUNT
                                 && (g_st().state_global.get() & MODE_INSERT) != 0
-                                && wp.w_cursor.lnum == lnum
-                                && wp.w_cursor.col >= prev_col
-                                && wp.w_cursor.col < word_end
+                                && wp.w_cursor.get().lnum == lnum
+                                && wp.w_cursor.get().col >= prev_col
+                                && wp.w_cursor.get().col < word_end
                             {
                                 spell_hlf = HLF_COUNT;
                                 g_st().spell_redraw_lnum.set(lnum);
@@ -3403,7 +3411,7 @@ pub fn win_line(
                         && wlv.vcol == wlv.fromcol
                         && (g_st().visual_global.borrow().mode != CTRL_V_CONST
                             || lnum == g_st().visual_global.borrow().start.lnum
-                            || lnum == curwin_mut().w_cursor.lnum))
+                            || lnum == curwin_mut().w_cursor.get().lnum))
                         || prevcol_hl_flag)
                 {
                     let n = if wlv.col >= view_width { -1 } else { 0 };
@@ -3474,7 +3482,7 @@ pub fn win_line(
                     && i64::from(wp.w_virtcol.get())
                         < i64::from(view_width) * i64::from(wlv.row - startrow + 1)
                             + i64::from(start_vcol)
-                    && lnum != wp.w_cursor.lnum)
+                    && lnum != wp.w_cursor.get().lnum)
                     || !wlv.color_cols.is_empty()
                     || wlv.line_attr_lowprio != 0
                     || wlv.line_attr != 0
@@ -3514,7 +3522,7 @@ pub fn win_line(
 
                         if wp.w_onebuf_opt.wo_cuc.get()
                             && vcol_hlc(&wlv) == wp.w_virtcol.get()
-                            && lnum != wp.w_cursor.lnum
+                            && lnum != wp.w_cursor.get().lnum
                         {
                             col_attr = hl_combine_attr(col_attr, cuc_attr);
                         } else if wlv
@@ -3607,7 +3615,7 @@ pub fn win_line(
             if !lnum_in_visual_area && search_attr == 0 && area_attr == 0 && wlv.filler_todo <= 0 {
                 if wp.w_onebuf_opt.wo_cuc.get()
                     && vcol_hlc(&wlv) == wp.w_virtcol.get()
-                    && lnum != wp.w_cursor.lnum
+                    && lnum != wp.w_cursor.get().lnum
                 {
                     vcol_save_attr = wlv.char_attr;
                     wlv.char_attr = hl_combine_attr(win_hl_attr(&mut *wp, HLF_CUC), wlv.char_attr);

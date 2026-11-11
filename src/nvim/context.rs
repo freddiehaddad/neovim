@@ -317,7 +317,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     if (flags & (K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
         assert!(ctx.buf == 0 || ctx.buf == curbuf_mut().b_fnum.get());
         ctx.buf = curbuf_mut().b_fnum.get();
-        ctx.pos = curwin_mut().w_cursor;
+        ctx.pos = curwin_mut().w_cursor.get();
     }
 
     if (flags & K_CTX_CURSOR) != 0 {
@@ -420,7 +420,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     if (flags & K_CTX_CURSOR) != 0 {
         assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf.get() == b));
-        curwin_mut().w_cursor = ctx.pos;
+        curwin_mut().w_cursor.set(ctx.pos);
         if ctx.curswant >= 0 {
             curwin_mut().w_curswant.set(ctx.curswant);
             curwin_mut().w_set_curswant.set(false);
@@ -840,7 +840,7 @@ pub fn ctx_switch(
     if let Some(wp_ref) = wp.opt_mut() {
         if (flags & K_CTX_VALIDATE) != 0 {
             cs.cs_target_win = wp_ref.handle;
-            cs.cs_target_old_pos = wp_ref.w_cursor;
+            cs.cs_target_old_pos = wp_ref.w_cursor.get();
         }
         let ct = curtab_mut();
         ctx_dirs_save(cs, wp_ref, tp.opt().unwrap_or(&ct), buf.opt_mut());
@@ -1009,7 +1009,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     });
     if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
         if let Some(wp) = win_find_by_handle(cs.cs_target_win)
-            && !equalpos(cs.cs_target_old_pos, wp.w_cursor)
+            && !equalpos(cs.cs_target_old_pos, wp.w_cursor.get())
         {
             wp.w_redr_status.set(true);
         }

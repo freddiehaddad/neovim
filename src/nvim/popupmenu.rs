@@ -1569,8 +1569,8 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                             .w_topline
                             .set(curbuf_mut().b_ml.ml_line_count.get());
                     }
-                    curwin_mut().w_cursor.lnum = 1;
-                    curwin_mut().w_cursor.col = 0;
+                    curwin_mut().w_cursor.set_lnum(1);
+                    curwin_mut().w_cursor.set_col(0);
 
                     if use_float
                         && !pum_adjust_info_position(curwin_mut(), max_info_width)

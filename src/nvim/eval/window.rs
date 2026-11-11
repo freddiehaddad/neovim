@@ -884,13 +884,19 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 
     let dict = argvars[0].vval.v_dict_opt();
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"lnum", 4) {
-        curwin_mut().w_cursor.lnum = tv_get_number(&di.tv()) as Linenr;
+        curwin_mut()
+            .w_cursor
+            .set_lnum(tv_get_number(&di.tv()) as Linenr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"col", 3) {
-        curwin_mut().w_cursor.col = tv_get_number(&di.tv()) as Colnr;
+        curwin_mut()
+            .w_cursor
+            .set_col(tv_get_number(&di.tv()) as Colnr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"coladd", 6) {
-        curwin_mut().w_cursor.coladd = tv_get_number(&di.tv()) as Colnr;
+        curwin_mut()
+            .w_cursor
+            .set_coladd(tv_get_number(&di.tv()) as Colnr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"topline", 7) {
         let prev_topline = curwin_mut().w_topline.get();
@@ -933,9 +939,17 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
 
-    tv_dict_add_nr(&dict, c"lnum", curwin_mut().w_cursor.lnum as Varnumber);
-    tv_dict_add_nr(&dict, c"col", curwin_mut().w_cursor.col as Varnumber);
-    tv_dict_add_nr(&dict, c"coladd", curwin_mut().w_cursor.coladd as Varnumber);
+    tv_dict_add_nr(
+        &dict,
+        c"lnum",
+        curwin_mut().w_cursor.get().lnum as Varnumber,
+    );
+    tv_dict_add_nr(&dict, c"col", curwin_mut().w_cursor.get().col as Varnumber);
+    tv_dict_add_nr(
+        &dict,
+        c"coladd",
+        curwin_mut().w_cursor.get().coladd as Varnumber,
+    );
     update_curswant();
     let mut vs = Viewstate::default();
     save_viewstate(curwin_mut(), &mut vs);

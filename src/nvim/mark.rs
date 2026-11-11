@@ -46,7 +46,6 @@ use crate::textobject::{findpar, findsent};
 use crate::undo::u_update_named_mark;
 use crate::window::{WinInfoInfo, Winopt};
 use std::ffi::CStr;
-use std::ptr;
 
 pub type MarkMoveRes = i32;
 pub type MarkMove = i32;
@@ -251,13 +250,9 @@ fn reset_xfmark(
 
 /// Set named mark `c` at current cursor position (`setmark`).
 pub fn setmark(c: i32) -> bool {
-    let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
-    setmark_pos(
-        c,
-        &mut curwin_mut().w_cursor,
-        curbuf_mut().b_fnum.get(),
-        Some(&view),
-    )
+    let mut pos = curwin_mut().w_cursor.get();
+    let view = mark_view_make(curwin_mut(), pos);
+    setmark_pos(c, &mut pos, curbuf_mut().b_fnum.get(), Some(&view))
 }
 
 /// Free `Xfmark` item (`free_xfmark`).
@@ -330,7 +325,7 @@ pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmar
     }
 
     if c == b'\'' as i32 || c == b'`' as i32 {
-        if ptr::eq(pos, &raw const curwin_mut().w_cursor) {
+        if view_pt.is_some() {
             setpcmark();
             curwin_mut().w_prev_pcmark.set(curwin_mut().w_pcmark.get());
         } else {
@@ -448,7 +443,7 @@ pub fn setpcmark() {
     }
 
     curwin_mut().w_prev_pcmark.set(curwin_mut().w_pcmark.get());
-    curwin_mut().w_pcmark.set(curwin_mut().w_cursor);
+    curwin_mut().w_pcmark.set(curwin_mut().w_cursor.get());
 
     if curwin_mut().w_pcmark.get().lnum == 0 {
         curwin_mut().w_pcmark.set_lnum(1);
@@ -489,7 +484,7 @@ pub fn setpcmark() {
 /// Check previous context mark (`checkpcmark`).
 pub fn checkpcmark() {
     if curwin_mut().w_prev_pcmark.get().lnum != 0
-        && (equalpos(curwin_mut().w_pcmark.get(), curwin_mut().w_cursor)
+        && (equalpos(curwin_mut().w_pcmark.get(), curwin_mut().w_cursor.get())
             || curwin_mut().w_pcmark.get().lnum == 0)
     {
         curwin_mut().w_pcmark.set(curwin_mut().w_prev_pcmark.get());
@@ -657,7 +652,7 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Op
 /// Get marks that are actually motions (`mark_get_motion`).
 pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Option<Fmark> {
     let mut mark: Option<Fmark> = None;
-    let pos = curwin_mut().w_cursor;
+    let pos = curwin_mut().w_cursor.get();
     let slcb = g_st().listcmd_busy.get();
     g_st().listcmd_busy.set(true);
     if name == b'{' as i32 || name == b'}' as i32 {
@@ -673,7 +668,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> O
             0,
             false,
         ) {
-            mark = Some(pos_to_mark(&*buf, None, win.w_cursor));
+            mark = Some(pos_to_mark(&*buf, None, win.w_cursor.get()));
         }
     } else if (name == b'(' as i32 || name == b')' as i32)
         && findsent(
@@ -685,9 +680,9 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> O
             1,
         )
     {
-        mark = Some(pos_to_mark(&*buf, None, win.w_cursor));
+        mark = Some(pos_to_mark(&*buf, None, win.w_cursor.get()));
     }
-    curwin_mut().w_cursor = pos;
+    curwin_mut().w_cursor.set(pos);
     g_st().listcmd_busy.set(slcb);
     mark
 }
@@ -769,10 +764,10 @@ pub fn mark_move_to(fm: Option<&Fmark>, flags: MarkMove) -> MarkMoveRes {
         setpcmark();
     }
 
-    let prev_pos = curwin_mut().w_cursor;
+    let prev_pos = curwin_mut().w_cursor.get();
     let pos = fm_ref.mark;
 
-    curwin_mut().w_cursor = fm_ref.mark;
+    curwin_mut().w_cursor.set(fm_ref.mark);
 
     if (flags & K_MARK_BEGIN_LINE) != 0 {
         beginline(BL_WHITE | BL_FIX);
@@ -1522,7 +1517,7 @@ pub fn mark_adjust_buf(
 
                 if by_api
                     || (if by_term {
-                        win.w_cursor.lnum < buf.b_ml.ml_line_count.get()
+                        win.w_cursor.get().lnum < buf.b_ml.ml_line_count.get()
                     } else {
                         win != curwin_ptr()
                     })
@@ -1545,12 +1540,14 @@ pub fn mark_adjust_buf(
                 }
                 if !by_api
                     && (if by_term {
-                        win.w_cursor.lnum < buf.b_ml.ml_line_count.get()
+                        win.w_cursor.get().lnum < buf.b_ml.ml_line_count.get()
                     } else {
                         win != curwin_ptr()
                     })
                 {
-                    one_adjust_cursor(&mut win.w_cursor, line1, line2, amount, amount_after);
+                    win.w_cursor.update_mut(|c| {
+                        one_adjust_cursor(c, line1, line2, amount, amount_after);
+                    });
                 }
 
                 if adjust_folds {
@@ -1745,14 +1742,9 @@ pub fn mark_col_adjust(
             }
 
             if win != curwin_ptr() {
-                col_adjust(
-                    &mut win.w_cursor,
-                    lnum,
-                    mincol,
-                    lnum_amount,
-                    col_amount,
-                    spaces_removed,
-                );
+                win.w_cursor.update_mut(|c| {
+                    col_adjust(c, lnum, mincol, lnum_amount, col_amount, spaces_removed);
+                });
             }
         }
     }
@@ -1817,7 +1809,7 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
     {
         let last_idx = (wp.w_jumplistlen.get() - 1) as usize;
         if wp.w_jumplist.borrow()[last_idx].fmark.fnum == curbuf_mut().b_fnum.get()
-            && wp.w_jumplist.borrow()[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
+            && wp.w_jumplist.borrow()[last_idx].fmark.mark.lnum == wp.w_cursor.get().lnum
         {
             wp.w_jumplist.borrow_mut()[last_idx].fname = None;
             wp.w_jumplistlen.set(wp.w_jumplistlen.get() - (1));
@@ -1981,7 +1973,7 @@ pub fn set_last_cursor(win: &mut WinInfoInfo) {
     if !win.w_buffer.get().is_null() {
         reset_fmark(
             &mut win.buf_mut().b_last_cursor,
-            win.w_cursor,
+            win.w_cursor.get(),
             0,
             INIT_FMARKV,
         );

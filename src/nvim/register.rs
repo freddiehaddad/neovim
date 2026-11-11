@@ -900,11 +900,11 @@ pub fn insert_reg(regname: i32, reg: Option<RegIdx>, literally_arg: bool) -> boo
                             return false;
                         }
                         del_chars(mb_charlen(y_array[0].as_bytes()), 1);
-                        let curpos = curwin_mut().w_cursor;
+                        let curpos = curwin_mut().w_cursor.get();
                         if !oneright() {
                             dir = FORWARD;
                         }
-                        curwin_mut().w_cursor = curpos;
+                        curwin_mut().w_cursor.set(curpos);
                     }
 
                     redo_append_char(CTRL_R_CONST);
@@ -999,7 +999,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
                 return None;
             }
             Some(Some(
-                ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)
+                ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.get().lnum)
                     .to_bytes_with_nul()
                     .to_vec(),
             ))
@@ -1475,8 +1475,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         ins_compl_delete(false);
     }
 
-    curbuf_mut().b_op_start = curwin_mut().w_cursor;
-    curbuf_mut().b_op_end = curwin_mut().w_cursor;
+    curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
+    curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
 
     if regname == i32::from(b'.') && reg.is_none() {
         let non_linewise_vis = g_st().visual_global.borrow().active
@@ -1556,7 +1556,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
 
                 let ve_allows =
                     cur_ve_flags == K_OPT_VE_FLAG_ALL || cur_ve_flags == K_OPT_VE_FLAG_ONEMORE;
-                let eof = curbuf_mut().b_ml.ml_line_count.get() == curwin_mut().w_cursor.lnum
+                let eof = curbuf_mut().b_ml.ml_line_count.get() == curwin_mut().w_cursor.get().lnum
                     && one_past_line;
                 if ve_allows || !(eol || eof) {
                     stuffchar_readbuff(i32::from(b'l'));
@@ -1567,7 +1567,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         }
 
         if command_start_char == i32::from(b'a')
-            && !u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1)
+            && !u_save(
+                curwin_mut().w_cursor.get().lnum,
+                curwin_mut().w_cursor.get().lnum + 1,
+            )
         {
             return;
         }
@@ -1588,7 +1591,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
     }
 
     if curbuf_mut().terminal.get().is_null()
-        && !u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1)
+        && !u_save(
+            curwin_mut().w_cursor.get().lnum,
+            curwin_mut().w_cursor.get().lnum + 1,
+        )
     {
         return;
     }
@@ -1678,17 +1684,17 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 } else {
                     0
                 };
-                split_pos = curwin_mut().w_cursor.col + (adv as Colnr);
+                split_pos = curwin_mut().w_cursor.get().col + (adv as Colnr);
 
                 let tail_start = adv.min(p_slice.len());
                 let tail_end = plen.min(p_slice.len());
                 let tail_vec = p_slice[tail_start..tail_end].to_vec();
-                ml_append(curwin_mut().w_cursor.lnum, &tail_vec, 0, false);
+                ml_append(curwin_mut().w_cursor.get().lnum, &tail_vec, 0, false);
 
                 let line_slice = crate::cursor::get_cursor_line_slice();
                 let split_u = (split_pos as usize).min(line_slice.len());
                 crate::memline::ml_replace_len(
-                    curwin_mut().w_cursor.lnum,
+                    curwin_mut().w_cursor.get().lnum,
                     &line_slice[..split_u],
                     split_pos as usize,
                     true,
@@ -1696,14 +1702,14 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 nr_lines += 1;
                 dir = FORWARD;
 
-                buf_updates_send_changes(curbuf_mut(), curwin_mut().w_cursor.lnum, 1, 1);
+                buf_updates_send_changes(curbuf_mut(), curwin_mut().w_cursor.get().lnum, 1, 1);
             }
             if (flags & PUT_LINE_FORWARD) != 0 {
-                curwin_mut().w_cursor = curbuf_mut().b_visual.vi_end;
+                curwin_mut().w_cursor.set(curbuf_mut().b_visual.vi_end);
                 dir = FORWARD;
             }
-            curbuf_mut().b_op_start = curwin_mut().w_cursor;
-            curbuf_mut().b_op_end = curwin_mut().w_cursor;
+            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
+            curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
         }
 
         if (flags & PUT_LINE) != 0 {
@@ -1725,13 +1731,13 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         }
 
         if y_type == MotionType::MtBlockWise {
-            lnum = curwin_mut().w_cursor.lnum + (y_size as Linenr) + 1;
+            lnum = curwin_mut().w_cursor.get().lnum + (y_size as Linenr) + 1;
             lnum = lnum.min(curbuf_mut().b_ml.ml_line_count.get() + 1);
-            if !u_save(curwin_mut().w_cursor.lnum - 1, lnum) {
+            if !u_save(curwin_mut().w_cursor.get().lnum - 1, lnum) {
                 break 'end;
             }
         } else if y_type == MotionType::MtLineWise {
-            lnum = curwin_mut().w_cursor.lnum;
+            lnum = curwin_mut().w_cursor.get().lnum;
             if dir == BACKWARD {
                 has_folding(curwin_mut(), lnum, Some(&mut lnum), None);
             } else {
@@ -1749,11 +1755,11 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 break 'end;
             }
             if dir == FORWARD {
-                curwin_mut().w_cursor.lnum = lnum - 1;
+                curwin_mut().w_cursor.set_lnum(lnum - 1);
             } else {
-                curwin_mut().w_cursor.lnum = lnum;
+                curwin_mut().w_cursor.set_lnum(lnum);
             }
-            curbuf_mut().b_op_start = curwin_mut().w_cursor;
+            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
         } else if !u_save_cursor() {
             break 'end;
         }
@@ -1765,20 +1771,20 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let cond = if dir == FORWARD {
                     tabstop_padding(viscol, ts, &curbuf_mut().b_p_vts_array) != 1
                 } else {
-                    curwin_mut().w_cursor.coladd > 0
+                    curwin_mut().w_cursor.get().coladd > 0
                 };
                 if cond {
                     coladvance_force(viscol);
                 } else {
-                    curwin_mut().w_cursor.coladd = 0;
+                    curwin_mut().w_cursor.set_coladd(0);
                 }
-            } else if curwin_mut().w_cursor.coladd > 0 || gchar_cursor() == 0 {
+            } else if curwin_mut().w_cursor.get().coladd > 0 || gchar_cursor() == 0 {
                 coladvance_force(getviscol() + i32::from(dir == FORWARD));
             }
         }
 
-        lnum = curwin_mut().w_cursor.lnum;
-        let mut col = curwin_mut().w_cursor.col;
+        lnum = curwin_mut().w_cursor.get().lnum;
+        let mut col = curwin_mut().w_cursor.get().col;
 
         if y_type == MotionType::MtBlockWise {
             let mut incr: i32 = 0;
@@ -1787,7 +1793,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
             let mut endcol2: Colnr = 0;
 
             if dir == FORWARD && c != 0 {
-                let mut cursor = curwin_mut().w_cursor;
+                let mut cursor = curwin_mut().w_cursor.get();
                 if cur_ve_flags == K_OPT_VE_FLAG_ALL {
                     getvcol(
                         curwin_mut(),
@@ -1800,12 +1806,13 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 } else {
                     getvcol(curwin_mut(), &mut cursor, None, None, Some(&mut col), 0);
                 }
-                curwin_mut().w_cursor = cursor;
-                curwin_mut().w_cursor.col +=
-                    crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
+                curwin_mut().w_cursor.set(cursor);
+                curwin_mut().w_cursor.add_col(crate::mbyte::utfc_slice2len(
+                    crate::cursor::get_cursor_pos_slice(),
+                ) as Colnr);
                 col += 1;
             } else {
-                let mut cursor = curwin_mut().w_cursor;
+                let mut cursor = curwin_mut().w_cursor.get();
                 getvcol(
                     curwin_mut(),
                     &mut cursor,
@@ -1814,29 +1821,30 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     Some(&mut endcol2),
                     0,
                 );
-                curwin_mut().w_cursor = cursor;
+                curwin_mut().w_cursor.set(cursor);
             }
 
-            col += curwin_mut().w_cursor.coladd;
+            col += curwin_mut().w_cursor.get().coladd;
             if cur_ve_flags == K_OPT_VE_FLAG_ALL
-                && (curwin_mut().w_cursor.coladd > 0 || endcol2 == curwin_mut().w_cursor.col)
+                && (curwin_mut().w_cursor.get().coladd > 0
+                    || endcol2 == curwin_mut().w_cursor.get().col)
             {
                 if dir == FORWARD && c == 0 {
                     col += 1;
                 }
-                if dir != FORWARD && c != 0 && curwin_mut().w_cursor.coladd > 0 {
-                    curwin_mut().w_cursor.col += 1;
+                if dir != FORWARD && c != 0 && curwin_mut().w_cursor.get().coladd > 0 {
+                    curwin_mut().w_cursor.add_col(1);
                 }
                 if c == TAB {
-                    if dir == BACKWARD && curwin_mut().w_cursor.col != 0 {
-                        curwin_mut().w_cursor.col -= 1;
+                    if dir == BACKWARD && curwin_mut().w_cursor.get().col != 0 {
+                        curwin_mut().w_cursor.sub_col(1);
                     }
                     if dir == FORWARD && col - 1 == endcol2 {
-                        curwin_mut().w_cursor.col += 1;
+                        curwin_mut().w_cursor.add_col(1);
                     }
                 }
             }
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_coladd(0);
             bd.textcol = 0;
 
             for (i, y_item) in y_array.iter().enumerate() {
@@ -1847,7 +1855,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 bd.endspaces = 0;
                 let mut delcount: i32 = 0;
 
-                if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+                if curwin_mut().w_cursor.get().lnum > curbuf_mut().b_ml.ml_line_count.get() {
                     if !ml_append(curbuf_mut().b_ml.ml_line_count.get(), b"", 1, false) {
                         break;
                     }
@@ -1863,7 +1871,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let mut cstype: CSType = init_charsize_arg(
                     &mut csarg,
                     curwin_mut(),
-                    curwin_mut().w_cursor.lnum,
+                    curwin_mut().w_cursor.get().lnum,
                     oldp_cstr,
                 );
                 let mut ci = utf_ptr2_str_char_info(oldp_cstr);
@@ -1963,23 +1971,23 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     .copy_from_slice(&oldp_with_nul[tail_start..tail_start + cols_u]);
 
                 ml_replace(
-                    curwin_mut().w_cursor.lnum,
+                    curwin_mut().w_cursor.get().lnum,
                     crate::memory::bytes_until_nul(&newp_vec),
                     true,
                 );
                 drop(newp_vec);
                 extmark_splice_cols(
                     curbuf_mut(),
-                    curwin_mut().w_cursor.lnum - 1,
+                    curwin_mut().w_cursor.get().lnum - 1,
                     bd.textcol,
                     delcount,
                     (totlen as i32) + lines_appended,
                     K_EXTMARK_UNDO,
                 );
 
-                curwin_mut().w_cursor.lnum += 1;
+                curwin_mut().w_cursor.add_lnum(1);
                 if i == 0 {
-                    curwin_mut().w_cursor.col += bd.startspaces;
+                    curwin_mut().w_cursor.add_col(bd.startspaces);
                 }
             }
 
@@ -1992,20 +2000,22 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 true,
             );
 
-            curbuf_mut().b_op_start = curwin_mut().w_cursor;
+            curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
             curbuf_mut().b_op_start.lnum = lnum;
 
-            curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum - 1;
+            curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.get().lnum - 1;
             curbuf_mut().b_op_end.col = (bd.textcol + (totlen as Colnr) - 1).max(0);
             curbuf_mut().b_op_end.coladd = 0;
             if (flags & PUT_CURSEND) != 0 {
-                curwin_mut().w_cursor = curbuf_mut().b_op_end;
-                curwin_mut().w_cursor.col += 1;
+                curwin_mut().w_cursor.set(curbuf_mut().b_op_end);
+                curwin_mut().w_cursor.add_col(1);
 
                 let len = get_cursor_line_len();
-                curwin_mut().w_cursor.col = curwin_mut().w_cursor.col.min(len);
+                curwin_mut()
+                    .w_cursor
+                    .set_col(curwin_mut().w_cursor.get().col.min(len));
             } else {
-                curwin_mut().w_cursor.lnum = lnum;
+                curwin_mut().w_cursor.set_lnum(lnum);
             }
         } else {
             let yanklen = y_array[0].size as i32;
@@ -2016,15 +2026,15 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                         as Colnr;
                     col += bytelen;
                     if yanklen != 0 {
-                        curwin_mut().w_cursor.col += bytelen;
+                        curwin_mut().w_cursor.add_col(bytelen);
                         curbuf_mut().b_op_end.col += bytelen;
                     }
                 }
-                curbuf_mut().b_op_start = curwin_mut().w_cursor;
+                curbuf_mut().b_op_start = curwin_mut().w_cursor.get();
             } else if dir == BACKWARD {
                 lnum -= 1;
             }
-            let new_cursor = curwin_mut().w_cursor;
+            let new_cursor = curwin_mut().w_cursor.get();
 
             if y_type == MotionType::MtCharWise && y_size == 1 {
                 let mut end_lnum: Linenr = 0;
@@ -2096,10 +2106,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                         first_byte_off = crate::mbyte::utf_head_off_slice(&newp_vec, prev_idx);
                         drop(newp_vec);
 
-                        if lnum == curwin_mut().w_cursor.lnum {
+                        if lnum == curwin_mut().w_cursor.get().lnum {
                             changed_cline_bef_curs(curwin_mut());
                             invalidate_botline_win(curwin_mut());
-                            curwin_mut().w_cursor.col += (totlen - 1) as Colnr;
+                            curwin_mut().w_cursor.add_col((totlen - 1) as Colnr);
                         }
                         changed_bytes(lnum, col);
                         extmark_splice_cols(
@@ -2119,13 +2129,13 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     }
                 }
 
-                curbuf_mut().b_op_end = curwin_mut().w_cursor;
+                curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
                 curbuf_mut().b_op_end.col -= first_byte_off;
 
                 if totlen != 0 && (g_st().restart_edit.get() != 0 || (flags & PUT_CURSEND) != 0) {
-                    curwin_mut().w_cursor.col += 1;
+                    curwin_mut().w_cursor.add_col(1);
                 } else {
-                    curwin_mut().w_cursor.col -= first_byte_off;
+                    curwin_mut().w_cursor.sub_col(first_byte_off);
                 }
             } else {
                 let mut new_lnum = new_cursor.lnum;
@@ -2165,7 +2175,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                             ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
                             drop(newp_vec);
 
-                            curwin_mut().w_cursor.lnum = lnum;
+                            curwin_mut().w_cursor.set_lnum(lnum);
                             i = 1;
                         }
 
@@ -2179,8 +2189,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                             lnum += 1;
                             nr_lines += 1;
                             if (flags & PUT_FIXINDENT) != 0 {
-                                let old_pos = curwin_mut().w_cursor;
-                                curwin_mut().w_cursor.lnum = lnum;
+                                let old_pos = curwin_mut().w_cursor.get();
+                                curwin_mut().w_cursor.set_lnum(lnum);
                                 let ptr_slice = crate::memline::ml_get_slice(lnum);
                                 if cnt == count && i == y_size - 1 {
                                     lendiff = ptr_slice.len() as Colnr;
@@ -2198,7 +2208,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                                     (get_indent() + indent_diff).max(0)
                                 };
                                 set_indent(indent, SIN_NOMARK);
-                                curwin_mut().w_cursor = old_pos;
+                                curwin_mut().w_cursor.set(old_pos);
                                 if cnt == count && i == y_size - 1 {
                                     lendiff -= ml_get_len(lnum);
                                 }
@@ -2277,9 +2287,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 if y_type == MotionType::MtCharWise {
                     changed_lines(
                         curbuf_mut(),
-                        curwin_mut().w_cursor.lnum,
+                        curwin_mut().w_cursor.get().lnum,
                         col,
-                        curwin_mut().w_cursor.lnum + 1,
+                        curwin_mut().w_cursor.get().lnum + 1,
                         nr_lines,
                         true,
                     );
@@ -2308,32 +2318,34 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 }
 
                 if (flags & PUT_CURSLINE) != 0 {
-                    curwin_mut().w_cursor.lnum = lnum;
+                    curwin_mut().w_cursor.set_lnum(lnum);
                     beginline(BL_WHITE | BL_FIX);
                 } else if (flags & PUT_CURSEND) != 0 {
                     if y_type == MotionType::MtLineWise {
                         if lnum >= curbuf_mut().b_ml.ml_line_count.get() {
-                            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
+                            curwin_mut()
+                                .w_cursor
+                                .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
                         } else {
-                            curwin_mut().w_cursor.lnum = lnum + 1;
+                            curwin_mut().w_cursor.set_lnum(lnum + 1);
                         }
-                        curwin_mut().w_cursor.col = 0;
+                        curwin_mut().w_cursor.set_col(0);
                     } else {
-                        curwin_mut().w_cursor.lnum = new_lnum;
-                        curwin_mut().w_cursor.col = col;
-                        curbuf_mut().b_op_end = curwin_mut().w_cursor;
+                        curwin_mut().w_cursor.set_lnum(new_lnum);
+                        curwin_mut().w_cursor.set_col(col);
+                        curbuf_mut().b_op_end = curwin_mut().w_cursor.get();
                         if col > 1 {
                             curbuf_mut().b_op_end.col = col - 1;
                         }
                     }
                 } else if y_type == MotionType::MtLineWise {
-                    curwin_mut().w_cursor.col = 0;
+                    curwin_mut().w_cursor.set_col(0);
                     if dir == FORWARD {
-                        curwin_mut().w_cursor.lnum += 1;
+                        curwin_mut().w_cursor.add_lnum(1);
                     }
                     beginline(BL_WHITE | BL_FIX);
                 } else {
-                    curwin_mut().w_cursor = new_cursor;
+                    curwin_mut().w_cursor.set(new_cursor);
                 }
             }
         }
@@ -2342,11 +2354,13 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         curwin_mut().w_set_curswant.set(true);
 
         let len = get_cursor_line_len();
-        if curwin_mut().w_cursor.col > len {
+        if curwin_mut().w_cursor.get().col > len {
             if cur_ve_flags == K_OPT_VE_FLAG_ALL {
-                curwin_mut().w_cursor.coladd = curwin_mut().w_cursor.col - len;
+                curwin_mut()
+                    .w_cursor
+                    .set_coladd(curwin_mut().w_cursor.get().col - len);
             }
-            curwin_mut().w_cursor.col = len;
+            curwin_mut().w_cursor.set_col(len);
         }
     }
 

@@ -2695,7 +2695,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     let old_wcol = curwin_mut().w_wcol.get();
                     let old_wrow = curwin_mut().w_wrow.get();
 
-                    if curwin_mut().w_cursor.col != 0 {
+                    if curwin_mut().w_cursor.get().col != 0 {
                         let mut col: Colnr = 0;
                         if curwin_mut().w_wcol.get() > 0 {
                             if g_st().ins_global.borrow().did_ai
@@ -2706,13 +2706,13 @@ fn vgetorpeek(advance: bool) -> i32 {
                             {
                                 curwin_mut().w_wcol.set(0);
                                 let ptr_cstr = get_cursor_line_ptr();
-                                let end_off = curwin_mut().w_cursor.col as usize;
+                                let end_off = curwin_mut().w_cursor.get().col as usize;
 
                                 let mut csarg = CharsizeArg::new();
                                 let cstype: CSType = init_charsize_arg(
                                     &mut csarg,
                                     curwin_mut(),
-                                    curwin_mut().w_cursor.lnum,
+                                    curwin_mut().w_cursor.get().lnum,
                                     ptr_cstr,
                                 );
                                 let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr_cstr);
@@ -2748,14 +2748,14 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 col = 0;
                             } else {
                                 curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() - (1));
-                                col = curwin_mut().w_cursor.col - 1;
+                                col = curwin_mut().w_cursor.get().col - 1;
                             }
                         } else if curwin_mut().w_onebuf_opt.wo_wrap.get()
                             && curwin_mut().w_wrow.get() != 0
                         {
                             curwin_mut().w_wrow.set(curwin_mut().w_wrow.get() - (1));
                             curwin_mut().w_wcol.set(curwin_mut().w_view_width.get() - 1);
-                            col = curwin_mut().w_cursor.col - 1;
+                            col = curwin_mut().w_cursor.get().col - 1;
                         }
                         if col > 0 && curwin_mut().w_wcol.get() > 0 {
                             let line_slice = crate::cursor::get_cursor_line_slice();

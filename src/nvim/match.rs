@@ -678,10 +678,11 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
 /// Update `shl->has_cursor` based on the match in `shl` and the cursor position (`check_cur_search_hl`).
 fn check_cur_search_hl(wp: &WinInfoInfo, shl: &mut SynMatch) {
     let linecount = shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
-    shl.has_cursor = wp.w_cursor.lnum >= shl.lnum
-        && wp.w_cursor.lnum <= shl.lnum + linecount
-        && (wp.w_cursor.lnum > shl.lnum || wp.w_cursor.col >= shl.rm.startpos[0].col)
-        && (wp.w_cursor.lnum < shl.lnum + linecount || wp.w_cursor.col < shl.rm.endpos[0].col);
+    shl.has_cursor = wp.w_cursor.get().lnum >= shl.lnum
+        && wp.w_cursor.get().lnum <= shl.lnum + linecount
+        && (wp.w_cursor.get().lnum > shl.lnum || wp.w_cursor.get().col >= shl.rm.startpos[0].col)
+        && (wp.w_cursor.get().lnum < shl.lnum + linecount
+            || wp.w_cursor.get().col < shl.rm.endpos[0].col);
 }
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).

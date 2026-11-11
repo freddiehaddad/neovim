@@ -2835,10 +2835,10 @@ pub(super) fn reg_match_visual() -> bool {
     }
 
     let (top, bot, mode, curswant) = if g_st().visual_global.borrow().active {
-        let (t, b) = if lt(g_st().visual_global.borrow().start, wp.w_cursor) {
-            (g_st().visual_global.borrow().start, wp.w_cursor)
+        let (t, b) = if lt(g_st().visual_global.borrow().start, wp.w_cursor.get()) {
+            (g_st().visual_global.borrow().start, wp.w_cursor.get())
         } else {
-            (wp.w_cursor, g_st().visual_global.borrow().start)
+            (wp.w_cursor.get(), g_st().visual_global.borrow().start)
         };
         (
             t,

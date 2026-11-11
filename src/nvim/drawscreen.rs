@@ -220,7 +220,7 @@ fn w_lines_at(wp: &WinInfoInfo, idx: usize) -> std::cell::RefMut<'_, Wline> {
 
 /// Redraws the cursor line of `wp` after 'concealcursor' revealed or concealed it again.
 pub fn conceal_redraw_cursor_line(wp: &mut WinInfoInfo) {
-    let cursor_lnum = wp.w_cursor.lnum;
+    let cursor_lnum = wp.w_cursor.get().lnum;
     conceal_reveal_changed(wp, cursor_lnum, cursor_lnum);
     if decor_conceal_line(wp, cursor_lnum - 1, true) {
         changed_window_setting(wp);
@@ -251,13 +251,13 @@ pub fn conceal_check_visual() {
                 .borrow()
                 .start
                 .lnum
-                .min(curwin_mut().w_cursor.lnum),
+                .min(curwin_mut().w_cursor.get().lnum),
             g_st()
                 .visual_global
                 .borrow()
                 .start
                 .lnum
-                .max(curwin_mut().w_cursor.lnum),
+                .max(curwin_mut().w_cursor.get().lnum),
         ]
     } else {
         [0, 0]
@@ -870,8 +870,8 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
         let mut row = wp.w_wrow.get();
         let mut col = wp.w_wcol.get();
         if wp.w_onebuf_opt.wo_rl.get() {
-            let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
-                [wp.w_cursor.col as usize..];
+            let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.get().lnum)
+                [wp.w_cursor.get().col as usize..];
             let wide = crate::mbyte::utf_slice2cells(cur_slice) == 2
                 && vim_isprintc(crate::mbyte::utf_slice2char(cur_slice));
             col = wp.w_view_width.get() - wp.w_wcol.get() - if wide { 2 } else { 1 };
@@ -896,15 +896,18 @@ pub fn redraw_custom_title_later() -> bool {
 pub fn show_cursor_info_later(force: bool) {
     let state = get_real_state();
     let empty_line = (g_st().state_global.get() & MODE_INSERT) == 0
-        && crate::memline::ml_get_buf_slice(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)
-            .is_empty();
+        && crate::memline::ml_get_buf_slice(
+            curwin_mut().buf_mut(),
+            curwin_mut().w_cursor.get().lnum,
+        )
+        .is_empty();
 
     validate_virtcol(curwin_mut());
     if force
-        || curwin_mut().w_cursor.lnum != curwin_mut().w_stl_cursor.get().lnum
-        || curwin_mut().w_cursor.col != curwin_mut().w_stl_cursor.get().col
+        || curwin_mut().w_cursor.get().lnum != curwin_mut().w_stl_cursor.get().lnum
+        || curwin_mut().w_cursor.get().col != curwin_mut().w_stl_cursor.get().col
         || curwin_mut().w_virtcol.get() != curwin_mut().w_stl_virtcol.get()
-        || curwin_mut().w_cursor.coladd != curwin_mut().w_stl_cursor.get().coladd
+        || curwin_mut().w_cursor.get().coladd != curwin_mut().w_stl_cursor.get().coladd
         || curwin_mut().w_topline.get() != curwin_mut().w_stl_topline.get()
         || curwin_mut().buf_mut().b_ml.ml_line_count.get() != curwin_mut().w_stl_line_count.get()
         || curwin_mut().w_topfill.get() != curwin_mut().w_stl_topfill.get()
@@ -933,7 +936,7 @@ pub fn show_cursor_info_later(force: bool) {
         redraw_custom_title_later();
     }
 
-    curwin_mut().w_stl_cursor.set(curwin_mut().w_cursor);
+    curwin_mut().w_stl_cursor.set(curwin_mut().w_cursor.get());
     curwin_mut().w_stl_virtcol.set(curwin_mut().w_virtcol.get());
     curwin_mut().w_stl_empty.set(empty_line);
     curwin_mut().w_stl_topline.set(curwin_mut().w_topline.get());
@@ -1573,7 +1576,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             wp.w_skipcol.set(w - add);
         }
     }
-    if wp.w_skipcol.get() > 0 && wp.w_cursor.lnum != wp.w_topline.get() {
+    if wp.w_skipcol.get() > 0 && wp.w_cursor.get().lnum != wp.w_topline.get() {
         let tl = wp.w_topline.get();
         if linetabsize_disp_eol(&mut *wp, tl) <= wp.w_skipcol.get() {
             wp.w_skipcol.set(0);
@@ -1850,12 +1853,12 @@ fn win_update(wp: &mut WinInfoInfo) {
             if g_st().visual_global.borrow().mode != i32::from(wp.w_old_visual_mode.get())
                 || type_ == UPD_INVERTED_ALL
             {
-                if curwin_mut().w_cursor.lnum < g_st().visual_global.borrow().start.lnum {
-                    from = curwin_mut().w_cursor.lnum;
+                if curwin_mut().w_cursor.get().lnum < g_st().visual_global.borrow().start.lnum {
+                    from = curwin_mut().w_cursor.get().lnum;
                     to = g_st().visual_global.borrow().start.lnum;
                 } else {
                     from = g_st().visual_global.borrow().start.lnum;
-                    to = curwin_mut().w_cursor.lnum;
+                    to = curwin_mut().w_cursor.get().lnum;
                 }
                 from = from
                     .min(wp.w_old_cursor_lnum.get())
@@ -1864,12 +1867,12 @@ fn win_update(wp: &mut WinInfoInfo) {
                     .max(wp.w_old_cursor_lnum.get())
                     .max(wp.w_old_visual_lnum.get());
             } else {
-                if curwin_mut().w_cursor.lnum < wp.w_old_cursor_lnum.get() {
-                    from = curwin_mut().w_cursor.lnum;
+                if curwin_mut().w_cursor.get().lnum < wp.w_old_cursor_lnum.get() {
+                    from = curwin_mut().w_cursor.get().lnum;
                     to = wp.w_old_cursor_lnum.get();
                 } else {
                     from = wp.w_old_cursor_lnum.get();
-                    to = curwin_mut().w_cursor.lnum;
+                    to = curwin_mut().w_cursor.get().lnum;
                     if from == 0 {
                         from = to;
                     }
@@ -1891,7 +1894,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             if g_st().visual_global.borrow().mode == CTRL_V_CONST {
                 let mut fromc: Colnr = 0;
                 let mut toc: Colnr = 0;
-                let mut cursor = curwin_mut().w_cursor;
+                let mut cursor = curwin_mut().w_cursor.get();
                 getvcols(
                     &mut *wp,
                     &mut g_st().visual_global.borrow_mut().start,
@@ -1900,15 +1903,15 @@ fn win_update(wp: &mut WinInfoInfo) {
                     &mut toc,
                     GETVCOL_END_EXCL_LBR,
                 );
-                curwin_mut().w_cursor = cursor;
+                curwin_mut().w_cursor.set(cursor);
                 toc += 1;
                 if curwin_mut().w_curswant.get() == MAXCOL {
                     if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
-                        let cursor_above =
-                            curwin_mut().w_cursor.lnum < g_st().visual_global.borrow().start.lnum;
+                        let cursor_above = curwin_mut().w_cursor.get().lnum
+                            < g_st().visual_global.borrow().start.lnum;
                         toc = 0;
                         let mut pos = CursorPos {
-                            lnum: curwin_mut().w_cursor.lnum,
+                            lnum: curwin_mut().w_cursor.get().lnum,
                             col: 0,
                             coladd: 0,
                         };
@@ -1987,7 +1990,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     if g_st().visual_global.borrow().active && ptr::eq(buf, curwin_mut().w_buffer.get().as_ptr()) {
         wp.w_old_visual_mode
             .set(g_st().visual_global.borrow().mode as u8);
-        wp.w_old_cursor_lnum.set(curwin_mut().w_cursor.lnum);
+        wp.w_old_cursor_lnum.set(curwin_mut().w_cursor.get().lnum);
         wp.w_old_visual_lnum
             .set(g_st().visual_global.borrow().start.lnum);
         wp.w_old_visual_col
@@ -2062,7 +2065,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     top_to_mod = false;
                 }
 
-                let foldinfo = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.lnum {
+                let foldinfo = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.get().lnum {
                     cursorline_fi
                 } else {
                     fold_info(wp, lnum)
@@ -2100,7 +2103,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         if wli.wl_valid && wli.wl_lnum == mod_bot {
                             break;
                         }
-                        if wli.wl_lnum == wp.w_cursor.lnum {
+                        if wli.wl_lnum == wp.w_cursor.get().lnum {
                             old_cline_height = i32::from(wli.wl_size);
                         }
                         old_rows += i32::from(wli.wl_size);
@@ -2128,7 +2131,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                             if g_st().dollar_vcol.get() >= 0
                                 && wp == curwin_ptr()
                                 && old_cline_height > 0
-                                && l == wp.w_cursor.lnum
+                                && l == wp.w_cursor.get().lnum
                             {
                                 new_rows += old_cline_height;
                                 j += 1;
@@ -2289,7 +2292,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 w_lines_at(&*wp, idx as usize).wl_lnum = lnum;
                 w_lines_at(&*wp, idx as usize).wl_valid = true;
 
-                let is_curline = wp == curwin_ptr() && lnum == wp.w_cursor.lnum;
+                let is_curline = wp == curwin_ptr() && lnum == wp.w_cursor.get().lnum;
 
                 if row > wp.w_view_height.get() {
                     if g_st().dollar_vcol.get() == -1 || !is_curline {
@@ -2311,9 +2314,9 @@ fn win_update(wp: &mut WinInfoInfo) {
                     && buf.b_mod_set.get()
                     && buf.b_mod_xlines.get() != 0)
                     || (wp.w_onebuf_opt.wo_rnu.get()
-                        && wp.w_last_cursor_lnum_rnu.get() != wp.w_cursor.lnum)
+                        && wp.w_last_cursor_lnum_rnu.get() != wp.w_cursor.get().lnum)
                 {
-                    let info = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.lnum {
+                    let info = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.get().lnum {
                         cursorline_fi
                     } else {
                         fold_info(wp, lnum)
@@ -2354,7 +2357,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         wp.w_last_cursorline.set(wp.w_cursorline.get());
         wp.w_last_cursor_lnum_rnu
             .set(if wp.w_onebuf_opt.wo_rnu.get() {
-                wp.w_cursor.lnum
+                wp.w_cursor.get().lnum
             } else {
                 0
             });
@@ -2895,7 +2898,7 @@ pub fn conceal_reveal_changed(wp: &mut WinInfoInfo, line1: Linenr, line2: Linenr
 /// listed modes, and every line of the Visual area unless "v" is listed. Drawing and height
 /// calculations must ask this the same way, or they disagree about how tall a concealed line is.
 pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
-    if wp == curwin_ptr() && lnum == wp.w_cursor.lnum && !conceal_cursor_line(wp) {
+    if wp == curwin_ptr() && lnum == wp.w_cursor.get().lnum && !conceal_cursor_line(wp) {
         return true;
     }
     g_st().visual_global.borrow().active
@@ -2909,14 +2912,14 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
                 .borrow()
                 .start
                 .lnum
-                .min(curwin_mut().w_cursor.lnum)
+                .min(curwin_mut().w_cursor.get().lnum)
         && lnum
             <= g_st()
                 .visual_global
                 .borrow()
                 .start
                 .lnum
-                .max(curwin_mut().w_cursor.lnum)
+                .max(curwin_mut().w_cursor.get().lnum)
         && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu.as_cstr(), i32::from(b'v'))
 }
 
@@ -2927,13 +2930,13 @@ pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
 
 pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {
     let cl = if win_cursorline_standout(&*wp) {
-        wp.w_cursor.lnum
+        wp.w_cursor.get().lnum
     } else {
         0
     };
     wp.w_cursorline.set(cl);
     if wp.w_onebuf_opt.wo_cul.get() {
-        *foldinfo = fold_info(wp, wp.w_cursor.lnum);
+        *foldinfo = fold_info(wp, wp.w_cursor.get().lnum);
         if foldinfo.fi_level != 0 && foldinfo.fi_lines > 0 {
             wp.w_cursorline.set(foldinfo.fi_lnum);
         }

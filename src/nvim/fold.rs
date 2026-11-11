@@ -411,7 +411,7 @@ pub fn fold_open_cursor() {
     if has_any_folding(curwin_mut()) != 0 {
         loop {
             let mut done = DONE_NOTHING;
-            set_manual_fold(curwin_mut().w_cursor, true, false, Some(&mut done));
+            set_manual_fold(curwin_mut().w_cursor.get(), true, false, Some(&mut done));
             if (done & DONE_ACTION) == 0 {
                 break;
             }
@@ -455,7 +455,7 @@ pub fn fold_check_close() {
     checkupdate(curwin_mut());
     if check_close_rec(
         &mut curwin_mut().w_folds.borrow_mut(),
-        curwin_mut().w_cursor.lnum,
+        curwin_mut().w_cursor.get().lnum,
         curwin_mut().w_onebuf_opt.wo_fdl.get() as i32,
     ) {
         changed_window_setting(curwin_mut());
@@ -774,11 +774,11 @@ pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
         }
         let mut use_level = false;
         let mut maybe_small = false;
-        let mut lnum_found = curwin_mut().w_cursor.lnum;
+        let mut lnum_found = curwin_mut().w_cursor.get().lnum;
         let mut level: i32 = 0;
         let mut last = false;
         loop {
-            let (found, idx) = fold_find(gap, curwin_mut().w_cursor.lnum - lnum_off);
+            let (found, idx) = fold_find(gap, curwin_mut().w_cursor.get().lnum - lnum_off);
             if !found {
                 if !updown || gap.is_empty() {
                     break;
@@ -788,7 +788,7 @@ pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
                         break;
                     }
                     let lnum = gap[idx].fd_top + lnum_off;
-                    if lnum > curwin_mut().w_cursor.lnum {
+                    if lnum > curwin_mut().w_cursor.get().lnum {
                         lnum_found = lnum;
                     }
                 } else {
@@ -797,7 +797,7 @@ pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
                     }
                     let prev_fp = &gap[idx - 1];
                     let lnum = prev_fp.fd_top + lnum_off + prev_fp.fd_len - 1;
-                    if lnum < curwin_mut().w_cursor.lnum {
+                    if lnum < curwin_mut().w_cursor.get().lnum {
                         lnum_found = lnum;
                     }
                 }
@@ -824,25 +824,25 @@ pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
                 if dir == FORWARD {
                     if idx + 1 < gap.len() {
                         let lnum = gap[idx + 1].fd_top + lnum_off;
-                        if lnum > curwin_mut().w_cursor.lnum {
+                        if lnum > curwin_mut().w_cursor.get().lnum {
                             lnum_found = lnum;
                         }
                     }
                 } else if idx > 0 {
                     let prev_fp = &gap[idx - 1];
                     let lnum = prev_fp.fd_top + lnum_off + prev_fp.fd_len - 1;
-                    if lnum < curwin_mut().w_cursor.lnum {
+                    if lnum < curwin_mut().w_cursor.get().lnum {
                         lnum_found = lnum;
                     }
                 }
             } else if dir == FORWARD {
                 let lnum = gap[idx].fd_top + lnum_off + gap[idx].fd_len - 1;
-                if lnum > curwin_mut().w_cursor.lnum {
+                if lnum > curwin_mut().w_cursor.get().lnum {
                     lnum_found = lnum;
                 }
             } else {
                 let lnum = gap[idx].fd_top + lnum_off;
-                if lnum < curwin_mut().w_cursor.lnum {
+                if lnum < curwin_mut().w_cursor.get().lnum {
                     lnum_found = lnum;
                 }
             }
@@ -857,12 +857,12 @@ pub fn fold_move_to(updown: bool, dir: i32, count: i32) -> bool {
             level += 1;
         }
         *curwin_mut().w_folds.borrow_mut() = folds;
-        if lnum_found != curwin_mut().w_cursor.lnum {
+        if lnum_found != curwin_mut().w_cursor.get().lnum {
             if !retval {
                 setpcmark();
             }
-            curwin_mut().w_cursor.lnum = lnum_found;
-            curwin_mut().w_cursor.col = 0;
+            curwin_mut().w_cursor.set_lnum(lnum_found);
+            curwin_mut().w_cursor.set_col(0);
             retval = true;
         } else {
             break;
@@ -899,18 +899,27 @@ pub fn fold_adjust_visual() {
         return;
     }
 
-    let visual_before_cursor = ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor);
+    let visual_before_cursor = ltoreq(
+        g_st().visual_global.borrow().start,
+        curwin_mut().w_cursor.get(),
+    );
     let (mut start, mut end) = if visual_before_cursor {
-        (g_st().visual_global.borrow().start, curwin_mut().w_cursor)
+        (
+            g_st().visual_global.borrow().start,
+            curwin_mut().w_cursor.get(),
+        )
     } else {
-        (curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+        (
+            curwin_mut().w_cursor.get(),
+            g_st().visual_global.borrow().start,
+        )
     };
     if has_folding(curwin_mut(), start.lnum, Some(&mut start.lnum), None) {
         start.col = 0;
         if visual_before_cursor {
             g_st().visual_global.borrow_mut().start = start;
         } else {
-            curwin_mut().w_cursor = start;
+            curwin_mut().w_cursor.set(start);
         }
     }
 
@@ -924,7 +933,7 @@ pub fn fold_adjust_visual() {
     }
     end.col = end_col;
     if visual_before_cursor {
-        curwin_mut().w_cursor = end;
+        curwin_mut().w_cursor.set(end);
     } else {
         g_st().visual_global.borrow_mut().start = end;
     }
@@ -933,9 +942,9 @@ pub fn fold_adjust_visual() {
 
 /// Move the cursor to the first line of a closed fold.
 pub fn fold_adjust_cursor(wp: &mut WinInfoInfo) {
-    let mut lnum = wp.w_cursor.lnum;
+    let mut lnum = wp.w_cursor.get().lnum;
     has_folding(wp, lnum, Some(&mut lnum), None);
-    wp.w_cursor.lnum = lnum;
+    wp.w_cursor.set_lnum(lnum);
 }
 
 fn fold_find(gap: &[FoldEntry], lnum: Linenr) -> (bool, usize) {
@@ -1000,7 +1009,7 @@ fn set_manual_fold(
     if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb.get() {
         for wp in for_all_windows_ptr() {
             if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb.get() {
-                let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
+                let dlnum = diff_lnum_win(curwin_mut().w_cursor.get().lnum, &mut *wp);
                 if dlnum != 0 {
                     set_manual_fold_win(&mut *wp, dlnum, opening, recurse, None);
                 }

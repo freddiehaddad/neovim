@@ -265,7 +265,7 @@ fn undo_st<R>(f: impl FnOnce(&UndoModuleState) -> R) -> R {
 
 /// Save the current line for both the `"u"` and `"U"` command.
 pub fn u_save_cursor() -> bool {
-    let cur = curwin_mut().w_cursor.lnum;
+    let cur = curwin_mut().w_cursor.get().lnum;
     let top = if cur > 0 { cur - 1 } else { 0 };
     let bot = cur + 1;
     u_save(top, bot)
@@ -444,8 +444,8 @@ pub fn u_savecommon(
         let origin_cursor = atom_origin_pos(buf);
         uhp_mut(buf, uhp).uh_cursor = origin_cursor;
         if virtual_active(curwin_mut())
-            && curwin_mut().w_cursor.coladd > 0
-            && equalpos(origin_cursor, curwin_mut().w_cursor)
+            && curwin_mut().w_cursor.get().coladd > 0
+            && equalpos(origin_cursor, curwin_mut().w_cursor.get())
         {
             uhp_mut(buf, uhp).uh_cursor_vcol = getviscol();
         } else {
@@ -1964,7 +1964,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
 
 fn u_undoredo(undo: bool, do_buf_event: bool) {
     let mut newlnum: Linenr = MAXLNUM;
-    let mut new_curpos = curwin_mut().w_cursor;
+    let mut new_curpos = curwin_mut().w_cursor.get();
     let curhead_idx = curbuf_mut().b_u_curhead.get().unwrap();
     let curhead = uhp_mut(curbuf_mut(), curhead_idx);
 
@@ -2137,7 +2137,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         buf_updates_unload(curbuf_mut(), true);
     }
 
-    curwin_mut().w_cursor = new_curpos;
+    curwin_mut().w_cursor.set(new_curpos);
     check_cursor_lnum(curwin_mut());
 
     curhead.uh_entries.reverse();
@@ -2177,37 +2177,37 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         && curhead.uh_cursor.lnum >= 1
         && curhead.uh_cursor.lnum <= curbuf_mut().b_ml.ml_line_count.get()
     {
-        curwin_mut().w_cursor = curhead.uh_cursor;
+        curwin_mut().w_cursor.set(curhead.uh_cursor);
         if virtual_active(curwin_mut()) && curhead.uh_cursor_vcol >= 0 {
             coladvance(curwin_mut(), curhead.uh_cursor_vcol);
         }
     } else {
-        if curhead.uh_cursor.lnum + 1 == curwin_mut().w_cursor.lnum
-            && curwin_mut().w_cursor.lnum > 1
+        if curhead.uh_cursor.lnum + 1 == curwin_mut().w_cursor.get().lnum
+            && curwin_mut().w_cursor.get().lnum > 1
         {
-            curwin_mut().w_cursor.lnum -= 1;
+            curwin_mut().w_cursor.sub_lnum(1);
         }
-        if curwin_mut().w_cursor.lnum <= curbuf_mut().b_ml.ml_line_count.get() {
-            if curhead.uh_cursor.lnum == curwin_mut().w_cursor.lnum {
-                curwin_mut().w_cursor.col = curhead.uh_cursor.col;
+        if curwin_mut().w_cursor.get().lnum <= curbuf_mut().b_ml.ml_line_count.get() {
+            if curhead.uh_cursor.lnum == curwin_mut().w_cursor.get().lnum {
+                curwin_mut().w_cursor.set_col(curhead.uh_cursor.col);
                 if virtual_active(curwin_mut()) && curhead.uh_cursor_vcol >= 0 {
                     coladvance(curwin_mut(), curhead.uh_cursor_vcol);
                 } else {
-                    curwin_mut().w_cursor.coladd = 0;
+                    curwin_mut().w_cursor.set_coladd(0);
                 }
             } else {
                 beginline(BL_SOL | BL_FIX);
             }
         } else {
-            curwin_mut().w_cursor.col = 0;
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_col(0);
+            curwin_mut().w_cursor.set_coladd(0);
         }
     }
 
     check_cursor(curwin_mut());
 
     if !undo && curhead.uh_cursor_after.lnum > 0 {
-        curwin_mut().w_cursor = curhead.uh_cursor_after;
+        curwin_mut().w_cursor.set(curhead.uh_cursor_after);
         check_cursor(curwin_mut());
     }
 
@@ -2747,8 +2747,8 @@ fn u_saveline(buf: &mut FileBuf, lnum: Linenr) {
     }
     u_clearline(buf);
     buf.b_u_line_lnum.set(lnum);
-    if curwin_mut().w_buffer.get() == buf && curwin_mut().w_cursor.lnum == lnum {
-        buf.b_u_line_colnr.set(curwin_mut().w_cursor.col);
+    if curwin_mut().w_buffer.get() == buf && curwin_mut().w_cursor.get().lnum == lnum {
+        buf.b_u_line_colnr.set(curwin_mut().w_cursor.get().col);
     } else {
         buf.b_u_line_colnr.set(0);
     }
@@ -2802,11 +2802,15 @@ pub fn u_undoline() {
     curbuf_mut().b_u_line_ptr.set(Some(oldp));
 
     let t = curbuf_mut().b_u_line_colnr.get();
-    if curwin_mut().w_cursor.lnum == curbuf_mut().b_u_line_lnum.get() {
-        curbuf_mut().b_u_line_colnr.set(curwin_mut().w_cursor.col);
+    if curwin_mut().w_cursor.get().lnum == curbuf_mut().b_u_line_lnum.get() {
+        curbuf_mut()
+            .b_u_line_colnr
+            .set(curwin_mut().w_cursor.get().col);
     }
-    curwin_mut().w_cursor.col = t;
-    curwin_mut().w_cursor.lnum = curbuf_mut().b_u_line_lnum.get();
+    curwin_mut().w_cursor.set_col(t);
+    curwin_mut()
+        .w_cursor
+        .set_lnum(curbuf_mut().b_u_line_lnum.get());
     check_cursor_col(curwin_mut());
 }
 

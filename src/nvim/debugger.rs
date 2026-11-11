@@ -515,7 +515,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
         p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, 4));
 
         if here {
-            bp.dbg_lnum = curwin_mut().w_cursor.lnum;
+            bp.dbg_lnum = curwin_mut().w_cursor.get().lnum;
         } else if !is_prof && p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
             let p_bytes = p.to_bytes();
             let mut rem = p_bytes;

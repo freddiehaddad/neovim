@@ -110,7 +110,7 @@ pub fn find_start_comment(ind_maxcomment: i32) -> Option<CursorPos> {
         if is_pos_in_string_slice(crate::memline::ml_get_slice(pos_ref.lnum), pos_ref.col) == 0 {
             break;
         }
-        cur_maxcomment = (curwin_mut().w_cursor.lnum - pos_ref.lnum - 1) as i64;
+        cur_maxcomment = (curwin_mut().w_cursor.get().lnum - pos_ref.lnum - 1) as i64;
         if cur_maxcomment <= 0 {
             pos = None;
             break;
@@ -142,7 +142,7 @@ fn find_start_rawstring(ind_maxcomment: i32) -> Option<CursorPos> {
         if is_pos_in_string_slice(crate::memline::ml_get_slice(pos_ref.lnum), pos_ref.col) == 0 {
             break;
         }
-        cur_maxcomment = curwin_mut().w_cursor.lnum - pos_ref.lnum - 1;
+        cur_maxcomment = curwin_mut().w_cursor.get().lnum - pos_ref.lnum - 1;
         if cur_maxcomment <= 0 {
             pos = None;
             break;
@@ -273,7 +273,7 @@ fn cin_nocode_slice(s: &[u8]) -> bool {
     cin_skipcomment_slice(s).is_empty()
 }
 fn find_line_comment() -> Option<CursorPos> {
-    let mut pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor.get();
     loop {
         pos.lnum -= 1;
         if pos.lnum <= 0 {
@@ -340,12 +340,12 @@ fn cin_islabel() -> bool {
     if ind_find_start_cors(None).is_some() {
         return false;
     }
-    let cursor_save = curwin_mut().w_cursor;
-    while curwin_mut().w_cursor.lnum > 1 {
-        curwin_mut().w_cursor.lnum -= 1;
-        curwin_mut().w_cursor.col = 0;
+    let cursor_save = curwin_mut().w_cursor.get();
+    while curwin_mut().w_cursor.get().lnum > 1 {
+        curwin_mut().w_cursor.sub_lnum(1);
+        curwin_mut().w_cursor.set_col(0);
         if let Some(trypos) = ind_find_start_cors(None) {
-            curwin_mut().w_cursor = trypos;
+            curwin_mut().w_cursor.set(trypos);
         }
         let mut line = crate::cursor::get_cursor_line_slice();
         if cin_ispreproc_slice(line) {
@@ -355,13 +355,13 @@ fn cin_islabel() -> bool {
         if line.is_empty() {
             continue;
         }
-        curwin_mut().w_cursor = cursor_save;
+        curwin_mut().w_cursor.set(cursor_save);
         return cin_isterminated_slice(line, true, false) != 0
             || cin_isscopedecl_slice(line)
             || cin_iscase_slice(line, true)
             || (cin_islabel_skip_slice(&mut line) && cin_nocode_slice(line));
     }
-    curwin_mut().w_cursor = cursor_save;
+    curwin_mut().w_cursor.set(cursor_save);
     true
 }
 fn cin_skip_comment_and_string_idx(bytes: &[u8], mut idx: usize) -> usize {
@@ -581,8 +581,8 @@ fn get_indent_nolabel(lnum: Linenr) -> i32 {
     col
 }
 fn skip_label(lnum: Linenr, pp: &mut &'static [u8]) -> i32 {
-    let cursor_save = curwin_mut().w_cursor;
-    curwin_mut().w_cursor.lnum = lnum;
+    let cursor_save = curwin_mut().w_cursor.get();
+    curwin_mut().w_cursor.set_lnum(lnum);
     let l_slice = crate::cursor::get_cursor_line_slice();
     let amount =
         if cin_iscase_slice(l_slice, false) || cin_isscopedecl_slice(l_slice) || cin_islabel() {
@@ -595,7 +595,7 @@ fn skip_label(lnum: Linenr, pp: &mut &'static [u8]) -> i32 {
             *pp = crate::cursor::get_cursor_line_slice();
             amt
         };
-    curwin_mut().w_cursor = cursor_save;
+    curwin_mut().w_cursor.set(cursor_save);
     amount
 }
 fn cin_first_id_amount() -> i32 {
@@ -627,7 +627,7 @@ fn cin_first_id_amount() -> i32 {
     }
     p = crate::charset::skipwhite_slice(&p[len..]);
     let mut fp = CursorPos {
-        lnum: curwin_mut().w_cursor.lnum,
+        lnum: curwin_mut().w_cursor.get().lnum,
         col: (line.len() - p.len()) as Colnr,
         coladd: 0,
     };
@@ -760,21 +760,21 @@ fn cin_isfuncdecl(sp: Option<&mut &'static [u8]>, first_lnum: Linenr, min_lnum: 
         None => crate::memline::ml_get_slice(first_lnum),
     };
     let mut lnum = first_lnum;
-    let save_lnum = curwin_mut().w_cursor.lnum;
+    let save_lnum = curwin_mut().w_cursor.get().lnum;
     let mut retval = false;
     let mut just_started = true;
-    curwin_mut().w_cursor.lnum = lnum;
+    curwin_mut().w_cursor.set_lnum(lnum);
     if find_last_paren_slice(s, b'(', b')')
         && let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
     {
         lnum = trypos.lnum;
         if lnum < min_lnum {
-            curwin_mut().w_cursor.lnum = save_lnum;
+            curwin_mut().w_cursor.set_lnum(save_lnum);
             return false;
         }
         s = crate::memline::ml_get_slice(lnum);
     }
-    curwin_mut().w_cursor.lnum = save_lnum;
+    curwin_mut().w_cursor.set_lnum(save_lnum);
     if cin_ispreproc_slice(s) {
         return false;
     }
@@ -861,11 +861,11 @@ fn cin_iswhileofdo(p: &[u8], lnum: Linenr) -> bool {
     if !cin_starts_with_slice(s, b"while") {
         return false;
     }
-    let cursor_save = curwin_mut().w_cursor;
-    curwin_mut().w_cursor.lnum = lnum;
+    let cursor_save = curwin_mut().w_cursor.get();
+    curwin_mut().w_cursor.set_lnum(lnum);
     let line = crate::cursor::get_cursor_line_slice();
     let w_pos = line.iter().position(|&b| b == b'w').unwrap_or(line.len());
-    curwin_mut().w_cursor.col = w_pos as Colnr;
+    curwin_mut().w_cursor.set_col(w_pos as Colnr);
     let trypos = findmatchlimit(
         None,
         0,
@@ -876,7 +876,7 @@ fn cin_iswhileofdo(p: &[u8], lnum: Linenr) -> bool {
         cin_skipcomment_slice(crate::memline::ml_get_pos_slice(tp).get(1..).unwrap_or(&[])).first()
             == Some(&b';')
     });
-    curwin_mut().w_cursor = cursor_save;
+    curwin_mut().w_cursor.set(cursor_save);
     retval
 }
 fn cin_is_if_for_while_before_offset(bytes: &[u8], poffset: &mut Colnr) -> i32 {
@@ -937,7 +937,7 @@ fn cin_iswhileofdo_end(terminated: i32) -> bool {
             let s = crate::charset::skipwhite_slice(&p[1..]);
             if s.first() == Some(&b';') && cin_nocode_slice(&s[1..]) {
                 let i = (line.len() - p.len()) as Colnr;
-                curwin_mut().w_cursor.col = i;
+                curwin_mut().w_cursor.set_col(i);
                 if let Some(trypos) = find_match_paren(curbuf_mut().b_ind_maxparen.get()) {
                     let tp_lnum = trypos.lnum;
                     let mut s2 = cin_skipcomment_slice(crate::memline::ml_get_slice(tp_lnum));
@@ -945,7 +945,7 @@ fn cin_iswhileofdo_end(terminated: i32) -> bool {
                         s2 = cin_skipcomment_slice(after);
                     }
                     if cin_starts_with_slice(s2, b"while") {
-                        curwin_mut().w_cursor.lnum = tp_lnum;
+                        curwin_mut().w_cursor.set_lnum(tp_lnum);
                         return true;
                     }
                 }
@@ -965,7 +965,7 @@ fn cin_isbreak_slice(p: &[u8]) -> bool {
 }
 fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
     let pos = &mut cached.lpos;
-    let mut lnum = curwin_mut().w_cursor.lnum;
+    let mut lnum = curwin_mut().w_cursor.get().lnum;
     let mut line = crate::cursor::get_cursor_line_slice();
     if pos.lnum <= lnum {
         return cached.found != 0;
@@ -1009,7 +1009,7 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
     s = line;
     loop {
         if s.is_empty() {
-            if lnum == curwin_mut().w_cursor.lnum {
+            if lnum == curwin_mut().w_cursor.get().lnum {
                 break;
             }
             lnum += 1;
@@ -1070,7 +1070,8 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                     pos.col = (line.len() - s.len()) as Colnr;
                 }
             }
-            if lnum == curwin_mut().w_cursor.lnum && s[0] == b',' && cin_nocode_slice(&s[1..]) {
+            if lnum == curwin_mut().w_cursor.get().lnum && s[0] == b',' && cin_nocode_slice(&s[1..])
+            {
                 pos.col = 0;
             }
             s = cin_skipcomment_slice(&s[1..]);
@@ -1096,10 +1097,10 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
             amount += curbuf_mut().b_ind_cpp_baseclass.get();
         }
     } else {
-        curwin_mut().w_cursor.col = col;
-        let mut cursor = curwin_mut().w_cursor;
+        curwin_mut().w_cursor.set_col(col);
+        let mut cursor = curwin_mut().w_cursor.get();
         getvcol(curwin_mut(), &mut cursor, Some(&mut vcol), None, None, 0);
-        curwin_mut().w_cursor = cursor;
+        curwin_mut().w_cursor.set(cursor);
         amount = vcol;
     }
     if amount < curbuf_mut().b_ind_cpp_baseclass.get() {
@@ -1177,14 +1178,14 @@ fn cin_skip2pos(trypos: &mut CursorPos) -> i32 {
     idx as i32
 }
 fn find_start_brace() -> Option<CursorPos> {
-    let cursor_save = curwin_mut().w_cursor;
+    let cursor_save = curwin_mut().w_cursor.get();
     let mut trypos: Option<CursorPos>;
     loop {
         trypos = findmatchlimit(None, b'{' as i32, FM_BLOCKSTOP | FM_SKIPCOMM, 0);
         let Some(mut tp_copy) = trypos else {
             break;
         };
-        curwin_mut().w_cursor = tp_copy;
+        curwin_mut().w_cursor.set(tp_copy);
         let mut pos: Option<CursorPos> = None;
         if cin_skip2pos(&mut tp_copy) as Colnr == tp_copy.col && {
             pos = ind_find_start_cors(None);
@@ -1194,17 +1195,17 @@ fn find_start_brace() -> Option<CursorPos> {
             break;
         }
         if let Some(pos_ref) = pos {
-            curwin_mut().w_cursor = pos_ref;
+            curwin_mut().w_cursor.set(pos_ref);
         }
     }
-    curwin_mut().w_cursor = cursor_save;
+    curwin_mut().w_cursor.set(cursor_save);
     trypos
 }
 fn find_match_paren(ind_maxparen: i32) -> Option<CursorPos> {
     find_match_char(b'(', ind_maxparen)
 }
 fn find_match_char(c: u8, ind_maxparen: i32) -> Option<CursorPos> {
-    let cursor_save = curwin_mut().w_cursor;
+    let cursor_save = curwin_mut().w_cursor.get();
     let mut ind_maxp_wk = ind_maxparen;
     let mut trypos: Option<CursorPos>;
     loop {
@@ -1213,18 +1214,18 @@ fn find_match_char(c: u8, ind_maxparen: i32) -> Option<CursorPos> {
             if (cin_skip2pos(tp_ref) as Colnr) > tp_ref.col {
                 ind_maxp_wk = ind_maxparen - (cursor_save.lnum - tp_ref.lnum);
                 if ind_maxp_wk > 0 {
-                    curwin_mut().w_cursor = *tp_ref;
-                    curwin_mut().w_cursor.col = 0;
+                    curwin_mut().w_cursor.set(*tp_ref);
+                    curwin_mut().w_cursor.set_col(0);
                     continue;
                 }
                 trypos = None;
             } else {
                 let tp_val = *tp_ref;
-                curwin_mut().w_cursor = tp_val;
+                curwin_mut().w_cursor.set(tp_val);
                 if let Some(wk_ref) = ind_find_start_cors(None) {
                     ind_maxp_wk = ind_maxparen - (cursor_save.lnum - wk_ref.lnum);
                     if ind_maxp_wk > 0 {
-                        curwin_mut().w_cursor = wk_ref;
+                        curwin_mut().w_cursor.set(wk_ref);
                         continue;
                     }
                     trypos = None;
@@ -1233,7 +1234,7 @@ fn find_match_char(c: u8, ind_maxparen: i32) -> Option<CursorPos> {
         }
         break;
     }
-    curwin_mut().w_cursor = cursor_save;
+    curwin_mut().w_cursor.set(cursor_save);
     trypos
 }
 fn find_match_paren_after_brace(ind_maxparen: i32) -> Option<CursorPos> {
@@ -1250,7 +1251,7 @@ fn find_match_paren_after_brace(ind_maxparen: i32) -> Option<CursorPos> {
     Some(trypos)
 }
 fn corr_ind_maxparen(startpos: &CursorPos) -> i32 {
-    let n = startpos.lnum - curwin_mut().w_cursor.lnum;
+    let n = startpos.lnum - curwin_mut().w_cursor.get().lnum;
     if n > 0 && n < curbuf_mut().b_ind_maxparen.get() / 2 {
         return curbuf_mut().b_ind_maxparen.get() - n;
     }
@@ -1259,7 +1260,7 @@ fn corr_ind_maxparen(startpos: &CursorPos) -> i32 {
 fn find_last_paren_slice(bytes: &[u8], start: u8, end: u8) -> bool {
     let mut retval = false;
     let mut open_count: i32 = 0;
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_col(0);
     let mut i: usize = 0;
     while i < bytes.len() {
         let rem = cin_skipcomment_slice(&bytes[i..]);
@@ -1274,7 +1275,7 @@ fn find_last_paren_slice(bytes: &[u8], start: u8, end: u8) -> bool {
             if open_count > 0 {
                 open_count -= 1;
             } else {
-                curwin_mut().w_cursor.col = i as Colnr;
+                curwin_mut().w_cursor.set_col(i as Colnr);
                 retval = true;
             }
         }
@@ -1435,17 +1436,17 @@ pub fn get_c_indent() -> i32 {
         },
     };
     let mut ind_continuation = curbuf_mut().b_ind_continuation.get();
-    let cur_curpos = curwin_mut().w_cursor;
+    let cur_curpos = curwin_mut().w_cursor.get();
     if cur_curpos.lnum == 1 {
         return 0;
     }
     let mut linecopy_bytes = crate::memline::ml_get_slice(cur_curpos.lnum).to_vec();
     linecopy_bytes.push(0);
     if (g_st().state_global.get() & MODE_INSERT) != 0
-        && (curwin_mut().w_cursor.col as usize) < linecopy_bytes.len().saturating_sub(1)
-        && linecopy_bytes[curwin_mut().w_cursor.col as usize] == b')'
+        && (curwin_mut().w_cursor.get().col as usize) < linecopy_bytes.len().saturating_sub(1)
+        && linecopy_bytes[curwin_mut().w_cursor.get().col as usize] == b')'
     {
-        linecopy_bytes[curwin_mut().w_cursor.col as usize] = 0;
+        linecopy_bytes[curwin_mut().w_cursor.get().col as usize] = 0;
     }
     let linecopy_len = linecopy_bytes
         .iter()
@@ -1454,7 +1455,7 @@ pub fn get_c_indent() -> i32 {
     let linecopy_slice = &linecopy_bytes[..linecopy_len];
     let theline_slice = crate::charset::skipwhite_slice(linecopy_slice);
     let theline_b0 = theline_slice.first().copied().unwrap_or(0);
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_col(0);
     let original_line_islabel = cin_islabel();
     let comment_pos = ind_find_start_comment();
     trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment.get());
@@ -1485,13 +1486,13 @@ pub fn get_c_indent() -> i32 {
             }
             if cin_islinecomment_slice(theline_slice) {
                 trypos = find_line_comment();
-                if trypos.is_none() && curwin_mut().w_cursor.lnum > 1 {
+                if trypos.is_none() && curwin_mut().w_cursor.get().lnum > 1 {
                     let lc_col = check_linecomment(crate::memline::ml_get_slice(
-                        curwin_mut().w_cursor.lnum - 1,
+                        curwin_mut().w_cursor.get().lnum - 1,
                     ));
                     if lc_col != MAXCOL {
                         trypos = Some(CursorPos {
-                            lnum: curwin_mut().w_cursor.lnum - 1,
+                            lnum: curwin_mut().w_cursor.get().lnum - 1,
                             col: lc_col,
                             coladd: 0,
                         });
@@ -1559,14 +1560,15 @@ pub fn get_c_indent() -> i32 {
                             && !theline_slice.starts_with(&lead_end[..lead_end_len])
                         {
                             done = true;
-                            if curwin_mut().w_cursor.lnum > 1 {
-                                let prev_look = crate::charset::skipwhite_slice(
-                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1),
-                                );
+                            if curwin_mut().w_cursor.get().lnum > 1 {
+                                let prev_look =
+                                    crate::charset::skipwhite_slice(crate::memline::ml_get_slice(
+                                        curwin_mut().w_cursor.get().lnum - 1,
+                                    ));
                                 if prev_look.starts_with(&lead_start[..lead_start_len]) {
-                                    amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                                    amount = get_indent_lnum(curwin_mut().w_cursor.get().lnum - 1);
                                 } else if prev_look.starts_with(&lead_middle[..lead_middle_len]) {
-                                    amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                                    amount = get_indent_lnum(curwin_mut().w_cursor.get().lnum - 1);
                                     break;
                                 } else {
                                     let cp_line = crate::memline::ml_get_slice(cp.lnum);
@@ -1588,7 +1590,7 @@ pub fn get_c_indent() -> i32 {
                         if !theline_slice.starts_with(&lead_middle[..lead_middle_len])
                             && theline_slice.starts_with(&lead_end[..lead_end_len])
                         {
-                            amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                            amount = get_indent_lnum(curwin_mut().w_cursor.get().lnum - 1);
                             if off != 0 {
                                 amount += off;
                             } else if align == i32::from(COM_RIGHT) {
@@ -1667,7 +1669,7 @@ pub fn get_c_indent() -> i32 {
                     our_paren_pos = tp;
 
                     if theline_b0 == b')' && curbuf_mut().b_ind_paren_prev.get() != 0 {
-                        amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                        amount = get_indent_lnum(curwin_mut().w_cursor.get().lnum - 1);
                     } else {
                         amount = -1;
                         lnum = cur_curpos.lnum - 1;
@@ -1681,7 +1683,7 @@ pub fn get_c_indent() -> i32 {
                                 lnum -= 1;
                                 continue;
                             }
-                            curwin_mut().w_cursor.lnum = lnum;
+                            curwin_mut().w_cursor.set_lnum(lnum);
                             if let Some(tp) = ind_find_start_cors(None) {
                                 lnum = tp.lnum;
 
@@ -1707,20 +1709,20 @@ pub fn get_c_indent() -> i32 {
                         let mut ignore_paren_col: i32 = 0;
                         let mut is_if_for_while: i32 = 0;
                         if curbuf_mut().b_ind_if_for_while.get() != 0 {
-                            let cursor_save = curwin_mut().w_cursor;
+                            let cursor_save = curwin_mut().w_cursor.get();
                             let mut outermost: CursorPos;
                             trypos = Some(our_paren_pos);
                             loop {
                                 outermost = trypos.unwrap();
 
-                                curwin_mut().w_cursor.lnum = outermost.lnum;
-                                curwin_mut().w_cursor.col = outermost.col;
+                                curwin_mut().w_cursor.set_lnum(outermost.lnum);
+                                curwin_mut().w_cursor.set_col(outermost.col);
                                 trypos = find_match_paren(curbuf_mut().b_ind_maxparen.get());
                                 if trypos.is_none_or(|tp| tp.lnum != outermost.lnum) {
                                     break;
                                 }
                             }
-                            curwin_mut().w_cursor = cursor_save;
+                            curwin_mut().w_cursor.set(cursor_save);
                             let line = crate::memline::ml_get_slice(outermost.lnum);
                             is_if_for_while =
                                 cin_is_if_for_while_before_offset(line, &mut outermost.col);
@@ -1728,11 +1730,11 @@ pub fn get_c_indent() -> i32 {
                         amount = skip_label(our_paren_pos.lnum, &mut look);
                         look = crate::charset::skipwhite_slice(look);
                         if look.first() == Some(&b'(') {
-                            let save_lnum = curwin_mut().w_cursor.lnum;
-                            curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
+                            let save_lnum = curwin_mut().w_cursor.get().lnum;
+                            curwin_mut().w_cursor.set_lnum(our_paren_pos.lnum);
                             let line = crate::cursor::get_cursor_line_slice();
                             let look_col = (line.len() - look.len()) as Colnr;
-                            curwin_mut().w_cursor.col = look_col + 1;
+                            curwin_mut().w_cursor.set_col(look_col + 1);
                             if let Some(tp) = findmatchlimit(
                                 None,
                                 b')' as i32,
@@ -1743,7 +1745,7 @@ pub fn get_c_indent() -> i32 {
                             {
                                 ignore_paren_col = tp.col + 1;
                             }
-                            curwin_mut().w_cursor.lnum = save_lnum;
+                            curwin_mut().w_cursor.set_lnum(save_lnum);
                             let paren_line = crate::memline::ml_get_slice(our_paren_pos.lnum);
                             look = &paren_line[(look_col as usize).min(paren_line.len())..];
                         }
@@ -1835,8 +1837,8 @@ pub fn get_c_indent() -> i32 {
                             if col == MAXCOL {
                                 amount += curbuf_mut().b_ind_unclosed.get();
                             } else {
-                                curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
-                                curwin_mut().w_cursor.col = col;
+                                curwin_mut().w_cursor.set_lnum(our_paren_pos.lnum);
+                                curwin_mut().w_cursor.set_col(col);
                                 if find_match_paren_after_brace(curbuf_mut().b_ind_maxparen.get())
                                     .is_some()
                                 {
@@ -1871,7 +1873,7 @@ pub fn get_c_indent() -> i32 {
                             start_brace = BRACE_AT_START;
                         }
                     } else {
-                        curwin_mut().w_cursor.lnum = ourscope;
+                        curwin_mut().w_cursor.set_lnum(ourscope);
                         lnum = ourscope;
                         if find_last_paren_slice(start_slice, b'(', b')')
                             && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
@@ -1910,7 +1912,7 @@ pub fn get_c_indent() -> i32 {
                             lookfor = LOOKFOR_DO;
                         }
                         if lookfor != LOOKFOR_INITIAL {
-                            curwin_mut().w_cursor.lnum = cur_curpos.lnum;
+                            curwin_mut().w_cursor.set_lnum(cur_curpos.lnum);
                             if find_match(lookfor, ourscope) {
                                 amount = get_indent();
                                 break 'theend;
@@ -1955,14 +1957,14 @@ pub fn get_c_indent() -> i32 {
                         }
                         scope_amount = amount;
                         whilelevel = 0;
-                        curwin_mut().w_cursor = cur_curpos;
+                        curwin_mut().w_cursor.set(cur_curpos);
                         'scope_loop: loop {
-                            curwin_mut().w_cursor.lnum -= 1;
-                            curwin_mut().w_cursor.col = 0;
-                            if curwin_mut().w_cursor.lnum <= ourscope {
+                            curwin_mut().w_cursor.sub_lnum(1);
+                            curwin_mut().w_cursor.set_col(0);
+                            if curwin_mut().w_cursor.get().lnum <= ourscope {
                                 if lookfor == LOOKFOR_ENUM_OR_INIT {
-                                    if curwin_mut().w_cursor.lnum == 0
-                                        || curwin_mut().w_cursor.lnum
+                                    if curwin_mut().w_cursor.get().lnum == 0
+                                        || curwin_mut().w_cursor.get().lnum
                                             < ourscope - curbuf_mut().b_ind_maxparen.get()
                                     {
                                         if cont_amount > 0 {
@@ -1973,17 +1975,15 @@ pub fn get_c_indent() -> i32 {
                                         break;
                                     }
                                     if let Some(tp) = ind_find_start_cors(None) {
-                                        curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                                        curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                                        curwin_mut().w_cursor.col = 0;
+                                        curwin_mut().w_cursor.set_col(0);
                                         continue;
                                     }
                                     l = crate::cursor::get_cursor_line_slice();
-                                    if cin_ispreproc_cont(
-                                        &mut l,
-                                        &mut curwin_mut().w_cursor.lnum,
-                                        &mut amount,
-                                    ) {
+                                    if curwin_mut().w_cursor.update_mut(|c| {
+                                        cin_ispreproc_cont(&mut l, &mut c.lnum, &mut amount)
+                                    }) {
                                         continue;
                                     }
                                     if cin_nocode_slice(l) {
@@ -1993,7 +1993,7 @@ pub fn get_c_indent() -> i32 {
                                     if start_brace != BRACE_IN_COL0
                                         || !cin_isfuncdecl(
                                             Some(&mut l),
-                                            curwin_mut().w_cursor.lnum,
+                                            curwin_mut().w_cursor.get().lnum,
                                             0,
                                         )
                                     {
@@ -2018,9 +2018,9 @@ pub fn get_c_indent() -> i32 {
                                             trypos = find_start_brace();
                                         }
                                         if let Some(tp) = trypos {
-                                            curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                                            curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                                            curwin_mut().w_cursor.col = 0;
+                                            curwin_mut().w_cursor.set_col(0);
                                             continue;
                                         }
                                     }
@@ -2047,27 +2047,25 @@ pub fn get_c_indent() -> i32 {
                                         }
                                     }
                                     if lookfor_cpp_namespace {
-                                        if curwin_mut().w_cursor.lnum == ourscope {
+                                        if curwin_mut().w_cursor.get().lnum == ourscope {
                                             continue;
                                         }
-                                        if curwin_mut().w_cursor.lnum == 0
-                                            || curwin_mut().w_cursor.lnum
+                                        if curwin_mut().w_cursor.get().lnum == 0
+                                            || curwin_mut().w_cursor.get().lnum
                                                 < ourscope - FIND_NAMESPACE_LIM
                                         {
                                             break;
                                         }
                                         if let Some(tp) = ind_find_start_cors(None) {
-                                            curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                                            curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                                            curwin_mut().w_cursor.col = 0;
+                                            curwin_mut().w_cursor.set_col(0);
                                             continue;
                                         }
                                         l = crate::cursor::get_cursor_line_slice();
-                                        if cin_ispreproc_cont(
-                                            &mut l,
-                                            &mut curwin_mut().w_cursor.lnum,
-                                            &mut amount,
-                                        ) {
+                                        if curwin_mut().w_cursor.update_mut(|c| {
+                                            cin_ispreproc_cont(&mut l, &mut c.lnum, &mut amount)
+                                        }) {
                                             continue;
                                         }
                                         if cin_is_cpp_namespace_slice(l) {
@@ -2087,9 +2085,9 @@ pub fn get_c_indent() -> i32 {
                                 break;
                             }
                             if let Some(tp) = ind_find_start_cors(Some(&mut raw_string_start)) {
-                                curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                                curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                                curwin_mut().w_cursor.col = 0;
+                                curwin_mut().w_cursor.set_col(0);
                                 continue;
                             }
                             let l_slice = crate::cursor::get_cursor_line_slice();
@@ -2120,7 +2118,7 @@ pub fn get_c_indent() -> i32 {
                                     }
                                     continue;
                                 }
-                                n = get_indent_nolabel(curwin_mut().w_cursor.lnum);
+                                n = get_indent_nolabel(curwin_mut().w_cursor.get().lnum);
                                 if lookfor == LOOKFOR_TERM {
                                     if n != 0 {
                                         amount = n;
@@ -2161,9 +2159,9 @@ pub fn get_c_indent() -> i32 {
                                 if find_last_paren_slice(l_slice, b'{', b'}')
                                     && let Some(tp) = find_start_brace()
                                 {
-                                    curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                                    curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                                    curwin_mut().w_cursor.col = 0;
+                                    curwin_mut().w_cursor.set_col(0);
                                 }
                                 continue;
                             }
@@ -2178,11 +2176,9 @@ pub fn get_c_indent() -> i32 {
                                 }
                             }
                             l = crate::cursor::get_cursor_line_slice();
-                            if cin_ispreproc_cont(
-                                &mut l,
-                                &mut curwin_mut().w_cursor.lnum,
-                                &mut amount,
-                            ) || cin_nocode_slice(l)
+                            if curwin_mut().w_cursor.update_mut(|c| {
+                                cin_ispreproc_cont(&mut l, &mut c.lnum, &mut amount)
+                            }) || cin_nocode_slice(l)
                             {
                                 continue;
                             }
@@ -2227,7 +2223,7 @@ pub fn get_c_indent() -> i32 {
                             }
                             if lookfor == LOOKFOR_COMMA {
                                 if trypos_brace
-                                    .is_some_and(|tb| tb.lnum >= curwin_mut().w_cursor.lnum)
+                                    .is_some_and(|tb| tb.lnum >= curwin_mut().w_cursor.get().lnum)
                                 {
                                     break;
                                 }
@@ -2235,7 +2231,7 @@ pub fn get_c_indent() -> i32 {
                                     break;
                                 }
                                 amount = get_indent();
-                                if curwin_mut().w_cursor.lnum - 1 == ourscope {
+                                if curwin_mut().w_cursor.get().lnum - 1 == ourscope {
                                     break;
                                 }
                             }
@@ -2266,34 +2262,35 @@ pub fn get_c_indent() -> i32 {
                                     trypos = find_start_brace();
                                 }
                                 if let Some(tp) = trypos {
-                                    curwin_mut().w_cursor = tp;
+                                    curwin_mut().w_cursor.set(tp);
 
                                     let cur_s = crate::cursor::get_cursor_line_slice();
                                     if cin_iscase_slice(cur_s, false)
                                         || cin_isscopedecl_slice(cur_s)
                                     {
-                                        curwin_mut().w_cursor.lnum += 1;
-                                        curwin_mut().w_cursor.col = 0;
+                                        curwin_mut().w_cursor.add_lnum(1);
+                                        curwin_mut().w_cursor.set_col(0);
                                         continue;
                                     }
                                 }
                                 if terminated == b',' {
-                                    while curwin_mut().w_cursor.lnum > 1 {
+                                    while curwin_mut().w_cursor.get().lnum > 1 {
                                         let prev_s = crate::memline::ml_get_slice(
-                                            curwin_mut().w_cursor.lnum - 1,
+                                            curwin_mut().w_cursor.get().lnum - 1,
                                         );
                                         if prev_s.last() != Some(&b'\\') {
                                             break;
                                         }
-                                        curwin_mut().w_cursor.lnum -= 1;
-                                        curwin_mut().w_cursor.col = 0;
+                                        curwin_mut().w_cursor.sub_lnum(1);
+                                        curwin_mut().w_cursor.set_col(0);
                                     }
                                 }
                                 l = crate::cursor::get_cursor_line_slice();
                                 if curbuf_mut().b_ind_js.get() != 0 {
                                     cur_amount = get_indent();
                                 } else {
-                                    cur_amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
+                                    cur_amount =
+                                        skip_label(curwin_mut().w_cursor.get().lnum, &mut l);
                                 }
                                 if terminated != b','
                                     && lookfor != LOOKFOR_TERM
@@ -2342,8 +2339,9 @@ pub fn get_c_indent() -> i32 {
                                     }
                                     if cin_iselse_slice(l_trim) && whilelevel == 0 {
                                         if l_trim.first() == Some(&b'}') {
-                                            curwin_mut().w_cursor.col =
-                                                (cur_s.len() - l_trim.len()) as Colnr + 1;
+                                            curwin_mut()
+                                                .w_cursor
+                                                .set_col((cur_s.len() - l_trim.len()) as Colnr + 1);
                                         }
                                         trypos = find_start_brace();
                                         if trypos.is_none_or(|tp| !find_match(LOOKFOR_IF, tp.lnum))
@@ -2391,7 +2389,7 @@ pub fn get_c_indent() -> i32 {
                                                 b'[',
                                                 curbuf_mut().b_ind_maxparen.get(),
                                             ) {
-                                                if tp.lnum == curwin_mut().w_cursor.lnum - 1 {
+                                                if tp.lnum == curwin_mut().w_cursor.get().lnum - 1 {
                                                     break;
                                                 }
                                                 ourscope = tp.lnum;
@@ -2404,13 +2402,14 @@ pub fn get_c_indent() -> i32 {
                                         if lookfor == LOOKFOR_INITIAL
                                             && cur_s.last() == Some(&b'\\')
                                         {
-                                            cont_amount =
-                                                cin_get_equal_amount(curwin_mut().w_cursor.lnum);
+                                            cont_amount = cin_get_equal_amount(
+                                                curwin_mut().w_cursor.get().lnum,
+                                            );
                                         }
                                         if lookfor != LOOKFOR_TERM
                                             && lookfor != LOOKFOR_JS_KEY
                                             && lookfor != LOOKFOR_COMMA
-                                            && raw_string_start != curwin_mut().w_cursor.lnum
+                                            && raw_string_start != curwin_mut().w_cursor.get().lnum
                                         {
                                             lookfor = LOOKFOR_UNTERM;
                                         }
@@ -2471,21 +2470,22 @@ pub fn get_c_indent() -> i32 {
                                             && let Some(tp) =
                                                 find_match_paren(curbuf_mut().b_ind_maxparen.get())
                                         {
-                                            curwin_mut().w_cursor = tp;
+                                            curwin_mut().w_cursor.set(tp);
 
                                             let tp_s = crate::cursor::get_cursor_line_slice();
                                             if cin_iscase_slice(tp_s, false)
                                                 || cin_isscopedecl_slice(tp_s)
                                             {
-                                                curwin_mut().w_cursor.lnum += 1;
-                                                curwin_mut().w_cursor.col = 0;
+                                                curwin_mut().w_cursor.add_lnum(1);
+                                                curwin_mut().w_cursor.set_col(0);
                                                 continue 'scope_loop;
                                             }
                                         }
                                         let cur_s = crate::cursor::get_cursor_line_slice();
                                         iscase = curbuf_mut().b_ind_keep_case_label.get() != 0
                                             && cin_iscase_slice(cur_s, false);
-                                        amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
+                                        amount =
+                                            skip_label(curwin_mut().w_cursor.get().lnum, &mut l);
                                         if theline_b0 == b'{' {
                                             amount += curbuf_mut().b_ind_open_extra.get();
                                         }
@@ -2511,7 +2511,7 @@ pub fn get_c_indent() -> i32 {
                                         if find_last_paren_slice(cur_s, b'{', b'}')
                                             && let Some(tp) = find_start_brace()
                                         {
-                                            curwin_mut().w_cursor = tp;
+                                            curwin_mut().w_cursor.set(tp);
 
                                             let tp_s = cin_skipcomment_slice(
                                                 crate::cursor::get_cursor_line_slice(),
@@ -2521,8 +2521,8 @@ pub fn get_c_indent() -> i32 {
                                             {
                                                 continue;
                                             }
-                                            curwin_mut().w_cursor.lnum += 1;
-                                            curwin_mut().w_cursor.col = 0;
+                                            curwin_mut().w_cursor.add_lnum(1);
+                                            curwin_mut().w_cursor.set_col(0);
                                         }
                                         break;
                                     }
@@ -2556,15 +2556,15 @@ pub fn get_c_indent() -> i32 {
                 break 'theend;
             }
             amount = 0;
-            curwin_mut().w_cursor = cur_curpos;
-            while curwin_mut().w_cursor.lnum > 1 {
-                curwin_mut().w_cursor.lnum -= 1;
-                curwin_mut().w_cursor.col = 0;
+            curwin_mut().w_cursor.set(cur_curpos);
+            while curwin_mut().w_cursor.get().lnum > 1 {
+                curwin_mut().w_cursor.sub_lnum(1);
+                curwin_mut().w_cursor.set_col(0);
                 l = crate::cursor::get_cursor_line_slice();
                 if let Some(tp) = ind_find_start_cors(None) {
-                    curwin_mut().w_cursor.lnum = tp.lnum + 1;
+                    curwin_mut().w_cursor.set_lnum(tp.lnum + 1);
 
-                    curwin_mut().w_cursor.col = 0;
+                    curwin_mut().w_cursor.set_col(0);
                     continue;
                 }
                 n = 0;
@@ -2576,7 +2576,10 @@ pub fn get_c_indent() -> i32 {
                     amount = get_baseclass_amount(cache_cpp_baseclass.lpos.col);
                     break;
                 }
-                if cin_ispreproc_cont(&mut l, &mut curwin_mut().w_cursor.lnum, &mut amount) {
+                if curwin_mut()
+                    .w_cursor
+                    .update_mut(|c| cin_ispreproc_cont(&mut l, &mut c.lnum, &mut amount))
+                {
                     continue;
                 }
                 if cin_nocode_slice(l) {
@@ -2589,15 +2592,16 @@ pub fn get_c_indent() -> i32 {
                     if find_last_paren_slice(l, b'(', b')')
                         && let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get())
                     {
-                        curwin_mut().w_cursor = tp;
+                        curwin_mut().w_cursor.set(tp);
                     }
-                    while n == 0 && curwin_mut().w_cursor.lnum > 1 {
-                        let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
+                    while n == 0 && curwin_mut().w_cursor.get().lnum > 1 {
+                        let prev_s =
+                            crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum - 1);
                         if prev_s.last() != Some(&b'\\') {
                             break;
                         }
-                        curwin_mut().w_cursor.lnum -= 1;
-                        curwin_mut().w_cursor.col = 0;
+                        curwin_mut().w_cursor.sub_lnum(1);
+                        curwin_mut().w_cursor.set_col(0);
                     }
                     amount = get_indent();
                     if amount == 0 {
@@ -2624,39 +2628,37 @@ pub fn get_c_indent() -> i32 {
                 }
                 let look_s = crate::charset::skipwhite_slice(l_bytes);
                 if look_s.first() == Some(&b';') && cin_nocode_slice(&look_s[1..]) {
-                    let curpos_save = curwin_mut().w_cursor;
-                    while curwin_mut().w_cursor.lnum > 1 {
-                        curwin_mut().w_cursor.lnum -= 1;
-                        look = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                    let curpos_save = curwin_mut().w_cursor.get();
+                    while curwin_mut().w_cursor.get().lnum > 1 {
+                        curwin_mut().w_cursor.sub_lnum(1);
+                        look = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
                         if !(cin_nocode_slice(look)
-                            || cin_ispreproc_cont(
-                                &mut look,
-                                &mut curwin_mut().w_cursor.lnum,
-                                &mut amount,
-                            ))
+                            || curwin_mut().w_cursor.update_mut(|c| {
+                                cin_ispreproc_cont(&mut look, &mut c.lnum, &mut amount)
+                            }))
                         {
                             break;
                         }
                     }
-                    if curwin_mut().w_cursor.lnum > 0 && cin_ends_in_slice(look, b"}") {
+                    if curwin_mut().w_cursor.get().lnum > 0 && cin_ends_in_slice(look, b"}") {
                         break;
                     }
-                    curwin_mut().w_cursor = curpos_save;
+                    curwin_mut().w_cursor.set(curpos_save);
                 }
                 l = crate::cursor::get_cursor_line_slice();
-                if cin_isfuncdecl(Some(&mut l), curwin_mut().w_cursor.lnum, 0) {
+                if cin_isfuncdecl(Some(&mut l), curwin_mut().w_cursor.get().lnum, 0) {
                     amount = curbuf_mut().b_ind_param.get();
                     break;
                 }
                 if cin_ends_in_slice(l, b";") {
-                    let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
+                    let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum - 1);
                     if cin_ends_in_slice(prev_s, b",") || prev_s.last() == Some(&b'\\') {
                         break;
                     }
                 }
                 let _ = find_last_paren_slice(crate::cursor::get_cursor_line_slice(), b'(', b')');
                 if let Some(tp) = find_match_paren(curbuf_mut().b_ind_maxparen.get()) {
-                    curwin_mut().w_cursor = tp;
+                    curwin_mut().w_cursor.set(tp);
                 }
                 amount = get_indent();
                 break;
@@ -2680,7 +2682,7 @@ pub fn get_c_indent() -> i32 {
             amount = 0;
         }
     }
-    curwin_mut().w_cursor = cur_curpos;
+    curwin_mut().w_cursor.set(cur_curpos);
     amount
 }
 fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
@@ -2693,15 +2695,15 @@ fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
         elselevel = 0;
         whilelevel = 1;
     }
-    curwin_mut().w_cursor.col = 0;
-    while curwin_mut().w_cursor.lnum > ourscope + 1 {
-        curwin_mut().w_cursor.lnum -= 1;
-        curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_col(0);
+    while curwin_mut().w_cursor.get().lnum > ourscope + 1 {
+        curwin_mut().w_cursor.sub_lnum(1);
+        curwin_mut().w_cursor.set_col(0);
         let look = cin_skipcomment_slice(crate::cursor::get_cursor_line_slice());
         if !cin_iselse_slice(look)
             && !cin_isif_slice(look)
             && !cin_isdo_slice(look)
-            && !cin_iswhileofdo(look, curwin_mut().w_cursor.lnum)
+            && !cin_iswhileofdo(look, curwin_mut().w_cursor.get().lnum)
         {
             continue;
         }
@@ -2730,7 +2732,7 @@ fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
                 }
             }
         }
-        if cin_iswhileofdo(look, curwin_mut().w_cursor.lnum) {
+        if cin_iswhileofdo(look, curwin_mut().w_cursor.get().lnum) {
             whilelevel += 1;
             continue;
         }
@@ -2790,9 +2792,9 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
             }
             rem = &rem[1..];
         } else if b0 == b'e' {
-            if try_match && keytyped == b'e' as i32 && curwin_mut().w_cursor.col >= 4 {
+            if try_match && keytyped == b'e' as i32 && curwin_mut().w_cursor.get().col >= 4 {
                 let line = crate::cursor::get_cursor_line_slice();
-                let col_usize = curwin_mut().w_cursor.col as usize;
+                let col_usize = curwin_mut().w_cursor.get().col as usize;
                 if col_usize <= line.len()
                     && crate::charset::skipwhite_slice(line).len() == line.len() - (col_usize - 4)
                     && &line[col_usize - 4..col_usize] == b"else"
@@ -2810,7 +2812,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                 {
                     return true;
                 }
-                let col_usize = curwin_mut().w_cursor.col as usize;
+                let col_usize = curwin_mut().w_cursor.get().col as usize;
                 let line_slice = crate::cursor::get_cursor_line_slice();
                 if col_usize > 2
                     && line_slice.get(col_usize - 1) == Some(&b':')
@@ -2862,11 +2864,13 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
             };
             let word_len = rem.iter().position(|&b| b == b',').unwrap_or(rem.len());
             let word = &rem[..word_len];
-            if (try_match || try_match_word) && (curwin_mut().w_cursor.col as usize) >= word_len {
+            if (try_match || try_match_word)
+                && (curwin_mut().w_cursor.get().col as usize) >= word_len
+            {
                 let mut matched = false;
                 if keytyped == KEY_COMPLETE {
                     let line_bytes = crate::cursor::get_cursor_line_slice();
-                    let mut s_off = curwin_mut().w_cursor.col as usize;
+                    let mut s_off = curwin_mut().w_cursor.get().col as usize;
                     while s_off > 0 {
                         let n_off = s_off
                             - 1
@@ -2879,7 +2883,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     let line = get_cursor_line_ptr().as_ptr().cast_mut();
                     let s = line.wrapping_add(s_off);
                     let s_off = ((s as isize) - (line as isize)) as usize;
-                    let col_usize = curwin_mut().w_cursor.col as usize;
+                    let col_usize = curwin_mut().w_cursor.get().col as usize;
                     if s_off + word_len <= col_usize {
                         let line_slice = crate::cursor::get_cursor_line_slice();
                         let cand = &line_slice[s_off..s_off + word_len];
@@ -2904,7 +2908,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                             && (keytyped as u8).eq_ignore_ascii_case(&prev_b))
                     {
                         let line_slice = crate::cursor::get_cursor_line_slice();
-                        let col_usize = (curwin_mut().w_cursor.col as usize).min(line_slice.len());
+                        let col_usize =
+                            (curwin_mut().w_cursor.get().col as usize).min(line_slice.len());
                         if col_usize >= word_len
                             && (col_usize == word_len
                                 || !vim_iswordc(i32::from(line_slice[col_usize - word_len - 1])))
@@ -2929,7 +2934,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     && try_match_word
                     && !try_match
                     && getwhitecols_curline() as i32
-                        != (curwin_mut().w_cursor.col - word_len as i32)
+                        != (curwin_mut().w_cursor.get().col - word_len as i32)
                 {
                     matched = false;
                 }
@@ -2960,12 +2965,12 @@ pub fn do_c_expr_indent() {
 }
 /// "cindent(lnum)" function
 pub fn f_cindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let pos = curwin_mut().w_cursor;
+    let pos = curwin_mut().w_cursor.get();
     let lnum = tv_get_lnum(&argvars[0]);
     if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
-        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.set_lnum(lnum);
         rettv.vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
-        curwin_mut().w_cursor = pos;
+        curwin_mut().w_cursor.set(pos);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     }

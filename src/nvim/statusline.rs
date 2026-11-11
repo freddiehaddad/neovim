@@ -872,7 +872,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
+    if wp.w_cursor.get().lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
         return;
     }
 
@@ -1612,22 +1612,22 @@ pub fn build_stl_str_hl_slice(
         fillchar = schar_from_ascii(b' ');
     }
 
-    let mut lnum = wp.w_cursor.lnum;
+    let mut lnum = wp.w_cursor.get().lnum;
     if lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
         lnum = (*wp).buf_mut().b_ml.ml_line_count.get();
-        wp.w_cursor.lnum = lnum;
+        wp.w_cursor.set_lnum(lnum);
     }
 
     let line_slice = crate::memline::ml_get_buf_slice((*wp).buf_mut(), lnum);
     let empty_line = line_slice.is_empty();
 
     let len = line_slice.len() as Colnr;
-    let byteval = if wp.w_cursor.col > len {
-        wp.w_cursor.col = len;
-        wp.w_cursor.coladd = 0;
+    let byteval = if wp.w_cursor.get().col > len {
+        wp.w_cursor.set_col(len);
+        wp.w_cursor.set_coladd(0);
         0
     } else {
-        crate::mbyte::utf_slice2char(&line_slice[wp.w_cursor.col as usize..])
+        crate::mbyte::utf_slice2char(&line_slice[wp.w_cursor.get().col as usize..])
     };
 
     let mut groupdepth: usize = 0;
@@ -2167,7 +2167,7 @@ pub fn build_stl_str_hl_slice(
                     num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                         0
                     } else {
-                        wp.w_cursor.lnum
+                        wp.w_cursor.get().lnum
                     };
                 }
             }
@@ -2178,7 +2178,7 @@ pub fn build_stl_str_hl_slice(
                 num = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
-                    wp.w_cursor.col + 1
+                    wp.w_cursor.get().col + 1
                 };
             }
             STL_VIRTCOL | STL_VIRTCOL_ALT => {
@@ -2186,7 +2186,7 @@ pub fn build_stl_str_hl_slice(
                 let col_1 = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
-                    wp.w_cursor.col + 1
+                    wp.w_cursor.get().col + 1
                 };
                 if !(opt == STL_VIRTCOL_ALT && virtcol == col_1) {
                     num = virtcol;
@@ -2194,7 +2194,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_PERCENTAGE => {
                 num = calc_percentage(
-                    i64::from(wp.w_cursor.lnum),
+                    i64::from(wp.w_cursor.get().lnum),
                     i64::from((*wp).buf_mut().b_ml.ml_line_count.get()),
                 );
             }
@@ -2235,7 +2235,8 @@ pub fn build_stl_str_hl_slice(
                 if opt == STL_OFFSET_X {
                     base = NumberBase::NumBaseHexadecimal;
                 }
-                let l = ml_find_line_or_offset((*wp).buf_mut(), wp.w_cursor.lnum, None, false);
+                let l =
+                    ml_find_line_or_offset((*wp).buf_mut(), wp.w_cursor.get().lnum, None, false);
                 num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 || l < 0 {
                     0
                 } else {
@@ -2243,7 +2244,7 @@ pub fn build_stl_str_hl_slice(
                         + if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
                             0
                         } else {
-                            wp.w_cursor.col
+                            wp.w_cursor.get().col
                         }
                 };
             }
@@ -2781,7 +2782,7 @@ mod tests {
                 } else {
                     setfname(curbuf_mut(), None, None, true);
                 }
-                curwin_mut().w_cursor.lnum = 0;
+                curwin_mut().w_cursor.set_lnum(0);
 
                 let fillchar = match fill {
                     None => schar_from_str(Some(c" ")),

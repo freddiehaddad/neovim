@@ -1805,7 +1805,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         if ln < 0 {
             semsg!(gettext(E_INVARG2), tv_get_string(&argvars[0]));
         } else if ln == 0 {
-            ln = curwin_mut().w_cursor.lnum;
+            ln = curwin_mut().w_cursor.get().lnum;
         }
         lnum = ln;
         col = tv_get_number_chk(&argvars[1], None) as Colnr;
@@ -1823,7 +1823,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         return;
     }
     if lnum > 0 {
-        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.set_lnum(lnum);
     }
     if col != MAXCOL {
         col -= 1;
@@ -1831,8 +1831,8 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
             col = 0;
         }
     }
-    curwin_mut().w_cursor.col = col;
-    curwin_mut().w_cursor.coladd = coladd;
+    curwin_mut().w_cursor.set_col(col);
+    curwin_mut().w_cursor.set_coladd(coladd);
 
     check_cursor(curwin_mut());
     mb_adjust_cursor();
@@ -2835,13 +2835,13 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     if getcurpos {
         if argvars[0].v_type != VarType::VarUnknown {
             if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
-                fp = Some(found.w_cursor);
+                fp = Some(found.w_cursor.get());
                 wp = found.into();
             } else {
                 wp = crate::globals::WinPtr::NULL;
             }
         } else {
-            fp = Some(curwin_mut().w_cursor);
+            fp = Some(curwin_mut().w_cursor.get());
         }
         if let Some(ref mut pos) = fp
             && charcol
@@ -6466,7 +6466,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             break 'theend;
         }
 
-        let save_cursor = curwin_mut().w_cursor;
+        let save_cursor = curwin_mut().w_cursor.get();
         let mut pos = CursorPos {
             lnum: save_cursor.lnum,
             col: save_cursor.col,
@@ -6512,13 +6512,13 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 firstpos = pos;
             }
 
-            let save_pos = curwin_mut().w_cursor;
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = pos.col;
-            curwin_mut().w_cursor.coladd = pos.coladd;
+            let save_pos = curwin_mut().w_cursor.get();
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(pos.col);
+            curwin_mut().w_cursor.set_coladd(pos.coladd);
             let mut err = false;
             let do_skip = eval_expr_to_bool(&argvars[4], &mut err);
-            curwin_mut().w_cursor = save_pos;
+            curwin_mut().w_cursor.set(save_pos);
             if err {
                 subpatnum = 0;
                 break;
@@ -6539,9 +6539,9 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             if (flags & SP_SETPCMARK) != 0 {
                 setpcmark();
             }
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = pos.col;
-            curwin_mut().w_cursor.coladd = pos.coladd;
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(pos.col);
+            curwin_mut().w_cursor.set_coladd(pos.coladd);
             if let Some(match_pos) = match_pos {
                 match_pos.lnum = pos.lnum;
                 match_pos.col = pos.col + 1;
@@ -6550,7 +6550,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
         }
 
         if (flags & SP_NOMOVE) != 0 {
-            curwin_mut().w_cursor = save_cursor;
+            curwin_mut().w_cursor.set(save_cursor);
         } else {
             curwin_mut().w_set_curswant.set(true);
         }
@@ -6834,7 +6834,7 @@ pub fn do_searchpair(
         use_skip = eval_expr_valid_arg(skip);
     }
 
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
     let mut pos = CursorPos {
         lnum: save_cursor.lnum,
         col: save_cursor.col,
@@ -6896,15 +6896,15 @@ pub fn do_searchpair(
         options &= !SEARCH_START;
 
         if use_skip {
-            let save_pos = curwin_mut().w_cursor;
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = pos.col;
-            curwin_mut().w_cursor.coladd = pos.coladd;
+            let save_pos = curwin_mut().w_cursor.get();
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(pos.col);
+            curwin_mut().w_cursor.set_coladd(pos.coladd);
             let mut err = false;
             let r = eval_expr_to_bool(skip.unwrap(), &mut err);
-            curwin_mut().w_cursor = save_pos;
+            curwin_mut().w_cursor.set(save_pos);
             if err {
-                curwin_mut().w_cursor = save_cursor;
+                curwin_mut().w_cursor.set(save_cursor);
                 retval = -1;
                 break;
             }
@@ -6932,9 +6932,9 @@ pub fn do_searchpair(
             if (flags & SP_SETPCMARK) != 0 {
                 setpcmark();
             }
-            curwin_mut().w_cursor.lnum = pos.lnum;
-            curwin_mut().w_cursor.col = pos.col;
-            curwin_mut().w_cursor.coladd = pos.coladd;
+            curwin_mut().w_cursor.set_lnum(pos.lnum);
+            curwin_mut().w_cursor.set_col(pos.col);
+            curwin_mut().w_cursor.set_coladd(pos.coladd);
             if (flags & SP_REPEAT) == 0 {
                 break;
             }
@@ -6943,12 +6943,12 @@ pub fn do_searchpair(
     }
 
     if let Some(match_pos) = match_pos {
-        match_pos.lnum = curwin_mut().w_cursor.lnum;
-        match_pos.col = curwin_mut().w_cursor.col + 1;
+        match_pos.lnum = curwin_mut().w_cursor.get().lnum;
+        match_pos.col = curwin_mut().w_cursor.get().col + 1;
     }
 
     if (flags & SP_NOMOVE) != 0 || retval == 0 {
-        curwin_mut().w_cursor = save_cursor;
+        curwin_mut().w_cursor.set(save_cursor);
     }
 
     drop(pat2_vec);
@@ -7108,9 +7108,9 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
     }
     let name_bytes = name_cstr.to_bytes();
     if name_bytes == b"." {
-        curwin_mut().w_cursor.lnum = pos.lnum;
-        curwin_mut().w_cursor.col = pos.col;
-        curwin_mut().w_cursor.coladd = pos.coladd;
+        curwin_mut().w_cursor.set_lnum(pos.lnum);
+        curwin_mut().w_cursor.set_col(pos.col);
+        curwin_mut().w_cursor.set_coladd(pos.coladd);
         if curswant >= 0 {
             curwin_mut().w_curswant.set(curswant - 1);
             curwin_mut().w_set_curswant.set(false);

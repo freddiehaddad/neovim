@@ -5720,6 +5720,7 @@ pub fn get_cmd_default_range(eap: &mut Exarg) -> Linenr {
     match eap.addr_type {
         ADDR_LINES | ADDR_OTHER => curwin_mut()
             .w_cursor
+            .get()
             .lnum
             .min(curbuf_mut().b_ml.ml_line_count.get()),
         ADDR_WINDOWS => current_win_nr(Some(curwin_mut()), None),
@@ -5922,7 +5923,7 @@ pub fn parse_cmdline(
     skipmods: bool,
 ) -> bool {
     let mut retval = false;
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
     save_last_search_pattern();
 
     let cmdline_buf = std::mem::take(&mut eap.cmdline_buf);
@@ -6074,7 +6075,7 @@ pub fn parse_cmdline(
     if !retval {
         undo_cmdmod(cmod);
     }
-    curwin_mut().w_cursor = save_cursor;
+    curwin_mut().w_cursor.set(save_cursor);
     restore_last_search_pattern();
     retval
 }
@@ -6747,9 +6748,9 @@ fn do_one_cmd(
 
     *cstack = ea.cstack.take().unwrap();
 
-    if curwin_mut().w_cursor.lnum == 0 {
-        curwin_mut().w_cursor.lnum = 1;
-        curwin_mut().w_cursor.col = 0;
+    if curwin_mut().w_cursor.get().lnum == 0 {
+        curwin_mut().w_cursor.set_lnum(1);
+        curwin_mut().w_cursor.set_col(0);
     }
 
     if let Some(mut msg) = errormsg
@@ -6814,9 +6815,9 @@ fn ex_range_without_command(eap: &mut Exarg) -> Option<std::borrow::Cow<'static,
             errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
         } else {
             if eap.line2 == 0 {
-                curwin_mut().w_cursor.lnum = 1;
+                curwin_mut().w_cursor.set_lnum(1);
             } else {
-                curwin_mut().w_cursor.lnum = eap.line2;
+                curwin_mut().w_cursor.set_lnum(eap.line2);
             }
             beginline(BL_SOL | BL_FIX);
         }
@@ -7392,7 +7393,7 @@ pub fn parse_cmd_address(
 
             if eap.cmd.first_byte() == b';' {
                 if !eap.skip {
-                    curwin_mut().w_cursor.lnum = eap.line2;
+                    curwin_mut().w_cursor.set_lnum(eap.line2);
                     if eap.line2 > 0 {
                         check_cursor(curwin_mut());
                     } else {
@@ -7820,7 +7821,7 @@ pub fn get_address(
                 b'.' => {
                     cmd_cur = cmd_cur.map(|c| crate::memory::CStrSubslice::advance(c, 1));
                     match addr_type {
-                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
+                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.get().lnum,
                         ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
                         ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
@@ -7911,7 +7912,7 @@ pub fn get_address(
                             .is_some_and(|f| f.fnum != curbuf_mut().b_fnum.get())
                         {
                             mark_move_to(fm.as_ref(), 0);
-                            lnum = curwin_mut().w_cursor.lnum;
+                            lnum = curwin_mut().w_cursor.get().lnum;
                         } else {
                             if !mark_check(fm.as_ref(), errormsg) {
                                 cmd_cur = None;
@@ -7937,17 +7938,19 @@ pub fn get_address(
                         }
                         cmd_cur = Some(skipped);
                     } else {
-                        let pos = curwin_mut().w_cursor;
+                        let pos = curwin_mut().w_cursor.get();
                         if lnum > 0 && lnum != MAXLNUM {
-                            curwin_mut().w_cursor.lnum =
-                                lnum.min(curbuf_mut().b_ml.ml_line_count.get());
+                            curwin_mut()
+                                .w_cursor
+                                .set_lnum(lnum.min(curbuf_mut().b_ml.ml_line_count.get()));
                         }
-                        curwin_mut().w_cursor.col =
-                            if c == b'/' as i32 && curwin_mut().w_cursor.lnum > 0 {
+                        curwin_mut().w_cursor.set_col(
+                            if c == b'/' as i32 && curwin_mut().w_cursor.get().lnum > 0 {
                                 MAXCOL
                             } else {
                                 0
-                            };
+                            },
+                        );
                         g_st().search_global.cmdlen.set(0);
                         let search_flags = if silent {
                             SEARCH_KEEP
@@ -7966,12 +7969,12 @@ pub fn get_address(
                             None,
                         ) == 0
                         {
-                            curwin_mut().w_cursor = pos;
+                            curwin_mut().w_cursor.set(pos);
                             cmd_cur = None;
                             break 'error;
                         }
-                        lnum = curwin_mut().w_cursor.lnum;
-                        curwin_mut().w_cursor = pos;
+                        lnum = curwin_mut().w_cursor.get().lnum;
+                        curwin_mut().w_cursor.set(pos);
                         cmd_cur = Some(crate::memory::CStrSubslice::advance(
                             after_delim,
                             g_st().search_global.cmdlen.get() as usize,
@@ -8000,7 +8003,7 @@ pub fn get_address(
                             lnum: if lnum != MAXLNUM {
                                 lnum
                             } else {
-                                curwin_mut().w_cursor.lnum
+                                curwin_mut().w_cursor.get().lnum
                             },
                             col: if b_next != b'?' { MAXCOL } else { 0 },
                             coladd: 0,
@@ -8051,7 +8054,7 @@ pub fn get_address(
 
                 if lnum == MAXLNUM {
                     match addr_type {
-                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
+                        ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.get().lnum,
                         ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
                         ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
@@ -9952,7 +9955,7 @@ fn ex_print(eap: &mut Exarg) {
             os_breakcheck();
         }
         setpcmark();
-        curwin_mut().w_cursor.lnum = eap.line2;
+        curwin_mut().w_cursor.set_lnum(eap.line2);
         beginline(BL_SOL | BL_FIX);
     }
 }
@@ -10699,7 +10702,7 @@ fn ex_swapname(_eap: &mut Exarg) {
 }
 
 fn ex_syncbind(_eap: &mut Exarg) {
-    let old_linenr = curwin_mut().w_cursor.lnum;
+    let old_linenr = curwin_mut().w_cursor.get().lnum;
     setpcmark();
 
     let vtopline = if curwin_mut().w_onebuf_opt.wo_scb.get() {
@@ -10734,7 +10737,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
     if curwin_mut().w_onebuf_opt.wo_scb.get() {
         g_st().did_syncbind.set(true);
         checkpcmark();
-        if old_linenr != curwin_mut().w_cursor.lnum {
+        if old_linenr != curwin_mut().w_cursor.get().lnum {
             let ctrl_o = [CTRL_O, 0];
             let _ = ins_typebuf(
                 crate::memory::bytes_as_cstr(&ctrl_o),
@@ -11143,7 +11146,7 @@ fn ex_operators(eap: &mut Exarg) {
     g_st().virtual_op.set(K_FALSE);
     if eap.cmdidx != Cmdidx::CmdYank {
         setpcmark();
-        curwin_mut().w_cursor.lnum = eap.line1;
+        curwin_mut().w_cursor.set_lnum(eap.line1);
         beginline(BL_SOL | BL_FIX);
     }
 
@@ -11174,7 +11177,7 @@ fn ex_put(eap: &mut Exarg) {
         eap.line2 = 1;
         eap.forceit = true;
     }
-    curwin_mut().w_cursor.lnum = eap.line2;
+    curwin_mut().w_cursor.set_lnum(eap.line2);
     check_cursor_col(curwin_mut());
     do_put(
         eap.regname,
@@ -11190,7 +11193,7 @@ fn ex_iput(eap: &mut Exarg) {
         eap.line2 = 1;
         eap.forceit = true;
     }
-    curwin_mut().w_cursor.lnum = eap.line2;
+    curwin_mut().w_cursor.set_lnum(eap.line2);
     check_cursor_col(curwin_mut());
     do_put(
         eap.regname,
@@ -11246,7 +11249,7 @@ fn ex_copymove(eap: &mut Exarg) {
 pub fn ex_may_print(eap: &mut Exarg) {
     if eap.flags != 0 {
         print_line(
-            curwin_mut().w_cursor.lnum,
+            curwin_mut().w_cursor.get().lnum,
             (eap.flags & EXFLAG_NR) != 0,
             (eap.flags & EXFLAG_LIST) != 0,
             true,
@@ -11255,7 +11258,7 @@ pub fn ex_may_print(eap: &mut Exarg) {
 }
 
 fn ex_join(eap: &mut Exarg) {
-    curwin_mut().w_cursor.lnum = eap.line1;
+    curwin_mut().w_cursor.set_lnum(eap.line1);
     if eap.line1 == eap.line2 {
         if eap.addr_count >= 2 {
             return;
@@ -11280,7 +11283,7 @@ fn ex_join(eap: &mut Exarg) {
 fn ex_at(eap: &mut Exarg) {
     let prev_len = g_st().typebuf.tb_len.get();
 
-    curwin_mut().w_cursor.lnum = eap.line2;
+    curwin_mut().w_cursor.set_lnum(eap.line2);
     check_cursor_col(curwin_mut());
 
     let mut c = i32::from(eap.arg.first_byte());
@@ -11610,15 +11613,15 @@ fn ex_mark(eap: &mut Exarg) {
         return;
     }
 
-    let pos = curwin_mut().w_cursor;
-    curwin_mut().w_cursor.lnum = eap.line2;
+    let pos = curwin_mut().w_cursor.get();
+    curwin_mut().w_cursor.set_lnum(eap.line2);
     beginline(BL_WHITE | BL_FIX);
     if !setmark(i32::from(eap.arg.first_byte())) {
         let _ = emsg(gettext(
             c"E191: Argument must be a letter or forward/backward quote",
         ));
     }
-    curwin_mut().w_cursor = pos;
+    curwin_mut().w_cursor.set(pos);
 }
 
 pub fn update_topline_cursor() {
@@ -11732,9 +11735,9 @@ fn ex_normal(eap: &mut Exarg) {
 
     loop {
         if eap.addr_count != 0 {
-            curwin_mut().w_cursor.lnum = eap.line1;
+            curwin_mut().w_cursor.set_lnum(eap.line1);
             eap.line1 += 1;
-            curwin_mut().w_cursor.col = 0;
+            curwin_mut().w_cursor.set_col(0);
             check_cursor_moved(curwin_mut());
         }
 
@@ -11766,8 +11769,8 @@ fn ex_startinsert(eap: &mut Exarg) {
         return;
     }
     if eap.forceit {
-        if curwin_mut().w_cursor.lnum == 0 {
-            curwin_mut().w_cursor.lnum = 1;
+        if curwin_mut().w_cursor.get().lnum == 0 {
+            curwin_mut().w_cursor.set_lnum(1);
         }
         set_cursor_for_append_to_line();
     }

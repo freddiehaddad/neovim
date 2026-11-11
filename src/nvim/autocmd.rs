@@ -2341,7 +2341,7 @@ pub fn autocmd_register(
             g_st()
                 .last_cursormoved_win
                 .set(crate::globals::curwin_ptr());
-            g_st().last_cursormoved.set(curwin_mut().w_cursor);
+            g_st().last_cursormoved.set(curwin_mut().w_cursor.get());
         }
 
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)

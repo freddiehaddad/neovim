@@ -990,7 +990,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
     buffer_get_line(
         curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
         arena,
         err,
     )
@@ -1005,7 +1005,7 @@ pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
 pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Error) {
     buffer_set_line(
         curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
         line,
         arena,
         err,
@@ -1019,7 +1019,7 @@ pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Erro
 pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
     buffer_del_line(
         curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
         arena,
         err,
     );
@@ -2782,7 +2782,7 @@ pub fn nvim_eval_statusline(
         } else if use_cul {
             stc_hl_id = HLF_CLN;
         } else if wp.w_onebuf_opt.wo_rnu.get() {
-            stc_hl_id = if lnum < wp.w_cursor.lnum {
+            stc_hl_id = if lnum < wp.w_cursor.get().lnum {
                 HLF_LNA
             } else {
                 HLF_LNB

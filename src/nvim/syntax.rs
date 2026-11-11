@@ -795,9 +795,9 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
         }
         SYN_STATE.with(|s| s.current_lnum.set(start_lnum));
 
-        let cursor_save: CursorPos = wp.w_cursor;
-        wp.w_cursor.lnum = start_lnum;
-        wp.w_cursor.col = 0;
+        let cursor_save: CursorPos = wp.w_cursor.get();
+        wp.w_cursor.set_lnum(start_lnum);
+        wp.w_cursor.set_col(0);
 
         if find_start_comment(syn_block_mut().b_syn_sync_maxlines.get()).is_some() {
             let mut idx = syn_block_mut().b_syn_patterns.borrow().len() as i32 - 1;
@@ -815,7 +815,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
             }
         }
 
-        wp.w_cursor = cursor_save;
+        wp.w_cursor.set(cursor_save);
         set_curwin(curwin_save);
         g_st().curbuf.set(curbuf_save);
     } else if (syn_block_mut().b_syn_sync_flags.get() & SF_MATCH) != 0 {

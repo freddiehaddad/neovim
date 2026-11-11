@@ -2219,7 +2219,7 @@ pub fn readfile(
 
                 u_clearline(curbuf_mut());
 
-                curwin_mut().w_cursor.lnum = from + 1;
+                curwin_mut().w_cursor.set_lnum(from + 1);
                 check_cursor_lnum(curwin_mut());
                 beginline(BL_WHITE | BL_FIX);
 
@@ -3422,7 +3422,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         None
     };
 
-    let old_cursor = curwin_mut().w_cursor;
+    let old_cursor = curwin_mut().w_cursor.get();
     let old_topline = curwin_mut().w_topline.get();
 
     if opt_vars().p_ur.get() < 0
@@ -3516,7 +3516,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     curwin_mut()
         .w_topline
         .set(old_topline.min(curbuf_mut().b_ml.ml_line_count.get()));
-    curwin_mut().w_cursor = old_cursor;
+    curwin_mut().w_cursor.set(old_cursor);
     check_cursor(curwin_mut());
     update_topline(curwin_mut());
     curbuf_mut().b_keep_filetype.set(false);

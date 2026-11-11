@@ -544,12 +544,12 @@ pub fn do_tag(
                                 tagstackidx = oldtagstackidx;
                                 break 'end_do_tag;
                             }
-                            curwin_mut().w_cursor.lnum = saved_fmark.mark.lnum;
+                            curwin_mut().w_cursor.set_lnum(saved_fmark.mark.lnum);
                         } else {
                             setpcmark();
-                            curwin_mut().w_cursor.lnum = saved_fmark.mark.lnum;
+                            curwin_mut().w_cursor.set_lnum(saved_fmark.mark.lnum);
                         }
-                        curwin_mut().w_cursor.col = saved_fmark.mark.col;
+                        curwin_mut().w_cursor.set_col(saved_fmark.mark.col);
                         curwin_mut().w_set_curswant.set(true);
                         if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 {
                             mark_view_restore(Some(&saved_fmark));
@@ -641,13 +641,13 @@ pub fn do_tag(
                     if save_pos {
                         curwin_mut().w_tagstack.borrow_mut()[tagstackidx as usize]
                             .fmark
-                            .mark = curwin_mut().w_cursor;
+                            .mark = curwin_mut().w_cursor.get();
                         curwin_mut().w_tagstack.borrow_mut()[tagstackidx as usize]
                             .fmark
                             .fnum = curbuf_mut().b_fnum.get();
                         curwin_mut().w_tagstack.borrow_mut()[tagstackidx as usize]
                             .fmark
-                            .view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
+                            .view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
                     }
 
                     curwin_mut().w_tagstackidx.set(tagstackidx);
@@ -1330,9 +1330,9 @@ fn find_tagfunc_tags(
     args[2].vval = crate::eval::typval::TypvalVval::Dict(d.clone());
     args[3].v_type = VarType::VarUnknown;
 
-    let save_pos = curwin_mut().w_cursor;
+    let save_pos = curwin_mut().w_cursor.get();
     let mut result = callback_call(&curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);
-    curwin_mut().w_cursor = save_pos;
+    curwin_mut().w_cursor.set(save_pos);
     check_cursor(curwin_mut());
     d.dv_refcount.set(d.dv_refcount.get() - 1);
 
@@ -2786,13 +2786,13 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 opt_vars().p_ws.set(true);
                 opt_vars().p_ic.set(false);
                 opt_vars().p_scs.set(false);
-                let save_lnum = curwin_mut().w_cursor.lnum;
+                let save_lnum = curwin_mut().w_cursor.get().lnum;
 
-                curwin_mut().w_cursor.lnum = if tagp.tagline > 0 {
+                curwin_mut().w_cursor.set_lnum(if tagp.tagline > 0 {
                     tagp.tagline - 1
                 } else {
                     0
-                };
+                });
 
                 let search_dirc = i32::from(pbuf_vec[0]);
                 let pbuf1_cstr = crate::memory::bytes_as_cstr(&pbuf_vec[1..]);
@@ -2870,7 +2870,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                     }
                     if found == 0 {
                         emsg(gettext(c"E434: Can't find tag pattern"));
-                        curwin_mut().w_cursor.lnum = save_lnum;
+                        curwin_mut().w_cursor.set_lnum(save_lnum);
                     } else {
                         if found == 2 || !save_p_ic {
                             msg(gettext(c"E435: Couldn't find tag, just guessing!"), 0);
@@ -2891,9 +2891,9 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
                 g_st().secure.set(1);
                 g_st().sandbox.set(g_st().sandbox.get() + (1));
-                curwin_mut().w_cursor.lnum = 1;
-                curwin_mut().w_cursor.col = 0;
-                curwin_mut().w_cursor.coladd = 0;
+                curwin_mut().w_cursor.set_lnum(1);
+                curwin_mut().w_cursor.set_col(0);
+                curwin_mut().w_cursor.set_coladd(0);
                 do_cmdline_cmd(crate::memory::bytes_as_cstr(&pbuf_vec));
                 retval = Some(true);
 
@@ -2914,7 +2914,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
             if retval == Some(true) {
                 if curbuf_mut().b_help.get() {
-                    set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
+                    set_topline(curwin_mut(), curwin_mut().w_cursor.get().lnum);
                 }
                 if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
                     fold_open_cursor();

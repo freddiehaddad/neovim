@@ -2725,7 +2725,7 @@ pub fn utf_cp_bounds(bytes: &[u8], idx: usize) -> CharBoundsOff {
 }
 
 pub fn utf_find_illegal() {
-    let pos: CursorPos = curwin_mut().w_cursor;
+    let pos: CursorPos = curwin_mut().w_cursor.get();
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,
@@ -2742,7 +2742,7 @@ pub fn utf_find_illegal() {
         );
     }
 
-    curwin_mut().w_cursor.coladd = 0;
+    curwin_mut().w_cursor.set_coladd(0);
     'search: loop {
         let cursor_slice = crate::cursor::get_cursor_pos_slice();
         let search_bytes: &[u8] = if vimconv.vc_type != CONV_NONE {
@@ -2762,14 +2762,14 @@ pub fn utf_find_illegal() {
             let len = utf_slice2len(rest);
             if rest[0] >= 0x80 && (len == 1 || utf_char2len(utf_slice2char(rest)) as usize != len) {
                 if vimconv.vc_type == CONV_NONE {
-                    curwin_mut().w_cursor.col += idx as Colnr;
+                    curwin_mut().w_cursor.add_col(idx as Colnr);
                 } else {
                     let mut rem = idx as i32;
                     let mut cur_idx = 0usize;
                     while cur_idx < cursor_slice.len() && cursor_slice[cur_idx] != 0 && rem > 0 {
                         rem -= 1;
                         let l = utf_slice2len(&cursor_slice[cur_idx..]);
-                        curwin_mut().w_cursor.col += l as Colnr;
+                        curwin_mut().w_cursor.add_col(l as Colnr);
                         cur_idx += l;
                     }
                 }
@@ -2778,17 +2778,17 @@ pub fn utf_find_illegal() {
             }
             idx += len;
         }
-        if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count.get() {
-            curwin_mut().w_cursor = pos;
+        if curwin_mut().w_cursor.get().lnum == curbuf_mut().b_ml.ml_line_count.get() {
+            curwin_mut().w_cursor.set(pos);
             beep_flush();
             break;
         }
-        curwin_mut().w_cursor.lnum += 1;
-        curwin_mut().w_cursor.col = 0;
+        curwin_mut().w_cursor.add_lnum(1);
+        curwin_mut().w_cursor.set_col(0);
     }
 
     if vimconv.vc_type != CONV_NONE && tofree.is_none() {
-        curwin_mut().w_cursor = pos;
+        curwin_mut().w_cursor.set(pos);
         beep_flush();
     }
 }
@@ -2809,34 +2809,37 @@ pub fn utf_valid_string(bytes: &[u8]) -> bool {
 }
 
 pub fn mb_adjust_cursor() {
-    mark_mb_adjustpos(curbuf_mut(), &mut curwin_mut().w_cursor);
+    curwin_mut()
+        .w_cursor
+        .update_mut(|c| mark_mb_adjustpos(curbuf_mut(), c));
 }
 
 pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
-    let oldcol = win.w_cursor.col;
+    let oldcol = win.w_cursor.get().col;
 
     if oldcol != 0 {
-        let line = crate::memline::ml_get_buf_slice(win.buf_mut(), win.w_cursor.lnum);
+        let line = crate::memline::ml_get_buf_slice(win.buf_mut(), win.w_cursor.get().lnum);
         let len = line.len() as Colnr;
 
         if len == 0 || oldcol < 0 {
-            win.w_cursor.col = 0;
+            win.w_cursor.set_col(0);
         } else {
             if oldcol > len {
-                win.w_cursor.col = len - 1;
+                win.w_cursor.set_col(len - 1);
             }
-            win.w_cursor.col -= utf_head_off_slice(line, win.w_cursor.col as usize) as Colnr;
+            win.w_cursor
+                .sub_col(utf_head_off_slice(line, win.w_cursor.get().col as usize) as Colnr);
         }
 
-        let cur_col = win.w_cursor.col as usize;
-        if win.w_cursor.coladd == 1
+        let cur_col = win.w_cursor.get().col as usize;
+        if win.w_cursor.get().coladd == 1
             && let Some(rem) = line.get(cur_col..)
             && !rem.is_empty()
             && rem[0] != TAB
             && vim_isprintc(utf_slice2char(rem))
             && slice2cells(rem) > 1
         {
-            win.w_cursor.coladd = 0;
+            win.w_cursor.set_coladd(0);
         }
     }
 }

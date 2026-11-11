@@ -918,11 +918,11 @@ pub fn terminal_open(term_id: TermId, buf: &mut FileBuf) {
     }
     curwin_mut().w_onebuf_opt.wo_scb.set(false);
     curwin_mut().w_onebuf_opt.wo_crb.set(false);
-    curwin_mut().w_cursor = CursorPos {
+    curwin_mut().w_cursor.set(CursorPos {
         lnum: 1,
         col: 0,
         coladd: 0,
-    };
+    });
 
     apply_autocmds(EVENT_TERMOPEN, None, None, false, Some(&mut *buf));
 
@@ -1324,18 +1324,20 @@ fn terminal_check_cursor() {
             term.cursor.col,
         )
     });
-    curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get().min(lnum_target);
+    curwin_mut()
+        .w_cursor
+        .set_lnum(curbuf_mut().b_ml.ml_line_count.get().min(lnum_target));
     let topline =
         (curbuf_mut().b_ml.ml_line_count.get() - curwin_mut().w_view_height.get() + 1).max(1);
     if topline != curwin_mut().w_topline.get() {
         set_topline(curwin_mut(), topline);
     }
     if suspended && (g_st().state_global.get() & MODE_TERMINAL) != 0 {
-        curwin_mut().w_cursor = CursorPos {
+        curwin_mut().w_cursor.set(CursorPos {
             lnum: curbuf_mut().b_ml.ml_line_count.get(),
             col: 0,
             coladd: 0,
-        };
+        });
     } else {
         let off = if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
             0
@@ -2709,12 +2711,15 @@ fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
                     continue;
                 }
 
-                let following = ml_end == wp.w_cursor.lnum + added;
+                let following = ml_end == wp.w_cursor.get().lnum + added;
                 if following {
-                    wp.w_cursor.lnum = ml_end;
-                    set_topline(wp, (wp.w_cursor.lnum - wp.w_view_height.get() + 1).max(1));
+                    wp.w_cursor.set_lnum(ml_end);
+                    set_topline(
+                        wp,
+                        (wp.w_cursor.get().lnum - wp.w_view_height.get() + 1).max(1),
+                    );
                 } else {
-                    wp.w_cursor.lnum = wp.w_cursor.lnum.min(ml_end);
+                    wp.w_cursor.set_lnum(wp.w_cursor.get().lnum.min(ml_end));
                 }
                 mb_check_adjust_col(&mut *wp);
             }

@@ -2251,7 +2251,10 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
         return Some(errmsg);
     }
     if g_st().visual_global.borrow().active {
-        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+        redraw_winline(
+            crate::globals::curwin_mut(),
+            curwin_mut().w_cursor.get().lnum,
+        );
     }
     None
 }

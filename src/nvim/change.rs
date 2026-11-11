@@ -216,16 +216,16 @@ pub fn changed_lines_invalidate_win(
     mut lnume: Linenr,
     xtra: Linenr,
 ) {
-    if wp.w_cursor.lnum <= lnum {
+    if wp.w_cursor.get().lnum <= lnum {
         let i = find_wl_entry(&mut *wp, lnum);
-        if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines.borrow())[i as usize].wl_lnum {
+        if i >= 0 && wp.w_cursor.get().lnum > (&wp.w_lines.borrow())[i as usize].wl_lnum {
             changed_line_abv_curs_win(&mut *wp);
         }
     }
 
-    if wp.w_cursor.lnum > lnum {
+    if wp.w_cursor.get().lnum > lnum {
         changed_line_abv_curs_win(&mut *wp);
-    } else if wp.w_cursor.lnum == lnum && wp.w_cursor.col >= col {
+    } else if wp.w_cursor.get().lnum == lnum && wp.w_cursor.get().col >= col {
         changed_cline_bef_curs(wp);
     }
     if wp.w_botline.get() >= lnum {
@@ -314,7 +314,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             && lnum >= curwin_mut().w_topline.get()
             && lnum <= curwin_mut().w_botline.get()
         {
-            view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
+            view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
         }
         reset_fmark(
             &mut buf.b_last_change,
@@ -396,11 +396,11 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             fold_update(&mut *(wp), lnum, last);
 
             let mut folded = has_folding_win(&mut *wp, lnum, Some(&mut lnum), None, false, None);
-            if wp.w_cursor.lnum == lnum {
+            if wp.w_cursor.get().lnum == lnum {
                 wp.w_cline_folded.set(folded);
             }
             folded = has_folding_win(&mut *wp, last, None, Some(&mut last), false, None);
-            if wp.w_cursor.lnum == last {
+            if wp.w_cursor.get().lnum == last {
                 wp.w_cline_folded.set(folded);
             }
 
@@ -435,8 +435,8 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     if g_st().last_cursormoved_win.get() == curwin_ptr()
         && curwin_mut().w_buffer.get() == (&raw mut *buf)
-        && lnum <= curwin_mut().w_cursor.lnum
-        && lnume + xtra.abs() > curwin_mut().w_cursor.lnum
+        && lnum <= curwin_mut().w_cursor.get().lnum
+        && lnume + xtra.abs() > curwin_mut().w_cursor.get().lnum
     {
         {
             let mut v = g_st().last_cursormoved.get();
@@ -692,12 +692,12 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
     buf_cstr[..copy_len].copy_from_slice(&buf_slice[..copy_len]);
     let buf_bytes = &buf_cstr[..copy_len];
     {
-        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
+        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
             coladvance_force(getviscol());
         }
 
-        let col = curwin_mut().w_cursor.col as usize;
-        let lnum = curwin_mut().w_cursor.lnum;
+        let col = curwin_mut().w_cursor.get().col as usize;
+        let lnum = curwin_mut().w_cursor.get().lnum;
         let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
         let oldp_bytes = &oldp_with_nul[..oldp_with_nul.len() - 1];
         let linelen = ml_get_len(lnum) as usize + 1;
@@ -713,9 +713,9 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     curwin_mut().w_onebuf_opt.wo_list.set(false);
                 }
                 let mut vcol: Colnr = 0;
-                let mut cursor = curwin_mut().w_cursor;
+                let mut cursor = curwin_mut().w_cursor.get();
                 getvcol(curwin_mut(), &mut cursor, None, Some(&mut vcol), None, 0);
-                curwin_mut().w_cursor = cursor;
+                curwin_mut().w_cursor.set(cursor);
                 let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_bytes, vcol);
                 while col + oldlen < oldp_bytes.len() && vcol < new_vcol {
                     let rem = &oldp_bytes[col + oldlen..];
@@ -760,20 +760,20 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         }
 
         if !opt_vars().p_ri.get() || (g_st().state_global.get() & REPLACE_FLAG) != 0 {
-            curwin_mut().w_cursor.col += charlen as Colnr;
+            curwin_mut().w_cursor.add_col(charlen as Colnr);
         }
     }
 }
 
 /// Insert a string at the cursor position.
 pub fn ins_str(s: &[u8], slen: usize) {
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
 
-    if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
+    if virtual_active(curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
         coladvance_force(getviscol());
     }
 
-    let col = curwin_mut().w_cursor.col;
+    let col = curwin_mut().w_cursor.get().col;
     let old_slice = crate::memline::ml_get_slice(lnum);
     let col_usize = col as usize;
     let s_slice = &s[..slen.min(s.len())];
@@ -787,7 +787,7 @@ pub fn ins_str(s: &[u8], slen: usize) {
     ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
     drop(newp_vec);
     inserted_bytes(lnum, col, 0, slen as i32);
-    curwin_mut().w_cursor.col += slen as Colnr;
+    curwin_mut().w_cursor.add_col(slen as Colnr);
 }
 
 /// Delete one character under the cursor.
@@ -815,8 +815,8 @@ pub fn del_chars(count: i32, fixpos: i32) -> bool {
 
 /// Delete `count` bytes under the cursor.
 pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bool {
-    let lnum = curwin_mut().w_cursor.lnum;
-    let mut col = curwin_mut().w_cursor.col;
+    let lnum = curwin_mut().w_cursor.get().lnum;
+    let mut col = curwin_mut().w_cursor.get().col;
     let mut fixpos = fixpos_arg;
     let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
     let oldp_bytes = &oldp_with_nul[..oldp_with_nul.len() - 1];
@@ -870,10 +870,14 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
             && g_st().restart_edit.get() == 0
             && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
         {
-            curwin_mut().w_cursor.col -= 1;
-            curwin_mut().w_cursor.coladd = 0;
-            curwin_mut().w_cursor.col -=
-                crate::mbyte::utf_head_off_slice(oldp_bytes, curwin_mut().w_cursor.col as usize);
+            curwin_mut().w_cursor.sub_col(1);
+            curwin_mut().w_cursor.set_coladd(0);
+            curwin_mut()
+                .w_cursor
+                .sub_col(crate::mbyte::utf_head_off_slice(
+                    oldp_bytes,
+                    curwin_mut().w_cursor.get().col as usize,
+                ));
         }
         count = oldlen - col;
         movelen = 1;
@@ -934,15 +938,15 @@ pub fn open_line(
     let mut first_char: i32 = 0;
     let saved_pi = curbuf_mut().b_p_pi.get();
 
-    let lnum = curwin_mut().w_cursor.lnum;
-    let mincol = curwin_mut().w_cursor.col + 1;
+    let lnum = curwin_mut().w_cursor.get().lnum;
+    let mincol = curwin_mut().w_cursor.get().col + 1;
 
     let mut saved_line_vec = crate::cursor::get_cursor_line_slice().to_vec();
     saved_line_vec.push(0);
 
     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-        if curwin_mut().w_cursor.lnum < g_st().orig_line_count.get() {
-            let next_lnum = curwin_mut().w_cursor.lnum + 1;
+        if curwin_mut().w_cursor.get().lnum < g_st().orig_line_count.get() {
+            let next_lnum = curwin_mut().w_cursor.get().lnum + 1;
             next_line_vec = crate::memline::ml_get_slice(next_lnum).to_vec();
             next_line_vec.push(0);
         } else {
@@ -951,7 +955,7 @@ pub fn open_line(
 
         replace_push_nul();
         replace_push_nul();
-        let col_u = curwin_mut().w_cursor.col as usize;
+        let col_u = curwin_mut().w_cursor.get().col as usize;
         replace_push(crate::memory::bytes_until_nul(&saved_line_vec[col_u..]));
 
         saved_line_vec[col_u] = 0;
@@ -960,7 +964,7 @@ pub fn open_line(
     if (g_st().state_global.get() & MODE_INSERT) != 0
         && (g_st().state_global.get() & VREPLACE_FLAG) == 0
     {
-        let col_u = curwin_mut().w_cursor.col as usize;
+        let col_u = curwin_mut().w_cursor.get().col as usize;
         p_extra_idx = Some(col_u);
         if do_si {
             let rem = crate::charset::skipwhite_slice(&saved_line_vec[col_u..]);
@@ -999,7 +1003,7 @@ pub fn open_line(
             && saved_line_vec[0] != 0
             && (p_extra_idx.is_none() || first_char != b'{' as i32)
         {
-            let old_cursor = curwin_mut().w_cursor;
+            let old_cursor = curwin_mut().w_cursor.get();
             let mut ptr_bytes = saved_line_bytes;
             if (flags & OPENLINE_DO_COM) != 0 {
                 lead_len = get_leader_len(ptr_bytes, None, false, true);
@@ -1008,9 +1012,9 @@ pub fn open_line(
             }
             if dir == FORWARD {
                 if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
-                    while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.lnum > 1 {
-                        curwin_mut().w_cursor.lnum -= 1;
-                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                    while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.get().lnum > 1 {
+                        curwin_mut().w_cursor.sub_lnum(1);
+                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
                     }
                     newindent = get_indent();
                 }
@@ -1028,16 +1032,17 @@ pub fn open_line(
                         let mut idx = ptr_bytes.len() - after_star.len();
                         while idx < ptr_bytes.len() {
                             if ptr_bytes[idx] == b'/' && ptr_bytes[idx - 1] == b'*' {
-                                curwin_mut().w_cursor.col = idx as Colnr;
+                                curwin_mut().w_cursor.set_col(idx as Colnr);
                                 if let Some(pos) = findmatch(None, 0) {
-                                    curwin_mut().w_cursor.lnum = pos.lnum;
+                                    curwin_mut().w_cursor.set_lnum(pos.lnum);
 
                                     newindent = get_indent();
                                     break;
                                 }
                                 ptr_bytes =
-                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-                                idx = (curwin_mut().w_cursor.col as usize).min(ptr_bytes.len());
+                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                                idx =
+                                    (curwin_mut().w_cursor.get().col as usize).min(ptr_bytes.len());
                             }
                             idx += 1;
                         }
@@ -1056,9 +1061,9 @@ pub fn open_line(
                         }
                     }
                     if ptr_bytes.get(p_idx) == Some(&b')') {
-                        curwin_mut().w_cursor.col = p_idx as Colnr;
+                        curwin_mut().w_cursor.set_col(p_idx as Colnr);
                         if let Some(pos) = findmatch(None, b'(' as i32) {
-                            curwin_mut().w_cursor.lnum = pos.lnum;
+                            curwin_mut().w_cursor.set_lnum(pos.lnum);
 
                             newindent = get_indent();
                             ptr_bytes = crate::cursor::get_cursor_line_slice();
@@ -1076,11 +1081,11 @@ pub fn open_line(
                     let mut was_backslashed = false;
 
                     while (ptr_bytes.first() == Some(&b'#') || was_backslashed)
-                        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
+                        && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_ml.ml_line_count.get()
                     {
                         was_backslashed = ptr_bytes.last() == Some(&b'\\');
-                        curwin_mut().w_cursor.lnum += 1;
-                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                        curwin_mut().w_cursor.add_lnum(1);
+                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
                     }
                     if was_backslashed {
                         newindent = 0;
@@ -1094,7 +1099,7 @@ pub fn open_line(
                     g_st().ins_global.borrow_mut().can_si_back = true;
                 }
             }
-            curwin_mut().w_cursor = old_cursor;
+            curwin_mut().w_cursor.set(old_cursor);
         }
         if do_si {
             g_st().ins_global.borrow_mut().can_si = true;
@@ -1112,7 +1117,7 @@ pub fn open_line(
                 KEY_OPEN_BACK
             },
             b' ' as i32,
-            linewhite(curwin_mut().w_cursor.lnum),
+            linewhite(curwin_mut().w_cursor.get().lnum),
         )
         && (flags & OPENLINE_FORCE_INDENT) == 0;
 
@@ -1229,7 +1234,7 @@ pub fn open_line(
                     }
 
                     if !ascii_iswhite(saved_line_vec[(lead_len - 1) as usize])
-                        && ((p_extra_idx.is_some() && curwin_mut().w_cursor.col == lead_len)
+                        && ((p_extra_idx.is_some() && curwin_mut().w_cursor.get().col == lead_len)
                             || (p_extra_idx.is_none() && saved_line_vec[lead_len as usize] == 0)
                             || require_blank)
                     {
@@ -1507,14 +1512,14 @@ pub fn open_line(
             && saved_line_vec[ce_idx..].starts_with(b"*/")
             && (curbuf_mut().b_p_ai.get() || do_si)
         {
-            let old_cursor = curwin_mut().w_cursor;
-            curwin_mut().w_cursor.col = ce_idx as Colnr;
+            let old_cursor = curwin_mut().w_cursor.get();
+            curwin_mut().w_cursor.set_col(ce_idx as Colnr);
             if let Some(pos) = findmatch(None, 0) {
-                curwin_mut().w_cursor.lnum = pos.lnum;
+                curwin_mut().w_cursor.set_lnum(pos.lnum);
 
                 newindent = get_indent();
             }
-            curwin_mut().w_cursor = old_cursor;
+            curwin_mut().w_cursor.set(old_cursor);
         }
     }
 
@@ -1572,7 +1577,7 @@ pub fn open_line(
     g_st()
         .curbuf_splice_pending
         .set(g_st().curbuf_splice_pending.get() + (1));
-    let old_cursor = curwin_mut().w_cursor;
+    let old_cursor = curwin_mut().w_cursor.get();
     let old_cmod_flags = g_st().cmdmod.borrow().cmod_flags;
     let mut prompt_moved: Option<std::ffi::CString> = None;
 
@@ -1593,9 +1598,9 @@ pub fn open_line(
 
     if dir == BACKWARD {
         if bt_prompt(Some(crate::globals::curbuf_mut()))
-            && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum
+            && curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.mark.lnum
         {
-            let prompt_line_cstr = ml_get(curwin_mut().w_cursor.lnum);
+            let prompt_line_cstr = ml_get(curwin_mut().w_cursor.get().lnum);
             let prompt_line_bytes = prompt_line_cstr.to_bytes();
             let prompt = prompt_text();
             let prompt_len = prompt.to_bytes().len();
@@ -1604,7 +1609,7 @@ pub fn open_line(
                 let rem_bytes = prompt_line_bytes[prompt_len..].to_vec();
 
                 g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_LOCKMARKS;
-                ml_replace(curwin_mut().w_cursor.lnum, &rem_bytes, true);
+                ml_replace(curwin_mut().w_cursor.get().lnum, &rem_bytes, true);
                 let cur_extra = current_extra_bytes(
                     p_extra_in_allocated,
                     p_extra_off,
@@ -1614,7 +1619,7 @@ pub fn open_line(
                 prompt_moved = Some(concat_str(prompt.to_bytes(), cur_extra));
             }
         }
-        curwin_mut().w_cursor.lnum -= 1;
+        curwin_mut().w_cursor.sub_lnum(1);
     }
 
     let p_extra_bytes = if let Some(ref pm) = prompt_moved {
@@ -1631,12 +1636,12 @@ pub fn open_line(
     let append_failed = if (g_st().state_global.get() & VREPLACE_FLAG) == 0
         || old_cursor.lnum >= g_st().orig_line_count.get()
     {
-        if !ml_append(curwin_mut().w_cursor.lnum, p_extra_bytes, 0, false) {
+        if !ml_append(curwin_mut().w_cursor.get().lnum, p_extra_bytes, 0, false) {
             did_append = false;
             true
         } else {
             mark_adjust(
-                curwin_mut().w_cursor.lnum + 1,
+                curwin_mut().w_cursor.get().lnum + 1,
                 MAXLNUM,
                 1,
                 0,
@@ -1646,8 +1651,8 @@ pub fn open_line(
             false
         }
     } else {
-        curwin_mut().w_cursor.lnum += 1;
-        if curwin_mut().w_cursor.lnum
+        curwin_mut().w_cursor.add_lnum(1);
+        if curwin_mut().w_cursor.get().lnum
             >= g_st().ins_global.borrow().start.lnum + g_st().vr_lines_changed.get()
         {
             u_save_cursor();
@@ -1655,9 +1660,9 @@ pub fn open_line(
                 .vr_lines_changed
                 .set(g_st().vr_lines_changed.get() + (1));
         }
-        ml_replace(curwin_mut().w_cursor.lnum, p_extra_bytes, true);
-        changed_bytes(curwin_mut().w_cursor.lnum, 0);
-        curwin_mut().w_cursor.lnum -= 1;
+        ml_replace(curwin_mut().w_cursor.get().lnum, p_extra_bytes, true);
+        changed_bytes(curwin_mut().w_cursor.get().lnum, 0);
+        curwin_mut().w_cursor.sub_lnum(1);
         did_append = false;
         false
     };
@@ -1667,7 +1672,7 @@ pub fn open_line(
             .inhibit_delete_count
             .set(g_st().inhibit_delete_count.get() + (1));
         if newindent != 0 || g_st().ins_global.borrow().did_si {
-            curwin_mut().w_cursor.lnum += 1;
+            curwin_mut().w_cursor.add_lnum(1);
             if g_st().ins_global.borrow().did_si {
                 let sw = get_sw_value(curbuf_mut());
                 if opt_vars().p_sr.get() {
@@ -1681,16 +1686,16 @@ pub fn open_line(
             } else {
                 set_indent(newindent, SIN_INSERT | SIN_NOMARK);
             }
-            less_cols -= curwin_mut().w_cursor.col;
+            less_cols -= curwin_mut().w_cursor.get().col;
 
-            g_st().ins_global.borrow_mut().ai_col = curwin_mut().w_cursor.col;
+            g_st().ins_global.borrow_mut().ai_col = curwin_mut().w_cursor.get().col;
 
             if replace_normal(g_st().state_global.get()) {
-                for _ in 0..curwin_mut().w_cursor.col {
+                for _ in 0..curwin_mut().w_cursor.get().col {
                     replace_push_nul();
                 }
             }
-            newcol += curwin_mut().w_cursor.col;
+            newcol += curwin_mut().w_cursor.get().col;
             if no_si {
                 g_st().ins_global.borrow_mut().did_si = false;
             }
@@ -1706,32 +1711,32 @@ pub fn open_line(
             }
         }
 
-        curwin_mut().w_cursor = old_cursor;
+        curwin_mut().w_cursor.set(old_cursor);
 
         if dir == FORWARD {
             if trunc_line || (g_st().state_global.get() & MODE_INSERT) != 0 {
-                saved_line_vec[curwin_mut().w_cursor.col as usize] = 0;
+                saved_line_vec[curwin_mut().w_cursor.get().col as usize] = 0;
 
                 if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
-                    let col_idx = curwin_mut().w_cursor.col as usize;
+                    let col_idx = curwin_mut().w_cursor.get().col as usize;
                     truncate_spaces(&mut saved_line_vec, col_idx);
                 }
                 let saved_line_bytes = crate::memory::bytes_until_nul(&saved_line_vec);
-                ml_replace(curwin_mut().w_cursor.lnum, saved_line_bytes, true);
+                ml_replace(curwin_mut().w_cursor.get().lnum, saved_line_bytes, true);
 
                 let new_len = saved_line_bytes.len() as i32;
 
                 let mut cols_spliced: i32 = 0;
-                if new_len < curwin_mut().w_cursor.col {
+                if new_len < curwin_mut().w_cursor.get().col {
                     extmark_splice_cols(
                         curbuf_mut(),
-                        curwin_mut().w_cursor.lnum - 1,
+                        curwin_mut().w_cursor.get().lnum - 1,
                         new_len,
-                        curwin_mut().w_cursor.col - new_len,
+                        curwin_mut().w_cursor.get().col - new_len,
                         0,
                         K_EXTMARK_UNDO,
                     );
-                    cols_spliced = curwin_mut().w_cursor.col - new_len;
+                    cols_spliced = curwin_mut().w_cursor.get().col - new_len;
                 }
 
                 if did_append {
@@ -1751,9 +1756,9 @@ pub fn open_line(
 
                     changed_lines(
                         curbuf_mut(),
-                        curwin_mut().w_cursor.lnum,
-                        curwin_mut().w_cursor.col,
-                        curwin_mut().w_cursor.lnum + 1,
+                        curwin_mut().w_cursor.get().lnum,
+                        curwin_mut().w_cursor.get().col,
+                        curwin_mut().w_cursor.get().lnum + 1,
                         1,
                         true,
                     );
@@ -1761,25 +1766,28 @@ pub fn open_line(
 
                     if (flags & OPENLINE_MARKFIX) != 0 {
                         mark_col_adjust(
-                            curwin_mut().w_cursor.lnum,
-                            curwin_mut().w_cursor.col + less_cols_off,
+                            curwin_mut().w_cursor.get().lnum,
+                            curwin_mut().w_cursor.get().col + less_cols_off,
                             1,
                             -less_cols,
                             0,
                         );
                     }
                 } else {
-                    changed_bytes(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.col);
+                    changed_bytes(
+                        curwin_mut().w_cursor.get().lnum,
+                        curwin_mut().w_cursor.get().col,
+                    );
                 }
             }
 
-            curwin_mut().w_cursor.lnum = old_cursor.lnum + 1;
+            curwin_mut().w_cursor.set_lnum(old_cursor.lnum + 1);
         }
         if did_append {
-            let extra = ml_get_len(curwin_mut().w_cursor.lnum) as Bcount;
+            let extra = ml_get_len(curwin_mut().w_cursor.get().lnum) as Bcount;
             extmark_splice(
                 curbuf_mut(),
-                curwin_mut().w_cursor.lnum - 1,
+                curwin_mut().w_cursor.get().lnum - 1,
                 0,
                 0,
                 0,
@@ -1791,9 +1799,9 @@ pub fn open_line(
             );
             changed_lines(
                 curbuf_mut(),
-                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.get().lnum,
                 0,
-                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.get().lnum,
                 1,
                 true,
             );
@@ -1802,8 +1810,8 @@ pub fn open_line(
             .curbuf_splice_pending
             .set(g_st().curbuf_splice_pending.get() - (1));
 
-        curwin_mut().w_cursor.col = newcol;
-        curwin_mut().w_cursor.coladd = 0;
+        curwin_mut().w_cursor.set_col(newcol);
+        curwin_mut().w_cursor.set_coladd(0);
 
         let vreplace_mode = if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             let m = g_st().state_global.get();
@@ -1834,12 +1842,12 @@ pub fn open_line(
         if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             let extra_vec = crate::cursor::get_cursor_line_slice().to_vec();
             ml_replace(
-                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.get().lnum,
                 crate::memory::bytes_until_nul(&next_line_vec),
                 true,
             );
-            curwin_mut().w_cursor.col = 0;
-            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_cursor.set_col(0);
+            curwin_mut().w_cursor.set_coladd(0);
             ins_bytes(&extra_vec);
         }
 
@@ -1857,8 +1865,8 @@ pub fn open_line(
 
 /// Delete from cursor to end of line.
 pub fn truncate_line(fixpos: i32) {
-    let lnum = curwin_mut().w_cursor.lnum;
-    let col = curwin_mut().w_cursor.col;
+    let lnum = curwin_mut().w_cursor.get().lnum;
+    let col = curwin_mut().w_cursor.get().col;
     let old_line = crate::memline::ml_get_slice(lnum);
     let newp_vec: Vec<u8> = if col == 0 {
         vec![0]
@@ -1873,16 +1881,16 @@ pub fn truncate_line(fixpos: i32) {
 
     ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
     drop(newp_vec);
-    inserted_bytes(lnum, curwin_mut().w_cursor.col, deleted, 0);
+    inserted_bytes(lnum, curwin_mut().w_cursor.get().col, deleted, 0);
 
-    if fixpos != 0 && curwin_mut().w_cursor.col > 0 {
-        curwin_mut().w_cursor.col -= 1;
+    if fixpos != 0 && curwin_mut().w_cursor.get().col > 0 {
+        curwin_mut().w_cursor.sub_col(1);
     }
 }
 
 /// Delete `nlines` lines at the cursor.
 pub fn del_lines(nlines: Linenr, undo: bool) {
-    let first = curwin_mut().w_cursor.lnum;
+    let first = curwin_mut().w_cursor.get().lnum;
 
     if nlines <= 0 {
         return;
@@ -1906,7 +1914,7 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
         }
     }
 
-    curwin_mut().w_cursor.col = 0;
+    curwin_mut().w_cursor.set_col(0);
     check_cursor_lnum(curwin_mut());
 
     deleted_lines_mark(first, n);

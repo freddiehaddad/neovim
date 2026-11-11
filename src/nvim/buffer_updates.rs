@@ -29,11 +29,11 @@ pub fn luaret_truthy(res: Object) -> bool {
 }
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
     g_st().textlock.set(g_st().textlock.get() + (1));
     f();
     g_st().textlock.set(g_st().textlock.get() - (1));
-    curwin_mut().w_cursor = save_cursor;
+    curwin_mut().w_cursor.set(save_cursor);
 }
 
 pub fn buf_updates_register(

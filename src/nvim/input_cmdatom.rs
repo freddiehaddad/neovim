@@ -487,10 +487,10 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
 fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
         win: crate::globals::curwin_ptr(),
-        pos: curwin_mut().w_cursor,
+        pos: curwin_mut().w_cursor.get(),
         tick: buf_get_changedtick(curbuf_mut()),
         maptick: g_st().maptick.get(),
-        mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor, 0),
+        mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor.get(), 0),
         ..CmdOrigin::default()
     };
     set_bufref(&mut origin.buf, g_st().curbuf.get().opt_mut());
@@ -511,7 +511,7 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
         && win_valid(origin.win.opt())
         && origin.win.opt().is_some_and(|w| {
-            origin.buf.br_buf == w.w_buffer.get() && !equalpos(origin.pos, w.w_cursor)
+            origin.buf.br_buf == w.w_buffer.get() && !equalpos(origin.pos, w.w_cursor.get())
         })
 }
 
@@ -533,7 +533,7 @@ pub fn atom_origin_pos(buf: &mut FileBuf) -> CursorPos {
     {
         return o.pos;
     }
-    curwin_mut().w_cursor
+    curwin_mut().w_cursor.get()
 }
 
 fn atom_redo_keys(spec: &CmdSpec) -> std::ffi::CString {

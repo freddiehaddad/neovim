@@ -1343,7 +1343,7 @@ pub fn do_search(
 
     let old_off = with_srch(|s| s.spats[0].off);
 
-    let mut pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor.get();
 
     if dirc == 0 {
         dirc = i32::from(with_srch(|s| s.spats[0].off.dir));
@@ -1674,13 +1674,13 @@ pub fn do_search(
         }
 
         if show_search_stats {
-            let cursor_lnum = curwin_mut().w_cursor.lnum;
+            let cursor_lnum = curwin_mut().w_cursor.get().lnum;
             let cursor_folded = (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) == 0
                 && has_folding(curwin_mut(), cursor_lnum, None, None);
             cmdline_search_stat(
                 dirc,
                 &mut pos,
-                curwin_mut().w_cursor,
+                curwin_mut().w_cursor.get(),
                 show_top_bot_msg,
                 &mut msgbuf_vec,
                 msgbuflen,
@@ -1712,7 +1712,7 @@ pub fn do_search(
         if (options & SEARCH_MARK) != 0 {
             setpcmark();
         }
-        curwin_mut().w_cursor = pos;
+        curwin_mut().w_cursor.set(pos);
         curwin_mut().w_set_curswant.set(true);
     }
 
@@ -1852,7 +1852,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     cap.oap.inclusive = dir != BACKWARD;
 
     let p_bytes = get_cursor_line_slice();
-    let mut col = curwin_mut().w_cursor.col;
+    let mut col = curwin_mut().w_cursor.get().col;
     let len = get_cursor_line_len();
     let (lastc_bytelen, lastc_bytes) = with_srch(|s| (s.lastc_bytelen, s.lastc_bytes));
 
@@ -1891,7 +1891,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
             col -= crate::mbyte::utf_head_off_slice(p_bytes, col as usize);
         }
     }
-    curwin_mut().w_cursor.col = col;
+    curwin_mut().w_cursor.set_col(col);
 
     true
 }
@@ -2005,7 +2005,7 @@ pub fn findmatchlimit(
 
     let mut pos = CursorPos {
         coladd: 0,
-        ..curwin_mut().w_cursor
+        ..curwin_mut().w_cursor.get()
     };
     let mut line = crate::memline::ml_get_slice(pos.lnum);
 
@@ -2311,14 +2311,11 @@ pub fn findmatchlimit(
                     && line.get(col_u) == Some(&b'"')
                     && line.get(col_u + 1..).is_some_and(|s| s.contains(&b'('))
                 {
+                    let cur_pos = curwin_mut().w_cursor.get();
                     if !find_rawstring_end(
                         line,
                         &pos,
-                        if count > 0 {
-                            &match_pos
-                        } else {
-                            &curwin_mut().w_cursor
-                        },
+                        if count > 0 { &match_pos } else { &cur_pos },
                     ) {
                         count += 1;
                         match_pos = pos;
@@ -2552,7 +2549,7 @@ pub fn showmatch(c: i32) {
     }
 
     let mpos = lpos;
-    let save_cursor = curwin_mut().w_cursor;
+    let save_cursor = curwin_mut().w_cursor.get();
     let save_so = if use_win_so {
         curwin_mut().w_onebuf_opt.wo_so.get()
     } else {
@@ -2574,7 +2571,7 @@ pub fn showmatch(c: i32) {
     let save_state = g_st().state_global.get();
     g_st().state_global.set(MODE_SHOWMATCH);
     ui_cursor_shape();
-    curwin_mut().w_cursor = mpos;
+    curwin_mut().w_cursor.set(mpos);
     if use_win_so {
         curwin_mut().w_onebuf_opt.wo_so.set(0);
     } else {
@@ -2599,7 +2596,7 @@ pub fn showmatch(c: i32) {
     } else if !char_avail() {
         os_delay((opt_vars().p_mat.get() as u64) * 100 + 9, false);
     }
-    curwin_mut().w_cursor = save_cursor;
+    curwin_mut().w_cursor.set(save_cursor);
     if use_win_so {
         curwin_mut().w_onebuf_opt.wo_so.set(save_so);
     } else {
@@ -2620,17 +2617,23 @@ pub fn current_search(count: i32, forward: bool) -> bool {
 
     if g_st().visual_global.borrow().active
         && opt_vars().p_sel.first_byte() == b'e'
-        && lt(g_st().visual_global.borrow().start, curwin_mut().w_cursor)
+        && lt(
+            g_st().visual_global.borrow().start,
+            curwin_mut().w_cursor.get(),
+        )
     {
         dec_cursor();
     }
 
     let skip_first_backward = forward
         && g_st().visual_global.borrow().active
-        && lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start);
+        && lt(
+            curwin_mut().w_cursor.get(),
+            g_st().visual_global.borrow().start,
+        );
 
-    let mut pos = curwin_mut().w_cursor;
-    let orig_pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor.get();
+    let orig_pos = curwin_mut().w_cursor.get();
     if g_st().visual_global.borrow().active {
         if forward {
             incl(&mut pos);
@@ -2647,7 +2650,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         last_pat.as_deref(),
         last_patlen,
         true,
-        curwin_mut().w_cursor,
+        curwin_mut().w_cursor.get(),
         FORWARD,
     );
     if zero_width == -1 {
@@ -2695,7 +2698,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         opt_vars().p_ws.set(old_p_ws);
 
         if i == 1 && result == 0 {
-            curwin_mut().w_cursor = orig_pos;
+            curwin_mut().w_cursor.set(orig_pos);
             if g_st().visual_global.borrow().active {
                 g_st().visual_global.borrow_mut().start = save_visual;
             }
@@ -2716,26 +2719,39 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         g_st().visual_global.borrow_mut().start = start_pos;
     }
 
-    curwin_mut().w_cursor = end_pos;
+    curwin_mut().w_cursor.set(end_pos);
     if lt(g_st().visual_global.borrow().start, end_pos) && forward {
         if skip_first_backward {
-            curwin_mut().w_cursor = pos;
+            curwin_mut().w_cursor.set(pos);
         } else {
             dec_cursor();
         }
     } else if g_st().visual_global.borrow().active
-        && lt(curwin_mut().w_cursor, g_st().visual_global.borrow().start)
+        && lt(
+            curwin_mut().w_cursor.get(),
+            g_st().visual_global.borrow().start,
+        )
         && forward
     {
-        curwin_mut().w_cursor = pos;
+        curwin_mut().w_cursor.set(pos);
     }
     g_st().visual_global.borrow_mut().active = true;
     g_st().visual_global.borrow_mut().mode = b'v' as i32;
 
     if opt_vars().p_sel.first_byte() == b'e' {
-        if forward && ltoreq(g_st().visual_global.borrow().start, curwin_mut().w_cursor) {
+        if forward
+            && ltoreq(
+                g_st().visual_global.borrow().start,
+                curwin_mut().w_cursor.get(),
+            )
+        {
             inc_cursor();
-        } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().visual_global.borrow().start) {
+        } else if !forward
+            && ltoreq(
+                curwin_mut().w_cursor.get(),
+                g_st().visual_global.borrow().start,
+            )
+        {
             inc(&mut g_st().visual_global.borrow_mut().start);
         }
     }
@@ -3075,7 +3091,7 @@ fn update_search_stat(
 }
 
 pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor.get();
     let mut pattern: Option<CString> = None;
     let mut maxcount = opt_vars().p_msc.get() as i32;
     let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
@@ -3619,7 +3635,7 @@ pub fn find_pattern_in_path(
                     if action == ACTION_EXPAND {
                         let mut cont_s_ipos = false;
 
-                        if depth == -1 && lnum == curwin_mut().w_cursor.lnum {
+                        if depth == -1 && lnum == curwin_mut().w_cursor.get().lnum {
                             stop_fpip_loop = true;
                         } else {
                             found = true;
@@ -3795,7 +3811,7 @@ pub fn find_pattern_in_path(
                         if count <= 0 {
                             found = true;
                             if depth == -1
-                                && lnum == curwin_mut().w_cursor.lnum
+                                && lnum == curwin_mut().w_cursor.get().lnum
                                 && l_g_do_tagpreview == 0
                             {
                                 emsg(tr(c"E387: Match is on current line"));
@@ -3847,7 +3863,7 @@ pub fn find_pattern_in_path(
                                             setpcmark();
                                         }
                                         if !stop_fpip_loop {
-                                            curwin_mut().w_cursor.lnum = lnum;
+                                            curwin_mut().w_cursor.set_lnum(lnum);
                                             check_cursor(curwin_mut());
                                         }
                                     } else if !getfile_success(getfile(
@@ -3860,13 +3876,15 @@ pub fn find_pattern_in_path(
                                     )) {
                                         stop_fpip_loop = true;
                                     } else {
-                                        curwin_mut().w_cursor.lnum = files[depth as usize].lnum;
+                                        curwin_mut().w_cursor.set_lnum(files[depth as usize].lnum);
                                     }
                                 }
                             }
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
-                                    curwin_mut().w_cursor.col = startp_idx.unwrap_or(0) as Colnr;
+                                    curwin_mut()
+                                        .w_cursor
+                                        .set_col(startp_idx.unwrap_or(0) as Colnr);
                                     curwin_mut().w_set_curswant.set(true);
                                 }
 

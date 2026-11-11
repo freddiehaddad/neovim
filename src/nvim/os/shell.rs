@@ -1092,8 +1092,8 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
             && !curbuf_mut().b_p_bin.get()
         {
             output[base + off] = 0;
-            let lnum = curwin_mut().w_cursor.lnum;
-            curwin_mut().w_cursor.lnum += 1;
+            let lnum = curwin_mut().w_cursor.get().lnum;
+            curwin_mut().w_cursor.add_lnum(1);
             ml_append(lnum, &output[base..base + off], off as i32 + 1, false);
             let skip = off + 2;
             base += skip;
@@ -1104,8 +1104,8 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
             || output[base + off] == NL as u8
         {
             output[base + off] = 0;
-            let lnum = curwin_mut().w_cursor.lnum;
-            curwin_mut().w_cursor.lnum += 1;
+            let lnum = curwin_mut().w_cursor.get().lnum;
+            curwin_mut().w_cursor.add_lnum(1);
             ml_append(lnum, &output[base..base + off], off as i32 + 1, false);
             let skip = off + 1;
             base += skip;
@@ -1122,15 +1122,17 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
 
     if eof {
         if remaining != 0 {
-            let lnum = curwin_mut().w_cursor.lnum;
-            curwin_mut().w_cursor.lnum += 1;
+            let lnum = curwin_mut().w_cursor.get().lnum;
+            curwin_mut().w_cursor.add_lnum(1);
             ml_append(
                 lnum,
                 crate::memory::bytes_until_nul(&output[base..]),
                 0,
                 false,
             );
-            curbuf_mut().b_no_eol_lnum.set(curwin_mut().w_cursor.lnum);
+            curbuf_mut()
+                .b_no_eol_lnum
+                .set(curwin_mut().w_cursor.get().lnum);
             base += remaining;
         } else {
             curbuf_mut().b_no_eol_lnum.set(0);

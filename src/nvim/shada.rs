@@ -2866,7 +2866,7 @@ fn shada_write(
 
         if dump_global_marks
             && !ignore_buf(g_st().curbuf.get().opt(), &removable_bufs)
-            && curwin_mut().w_cursor.lnum != 0
+            && curwin_mut().w_cursor.get().lnum != 0
         {
             replace_numbered_mark(
                 &mut wms,
@@ -2876,7 +2876,7 @@ fn shada_write(
                     entry_type: ShadaEntryType::SDItemGlobalMark,
                     timestamp: os_time(),
                     data: ShadaEntryData::Filemark(ShadaFilemark {
-                        mark: curwin_mut().w_cursor,
+                        mark: curwin_mut().w_cursor.get(),
                         name: b'0',
                         fname: Some(curbuf_mut().ffname_cstr().to_owned()),
                     }),

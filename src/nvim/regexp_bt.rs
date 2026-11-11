@@ -1316,7 +1316,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             }
                             if c == b'l' as i32 {
                                 if cur {
-                                    n = crate::globals::curwin_mut().w_cursor.lnum as u32;
+                                    n = crate::globals::curwin_mut().w_cursor.get().lnum as u32;
                                 }
                                 ret = regnode(RE_LNUM);
                                 if save_prev_at_start != 0 {
@@ -1324,13 +1324,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 }
                             } else if c == b'c' as i32 {
                                 if cur {
-                                    n = crate::globals::curwin_mut().w_cursor.col as u32 + 1;
+                                    n = crate::globals::curwin_mut().w_cursor.get().col as u32 + 1;
                                 }
                                 ret = regnode(RE_COL);
                             } else {
                                 if cur {
                                     let mut vcol: Colnr = 0;
-                                    let mut cursor = crate::globals::curwin_mut().w_cursor;
+                                    let mut cursor = crate::globals::curwin_mut().w_cursor.get();
                                     getvvcol(
                                         crate::globals::curwin_mut(),
                                         &mut cursor,
@@ -1339,7 +1339,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                         Some(&mut vcol),
                                         0,
                                     );
-                                    crate::globals::curwin_mut().w_cursor = cursor;
+                                    crate::globals::curwin_mut().w_cursor.set(cursor);
                                     vcol += 1;
                                     n = vcol as u32;
                                 }
@@ -2868,8 +2868,8 @@ fn regmatch_inner(
                         CURSOR => {
                             if re_s.rex.reg_win.get().is_null()
                                 || (re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get()
-                                    != re_s.rex.win_mut().w_cursor.lnum)
-                                || (re_s.rex.input_col() != re_s.rex.win_mut().w_cursor.col)
+                                    != re_s.rex.win_mut().w_cursor.get().lnum)
+                                || (re_s.rex.input_col() != re_s.rex.win_mut().w_cursor.get().col)
                             {
                                 status = RegAction::NoMatch;
                             }

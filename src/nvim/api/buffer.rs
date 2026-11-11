@@ -913,8 +913,8 @@ pub fn nvim_buf_set_text(
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&tp) {
                 if win.w_buffer.get() == b_ptr {
-                    if i64::from(win.w_cursor.lnum) >= start_row
-                        && i64::from(win.w_cursor.lnum) <= end_row
+                    if i64::from(win.w_cursor.get().lnum) >= start_row
+                        && i64::from(win.w_cursor.get().lnum) <= end_row
                     {
                         fix_cursor_cols(
                             win,
@@ -1617,9 +1617,9 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
 }
 
 fn fix_cursor(win: &mut WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
-    if win.w_cursor.lnum >= lo {
-        if win.w_cursor.lnum >= hi {
-            win.w_cursor.lnum += extra;
+    if win.w_cursor.get().lnum >= lo {
+        if win.w_cursor.get().lnum >= hi {
+            win.w_cursor.add_lnum(extra);
         } else if extra < 0 {
             check_cursor_lnum(&mut *win);
         }
@@ -1700,17 +1700,19 @@ fn fix_cursor_cols(
     } else {
         1
     };
-    fix_pos_col(
-        win.buf_mut(),
-        &mut win.w_cursor,
-        start_row,
-        start_col,
-        end_row,
-        end_col,
-        new_rows,
-        new_cols_at_end_row,
-        mode_col_adj,
-    );
+    win.w_cursor.update_mut(|c| {
+        fix_pos_col(
+            win.buf_mut(),
+            c,
+            start_row,
+            start_col,
+            end_row,
+            end_col,
+            new_rows,
+            new_cols_at_end_row,
+            mode_col_adj,
+        );
+    });
 
     check_cursor_col(&mut *win);
     changed_cline_bef_curs(win);

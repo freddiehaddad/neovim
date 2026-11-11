@@ -677,7 +677,7 @@ pub fn spell_suggest(count: i32) {
         curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
     check_cursor(curwin_mut());
-    let prev_cursor = curwin_mut().w_cursor;
+    let prev_cursor = curwin_mut().w_cursor.get();
     'skip: {
         let w_s = curwin_mut().w_s_ptr();
         if w_s.b_p_spl.is_empty() {
@@ -685,25 +685,27 @@ pub fn spell_suggest(count: i32) {
             break 'skip;
         }
         if g_st().visual_global.borrow().active {
-            if curwin_mut().w_cursor.lnum != g_st().visual_global.borrow().start.lnum {
+            if curwin_mut().w_cursor.get().lnum != g_st().visual_global.borrow().start.lnum {
                 vim_beep(K_OPT_BO_FLAG_SPELL);
                 break 'skip;
             }
-            badlen = curwin_mut().w_cursor.col - g_st().visual_global.borrow().start.col;
+            badlen = curwin_mut().w_cursor.get().col - g_st().visual_global.borrow().start.col;
             if badlen < 0 {
                 badlen = -badlen;
             } else {
-                curwin_mut().w_cursor.col = g_st().visual_global.borrow().start.col;
+                curwin_mut()
+                    .w_cursor
+                    .set_col(g_st().visual_global.borrow().start.col);
             }
             badlen += 1;
             end_visual_mode();
-            badlen = badlen.min(get_cursor_line_len() - curwin_mut().w_cursor.col);
+            badlen = badlen.min(get_cursor_line_len() - curwin_mut().w_cursor.get().col);
         } else if spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, None) == 0
-            || curwin_mut().w_cursor.col > prev_cursor.col
+            || curwin_mut().w_cursor.get().col > prev_cursor.col
         {
-            curwin_mut().w_cursor = prev_cursor;
+            curwin_mut().w_cursor.set(prev_cursor);
             let curline_bytes = get_cursor_line_slice();
-            let mut p_idx = (curwin_mut().w_cursor.col as usize).min(curline_bytes.len());
+            let mut p_idx = (curwin_mut().w_cursor.get().col as usize).min(curline_bytes.len());
             while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], curwin_mut()) {
                 crate::mbyte::mb_idx_back(curline_bytes, &mut p_idx);
             }
@@ -716,12 +718,12 @@ pub fn spell_suggest(count: i32) {
                 beep_flush();
                 break 'skip;
             }
-            curwin_mut().w_cursor.col = p_idx as Colnr;
+            curwin_mut().w_cursor.set_col(p_idx as Colnr);
         }
         let need_cap = check_need_cap(
             curwin_mut(),
-            curwin_mut().w_cursor.lnum,
-            curwin_mut().w_cursor.col,
+            curwin_mut().w_cursor.get().lnum,
+            curwin_mut().w_cursor.get().col,
         );
         let mut line_vec = get_cursor_line_slice().to_vec();
         let line_len = line_vec.len();
@@ -732,7 +734,7 @@ pub fn spell_suggest(count: i32) {
             st.sps_limit.get().min(g_st().rows_global.get() - 2)
         });
         let mut sug = Suginfo::default();
-        let cursor_col = (curwin_mut().w_cursor.col as usize).min(line_len);
+        let cursor_col = (curwin_mut().w_cursor.get().col as usize).min(line_len);
         spell_find_suggest(
             &line_cstr[cursor_col..],
             badlen,
@@ -807,14 +809,19 @@ pub fn spell_suggest(count: i32) {
             redo_append_lit(&p_vec[c as usize..c as usize + rep_len]);
             redo_append_char(ESC);
             let _ = ml_replace(
-                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.get().lnum,
                 crate::memory::bytes_until_nul(&p_vec),
                 true,
             );
-            curwin_mut().w_cursor.col = c;
-            inserted_bytes(curwin_mut().w_cursor.lnum, c, stp.st_orglen, stp.st_wordlen);
+            curwin_mut().w_cursor.set_col(c);
+            inserted_bytes(
+                curwin_mut().w_cursor.get().lnum,
+                c,
+                stp.st_orglen,
+                stp.st_wordlen,
+            );
         } else {
-            curwin_mut().w_cursor = prev_cursor;
+            curwin_mut().w_cursor.set(prev_cursor);
         }
     }
     curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);

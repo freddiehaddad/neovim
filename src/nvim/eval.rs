@@ -837,7 +837,7 @@ pub fn call_vim_function(
     }
 
     rettv.v_type = VarType::VarUnknown;
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -2009,7 +2009,7 @@ fn eval_func(
 
     let s_cstr = bytes_to_cstring(&deref_bytes[..(len as usize).min(deref_bytes.len())]);
 
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -2980,7 +2980,7 @@ fn call_func_rettv(
         funcname = c"";
     }
 
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -4964,7 +4964,7 @@ pub fn callback_call(
         }
     }
 
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -5377,9 +5377,9 @@ pub fn var2fpos(
 
     if name_bytes.first() == Some(&b'.') {
         pos = CursorPos {
-            lnum: wp.w_cursor.lnum,
-            col: wp.w_cursor.col,
-            coladd: wp.w_cursor.coladd,
+            lnum: wp.w_cursor.get().lnum,
+            col: wp.w_cursor.get().col,
+            coladd: wp.w_cursor.get().coladd,
         };
     } else if name_bytes == b"v" {
         if g_st().visual_global.borrow().active && wp == curwin_ptr() {
@@ -5390,9 +5390,9 @@ pub fn var2fpos(
             };
         } else {
             pos = CursorPos {
-                lnum: wp.w_cursor.lnum,
-                col: wp.w_cursor.col,
-                coladd: wp.w_cursor.coladd,
+                lnum: wp.w_cursor.get().lnum,
+                col: wp.w_cursor.get().col,
+                coladd: wp.w_cursor.get().coladd,
             };
         }
     } else if name_bytes.first() == Some(&b'\'') {
@@ -5444,14 +5444,14 @@ pub fn var2fpos(
             pos.lnum = bp.b_ml.ml_line_count.get();
             pos.col = 0;
         } else {
-            pos.lnum = wp.w_cursor.lnum;
+            pos.lnum = wp.w_cursor.get().lnum;
             pos.col = if charcol {
                 mb_charlen(crate::memline::ml_get_buf_slice(
                     bp.borrow_mut(),
-                    wp.w_cursor.lnum,
+                    wp.w_cursor.get().lnum,
                 ))
             } else {
-                ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.lnum)
+                ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.get().lnum)
             };
         }
         return Some(pos);
@@ -5518,7 +5518,7 @@ pub fn list2fpos(
         if buf.b_ml.ml_mfp.is_none() {
             return false;
         }
-        let cur_lnum = curwin_mut().w_cursor.lnum;
+        let cur_lnum = curwin_mut().w_cursor.get().lnum;
 
         n = buf_charidx_to_byteidx(
             Some(buf),
@@ -6615,7 +6615,7 @@ pub fn eval_call_provider(
     let mut rettv = tv_initial_value();
     tv_list_ref(Some(arguments));
 
-    let lnum = curwin_mut().w_cursor.lnum;
+    let lnum = curwin_mut().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
