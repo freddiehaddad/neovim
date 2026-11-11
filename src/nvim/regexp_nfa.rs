@@ -4397,7 +4397,7 @@ fn nfa_regmatch(
                             let col = re_s.rex.input_col();
                             if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                                 let mut matched = false;
-                                let mut wp_mut = if re_s.rex.reg_win.get().is_null() {
+                                let wp_mut = if re_s.rex.reg_win.get().is_null() {
                                     crate::globals::curwin_ptr()
                                 } else {
                                     re_s.rex.reg_win.get()
@@ -4421,9 +4421,10 @@ fn nfa_regmatch(
                                     {
                                         lnum = 1;
                                     }
-                                    let vcol = re_s.rex.line.get().with_cstr(|cs| {
-                                        win_linetabsize(&mut wp_mut, lnum, cs, col)
-                                    });
+                                    let vcol =
+                                        re_s.rex.line.get().with_cstr(|cs| {
+                                            win_linetabsize(&wp_mut, lnum, cs, col)
+                                        });
                                     matched = nfa_re_num_cmp(
                                         t_st.val as u64,
                                         op,
@@ -5119,8 +5120,8 @@ pub(super) fn nfa_regexec_nl(
 pub(super) fn nfa_regexec_multi(
     prog: &mut NfaRegprog,
     rmp: &mut Regmmatch,
-    win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,

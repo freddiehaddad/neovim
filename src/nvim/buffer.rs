@@ -148,7 +148,7 @@ impl Bufref {
     }
 
     #[inline]
-    pub fn buf_opt(&self) -> Option<&'static mut FileBuf> {
+    pub fn buf_opt(&self) -> Option<&'static FileBuf> {
         self.br_buf.opt_mut()
     }
 }
@@ -760,7 +760,7 @@ impl FileBuf {
         }
     }
 
-    pub fn alloc() -> &'static mut Self {
+    pub fn alloc() -> &'static Self {
         let mut b = Box::new(Self::new());
         b.changedtick_di =
             crate::eval::typval::tv_dict_item_alloc_static_key(b"changedtick\0".to_vec());
@@ -931,8 +931,8 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
 
 #[inline]
-fn buf_is_changed(buf: &mut FileBuf) -> bool {
-    !bt_dontwrite(Some(&*buf)) && (buf.b_changed.get() != 0 || file_ff_differs(buf, true))
+fn buf_is_changed(buf: &FileBuf) -> bool {
+    !bt_dontwrite(Some(buf)) && (buf.b_changed.get() != 0 || file_ff_differs(buf, true))
 }
 
 #[inline]
@@ -951,7 +951,7 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 }
 
 #[inline]
-pub fn first_win_in_tab(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
+pub fn first_win_in_tab(tp: &TabPageInfo) -> &'static WinInfoInfo {
     if g_st().curtab.get() == tp {
         g_st().firstwin.get().borrow_mut()
     } else {
@@ -964,7 +964,7 @@ pub fn modifiable(buf: &FileBuf) -> bool {
     buf.b_p_ma.get() && buf.b_ro_locked.get() == 0
 }
 
-fn trigger_undo_ftplugin(buf: &mut FileBuf, win: &mut WinInfoInfo) {
+fn trigger_undo_ftplugin(buf: &FileBuf, win: &WinInfoInfo) {
     window_layout_lock();
     buf.b_locked.set(buf.b_locked.get() + (1));
     win.w_locked.set(win.w_locked.get() + (1));
@@ -1036,19 +1036,19 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
 }
 
 /// Ensure buffer `buf` is loaded.
-pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
+pub fn buf_ensure_loaded(buf: &FileBuf) -> bool {
     if buf.b_ml.ml_mfp.borrow().is_some() {
         return true;
     }
 
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, Some(&mut *buf));
+    set_bufref(&mut bufref, Some(buf));
     let mut aco: CtxSwitch = CtxSwitch::new();
     ctx_switch(
         &mut aco,
         None,
         None,
-        Some(crate::globals::BufPtr::from(&*buf).borrow_mut()),
+        Some(crate::globals::BufPtr::from(buf).borrow_mut()),
         0,
     );
     let status = open_buffer(false, None, 0);
@@ -1301,7 +1301,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 }
 
 /// Store `buf` in `bufref` and set the free count.
-pub fn set_bufref(bufref: &mut Bufref, buf: Option<&mut FileBuf>) {
+pub fn set_bufref(bufref: &mut Bufref, buf: Option<&FileBuf>) {
     bufref.br_buf = buf.map_or(crate::globals::BufPtr::NULL, crate::globals::BufPtr::from);
     bufref.br_fnum = bufref.buf_opt().map_or(0, |b| b.b_fnum.get());
     bufref.br_buf_free_count = BUF_STATE.with(|s| s.buf_free_count.get());
@@ -1340,7 +1340,7 @@ pub fn buf_valid(buf: Option<&FileBuf>) -> bool {
     buf_valid_handle(crate::globals::BufPtr::from(buf))
 }
 
-fn can_unload_buffer(buf: &mut FileBuf) -> bool {
+fn can_unload_buffer(buf: &FileBuf) -> bool {
     let mut can_unload = buf.b_locked.get() == 0;
 
     if can_unload && g_st().updating_screen.get() {
@@ -1365,7 +1365,7 @@ fn can_unload_buffer(buf: &mut FileBuf) -> bool {
     can_unload
 }
 
-pub fn buf_close_terminal(buf: &mut FileBuf) {
+pub fn buf_close_terminal(buf: &FileBuf) {
     debug_assert!(!buf.terminal.get().is_null());
     buf.b_locked.set(buf.b_locked.get() + (1));
     terminal_close(buf.terminal_mut(), -1);
@@ -1374,8 +1374,8 @@ pub fn buf_close_terminal(buf: &mut FileBuf) {
 
 /// Close the link to a buffer.
 pub fn close_buffer(
-    win: Option<&mut WinInfoInfo>,
-    buf: Option<&mut FileBuf>,
+    win: Option<&WinInfoInfo>,
+    buf: Option<&FileBuf>,
     action: i32,
     abort_if_last: bool,
     ignore_abort: bool,
@@ -1598,9 +1598,9 @@ pub fn close_buffer(
 }
 
 /// Make buffer not contain a file.
-pub fn buf_clear_file(buf: &mut FileBuf) {
+pub fn buf_clear_file(buf: &FileBuf) {
     buf.b_ml.ml_line_count.set(1);
-    unchanged(&mut *buf, true, true);
+    unchanged(buf, true, true);
     buf.b_p_eof.set(false);
     buf.b_start_eof.set(false);
     buf.b_p_eol.set(true);
@@ -1623,9 +1623,10 @@ pub fn buf_clear() {
 }
 
 /// Free all things allocated for a buffer that are related to the file.
-pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
+pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
     let is_curbuf = g_st().curbuf.get() == buf;
-    let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer.get() == (&raw mut *buf);
+    let is_curwin = !(curwin_ptr()).is_null()
+        && curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut());
     let the_curwin = curwin_ptr();
     let the_curtab = g_st().curtab.get().clone();
 
@@ -1633,7 +1634,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     buf.b_locked_split.set(buf.b_locked_split.get() + (1));
 
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, Some(&mut *buf));
+    set_bufref(&mut bufref, Some(buf));
 
     if !buf.terminal.get().is_null() {
         buf_close_terminal(buf);
@@ -1641,7 +1642,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     buf_updates_unload(buf, false);
 
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     if buf_ptr.b_ml.ml_mfp.borrow().is_some() {
         let b_fname = buf_ptr.borrow().fname_opt();
         if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, buf_ptr.opt_mut())
@@ -1682,25 +1683,27 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     let buf = buf_ptr.borrow_mut();
 
-    if (&raw mut *buf) == g_st().curbuf.get().as_ptr() && !is_curbuf {
+    if (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr() && !is_curbuf {
         return false;
     }
 
-    if (&raw mut *buf) == g_st().curbuf.get().as_ptr()
+    if (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr()
         && g_st().visual_global.borrow().active
         && !entered_free_all_mem()
     {
         end_visual_mode();
     }
 
-    diff_buf_delete(&*buf);
-    if !(curwin_ptr()).is_null() && curwin_mut().w_buffer.get() == (&raw mut *buf) {
+    diff_buf_delete(buf);
+    if !(curwin_ptr()).is_null()
+        && curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
+    {
         reset_synblock(curwin_mut());
     }
 
     for tp in for_all_tabpages_ptr() {
         for win in for_all_windows_in_tab_mut(&tp) {
-            if win.w_buffer.get() == (&raw mut *buf) {
+            if win.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
                 clear_folding(win);
             }
         }
@@ -1717,7 +1720,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     buf.b_ml.ml_line_count.set(0);
     mc_buf_clear(buf);
 
-    if bt_nofilename(Some(&*buf)) && !g_st().exiting.get() {
+    if bt_nofilename(Some(buf)) && !g_st().exiting.get() {
         mark_adjust_buf(
             buf,
             1,
@@ -1846,7 +1849,7 @@ impl FileBuf {
 impl Drop for FileBuf {
     fn drop(&mut self) {
         self.clear_fnames();
-        free_buf_options(&mut *self, true);
+        free_buf_options(&*self, true);
         self.b_start_fenc.set(None);
         self.b_localdir.set(None);
         self.b_prevdir.set(None);
@@ -1867,7 +1870,7 @@ impl Drop for FileBuf {
         }
     }
 }
-fn free_buffer(buf: &mut FileBuf) {
+fn free_buffer(buf: &FileBuf) {
     let buf_ptr = crate::globals::BufPtr::from(buf);
     let buf_ref = buf_ptr.borrow_mut();
     g_st()
@@ -1914,11 +1917,11 @@ fn free_buffer(buf: &mut FileBuf) {
     }
 }
 
-fn clear_wininfo(buf: &mut FileBuf) {
+fn clear_wininfo(buf: &FileBuf) {
     buf.b_wininfo.borrow_mut().clear();
 }
 
-fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
+fn free_buffer_stuff(buf: &FileBuf, free_flags: i32) {
     if (free_flags & K_BFF_CLEAR_WIN_INFO) != 0 {
         clear_wininfo(buf);
         free_buf_options(buf, true);
@@ -2382,7 +2385,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         bp = crate::globals::BufPtr::NULL;
         for bp2 in for_all_buffers_ptr() {
             if bp2.b_p_bl.get() && buf != bp2 {
-                bp = crate::globals::BufPtr::from(&*bp2);
+                bp = crate::globals::BufPtr::from(bp2);
                 break;
             }
         }
@@ -2545,10 +2548,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             for buf2 in for_all_buffers_ptr() {
                 if buf2.b_p_bl.get()
                     && g_st().curbuf.get() != buf2
-                    && !bt_quickfix(Some(&*buf2))
+                    && !bt_quickfix(Some(buf2))
                     && buf2.b_locked_split.get() == 0
                 {
-                    buf = crate::globals::BufPtr::from(&*buf2);
+                    buf = crate::globals::BufPtr::from(buf2);
                     break;
                 }
             }
@@ -2627,7 +2630,7 @@ pub fn do_buffer(action: i32, start: i32, dir: i32, count: i32, forceit: i32) ->
 }
 
 /// Set current buffer to `buf`. Executes autocommands and closes current buffer.
-pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
+pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
     let buf = crate::globals::BufPtr::from(buf_in);
     let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
     let old_tw = curbuf_mut().b_p_tw.get();
@@ -2706,7 +2709,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
 }
 
 /// Enter a new current buffer.
-fn enter_buffer(buf_in: &mut FileBuf) {
+fn enter_buffer(buf_in: &FileBuf) {
     let buf = crate::globals::BufPtr::from(buf_in);
     if g_st().visual_global.borrow().active && !entered_free_all_mem() {
         end_visual_mode();
@@ -2807,7 +2810,7 @@ pub fn do_autochdir() {
     }
 }
 
-pub fn no_write_message_buf(buf: &mut FileBuf) {
+pub fn no_write_message_buf(buf: &FileBuf) {
     if !buf.terminal.get().is_null() && channel_job_running(buf.b_p_channel.get() as u64) {
         emsg(gettext(E_JOB_STILL_RUNNING_ADD_BANG_TO_END_THE_JOB));
     } else {
@@ -2837,7 +2840,7 @@ pub fn no_write_message_nobang(buf: &FileBuf) {
 }
 
 #[inline]
-fn buf_init_changedtick(buf: &mut FileBuf) {
+fn buf_init_changedtick(buf: &FileBuf) {
     let tick = buf_get_changedtick(buf);
     buf.changedtick_di.set_tv(TypVal {
         v_type: VarType::VarNumber,
@@ -2854,7 +2857,7 @@ pub fn buflist_new(
     sfname_arg: Option<&CStr>,
     lnum: Linenr,
     flags: i32,
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let mut buf: crate::globals::BufPtr;
 
     let expanded = fname_expand(g_st().curbuf.get().opt(), ffname_arg, sfname_arg);
@@ -2867,7 +2870,7 @@ pub fn buflist_new(
         && (flags & (BLN_DUMMY | BLN_NEW)) == 0
         && let Some(buf_ref) = buflist_findname_file_id(Some(ff_cstr), &mut file_id, file_id_valid)
     {
-        let buf_ptr = crate::globals::BufPtr::from(&*buf_ref);
+        let buf_ptr = crate::globals::BufPtr::from(buf_ref);
         drop(expanded);
         if lnum != 0 {
             buflist_setfpos(
@@ -2918,7 +2921,7 @@ pub fn buflist_new(
     }
     if g_st().curbuf.get() != buf || g_st().curbuf.get().is_null() {
         let buf_ref = FileBuf::alloc();
-        buf = crate::globals::BufPtr::from(&mut *buf_ref);
+        buf = crate::globals::BufPtr::from(buf_ref);
         init_var_dict(&tv_dict_alloc(), &buf_ref.b_bufvar, VAR_SCOPE);
         buf_init_changedtick(buf_ref);
     }
@@ -3015,8 +3018,14 @@ pub fn buflist_new(
     }
 
     let buf_ref = buf.borrow_mut();
-    buf_ref.b_prompt_callback = crate::eval::typval::Callback::NONE;
-    buf_ref.b_prompt_interrupt = crate::eval::typval::Callback::NONE;
+    buf_ref
+        .b_prompt_callback
+        .data
+        .set(crate::eval::typval::CallbackData::None);
+    buf_ref
+        .b_prompt_interrupt
+        .data
+        .set(crate::eval::typval::CallbackData::None);
     buf_ref.b_prompt_text.set(None);
     *buf_ref.b_prompt_start.borrow_mut() = INIT_FMARK;
     buf_ref.b_prompt_start.borrow_mut().mark.col = 2;
@@ -3038,7 +3047,7 @@ pub fn curbuf_reusable() -> bool {
 }
 
 /// Free the memory for the options of a buffer.
-pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
+pub fn free_buf_options(buf: &FileBuf, free_p_ff: bool) {
     if free_p_ff {
         buf.b_p_fenc.clear_option_str();
         buf.b_p_ff.clear_option_str();
@@ -3122,7 +3131,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         }
         return false;
     };
-    let buf = crate::globals::BufPtr::from(&*buf_ref);
+    let buf = crate::globals::BufPtr::from(buf_ref);
 
     if buf == g_st().curbuf.get() {
         return true;
@@ -3239,13 +3248,13 @@ fn buflist_getfpos() {
 }
 
 /// Find file in buffer list by name (it has to be for the current window).
-pub fn buflist_findname_exp(fname: Option<&CStr>) -> Option<&'static mut FileBuf> {
+pub fn buflist_findname_exp(fname: Option<&CStr>) -> Option<&'static FileBuf> {
     let ffname = FullName_save(fname, cfg!(unix))?;
     buflist_findname(Some(ffname.as_c_str()))
 }
 
 /// Find file in buffer list by name.
-pub fn buflist_findname(ffname: Option<&CStr>) -> Option<&'static mut FileBuf> {
+pub fn buflist_findname(ffname: Option<&CStr>) -> Option<&'static FileBuf> {
     let mut file_id: FileID = FileID::new();
     let file_id_valid = ffname.is_some_and(|s| os_fileid(s, &mut file_id));
     buflist_findname_file_id(ffname, &mut file_id, file_id_valid)
@@ -3256,10 +3265,10 @@ fn buflist_findname_file_id(
     ffname: Option<&CStr>,
     file_id: &mut FileID,
     file_id_valid: bool,
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     for buf in for_all_buffers_rev_ptr() {
         if (buf.b_flags.get() & BF_DUMMY) == 0
-            && !otherfile_buf(&mut *buf, ffname, Some(file_id), file_id_valid)
+            && !otherfile_buf(buf, ffname, Some(file_id), file_id_valid)
         {
             return Some(buf);
         }
@@ -3278,7 +3287,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
             curwin_mut().w_alt_fnum.get()
         };
         let found_buf = buflist_findnr(match_fnum);
-        if diffmode && found_buf.as_deref().is_none_or(|b| !diff_mode_buf(b)) {
+        if diffmode && found_buf.is_none_or(|b| !diff_mode_buf(b)) {
             match_fnum = -1;
         }
     } else {
@@ -3436,7 +3445,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             };
 
             let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(Some(&*buf), Some(p))
+                home_replace_save(Some(buf), Some(p))
             } else {
                 p.to_owned()
             };
@@ -3444,7 +3453,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             if !fuzzy {
                 if use_matches {
                     matches.push(Bufmatch {
-                        buf: crate::globals::BufPtr::new(buf),
+                        buf: crate::globals::BufPtr::from(buf),
                         match_: p_cstr,
                     });
                 } else {
@@ -3532,7 +3541,7 @@ fn fname_match<'a>(
 }
 
 /// Find a file in the buffer list by buffer number.
-pub fn buflist_findnr(mut nr: i32) -> Option<&'static mut FileBuf> {
+pub fn buflist_findnr(mut nr: i32) -> Option<&'static FileBuf> {
     if nr == 0 {
         nr = curwin_mut().w_alt_fnum.get();
     }
@@ -3545,14 +3554,14 @@ pub fn buflist_findnr(mut nr: i32) -> Option<&'static mut FileBuf> {
 }
 
 #[inline]
-pub fn buflist_findnr_opt(nr: i32) -> Option<&'static mut FileBuf> {
+pub fn buflist_findnr_opt(nr: i32) -> Option<&'static FileBuf> {
     buflist_findnr(nr)
 }
 
 pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi::CString> {
     let buf = buflist_findnr_opt(n)?;
     Some(home_replace_save(
-        (helptail != 0).then_some(&*buf),
+        (helptail != 0).then_some(buf),
         if fullname != 0 {
             buf.ffname_opt()
         } else {
@@ -3563,13 +3572,13 @@ pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi:
 
 /// Set the line and column numbers for the given buffer and window.
 pub fn buflist_setfpos(
-    buf: &mut FileBuf,
-    mut win_opt: Option<&mut WinInfoInfo>,
+    buf: &FileBuf,
+    win_opt: Option<&WinInfoInfo>,
     mut lnum: Linenr,
     col: Colnr,
     copy_options: bool,
 ) {
-    let win = crate::globals::WinPtr::from(win_opt.as_deref_mut());
+    let win = crate::globals::WinPtr::from(win_opt);
     let mut wip = if let Some(i) = buf.b_wininfo.borrow().iter().position(|w| w.wi_win == win) {
         let mut wip = buf.b_wininfo.borrow_mut().remove(i);
         if copy_options && wip.wi_optset {
@@ -3589,7 +3598,7 @@ pub fn buflist_setfpos(
     if lnum != 0 {
         wip.wi_mark.mark.lnum = lnum;
         wip.wi_mark.mark.col = col;
-        if let Some(w) = win_opt.as_deref() {
+        if let Some(w) = win_opt {
             wip.wi_mark.view = mark_view_make(w, wip.wi_mark.mark);
         }
     }
@@ -3652,8 +3661,8 @@ fn find_wininfo(
 }
 
 /// Reset the local window options to the values last used in this window.
-pub fn get_winopts(buf: &mut FileBuf) {
-    let buf_ptr = crate::globals::BufPtr::from(&*buf);
+pub fn get_winopts(buf: &FileBuf) {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     clear_winopt(&curwin_mut().w_onebuf_opt);
     clear_folding(curwin_mut());
 
@@ -3719,7 +3728,7 @@ pub fn buflist_findlnum(buf: &FileBuf) -> Linenr {
 /// List all known file names (for `:files` and `:buffers` command).
 pub fn buflist_list(eap: &mut Exarg) {
     let mut buflist: Vec<crate::globals::BufPtr> = for_all_buffers_ptr()
-        .map(|b| crate::globals::BufPtr::from(&*b))
+        .map(crate::globals::BufPtr::from)
         .collect();
 
     msg_ext_set_kind(c"list_cmd");
@@ -3740,7 +3749,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             && !crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32) && buf.b_p_bl.get())
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'+' as i32)
-                && ((buf.b_flags.get() & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
+                && ((buf.b_flags.get() & BF_READERR) != 0 || !buf_is_changed(buf)))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'a' as i32)
                 && (buf.b_ml.ml_mfp.borrow().is_none() || buf.b_nwindows.get() == 0))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'h' as i32)
@@ -3762,11 +3771,11 @@ pub fn buflist_list(eap: &mut Exarg) {
             continue;
         }
 
-        if let Some(name) = buf_spname(&*(buf)) {
+        if let Some(name) = buf_spname(buf) {
             crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), name.to_bytes());
         } else {
             home_replace(
-                Some(&*buf),
+                Some(buf),
                 buf.fname_opt(),
                 &mut *g_st().name_buff_bytes_mut(),
                 true,
@@ -3779,7 +3788,7 @@ pub fn buflist_list(eap: &mut Exarg) {
 
         let changed_char = if (buf.b_flags.get() & BF_READERR) != 0 {
             b'x' as i32
-        } else if buf_is_changed(&mut *buf) {
+        } else if buf_is_changed(buf) {
             b'+' as i32
         } else {
             b' ' as i32
@@ -3853,7 +3862,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 if g_st().curbuf.get() == buf {
                     i64::from(curwin_mut().w_cursor.get().lnum)
                 } else {
-                    i64::from(buflist_findlnum(&*buf))
+                    i64::from(buflist_findlnum(buf))
                 },
             );
         }
@@ -3884,7 +3893,7 @@ pub fn buflist_name_nr(
 
 /// Set the file name for `buf` to `ffname_arg`, short file name to `sfname_arg`.
 pub fn setfname(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ffname_arg: Option<&CStr>,
     sfname_arg: Option<&CStr>,
     message: bool,
@@ -3896,7 +3905,7 @@ pub fn setfname(
     if ffname_arg.is_none_or(|s| s.to_bytes().is_empty()) {
         buf.clear_fnames();
     } else {
-        let Some((ffname_cstr, sfname_raw)) = fname_expand(Some(&*buf), ffname_arg, sfname_arg)
+        let Some((ffname_cstr, sfname_raw)) = fname_expand(Some(buf), ffname_arg, sfname_arg)
         else {
             return false;
         };
@@ -3909,7 +3918,7 @@ pub fn setfname(
                 file_id_valid,
             ));
         }
-        if !obuf.is_null() && obuf != &*buf {
+        if !obuf.is_null() && obuf != buf {
             let mut in_use = false;
 
             for tab in for_all_tabpages_ptr() {
@@ -3958,7 +3967,7 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
     };
 
     buf.clear_fnames();
-    if let Some((ffname_cstr, sfname_cstr)) = fname_expand(Some(&*buf), Some(name), None) {
+    if let Some((ffname_cstr, sfname_cstr)) = fname_expand(Some(buf), Some(name), None) {
         buf.set_ffname(Some(ffname_cstr));
         buf.set_sfname(Some(sfname_cstr));
     }
@@ -3966,12 +3975,12 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
 }
 
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
-pub fn buf_name_changed(buf: &mut FileBuf) {
+pub fn buf_name_changed(buf: &FileBuf) {
     if buf.b_ml.ml_mfp.borrow().is_some() {
         ml_setname(buf);
     }
 
-    if curwin_mut().w_buffer.get() == (&raw mut *buf) {
+    if curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
         check_arg_idx(curwin_mut());
     }
     maketitle();
@@ -3985,9 +3994,9 @@ pub fn setaltfname(
     ffname: Option<&CStr>,
     sfname: Option<&CStr>,
     lnum: Linenr,
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let buf = buflist_new(ffname, sfname, lnum, 0);
-    if let Some(ref b) = buf
+    if let Some(b) = buf
         && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
     {
         curwin_mut().w_alt_fnum.set(b.b_fnum.get());
@@ -4016,7 +4025,7 @@ pub fn buflist_add(fname: Option<&CStr>, flags: i32) -> i32 {
 }
 
 /// Set alternate cursor position for the current buffer and window `win`.
-pub fn buflist_altfpos(win: &mut WinInfoInfo) {
+pub fn buflist_altfpos(win: &WinInfoInfo) {
     let lnum = win.w_cursor.get().lnum;
     let col = win.w_cursor.get().col;
     buflist_setfpos(curbuf_mut(), Some(win), lnum, col, true);
@@ -4028,7 +4037,7 @@ pub fn otherfile(ffname: Option<&CStr>) -> bool {
 }
 
 fn otherfile_buf(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ffname: Option<&CStr>,
     file_id_p: Option<&mut FileID>,
     mut file_id_valid: bool,
@@ -4065,7 +4074,7 @@ fn otherfile_buf(
 }
 
 /// Set `file_id` for a buffer.
-pub fn buf_set_file_id(buf: &mut FileBuf) {
+pub fn buf_set_file_id(buf: &FileBuf) {
     let mut file_id: FileID = FileID::new();
     if let Some(fname) = buf.fname_opt()
         && os_fileid(fname, &mut file_id)
@@ -4103,7 +4112,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             curbuf_mut().ffname_opt()
         };
         bufferlen += home_replace(
-            (shorthelp != 0).then(|| &*curbuf_mut()),
+            (shorthelp != 0).then(curbuf_mut),
             name,
             &mut buffer_vec[bufferlen..],
             true,
@@ -4381,7 +4390,7 @@ pub fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
+pub fn get_rel_pos(wp: &WinInfoInfo, buf: &mut [u8]) -> i32 {
     if buf.len() < 3 {
         return 0;
     }
@@ -4415,7 +4424,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-pub fn append_arg_number(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
+pub fn append_arg_number(wp: &WinInfoInfo, buf: &mut [u8]) -> i32 {
     let argcount = crate::arglist::argcount();
     if argcount <= 1 {
         return 0;
@@ -4978,16 +4987,16 @@ pub fn set_buflisted(on: i32) {
 }
 
 /// Read the file for `buf` again and check if the contents changed.
-pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
+pub fn buf_contents_changed(buf: &FileBuf) -> bool {
     let mut differ = true;
 
     let Some(newbuf_ref) = buflist_new(None, None, 1, BLN_DUMMY) else {
         return true;
     };
-    let newbuf = crate::globals::BufPtr::from(&*newbuf_ref);
+    let newbuf = crate::globals::BufPtr::from(newbuf_ref);
 
     let mut ea: Exarg = Exarg::new();
-    let _ea_cmd = prep_exarg(&mut ea, &*buf);
+    let _ea_cmd = prep_exarg(&mut ea, buf);
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     ctx_switch(&mut aco, None, None, newbuf.opt_mut(), 0);
@@ -5029,8 +5038,8 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
 }
 
 /// Wipe out a (typically temporary) buffer.
-pub fn wipe_buffer(buf: &mut FileBuf, aucmd: bool) {
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+pub fn wipe_buffer(buf: &FileBuf, aucmd: bool) {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     if !aucmd {
         block_autocmds();
     }
@@ -5040,17 +5049,17 @@ pub fn wipe_buffer(buf: &mut FileBuf, aucmd: bool) {
     }
 }
 
-pub fn buf_is_empty(buf: &mut FileBuf) -> bool {
+pub fn buf_is_empty(buf: &FileBuf) -> bool {
     buf.b_ml.ml_line_count.get() == 1 && ml_get_buf_slice(buf, 1).is_empty()
 }
 
 /// Increment `b:changedtick` value.
-pub fn buf_inc_changedtick(buf: &mut FileBuf) {
+pub fn buf_inc_changedtick(buf: &FileBuf) {
     buf_set_changedtick(buf, buf_get_changedtick(buf) + 1);
 }
 
 /// Set `b:changedtick`, also checking `b:` for consistency in debug build.
-pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
+pub fn buf_set_changedtick(buf: &FileBuf, changedtick: Varnumber) {
     let old_val = buf.changedtick_di.tv().clone();
 
     let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
@@ -5076,22 +5085,18 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
 }
 
 /// Read the given buffer contents into a string.
-pub fn read_buffer_into(
-    mut buf: Option<&mut FileBuf>,
-    start: Linenr,
-    end: Linenr,
-    sb: &mut Vec<u8>,
-) {
+pub fn read_buffer_into(buf: Option<&FileBuf>, start: Linenr, end: Linenr, sb: &mut Vec<u8>) {
     debug_assert!(buf.is_some());
+    let b = buf.unwrap();
 
-    if (buf.as_deref_mut().unwrap().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
+    if (b.b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         return;
     }
 
     let mut written = 0usize;
     let mut len: usize;
     let mut lnum = start;
-    let mut line = ml_get_buf_slice(buf.as_deref_mut().unwrap(), lnum);
+    let mut line = ml_get_buf_slice(b, lnum);
 
     loop {
         let rem = &line[written..];
@@ -5108,7 +5113,6 @@ pub fn read_buffer_into(
         }
 
         if len == rem.len() {
-            let b = buf.as_deref_mut().unwrap();
             if lnum != end
                 || (!b.b_p_bin.get() && b.b_p_fixeol.get())
                 || (lnum != b.b_no_eol_lnum.get()
@@ -5160,7 +5164,7 @@ mod tests {
             let p3 = c"path_test_file";
 
             let buf = crate::globals::BufPtr::from(
-                &*buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
+                buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
             );
             assert!(buf_valid(buf.opt()));
             close_buffer(None, buf.opt_mut(), 0, false, false, false);
@@ -5175,13 +5179,13 @@ mod tests {
             };
 
             let buf1 = crate::globals::BufPtr::from(
-                &*buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
+                buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
             );
             let buf2 = crate::globals::BufPtr::from(
-                &*buflist_new(Some(p2), Some(p2), 1, BLN_LISTED).unwrap(),
+                buflist_new(Some(p2), Some(p2), 1, BLN_LISTED).unwrap(),
             );
             let buf3 = crate::globals::BufPtr::from(
-                &*buflist_new(Some(p3), Some(p3), 1, BLN_LISTED).unwrap(),
+                buflist_new(Some(p3), Some(p3), 1, BLN_LISTED).unwrap(),
             );
             let buf1_fnum = buf1.b_fnum.get();
             let buf2_fnum = buf2.b_fnum.get();

@@ -732,8 +732,8 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
 }
 
 pub fn searchit(
-    win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     pos: &mut CursorPos,
     mut end_pos: Option<&mut CursorPos>,
     dir: Direction,
@@ -858,7 +858,7 @@ pub fn searchit(
                     nmatched = vim_regexec_multi(
                         &mut regmatch,
                         win.opt_mut(),
-                        &mut *buf,
+                        buf,
                         lnum,
                         col,
                         tm,
@@ -928,7 +928,7 @@ pub fn searchit(
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win.opt_mut(),
-                                        &mut *buf,
+                                        buf,
                                         lnum,
                                         matchcol,
                                         tm,
@@ -1009,7 +1009,7 @@ pub fn searchit(
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win.opt_mut(),
-                                        &mut *buf,
+                                        buf,
                                         lnum + matchpos.lnum,
                                         matchcol,
                                         tm,
@@ -1725,7 +1725,7 @@ pub fn do_search(
 }
 
 pub fn search_for_exact_line(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     pos: &mut CursorPos,
     dir: Direction,
     pat: &CStr,

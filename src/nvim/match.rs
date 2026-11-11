@@ -127,7 +127,7 @@ use crate::highlight::win_hl_attr;
 
 /// Add match to the match list of window `wp` (`match_add`).
 fn match_add(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     grp: Option<&std::ffi::CStr>,
     pat: Option<&std::ffi::CStr>,
     prio: i32,
@@ -301,12 +301,12 @@ fn match_add(
         .unwrap_or(wp.w_match_head.borrow().len());
     wp.w_match_head.borrow_mut().insert(insert_idx, m);
 
-    redraw_later(Some(&mut *wp), rtype);
+    redraw_later(Some(wp), rtype);
     id
 }
 
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
-fn match_delete(wp: &mut WinInfoInfo, id: i32, perr: bool) -> i32 {
+fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> i32 {
     let mut rtype = UPD_SOME_VALID;
 
     if id < 1 {
@@ -334,14 +334,14 @@ fn match_delete(wp: &mut WinInfoInfo, id: i32, perr: bool) -> i32 {
         redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
         rtype = UPD_VALID;
     }
-    redraw_later(Some(&mut *wp), rtype);
+    redraw_later(Some(wp), rtype);
     0
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
-pub fn clear_matches(wp: &mut WinInfoInfo) {
+pub fn clear_matches(wp: &WinInfoInfo) {
     wp.w_match_head.borrow_mut().clear();
-    redraw_later(Some(&mut *wp), UPD_SOME_VALID);
+    redraw_later(Some(wp), UPD_SOME_VALID);
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
@@ -354,7 +354,7 @@ fn get_match(wp: &WinInfoInfo, id: i32) -> Option<(i32, Option<std::ffi::CString
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
-pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
+pub fn init_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch) {
     let buf = wp.w_buffer.get();
     for cur in &mut *wp.w_match_head.borrow_mut() {
         cur.mit_hl.rm = cur.mit_match.clone();
@@ -371,7 +371,7 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
     search_hl.buf = wp.w_buffer.get();
     search_hl.lnum = 0;
     search_hl.first_lnum = 0;
-    search_hl.attr = win_hl_attr(&mut *wp, HLF_L as i32);
+    search_hl.attr = win_hl_attr(wp, HLF_L as i32);
 }
 
 fn next_search_hl_pos(
@@ -488,7 +488,7 @@ fn get_shl<'a>(
 
 #[inline]
 fn get_shl_mut<'a>(
-    wp: &'a mut WinInfoInfo,
+    wp: &'a WinInfoInfo,
     search_hl: &'a mut SynMatch,
     match_idx: Option<usize>,
 ) -> ShlRefMut<'a> {
@@ -502,7 +502,7 @@ fn get_shl_mut<'a>(
 
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
 fn next_search_hl(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     search_hl: &mut SynMatch,
     lnum: Linenr,
     mincol: Colnr,
@@ -615,7 +615,7 @@ fn next_search_hl(
 }
 
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
-pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: Linenr) {
+pub fn prepare_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch, lnum: Linenr) {
     let mut idx = 0usize;
     let len = wp.w_match_head.borrow().len();
     let mut shl_flag = false;
@@ -637,7 +637,7 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
             if first_lnum == 0 {
                 first_lnum = lnum;
                 while first_lnum > wp.w_topline.get() {
-                    if has_folding(&mut *wp, first_lnum - 1, None, None) {
+                    if has_folding(wp, first_lnum - 1, None, None) {
                         break;
                     }
                     first_lnum -= 1;
@@ -687,7 +687,7 @@ fn check_cur_search_hl(wp: &WinInfoInfo, shl: &mut SynMatch) {
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).
 pub fn prepare_search_hl_line(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     mincol: Colnr,
     search_hl: &mut SynMatch,
@@ -772,7 +772,7 @@ pub fn prepare_search_hl_line(
 
 /// For a position in a line: Check for start/end of `'hlsearch'` and other matches (`update_search_hl`).
 pub fn update_search_hl(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     col: Colnr,
     search_hl: &mut SynMatch,
@@ -814,7 +814,7 @@ pub fn update_search_hl(
                     get_shl_mut(wp, search_hl, match_idx).endcol = next_col;
                 }
                 if is_search_hl && has_cursor {
-                    let attr_cur = win_hl_attr(&mut *wp, HLF_LC as i32);
+                    let attr_cur = win_hl_attr(wp, HLF_LC as i32);
                     search_hl.attr_cur = attr_cur;
                     if attr_cur != attr {
                         g_st().search_hl_has_cursor_lnum.set(lnum);
@@ -908,7 +908,7 @@ pub fn update_search_hl(
     search_attr
 }
 
-pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
+pub fn get_prevcol_hl_flag(wp: &WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
     let mut prevcol = curcol;
     let skip_or_left = if wp.w_onebuf_opt.wo_wrap.get() {
         wp.w_skipcol.get()
@@ -938,7 +938,7 @@ pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curco
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
 pub fn get_search_match_hl(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     search_hl: &mut SynMatch,
     col: Colnr,
     char_attr: &mut i32,
@@ -970,7 +970,7 @@ pub fn get_search_match_hl(
 fn matchadd_dict_arg<'a>(
     tv: &'a TypVal,
     conceal_char: &mut Option<std::borrow::Cow<'a, std::ffi::CStr>>,
-    win: &mut &'static mut WinInfoInfo,
+    win: &mut &'static WinInfoInfo,
 ) -> bool {
     if tv.v_type != VarType::VarDict {
         emsg(gettext(E_DICTREQ));
@@ -1008,7 +1008,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let win = get_optional_window(argvars, 0);
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    let Some(win) = win.as_deref() else {
+    let Some(win) = win else {
         return;
     };
 
@@ -1094,7 +1094,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }
 
-    clear_matches(&mut *win);
+    clear_matches(win);
     let mut match_add_failed = false;
     for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
@@ -1137,7 +1137,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         if i == 0 {
             let pat = tv_dict_get_string(Some(d), c"pattern");
             if match_add(
-                &mut *win,
+                win,
                 group.as_deref(),
                 pat.as_deref(),
                 priority,
@@ -1150,7 +1150,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
         } else {
             if match_add(
-                &mut *win,
+                win,
                 group.as_deref(),
                 None,
                 priority,

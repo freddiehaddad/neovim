@@ -790,7 +790,7 @@ pub fn fuzzy_match_str_in_line(
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
 pub fn search_for_fuzzy_match<'a>(
-    buf: &'a mut FileBuf,
+    buf: &'a FileBuf,
     pos: &mut CursorPos,
     pattern: Option<&[u8]>,
     dir: i32,

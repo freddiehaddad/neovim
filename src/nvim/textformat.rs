@@ -910,7 +910,7 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
         .current_sctx
         .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get());
 
-    let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
+    let r = eval_expr_option_number(&curbuf_mut().b_p_fex, use_sandbox);
 
     set_vim_var_string(VV_CHAR, None, -1);
     g_st().current_sctx.set(save_sctx);

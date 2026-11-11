@@ -412,17 +412,17 @@ impl<'a> Optset<'a> {
     }
 
     #[inline]
-    pub fn buf_mut(&self) -> &'static mut FileBuf {
+    pub fn buf_mut(&self) -> &'static FileBuf {
         self.os_buf.borrow_mut()
     }
 
     #[inline]
-    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+    pub fn win_mut(&self) -> &'static WinInfoInfo {
         self.os_win.borrow_mut()
     }
 
     #[inline]
-    pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
+    pub fn win_opt(&self) -> Option<&'static WinInfoInfo> {
         self.os_win.opt_mut()
     }
 
@@ -926,7 +926,7 @@ fn illegal_char(errbuf: Option<&mut [u8]>, c: i32) -> Option<&CStr> {
 }
 
 /// Check string options in a buffer for NULL value.
-pub fn check_buf_options(buf: &mut FileBuf) {
+pub fn check_buf_options(buf: &FileBuf) {
     buf.b_p_bh.check_option_str();
     buf.b_p_bt.check_option_str();
     buf.b_p_fenc.check_option_str();
@@ -985,9 +985,9 @@ fn valid_filetype(val: &[u8]) -> bool {
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
-pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&mut WinInfoInfo>) -> bool {
+pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&WinInfoInfo>) -> bool {
     let scl_owned = if scl.is_none()
-        && let Some(ref w) = wp
+        && let Some(w) = wp
     {
         Some(w.w_onebuf_opt.wo_scl.to_owned())
     } else {
@@ -1534,7 +1534,7 @@ pub fn did_set_breakat<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_breakindentopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_briopt);
-    briopt_check(is_local.then_some(&mut *win));
+    briopt_check(is_local.then_some(win));
 
     if is_local && win.w_briopt_list.get() != 0 {
         redraw_all_later(UPD_NOT_VALID);
@@ -1615,7 +1615,7 @@ pub fn validate_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The global 'listchars' or 'fillchars' option is changed.
 fn did_set_global_chars_option<'a>(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     val: &CStr,
     what: CharsOption,
     opt_flags: i32,
@@ -1628,7 +1628,7 @@ fn did_set_global_chars_option<'a>(
     };
 
     let errmsg = set_chars_option(
-        &mut *win,
+        win,
         val,
         what,
         local_empty || (opt_flags & OPT_GLOBAL) == 0,
@@ -1654,7 +1654,7 @@ fn did_set_global_chars_option<'a>(
                 wp.w_onebuf_opt.wo_fcs.to_owned()
             };
             if opt.to_bytes().is_empty() {
-                set_chars_option(&mut *wp, &opt, what, true, None);
+                set_chars_option(wp, &opt, what, true, None);
             }
         }
     }
@@ -2363,8 +2363,8 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             }
         }
         if (opt_flags & OPT_LOCAL) == 0 {
-            set_iminsert_global(&mut *buf);
-            set_imsearch_global(&mut *buf);
+            set_iminsert_global(buf);
+            set_imsearch_global(buf);
         }
         status_redraw_buf(buf);
     }
@@ -2646,7 +2646,7 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let oldval = args.os_oldval.data.string();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
-    if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&mut *win)) {
+    if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(win)) {
         return Some(E_INVARG);
     }
     if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth.get() == SCL_NUM {
@@ -3571,7 +3571,7 @@ const LCS_TAB: [CharsTabEntry; 12] = [
 
 /// Handle setting 'listchars' or 'fillchars'.
 pub fn set_chars_option<'a>(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     value: &CStr,
     what: CharsOption,
     apply: bool,

@@ -712,7 +712,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if params.diff_mode != 0 {
         for wp in win_iter_ptr(curtab_mut().tp_firstwin.get().as_ptr()) {
             if !wp.w_arg_idx_invalid.get() {
-                diff_win_options(&mut *wp, true);
+                diff_win_options(wp, true);
             }
         }
     }
@@ -913,7 +913,7 @@ pub fn getout(mut exitval: i32) -> ! {
                     continue;
                 }
                 let buf = wp.buf_mut();
-                let buf_ptr = crate::globals::BufPtr::from(&*buf);
+                let buf_ptr = crate::globals::BufPtr::from(buf);
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf_ptr.opt_mut());
@@ -940,14 +940,14 @@ pub fn getout(mut exitval: i32) -> ! {
         for buf in for_all_buffers_ptr() {
             if buf.b_ml.ml_mfp.borrow().is_some() {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, Some(&mut *buf));
+                set_bufref(&mut bufref, Some(buf));
                 let b_fname = buf.fname_opt().map(CStr::to_owned);
                 apply_autocmds(
                     EVENT_BUFUNLOAD,
                     b_fname.as_deref(),
                     b_fname.as_deref(),
                     false,
-                    Some(&mut *buf),
+                    Some(buf),
                 );
                 if !bufref_valid(Some(&bufref)) {
                     break;
@@ -1879,7 +1879,7 @@ fn read_stdin() {
             semsg!(c"Failed to create buffer for stdin");
             return;
         };
-        let stdin_buf = crate::globals::BufPtr::from(&*stdin_buf_ref);
+        let stdin_buf = crate::globals::BufPtr::from(stdin_buf_ref);
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
         set_curbuf(stdin_buf.borrow_mut(), 0, false);

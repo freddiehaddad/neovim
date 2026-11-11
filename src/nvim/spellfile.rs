@@ -4627,7 +4627,7 @@ fn sug_filltable(
             let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
             let text_len = gap.len().saturating_sub(1);
             if !ml_append_buf(
-                &mut *spellbuf,
+                &*spellbuf,
                 wordnr as Linenr,
                 &gap[..text_len],
                 gap.len() as i32,

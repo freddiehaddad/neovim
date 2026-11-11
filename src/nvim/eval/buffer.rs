@@ -68,7 +68,7 @@ impl Default for Cob {
 }
 
 /// Find a buffer by number or exact name (`find_buffer`).
-pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
+pub fn find_buffer(avar: &mut TypVal) -> Option<&'static FileBuf> {
     let mut buf = crate::globals::BufPtr::NULL;
 
     if avar.v_type == VarType::VarNumber {
@@ -79,10 +79,10 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
             let target = avar.vval.v_string_bytes();
             for bp in for_all_buffers_mut() {
                 if bp.fname_opt().is_some()
-                    && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&*bp)))
+                    && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(bp)))
                     && bp.fname_bytes() == target
                 {
-                    buf = crate::globals::BufPtr::from(&*bp);
+                    buf = crate::globals::BufPtr::from(bp);
                     break;
                 }
             }
@@ -105,8 +105,8 @@ fn find_win_for_curbuf() {
 }
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
-fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
-    let buf_ptr = crate::globals::BufPtr::from(&*buf);
+fn change_other_buffer_prepare(cob: &mut Cob, buf: &FileBuf) {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     *cob = Cob::new();
 
     cob.cob_save_visual_active = g_st().visual_global.borrow().active;
@@ -134,7 +134,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
 
 /// Set line or list of lines in buffer `buf` to `lines` (`set_buffer_lines`).
 fn set_buffer_lines(
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     lnum_arg: Linenr,
     append: bool,
     lines: &mut TypVal,
@@ -147,7 +147,7 @@ fn set_buffer_lines(
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     };
-    let buf_ptr = crate::globals::BufPtr::from(&*buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     let is_curbuf = buf_ptr == g_st().curbuf.get().as_ptr();
     if (!is_curbuf && buf.b_ml.ml_mfp.borrow().is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -275,7 +275,7 @@ fn buf_set_append_line(argvars: &mut [TypVal], rettv: &mut TypVal, append: bool)
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     };
-    let lnum = tv_get_lnum_buf(&argvars[1], Some(&*buf));
+    let lnum = tv_get_lnum_buf(&argvars[1], Some(buf));
     if g_st().did_emsg.get() == did_emsg_before {
         set_buffer_lines(Some(buf), lnum, append, &mut argvars[2], rettv);
     }
@@ -287,7 +287,7 @@ pub fn f_appendbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
-fn prompt_trim_scrollback(buf: &mut FileBuf) {
+fn prompt_trim_scrollback(buf: &FileBuf) {
     if buf.b_p_scbk.get() <= 0 {
         return;
     }
@@ -303,7 +303,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
         ml_delete_buf(buf, 1, false);
     }
     mark_adjust_buf(
-        &mut *buf,
+        buf,
         1,
         to_delete,
         MAXLNUM,
@@ -410,7 +410,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let Some(buf_ref) = tv_get_buf_from_arg(&mut argvars[0]) else {
         return;
     };
-    let buf = crate::globals::BufPtr::from(&*buf_ref);
+    let buf = crate::globals::BufPtr::from(buf_ref);
     if !bt_prompt(buf.opt()) {
         return;
     }
@@ -621,12 +621,12 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     };
 
-    let first = tv_get_lnum_buf(&argvars[1], Some(&*buf));
+    let first = tv_get_lnum_buf(&argvars[1], Some(buf));
     if g_st().did_emsg.get() > did_emsg_before {
         return;
     }
     let mut last = if argvars[2].v_type != VarType::VarUnknown {
-        tv_get_lnum_buf(&argvars[2], Some(&*buf))
+        tv_get_lnum_buf(&argvars[2], Some(buf))
     } else {
         first
     };
@@ -639,7 +639,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    let buf_ptr = crate::globals::BufPtr::from(&*buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     let is_curbuf = g_st().curbuf.get() == buf_ptr;
     let mut cob = Cob::new();
     if !is_curbuf {
@@ -686,7 +686,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 /// Buffer options, variables and other attributes in a dictionary (`get_buffer_info`).
-fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
+fn get_buffer_info(buf: &FileBuf) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
     tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum.get() as Varnumber);
@@ -709,13 +709,13 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     );
     tv_dict_add_nr(&dict, c"listed", buf.b_p_bl.get() as Varnumber);
     tv_dict_add_nr(&dict, c"changed", Varnumber::from(buf_is_changed_fn(buf)));
-    tv_dict_add_nr(&dict, c"changedtick", buf_get_changedtick(&*buf));
+    tv_dict_add_nr(&dict, c"changedtick", buf_get_changedtick(buf));
     tv_dict_add_nr(
         &dict,
         c"hidden",
         Varnumber::from(buf.b_ml.ml_mfp.borrow().is_some() && buf.b_nwindows.get() == 0),
     );
-    tv_dict_add_nr(&dict, c"command", Varnumber::from(bt_cmdwin(Some(&*buf))));
+    tv_dict_add_nr(&dict, c"command", Varnumber::from(bt_cmdwin(Some(buf))));
 
     tv_dict_add_dict(&dict, c"variables", Some(&buf.b_vars()));
 
@@ -729,7 +729,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     }
     tv_dict_add_list(&dict, c"windows", Some(&windows));
 
-    if buf_has_signs(&*buf) {
+    if buf_has_signs(buf) {
         tv_dict_add_list(&dict, c"signs", Some(&get_buffer_signs(buf)));
     }
 
@@ -774,7 +774,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             continue;
         }
 
-        let d = get_buffer_info(&mut *buf);
+        let d = get_buffer_info(buf);
         tv_list_append_dict(rettv.vval.v_list_ref(), Some(&d));
         if !argbuf.is_null() {
             return;
@@ -784,7 +784,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// Get line or list of lines from buffer `buf` into `rettv` (`get_buffer_lines`).
 fn get_buffer_lines(
-    mut buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     mut start: Linenr,
     mut end: Linenr,
     retlist: bool,
@@ -797,11 +797,7 @@ fn get_buffer_lines(
     };
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
-    if buf.is_none()
-        || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none()
-        || start < 0
-        || end < start
-    {
+    if buf.is_none() || buf.unwrap().b_ml.ml_mfp.borrow().is_none() || start < 0 || end < start {
         if retlist {
             tv_list_alloc_ret(&mut *rettv, 0);
         }
@@ -812,18 +808,18 @@ fn get_buffer_lines(
         if start < 1 {
             start = 1;
         }
-        if end > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
-            end = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
+        if end > buf.unwrap().b_ml.ml_line_count.get() {
+            end = buf.unwrap().b_ml.ml_line_count.get();
         }
         tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
         while start <= end {
             crate::eval::typval::tv_list_append_bytes(
                 rettv.vval.v_list_ref(),
-                crate::memline::ml_get_buf_slice(buf.as_deref_mut().unwrap(), start),
+                crate::memline::ml_get_buf_slice(buf.unwrap(), start),
             );
             start += 1;
         }
-    } else if start >= 1 && start <= buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
+    } else if start >= 1 && start <= buf.unwrap().b_ml.ml_line_count.get() {
         crate::eval::typval::tv_set_string_len(
             &mut *rettv,
             Some(crate::memline::ml_get_buf_slice(buf.unwrap(), start)),
@@ -839,7 +835,7 @@ fn getbufline(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
     let mut end: Linenr = 1;
     let did_emsg_before = g_st().did_emsg.get();
     let buf = tv_get_buf_from_arg(&mut argvars[0]);
-    if let Some(ref buf_ref) = buf {
+    if let Some(buf_ref) = buf {
         lnum = tv_get_lnum_buf(&argvars[1], Some(buf_ref));
         if g_st().did_emsg.get() > did_emsg_before {
             return;
@@ -918,7 +914,7 @@ pub fn f_prompt_setcallback(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: 
     }
 
     callback_free(&buf.b_prompt_callback);
-    buf.b_prompt_callback = prompt_callback;
+    buf.b_prompt_callback.data.set(prompt_callback.data.get());
 }
 
 /// `prompt_setinterrupt({buffer}, {callback})` function (`f_prompt_setinterrupt`).
@@ -937,7 +933,9 @@ pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr:
     }
 
     callback_free(&buf.b_prompt_interrupt);
-    buf.b_prompt_interrupt = interrupt_callback;
+    buf.b_prompt_interrupt
+        .data
+        .set(interrupt_callback.data.get());
 }
 
 /// `prompt_getprompt({buffer})` function (`f_prompt_getprompt`).
@@ -980,7 +978,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     let new_prompt = tv_get_string(&argvars[1]);
     let new_prompt_len = new_prompt.to_bytes().len() as i32;
 
-    if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.borrow().is_some() {
+    if bt_prompt(Some(buf)) && buf.b_ml.ml_mfp.borrow().is_some() {
         if buf.b_prompt_start.borrow().mark.lnum < 1
             || buf.b_prompt_start.borrow().mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
         {
@@ -996,12 +994,12 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
 
         let prompt_lno = buf.b_prompt_start.borrow().mark.lnum;
         let mark_col = buf.b_prompt_start.borrow().mark.col;
-        let old_prompt = buf_prompt_text(&*buf).to_owned();
+        let old_prompt = buf_prompt_text(buf).to_owned();
         let old_prompt_bytes = old_prompt.to_bytes();
         let old_prompt_len = old_prompt_bytes.len() as i32;
         let mut cursor_col = curwin_mut().w_cursor.get().col;
 
-        let old_line_slice = crate::memline::ml_get_buf_slice(&mut *buf, prompt_lno);
+        let old_line_slice = crate::memline::ml_get_buf_slice(buf, prompt_lno);
         let old_line_len = old_line_slice.len() as Colnr;
         let prefix_matches = mark_col >= old_prompt_len
             && mark_col <= old_line_len
@@ -1010,9 +1008,9 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 .is_some_and(|s| s == old_prompt_bytes);
 
         if !prefix_matches {
-            ml_replace_buf(&mut *buf, prompt_lno, new_prompt.to_bytes(), true, false);
+            ml_replace_buf(buf, prompt_lno, new_prompt.to_bytes(), true, false);
             extmark_splice_cols(
-                &mut *buf,
+                buf,
                 prompt_lno - 1,
                 0,
                 old_line_len,
@@ -1026,9 +1024,9 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 new_vec.extend_from_slice(tail);
             }
             let new_line = crate::memory::bytes_to_cstring(&new_vec);
-            let _ = ml_replace_buf(&mut *buf, prompt_lno, new_line.to_bytes(), true, false);
+            let _ = ml_replace_buf(buf, prompt_lno, new_line.to_bytes(), true, false);
             extmark_splice_cols(
-                &mut *buf,
+                buf,
                 prompt_lno - 1,
                 0,
                 mark_col,
@@ -1044,8 +1042,8 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             curwin_mut().w_cursor.set_col(cursor_col);
             check_cursor_col(curwin_mut());
         }
-        changed_lines(&mut *buf, prompt_lno, 0, prompt_lno + 1, 0, true);
-        u_clearallandblockfree(&mut *buf);
+        changed_lines(buf, prompt_lno, 0, prompt_lno + 1, 0, true);
+        u_clearallandblockfree(buf);
     }
 
     buf.b_prompt_text

@@ -258,7 +258,7 @@ fn pum_compute_size() {
 /// Calculate vertical placement for popup menu (`pum_compute_vertical_placement`).
 fn pum_compute_vertical_placement(
     size: i32,
-    mut target_win: Option<&mut WinInfoInfo>,
+    target_win: Option<&WinInfoInfo>,
     pum_win_row: i32,
     above_row: i32,
     below_row: i32,
@@ -280,10 +280,8 @@ fn pum_compute_vertical_placement(
         if (g_st().state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
         } else {
-            context_lines = 2.min(
-                target_win.as_deref_mut().unwrap().w_wrow.get()
-                    - target_win.as_deref_mut().unwrap().w_cline_row.get(),
-            );
+            context_lines =
+                2.min(target_win.unwrap().w_wrow.get() - target_win.unwrap().w_cline_row.get());
         }
 
         if pum_win_row >= size + context_lines {
@@ -320,9 +318,9 @@ fn pum_compute_vertical_placement(
         if (g_st().state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
         } else {
-            validate_cheight(target_win.as_deref_mut().unwrap());
-            let cline_visible_offset = target_win.as_deref_mut().unwrap().w_cline_row.get()
-                + target_win.as_deref_mut().unwrap().w_cline_height.get()
+            validate_cheight(target_win.unwrap());
+            let cline_visible_offset = target_win.unwrap().w_cline_row.get()
+                + target_win.unwrap().w_cline_height.get()
                 - target_win.unwrap().w_wrow.get();
             context_lines = 3.min(cline_visible_offset);
         }
@@ -602,7 +600,7 @@ pub fn pum_display(
             }
         }
 
-        let mut pvwin: Option<&mut WinInfoInfo> = None;
+        let mut pvwin: Option<&WinInfoInfo> = None;
         for wp in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
             if wp.w_onebuf_opt.wo_pvw.get() {
                 pvwin = Some(wp);
@@ -1261,7 +1259,7 @@ pub fn pum_redraw() {
 
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
 fn pum_preview_set_text(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     info: Option<&[u8]>,
     lnum: &mut Linenr,
     max_width: &mut i32,
@@ -1319,7 +1317,7 @@ fn pum_preview_set_text(
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
-fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
+fn pum_adjust_info_position(wp: &WinInfoInfo, width: i32) -> bool {
     let border_width = pum_border_width();
     let col = PUM.with(|s| s.col.get())
         + PUM.with(|s| s.width.get())
@@ -1358,12 +1356,12 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
     wp.w_config.borrow_mut().row = f64::from(PUM.with(|s| s.row.get()));
     wp.w_config.borrow_mut().hide = false;
     let cfg = wp.w_config.borrow().clone();
-    win_config_float(&mut *wp, cfg);
+    win_config_float(wp, cfg);
     true
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut WinInfoInfo> {
+pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static WinInfoInfo> {
     if !PUM.with(|s| s.is_visible.get()) || !compl_match_curr_select(selected) {
         return None;
     }
@@ -1382,14 +1380,14 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
     };
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
-    pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
+    pum_preview_set_text(wp_ref, info, &mut lnum, &mut max_info_width);
     g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
     g_st()
         .redrawing_disabled
         .set(g_st().redrawing_disabled.get() - (1));
-    redraw_later(Some(&mut *wp_ref), UPD_NOT_VALID);
+    redraw_later(Some(wp_ref), UPD_NOT_VALID);
 
-    let ok = pum_adjust_info_position(&mut *wp_ref, max_info_width);
+    let ok = pum_adjust_info_position(wp_ref, max_info_width);
     unblock_autocmds();
     ok.then_some(wp_ref)
 }

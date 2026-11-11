@@ -1601,7 +1601,7 @@ fn get_option_prefix(argp: &mut &[u8]) -> SetPrefix {
 }
 
 fn validate_opt_idx(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     opt_idx: OptIndex,
     opt_flags: i32,
     flags: u32,
@@ -2282,7 +2282,7 @@ pub fn check_options() {
 }
 
 /// Check if option was set insecurely.
-pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
+pub fn was_set_insecurely(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
     assert!(opt_idx != K_OPT_INVALID);
     let flags = if (opt_flags & OPT_LOCAL) != 0 {
         let wp = wp.unwrap();
@@ -2313,12 +2313,7 @@ pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_f
     i32::from((flags & K_OPT_FLAG_INSECURE) != 0)
 }
 
-fn set_insecure_flag(
-    wp: Option<&mut WinInfoInfo>,
-    opt_idx: OptIndex,
-    opt_flags: i32,
-    insecure: bool,
-) {
+fn set_insecure_flag(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32, insecure: bool) {
     let update_cell = |f: &std::cell::Cell<u32>| {
         if insecure {
             f.set(f.get() | K_OPT_FLAG_INSECURE);
@@ -2375,16 +2370,16 @@ pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
     true
 }
 
-pub fn check_blending(wp: &mut WinInfoInfo) {
+pub fn check_blending(wp: &WinInfoInfo) {
     wp.w_grid_alloc.blending.set(
         wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating.get() && wp.w_config.borrow().shadow),
     );
 }
 
 /// Handle setting 'winhighlight' in window "wp".
-pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -> bool {
+pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&WinInfoInfo>) -> bool {
     let winhl_owned = if winhl.is_none()
-        && let Some(ref w) = wp
+        && let Some(w) = wp
     {
         Some(w.w_onebuf_opt.wo_winhl.to_owned())
     } else {
@@ -2601,7 +2596,7 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         if !opt_vars().p_tbidi.get() {
             if !win.w_onebuf_opt.wo_rl.get() {
                 win.w_onebuf_opt.wo_rl.set(true);
-                changed_window_setting(&mut *win);
+                changed_window_setting(win);
             }
 
             if !opt_vars().p_arshape.get() {
@@ -2628,7 +2623,7 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else {
         if !opt_vars().p_tbidi.get() && win.w_onebuf_opt.wo_rl.get() {
             win.w_onebuf_opt.wo_rl.set(false);
-            changed_window_setting(&mut *win);
+            changed_window_setting(win);
         }
 
         win.buf_mut().b_p_iminsert.set(B_IMODE_NONE);
@@ -2701,9 +2696,9 @@ pub fn did_set_cmdheight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'diff' option value.
 pub fn did_set_diff<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    diff_buf_adjust(&mut *win);
-    if foldmethod_is_diff(&mut *win) {
-        fold_update_all(&mut *win);
+    diff_buf_adjust(win);
+    if foldmethod_is_diff(win) {
+        fold_update_all(win);
     }
     None
 }
@@ -2727,16 +2722,13 @@ pub fn did_set_foldenable<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen.get())
         && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen.get()
-        && foldmethod_is_diff(&mut *win)
+        && foldmethod_is_diff(win)
         && win.w_onebuf_opt.wo_scb.get()
     {
         for wp in for_all_windows_ptr() {
-            if !std::ptr::eq(wp, win)
-                && foldmethod_is_diff(&mut *wp)
-                && wp.w_onebuf_opt.wo_scb.get()
-            {
+            if !std::ptr::eq(wp, win) && foldmethod_is_diff(wp) && wp.w_onebuf_opt.wo_scb.get() {
                 wp.w_onebuf_opt.wo_fen.set(win.w_onebuf_opt.wo_fen.get());
-                changed_window_setting(&mut *wp);
+                changed_window_setting(wp);
             }
         }
     }
@@ -2758,8 +2750,8 @@ pub fn did_set_foldminlines<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'foldnestmax' option value.
 pub fn did_set_foldnestmax<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if foldmethod_is_syntax(&mut *win) || foldmethod_is_indent(&mut *win) {
-        fold_update_all(&mut *win);
+    if foldmethod_is_syntax(win) || foldmethod_is_indent(win) {
+        fold_update_all(win);
     }
     None
 }
@@ -2981,11 +2973,12 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             buf.b_p_sts.set(buf.b_p_sts_nopaste.get());
             buf.b_p_ai.set(buf.b_p_ai_nopaste.get());
             buf.b_p_et.set(buf.b_p_et_nopaste.get());
-            buf.b_p_vsts = buf
-                .b_p_vsts_nopaste
-                .get()
-                .as_deref()
-                .map_or_else(OptString::new, OptString::from_cstr);
+            buf.b_p_vsts.set(
+                buf.b_p_vsts_nopaste
+                    .get()
+                    .as_deref()
+                    .map_or_else(OptString::new, OptString::from_cstr),
+            );
             if !buf.b_p_vsts.is_empty() {
                 tabstop_set(
                     buf.b_p_vsts.as_bytes(),
@@ -3099,7 +3092,7 @@ pub fn did_set_scrollbind<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         return None;
     }
     do_check_scrollbind(false);
-    let vtop = get_vtopline(&mut *win);
+    let vtop = get_vtopline(win);
     win.w_scbind_pos.set(vtop);
     None
 }
@@ -3157,7 +3150,7 @@ pub fn did_set_swapfile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_textwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            check_colorcolumn(None::<&CStr>, Some(&mut *wp));
+            check_colorcolumn(None::<&CStr>, Some(wp));
         }
     }
     None
@@ -3190,10 +3183,10 @@ pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     for bp in for_all_buffers_ptr() {
         if (ptr::eq(buf, bp) || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
-            && !buf_is_changed_fn(&mut *bp)
+            && !buf_is_changed_fn(bp)
             && bp.b_ml.ml_mfp.borrow().is_some()
         {
-            u_compute_hash(&mut *bp, &mut hash);
+            u_compute_hash(bp, &mut hash);
             u_read_undo(None, &hash, bp.fname_opt());
         }
     }
@@ -3211,7 +3204,7 @@ pub fn did_set_global_undolevels(value: OptInt, old_value: OptInt) -> Option<&'s
 
 /// Process the new buffer local 'undolevels' option value.
 pub fn did_set_buflocal_undolevels(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     value: OptInt,
     old_value: OptInt,
 ) -> Option<&'static CStr> {
@@ -3271,7 +3264,7 @@ pub fn did_set_winblend<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             .wo_winbl
             .set(win.w_onebuf_opt.wo_winbl.get().clamp(0, 100));
         win.w_hl_needs_update.set(1);
-        check_blending(&mut *win);
+        check_blending(win);
     }
     None
 }
@@ -3333,7 +3326,7 @@ pub fn did_set_xhistory<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     None
 }
 
-fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
+fn do_syntax_autocmd(buf: &FileBuf, value_changed: bool) {
     OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() + (1)));
     buf.b_flags.set(buf.b_flags.get() | (BF_SYN_SET));
     let syn_name = buf.b_p_syn.to_owned();
@@ -3348,7 +3341,7 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
     OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() - (1)));
 }
 
-fn do_spelllang_source(win: &mut WinInfoInfo) {
+fn do_spelllang_source(win: &WinInfoInfo) {
     let mut fname = [0u8; 200];
     let ws = win.w_s_ptr();
     let mut q = ws.b_p_spl.as_cstr();
@@ -3372,7 +3365,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
 fn check_num_option_bounds<'a>(
     opt_idx: OptIndex,
     newval: &mut OptInt,
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     errbuf: Option<&'a mut [u8]>,
 ) -> Option<&'a CStr> {
     let mut errmsg: Option<&'a CStr> = None;
@@ -3425,7 +3418,7 @@ fn check_num_option_bounds<'a>(
 fn validate_num_option<'a>(
     opt_idx: OptIndex,
     newval: &mut OptInt,
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     errbuf: Option<&'a mut [u8]>,
 ) -> Option<&'a CStr> {
     let value = *newval;
@@ -3579,7 +3572,7 @@ fn validate_num_option<'a>(
 }
 
 /// Called after an option changed: check if something needs to be redrawn.
-pub fn check_redraw_for(buf: &FileBuf, win: &mut WinInfoInfo, flags: u32) {
+pub fn check_redraw_for(buf: &FileBuf, win: &WinInfoInfo, flags: u32) {
     let all = (flags & K_OPT_FLAG_REDR_ALL) == K_OPT_FLAG_REDR_ALL;
 
     if (flags & K_OPT_FLAG_REDR_STAT) != 0 || all {
@@ -3592,7 +3585,7 @@ pub fn check_redraw_for(buf: &FileBuf, win: &mut WinInfoInfo, flags: u32) {
 
     if (flags & K_OPT_FLAG_REDR_BUF) != 0 || (flags & K_OPT_FLAG_REDR_WIN) != 0 || all {
         if (flags & K_OPT_FLAG_HLONLY) != 0 {
-            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+            redraw_later(Some(win), UPD_NOT_VALID);
         } else {
             changed_window_setting(win);
         }
@@ -5534,7 +5527,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         if opt_flags == OPT_GLOBAL {
             errmsg = Some(tr(c"Cannot unset global option value"));
         } else {
-            let varp = get_varp_scope_from(opt.clone(), OPT_GLOBAL, buf, Some(&mut *win));
+            let varp = get_varp_scope_from(opt.clone(), OPT_GLOBAL, buf, Some(win));
             *newval = if option_is_global_local(opt_idx) {
                 unset_obj()
             } else {
@@ -5574,7 +5567,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
     if opt.immutable {
         let oldval = opt_from_varp(
             opt_idx,
-            get_varp_scope_from(opt.clone(), opt_flags, buf, Some(&mut *win)),
+            get_varp_scope_from(opt.clone(), opt_flags, buf, Some(win)),
         );
         let unchanged = option_equal(oldval.clone(), newval.clone());
         optval_free_read(opt_idx, oldval);
@@ -5596,7 +5589,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         let varp = if scope_both && option_is_global_local(opt_idx) {
             opt.var()
         } else {
-            get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win))
+            get_varp_scope_from(opt, opt_flags, buf, Some(win))
         };
         args.os_varp = varp;
         args.os_oldval = opt_from_varp(opt_idx, varp);
@@ -6494,8 +6487,8 @@ fn get_winopt_var(win: &WinInfoInfo, allbuf: bool, opt_idx: OptIndex) -> OptVar 
 pub fn get_varp_scope_from(
     p: Vimoption,
     opt_flags: i32,
-    buf: &mut FileBuf,
-    win: Option<&mut WinInfoInfo>,
+    buf: &FileBuf,
+    win: Option<&WinInfoInfo>,
 ) -> OptVar {
     let opt_idx = get_opt_idx(p.clone());
 
@@ -6522,9 +6515,9 @@ pub fn get_varp_scope_from(
             K_OPT_AUTOREAD => buf_var!(buf, b_p_ar),
             K_OPT_TAGS => buf_var!(buf, b_p_tags),
             K_OPT_TAGCASE => buf_var!(buf, b_p_tc),
-            K_OPT_SIDESCROLLOFF => win_onebuf_var!(win.as_deref().unwrap(), wo_siso),
-            K_OPT_SCROLLOFF => win_onebuf_var!(win.as_deref().unwrap(), wo_so),
-            K_OPT_SCROLLOFFPAD => win_onebuf_var!(win.as_deref().unwrap(), wo_sop),
+            K_OPT_SIDESCROLLOFF => win_onebuf_var!(win.unwrap(), wo_siso),
+            K_OPT_SCROLLOFF => win_onebuf_var!(win.unwrap(), wo_so),
+            K_OPT_SCROLLOFFPAD => win_onebuf_var!(win.unwrap(), wo_sop),
             K_OPT_DEFINE => buf_var!(buf, b_p_def),
             K_OPT_INCLUDE => buf_var!(buf, b_p_inc),
             K_OPT_COMPLETEOPT => buf_var!(buf, b_p_cot),
@@ -6533,16 +6526,16 @@ pub fn get_varp_scope_from(
             K_OPT_THESAURUS => buf_var!(buf, b_p_tsr),
             K_OPT_THESAURUSFUNC => buf_var!(buf, b_p_tsrfu),
             K_OPT_TAGFUNC => buf_var!(buf, b_p_tfu),
-            K_OPT_SHOWBREAK => win_onebuf_var!(win.as_deref().unwrap(), wo_sbr),
-            K_OPT_STATUSLINE => win_onebuf_var!(win.as_deref().unwrap(), wo_stl),
-            K_OPT_WINBAR => win_onebuf_var!(win.as_deref().unwrap(), wo_wbr),
+            K_OPT_SHOWBREAK => win_onebuf_var!(win.unwrap(), wo_sbr),
+            K_OPT_STATUSLINE => win_onebuf_var!(win.unwrap(), wo_stl),
+            K_OPT_WINBAR => win_onebuf_var!(win.unwrap(), wo_wbr),
             K_OPT_UNDOLEVELS => buf_var!(buf, b_p_ul),
             K_OPT_LISPWORDS => buf_var!(buf, b_p_lw),
             K_OPT_BACKUPCOPY => buf_var!(buf, b_p_bkc),
             K_OPT_MAKEENCODING => buf_var!(buf, b_p_menc),
-            K_OPT_FILLCHARS => win_onebuf_var!(win.as_deref().unwrap(), wo_fcs),
-            K_OPT_LISTCHARS => win_onebuf_var!(win.as_deref().unwrap(), wo_lcs),
-            K_OPT_VIRTUALEDIT => win_onebuf_var!(win.as_deref().unwrap(), wo_ve),
+            K_OPT_FILLCHARS => win_onebuf_var!(win.unwrap(), wo_fcs),
+            K_OPT_LISTCHARS => win_onebuf_var!(win.unwrap(), wo_lcs),
+            K_OPT_VIRTUALEDIT => win_onebuf_var!(win.unwrap(), wo_ve),
             _ => std::process::abort(),
         };
     }
@@ -6559,20 +6552,20 @@ pub fn get_varp_scope(p: Vimoption, opt_flags: i32) -> OptVar {
 pub fn get_option_varp_scope_from(
     opt_idx: OptIndex,
     opt_flags: i32,
-    buf: &mut FileBuf,
-    win: Option<&mut WinInfoInfo>,
+    buf: &FileBuf,
+    win: Option<&WinInfoInfo>,
 ) -> OptVar {
     get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
-pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinInfoInfo>) -> OptVar {
+pub fn get_varp_from(p: Vimoption, buf: &FileBuf, mut win: Option<&WinInfoInfo>) -> OptVar {
     let opt_idx = get_opt_idx(p.clone());
 
     if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
         return p.var();
     }
 
-    if let Some(ref w) = win {
+    if let Some(w) = win {
         let win_var = get_winopt_var(w, false, opt_idx);
         if win_var.is_some() {
             return win_var;
@@ -6630,7 +6623,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_SIDESCROLLOFF => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if w.w_onebuf_opt.wo_siso.get() >= 0 {
                 win_onebuf_var!(w, wo_siso)
             } else {
@@ -6638,7 +6631,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_SCROLLOFF => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if w.w_onebuf_opt.wo_so.get() >= 0 {
                 win_onebuf_var!(w, wo_so)
             } else {
@@ -6646,7 +6639,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_SCROLLOFFPAD => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if w.w_onebuf_opt.wo_sop.get() >= 0 {
                 win_onebuf_var!(w, wo_sop)
             } else {
@@ -6759,7 +6752,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_SHOWBREAK => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_sbr.is_empty() {
                 win_onebuf_var!(w, wo_sbr)
             } else {
@@ -6767,7 +6760,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_STATUSLINE => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_stl.is_empty() {
                 win_onebuf_var!(w, wo_stl)
             } else {
@@ -6775,7 +6768,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_WINBAR => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_wbr.is_empty() {
                 win_onebuf_var!(w, wo_wbr)
             } else {
@@ -6804,7 +6797,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_FILLCHARS => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_fcs.is_empty() {
                 win_onebuf_var!(w, wo_fcs)
             } else {
@@ -6812,7 +6805,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_LISTCHARS => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_lcs.is_empty() {
                 win_onebuf_var!(w, wo_lcs)
             } else {
@@ -6820,7 +6813,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_VIRTUALEDIT => {
-            let w = win.as_deref().unwrap();
+            let w = win.unwrap();
             if !w.w_onebuf_opt.wo_ve.is_empty() {
                 win_onebuf_var!(w, wo_ve)
             } else {
@@ -6892,7 +6885,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
-                    crate::globals::BufPtr::from(&*buf),
+                    crate::globals::BufPtr::from(buf),
                     |b| &b.b_s.b_p_spc,
                 ))
             }
@@ -6905,7 +6898,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
-                    crate::globals::BufPtr::from(&*buf),
+                    crate::globals::BufPtr::from(buf),
                     |b| &b.b_s.b_p_spf,
                 ))
             }
@@ -6918,7 +6911,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
-                    crate::globals::BufPtr::from(&*buf),
+                    crate::globals::BufPtr::from(buf),
                     |b| &b.b_s.b_p_spl,
                 ))
             }
@@ -6931,7 +6924,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
-                    crate::globals::BufPtr::from(&*buf),
+                    crate::globals::BufPtr::from(buf),
                     |b| &b.b_s.b_p_spo,
                 ))
             }
@@ -6971,10 +6964,10 @@ pub fn get_findfunc() -> &'static Callback {
 }
 
 /// Copy options from one window to another.
-pub fn win_copy_options(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
+pub fn win_copy_options(wp_from: &WinInfoInfo, wp_to: &WinInfoInfo) {
     copy_winopt(&wp_from.w_onebuf_opt, &wp_to.w_onebuf_opt);
     copy_winopt(&wp_from.w_allbuf_opt, &wp_to.w_allbuf_opt);
-    didset_window_options(&mut *wp_to, true);
+    didset_window_options(wp_to, true);
 }
 
 /// Copy the options from one Winopt to another.
@@ -7112,14 +7105,14 @@ pub fn clear_winopt(wop: &Winopt) {
     wop.wo_stc.clear_option_str();
 }
 
-pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
+pub fn didset_window_options(wp: &WinInfoInfo, valid_cursor: bool) {
     if wp.w_onebuf_opt.wo_wrap.get() {
         wp.w_leftcol.set(0);
     } else {
         wp.w_skipcol.set(0);
     }
-    check_colorcolumn(None::<&CStr>, Some(&mut *wp));
-    briopt_check(Some(&mut *wp));
+    check_colorcolumn(None::<&CStr>, Some(wp));
+    briopt_check(Some(wp));
     let mut culopt_flags: u32 = 0;
     if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt.as_bytes(), &mut culopt_flags) {
         wp.w_p_culopt_flags.set(culopt_flags as u8);
@@ -7128,10 +7121,10 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     set_chars_option(wp, &wo_fcs, CharsOption::Fillchars, true, None);
     let wo_lcs = wp.w_onebuf_opt.wo_lcs.to_owned();
     set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None);
-    parse_winhl_opt(None, Some(&mut *wp));
+    parse_winhl_opt(None, Some(wp));
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
-    check_signcolumn(None, Some(&mut *wp));
+    check_signcolumn(None, Some(wp));
     wp.w_grid_alloc
         .blending
         .set(wp.w_onebuf_opt.wo_winbl.get() > 0);
@@ -7148,7 +7141,7 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 }
 
 /// Copy global option values to local options for one buffer.
-pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
+pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
     let mut should_copy = true;
     let mut save_p_isk = OptString::new();
     let mut did_isk = false;
@@ -7239,7 +7232,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_cpt.set_option_cstr(opt_vars().p_cpt.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
             buf.b_p_cpt_flags.set(copy_opt_insecure(K_BUF_OPT_COMPLETE));
-            set_buflocal_cpt_callbacks(Some(&mut *buf));
+            set_buflocal_cpt_callbacks(Some(buf));
             #[cfg(windows)]
             {
                 buf.b_p_csl.set(opt_vars().p_csl.clone());
@@ -7380,10 +7373,10 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_udf.set(opt_vars().p_udf.get());
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
             buf.b_p_lw.set(empty_opt.clone());
-            buf.b_p_menc = empty_opt;
+            buf.b_p_menc.set(empty_opt);
 
             if dont_do_help {
-                buf.b_p_isk = save_p_isk;
+                buf.b_p_isk.set(save_p_isk);
                 if !opt_vars().p_vts.is_null()
                     && !opt_vars().p_vts.is_empty()
                     && buf.b_p_vts_array.borrow().is_empty()
@@ -7397,12 +7390,12 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                     buf.b_p_vts_array.borrow_mut().clear();
                 }
             } else {
-                buf.b_p_isk = opt_vars().p_isk.clone();
+                buf.b_p_isk.set(opt_vars().p_isk.clone());
                 copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
                 did_isk = true;
                 buf.b_p_ts.set(opt_vars().p_ts.get());
                 copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
-                buf.b_p_vts = opt_vars().p_vts.clone();
+                buf.b_p_vts.set(opt_vars().p_vts.clone());
                 copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
                 if !opt_vars().p_vts.is_null()
                     && !opt_vars().p_vts.is_empty()
@@ -7444,12 +7437,12 @@ pub fn reset_modifiable() {
 }
 
 /// Set the global value for 'iminsert' to the local value.
-pub fn set_iminsert_global(buf: &mut FileBuf) {
+pub fn set_iminsert_global(buf: &FileBuf) {
     opt_vars().p_iminsert.set(buf.b_p_iminsert.get());
 }
 
 /// Set the global value for 'imsearch' to the local value.
-pub fn set_imsearch_global(buf: &mut FileBuf) {
+pub fn set_imsearch_global(buf: &FileBuf) {
     opt_vars().p_imsearch.set(buf.b_p_imsearch.get());
 }
 
@@ -8138,7 +8131,7 @@ pub fn can_bs(what: i32) -> bool {
 }
 
 /// Get the local or global value of 'backupcopy' flags.
-pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
+pub fn get_bkc_flags(buf: &FileBuf) -> u32 {
     if buf.b_bkc_flags.get() != 0 {
         buf.b_bkc_flags.get()
     } else {
@@ -8156,7 +8149,7 @@ pub fn get_flp_value(buf: &FileBuf) -> std::ffi::CString {
 }
 
 /// Get the local or global value of 'virtualedit' flags.
-pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
+pub fn get_ve_flags(wp: &WinInfoInfo) -> u32 {
     let f = if wp.w_onebuf_opt.wo_ve_flags.get() != 0 {
         wp.w_onebuf_opt.wo_ve_flags.get()
     } else {
@@ -8372,7 +8365,7 @@ pub fn get_winbuf_options(bufopt: i32) -> crate::eval::typval::DictId {
 }
 
 /// Return the effective 'scrolloff' value for the current window.
-pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
+pub fn get_scrolloff_value(wp: &WinInfoInfo) -> i64 {
     if (g_st().state_global.get() & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.get().is_null() {
         return 0;
     }
@@ -8384,7 +8377,7 @@ pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
 }
 
 /// Return the effective 'scrolloffpad' value for the current window.
-pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
+pub fn get_scrolloffpad_value(wp: &WinInfoInfo) -> i64 {
     if wp.w_onebuf_opt.wo_sop.get() == -1 {
         opt_vars().p_sop.get()
     } else {
@@ -8393,7 +8386,7 @@ pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
 }
 
 /// Return the effective 'sidescrolloff' value for the current window.
-pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
+pub fn get_sidescrolloff_value(wp: &WinInfoInfo) -> i64 {
     if wp.w_onebuf_opt.wo_siso.get() < 0 {
         opt_vars().p_siso.get()
     } else {
@@ -8405,8 +8398,8 @@ pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
 pub fn get_option_info(
     name: NvimString,
     opt_flags: i32,
-    buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
+    buf: &FileBuf,
+    win: &WinInfoInfo,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -8439,8 +8432,8 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
 fn option_info_dict(
     opt: Vimoption,
     opt_flags: i32,
-    buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
+    buf: &FileBuf,
+    win: &WinInfoInfo,
     arena: &mut Arena,
 ) -> Dict {
     let opt_idx = get_opt_idx(opt.clone());

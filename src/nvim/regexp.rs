@@ -1773,11 +1773,11 @@ impl RegexecState {
     }
 
     #[inline(always)]
-    pub fn buf_mut(&self) -> &'static mut FileBuf {
+    pub fn buf_mut(&self) -> &'static FileBuf {
         self.reg_buf.get().borrow_mut()
     }
     #[inline(always)]
-    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+    pub fn win_mut(&self) -> &'static WinInfoInfo {
         self.reg_win.get().borrow_mut()
     }
     #[inline(always)]
@@ -2821,12 +2821,11 @@ pub(super) fn reg_prev_class() -> i32 {
 
 pub(super) fn reg_match_visual() -> bool {
     let reg_win = RE_STATE.with(|s| s.rex.reg_win.get());
-    let mut wp = if reg_win.is_null() {
+    let wp = if reg_win.is_null() {
         curwin_ptr()
     } else {
         reg_win
     };
-    let wp = &mut *wp;
     if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf.get()
         || g_st().visual_global.borrow().start.lnum == 0
         || !reg_multi()
@@ -2893,7 +2892,7 @@ pub(super) fn reg_match_visual() -> bool {
         let mut top_copy = top;
         let mut bot_copy = bot;
         getvvcol(
-            &mut *(wp),
+            &wp,
             &mut top_copy,
             Some(&mut start),
             None,
@@ -2901,7 +2900,7 @@ pub(super) fn reg_match_visual() -> bool {
             0,
         );
         getvvcol(
-            &mut *(wp),
+            &wp,
             &mut bot_copy,
             Some(&mut start2),
             None,
@@ -2931,7 +2930,7 @@ pub(super) fn reg_match_visual() -> bool {
         let cols = RE_STATE.with(|s| {
             s.rex.line.get().with_cstr(|cs| {
                 win_linetabsize(
-                    &mut *wp,
+                    wp.borrow_mut(),
                     s.rex.reg_firstlnum.get() + s.rex.lnum.get(),
                     cs,
                     col,
@@ -3895,8 +3894,8 @@ pub fn reg_submatch_list(no: i32) -> Option<crate::eval::typval::ListId> {
 
 pub(super) fn init_regexec_multi(
     rmp: &mut Regmmatch,
-    win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     lnum: Linenr,
 ) {
     let maxline = buf.b_ml.ml_line_count.get() - lnum;
@@ -4212,8 +4211,8 @@ fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: boo
 
 fn exec_regmmatch_multi(
     rmp: &mut Regmmatch,
-    win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
@@ -4293,8 +4292,8 @@ pub fn vim_regexec_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr) -> bo
 
 pub fn vim_regexec_multi(
     rmp: &mut Regmmatch,
-    mut win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
@@ -4314,15 +4313,7 @@ pub fn vim_regexec_multi(
     }
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    let mut result = exec_regmmatch_multi(
-        rmp,
-        win.as_deref_mut(),
-        buf,
-        lnum,
-        col,
-        tm,
-        timed_out.as_deref_mut(),
-    );
+    let mut result = exec_regmmatch_multi(rmp, win, buf, lnum, col, tm, timed_out.as_deref_mut());
     rmp.regprog.set_re_in_use(false);
 
     if rmp.regprog.re_engine() == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {

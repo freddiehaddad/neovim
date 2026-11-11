@@ -1415,7 +1415,7 @@ pub fn f_atan2(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 }
 
 /// Get buffer by number or pattern.
-pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut FileBuf> {
+pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static FileBuf> {
     if tv.v_type == VarType::VarNumber {
         return buflist_findnr(tv.vval.v_number() as i32);
     }
@@ -1448,7 +1448,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
 }
 
 /// Like `tv_get_buf()` but give an error message if the type is wrong.
-pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<&'static mut FileBuf> {
+pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<&'static FileBuf> {
     if !tv_check_str_or_nr(&*tv) {
         return None;
     }
@@ -1459,7 +1459,7 @@ pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<&'static mut FileBuf> {
 }
 
 /// Get the buffer from "arg" and give an error and return NULL if it is not valid.
-pub fn get_buf_arg(arg: &mut TypVal) -> Option<&'static mut FileBuf> {
+pub fn get_buf_arg(arg: &mut TypVal) -> Option<&'static FileBuf> {
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let buf = tv_get_buf(arg, 0);
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
@@ -1677,7 +1677,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
     {
         if fp_ref.col == MAXCOL {
             if fp_ref.lnum <= bp.b_ml.ml_line_count.get() {
-                col = ml_get_buf_len(&mut *bp, fp_ref.lnum) + 1;
+                col = ml_get_buf_len(bp, fp_ref.lnum) + 1;
             } else {
                 col = MAXCOL;
             }
@@ -1693,7 +1693,7 @@ pub fn f_charcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     get_col(argvars, rettv, true);
 }
 
-pub fn get_optional_window(argvars: &mut [TypVal], idx: i32) -> Option<&'static mut WinInfoInfo> {
+pub fn get_optional_window(argvars: &mut [TypVal], idx: i32) -> Option<&'static WinInfoInfo> {
     if argvars[idx as usize].v_type == VarType::VarUnknown {
         return Some(curwin_mut());
     }
@@ -2923,7 +2923,7 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp) = find_tabwin(&argvars[0], &argvars[1]) else {
         return;
     };
-    let wp_handle = crate::globals::WinPtr::from(&mut *wp);
+    let wp_handle = crate::globals::WinPtr::from(wp);
 
     cleanup_jumplist(wp_handle, true);
     let wp = wp_handle.borrow_mut();
@@ -3421,7 +3421,7 @@ pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "gettagstack()" function
 pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp: &mut WinInfoInfo = curwin_mut();
+    let mut wp: &WinInfoInfo = curwin_mut();
     tv_dict_alloc_ret(rettv);
     if argvars[0].v_type != VarType::VarUnknown {
         let Some(found) = find_win_by_nr_or_id(&argvars[0]) else {
@@ -4522,7 +4522,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let buf = g_st().curbuf.get().borrow_mut();
 
         buf.b_p_swf.set(false);
-        if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(&mut *buf) {
+        if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(buf) {
             proc_stop(&mut chan_ref.uv.proc_);
 
             channel_decref(chan_ref);
@@ -4532,10 +4532,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         channel_incref(&mut *chan_ref);
 
-        channel_terminal_alloc(&mut *buf, &mut *chan_ref);
+        channel_terminal_alloc(buf, &mut *chan_ref);
 
         'term_done: {
-            apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&mut *buf));
+            apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(buf));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
                 break 'term_done;
@@ -4567,8 +4567,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
 
             let fname_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
-            setfname(&mut *buf, Some(fname_cstr.as_c_str()), None, true);
-            apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
+            setfname(buf, Some(fname_cstr.as_c_str()), None, true);
+            apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(buf));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
                 break 'term_done;
@@ -5277,7 +5277,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
         return;
     };
-    let buf = crate::globals::BufPtr::from(&*buf_ref);
+    let buf = crate::globals::BufPtr::from(buf_ref);
     if buf.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return;
@@ -7382,7 +7382,7 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp_ref) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
-    let wp = crate::globals::WinPtr::from(&*wp_ref);
+    let wp = crate::globals::WinPtr::from(wp_ref);
     if !tv_check_for_dict_arg(argvars, 1) {
         return;
     }

@@ -42,7 +42,7 @@ use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
-    let mut wp: Option<&'static mut WinInfoInfo>;
+    let mut wp: Option<&'static WinInfoInfo>;
     let mut empty_fnum: i32 = 0;
     let mut alt_fnum: i32 = 0;
     let old_key_typed = g_st().key_typed.get();

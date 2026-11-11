@@ -289,18 +289,18 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
         return 0;
     }
     let prefix = if mc_following() { c"=" } else { c"" };
-    format_to_buf!(&mut *buf, c"%s%zu\xc3\x97 ", prefix, count) as usize
+    format_to_buf!(buf, c"%s%zu\xc3\x97 ", prefix, count) as usize
 }
 
 pub fn mc_replaying() -> bool {
     get_vim_var_tv(VV_CASCADING).tv().vval.v_bool() == K_BOOL_VAR_TRUE_CONST
 }
 
-fn mc_mark_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
+fn mc_mark_upd(buf: &FileBuf, mark: &mut u32, pos: CursorPos) {
     extmark_set_pos(buf, mc_ns(), mark, pos, true, false, true);
 }
 
-fn mc_track_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
+fn mc_track_upd(buf: &FileBuf, mark: &mut u32, pos: CursorPos) {
     extmark_set_pos(buf, mc_session_ns(), mark, pos, true, true, false);
 }
 
@@ -1310,7 +1310,7 @@ pub fn mc_ins_commit() -> bool {
     true
 }
 
-pub fn mc_buf_has_cursors(buf: &mut FileBuf) -> bool {
+pub fn mc_buf_has_cursors(buf: &FileBuf) -> bool {
     with_mc(|st| {
         st.mc_cursors
             .borrow()
@@ -1346,7 +1346,7 @@ fn mc_lua_enable(enable: bool) {
     nlua_call_typval(c"vim._core.mcursor", c"enable", &mut tv_args, None);
 }
 
-pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
+pub fn mc_mark_at(buf: &FileBuf, pos: CursorPos, skip: u32) -> u32 {
     if cursors_is_empty() {
         return 0;
     }
@@ -1694,7 +1694,7 @@ pub fn mc_follow_set(on: TriState) {
     }
 }
 
-pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriState) {
+pub fn mc_toggle(buf: &FileBuf, pos: CursorPos, end_follow: bool, on: TriState) {
     if mc_replaying() {
         return;
     }
@@ -1710,7 +1710,7 @@ pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriSta
     }
 }
 
-pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<usize> {
+pub fn mc_add(buf: &FileBuf, pos: CursorPos) -> Option<usize> {
     let existing = mc_mark_at(buf, pos, 0);
     if existing != 0 {
         let found = with_mc(|st| {
@@ -1734,19 +1734,19 @@ pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<usize> {
     }
 }
 
-pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: CursorPos) {
+pub fn mc_on_extmark_set(buf: &FileBuf, ns_id: u32, mut id: u32, pos: CursorPos) {
     if ns_id != mc_ns() {
         return;
     }
     if mc_replaying() {
-        extmark_del_id(&mut *buf, ns_id, id);
+        extmark_del_id(buf, ns_id, id);
         return;
     }
-    if mc_mark_at(&mut *buf, pos, id) != 0 {
-        extmark_del_id(&mut *buf, ns_id, id);
+    if mc_mark_at(buf, pos, id) != 0 {
+        extmark_del_id(buf, ns_id, id);
         return;
     }
-    mc_mark_upd(&mut *buf, &mut id, pos);
+    mc_mark_upd(buf, &mut id, pos);
     atom_visual_reset();
     if cursors_is_empty() {
         with_mc(|st| {
@@ -1762,7 +1762,7 @@ pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: Cursor
     with_mc(|st| st.mc_cursors.borrow_mut().push(ctx));
 }
 
-pub fn mc_buf_clear(buf: &mut FileBuf) {
+pub fn mc_buf_clear(buf: &FileBuf) {
     if mc_replaying() {
         return;
     }
@@ -1770,7 +1770,7 @@ pub fn mc_buf_clear(buf: &mut FileBuf) {
     extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
 }
 
-pub fn mc_buf_free(buf: &mut FileBuf) {
+pub fn mc_buf_free(buf: &FileBuf) {
     if mc_replaying() {
         return;
     }
@@ -1782,7 +1782,7 @@ pub fn mc_buf_free(buf: &mut FileBuf) {
     });
 }
 
-pub fn mc_ns_clearing(buf: &mut FileBuf, ns_id: u32) {
+pub fn mc_ns_clearing(buf: &FileBuf, ns_id: u32) {
     if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
         return;
     }
@@ -1798,7 +1798,7 @@ pub fn mc_ns_clearing(buf: &mut FileBuf, ns_id: u32) {
     }
 }
 
-pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
+pub fn mc_ns_cleared(buf: &FileBuf, ns_id: u32) {
     if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(buf) {
         return;
     }
@@ -1823,7 +1823,7 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
 
     if !g_st().exiting.get() {
         extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
-        if g_st().curbuf.get() == (&raw mut *buf) {
+        if g_st().curbuf.get() == (std::ptr::from_ref(buf).cast_mut()) {
             let mut primary: u32 = 1;
             extmark_set_pos(
                 buf,

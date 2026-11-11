@@ -121,7 +121,7 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT FileBuf *api_buf_ensure_loaded(Buffer buf, Error *err);
-pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
+pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<&'static FileBuf> {
     let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err)?;
 
     if b.b_ml.ml_mfp.borrow().is_none() && !buf_ensure_loaded(b) {
@@ -359,7 +359,7 @@ pub fn nvim_buf_get_lines(
     init_line_array(lstate, &mut rv, size, arena);
 
     buf_collect_lines(
-        &mut *b,
+        b,
         size,
         start as Linenr,
         0,
@@ -633,7 +633,7 @@ pub fn nvim_buf_set_text(
     let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return;
     };
-    let b_ptr = crate::globals::BufPtr::from(&*b);
+    let b_ptr = crate::globals::BufPtr::from(b);
 
     let mut oob = false;
 
@@ -1007,7 +1007,7 @@ pub fn nvim_buf_get_text(
     init_line_array(lstate, &mut rv, size, arena);
 
     if start_row == end_row {
-        let line = buf_get_text(&mut *b, start_row, start_col, end_col, err);
+        let line = buf_get_text(b, start_row, start_col, end_col, err);
         if error_set(err) {
             return Array::new();
         }
@@ -1015,7 +1015,7 @@ pub fn nvim_buf_get_text(
         return rv;
     }
 
-    let mut str_val = buf_get_text(&mut *b, start_row, start_col, MAXCOL - 1, err);
+    let mut str_val = buf_get_text(b, start_row, start_col, MAXCOL - 1, err);
     if error_set(err) {
         return Array::new();
     }
@@ -1024,7 +1024,7 @@ pub fn nvim_buf_get_text(
 
     if size > 2 {
         buf_collect_lines(
-            &mut *b,
+            b,
             size - 2,
             (start_row as Linenr) + 1,
             1,
@@ -1035,7 +1035,7 @@ pub fn nvim_buf_get_text(
         );
     }
 
-    str_val = buf_get_text(&mut *b, end_row, 0, end_col, err);
+    str_val = buf_get_text(b, end_row, 0, end_col, err);
     if error_set(err) {
         return Array::new();
     }
@@ -1148,7 +1148,7 @@ pub fn nvim_buf_get_keymap(
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return Array::new();
     };
-    keymap_array(mode, Some(&*b), arena)
+    keymap_array(mode, Some(b), arena)
 }
 
 /// Sets a buffer-local |mapping| for the given mode.
@@ -1616,24 +1616,24 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     rv
 }
 
-fn fix_cursor(win: &mut WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
+fn fix_cursor(win: &WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
     if win.w_cursor.get().lnum >= lo {
         if win.w_cursor.get().lnum >= hi {
             win.w_cursor.add_lnum(extra);
         } else if extra < 0 {
-            check_cursor_lnum(&mut *win);
+            check_cursor_lnum(win);
         }
-        check_cursor_col(&mut *win);
+        check_cursor_col(win);
         changed_cline_bef_curs(win);
         win.w_valid.set(win.w_valid.get() & (!VALID_BOTLINE_AP));
         update_topline(win);
     } else {
-        invalidate_botline_win(&mut *win);
+        invalidate_botline_win(win);
     }
 }
 
 fn fix_pos_col(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     pos: &mut CursorPos,
     start_row: Linenr,
     start_col: Colnr,
@@ -1687,7 +1687,7 @@ fn fix_pos_col(
 }
 
 fn fix_cursor_cols(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     start_row: Linenr,
     start_col: Colnr,
     end_row: Linenr,
@@ -1714,9 +1714,9 @@ fn fix_cursor_cols(
         );
     });
 
-    check_cursor_col(&mut *win);
+    check_cursor_col(win);
     changed_cline_bef_curs(win);
-    invalidate_botline_win(&mut *win);
+    invalidate_botline_win(win);
 }
 
 #[inline]
@@ -1780,7 +1780,7 @@ fn push_linestr(
 // DLLEXPORT void buf_collect_lines(FileBuf *buf, size_t n, Linenr start, int start_idx,
 //                                  bool replace_nl, Array *l, lua_State *lstate, Arena *arena);
 pub fn buf_collect_lines(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     n: usize,
     start: Linenr,
     start_idx: i32,

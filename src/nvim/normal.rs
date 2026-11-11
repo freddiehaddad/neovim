@@ -2617,7 +2617,7 @@ pub fn find_ident_under_cursor(find_type: i32, offset: Option<&mut i32>) -> &'st
 }
 
 pub fn find_ident_at_pos(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     mut startcol: Colnr,
     textcol: Option<&mut i32>,
@@ -2805,7 +2805,7 @@ pub fn clear_showcmd() {
 
         if g_st().visual_global.borrow().mode == CTRL_V_CONST {
             let saved_sbr = opt_vars().p_sbr.take();
-            let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
+            let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr.take();
 
             let mut cursor = curwin_mut().w_cursor.get();
             getvcols(
@@ -2818,7 +2818,7 @@ pub fn clear_showcmd() {
             );
             curwin_mut().w_cursor.set(cursor);
             opt_vars().p_sbr.set(saved_sbr);
-            curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
+            curwin_mut().w_onebuf_opt.wo_sbr.set(saved_w_sbr);
             format_to_buf!(
                 &mut *g_st().showcmd_buf.borrow_mut(),
                 c"%lldx%lld",
@@ -3106,7 +3106,7 @@ pub fn display_showcmd() {
     grid_line_flush();
 }
 
-pub fn get_vtopline(wp: &mut WinInfoInfo) -> i32 {
+pub fn get_vtopline(wp: &WinInfoInfo) -> i32 {
     plines_m_win_fill(wp, 1, wp.w_topline.get()) - wp.w_topfill.get()
 }
 
@@ -7211,10 +7211,9 @@ fn invoke_edit(cap: &mut Cmdarg, repl: i32, cmd: i32, startln: i32) {
 
 fn nv_object(cap: &mut Cmdarg) {
     let include = cap.cmdchar != b'i' as i32;
-    let mps_save = std::mem::replace(
-        &mut curbuf_mut().b_p_mps,
-        OptString::from_cstr(c"(:),{:},[:],<:>"),
-    );
+    let mps_save = curbuf_mut()
+        .b_p_mps
+        .replace(OptString::from_cstr(c"(:),{:},[:],<:>"));
 
     let flag = match cap.nchar {
         c if c == b'w' as i32 => current_word(&mut cap.oap, cap.count1, include, false),
@@ -7244,7 +7243,7 @@ fn nv_object(cap: &mut Cmdarg) {
         _ => false,
     };
 
-    curbuf_mut().b_p_mps = mps_save;
+    curbuf_mut().b_p_mps.set(mps_save);
     if !flag {
         clearopbeep(&mut cap.oap);
     }

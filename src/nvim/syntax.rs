@@ -444,7 +444,7 @@ struct SyntaxState {
 
 impl SyntaxState {
     #[inline]
-    fn syn_buf_mut(&self) -> &'static mut FileBuf {
+    fn syn_buf_mut(&self) -> &'static FileBuf {
         self.syn_buf.get().borrow_mut()
     }
 
@@ -588,7 +588,7 @@ pub fn syn_set_timeout(tm: Option<Proftime>) {
 }
 
 /// Start the syntax recognition for a line.
-pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
+pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
     let mut last_valid: Option<usize> = None;
     let mut last_min_valid: Option<usize> = None;
     let mut prev: Option<usize> = None;
@@ -613,7 +613,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
             SYN_STATE.with(SyntaxState::syn_buf_mut),
         ))
     });
-    SYN_STATE.with(|s| s.syn_win.set(crate::globals::WinPtr::from(&mut *wp)));
+    SYN_STATE.with(|s| s.syn_win.set(crate::globals::WinPtr::from(wp)));
 
     syn_stack_alloc();
     if syn_block_mut().b_sst_max.get() == 0 {
@@ -747,7 +747,7 @@ fn clear_current_state() {
     with_cur_state_mut(|cs| *cs = Vec::new());
 }
 
-fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synstate>) {
+fn syn_sync(wp: &WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synstate>) {
     let mut found_flags: i32 = 0;
     let mut found_match_idx: i32 = 0;
     let mut found_current_lnum: Linenr = 0;
@@ -781,7 +781,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
 
     if (syn_block_mut().b_syn_sync_flags.get() & SF_CCOMMENT) != 0 {
         let curwin_save = curwin_ptr();
-        set_curwin(&raw mut *wp);
+        set_curwin(std::ptr::from_ref(wp).cast_mut());
         let curbuf_save = g_st().curbuf.get();
         g_st()
             .curbuf
@@ -1114,7 +1114,7 @@ fn syn_stack_alloc() {
 }
 
 /// Check for changes in a buffer to affect stored syntax states.
-pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
+pub fn syn_stack_apply_changes(buf: &FileBuf) {
     let mod_top = buf.b_mod_top.get();
     let mod_bot = buf.b_mod_bot.get();
     let mod_xlines = buf.b_mod_xlines.get();
@@ -1423,7 +1423,7 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
 }
 
 /// We stop parsing syntax above line "lnum".
-pub fn syntax_end_parsing(wp: &mut WinInfoInfo, lnum: Linenr) {
+pub fn syntax_end_parsing(wp: &WinInfoInfo, lnum: Linenr) {
     if SYN_STATE.with(|s| s.syn_block_addr.get()) != std::rc::Rc::as_ptr(&win_s(wp)).addr() {
         return;
     }
@@ -3040,7 +3040,7 @@ impl Drop for Synblock {
 }
 
 /// Get rid of ownsyntax for window "wp".
-pub fn reset_synblock(wp: &mut WinInfoInfo) {
+pub fn reset_synblock(wp: &WinInfoInfo) {
     wp.w_s_owned.set(None);
 }
 
@@ -5198,7 +5198,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     }
 }
 
-pub fn syntax_present(win: &mut WinInfoInfo) -> bool {
+pub fn syntax_present(win: &WinInfoInfo) -> bool {
     !win_s(win).b_syn_patterns.borrow().is_empty()
         || !win_s(win).b_syn_clusters.borrow().is_empty()
         || !win_s(win).b_keywtab.borrow().is_empty()
@@ -5315,7 +5315,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
 
 /// Function called for expression evaluation: get syntax ID at file position.
 pub fn syn_get_id(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     col: Colnr,
     trans: i32,
@@ -5371,18 +5371,18 @@ fn syn_cur_foldlevel() -> i32 {
     })
 }
 
-pub fn syn_get_foldlevel(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn syn_get_foldlevel(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     let mut level: i32 = 0;
 
-    if win_s(&*wp).b_syn_folditems.get() != 0
-        && !win_s(&*wp).b_syn_error.get()
-        && !win_s(&*wp).b_syn_slow.get()
+    if win_s(wp).b_syn_folditems.get() != 0
+        && !win_s(wp).b_syn_error.get()
+        && !win_s(wp).b_syn_slow.get()
     {
         syntax_start(wp, lnum);
 
         level = syn_cur_foldlevel();
 
-        if win_s(&*wp).b_syn_foldlevel.get() == SYNFLD_MINIMUM {
+        if win_s(wp).b_syn_foldlevel.get() == SYNFLD_MINIMUM {
             let mut cur_level = level;
             let mut low_level = cur_level;
             while !SYN_STATE.with(|s| s.current_finished.get()) {

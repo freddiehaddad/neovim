@@ -312,7 +312,7 @@ fn buf_write_bytes(ip: &mut BwInfo) -> bool {
     true
 }
 
-fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
+fn check_mtime(buf: &FileBuf, file_info: &FileInfo) -> bool {
     if buf.b_mtime_read.get() != 0
         && time_differs(file_info, buf.b_mtime_read.get(), buf.b_mtime_read_ns.get())
     {
@@ -564,7 +564,7 @@ fn buf_write_do_autocmds(
 }
 
 fn buf_write_do_post_autocmds(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     fname: Option<&CStr>,
     eap: Option<&Exarg>,
     append: bool,
@@ -763,7 +763,7 @@ fn get_fileinfo_os(
 }
 
 fn get_fileinfo(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     fname: Option<&CStr>,
     overwriting: bool,
     forceit: bool,
@@ -1082,7 +1082,7 @@ fn buf_write_make_backup(
 
 /// Write to file `fname` lines `start` through `end`.
 pub fn buf_write(
-    buf_arg: &mut FileBuf,
+    buf_arg: &FileBuf,
     fname_arg: Option<&CStr>,
     sfname_arg: Option<&CStr>,
     mut start: Linenr,
@@ -1230,7 +1230,7 @@ pub fn buf_write(
     #[cfg(not(windows))]
     let msgname_opt = fname;
 
-    fname_msg_id(&mut msg_id, c"nvim.bufwrite", Some(&*buf), msgname_opt);
+    fname_msg_id(&mut msg_id, c"nvim.bufwrite", Some(buf), msgname_opt);
 
     let show_msg = !filtering && g_st().msg_silent.get() == 0;
     if show_msg {
@@ -1238,7 +1238,7 @@ pub fn buf_write(
     }
     if !filtering {
         filemess_bufwrite(
-            Some(&*buf),
+            Some(buf),
             msgname_opt,
             Some(crate::memory::bytes_as_cstr(&msg_id)),
         );
@@ -1247,7 +1247,7 @@ pub fn buf_write(
     let mut progress: i32 = -1;
     let mut progress_nchars: i64 = 0;
     let write_start = os_hrtime();
-    let write_tick = buf_get_changedtick(&*buf);
+    let write_tick = buf_get_changedtick(buf);
     g_st().msg_scroll.set(0);
 
     write_info.bw_buf = vec![0; WRITEBUFSIZE];
@@ -1266,7 +1266,7 @@ pub fn buf_write(
     'nofail: {
         'fail: {
             if !get_fileinfo(
-                &mut *buf,
+                buf,
                 fname,
                 overwriting,
                 forceit,
@@ -1358,7 +1358,7 @@ pub fn buf_write(
                     && !(g_st().exiting.get() && backup.is_some())
                 {
                     let fsync_opt = buf.b_p_fs.get().unwrap_or(opt_vars().p_fs.get());
-                    ml_preserve(&mut *buf, false, fsync_opt);
+                    ml_preserve(buf, false, fsync_opt);
                     if g_st().got_int.get() {
                         err = set_err(Some(gettext(E_INTERR)));
                         break 'restore_backup;
@@ -1526,7 +1526,6 @@ pub fn buf_write(
                     }
                     err = set_err(None);
 
-                    let buf = &mut *buf;
                     nchars = 0;
 
                     let write_bin = if let Some(eap) = eap
@@ -1562,11 +1561,11 @@ pub fn buf_write(
 
                     write_info.bw_len = 0;
                     write_info.bw_flags = wb_flags;
-                    fileformat = get_fileformat_force(&*buf, (eap.is_some()).then(|| eap.unwrap()));
+                    fileformat = get_fileformat_force(buf, (eap.is_some()).then(|| eap.unwrap()));
                     let mut s_idx = 0usize;
                     lnum = start;
                     while lnum <= end {
-                        let line_cstr = ml_get_buf(&mut *buf, lnum);
+                        let line_cstr = ml_get_buf(buf, lnum);
                         if write_undo_file {
                             sha_ctx.update(line_cstr.to_bytes_with_nul());
                         }
@@ -1648,7 +1647,7 @@ pub fn buf_write(
                                 progress = percent;
                                 add_quoted_fname(
                                     &mut *g_st().iobuff_bytes_mut(),
-                                    Some(&*buf),
+                                    Some(buf),
                                     msgname_opt,
                                 );
                                 let _ = msg_progress(
@@ -1661,7 +1660,7 @@ pub fn buf_write(
                                     true,
                                     false,
                                 );
-                                if buf_get_changedtick(&*buf) != write_tick {
+                                if buf_get_changedtick(buf) != write_tick {
                                     err = set_err(Some(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY)));
                                     end = 0;
                                     break;
@@ -1726,9 +1725,9 @@ pub fn buf_write(
                                 let _ = os_setperm(wfname_cstr, perm);
                             }
                         }
-                        buf_set_file_id(&mut *buf);
+                        buf_set_file_id(buf);
                     } else if !buf.file_id_valid.get() {
-                        buf_set_file_id(&mut *buf);
+                        buf_set_file_id(buf);
                     }
 
                     let close_err = os_close(fd);
@@ -1825,7 +1824,7 @@ pub fn buf_write(
                             src.to_bytes(),
                         );
                     };
-                    add_quoted_fname(&mut *g_st().iobuff_bytes_mut(), Some(&*buf), fname);
+                    add_quoted_fname(&mut *g_st().iobuff_bytes_mut(), Some(buf), fname);
                     let mut insert_space = false;
                     if write_info.bw_conv_error != 0 {
                         iobuf_append(gettext(c" CONVERSION ERROR"));
@@ -1908,19 +1907,19 @@ pub fn buf_write(
                     && write_info.bw_conv_error == 0
                     && (overwriting
                         || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
-                    && buf_get_changedtick(&*buf) == write_tick
+                    && buf_get_changedtick(buf) == write_tick
                 {
-                    unchanged(&mut *buf, true, false);
-                    let changedtick = buf_get_changedtick(&*buf);
+                    unchanged(buf, true, false);
+                    let changedtick = buf_get_changedtick(buf);
                     if buf.b_last_changedtick.get() + 1 == changedtick {
                         buf.b_last_changedtick.set(changedtick);
                     }
-                    u_unchanged(&mut *buf);
-                    u_update_save_nr(&mut *buf);
+                    u_unchanged(buf);
+                    u_update_save_nr(buf);
                 }
 
                 if overwriting {
-                    ml_timestamp(&mut *buf);
+                    ml_timestamp(buf);
                     if append {
                         buf.b_flags.set(buf.b_flags.get() & (!BF_NEW));
                     } else {
@@ -2017,7 +2016,7 @@ pub fn buf_write(
     if err.msg.is_some() {
         add_quoted_fname(
             &mut g_st().iobuff_bytes_mut()[..IOSIZE - 100],
-            Some(&*buf),
+            Some(buf),
             msgname_opt,
         );
         emit_err(
@@ -2039,7 +2038,7 @@ pub fn buf_write(
             );
 
             if os_fileinfo(fname.unwrap_or(c""), &mut file_info_old) {
-                buf_store_file_info(&mut *buf, &mut file_info_old);
+                buf_store_file_info(buf, &mut file_info_old);
                 buf.b_mtime_read.set(buf.b_mtime.get());
                 buf.b_mtime_read_ns.set(buf.b_mtime_ns.get());
             }
@@ -2052,7 +2051,7 @@ pub fn buf_write(
     if retval && write_undo_file {
         let mut hash = [0u8; UNDO_HASH_SIZE];
         sha_ctx.finish_into(&mut hash);
-        u_write_undo(None, false, &mut *buf, &hash);
+        u_write_undo(None, false, buf, &hash);
     }
 
     if !should_abort(retval) {

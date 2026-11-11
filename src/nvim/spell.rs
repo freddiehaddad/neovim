@@ -153,7 +153,7 @@ impl Matchinf<'_> {
     }
 
     #[inline]
-    fn win_mut(&self) -> &'static mut WinInfoInfo {
+    fn win_mut(&self) -> &'static WinInfoInfo {
         assert!(!self.mi_win.is_null());
         self.mi_win.borrow_mut()
     }
@@ -265,7 +265,7 @@ pub fn spell_toupper(c: i32) -> i32 {
 }
 /// Main spell-checking function.
 pub fn spell_check(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     ptr_cstr: &std::ffi::CStr,
     attrp: &mut Hlf,
     mut capcol: Option<&mut i32>,
@@ -325,7 +325,7 @@ pub fn spell_check(
     mi.mi_end = mi.mi_fend;
     mi.mi_capflags = 0;
     mi.mi_cend = None;
-    mi.mi_win = crate::globals::WinPtr::from(&mut *wp);
+    mi.mi_win = crate::globals::WinPtr::from(wp);
     if mi.mi_fend < ptr_bytes.len() {
         mi.mi_fend += crate::mbyte::utfc_ptr2len(&ptr_bytes[mi.mi_fend..]) as usize;
     }
@@ -424,11 +424,7 @@ fn get_char_type(c: i32) -> i32 {
     }
     CHAR_OTHER
 }
-fn advance_camelcase_word(
-    str_bytes: &[u8],
-    wp: &mut WinInfoInfo,
-    is_camel_case: &mut bool,
-) -> usize {
+fn advance_camelcase_word(str_bytes: &[u8], wp: &WinInfoInfo, is_camel_case: &mut bool) -> usize {
     let bytes = crate::memory::bytes_until_nul(str_bytes);
     *is_camel_case = false;
     if bytes.is_empty() {
@@ -1057,14 +1053,14 @@ pub fn spell_valid_case(wordflags: i32, treeflags: i32) -> bool {
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
 }
-pub fn spell_check_window(wp: &mut WinInfoInfo) -> bool {
+pub fn spell_check_window(wp: &WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
     wp.w_onebuf_opt.wo_spell.get()
         && !w_s.b_p_spl.is_empty()
         && !w_s.b_langp.borrow().is_empty()
         && !w_s.b_langp.borrow()[0].lp_slang.is_null()
 }
-pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
+pub fn no_spell_checking(wp: &WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
     if !wp.w_onebuf_opt.wo_spell.get() || w_s.b_p_spl.is_empty() || w_s.b_langp.borrow().is_empty()
     {
@@ -1074,19 +1070,19 @@ pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     false
 }
 fn decor_spell_nav_col(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     decor_lnum: &mut Linenr,
     col: i32,
 ) -> TriState {
     if *decor_lnum != lnum {
-        decor_redraw_reset(&mut *wp, &mut g_st().decor_state.borrow_mut());
-        decor_providers_invoke_spell(&mut *wp, lnum - 1, col, lnum - 1, -1);
-        decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state.borrow_mut());
+        decor_redraw_reset(wp, &mut g_st().decor_state.borrow_mut());
+        decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
+        decor_redraw_line(wp, lnum - 1, &mut g_st().decor_state.borrow_mut());
         *decor_lnum = lnum;
     }
     decor_redraw_col(
-        &mut *wp,
+        wp,
         col,
         0,
         false,
@@ -1096,13 +1092,13 @@ fn decor_spell_nav_col(
     g_st().decor_state.borrow().spell
 }
 #[inline]
-fn can_syn_spell(wp: &mut WinInfoInfo, lnum: Linenr, col: i32) -> bool {
+fn can_syn_spell(wp: &WinInfoInfo, lnum: Linenr, col: i32) -> bool {
     let mut can_spell = false;
-    let _ = syn_get_id(&mut *wp, lnum, col, 0, Some(&mut can_spell), 0);
+    let _ = syn_get_id(wp, lnum, col, 0, Some(&mut can_spell), 0);
     can_spell
 }
 pub fn spell_move_to(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     dir: i32,
     behaviour: Smt,
     curline: bool,
@@ -1118,7 +1114,7 @@ pub fn spell_move_to(
     };
     let mut found_len: usize = 0;
     let mut attr: Hlf = HLF_COUNT;
-    let has_syntax = syntax_present(&mut *wp);
+    let has_syntax = syntax_present(wp);
     let mut buf_vec: Vec<u8> = Vec::new();
     let mut buflen: usize = 0;
     let mut skip: i32 = 0;
@@ -1194,11 +1190,11 @@ pub fn spell_move_to(
                         let no_plain_buffer =
                             (w_s.b_p_spo_flags.get() & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                         let mut can_spell = !no_plain_buffer;
-                        match decor_spell_nav_col(&mut *wp, lnum, &mut decor_lnum, col) {
+                        match decor_spell_nav_col(wp, lnum, &mut decor_lnum, col) {
                             K_TRUE => can_spell = true,
                             K_FALSE => can_spell = false,
                             K_NONE if has_syntax => {
-                                can_spell = can_syn_spell(&mut *wp, lnum, col);
+                                can_spell = can_syn_spell(wp, lnum, col);
                             }
                             _ => {}
                         }
@@ -1591,7 +1587,7 @@ fn count_syllables(slang: &Slang, word: &[u8]) -> i32 {
     }
     cnt
 }
-pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> {
+pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
     let mut lang: [u8; MAXWLEN + 1] = [0; MAXWLEN + 1];
     let mut spf_name: [u8; MAXPATHL] = [0; MAXPATHL];
     let mut use_region: Option<[u8; 3]> = None;
@@ -1901,19 +1897,19 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             }
         }
         *w_s.b_langp.borrow_mut() = ga;
-        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
+        redraw_later(Some(wp), UPD_NOT_VALID);
     }
     SPELL_PRIV_STATE.with(|s| s.parse_spelllang_recursive.set(false));
     ret_msg
 }
-fn clear_midword(wp: &mut WinInfoInfo) {
+fn clear_midword(wp: &WinInfoInfo) {
     let w_s = wp.w_s_ptr();
     for cell in &w_s.b_spell_ismw {
         cell.set(false);
     }
     w_s.b_spell_ismw_mb.set(None);
 }
-fn use_midword(lp: &Slang, wp: &mut WinInfoInfo) {
+fn use_midword(lp: &Slang, wp: &WinInfoInfo) {
     let Some(ref sl_midword) = lp.sl_midword else {
         return;
     };
@@ -2015,16 +2011,16 @@ pub fn spell_reload() {
     for wp in for_all_windows_ptr() {
         let w_s = (*wp).w_s_ptr();
         if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell.get() {
-            let _ = parse_spelllang(&mut *wp);
+            let _ = parse_spelllang(wp);
             break;
         }
     }
 }
 pub fn open_spellbuf() -> Box<FileBuf> {
-    let mut buf = Box::new(FileBuf::new());
+    let buf = Box::new(FileBuf::new());
     buf.b_spell.set(true);
     buf.b_p_swf.set(true);
-    if !ml_open(&mut buf) {
+    if !ml_open(&buf) {
         let _ = logmsg!(
             3,
             None,
@@ -2034,12 +2030,12 @@ pub fn open_spellbuf() -> Box<FileBuf> {
             c"Error opening a new memline",
         );
     }
-    ml_open_file(&mut buf);
+    ml_open_file(&buf);
     buf
 }
 pub fn close_spellbuf(buf: &mut Option<Box<FileBuf>>) {
-    if let Some(mut b) = buf.take() {
-        ml_close(&mut b, 1);
+    if let Some(b) = buf.take() {
+        ml_close(&b, 1);
     }
 }
 pub fn clear_spell_chartab(sp: &mut Spelltab) {
@@ -2185,7 +2181,7 @@ pub fn spell_casefold(wp: &WinInfoInfo, str_: &[u8], out: &mut [u8]) -> bool {
     out[outi] = 0;
     true
 }
-pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
+pub fn check_need_cap(wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     let w_s = wp.w_s_ptr();
     if w_s.b_cap_prog.borrow().is_none() {
         return false;
@@ -3160,7 +3156,7 @@ pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
         if wp.w_buffer.get() == g_st().curbuf.get() && wp.w_onebuf_opt.wo_spell.get() {
-            errmsg = parse_spelllang(&mut *wp);
+            errmsg = parse_spelllang(wp);
             break;
         }
     }

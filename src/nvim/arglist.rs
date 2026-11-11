@@ -439,12 +439,12 @@ pub fn set_arglist(str_: &CStr) {
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
+pub fn editing_arg_idx(win: &WinInfoInfo) -> bool {
     let idx = win.w_arg_idx.get();
-    if idx >= wargcount(&*win) {
+    if idx >= wargcount(win) {
         return false;
     }
-    let entry = warg_entry(&*win, idx as usize);
+    let entry = warg_entry(win, idx as usize);
     if win.buf_mut().b_fnum.get() == entry.ae_fnum {
         return true;
     }
@@ -458,14 +458,14 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-pub fn check_arg_idx(win: &mut WinInfoInfo) {
-    let wcount = wargcount(&*win);
+pub fn check_arg_idx(win: &WinInfoInfo) {
+    let wcount = wargcount(win);
     if wcount > 1 && !editing_arg_idx(win) {
         win.w_arg_idx_invalid.set(true);
         let gcount = gargcount();
         if win.w_arg_idx.get() != wcount - 1
             && !g_st().arg_had_last.get()
-            && is_global_alist(&win_alist_rc(&*win))
+            && is_global_alist(&win_alist_rc(win))
             && gcount > 0
             && win.w_arg_idx.get() < gcount
         {
@@ -484,7 +484,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
         }
     } else {
         win.w_arg_idx_invalid.set(false);
-        if win.w_arg_idx.get() == wcount - 1 && is_global_alist(&win_alist_rc(&*win)) {
+        if win.w_arg_idx.get() == wcount - 1 && is_global_alist(&win_alist_rc(win)) {
             g_st().arg_had_last.set(true);
         }
     }
@@ -918,15 +918,15 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
 
             if i == opened_len
                 && !aall_ref.keep_tabs
-                && (buf_hide(&*buf)
+                && (buf_hide(buf)
                     || aall_ref.forceit
                     || buf.b_nwindows.get() > 1
-                    || !buf_is_changed_fn(&mut *buf))
+                    || !buf_is_changed_fn(buf))
             {
-                if !buf_hide(&*buf) && buf.b_nwindows.get() <= 1 && buf_is_changed_fn(&mut *buf) {
+                if !buf_hide(buf) && buf.b_nwindows.get() <= 1 && buf_is_changed_fn(buf) {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, Some(&mut *buf));
-                    autowrite(&mut *buf, false);
+                    set_bufref(&mut bufref, Some(buf));
+                    autowrite(buf, false);
                     if !win_valid(wp.opt()) || !bufref_valid(Some(&bufref)) {
                         wp = if lastwin_mut().w_floating.get() {
                             g_st().lastwin.get()
@@ -942,7 +942,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 {
                     aall.use_firstwin = true;
                 } else {
-                    let close_b = !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf);
+                    let close_b = !buf_hide(buf) && !buf_is_changed_fn(buf);
                     win_close(wp.borrow_mut(), close_b, false);
                     if !win_valid(wpnext.opt()) {
                         wpnext = if lastwin_mut().w_floating.get() {
@@ -995,7 +995,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 for wp in for_all_windows_ptr() {
                     if wp.w_arg_idx.get() == i {
                         if aall.keep_tabs {
-                            aall.new_curwin = crate::globals::WinPtr::new(wp);
+                            aall.new_curwin = crate::globals::WinPtr::from(wp);
                             aall.new_curtab = g_st().curtab.get().clone();
                         } else if wp.w_floating.get() {
                             break;
@@ -1006,7 +1006,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                             i = count;
                             break;
                         } else {
-                            win_move_after(&mut *wp, curwin_mut());
+                            win_move_after(wp, curwin_mut());
                         }
                         break;
                     }

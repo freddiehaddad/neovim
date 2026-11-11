@@ -172,7 +172,7 @@ pub fn state_handle_k_event() {
     }
 }
 
-pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
+pub fn virtual_active(wp: &WinInfoInfo) -> bool {
     if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         return true;
     }

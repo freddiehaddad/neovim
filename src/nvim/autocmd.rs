@@ -1719,7 +1719,7 @@ fn au_cleanup() {
     AU_STATE.with(|s| s.au_need_clean.set(false));
 }
 
-pub fn aubuflocal_remove(buf: &mut FileBuf) {
+pub fn aubuflocal_remove(buf: &FileBuf) {
     ACTIVE_APC_LIST.with(|cell| {
         for arg_bufnr in cell.borrow().iter().rev() {
             if buf.b_fnum.get() == arg_bufnr.get() {
@@ -2484,8 +2484,8 @@ pub fn ex_doautoall(eap: &mut Exarg) {
             continue;
         }
 
-        ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
-        set_bufref(&mut bufref, Some(&mut *buf));
+        ctx_switch(&mut aco, None, None, Some(buf), 0);
+        set_bufref(&mut bufref, Some(buf));
 
         let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
         retval = ok;
@@ -2529,7 +2529,7 @@ pub fn aucmd_defer(
     fname: Option<&CStr>,
     fname_io: Option<&CStr>,
     group: i32,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     data: Option<&mut Object>,
 ) {
     let evdata = Box::new(AutoCmdEvent {
@@ -2554,7 +2554,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
     let mut err = Error::new();
     if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
-        let buf_ptr = crate::globals::BufPtr::from(&*buf);
+        let buf_ptr = crate::globals::BufPtr::from(buf);
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         if let Some(ref data_obj) = data
@@ -2620,7 +2620,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
     }
 }
 
-pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
+pub fn aucmd_defer_modified(buf: &FileBuf, new_val: bool) {
     if !has_event(EVENT_OPTIONSET)
         || (bt_nofile(Some(buf)) && !buf.b_p_bl.get())
         || !get_vim_var_str(VV_OPTION_TYPE).is_empty()
@@ -2641,7 +2641,7 @@ pub fn apply_autocmds(
     fname: Option<&CStr>,
     fname_io: Option<&CStr>,
     force: bool,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
 ) -> bool {
     apply_autocmds_group(
         event,
@@ -2661,7 +2661,7 @@ pub fn apply_autocmds_win(
     fname: Option<&CStr>,
     fname_io: Option<&CStr>,
     force: bool,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     win: Option<&WinInfoInfo>,
 ) -> bool {
     apply_autocmds_group(
@@ -2683,7 +2683,7 @@ pub fn apply_autocmds_exarg(
     fname: Option<&CStr>,
     fname_io: Option<&CStr>,
     force: bool,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     eap: Option<&Exarg>,
 ) -> bool {
     apply_autocmds_group(
@@ -2705,7 +2705,7 @@ pub fn apply_autocmds_retval(
     fname: Option<&CStr>,
     fname_io: Option<&CStr>,
     force: bool,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     retval: &mut bool,
 ) -> bool {
     if should_abort(*retval) {
@@ -2763,7 +2763,7 @@ pub fn apply_autocmds_group(
     fname_io: Option<&CStr>,
     force: bool,
     group: i32,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     win: Option<&WinInfoInfo>,
     eap: Option<&Exarg>,
     data: Option<&Object>,
@@ -3419,7 +3419,7 @@ pub fn getnextac(
 fn has_autocmd_ext(
     event: AuEvent,
     sfname: Option<&CStr>,
-    mut buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     is_full: bool,
 ) -> bool {
     if !has_event(event) {
@@ -3451,7 +3451,7 @@ fn has_autocmd_ext(
                         i32::from(ap.allow_dirs),
                     )
                 } else {
-                    buf.is_some() && ap.buflocal_nr == buf.as_deref_mut().unwrap().b_fnum.get()
+                    buf.is_some_and(|b| ap.buflocal_nr == b.b_fnum.get())
                 };
                 if matched {
                     retval = true;
@@ -3464,15 +3464,11 @@ fn has_autocmd_ext(
     retval
 }
 
-pub fn has_autocmd(event: AuEvent, sfname: Option<&CStr>, buf: Option<&mut FileBuf>) -> bool {
+pub fn has_autocmd(event: AuEvent, sfname: Option<&CStr>, buf: Option<&FileBuf>) -> bool {
     has_autocmd_ext(event, sfname, buf, false)
 }
 
-pub fn has_autocmd_fullname(
-    event: AuEvent,
-    fname: Option<&CStr>,
-    buf: Option<&mut FileBuf>,
-) -> bool {
+pub fn has_autocmd_fullname(event: AuEvent, fname: Option<&CStr>, buf: Option<&FileBuf>) -> bool {
     has_autocmd_ext(event, fname, buf, true)
 }
 
@@ -3882,8 +3878,8 @@ pub fn do_autocmd_focusgained(gained: bool) {
     AU_STATE.with(|s| s.focusgained_recursive.set(false));
 }
 
-pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+pub fn do_filetype_autocmd(buf: &FileBuf, force: bool) -> bool {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     if AU_STATE.with(|s| s.ft_recursive.get()) > 0 && !force {
         return false;
     }

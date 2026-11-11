@@ -524,10 +524,10 @@ fn atom_origin_undoseq(origin: CmdOrigin) -> i32 {
     }
 }
 
-pub fn atom_origin_pos(buf: &mut FileBuf) -> CursorPos {
+pub fn atom_origin_pos(buf: &FileBuf) -> CursorPos {
     let (o, open) = with_atom(|st| (st.composite.origin.get(), st.composite.open.get()));
     if open
-        && o.buf.br_buf == (&raw mut *buf)
+        && o.buf.br_buf == (std::ptr::from_ref(buf).cast_mut())
         && bufref_valid(Some(&o.buf))
         && buf_get_changedtick(buf) == o.tick
     {

@@ -867,7 +867,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
     } else {
         wp.w_height_request.set(height.max(0));
         wp.w_width_request.set(width.max(0));
-        win_set_inner_size(&mut *wp, true);
+        win_set_inner_size(wp, true);
     }
 }
 

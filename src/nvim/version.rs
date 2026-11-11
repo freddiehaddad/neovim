@@ -4243,7 +4243,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let grid = if !colon && ui_has(K_UIMULTIGRID) {
-            &mut crate::globals::firstwin_mut().w_grid
+            &crate::globals::firstwin_mut().w_grid
         } else {
             &g_st().default_gridview
         };

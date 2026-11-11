@@ -278,7 +278,7 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
+pub fn win_hl_attr(wp: &WinInfoInfo, hlf: i32) -> i32 {
     if let Some(ref tbl) = wp.w_ns_hl_attr.get()
         && g_st().ns_hl_fast.get() < 0
     {
@@ -650,7 +650,7 @@ pub fn hl_apply_winblend(winbl: i32, mut attr: i32) -> i32 {
     attr
 }
 
-pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
+pub fn update_window_hl(wp: &WinInfoInfo, invalid: bool) {
     let ns_id = wp.w_ns_hl.get();
 
     update_ns_hl(ns_id);
@@ -717,7 +717,7 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
         }
     }
 
-    check_blending(&mut *wp);
+    check_blending(wp);
 
     if hl_def_get(HLF_INACTIVE) == 0 {
         wp.w_hl_attr_normalnc.set(hl_combine_attr(
@@ -765,7 +765,7 @@ pub fn update_ns_hl(ns_id: i32) {
     with_decor_provider_mut(ns_id, true, |p| p.hl_cached = true);
 }
 
-pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
+pub fn win_bg_attr(wp: &WinInfoInfo) -> i32 {
     if g_st().ns_hl_fast.get() < 0 {
         let local = if wp == curwin_ptr() {
             wp.w_hl_attr_normal.get()

@@ -68,11 +68,7 @@ impl GridTarget {
                 .get(&h)
                 .copied()
                 .and_then(WinPtr::opt)
-                .or_else(|| {
-                    for_all_windows_ptr()
-                        .find(|wp| wp.handle == h)
-                        .map(|wp| &*wp)
-                })
+                .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
                 .map(|wp| &wp.w_grid_alloc),
         }
     }
@@ -90,11 +86,7 @@ impl GridTarget {
                 .get(&h)
                 .copied()
                 .and_then(WinPtr::opt)
-                .or_else(|| {
-                    for_all_windows_ptr()
-                        .find(|wp| wp.handle == h)
-                        .map(|wp| &*wp)
-                })
+                .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
                 .map(|wp| &wp.w_grid_alloc),
         }
     }
@@ -161,6 +153,29 @@ impl ScreenGrid {
             comp_disabled: std::cell::Cell::new(false),
             pending_comp_index_update: std::cell::Cell::new(true),
         }
+    }
+    pub fn reset(&self, target_kind: GridTarget) {
+        self.handle.set(0);
+        self.target_kind.set(target_kind);
+        self.chars.borrow_mut().clear();
+        self.attrs.borrow_mut().clear();
+        self.vcols.borrow_mut().clear();
+        self.line_offset.borrow_mut().clear();
+        self.dirty_col.borrow_mut().clear();
+        self.rows.set(0);
+        self.cols.set(0);
+        self.valid.set(false);
+        self.throttled.set(false);
+        self.blending.set(false);
+        self.mouse_enabled.set(true);
+        self.zindex.set(0);
+        self.comp_row.set(0);
+        self.comp_col.set(0);
+        self.comp_width.set(0);
+        self.comp_height.set(0);
+        self.comp_index.set(0);
+        self.comp_disabled.set(false);
+        self.pending_comp_index_update.set(true);
     }
 }
 
@@ -1206,7 +1221,7 @@ pub fn grid_free_all_mem() {
     });
 }
 
-pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
+pub fn win_grid_alloc(wp: &WinInfoInfo) {
     wp.w_grid_alloc.target_kind.set(GridTarget::Win(wp.handle));
 
     let total_rows = wp.w_height_outer.get();
@@ -1579,7 +1594,7 @@ fn linecopy(grid: &ScreenGrid, to: i32, from: i32, col: i32, width: i32) {
         .copy_within(off_from..off_from + len, off_to);
 }
 
-pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<&'static mut WinInfoInfo> {
+pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<&'static WinInfoInfo> {
     for_all_windows_ptr().find(|wp| wp.w_grid_alloc.handle.get() == handle)
 }
 

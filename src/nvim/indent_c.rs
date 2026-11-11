@@ -1284,9 +1284,9 @@ fn find_last_paren_slice(bytes: &[u8], start: u8, end: u8) -> bool {
     retval
 }
 /// Parse 'cinoptions' and set the values in "buf".
-pub fn parse_cino(buf: &mut FileBuf) {
+pub fn parse_cino(buf: &FileBuf) {
     let mut fraction: i32 = 0;
-    let sw = get_sw_value(&mut *buf);
+    let sw = get_sw_value(buf);
     buf.b_ind_level.set(sw);
     buf.b_ind_open_imag.set(0);
     buf.b_ind_no_brace.set(0);

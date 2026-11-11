@@ -37,7 +37,7 @@ fn textlock_wrap<F: FnOnce()>(f: F) {
 }
 
 pub fn buf_updates_register(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     channel_id: u64,
     cb: BufUpdateCallbacks,
     send_buffer: bool,
@@ -81,7 +81,7 @@ pub fn buf_updates_register(
 
         let mut items = [
             buffer_obj(buf.b_fnum.get()),
-            integer_obj(buf_get_changedtick(&*buf)),
+            integer_obj(buf_get_changedtick(buf)),
             integer_obj(0),
             integer_obj(-1),
             array_obj(linedata),
@@ -98,17 +98,17 @@ pub fn buf_updates_register(
     true
 }
 
-pub fn buf_updates_active(buf: &mut FileBuf) -> bool {
+pub fn buf_updates_active(buf: &FileBuf) -> bool {
     !buf.update_channels.borrow().is_empty() || !buf.update_callbacks.borrow().is_empty()
 }
 
-pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
+pub fn buf_updates_send_end(buf: &FileBuf, channelid: u64) {
     let mut items = [buffer_obj(buf.b_fnum.get())];
     let args = Array::from_slice(&mut items[..1]);
     rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
 
-pub fn buf_updates_unregister(buf: &mut FileBuf, channelid: u64) {
+pub fn buf_updates_unregister(buf: &FileBuf, channelid: u64) {
     let size = buf.update_channels.borrow().len();
     if size == 0 {
         return;
@@ -125,12 +125,12 @@ pub fn buf_updates_unregister(buf: &mut FileBuf, channelid: u64) {
     }
 }
 
-pub fn buf_free_callbacks(buf: &mut FileBuf) {
+pub fn buf_free_callbacks(buf: &FileBuf) {
     *buf.update_channels.borrow_mut() = Vec::new();
     *buf.update_callbacks.borrow_mut() = Vec::new();
 }
 
-pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
+pub fn buf_updates_unload(buf: &FileBuf, can_reload: bool) {
     let channels = std::mem::take(&mut *buf.update_channels.borrow_mut());
     for channelid in channels {
         buf_updates_send_end(buf, channelid);
@@ -178,7 +178,7 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
 }
 
 pub fn buf_updates_send_changes(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     firstline: Linenr,
     num_added: i64,
     num_removed: i64,
@@ -192,7 +192,8 @@ pub fn buf_updates_send_changes(
         return;
     }
 
-    let send_tick = !(g_st().cmdpreview.get() && (&raw mut *buf) == g_st().curbuf.get().as_ptr());
+    let send_tick = !(g_st().cmdpreview.get()
+        && (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr());
     let mut badchannelid: u64 = 0;
 
     let mut arena = ARENA_EMPTY;
@@ -287,7 +288,7 @@ pub fn buf_updates_send_changes(
 }
 
 pub fn buf_updates_send_splice(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
@@ -310,7 +311,7 @@ pub fn buf_updates_send_splice(
         if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
-                integer_obj(buf_get_changedtick(&*buf)),
+                integer_obj(buf_get_changedtick(buf)),
                 integer_obj(i64::from(start_row)),
                 integer_obj(i64::from(start_col)),
                 integer_obj(start_byte as Integer),
@@ -340,7 +341,7 @@ pub fn buf_updates_send_splice(
     }
 }
 
-pub fn buf_updates_changedtick(buf: &mut FileBuf) {
+pub fn buf_updates_changedtick(buf: &FileBuf) {
     let len = buf.update_channels.borrow().len();
     for idx in 0..len {
         let channel_id = buf.update_channels.borrow()[idx];
@@ -354,7 +355,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
         if on_changedtick != LUA_NOREF {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
-                integer_obj(buf_get_changedtick(&*buf)),
+                integer_obj(buf_get_changedtick(buf)),
             ];
             let args = Array::from_slice(&mut items[..2]);
 
@@ -382,10 +383,10 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
     }
 }
 
-pub fn buf_updates_changedtick_single(buf: &mut FileBuf, channel_id: u64) {
+pub fn buf_updates_changedtick_single(buf: &FileBuf, channel_id: u64) {
     let mut items = [
         buffer_obj(buf.b_fnum.get()),
-        integer_obj(buf_get_changedtick(&*buf)),
+        integer_obj(buf_get_changedtick(buf)),
     ];
     let args = Array::from_slice(&mut items[..2]);
     rpc_send_event(channel_id, c"nvim_buf_changedtick_event", args);

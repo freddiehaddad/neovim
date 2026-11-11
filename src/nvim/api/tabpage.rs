@@ -224,7 +224,7 @@ pub fn nvim_open_tabpage(
         -1
     };
 
-    let mut wp_opt: Option<&'static mut WinInfoInfo> = None;
+    let mut wp_opt: Option<&'static WinInfoInfo> = None;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let tp = crate::globals::TabpagePtr::from(win_new_tabpage(
@@ -256,7 +256,9 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer.get() != (&raw mut *b) {
+    if tabpage_win_valid(tp.opt(), wp.opt())
+        && wp.w_buffer.get() != (std::ptr::from_ref(b).cast_mut())
+    {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st()

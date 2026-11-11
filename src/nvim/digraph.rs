@@ -2194,7 +2194,7 @@ fn keymap_unload() {
 }
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
-pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
+pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     if wp.buf_mut().b_p_iminsert.get() != crate::ex_cmds::B_IMODE_LMAP {
         return 0;
     }
@@ -2203,7 +2203,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     let old_curwin = curwin_ptr();
 
     g_st().curbuf.set(wp.w_buffer.get());
-    set_curwin(&raw mut *wp);
+    set_curwin(std::ptr::from_ref(wp).cast_mut());
     g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     let s = eval_to_string(c"b:keymap_name", false, false);
     let mut p_cstr = s.as_deref().unwrap_or(c"");
@@ -2218,7 +2218,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
         }
     }
     let len = buf.len() as i32;
-    let mut plen = format_to_buf!(&mut *buf, fmt, p_cstr);
+    let mut plen = format_to_buf!(buf, fmt, p_cstr);
     drop(s);
     if plen < 0 || plen > len - 1 {
         if !buf.is_empty() {

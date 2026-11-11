@@ -2248,7 +2248,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 /// Check if it is allowed to overwrite a file.
 pub fn check_overwrite(
     eap: &mut Exarg,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     fname_opt: Option<&CStr>,
     ffname_opt: Option<&CStr>,
     other: bool,
@@ -2256,7 +2256,7 @@ pub fn check_overwrite(
     let fname_cstr = fname_opt.unwrap_or(c"");
     let ffname_cstr = ffname_opt.unwrap_or(c"");
     if (other
-        || (!bt_nofilename(Some(&*buf))
+        || (!bt_nofilename(Some(buf))
             && ((buf.b_flags.get() & BF_NOTEDITED) != 0
                 || ((buf.b_flags.get() & BF_NEW) != 0
                     && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
@@ -2369,7 +2369,7 @@ pub fn do_wqall(eap: &mut Exarg) {
             error += 1;
             buf = b.b_next.get();
             continue;
-        } else if !buf_is_changed_fn(b) || bt_dontwrite(Some(&*b)) {
+        } else if !buf_is_changed_fn(b) || bt_dontwrite(Some(b)) {
             buf = b.b_next.get();
             continue;
         }
@@ -2428,7 +2428,7 @@ fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
+fn check_readonly(forceit: &mut bool, buf: &FileBuf) -> bool {
     if !*forceit
         && (buf.b_p_ro.get()
             || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
@@ -2589,7 +2589,7 @@ pub fn do_ecmd(
     eap: Option<&Exarg>,
     mut newlnum: Linenr,
     flags: i32,
-    oldwin_arg: Option<&mut WinInfoInfo>,
+    oldwin_arg: Option<&WinInfoInfo>,
 ) -> bool {
     let mut oldwin = crate::globals::WinPtr::from(oldwin_arg);
     let mut ffname = ffname_arg;
@@ -5047,7 +5047,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
                 continue;
             }
             if use_previewpopup {
-                win_float_anchor_preview(&mut *wp);
+                win_float_anchor_preview(wp);
             }
             win_enter(wp, undo_sync);
             return false;
@@ -5093,7 +5093,7 @@ fn show_sub(
 ) -> i32 {
     let save_shm_p = opt_vars().p_shm.to_owned();
     let subresults = &preview_lines.subresults;
-    let mut cmdpreview_buf: Option<&'static mut FileBuf> = None;
+    let mut cmdpreview_buf: Option<&'static FileBuf> = None;
 
     set_option_direct(K_OPT_SHORTMESS, cstr_as_obj(Some(c"F")), 0, SID_NONE);
 

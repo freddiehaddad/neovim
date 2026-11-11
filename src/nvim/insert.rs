@@ -2406,27 +2406,27 @@ pub fn oneleft() -> bool {
 }
 
 /// Move the cursor up `n` lines in window `wp`.
-pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) {
+pub fn cursor_up_inner(wp: &WinInfoInfo, mut n: Linenr, skip_conceal: bool) {
     let mut lnum = wp.w_cursor.get().lnum;
 
     if n >= lnum {
         lnum = 1;
-    } else if win_lines_concealed(&mut *wp) {
-        has_folding(&mut *wp, lnum, Some(&mut lnum), None);
+    } else if win_lines_concealed(wp) {
+        has_folding(wp, lnum, Some(&mut lnum), None);
         while n > 0 {
             n -= 1;
             lnum -= 1;
             if lnum <= 1 {
                 break;
             }
-            if skip_conceal && decor_conceal_line(&mut *wp, lnum - 1, true) {
+            if skip_conceal && decor_conceal_line(wp, lnum - 1, true) {
                 n += 1;
             }
             if n > 0
                 || !((g_st().state_global.get() & MODE_INSERT) != 0
                     || (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_ALL) != 0)
             {
-                has_folding(&mut *wp, lnum, Some(&mut lnum), None);
+                has_folding(wp, lnum, Some(&mut lnum), None);
             }
         }
         lnum = lnum.max(1);
@@ -2450,13 +2450,13 @@ pub fn cursor_up(n: Linenr, upd_topline: bool) -> bool {
 }
 
 /// Move the cursor down `n` lines in window `wp`.
-pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: i32, skip_conceal: bool) {
+pub fn cursor_down_inner(wp: &WinInfoInfo, mut n: i32, skip_conceal: bool) {
     let mut lnum = wp.w_cursor.get().lnum;
     let line_count = wp.buf_mut().b_ml.ml_line_count.get();
 
     if lnum + n >= line_count {
         lnum = line_count;
-    } else if win_lines_concealed(&mut *wp) {
+    } else if win_lines_concealed(wp) {
         let mut last: Linenr = 0;
         while n > 0 {
             n -= 1;
@@ -2468,7 +2468,7 @@ pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: i32, skip_conceal: bool) {
             if lnum >= line_count {
                 break;
             }
-            if skip_conceal && decor_conceal_line(&mut *wp, lnum - 1, true) {
+            if skip_conceal && decor_conceal_line(wp, lnum - 1, true) {
                 n += 1;
             }
         }

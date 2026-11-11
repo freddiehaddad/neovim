@@ -339,11 +339,11 @@ pub fn tabstop_first(ts: &[Colnr]) -> i32 {
 }
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
-pub fn get_sw_value(buf: &mut FileBuf) -> i32 {
+pub fn get_sw_value(buf: &FileBuf) -> i32 {
     get_sw_value_col(buf, 0, false)
 }
 
-fn get_sw_value_pos(buf: &mut FileBuf, pos: &CursorPos, left: bool) -> i32 {
+fn get_sw_value_pos(buf: &FileBuf, pos: &CursorPos, left: bool) -> i32 {
     let save_cursor = curwin_mut().w_cursor.get();
     curwin_mut().w_cursor.set(*pos);
     let sw_value = get_sw_value_col(buf, get_nolist_virtcol(), left);
@@ -352,14 +352,14 @@ fn get_sw_value_pos(buf: &mut FileBuf, pos: &CursorPos, left: bool) -> i32 {
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
-pub fn get_sw_value_indent(buf: &mut FileBuf, left: bool) -> i32 {
+pub fn get_sw_value_indent(buf: &FileBuf, left: bool) -> i32 {
     let mut pos = curwin_mut().w_cursor.get();
     pos.col = getwhitecols_curline() as Colnr;
     get_sw_value_pos(buf, &pos, left)
 }
 
 /// Return the effective shiftwidth value using virtual column `col` (`get_sw_value_col`).
-pub fn get_sw_value_col(buf: &mut FileBuf, col: Colnr, left: bool) -> i32 {
+pub fn get_sw_value_col(buf: &FileBuf, col: Colnr, left: bool) -> i32 {
     if buf.b_p_sw.get() != 0 {
         buf.b_p_sw.get() as i32
     } else {
@@ -395,7 +395,7 @@ pub fn get_indent_lnum(lnum: Linenr) -> i32 {
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
-pub fn get_indent_buf(buf: &mut FileBuf, lnum: Linenr) -> i32 {
+pub fn get_indent_buf(buf: &FileBuf, lnum: Linenr) -> i32 {
     let p_ts = buf.b_p_ts.get();
     let vts = buf.b_p_vts_array.borrow().clone();
     indent_size_ts(crate::memline::ml_get_buf_slice(buf, lnum), p_ts, &vts)
@@ -774,40 +774,38 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
 }
 
 /// Check `briopt` as `'breakindentopt'` and update the members of `wp` (`briopt_check`).
-pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
+pub fn briopt_check(wp: Option<&WinInfoInfo>) {
     if wp.is_none() {
         return;
     }
     let vr: &OptKeyDict_briopt = &opt_keyset(
-        wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
+        wp.unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );
-    wp.as_deref_mut().unwrap().w_briopt_shift.set(
-        if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
+    wp.unwrap()
+        .w_briopt_shift
+        .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
             vr.shift as i32
         } else {
             0
-        },
-    );
-    wp.as_deref_mut()
-        .unwrap()
+        });
+    wp.unwrap()
         .w_briopt_min
         .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_MIN) {
             vr.min as i32
         } else {
             20
         });
-    wp.as_deref_mut()
-        .unwrap()
+    wp.unwrap()
         .w_briopt_sbr
         .set(has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SBR));
-    wp.as_deref_mut().unwrap().w_briopt_list.set(
-        if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_LIST) {
+    wp.unwrap()
+        .w_briopt_list
+        .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_LIST) {
             vr.list as i32
         } else {
             0
-        },
-    );
+        });
     wp.unwrap()
         .w_briopt_vcol
         .set(if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_COLUMN) {
@@ -818,7 +816,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
+pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
     let eff_wwidth = wp.w_view_width.get() - win_col_off(wp) + win_col_off2(wp);
     let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().tab1 == 0;
 
@@ -909,7 +907,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     }
 
     if wp.w_briopt_sbr.get() {
-        bri -= vim_strsize(&get_showbreak_value(&*wp));
+        bri -= vim_strsize(&get_showbreak_value(wp));
     }
 
     if bri < 0 {
@@ -1609,7 +1607,7 @@ pub fn get_expr_indent() -> i32 {
         .current_sctx
         .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INDENTEXPR].get());
 
-    let mut indent = eval_expr_option_number(&mut curbuf_mut().b_p_inde, use_sandbox);
+    let mut indent = eval_expr_option_number(&curbuf_mut().b_p_inde, use_sandbox);
 
     g_st().textlock.set(g_st().textlock.get() - (1));
     g_st().current_sctx.set(save_sctx);

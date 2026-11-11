@@ -1363,7 +1363,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     if w.w_buffer.get() != g_st().curbuf.get() {
         reset_visual_and_resel();
     }
-    goto_tabpage_win(&win_find_tabpage(&*w).unwrap(), w);
+    goto_tabpage_win(&win_find_tabpage(w).unwrap(), w);
     try_leave(&tstate, err);
 }
 
@@ -1390,16 +1390,16 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             unblock_autocmds();
             break 'create;
         };
-        if !ml_open(&mut *buf) {
+        if !ml_open(buf) {
             unblock_autocmds();
             break 'create;
         }
-        let tick = buf_get_changedtick(&*buf);
+        let tick = buf_get_changedtick(buf);
         buf.b_last_changedtick.set(tick);
         buf.b_last_changedtick_i.set(tick);
         buf.b_last_changedtick_pum.set(tick);
 
-        buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
+        buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
 
         if scratch {
             set_option_direct_for(
@@ -2181,7 +2181,7 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
         return;
     };
     g_st().cmdwin_type.set(i32::from(type_str.first_byte()));
-    g_st().cmdwin_buf.set(crate::globals::BufPtr::from(&mut *b));
+    g_st().cmdwin_buf.set(crate::globals::BufPtr::from(b));
 }
 
 /// Gets information about a channel.
@@ -2484,8 +2484,7 @@ pub fn nvim_inspect_cell(
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
-            wp.as_deref()
-                .is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
+            wp.is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
             c"grid handle",
             grid,
             err,
@@ -2960,14 +2959,14 @@ pub fn nvim_complete_set(
     rv
 }
 
-fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
+fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDict_redraw) {
     if opts.statuscolumn && !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_nrwidth_line_count.set(0);
-        changed_window_setting(&mut *wp);
+        changed_window_setting(wp);
     }
 
     let old_row_offset = wp.w_grid.row_offset.get();
-    win_grid_alloc(&mut *wp);
+    win_grid_alloc(wp);
 
     if wp.w_lines_valid.get() == 0 || wp.w_grid.row_offset.get() != old_row_offset {
         opts.flush = true;
@@ -2976,12 +2975,12 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
     if opts.flush && (opts.statusline || opts.winbar) {
         wp.w_redr_status.set(true);
     } else if opts.statusline || opts.winbar {
-        win_check_ns_hl(Some(&*wp));
+        win_check_ns_hl(Some(wp));
         if opts.winbar {
-            win_redr_winbar(&mut *wp);
+            win_redr_winbar(wp);
         }
         if opts.statusline {
-            win_redr_status(&mut *wp);
+            win_redr_status(wp);
         }
         win_check_ns_hl(None);
     }

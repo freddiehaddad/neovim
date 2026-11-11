@@ -5634,7 +5634,7 @@ fn current_win_nr(win: Option<&WinInfoInfo>, cmdarg: Option<&Exarg>) -> i32 {
     let mut nr = 0;
 
     for wp in for_all_windows_ptr() {
-        let include_this = nonnr || win_has_winnr(&mut *wp, &curtab_mut());
+        let include_this = nonnr || win_has_winnr(wp, &curtab_mut());
         nr += i32::from(include_this);
         if win.is_some_and(|w| ptr::eq(wp, w)) {
             if !include_this {
@@ -9141,7 +9141,7 @@ pub fn not_exiting(save_exiting: bool) {
     set_vim_var_string(VV_EXITREASON, None, -1);
 }
 
-pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
+pub fn before_quit_autocmds(wp_in: &WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
     let wp = crate::globals::WinPtr::from(wp_in);
     if get_vim_var_str(VV_EXITREASON).is_empty() {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
@@ -9687,7 +9687,7 @@ fn ex_pclose(eap: &mut Exarg) {
     win_float_close(K_WIN_PREVIEW);
 }
 
-pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPageInfo>) {
+pub fn ex_win_close(forceit: bool, win: &WinInfoInfo, tp_in: Option<&TabPageInfo>) {
     let tp = crate::globals::TabpagePtr::from(tp_in);
     debug_assert!(tp.is_null() || tp != g_st().curtab.get());
 
@@ -9892,7 +9892,7 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    let mut win = if eap.addr_count == 0 {
+    let win = if eap.addr_count == 0 {
         curwin_ptr()
     } else {
         win_find_nr(eap.line2, Some(&curtab_mut()))
@@ -9903,7 +9903,7 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    win_close(&mut win, false, eap.forceit);
+    win_close(&win, false, eap.forceit);
 }
 
 fn ex_stop(eap: &mut Exarg) {
@@ -10582,7 +10582,7 @@ fn ex_edit(eap: &mut Exarg) {
     do_exedit(eap, None);
 }
 
-pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
+pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
     let old_curwin = crate::globals::WinPtr::from(old_curwin_in);
     if (eap.cmdidx == Cmdidx::CmdNew
         || eap.cmdidx == Cmdidx::CmdTabnew
@@ -10722,15 +10722,15 @@ fn ex_syncbind(_eap: &mut Exarg) {
 
     for wp in for_all_windows_ptr() {
         if wp.w_onebuf_opt.wo_scb.get() {
-            let y = vtopline - get_vtopline(&mut *wp);
+            let y = vtopline - get_vtopline(wp);
             if y > 0 {
-                scrollup(&mut *wp, y, true);
+                scrollup(wp, y, true);
             } else {
-                scrolldown(&mut *wp, -y, true);
+                scrolldown(wp, -y, true);
             }
             wp.w_scbind_pos.set(vtopline);
-            redraw_later(Some(&mut *wp), UPD_VALID);
-            cursor_correct(&mut *wp);
+            redraw_later(Some(wp), UPD_VALID);
+            cursor_correct(wp);
             wp.w_redr_status.set(true);
         }
     }
@@ -11950,7 +11950,7 @@ fn prepare_preview_window() {
     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
 }
 
-fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
+fn back_to_current_window(curwin_save: Option<&WinInfoInfo>) {
     let curwin_save = crate::globals::WinPtr::from(curwin_save);
     if curwin_ptr() != curwin_save && win_valid(curwin_save.opt()) {
         validate_cursor(curwin_mut());

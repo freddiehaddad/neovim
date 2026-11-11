@@ -116,7 +116,7 @@ pub const fn replace_normal(s: i32) -> bool {
 }
 
 #[inline]
-fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
+fn for_all_tab_windows(mut f: impl FnMut(&'static WinInfoInfo)) {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
             f(wp);
@@ -125,10 +125,10 @@ fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
 }
 
 /// If the file is readonly, give a warning message with the first change.
-pub fn change_warning(buf: &mut FileBuf, col: i32) {
+pub fn change_warning(buf: &FileBuf, col: i32) {
     const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     if !buf_ptr.b_did_warn.get()
         && !curbuf_is_changed_fn()
         && !g_st().autocmd_busy.get()
@@ -162,13 +162,13 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
 }
 
 /// Call this function when something in a buffer is changed.
-pub fn changed(buf: &mut FileBuf) {
+pub fn changed(buf: &FileBuf) {
     if buf.b_changed.get() == 0 {
         let save_msg_scroll = g_st().msg_scroll.get();
 
         change_warning(buf, 0);
 
-        if buf.b_may_swap.get() && !bt_dontwrite(Some(&*buf)) {
+        if buf.b_may_swap.get() && !bt_dontwrite(Some(buf)) {
             let save_need_wait_return = g_st().need_wait_return.get();
 
             g_st().need_wait_return.set(false);
@@ -196,41 +196,41 @@ pub fn changed(buf: &mut FileBuf) {
 }
 
 /// Internal part of `changed()`, no user interaction.
-pub fn changed_internal(buf: &mut FileBuf) {
+pub fn changed_internal(buf: &FileBuf) {
     let was_changed = buf.b_changed.get() != 0;
     buf.b_changed.set(1);
-    ml_setflags(&mut *buf);
+    ml_setflags(buf);
     redraw_buf_status_later(buf);
     g_st().redraw_tabline.set(true);
     g_st().need_maketitle.set(true);
     if !was_changed {
-        aucmd_defer_modified(&mut *buf, true);
+        aucmd_defer_modified(buf, true);
     }
 }
 
 /// Invalidate a window's `w_valid` flags and `w_lines[]` entries after changing lines.
 pub fn changed_lines_invalidate_win(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     col: Colnr,
     mut lnume: Linenr,
     xtra: Linenr,
 ) {
     if wp.w_cursor.get().lnum <= lnum {
-        let i = find_wl_entry(&mut *wp, lnum);
+        let i = find_wl_entry(wp, lnum);
         if i >= 0 && wp.w_cursor.get().lnum > (&wp.w_lines.borrow())[i as usize].wl_lnum {
-            changed_line_abv_curs_win(&mut *wp);
+            changed_line_abv_curs_win(wp);
         }
     }
 
     if wp.w_cursor.get().lnum > lnum {
-        changed_line_abv_curs_win(&mut *wp);
+        changed_line_abv_curs_win(wp);
     } else if wp.w_cursor.get().lnum == lnum && wp.w_cursor.get().col >= col {
         changed_cline_bef_curs(wp);
     }
     if wp.w_botline.get() >= lnum {
         if xtra < 0 {
-            invalidate_botline_win(&mut *wp);
+            invalidate_botline_win(wp);
         } else {
             approximate_botline_win(wp);
         }
@@ -265,7 +265,7 @@ pub fn changed_lines_invalidate_win(
     }
 }
 
-pub fn changed_topline_skipcol(wp: &mut WinInfoInfo, line1: Linenr, line2: Linenr) {
+pub fn changed_topline_skipcol(wp: &WinInfoInfo, line1: Linenr, line2: Linenr) {
     if wp.w_skipcol.get() > 0
         && wp.w_topline.get() >= line1
         && wp.w_topline.get() <= line2
@@ -278,7 +278,7 @@ pub fn changed_topline_skipcol(wp: &mut WinInfoInfo, line1: Linenr, line2: Linen
 
 /// Like `changed_lines_invalidate_win()`, but for all windows displaying a buffer.
 pub fn changed_lines_invalidate_buf(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     lnume: Linenr,
@@ -286,17 +286,17 @@ pub fn changed_lines_invalidate_buf(
 ) {
     for_all_tab_windows(|wp| {
         if wp.w_buffer.get() == buf {
-            changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
+            changed_lines_invalidate_win(wp, lnum, col, lnume, xtra);
         }
     });
 }
 
 /// Common code for when a change was made.
-fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xtra: Linenr) {
+fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xtra: Linenr) {
     changed(buf);
 
     for win in for_all_windows_mut() {
-        if win.w_buffer.get() == (&raw mut *buf) {
+        if win.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
             if win.w_onebuf_opt.wo_diff.get() && diff_internal() != 0 {
                 curtab_mut().tp_diff_update.set(1);
                 diff_update_line(lnum);
@@ -310,7 +310,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPJUMPS) == 0 {
         let mut view = INIT_FMARKV;
-        if curwin_mut().w_buffer.get() == (&raw mut *buf)
+        if curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
             && lnum >= curwin_mut().w_topline.get()
             && lnum <= curwin_mut().w_botline.get()
         {
@@ -351,13 +351,15 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                     buf.b_changelistlen.set(JUMPLISTSIZE - 1);
                     buf.b_changelist.borrow_mut().rotate_left(1);
                     for_all_tab_windows(|wp| {
-                        if wp.w_buffer.get() == (&raw mut *buf) && wp.w_changelistidx.get() > 0 {
+                        if wp.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
+                            && wp.w_changelistidx.get() > 0
+                        {
                             wp.w_changelistidx.set(wp.w_changelistidx.get() - (1));
                         }
                     });
                 }
                 for_all_tab_windows(|wp| {
-                    if wp.w_buffer.get() == (&raw mut *buf)
+                    if wp.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
                         && wp.w_changelistidx.get() == buf.b_changelistlen.get()
                     {
                         wp.w_changelistidx.set(wp.w_changelistidx.get() + (1));
@@ -368,23 +370,25 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
         }
         buf.b_changelist.borrow_mut()[(buf.b_changelistlen.get() - 1) as usize] =
             buf.b_last_change.borrow().clone();
-        if curwin_mut().w_buffer.get() == (&raw mut *buf) {
+        if curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
             curwin_mut().w_changelistidx.set(buf.b_changelistlen.get());
         }
     }
 
-    if curwin_mut().w_buffer.get() == (&raw mut *buf) && g_st().visual_global.borrow().active {
+    if curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
+        && g_st().visual_global.borrow().active
+    {
         check_visual_pos();
     }
 
     for_all_tab_windows(|wp| {
-        if wp.w_buffer.get() == (&raw mut *buf) {
+        if wp.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
             if !g_st().redraw_not_allowed.get() && wp.w_redr_type.get() < UPD_VALID {
                 wp.w_redr_type.set(UPD_VALID);
             }
 
             if xtra != 0 && wp.w_redraw_top.get() != 0 {
-                redraw_later(Some(&mut *wp), UPD_NOT_VALID);
+                redraw_later(Some(wp), UPD_NOT_VALID);
             }
 
             let mut last = lnume + xtra - 1;
@@ -392,22 +396,22 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             if last < wp.w_topline.get() {
                 wp.w_skipcol.set(0);
             }
-            changed_topline_skipcol(&mut *wp, lnum, lnume - 1);
+            changed_topline_skipcol(wp, lnum, lnume - 1);
 
-            fold_update(&mut *(wp), lnum, last);
+            fold_update(wp, lnum, last);
 
-            let mut folded = has_folding_win(&mut *wp, lnum, Some(&mut lnum), None, false, None);
+            let mut folded = has_folding_win(wp, lnum, Some(&mut lnum), None, false, None);
             if wp.w_cursor.get().lnum == lnum {
                 wp.w_cline_folded.set(folded);
             }
-            folded = has_folding_win(&mut *wp, last, None, Some(&mut last), false, None);
+            folded = has_folding_win(wp, last, None, Some(&mut last), false, None);
             if wp.w_cursor.get().lnum == last {
                 wp.w_cline_folded.set(folded);
             }
 
-            changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
+            changed_lines_invalidate_win(wp, lnum, col, lnume, xtra);
 
-            if has_any_folding(&mut *wp) != 0 {
+            if has_any_folding(wp) != 0 {
                 set_topline(wp, wp.w_topline.get());
             }
 
@@ -435,7 +439,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
     set_must_redraw(UPD_VALID);
 
     if g_st().last_cursormoved_win.get() == curwin_ptr()
-        && curwin_mut().w_buffer.get() == (&raw mut *buf)
+        && curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
         && lnum <= curwin_mut().w_cursor.get().lnum
         && lnume + xtra.abs() > curwin_mut().w_cursor.get().lnum
     {
@@ -462,8 +466,8 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     if curwin_mut().w_onebuf_opt.wo_diff.get() {
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
-                redraw_later(Some(&mut *wp), UPD_VALID);
-                let wlnum = diff_lnum_win(lnum, &mut *wp);
+                redraw_later(Some(wp), UPD_VALID);
+                let wlnum = diff_lnum_win(lnum, wp);
                 if wlnum > 0 {
                     changed_lines_redraw_buf((*wp).buf_mut(), wlnum, wlnum + 1, 0);
                 }
@@ -489,7 +493,7 @@ pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: i32, new_col: i32
 }
 
 /// Appended `count` lines below line `lnum` in the given buffer.
-pub fn appended_lines_buf(buf: &mut FileBuf, lnum: Linenr, count: Linenr) {
+pub fn appended_lines_buf(buf: &FileBuf, lnum: Linenr, count: Linenr) {
     changed_lines(buf, lnum + 1, 0, lnum + 1, count, true);
 }
 
@@ -505,7 +509,7 @@ pub fn appended_lines_mark(lnum: Linenr, count: i32) {
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
-pub fn deleted_lines_buf(buf: &mut FileBuf, lnum: Linenr, count: Linenr) {
+pub fn deleted_lines_buf(buf: &FileBuf, lnum: Linenr, count: Linenr) {
     changed_lines(buf, lnum, 0, lnum + count, -count, true);
 }
 
@@ -531,7 +535,7 @@ pub fn deleted_lines_mark(lnum: Linenr, count: i32) {
 }
 
 /// Marks the area to be redrawn after a change.
-pub fn changed_lines_redraw_buf(buf: &mut FileBuf, lnum: Linenr, mut lnume: Linenr, xtra: Linenr) {
+pub fn changed_lines_redraw_buf(buf: &FileBuf, lnum: Linenr, mut lnume: Linenr, xtra: Linenr) {
     if xtra != 0 && buf.b_marktree.borrow().n_keys > 0 {
         lnume += 1 + i32::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
     }
@@ -554,7 +558,7 @@ pub fn changed_lines_redraw_buf(buf: &mut FileBuf, lnum: Linenr, mut lnume: Line
 
 /// Changed lines for a buffer.
 pub fn changed_lines(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     lnume: Linenr,
@@ -565,13 +569,13 @@ pub fn changed_lines(
 
     if xtra == 0
         && curwin_mut().w_onebuf_opt.wo_diff.get()
-        && curwin_mut().w_buffer.get() == (&raw mut *buf)
+        && curwin_mut().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
         && diff_internal() == 0
     {
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
-                redraw_later(Some(&mut *wp), UPD_VALID);
-                let wlnum = diff_lnum_win(lnum, &mut *wp);
+                redraw_later(Some(wp), UPD_VALID);
+                let wlnum = diff_lnum_win(lnum, wp);
                 if wlnum > 0 {
                     changed_lines_redraw_buf((*wp).buf_mut(), wlnum, lnume - lnum + wlnum, 0);
                 }
@@ -589,7 +593,7 @@ pub fn changed_lines(
 }
 
 /// Called when the changed flag must be reset for buffer `buf`.
-pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
+pub fn unchanged(buf: &FileBuf, ff: bool, always_inc_changedtick: bool) {
     if buf.b_changed.get() != 0 || (ff && file_ff_differs(buf, false)) {
         let was_changed = buf.b_changed.get() != 0;
         buf.b_changed.set(0);
@@ -610,7 +614,7 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 }
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
-pub fn save_file_ff(buf: &mut FileBuf) {
+pub fn save_file_ff(buf: &FileBuf) {
     buf.b_start_ffc.set(i32::from(buf.b_p_ff.first_byte()));
     buf.b_start_eof.set(buf.b_p_eof.get());
     buf.b_start_eol.set(buf.b_p_eol.get());
@@ -629,7 +633,7 @@ pub fn save_file_ff(buf: &mut FileBuf) {
 
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
-pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
+pub fn file_ff_differs(buf: &FileBuf, ignore_empty: bool) -> bool {
     if (buf.b_flags.get() & BF_NEVERLOADED) != 0 {
         return false;
     }

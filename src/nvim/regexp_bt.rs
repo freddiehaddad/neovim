@@ -4337,8 +4337,8 @@ pub(super) fn bt_regexec_nl(
 pub(super) fn bt_regexec_multi(
     prog: &mut BtRegprog,
     rmp: &mut Regmmatch,
-    win: Option<&mut WinInfoInfo>,
-    buf: &mut FileBuf,
+    win: Option<&WinInfoInfo>,
+    buf: &FileBuf,
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,

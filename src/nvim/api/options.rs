@@ -246,7 +246,7 @@ fn do_ft_buf(
     filetype: Option<&CStr>,
     aco: &mut CtxSwitch,
     err: &mut Error,
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let filetype = filetype?;
 
     let Some(ftbuf_ref) = buflist_new(None, None, 1, BLN_DUMMY) else {
@@ -267,7 +267,7 @@ fn do_ft_buf(
         return Some(ftbuf_ref);
     }
 
-    let ftbuf = crate::globals::BufPtr::from(&*ftbuf_ref);
+    let ftbuf = crate::globals::BufPtr::from(ftbuf_ref);
     let mut bufref = Bufref {
         br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
@@ -326,8 +326,8 @@ fn do_ft_buf(
     ftbuf.opt_mut()
 }
 
-fn wipe_ft_buf(buf: &mut FileBuf) {
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+fn wipe_ft_buf(buf: &FileBuf) {
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     block_autocmds();
 
     let mut bufref = Bufref {

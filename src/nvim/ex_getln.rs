@@ -2987,7 +2987,7 @@ pub fn cmdpreview_get_ns() -> i32 {
 }
 
 /// Sets up command preview buffer.
-fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
+fn cmdpreview_open_buf() -> Option<&'static FileBuf> {
     let mut cmdpreview_buf = if GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) != 0 {
         crate::globals::BufPtr::from(buflist_findnr(
             GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()),
@@ -3044,7 +3044,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
 }
 
 /// Open command preview window if it's not already open.
-fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinInfoInfo> {
+fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<&'static WinInfoInfo> {
     let save_curwin = curwin_ptr();
 
     if !win_split(opt_vars().p_cwh.get() as i32, WSP_BOT) {
@@ -3090,7 +3090,7 @@ fn cmdpreview_close_win() {
 
 /// Save current state and prepare windows and buffers for command preview.
 fn cmdpreview_prepare() -> CpInfo {
-    let mut saved_bufs: std::collections::HashSet<*mut FileBuf> = std::collections::HashSet::new();
+    let mut saved_bufs: std::collections::HashSet<usize> = std::collections::HashSet::new();
     let mut cpinfo = CpInfo {
         win_info: Vec::new(),
         buf_info: Vec::new(),
@@ -3103,21 +3103,21 @@ fn cmdpreview_prepare() -> CpInfo {
         let buf = win.w_buffer.get().borrow_mut();
 
         if buf.b_fnum.get() != GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) {
-            if saved_bufs.insert(buf) {
+            if saved_bufs.insert(std::ptr::from_ref(buf) as usize) {
                 let mut cp_bufinfo = CpBufInfo::new();
-                cp_bufinfo.buf = crate::globals::BufPtr::new(buf);
+                cp_bufinfo.buf = crate::globals::BufPtr::from(buf);
                 cp_bufinfo.save_b_p_ma = buf.b_p_ma.get();
                 cp_bufinfo.save_b_changed = buf.b_changed.get();
                 cp_bufinfo.save_b_op_start = buf.b_op_start.get();
                 cp_bufinfo.save_b_op_end = buf.b_op_end.get();
-                u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
+                u_checkpoint(&mut cp_bufinfo.undo_checkpoint, buf);
                 cpinfo.buf_info.push(cp_bufinfo);
             }
 
             let mut cp_wininfo = CpWinInfo::new();
-            cp_wininfo.win = crate::globals::WinPtr::new(win);
+            cp_wininfo.win = crate::globals::WinPtr::from(win);
             cp_wininfo.save_w_cursor = win.w_cursor.get();
-            save_viewstate(&mut *win, &mut cp_wininfo.save_viewstate);
+            save_viewstate(win, &mut cp_wininfo.save_viewstate);
             cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul.get();
             cp_wininfo.save_w_p_cuc = win.w_onebuf_opt.wo_cuc.get();
 
@@ -3150,7 +3150,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
         buf.b_changed.set(cp_bufinfo.save_b_changed);
 
         extmark_clear(
-            &mut *buf,
+            buf,
             GETLN_STATE.with(|s| s.cmdpreview_ns.get()) as u32,
             0,
             0,
@@ -3158,7 +3158,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
             MAXCOL,
         );
 
-        u_rollback(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
+        u_rollback(&mut cp_bufinfo.undo_checkpoint, buf);
 
         buf.b_op_start.set(cp_bufinfo.save_b_op_start);
         buf.b_op_end.set(cp_bufinfo.save_b_op_end);
@@ -3169,12 +3169,12 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
         let win = cp_wininfo.win.borrow_mut();
 
         win.w_cursor.set(cp_wininfo.save_w_cursor);
-        restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);
+        restore_viewstate(win, &cp_wininfo.save_viewstate);
 
         win.w_onebuf_opt.wo_cul.set(cp_wininfo.save_w_p_cul);
         win.w_onebuf_opt.wo_cuc.set(cp_wininfo.save_w_p_cuc);
 
-        update_topline(&mut *win);
+        update_topline(win);
     }
 
     *g_st().cmdmod.borrow_mut() = std::mem::take(&mut cpinfo.save_cmdmod);

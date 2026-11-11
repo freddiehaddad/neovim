@@ -466,7 +466,7 @@ pub fn nvim_open_win(
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&mut bufref, Some(&mut *b));
+        set_bufref(&mut bufref, Some(b));
         if !fconfig.noautocmd {
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let result = ctx_switch(
@@ -488,7 +488,7 @@ pub fn nvim_open_win(
         }
         if !tp.is_null()
             && bufref_valid(Some(&bufref))
-            && (&raw mut *b) != wp.w_buffer.get().as_ptr()
+            && (std::ptr::from_ref(b).cast_mut()) != wp.w_buffer.get().as_ptr()
         {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
@@ -570,7 +570,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
     flags
 }
 
-fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> bool {
+fn win_can_move_tp(wp: &WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> bool {
     if one_window(
         wp,
         if g_st().curtab.get() == tp {
@@ -601,7 +601,7 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> b
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
         return false;
     }
-    if is_ctx_win(&*wp) {
+    if is_ctx_win(wp) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -612,22 +612,22 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> b
     true
 }
 
-fn win_find_altwin(win: &mut WinInfoInfo, tp: &TabPageInfo) -> Option<&'static mut WinInfoInfo> {
+fn win_find_altwin(win: &WinInfoInfo, tp: &TabPageInfo) -> Option<&'static WinInfoInfo> {
     let tp_arg = if g_st().curtab.get() == tp {
         crate::globals::TabpagePtr::NULL
     } else {
         crate::globals::TabpagePtr::from(tp)
     };
     if win.w_floating.get() {
-        Some(win_float_find_altwin(&*win, tp_arg.opt()))
+        Some(win_float_find_altwin(win, tp_arg.opt()))
     } else {
         let mut dir: i32 = 0;
-        winframe_find_altwin(&mut *win, &mut dir, tp_arg.opt(), None)
+        winframe_find_altwin(win, &mut dir, tp_arg.opt(), None)
     }
 }
 
 fn win_config_split(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     config: &KeyDict_win_config,
     fconfig: &mut WinConfig,
     err: &mut Error,
@@ -675,7 +675,7 @@ fn win_config_split(
             parent_tp = crate::globals::TabpagePtr::from(win_find_tabpage(parent.borrow()));
         }
 
-        let mut win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(&*win));
+        let mut win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(win));
         if !parent.is_null() {
             if parent.w_floating.get() {
                 api_set_error!(
@@ -690,13 +690,14 @@ fn win_config_split(
             }
         }
 
-        if !check_split_disallowed_err(Some(&*win), err) {
+        if !check_split_disallowed_err(Some(win), err) {
             return false;
         }
 
         let mut to_split_ok = false;
-        let curwin_moving_tp =
-            (&raw mut *win) == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
+        let curwin_moving_tp = (std::ptr::from_ref(win).cast_mut()) == curwin_ptr()
+            && !parent.is_null()
+            && win_tp != parent_tp;
 
         'restore_curwin: {
             if curwin_moving_tp {
@@ -704,7 +705,7 @@ fn win_config_split(
                 assert!(!altwin.is_null());
                 win_goto(altwin.borrow_mut());
 
-                if curwin_ptr() == (&raw mut *win) {
+                if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -713,7 +714,7 @@ fn win_config_split(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&*win).into();
+                win_tp = win_find_tabpage(win).into();
                 if win_tp.is_null() || !win_valid_any_tab(parent.opt()) {
                     api_set_error!(
                         err,
@@ -833,7 +834,7 @@ fn win_config_split(
                 g_st().curtab.get().clone()
             };
 
-            let win_ptr = crate::globals::WinPtr::from(&*win);
+            let win_ptr = crate::globals::WinPtr::from(win);
             try_wrap(err, || {
                 let need_switch = !parent.is_null() && parent != curwin_ptr();
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -885,7 +886,7 @@ fn win_config_split(
             break 'resize;
         }
 
-        if curwin_moving_tp && win_valid(Some(&*win)) {
+        if curwin_moving_tp && win_valid(Some(win)) {
             win_goto(win);
         }
         return false;
@@ -906,13 +907,13 @@ fn win_config_split(
 }
 
 fn win_config_float_tp(
-    win: &mut WinInfoInfo,
+    win: &WinInfoInfo,
     config: &KeyDict_win_config,
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
-    let mut win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(&*win));
-    let mut parent = crate::globals::WinPtr::from(&*win);
+    let mut win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(win));
+    let mut parent = crate::globals::WinPtr::from(win);
     let mut parent_tp = win_tp.clone();
     if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
         parent = find_window_by_handle(fconfig.window, err);
@@ -933,11 +934,11 @@ fn win_config_float_tp(
             altwin = crate::globals::WinPtr::from(win_find_altwin(win, win_tp.borrow()));
             assert!(!altwin.is_null());
 
-            if curwin_ptr() == (&raw mut *win) {
+            if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                 curwin_moving_tp = true;
                 win_goto(altwin.borrow_mut());
 
-                if curwin_ptr() == (&raw mut *win) {
+                if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -946,7 +947,7 @@ fn win_config_float_tp(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&*win).into();
+                win_tp = win_find_tabpage(win).into();
                 parent_tp = win_find_tabpage(parent.borrow()).into();
 
                 if win_tp.is_null() || parent_tp.is_null() {
@@ -966,10 +967,10 @@ fn win_config_float_tp(
         }
 
         if !win.w_floating.get() {
-            if win_new_float(Some(&mut *win), false, fconfig.clone(), err).is_none() {
+            if win_new_float(Some(win), false, fconfig.clone(), err).is_none() {
                 break 'restore_curwin;
             }
-            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+            redraw_later(Some(win), UPD_NOT_VALID);
         }
 
         if win_tp != parent_tp {
@@ -988,7 +989,7 @@ fn win_config_float_tp(
             };
             win_append(
                 Some(lastwin_nofloating(append_tp.opt())),
-                &mut *win,
+                win,
                 append_tp.opt(),
             );
 
@@ -998,7 +999,7 @@ fn win_config_float_tp(
 
             ui_comp_remove_grid(&win.w_grid_alloc);
 
-            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+            redraw_later(Some(win), UPD_NOT_VALID);
             set_must_redraw(UPD_NOT_VALID);
         }
 
@@ -1006,7 +1007,7 @@ fn win_config_float_tp(
         return true;
     }
 
-    if curwin_moving_tp && win_valid(Some(&*win)) {
+    if curwin_moving_tp && win_valid(Some(win)) {
         win_goto(win);
     }
     false
@@ -1051,7 +1052,7 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
     let will_float = (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
     if !parse_win_config(
-        Some(&mut *w),
+        Some(w),
         &mut *config,
         &mut fconfig,
         !was_split || to_split,
@@ -1075,9 +1076,7 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
         changed_window_setting(w);
     }
     if fconfig._cmdline_offset < i32::MAX {
-        g_st()
-            .cmdline_win
-            .set(crate::globals::WinPtr::from(&mut *w));
+        g_st().cmdline_win.set(crate::globals::WinPtr::from(w));
     } else if g_st().cmdline_win.get() == w && fconfig._cmdline_offset == i32::MAX {
         g_st().cmdline_win.set(crate::globals::WinPtr::NULL);
     }
@@ -1579,7 +1578,7 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>, opt_bytes: &[u8], err: &
 }
 
 fn parse_win_config(
-    mut wp: Option<&mut WinInfoInfo>,
+    wp: Option<&WinInfoInfo>,
     config: &mut KeyDict_win_config,
     fconfig: &mut WinConfig,
     reconf: bool,
@@ -1654,7 +1653,7 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
             if !has_relative || is_split {
-                generate_api_error(wp.as_deref(), c"row", err);
+                generate_api_error(wp, c"row", err);
 
                 break 'fail;
             }
@@ -1663,7 +1662,7 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
             if !has_relative || is_split {
-                generate_api_error(wp.as_deref(), c"col", err);
+                generate_api_error(wp, c"col", err);
 
                 break 'fail;
             }
@@ -1672,7 +1671,7 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS) {
             if !has_relative || is_split {
-                generate_api_error(wp.as_deref(), c"bufpos", err);
+                generate_api_error(wp, c"bufpos", err);
 
                 break 'fail;
             } else {
@@ -1748,7 +1747,7 @@ fn parse_win_config(
             else {
                 break 'fail;
             };
-            if wp.as_deref().is_some_and(|w| ptr::eq(target_win, w)) {
+            if wp.is_some_and(|w| ptr::eq(target_win, w)) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -1803,7 +1802,7 @@ fn parse_win_config(
             }
 
             if !parse_bordertext_pos(
-                wp.as_deref(),
+                wp,
                 config.title_pos.clone(),
                 K_BORDER_TEXT_TITLE,
                 fconfig,
@@ -1828,7 +1827,7 @@ fn parse_win_config(
             }
 
             if !parse_bordertext_pos(
-                wp.as_deref(),
+                wp,
                 config.footer_pos.clone(),
                 K_BORDER_TEXT_FOOTER,
                 fconfig,
@@ -1894,7 +1893,7 @@ fn parse_win_config(
                 break 'fail;
             }
             if fconfig.hide && !config.hide {
-                redraw_later(wp.as_deref_mut(), UPD_NOT_VALID);
+                redraw_later(wp, UPD_NOT_VALID);
             }
             fconfig.hide = config.hide;
         }

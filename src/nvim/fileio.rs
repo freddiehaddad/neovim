@@ -2722,9 +2722,9 @@ fn check_for_bom(bytes: &[u8], lenp: &mut i32, flags: i32) -> Option<&'static CS
 }
 
 /// Shorten filename of a buffer.
-pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: &CStr, force: i32) -> bool {
+pub fn shorten_buf_fname(buf: &FileBuf, dirname: &CStr, force: i32) -> bool {
     if buf.fname_opt().is_none()
-        || bt_nofilename(Some(&*buf))
+        || bt_nofilename(Some(buf))
         || path_with_url(buf.fname_bytes())
         || !(force != 0 || buf.b_sfname.get().is_none() || path_is_absolute(buf.sfname_bytes()))
     {
@@ -3125,7 +3125,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
             let next_ptr = buf.b_next.get();
             if buf.b_nwindows.get() > 0 {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, Some(&mut *buf));
+                set_bufref(&mut bufref, Some(buf));
                 let n = buf_check_timestamp(buf);
                 didit = didit.max(n);
                 if n > 0 && !bufref_valid(Some(&bufref)) {
@@ -3146,11 +3146,11 @@ pub fn check_timestamps(focus: i32) -> i32 {
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
-fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
+fn move_lines(frombuf: &FileBuf, tobuf: &FileBuf) -> bool {
     let tbuf = g_st().curbuf.get();
     let mut retval = true;
 
-    g_st().curbuf.set((ptr::from_mut(tobuf)).into());
+    g_st().curbuf.set(crate::globals::BufPtr::from(tobuf));
     for lnum in 1..=frombuf.b_ml.ml_line_count.get() {
         let p = ml_get_buf(frombuf, lnum).to_owned();
         if !ml_append(lnum - 1, p.to_bytes(), 0, false) {
@@ -3160,7 +3160,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
     }
 
     if retval {
-        g_st().curbuf.set((ptr::from_mut(frombuf)).into());
+        g_st().curbuf.set(crate::globals::BufPtr::from(frombuf));
         let mut lnum = curbuf_mut().b_ml.ml_line_count.get();
         while lnum > 0 {
             if !ml_delete(lnum) {
@@ -3176,7 +3176,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
 }
 
 /// Check if buffer "buf" has been changed.
-pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
+pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
     static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     const RELOAD_NONE: i32 = 0;
@@ -3193,12 +3193,12 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     let orig_mode = buf.b_orig_mode.get();
 
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, Some(&mut *buf));
+    set_bufref(&mut bufref, Some(buf));
 
     if !buf.terminal.get().is_null()
         || buf.b_ffname.get().is_none()
         || buf.b_ml.ml_mfp.borrow().is_none()
-        || !bt_normal(Some(&*buf))
+        || !bt_normal(Some(buf))
         || buf.b_saving.get()
         || BUSY.load(std::sync::atomic::Ordering::Relaxed)
     {
@@ -3225,7 +3225,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             buf.b_orig_size.set(0);
             buf.b_orig_mode.set(0);
         } else {
-            buf_store_file_info(&mut *buf, &mut file_info);
+            buf_store_file_info(buf, &mut file_info);
         }
 
         if os_isdir(buf.fname_cstr()) {
@@ -3240,7 +3240,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 (c"deleted", 7isize)
             } else if buf_is_changed_fn(buf) {
                 (c"conflict", 8isize)
-            } else if orig_size != buf.b_orig_size.get() || buf_contents_changed(&mut *buf) {
+            } else if orig_size != buf.b_orig_size.get() || buf_contents_changed(buf) {
                 (c"changed", 7isize)
             } else if orig_mode != buf.b_orig_mode.get() {
                 (c"mode", 4isize)
@@ -3258,7 +3258,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 b_fname.as_deref(),
                 b_fname.as_deref(),
                 false,
-                Some(&mut *buf),
+                Some(buf),
             );
             g_st().allbuf_lock.set(g_st().allbuf_lock.get() - (1));
             BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -3385,7 +3385,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if reload != RELOAD_NONE {
-        buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
+        buf_reload(buf, orig_mode, reload == RELOAD_DETECT);
         if bufref_valid(Some(&bufref)) && buf.b_p_udf.get() && buf.b_ffname.get().is_some() {
             let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
             u_compute_hash(buf, &mut hash);
@@ -3400,14 +3400,14 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             b_fname.as_deref(),
             b_fname.as_deref(),
             false,
-            Some(&mut *buf),
+            Some(buf),
         );
     }
     retval
 }
 
 /// Reload a buffer that is already loaded.
-pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
+pub fn buf_reload(buf: &FileBuf, orig_mode: i32, reload_options: bool) {
     let mut ea: Exarg = Exarg::new();
     let old_ro = buf.b_p_ro.get();
     let savebuf: crate::globals::BufPtr;
@@ -3416,12 +3416,12 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut flags = READ_NEW;
 
-    ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
+    ctx_switch(&mut aco, None, None, Some(buf), 0);
 
-    mc_buf_clear(&mut *buf);
+    mc_buf_clear(buf);
 
     let _ea_cmd = if !reload_options {
-        Some(prep_exarg(&mut ea, &*buf))
+        Some(prep_exarg(&mut ea, buf))
     } else {
         None
     };
@@ -3458,7 +3458,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         if savebuf.is_null()
             || !saved
             || g_st().curbuf.get() != buf
-            || !move_lines(&mut *buf, savebuf.borrow_mut())
+            || !move_lines(buf, savebuf.borrow_mut())
         {
             semsg!(
                 tr(c"E462: Could not prepare for reloading \"%s\""),
@@ -3499,9 +3499,9 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
                 move_lines(sb, buf);
             }
         } else if g_st().curbuf.get() == buf {
-            unchanged(&mut *buf, true, true);
+            unchanged(buf, true, true);
             if (flags & READ_KEEP_UNDO) == 0 {
-                u_clearallandblockfree(&mut *buf);
+                u_clearallandblockfree(buf);
             } else {
                 u_unchanged(curbuf_mut());
             }
@@ -3544,7 +3544,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     ctx_restore(&mut aco);
 }
 
-pub fn buf_store_file_info(buf: &mut FileBuf, file_info: &mut FileInfo) {
+pub fn buf_store_file_info(buf: &FileBuf, file_info: &mut FileInfo) {
     buf.b_mtime.set(file_info.stat.st_mtim.tv_sec as _);
     buf.b_mtime_ns.set(file_info.stat.st_mtim.tv_nsec as _);
     buf.b_orig_size.set(os_fileinfo_size(file_info));

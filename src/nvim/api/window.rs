@@ -161,7 +161,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut switchwin,
-        Some(&mut *w),
+        Some(w),
         None,
         None,
         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -171,7 +171,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     }
     ctx_restore(&mut switchwin);
 
-    redraw_later(Some(&mut *(w)), UPD_VALID);
+    redraw_later(Some(w), UPD_VALID);
     w.w_redr_status.set(true);
 }
 
@@ -358,7 +358,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         return;
     };
 
-    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(&*w));
+    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w));
     try_wrap(err, || {
         ex_win_close(
             force,
@@ -432,7 +432,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 
     w.w_ns_hl.set(ns_id as i32);
     w.w_hl_needs_update.set(1);
-    redraw_later(Some(&mut *(w)), UPD_NOT_VALID);
+    redraw_later(Some(w), UPD_NOT_VALID);
 }
 
 /// Computes the number of screen lines occupied by a range of text in a given window.
@@ -591,7 +591,7 @@ pub fn nvim_win_text_height(
         false,
     );
     if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-        let end_fill = i64::from(win_get_fill(&mut *w, line_count + 1));
+        let end_fill = i64::from(win_get_fill(w, line_count + 1));
         fill += end_fill;
         all += end_fill;
     }

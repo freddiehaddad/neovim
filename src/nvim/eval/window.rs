@@ -70,7 +70,7 @@ impl Viewstate {
     }
 }
 
-pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &TabPageInfo) -> bool {
+pub fn win_has_winnr(wp: &WinInfoInfo, tp: &TabPageInfo) -> bool {
     let cur = if g_st().curtab.get() == tp {
         curwin_ptr().as_ptr()
     } else {
@@ -79,7 +79,7 @@ pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &TabPageInfo) -> bool {
     ptr::eq(wp, cur) || win_is_focusable(wp)
 }
 
-pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<&'static mut WinInfoInfo> {
+pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<&'static WinInfoInfo> {
     let ct = curtab_mut();
     let tp_ref = match tp {
         Some(tp) => tp,
@@ -147,7 +147,7 @@ fn win_id2tabwin(argvars: &mut [TypVal], rettv: &mut TypVal) {
     tv_list_append_number(&list, winnr as Varnumber);
 }
 
-pub fn win_id2wp(id: i32) -> Option<&'static mut WinInfoInfo> {
+pub fn win_id2wp(id: i32) -> Option<&'static WinInfoInfo> {
     win_id2wp_tp(id, None)
 }
 
@@ -155,7 +155,7 @@ pub fn win_id2wp(id: i32) -> Option<&'static mut WinInfoInfo> {
 pub fn win_id2wp_tp(
     id: i32,
     tpp: Option<&mut Option<crate::globals::TabpagePtr>>,
-) -> Option<&'static mut WinInfoInfo> {
+) -> Option<&'static WinInfoInfo> {
     for tp in for_all_tabpages_mut() {
         for wp in win_iter_mut(first_win_in_tab(&tp)) {
             if wp.handle == id {
@@ -199,7 +199,7 @@ pub fn win_findbuf(argvars: &mut [TypVal], list: &TvList) {
 }
 
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
-pub fn find_win_by_nr(vp: &TypVal, tp: Option<&TabPageInfo>) -> Option<&'static mut WinInfoInfo> {
+pub fn find_win_by_nr(vp: &TypVal, tp: Option<&TabPageInfo>) -> Option<&'static WinInfoInfo> {
     let nr = tv_get_number_chk(vp, None) as i32;
 
     if nr < 0 {
@@ -230,7 +230,7 @@ pub fn find_win_by_nr(vp: &TypVal, tp: Option<&TabPageInfo>) -> Option<&'static 
 
 /// Find a window: When using a Window ID in any tab page, when using a number
 /// in the current tab page (`find_win_by_nr_or_id`).
-pub fn find_win_by_nr_or_id(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
+pub fn find_win_by_nr_or_id(vp: &TypVal) -> Option<&'static WinInfoInfo> {
     let nr = tv_get_number_chk(vp, None) as i32;
 
     if nr >= LOWEST_WIN_ID {
@@ -241,12 +241,12 @@ pub fn find_win_by_nr_or_id(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
 }
 
 #[inline]
-pub fn find_win_by_nr_or_id_opt(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
+pub fn find_win_by_nr_or_id_opt(vp: &TypVal) -> Option<&'static WinInfoInfo> {
     find_win_by_nr_or_id(vp)
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
-pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<&'static mut WinInfoInfo> {
+pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<&'static WinInfoInfo> {
     if wvp.v_type != VarType::VarUnknown {
         let tp = if tvp.v_type != VarType::VarUnknown {
             let n = tv_get_number(tvp) as i32;
@@ -387,10 +387,10 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
 }
 
 /// Information about a window as a dictionary (`get_win_info`).
-fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typval::DictId {
+fn get_win_info(wp: &WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
-    validate_botline_win(&mut *wp);
+    validate_botline_win(wp);
 
     tv_dict_add_nr(&dict, c"tabnr", tpnr as Varnumber);
     tv_dict_add_nr(&dict, c"winnr", winnr as Varnumber);
@@ -494,7 +494,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let Some(wp) = win_id2wp(tv_get_number(&argvars[0]) as i32) else {
             return;
         };
-        wparg = crate::globals::WinPtr::from(&*wp);
+        wparg = crate::globals::WinPtr::from(wp);
     }
 
     let mut tabnr: i16 = 0;
@@ -652,7 +652,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
     if wp.w_floating.get() {
         return;
     }
-    if !win_valid(Some(&*wp)) {
+    if !win_valid(Some(wp)) {
         emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
         return;
     }
@@ -672,7 +672,7 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
     if wp.w_floating.get() {
         return;
     }
-    if !win_valid(Some(&*wp)) {
+    if !win_valid(Some(wp)) {
         emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
         return;
     }
@@ -761,7 +761,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
 pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp: &mut WinInfoInfo = curwin_mut();
+    let mut wp: &WinInfoInfo = curwin_mut();
 
     tv_set_string(rettv, None);
     if argvars[0].v_type != VarType::VarUnknown {

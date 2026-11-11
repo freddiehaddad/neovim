@@ -383,7 +383,7 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static ScreenGrid> {
     }
     if ui_has(K_UIMULTIGRID) {
         for wp in for_all_windows_mut() {
-            let grid = &mut wp.w_grid_alloc;
+            let grid = &wp.w_grid_alloc;
             if grid.mouse_enabled.get()
                 && row >= wp.w_winrow.get()
                 && row < wp.w_winrow.get() + grid.rows.get()
@@ -411,7 +411,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static ScreenGrid {
     }
 
     for wp in for_all_windows_mut() {
-        let grid = &mut wp.w_grid_alloc;
+        let grid = &wp.w_grid_alloc;
         if row >= grid.comp_row.get()
             && row < grid.comp_row.get() + grid.rows.get()
             && col >= grid.comp_col.get()

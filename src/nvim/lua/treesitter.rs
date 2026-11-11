@@ -413,7 +413,7 @@ extern "C-unwind" fn parser_tostring(lstate: *mut lua_State) -> i32 {
     1
 }
 
-fn input_cb(bp: &mut FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32 {
+fn input_cb(bp: &FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32 {
     if (position.row as Linenr) >= bp.b_ml.ml_line_count.get() {
         return 0;
     }

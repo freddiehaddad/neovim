@@ -560,7 +560,7 @@ pub fn dict_set_var(
     rv
 }
 
-pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
+pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static FileBuf> {
     if buffer == 0 {
         return g_st().curbuf.get().opt_mut();
     }
@@ -629,15 +629,12 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
 }
 
 #[inline]
-pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
+pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static FileBuf> {
     find_buffer_by_handle(buffer, err)
 }
 
 #[inline]
-pub fn find_window_by_handle_mut(
-    window: Window,
-    err: &mut Error,
-) -> Option<&'static mut WinInfoInfo> {
+pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static WinInfoInfo> {
     let w = find_window_by_handle(window, err);
     w.opt_mut()
 }
@@ -727,12 +724,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
     arena_take_arraybuilder(arena, &mut ret)
 }
 
-pub fn normalize_index(
-    buf: &mut FileBuf,
-    mut index: i64,
-    end_exclusive: bool,
-    oob: &mut bool,
-) -> i64 {
+pub fn normalize_index(buf: &FileBuf, mut index: i64, end_exclusive: bool, oob: &mut bool) -> i64 {
     debug_assert!(buf.b_ml.ml_line_count.get() > 0);
     let max_index = i64::from(buf.b_ml.ml_line_count.get()) + i64::from(end_exclusive) - 1;
     if index < 0 {
@@ -749,7 +741,7 @@ pub fn normalize_index(
 }
 
 pub fn buf_get_text(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: i64,
     mut start_col: i64,
     mut end_col: i64,
@@ -1311,13 +1303,13 @@ pub fn api_luarefs_free_dict(value: Dict) {
 }
 
 pub fn set_mark(
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     name: NvimString,
     line: Integer,
     mut col: Integer,
     err: &mut Error,
 ) -> bool {
-    let buf: &mut FileBuf = match buf {
+    let buf: &FileBuf = match buf {
         Some(b) => b,
         None => curbuf_mut(),
     };

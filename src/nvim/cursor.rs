@@ -206,7 +206,7 @@ pub fn coladvance_force(wcol: Colnr) -> bool {
 }
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
-pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
+pub fn coladvance(wp: &WinInfoInfo, wcol: Colnr) -> bool {
     let mut cursor = wp.w_cursor.get();
     let rc = getvpos(wp, &mut cursor, wcol);
     wp.w_cursor.set(cursor);
@@ -223,7 +223,7 @@ pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
 }
 
 fn coladvance2(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     pos: &mut CursorPos,
     addspaces: bool,
     finetune: bool,
@@ -240,7 +240,7 @@ fn coladvance2(
             || (g_st().state_global.get() & MODE_TERMINAL) != 0
             || g_st().restart_edit.get() != 0
             || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
-            || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
+            || ((get_ve_flags(wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
     );
 
     if wcol == MAXCOL {
@@ -264,23 +264,23 @@ fn coladvance2(
             && wcol >= width
             && width > 0
         {
-            csize = linetabsize_disp_eol(&mut *wp, pos.lnum);
+            csize = linetabsize_disp_eol(wp, pos.lnum);
             if csize > 0 {
                 csize -= 1;
             }
 
-            let disp_wcol = vcol2disp_vcol(&mut *wp, pos.lnum, wcol);
+            let disp_wcol = vcol2disp_vcol(wp, pos.lnum, wcol);
             if disp_wcol / width > csize / width
                 && ((g_st().state_global.get() & MODE_INSERT) == 0 || disp_wcol > csize + 1)
             {
-                wcol = disp_vcol2vcol(&mut *wp, pos.lnum, (csize / width + 1) * width - 1);
+                wcol = disp_vcol2vcol(wp, pos.lnum, (csize / width + 1) * width - 1);
             }
         }
 
         let line_cstr = ml_get_buf(wp.buf_mut(), pos.lnum);
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_cstr);
+        let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line_cstr);
         let mut ci = utf_ptr2_str_char_info(line_cstr);
         col = 0;
         while col <= wcol && !ci.ptr.is_empty() {
@@ -294,13 +294,13 @@ fn coladvance2(
         }
         idx = ci.offset_from(line_cstr) as i32;
 
-        if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
+        if col > wcol || (!virtual_active(wp) && one_more == 0) {
             idx -= 1;
             csize -= head;
             col -= csize;
         }
 
-        if virtual_active(&mut *wp)
+        if virtual_active(wp)
             && addspaces
             && wcol >= 0
             && ((col != wcol && col != wcol + 1) || csize > 1)
@@ -381,7 +381,7 @@ fn coladvance2(
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
-pub fn getvpos(wp: &mut WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
+pub fn getvpos(wp: &WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
     let addspaces = virtual_active(wp);
     coladvance2(wp, pos, false, addspaces, wcol)
 }
@@ -397,7 +397,7 @@ pub fn dec_cursor() -> i32 {
 }
 
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
-pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
+pub fn get_cursor_rel_lnum(wp: &WinInfoInfo, lnum: Linenr) -> Linenr {
     let cursor = wp.w_cursor.get().lnum;
     if lnum == cursor || has_any_folding(wp) == 0 {
         return lnum - cursor;
@@ -421,7 +421,7 @@ pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
 }
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
-pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
+pub fn check_pos(buf: &FileBuf, pos: &mut CursorPos) {
     pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count.get());
     if pos.col > 0 {
         pos.col = pos.col.min(ml_get_buf_len(buf, pos.lnum));
@@ -429,7 +429,7 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 }
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
-pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
+pub fn check_cursor_lnum(win: &WinInfoInfo) {
     let line_count = win.buf_mut().b_ml.ml_line_count.get();
     let mut cursor_lnum = win.w_cursor.get().lnum;
     if cursor_lnum > line_count && !has_folding(win, line_count, Some(&mut cursor_lnum), None) {
@@ -439,10 +439,10 @@ pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
 }
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
-pub fn check_cursor_col(win: &mut WinInfoInfo) {
+pub fn check_cursor_col(win: &WinInfoInfo) {
     let oldcol = win.w_cursor.get().col;
     let oldcoladd = win.w_cursor.get().col + win.w_cursor.get().coladd;
-    let cur_ve_flags = get_ve_flags(&mut *win);
+    let cur_ve_flags = get_ve_flags(win);
 
     let len = ml_get_buf_len(win.buf_mut(), win.w_cursor.get().lnum);
     if len == 0 {
@@ -453,7 +453,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
             || (g_st().state_global.get() & MODE_TERMINAL) != 0
             || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
             || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
-            || virtual_active(&mut *win)
+            || virtual_active(win)
         {
             win.w_cursor.set_col(len);
         } else {
@@ -488,7 +488,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
 }
 
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
-pub fn check_cursor(wp: &mut WinInfoInfo) {
+pub fn check_cursor(wp: &WinInfoInfo) {
     check_cursor_lnum(wp);
     check_cursor_col(wp);
 }

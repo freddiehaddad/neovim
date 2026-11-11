@@ -240,7 +240,7 @@ std::thread_local! {
 }
 
 #[inline]
-pub fn handle_get_buffer(h: ObjHandle) -> Option<&'static mut FileBuf> {
+pub fn handle_get_buffer(h: ObjHandle) -> Option<&'static FileBuf> {
     g_st()
         .buffer_handles
         .borrow()
@@ -250,12 +250,12 @@ pub fn handle_get_buffer(h: ObjHandle) -> Option<&'static mut FileBuf> {
 }
 
 #[inline]
-pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<&'static mut FileBuf> {
+pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<&'static FileBuf> {
     handle_get_buffer(h)
 }
 
 #[inline]
-pub fn handle_get_window(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
+pub fn handle_get_window(h: ObjHandle) -> Option<&'static WinInfoInfo> {
     g_st()
         .window_handles
         .borrow()
@@ -265,7 +265,7 @@ pub fn handle_get_window(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
 }
 
 #[inline]
-pub fn handle_get_window_opt(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
+pub fn handle_get_window_opt(h: ObjHandle) -> Option<&'static WinInfoInfo> {
     handle_get_window(h)
 }
 
@@ -305,7 +305,7 @@ pub fn ctx_free(ctx: &mut Context) {
     if let Some(buf) = handle_get_buffer_opt(ctx.buf) {
         for i in 0..ctx.pos_marks.len() {
             if ctx.pos_marks[i] != 0 {
-                extmark_del_id(&mut *buf, ctx_marks_ns(), ctx.pos_marks[i]);
+                extmark_del_id(buf, ctx_marks_ns(), ctx.pos_marks[i]);
             }
         }
     }
@@ -447,7 +447,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
             if pos_marks[i] == 0 {
                 continue;
             }
-            extmark_get_pos(&mut *buf, ctx_marks_ns(), pos_marks[i], pos_ref);
+            extmark_get_pos(buf, ctx_marks_ns(), pos_marks[i], pos_ref);
         }
         if (flags & K_CTX_VISUAL) != 0 {
             *buf.b_visual.borrow_mut() = ctx.visual;
@@ -582,7 +582,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
     types
 }
 
-fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut WinInfoInfo, buf: &mut FileBuf) {
+fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &WinInfoInfo, buf: &FileBuf) {
     cw_win.w_localdir.set(None);
     cs.cs_b_localdir = buf.b_localdir.take();
     cs.cs_tp_localdir = curtab_mut().tp_localdir.replace(None);
@@ -633,12 +633,7 @@ fn ctx_localdirs_restore(
     }
 }
 
-fn ctx_dirs_save(
-    cs: &mut CtxSwitch,
-    wp: &mut WinInfoInfo,
-    tp: &TabPageInfo,
-    buf: Option<&mut FileBuf>,
-) {
+fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &WinInfoInfo, tp: &TabPageInfo, buf: Option<&FileBuf>) {
     if (cs.cs_flags & (K_CTX_KEEP_CWD | K_CTX_KEEP_DIRS)) == 0 {
         return;
     }
@@ -653,7 +648,7 @@ fn ctx_dirs_save(
         cs.cs_tp_localdir = tp.tp_localdir.get();
     }
 
-    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp) {
+    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (std::ptr::from_ref(wp).cast_mut()) {
         cs.cs_cwd = os_dirname_cstr();
     }
 
@@ -704,7 +699,7 @@ pub fn is_ctx_win(win: &WinInfoInfo) -> bool {
         .any(|item| item.cw_used && item.cw_win == ptr::from_ref(win))
 }
 
-fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoInfo {
+fn ctx_win_prep(cs: &mut CtxSwitch, buf: &FileBuf) -> &'static WinInfoInfo {
     let mut need_append = true;
     let pos = g_st()
         .ctx_win_vec
@@ -730,14 +725,16 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     g_st().ctx_win_vec.borrow_mut().as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
-    cw_win.w_buffer.set((&raw mut *buf).into());
+    cw_win
+        .w_buffer
+        .set((std::ptr::from_ref(buf).cast_mut()).into());
     buf.b_nwindows.set(buf.b_nwindows.get() + (1));
-    win_init_empty(&mut *cw_win);
+    win_init_empty(cw_win);
 
-    ctx_win_dirs_save(cs, &mut *cw_win, buf);
+    ctx_win_dirs_save(cs, cw_win, buf);
 
     if need_append {
-        win_append(g_st().lastwin.get().opt_mut(), &mut *cw_win, None);
+        win_append(g_st().lastwin.get().opt_mut(), cw_win, None);
         g_st()
             .window_handles
             .borrow_mut()
@@ -749,7 +746,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     cw_win
 }
 
-fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
+fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static WinInfoInfo {
     let cwp = g_st().ctx_win_vec.borrow().as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
     block_autocmds();
@@ -788,7 +785,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
     cwp.borrow_mut()
 }
 
-pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {
+pub fn ctx_saved_curwin() -> Option<&'static WinInfoInfo> {
     let saved = CTX_STATE.with(|st| st.ctx_saved_curwin.get());
     if saved == 0 {
         None
@@ -799,9 +796,9 @@ pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {
 
 pub fn ctx_switch(
     cs: &mut CtxSwitch,
-    wp_opt: Option<&mut WinInfoInfo>,
+    wp_opt: Option<&WinInfoInfo>,
     tp_opt: Option<&TabPageInfo>,
-    buf_opt: Option<&mut FileBuf>,
+    buf_opt: Option<&FileBuf>,
     flags: CtxSwitchFlags,
 ) -> bool {
     let mut wp = crate::globals::WinPtr::from(wp_opt);
@@ -877,9 +874,9 @@ pub fn ctx_switch(
 
     if let Some(buf_ref) = buf.opt_mut() {
         if wp.is_null() {
-            wp = ctx_win_prep(cs, &mut *buf_ref).into();
+            wp = ctx_win_prep(cs, buf_ref).into();
             leaving_window(curwin_mut());
-            buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
+            buf_copy_options(buf_ref, BCO_ENTER | BCO_NOHELP);
             g_st().prevwin.set(curwin_ptr());
         }
         assert!(wp == curwin_ptr() || win_valid(wp.opt()));
@@ -906,8 +903,8 @@ pub fn ctx_switch(
     true
 }
 
-fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoInfo>) {
-    let mut save_curwin: Option<&'static mut WinInfoInfo> = if cs.cs_curwin_xtab {
+fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static WinInfoInfo>) {
+    let mut save_curwin: Option<&'static WinInfoInfo> = if cs.cs_curwin_xtab {
         handle_get_window(cs.cs_curwin)
     } else {
         win_find_by_handle(cs.cs_curwin)
@@ -921,7 +918,9 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
     }
     g_st()
         .prevwin
-        .set((win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut)).into());
+        .set(crate::globals::WinPtr::from(win_find_by_handle(
+            cs.cs_prevwin,
+        )));
 }
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {

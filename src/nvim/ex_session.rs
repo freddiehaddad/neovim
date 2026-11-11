@@ -80,10 +80,10 @@ fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> bool {
     write_fmt(fd, s)
 }
 
-fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInfoInfo>) -> bool {
+fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&WinInfoInfo>) -> bool {
     if restore_size && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
-        for wp in win_iter_mut(tab_firstwin.map_or(ptr::null_mut(), ptr::from_mut)) {
+        for wp in win_iter_mut(tab_firstwin) {
             if ses_do_win(wp) == 0 {
                 continue;
             }
@@ -188,7 +188,7 @@ fn ses_do_frame(fr: &Frame) -> bool {
     false
 }
 
-fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
+fn ses_do_win(wp: &WinInfoInfo) -> i32 {
     if wp.w_floating.get() {
         return 0;
     }
@@ -237,7 +237,7 @@ fn ses_arglist(
     true
 }
 
-fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&'a CStr> {
+fn ses_get_fname<'a>(buf: &'a FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&'a CStr> {
     if buf.b_sfname.get().is_some()
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && (opt_vars().ssop_flags.get() & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
@@ -249,7 +249,7 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &std::cell::Cell<u32>) -> Opti
     buf.ffname_opt()
 }
 
-fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &std::cell::Cell<u32>, add_eol: bool) -> bool {
+fn ses_fname(fd: &CFile, buf: &FileBuf, flagp: &std::cell::Cell<u32>, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
@@ -278,7 +278,7 @@ fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &std::cell::Cell<u32>)
 
 fn put_view(
     fd: &CFile,
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     tp: &TabPageInfo,
     add_edit: bool,
     flagp: &std::cell::Cell<u32>,
@@ -293,7 +293,7 @@ fn put_view(
             return false;
         }
     } else {
-        let alist = crate::arglist::win_alist_rc(&*wp);
+        let alist = crate::arglist::win_alist_rc(wp);
         let entries = alist.al_ga.borrow().clone();
         if !ses_arglist(
             fd,
@@ -309,7 +309,7 @@ fn put_view(
         }
     }
 
-    let wargcount = crate::arglist::wargcount(&*wp);
+    let wargcount = crate::arglist::wargcount(wp);
     if wp.w_arg_idx.get() != current_arg_idx
         && wp.w_arg_idx.get() < wargcount
         && ptr::eq(flagp, &opt_vars().ssop_flags)
@@ -381,7 +381,7 @@ fn put_view(
     }
 
     let save_curwin = curwin_ptr();
-    set_curwin(&mut *wp);
+    set_curwin(wp);
     g_st().curbuf.set(curwin_mut().w_buffer.get());
     let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
@@ -406,7 +406,7 @@ fn put_view(
     if (flagp.get() & K_OPT_SSOP_FLAG_FOLDS) != 0
         && (*wp).buf_mut().b_ffname.get().is_some()
         && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
-        && !put_folds(fd, &mut *wp)
+        && !put_folds(fd, wp)
     {
         return false;
     }
@@ -451,12 +451,12 @@ fn put_view(
                     i64::from(wp.w_width.get() / 2),
                     i64::from(wp.w_width.get()),
                 ),
-            ) || !put_view_curpos(fd, &*wp, "  ")
+            ) || !put_view_curpos(fd, wp, "  ")
                 || !put_line(fd, c"endif")
             {
                 return false;
             }
-        } else if !put_view_curpos(fd, &*wp, "") {
+        } else if !put_view_curpos(fd, wp, "") {
             return false;
         }
     }
@@ -597,7 +597,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         for buf in for_all_buffers_ptr() {
             if !(only_save_windows && buf.b_nwindows.get() == 0)
                 && !(buf.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
-                && !(bt_terminal(Some(&*buf))
+                && !(bt_terminal(Some(buf))
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
                 && buf.b_p_bl.get()
@@ -608,7 +608,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || !ses_fname(fd, &mut *buf, &opt_vars().ssop_flags, true)
+                    || !ses_fname(fd, buf, &opt_vars().ssop_flags, true)
                 {
                     return false;
                 }
@@ -633,7 +633,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     || !b.b_p_bl.get()
                     || (only_save_windows && b.b_nwindows.get() == 0)
                     || (b.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
-                    || (bt_terminal(Some(&*b))
+                    || (bt_terminal(Some(b))
                         && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
@@ -642,7 +642,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
-                    || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
+                    || fd.puts(ses_get_fname(b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
                     || fd.puts(&b_localdir) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0

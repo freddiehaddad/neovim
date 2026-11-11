@@ -166,7 +166,7 @@ fn sign_get_name(sh: &DecorSignHighlight) -> &CStr {
 }
 
 fn buf_set_sign(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     id: &mut u32,
     group: Option<&CStr>,
     prio: i32,
@@ -224,13 +224,7 @@ fn buf_set_sign(
     );
 }
 
-fn buf_mod_sign(
-    buf: &mut FileBuf,
-    id: &mut u32,
-    group: Option<&CStr>,
-    prio: i32,
-    sp: &Sign,
-) -> Linenr {
+fn buf_mod_sign(buf: &FileBuf, id: &mut u32, group: Option<&CStr>, prio: i32, sp: &Sign) -> Linenr {
     let ns = group_get_ns(group);
     if ns < 0 || (group.is_some() && ns == 0) {
         return 0;
@@ -243,7 +237,7 @@ fn buf_mod_sign(
     mark.pos.row + 1
 }
 
-fn buf_findsign(buf: &mut FileBuf, id: i32, group: Option<&CStr>) -> i32 {
+fn buf_findsign(buf: &FileBuf, id: i32, group: Option<&CStr>) -> i32 {
     let ns = group_get_ns(group);
     if ns < 0 || (group.is_some() && ns == 0) {
         return 0;
@@ -271,7 +265,7 @@ fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
     sign_item_cmp(&si1, &si2)
 }
 
-fn buf_delete_signs(buf: &mut FileBuf, group: Option<&CStr>, id: i32, atlnum: Linenr) -> bool {
+fn buf_delete_signs(buf: &FileBuf, group: Option<&CStr>, id: i32, atlnum: Linenr) -> bool {
     let ns = group_get_ns(group);
     if ns < 0 {
         return false;
@@ -644,7 +638,7 @@ fn sign_place(
     id: &mut u32,
     group: Option<&CStr>,
     name: &CStr,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     mut lnum: Linenr,
     mut prio: i32,
 ) -> bool {
@@ -680,7 +674,7 @@ fn sign_place(
     true
 }
 
-fn sign_unplace_inner(buf: &mut FileBuf, id: i32, group: Option<&CStr>, atlnum: Linenr) -> bool {
+fn sign_unplace_inner(buf: &FileBuf, id: i32, group: Option<&CStr>, atlnum: Linenr) -> bool {
     if !buf_has_signs(buf) {
         return false;
     }
@@ -699,13 +693,13 @@ fn sign_unplace_inner(buf: &mut FileBuf, id: i32, group: Option<&CStr>, atlnum: 
     true
 }
 
-fn sign_unplace(buf: Option<&mut FileBuf>, id: i32, group: Option<&CStr>, atlnum: Linenr) -> bool {
+fn sign_unplace(buf: Option<&FileBuf>, id: i32, group: Option<&CStr>, atlnum: Linenr) -> bool {
     if let Some(buf) = buf {
         sign_unplace_inner(buf, id, group, atlnum)
     } else {
         let mut retval = true;
         for cbuf in for_all_buffers_ptr() {
-            if !sign_unplace_inner(&mut *cbuf, id, group, atlnum) {
+            if !sign_unplace_inner(cbuf, id, group, atlnum) {
                 retval = false;
             }
         }
@@ -713,7 +707,7 @@ fn sign_unplace(buf: Option<&mut FileBuf>, id: i32, group: Option<&CStr>, atlnum
     }
 }
 
-fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
+fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
     let lnum = buf_findsign(buf, id, group);
     if lnum <= 0 {
         semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
@@ -806,7 +800,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
 }
 
 fn sign_place_cmd(
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     lnum: Linenr,
     name: Option<&CStr>,
     id: i32,
@@ -817,7 +811,7 @@ fn sign_place_cmd(
         if lnum >= 0 || name.is_some() || group.is_some_and(|g| g.to_bytes().is_empty()) {
             emsg(gettext(E_INVARG));
         } else {
-            sign_list_placed(buf.as_deref(), group);
+            sign_list_placed(buf, group);
         }
     } else {
         let (Some(name_cstr), Some(buf_ref)) = (name, buf) else {
@@ -834,7 +828,7 @@ fn sign_place_cmd(
 }
 
 fn sign_unplace_cmd(
-    mut buf: Option<&mut FileBuf>,
+    mut buf: Option<&FileBuf>,
     mut lnum: Linenr,
     name: Option<&CStr>,
     id: i32,
@@ -856,7 +850,7 @@ fn sign_unplace_cmd(
 }
 
 fn sign_jump_cmd(
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     lnum: Linenr,
     name: Option<&CStr>,
     id: i32,
@@ -886,7 +880,7 @@ fn parse_sign_cmd_args<'a>(
     id: &mut i32,
     group: &mut Option<&'a CStr>,
     prio: &mut i32,
-    buf: &mut Option<&'static mut FileBuf>,
+    buf: &mut Option<&'static FileBuf>,
     lnum: &mut Linenr,
 ) -> bool {
     let mut arg_idx = 0usize;
@@ -1053,7 +1047,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut name: Option<&CStr> = None;
         let mut group: Option<&CStr> = None;
         let mut prio: i32 = -1;
-        let mut buf: Option<&mut FileBuf> = None;
+        let mut buf: Option<&FileBuf> = None;
 
         if !parse_sign_cmd_args(
             idx,
@@ -1124,7 +1118,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> crate::eval::typval::DictId {
     d
 }
 
-pub fn get_buffer_signs(buf: &mut FileBuf) -> crate::eval::typval::ListId {
+pub fn get_buffer_signs(buf: &FileBuf) -> crate::eval::typval::ListId {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let mut itr = MarkTreeIter::new();
     let b = &buf.b_marktree.borrow();
@@ -1142,7 +1136,7 @@ pub fn get_buffer_signs(buf: &mut FileBuf) -> crate::eval::typval::ListId {
 }
 
 fn sign_get_placed_in_buf(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     sign_id: i32,
     group: Option<&CStr>,
@@ -1193,7 +1187,7 @@ fn sign_get_placed_in_buf(
 }
 
 fn sign_get_placed(
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     lnum: Linenr,
     id: i32,
     group: Option<&CStr>,
@@ -1203,8 +1197,8 @@ fn sign_get_placed(
         sign_get_placed_in_buf(buf, lnum, id, group, retlist);
     } else {
         for cbuf in for_all_buffers_ptr() {
-            if buf_has_signs(&*cbuf) {
-                sign_get_placed_in_buf(&mut *cbuf, 0, id, group, retlist);
+            if buf_has_signs(cbuf) {
+                sign_get_placed_in_buf(cbuf, 0, id, group, retlist);
             }
         }
     }

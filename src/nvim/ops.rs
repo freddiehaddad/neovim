@@ -3075,7 +3075,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
 
             if l_visual_mode == CTRL_V_CONST {
                 let saved_sbr = opt_vars().p_sbr.take();
-                let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
+                let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr.take();
 
                 oparg.is_visual = true;
                 oparg.motion_type = MT_BLOCK_WISE;
@@ -3089,7 +3089,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     0,
                 );
                 opt_vars().p_sbr.set(saved_sbr);
-                curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
+                curwin_mut().w_onebuf_opt.wo_sbr.set(saved_w_sbr);
                 if curwin_mut().w_curswant.get() == MAXCOL {
                     oparg.end_vcol = MAXCOL;
                 }
@@ -4063,7 +4063,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
 /// Get the byte count of buffer region. End-exclusive.
 pub fn get_region_bytecount(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_lnum: Linenr,
     end_lnum: Linenr,
     start_col: Colnr,

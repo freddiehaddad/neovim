@@ -903,7 +903,7 @@ pub static curwin: std::sync::atomic::AtomicPtr<WinInfoInfo> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[inline(always)]
-pub fn curwin_mut() -> &'static mut WinInfoInfo {
+pub fn curwin_mut() -> &'static WinInfoInfo {
     curwin_ptr().borrow_mut()
 }
 
@@ -918,12 +918,12 @@ pub fn set_curwin(wp: impl Into<WinPtr>) {
 }
 
 #[inline(always)]
-pub fn curbuf_mut() -> &'static mut FileBuf {
+pub fn curbuf_mut() -> &'static FileBuf {
     g_st().curbuf.get().borrow_mut()
 }
 
 #[inline(always)]
-pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
+pub fn curbuf_opt_mut() -> Option<&'static FileBuf> {
     g_st().curbuf.get().opt_mut()
 }
 
@@ -933,17 +933,17 @@ pub fn curtab_mut() -> TabpagePtr {
 }
 
 #[inline(always)]
-pub fn firstwin_mut() -> &'static mut WinInfoInfo {
+pub fn firstwin_mut() -> &'static WinInfoInfo {
     g_st().firstwin.get().borrow_mut()
 }
 
 #[inline(always)]
-pub fn lastwin_mut() -> &'static mut WinInfoInfo {
+pub fn lastwin_mut() -> &'static WinInfoInfo {
     g_st().lastwin.get().borrow_mut()
 }
 
 #[inline(always)]
-pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
+pub fn prevwin_opt() -> Option<&'static WinInfoInfo> {
     g_st().prevwin.get().opt_mut()
 }
 
@@ -1273,7 +1273,7 @@ impl<T> GraphPtr<T> {
 
     #[allow(dead_code)]
     #[inline(always)]
-    pub fn as_mut<'a>(self) -> Option<&'a mut T> {
+    pub fn as_mut<'a>(self) -> Option<&'a T> {
         self.opt_mut()
     }
 
@@ -1287,12 +1287,8 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub fn opt_mut<'a>(self) -> Option<&'a mut T> {
-        if (self.0 as usize) == 0 {
-            None
-        } else {
-            Some(unsafe { &mut *self.0 })
-        }
+    pub fn opt_mut<'a>(self) -> Option<&'a T> {
+        self.opt()
     }
 
     #[inline(always)]
@@ -1301,8 +1297,8 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub const fn borrow_mut<'a>(self) -> &'a mut T {
-        unsafe { &mut *self.0 }
+    pub const fn borrow_mut<'a>(self) -> &'a T {
+        self.borrow()
     }
 
     #[inline(always)]
@@ -1707,11 +1703,11 @@ pub fn curtab_handle() -> TabpagePtr {
 pub struct BufMutIter(BufPtr);
 
 impl Iterator for BufMutIter {
-    type Item = &'static mut FileBuf;
+    type Item = &'static FileBuf;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.b_next.get();
         Some(cur)
     }
@@ -1720,11 +1716,11 @@ impl Iterator for BufMutIter {
 pub struct BufPtrIter(BufPtr);
 
 impl Iterator for BufPtrIter {
-    type Item = &'static mut FileBuf;
+    type Item = &'static FileBuf;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.b_next.get();
         Some(cur)
     }
@@ -1748,11 +1744,11 @@ pub fn for_all_buffers_ptr() -> BufPtrIter {
 pub struct BufRevPtrIter(BufPtr);
 
 impl Iterator for BufRevPtrIter {
-    type Item = &'static mut FileBuf;
+    type Item = &'static FileBuf;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.b_prev.get();
         Some(cur)
     }
@@ -1766,11 +1762,11 @@ pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
 pub struct WinMutIter(WinPtr);
 
 impl Iterator for WinMutIter {
-    type Item = &'static mut WinInfoInfo;
+    type Item = &'static WinInfoInfo;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.w_next.get();
         Some(cur)
     }
@@ -1779,11 +1775,11 @@ impl Iterator for WinMutIter {
 pub struct WinPtrIter(WinPtr);
 
 impl Iterator for WinPtrIter {
-    type Item = &'static mut WinInfoInfo;
+    type Item = &'static WinInfoInfo;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.w_next.get();
         Some(cur)
     }
@@ -1830,11 +1826,11 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
 pub struct WinRevPtrIter(WinPtr);
 
 impl Iterator for WinRevPtrIter {
-    type Item = &'static mut WinInfoInfo;
+    type Item = &'static WinInfoInfo;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
+        let cur = self.0.opt()?;
         self.0 = cur.w_prev.get();
         Some(cur)
     }
@@ -2093,7 +2089,7 @@ pub fn first_tabpage_mut() -> TabpagePtr {
 }
 
 #[inline(always)]
-pub fn prevwin_mut() -> &'static mut WinInfoInfo {
+pub fn prevwin_mut() -> &'static WinInfoInfo {
     g_st().prevwin.get().borrow_mut()
 }
 

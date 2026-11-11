@@ -635,7 +635,7 @@ fn sb_push_cstr(sb: &mut Vec<u8>, s: &CStr) {
 }
 
 /// Open a new memline for `buf`.
-pub fn ml_open(buf: &mut FileBuf) -> bool {
+pub fn ml_open(buf: &FileBuf) -> bool {
     buf.b_ml.ml_stack.borrow_mut().clear();
     buf.b_ml.ml_stack_top.set(0);
     buf.b_ml.ml_locked.set(None);
@@ -682,7 +682,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         } else {
             0
         });
-        b0p.set_flags((get_fileformat(&*buf) + 1) as u8);
+        b0p.set_flags((get_fileformat(buf) + 1) as u8);
         set_b0_fname(&mut b0p, buf);
         os_get_username(&mut b0p.b0_uname);
         b0p.b0_uname[B0_UNAME_SIZE - 1] = 0;
@@ -735,7 +735,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     true
 }
 
-fn ml_open_error(buf: &mut FileBuf, hp: Option<BhdrId>) -> bool {
+fn ml_open_error(buf: &FileBuf, hp: Option<BhdrId>) -> bool {
     if let Some(mut mfp) = buf.b_ml.mfp_opt() {
         if let Some(hp) = hp {
             mf_put(&mut mfp, hp, false, false);
@@ -747,7 +747,7 @@ fn ml_open_error(buf: &mut FileBuf, hp: Option<BhdrId>) -> bool {
 }
 
 /// Called when the file name of `buf` has been changed.
-pub fn ml_setname(buf: &mut FileBuf) {
+pub fn ml_setname(buf: &FileBuf) {
     let mut success = false;
     let mfp_addr = buf
         .b_ml
@@ -830,7 +830,7 @@ pub fn ml_open_files() {
 }
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
-pub fn ml_open_file(buf: &mut FileBuf) {
+pub fn ml_open_file(buf: &FileBuf) {
     let mfp_addr = buf
         .b_ml
         .mfp_ref()
@@ -918,7 +918,7 @@ pub fn check_need_swap(newfile: bool) {
 }
 
 /// Close memline for buffer `buf`.
-pub fn ml_close(buf: &mut FileBuf, del_file: i32) {
+pub fn ml_close(buf: &FileBuf, del_file: i32) {
     if buf.b_ml.ml_mfp.borrow().is_none() {
         return;
     }
@@ -933,7 +933,7 @@ pub fn ml_close(buf: &mut FileBuf, del_file: i32) {
 /// Close all existing memlines and memfiles.
 pub fn ml_close_all(del_file: bool) {
     for buf in for_all_buffers_ptr() {
-        ml_close(&mut *buf, i32::from(del_file));
+        ml_close(buf, i32::from(del_file));
     }
     spell_delete_wordlist();
     vim_deltempdir();
@@ -942,14 +942,14 @@ pub fn ml_close_all(del_file: bool) {
 /// Close all memfiles for not modified buffers.
 pub fn ml_close_notmod() {
     for buf in for_all_buffers_ptr() {
-        if !buf_is_changed_fn(&mut *buf) {
-            ml_close(&mut *buf, 1);
+        if !buf_is_changed_fn(buf) {
+            ml_close(buf, 1);
         }
     }
 }
 
 /// Update the timestamp in the `.swp` file.
-pub fn ml_timestamp(buf: &mut FileBuf) {
+pub fn ml_timestamp(buf: &FileBuf) {
     ml_upd_block0(buf, UpdBlock0::UbFname);
 }
 
@@ -967,7 +967,7 @@ fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
         && b0.b0_fname[..B0_FNAME_SIZE_CRYPT].contains(&0)
 }
 
-fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
+fn ml_upd_block0(buf: &FileBuf, what: UpdBlock0) {
     let Some(hp) = buf
         .b_ml
         .mfp_opt()
@@ -989,7 +989,7 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
     mf_put(&mut buf.b_ml.mfp_mut(), hp, true, false);
 }
 
-fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
+fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
     if buf.b_ffname.get().is_none() {
         b0p.b0_fname[0] = 0;
     } else {
@@ -1035,7 +1035,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     add_b0_fenc(b0p, curbuf_mut());
 }
 
-fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
+fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &FileBuf) {
     if same_directory(buf.b_ml.mf_fname_cstr(), buf.ffname_opt()) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
     } else {
@@ -1043,7 +1043,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     }
 }
 
-fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
+fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &FileBuf) {
     let size = B0_FNAME_SIZE_NOCRYPT;
     let fenc_bytes = buf.b_p_fenc.as_bytes();
     let n = fenc_bytes.len();
@@ -1138,7 +1138,7 @@ pub fn ml_recover(checkext: bool) {
         getout(1);
     }
 
-    let mut buf = Box::new(FileBuf::new());
+    let buf = Box::new(FileBuf::new());
 
     *buf.b_ml.ml_mfp.borrow_mut() = mf_open(Some(fname_used.clone()), O_RDONLY);
     if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fd < 0) {
@@ -1459,7 +1459,7 @@ pub fn ml_recover(checkext: bool) {
                     continue;
                 }
 
-                let top = ml_add_stack(&mut buf);
+                let top = ml_add_stack(&buf);
                 let max_blocknr = buf.b_ml.mfp_ref().unwrap().mf_blocknr_max;
                 let ip = &mut (&mut *buf.b_ml.ml_stack.borrow_mut())[top as usize];
                 ip.ip_bnum = bnum;
@@ -2072,9 +2072,9 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
         if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fname.is_none()) {
             continue;
         }
-        ml_flush_line(&mut *buf, false);
-        ml_find_line(&mut *buf, 0, ML_FLUSH);
-        if buf_is_changed_fn(&mut *buf)
+        ml_flush_line(buf, false);
+        ml_find_line(buf, 0, ML_FLUSH);
+        if buf_is_changed_fn(buf)
             && check_file != 0
             && buf.b_ml.mfp_ref().is_some_and(|m| mf_need_trans(&m))
             && buf.b_ffname.get().is_some()
@@ -2085,7 +2085,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
                 || buf.b_mtime_read_ns.get() != file_info.stat.st_mtim.tv_nsec as _
                 || os_fileinfo_size(&file_info) != buf.b_orig_size.get()
             {
-                ml_preserve(&mut *buf, false, do_fsync);
+                ml_preserve(buf, false, do_fsync);
                 g_st().did_check_timestamps.set(false);
                 g_st().need_check_timestamps.set(true);
             }
@@ -2096,7 +2096,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
             .is_some_and(|m| m.mf_dirty == MF_DIRTY_YES)
         {
             let sync_flags = (if check_char != 0 { MFS_STOP } else { 0 })
-                | (if do_fsync && buf_is_changed_fn(&mut *buf) {
+                | (if do_fsync && buf_is_changed_fn(buf) {
                     MFS_FLUSH
                 } else {
                     0
@@ -2110,7 +2110,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
 }
 
 /// Sync one buffer, including negative blocks.
-pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
+pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
     let got_int_save = g_st().got_int.get();
 
     if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fname.is_none()) {
@@ -2122,7 +2122,7 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
 
     g_st().got_int.set(false);
 
-    ml_flush_line(&mut *buf, false);
+    ml_flush_line(buf, false);
     ml_find_line(buf, 0, ML_FLUSH);
     let mut status = mf_sync(
         &mut buf.b_ml.mfp_mut(),
@@ -2171,7 +2171,7 @@ pub fn ml_get(lnum: Linenr) -> &'static CStr {
 }
 
 /// Return a reference to a (read-only copy of a) line in `buf`.
-pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
+pub fn ml_get_buf(buf: &FileBuf, lnum: Linenr) -> &'static CStr {
     ml_get_buf_impl(buf, lnum, false)
 }
 
@@ -2183,7 +2183,7 @@ pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
 
 /// Return the bytes (excluding NUL) of a line in `buf`.
 #[inline(always)]
-pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
+pub fn ml_get_buf_slice(buf: &FileBuf, lnum: Linenr) -> &'static [u8] {
     ml_get_buf(buf, lnum).to_bytes()
 }
 
@@ -2198,7 +2198,7 @@ pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
 /// Mutate the byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
 #[inline(always)]
 pub fn with_ml_get_buf_mut_slice<R>(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     f: impl FnOnce(&mut [u8]) -> R,
 ) -> R {
@@ -2245,12 +2245,12 @@ pub fn ml_get_pos_len(pos: &mut CursorPos) -> Colnr {
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
-pub fn ml_get_buf_len(buf: &mut FileBuf, lnum: Linenr) -> Colnr {
+pub fn ml_get_buf_len(buf: &FileBuf, lnum: Linenr) -> Colnr {
     ml_get_buf_slice(buf, lnum).len() as Colnr
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
-pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
+pub fn ml_region_text(buf: &FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
     let mut sb = Vec::<u8>::new();
     for lnum in start.lnum..=end.lnum {
         let line = ml_get_buf_slice(buf, lnum);
@@ -2281,7 +2281,7 @@ pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
     crate::mbyte::utf_slice2char(ml_get_pos_slice(pos))
 }
 
-fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'static CStr {
+fn ml_get_buf_impl(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> &'static CStr {
     if buf.b_ml.ml_mfp.borrow().is_none() {
         buf.b_ml.ml_line_textlen.set(1);
         return c"";
@@ -2376,7 +2376,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
     })
 }
 
-fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
+fn ml_get_errorret(buf: &FileBuf, lnum: Linenr) -> &'static CStr {
     buf.b_ml.ml_line_start.set(usize::MAX);
     buf.b_ml.ml_line_textlen.set(4);
     buf.b_ml.ml_line_lnum.set(lnum);
@@ -2388,7 +2388,7 @@ pub fn ml_line_alloced() -> i32 {
     curbuf_mut().b_ml.ml_flags.get() & ML_LINE_DIRTY
 }
 
-fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, flags: i32) -> bool {
+fn ml_append_int(buf: &FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, flags: i32) -> bool {
     let mut len = len_arg;
 
     if lnum > buf.b_ml.ml_line_count.get() || buf.b_ml.ml_mfp.borrow().is_none() {
@@ -2851,7 +2851,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
     true
 }
 
-fn ml_append_flush(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
+fn ml_append_flush(buf: &FileBuf, lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
     if lnum > buf.b_ml.ml_line_count.get() {
         return false;
     }
@@ -2875,13 +2875,7 @@ pub fn ml_append_flags(lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> boo
 }
 
 /// Like `ml_append()` but for an arbitrary buffer.
-pub fn ml_append_buf(
-    buf: &mut FileBuf,
-    lnum: Linenr,
-    line: &[u8],
-    len: Colnr,
-    newfile: bool,
-) -> bool {
+pub fn ml_append_buf(buf: &FileBuf, lnum: Linenr, line: &[u8], len: Colnr, newfile: bool) -> bool {
     if buf.b_ml.ml_mfp.borrow().is_none() {
         return false;
     }
@@ -2898,7 +2892,7 @@ pub fn ml_add_deleted_len(bytes: &[u8]) {
     ml_add_deleted_len_buf(curbuf_mut(), bytes);
 }
 
-pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, bytes: &[u8]) {
+pub fn ml_add_deleted_len_buf(buf: &FileBuf, bytes: &[u8]) {
     if g_st().inhibit_delete_count.get() != 0 {
         return;
     }
@@ -2924,20 +2918,14 @@ pub fn ml_replace_len(lnum: Linenr, line: &[u8], len: usize, copy: bool) -> bool
     ml_replace_buf_len(curbuf_mut(), lnum, line, len, copy, false)
 }
 
-pub fn ml_replace_buf(
-    buf: &mut FileBuf,
-    lnum: Linenr,
-    line: &[u8],
-    copy: bool,
-    noalloc: bool,
-) -> bool {
+pub fn ml_replace_buf(buf: &FileBuf, lnum: Linenr, line: &[u8], copy: bool, noalloc: bool) -> bool {
     let len = crate::memory::bytes_until_nul(line).len();
     ml_replace_buf_len(buf, lnum, line, len, copy, noalloc)
 }
 
 /// Replace line `lnum`, with buffering.
 pub fn ml_replace_buf_len(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     line_arg: &[u8],
     len_arg: usize,
@@ -2993,7 +2981,7 @@ pub fn ml_replace_buf_len(
 }
 
 /// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
-pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool) {
+pub fn ml_replace_dirty_line(buf: &FileBuf, bytes: &[u8], clear_empty: bool) {
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
     new_buf.extend_from_slice(bytes);
     new_buf.push(0);
@@ -3008,12 +2996,12 @@ pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool)
 }
 
 /// Delete line `lnum` in `buf`.
-pub fn ml_delete_buf(buf: &mut FileBuf, lnum: Linenr, message: bool) -> bool {
+pub fn ml_delete_buf(buf: &FileBuf, lnum: Linenr, message: bool) -> bool {
     ml_flush_line(buf, false);
     ml_delete_int(buf, lnum, if message { ML_DEL_MESSAGE } else { 0 })
 }
 
-fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
+fn ml_delete_int(buf: &FileBuf, lnum: Linenr, flags: i32) -> bool {
     ml_st(|st| {
         let low = st.lowest_marked.get();
         if low != 0 && low > lnum {
@@ -3267,7 +3255,7 @@ pub fn ml_clearmarked() {
 }
 
 pub fn ml_flush_deleted_bytes(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     codepoints: &mut usize,
     codeunits: &mut usize,
 ) -> usize {
@@ -3280,11 +3268,11 @@ pub fn ml_flush_deleted_bytes(
     ret
 }
 
-fn ml_flush_line(buf: &mut FileBuf, _noalloc: bool) {
+fn ml_flush_line(buf: &FileBuf, _noalloc: bool) {
     ml_flush_line_impl(buf, None);
 }
 
-fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
+fn ml_flush_line_impl(buf: &FileBuf, override_line: Option<&[u8]>) {
     if buf.b_ml.ml_line_lnum.get() == 0 || buf.b_ml.ml_mfp.borrow().is_none() {
         return;
     }
@@ -3416,7 +3404,7 @@ fn ml_new_ptr(mfp: &mut Memfile) -> BhdrId {
     hp
 }
 
-fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> {
+fn ml_find_line(buf: &FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> {
     assert!(buf.b_ml.mfp_ref().is_some(), "ml_mfp is None");
 
     if let Some(locked_id) = buf.b_ml.ml_locked.get() {
@@ -3576,17 +3564,17 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> 
     }
 }
 
-fn ml_find_line_error_noblock(buf: &mut FileBuf, action: i32) -> Option<BhdrId> {
+fn ml_find_line_error_noblock(buf: &FileBuf, action: i32) -> Option<BhdrId> {
     if action == ML_DELETE {
-        ml_lineadd(&mut *buf, 1);
+        ml_lineadd(buf, 1);
     } else if action == ML_INSERT {
-        ml_lineadd(&mut *buf, -1);
+        ml_lineadd(buf, -1);
     }
     buf.b_ml.ml_stack_top.set(0);
     None
 }
 
-fn ml_add_stack(buf: &mut FileBuf) -> i32 {
+fn ml_add_stack(buf: &FileBuf) -> i32 {
     let top = buf.b_ml.ml_stack_top.get();
     if (top as usize) == buf.b_ml.ml_stack.borrow().len() {
         buf.b_ml.ml_stack.borrow_mut().resize(
@@ -3598,7 +3586,7 @@ fn ml_add_stack(buf: &mut FileBuf) -> i32 {
     top
 }
 
-fn ml_lineadd(buf: &mut FileBuf, count: i32) {
+fn ml_lineadd(buf: &FileBuf, count: i32) {
     let mut mfp_guard = buf.b_ml.ml_mfp.borrow_mut();
     let mfp = mfp_guard.as_deref_mut().expect("ml_mfp is None");
     let mut stack = buf.b_ml.ml_stack.borrow_mut();
@@ -3738,7 +3726,7 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
     Some(retval)
 }
 
-fn attention_message(buf: &mut FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u8>) {
+fn attention_message(buf: &FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u8>) {
     assert!(buf.fname_opt().is_some());
     let buf_fname_cstr = buf.fname_cstr();
 
@@ -3787,7 +3775,7 @@ fn attention_message(buf: &mut FileBuf, fname: &CStr, fhname: &CStr, msg: &mut V
     sb_push_cstr(msg, tr(c"\"\n    to avoid this message.\n"));
 }
 
-fn do_swapexists(buf: &mut FileBuf, fname: &CStr) -> SeaChoice {
+fn do_swapexists(buf: &FileBuf, fname: &CStr) -> SeaChoice {
     set_vim_var_string(VV_SWAPNAME, Some(fname), -1);
     set_vim_var_string(VV_SWAPCHOICE, None, -1);
 
@@ -3814,7 +3802,7 @@ fn do_swapexists(buf: &mut FileBuf, fname: &CStr) -> SeaChoice {
 }
 
 fn findswapname(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     dirp: &mut &[u8],
     old_fname: Option<&CStr>,
     found_existing_dir: &mut bool,
@@ -3912,7 +3900,7 @@ fn findswapname(
 
                 if choice == SEA_CHOICE_NONE
                     && g_st().swap_exists_action.get() != SEA_NONE
-                    && has_autocmd(EVENT_SWAPEXISTS, buf_fname.as_deref(), Some(&mut *buf))
+                    && has_autocmd(EVENT_SWAPEXISTS, buf_fname.as_deref(), Some(buf))
                 {
                     choice = do_swapexists(buf, fname_cstr);
                 }
@@ -4089,7 +4077,7 @@ fn char_to_long(s: &[u8; 4]) -> i64 {
 }
 
 /// Set the flags in the first block of the swapfile.
-pub fn ml_setflags(buf: &mut FileBuf) {
+pub fn ml_setflags(buf: &FileBuf) {
     let Some(hp) = buf.b_ml.mfp_ref().and_then(|mfp| mfp.find_bhdr(0)) else {
         return;
     };
@@ -4108,7 +4096,7 @@ pub fn ml_setflags(buf: &mut FileBuf) {
     mf_sync(&mut buf.b_ml.mfp_mut(), MFS_ZERO);
 }
 
-fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
+fn ml_updatechunk(buf: &FileBuf, line: Linenr, mut len: i32, updtype: i32) {
     let (mut curline, mut curix, lastbuf) = ml_st(|st| {
         (
             st.ml_upd_lastcurline.get(),
@@ -4262,7 +4250,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
                     + buf.b_ml.ml_chunksize.borrow()[(curix - 1) as usize].mlcs_numlines)
                     > MLCS_MINL)
         {
-            let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+            let buf_ptr = crate::globals::BufPtr::from(buf);
             ml_st(|st| {
                 st.ml_upd_lastbuf.set(buf_ptr);
                 st.ml_upd_lastcurline.set(curline);
@@ -4289,7 +4277,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
         }
         return;
     }
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     ml_st(|st| {
         st.ml_upd_lastbuf.set(buf_ptr);
         st.ml_upd_lastcurline.set(curline);
@@ -4299,7 +4287,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
 
 /// Find offset for line or line with offset.
 pub fn ml_find_line_or_offset(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     mut offp: Option<&mut i32>,
     no_ff: bool,
@@ -4527,8 +4515,8 @@ mod tests {
 
     #[test]
     fn ml_get_buf_slice_returns_empty_when_unallocated() {
-        let mut buf = FileBuf::new();
-        assert_eq!(ml_get_buf_slice(&mut buf, 1), b"");
-        assert_eq!(ml_get_buf_len(&mut buf, 1), 0);
+        let buf = FileBuf::new();
+        assert_eq!(ml_get_buf_slice(&buf, 1), b"");
+        assert_eq!(ml_get_buf_len(&buf, 1), 0);
     }
 }

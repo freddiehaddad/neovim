@@ -943,7 +943,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 }
 
 /// Allocate terminal for channel.
-pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
+pub fn channel_terminal_alloc(buf: &FileBuf, chan: &mut Channel) {
     let topts = TerminalOptions {
         chan_id: chan.id,
         width: chan.uv.proc_.width,

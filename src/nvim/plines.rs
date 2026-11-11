@@ -90,7 +90,7 @@ impl CharsizeArg<'_> {
     }
 
     #[inline]
-    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+    pub fn win_mut(&self) -> &'static WinInfoInfo {
         self.win.borrow_mut()
     }
 
@@ -139,12 +139,7 @@ pub(crate) fn win_charsize(
 }
 
 #[inline]
-pub fn win_linetabsize(
-    wp: &mut WinInfoInfo,
-    lnum: Linenr,
-    line: &std::ffi::CStr,
-    len: Colnr,
-) -> i32 {
+pub fn win_linetabsize(wp: &WinInfoInfo, lnum: Linenr, line: &std::ffi::CStr, len: Colnr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
     if cstype == K_CHARSIZE_FAST {
@@ -154,11 +149,7 @@ pub fn win_linetabsize(
     }
 }
 
-pub fn win_chartabsize(
-    wp: &mut WinInfoInfo,
-    p: impl crate::mbyte::AsMbyteSlice,
-    col: Colnr,
-) -> i32 {
+pub fn win_chartabsize(wp: &WinInfoInfo, p: impl crate::mbyte::AsMbyteSlice, col: Colnr) -> i32 {
     p.with_cluster_bytes(|p| {
         if p.first().copied() == Some(TAB as u8)
             && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0)
@@ -180,11 +171,11 @@ pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
     }
 }
 
-pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn linetabsize(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     win_linetabsize(wp, lnum, ml_get_buf(wp.buf_mut(), lnum), MAXCOL)
 }
 
-pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn linetabsize_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize(wp, lnum)
         + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
             1
@@ -195,13 +186,13 @@ pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// Whether extmark-conceal may hide cells on line `lnum` of `wp` (see has_extconceal()), and
 /// 'concealcursor' does not reveal the line. Cheap: does not walk the marktree.
-pub fn line_has_extconceal(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
+pub fn line_has_extconceal(wp: &WinInfoInfo, lnum: Linenr) -> bool {
     lnum > 0 && has_extconceal(wp) && !conceal_cursor_reveals_line(wp, lnum)
 }
 
 /// Whether extmark-conceal (see CharsizeArg.extconceal_off), including marks an `_on_conceal`
 /// provider adds on demand, may change the layout of `wp`.
-pub fn has_extconceal(wp: &mut WinInfoInfo) -> bool {
+pub fn has_extconceal(wp: &WinInfoInfo) -> bool {
     wp.w_onebuf_opt.wo_wrap.get()
         && wp.w_onebuf_opt.wo_cole.get() > 0
         && (buf_meta_total(wp.buf_mut(), K_MTMETA_CONCEAL) > 0
@@ -210,11 +201,11 @@ pub fn has_extconceal(wp: &mut WinInfoInfo) -> bool {
 
 pub fn init_charsize_arg<'a>(
     csarg: &mut CharsizeArg<'a>,
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     line: &'a std::ffi::CStr,
 ) -> CSType {
-    csarg.win = crate::globals::WinPtr::from(&mut *wp);
+    csarg.win = crate::globals::WinPtr::from(wp);
     csarg.line = line;
     csarg.max_head_vcol = 0;
     csarg.extconceal_off = 0;
@@ -257,7 +248,7 @@ pub fn init_charsize_arg<'a>(
 /// `_on_conceal` provider, which may free the line buffer: read the line from `csarg.line`.
 pub fn init_charsize_arg_extconceal(
     csarg: &mut CharsizeArg<'_>,
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     spans: &mut ConcealSpans,
 ) -> CSType {
@@ -278,7 +269,7 @@ pub fn init_charsize_arg_extconceal(
 
 pub fn init_charsize_arg_skip_cur_text<'a>(
     csarg: &mut CharsizeArg<'a>,
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     line: &'a std::ffi::CStr,
 ) -> CSType {
@@ -291,18 +282,13 @@ pub fn init_charsize_arg_skip_cur_text<'a>(
     cstype
 }
 
-fn inline_virt_text_width(
-    wp: &mut WinInfoInfo,
-    iter: &mut MarkTreeIter,
-    row: i32,
-    col: i32,
-) -> i32 {
+fn inline_virt_text_width(wp: &WinInfoInfo, iter: &mut MarkTreeIter, row: i32, col: i32) -> i32 {
     let mut width: i32 = 0;
     loop {
         let mark = marktree_itr_current(&wp.buf_mut().b_marktree.borrow(), iter);
         if mark.pos.row != row || mark.pos.col > col {
             break;
-        } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
+        } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
             let decor = mt_decor(mark);
             crate::decoration::for_each_virt_text(
                 if decor.is_ext() {
@@ -330,7 +316,7 @@ fn inline_virt_text_width(
 
 /// Collects the extmark-conceal of row `row` (`len` bytes) into `spans`, without invoking
 /// `_on_conceal`.
-pub fn conceal_spans_collect(wp: &mut WinInfoInfo, row: i32, len: i32, spans: &mut ConcealSpans) {
+pub fn conceal_spans_collect(wp: &WinInfoInfo, row: i32, len: i32, spans: &mut ConcealSpans) {
     if !decor_row_has_conceal(wp, row) {
         return;
     }
@@ -480,7 +466,7 @@ pub fn charsize_regular(
                 let mark = marktree_itr_current(&buf.b_marktree.borrow(), &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
-                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
+                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                     let decor = mt_decor(mark);
                     crate::decoration::for_each_virt_text(
                         if decor.is_ext() {
@@ -543,13 +529,13 @@ pub fn charsize_regular(
 
         if is_doublewidth
             && wp.w_onebuf_opt.wo_wrap.get()
-            && in_win_border(&mut *wp, disp_vcol + size - 2)
+            && in_win_border(wp, disp_vcol + size - 2)
         {
             size += 1;
             mb_added = 1;
         }
 
-        let sbr = get_showbreak_value(&*wp);
+        let sbr = get_showbreak_value(wp);
 
         let mut head = mb_added;
         if size > 0
@@ -557,7 +543,7 @@ pub fn charsize_regular(
             && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri.get())
         {
             let mut col_off_prev = win_col_off(wp);
-            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(&mut *wp);
+            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(wp);
             let mut wcol = disp_vcol + col_off_prev;
             let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
@@ -576,7 +562,7 @@ pub fn charsize_regular(
                         head_prev += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri.get() {
-                        head_prev += get_breakindent_win(&mut *wp, line_bytes);
+                        head_prev += get_breakindent_win(wp, line_bytes);
                     }
                     csarg.indent_width = head_prev;
                 }
@@ -601,7 +587,7 @@ pub fn charsize_regular(
                         head_mid += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri.get() {
-                        head_mid += get_breakindent_win(&mut *wp, line_bytes);
+                        head_mid += get_breakindent_win(wp, line_bytes);
                     }
                     csarg.indent_width = head_mid;
                 }
@@ -662,7 +648,7 @@ pub fn charsize_regular(
             let mut colmax: Colnr = wp.w_view_width.get() - numberextra - col_adj;
             if disp_vcol >= colmax {
                 colmax += col_adj;
-                let n = colmax + win_col_off2(&mut *wp);
+                let n = colmax + win_col_off2(wp);
                 if n > 0 {
                     colmax += (((disp_vcol + col_adj - colmax) / n) + 1) * n - col_adj;
                 }
@@ -698,7 +684,7 @@ pub fn charsize_regular(
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(&mut *wp, &mut virt_iter, csarg.virt_row, col)
+                    inline_virt_text_width(wp, &mut virt_iter, csarg.virt_row, col)
                 } else {
                     0
                 };
@@ -714,12 +700,12 @@ pub fn charsize_regular(
                         &buf.b_p_vts_array.borrow(),
                     )
                 } else {
-                    win_chartabsize(&mut *wp, s_bytes, raw_vcol2)
+                    win_chartabsize(wp, s_bytes, raw_vcol2)
                 };
                 let mut w = if use_raw_width {
                     raw_w
                 } else {
-                    win_chartabsize(&mut *wp, s_bytes, vcol2 + virt_width)
+                    win_chartabsize(wp, s_bytes, vcol2 + virt_width)
                 };
 
                 let span = csarg
@@ -776,7 +762,7 @@ pub fn charsize_regular(
 
 #[inline]
 fn charsize_fast_impl(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     use_tabstop: bool,
     vcol: Colnr,
     cur_char: i32,
@@ -839,7 +825,7 @@ pub fn charsize_fast(
 }
 
 pub fn charsize_nowrap(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     use_tabstop: bool,
     vcol: Colnr,
     cur_char: i32,
@@ -854,7 +840,7 @@ pub fn charsize_nowrap(
     }
 }
 
-fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
+fn in_win_border(wp: &WinInfoInfo, vcol: Colnr) -> bool {
     if wp.w_view_width.get() == 0 {
         return false;
     }
@@ -874,7 +860,7 @@ fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
 
 /// Converts the displayed cell at `disp_vcol` (see CharsizeArg.extconceal_off) to its raw vcol.
 /// MAXCOL stays MAXCOL.
-pub fn disp_vcol2vcol(wp: &mut WinInfoInfo, lnum: Linenr, disp_vcol: Colnr) -> Colnr {
+pub fn disp_vcol2vcol(wp: &WinInfoInfo, lnum: Linenr, disp_vcol: Colnr) -> Colnr {
     if disp_vcol == MAXCOL {
         MAXCOL
     } else {
@@ -884,7 +870,7 @@ pub fn disp_vcol2vcol(wp: &mut WinInfoInfo, lnum: Linenr, disp_vcol: Colnr) -> C
 }
 
 /// Converts the raw cell at `vcol` to its displayed vcol (see disp_vcol2vcol()).
-pub fn vcol2disp_vcol(wp: &mut WinInfoInfo, lnum: Linenr, vcol: Colnr) -> Colnr {
+pub fn vcol2disp_vcol(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr) -> Colnr {
     if vcol == MAXCOL {
         MAXCOL
     } else {
@@ -894,7 +880,7 @@ pub fn vcol2disp_vcol(wp: &mut WinInfoInfo, lnum: Linenr, vcol: Colnr) -> Colnr 
 }
 
 /// Like linetabsize(), but excludes cells hidden by extmark-conceal.
-pub fn linetabsize_disp(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn linetabsize_disp(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, wp, lnum, &mut spans);
@@ -906,7 +892,7 @@ pub fn linetabsize_disp(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 }
 
 /// Like linetabsize_disp(), but counts the size of 'listchars' "eol".
-pub fn linetabsize_disp_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn linetabsize_disp_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize_disp(wp, lnum)
         + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
             1
@@ -917,7 +903,7 @@ pub fn linetabsize_disp_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// Maps `target` on line `lnum` between raw and displayed vcols (see CharsizeArg.extconceal_off).
 fn extconceal_vcol_map(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     target: i64,
     to_disp: bool,
@@ -1100,7 +1086,7 @@ fn virt_text_cursor_off(csarg: &CharsizeArg<'_>, on_nul: bool) -> i32 {
 }
 
 pub fn getvcol(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     pos: &mut CursorPos,
     mut start: Option<&mut Colnr>,
     mut cursor: Option<&mut Colnr>,
@@ -1113,10 +1099,10 @@ pub fn getvcol(
     let mut on_nul = false;
     let mut spans = ConcealSpans::new();
     let cstype = if (flags & GETVCOL_DISP) != 0 {
-        init_charsize_arg_extconceal(&mut csarg, &mut *wp, pos.lnum, &mut spans)
+        init_charsize_arg_extconceal(&mut csarg, wp, pos.lnum, &mut spans)
     } else {
         let line_ptr = ml_get_buf(wp.buf_mut(), pos.lnum);
-        init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_ptr)
+        init_charsize_arg(&mut csarg, wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;
 
@@ -1139,7 +1125,7 @@ pub fn getvcol(
                 break;
             }
             let cli = utf_cluster_info(ci);
-            char_size = charsize_fast_impl(&mut *wp, use_tabstop, vcol, ci.chr.value, cli.cells);
+            char_size = charsize_fast_impl(wp, use_tabstop, vcol, ci.chr.value, cli.cells);
             let next = cli.next;
             if (next.offset_from(csarg.line) as Colnr) > end_col {
                 break;
@@ -1196,7 +1182,7 @@ pub fn getvcol(
             && !concealed
             && (g_st().state_global.get() & MODE_NORMAL) != 0
             && !wp.w_onebuf_opt.wo_list.get()
-            && !virtual_active(&mut *wp)
+            && !virtual_active(wp)
             && !(g_st().visual_global.borrow().active
                 && (opt_vars().p_sel.first_byte() == b'e'
                     || ltoreq(*pos, g_st().visual_global.borrow().start)))
@@ -1226,7 +1212,7 @@ pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
 }
 
 pub fn getvvcol(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     pos: &mut CursorPos,
     mut start: Option<&mut Colnr>,
     mut cursor: Option<&mut Colnr>,
@@ -1235,8 +1221,8 @@ pub fn getvvcol(
 ) {
     let mut col: Colnr = 0;
 
-    if virtual_active(&mut *wp) {
-        getvcol(&mut *wp, pos, Some(&mut col), None, None, flags);
+    if virtual_active(wp) {
+        getvcol(wp, pos, Some(&mut col), None, None, flags);
         let mut coladd = pos.coladd;
         let mut endadd: Colnr = 0;
 
@@ -1266,7 +1252,7 @@ pub fn getvvcol(
         }
     } else {
         getvcol(
-            &mut *wp,
+            wp,
             pos,
             (start.is_some()).then(|| &mut *start.unwrap()),
             (cursor.is_some()).then(|| &mut *cursor.unwrap()),
@@ -1277,7 +1263,7 @@ pub fn getvvcol(
 }
 
 pub fn getvcols(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     pos1: &mut CursorPos,
     pos2: &mut CursorPos,
     left: &mut Colnr,
@@ -1310,27 +1296,27 @@ pub fn getvcols(
     }
 }
 
-pub fn win_may_fill(wp: &mut WinInfoInfo) -> bool {
+pub fn win_may_fill(wp: &WinInfoInfo) -> bool {
     (wp.w_onebuf_opt.wo_diff.get() && diffopt_filler())
         || wp.buf_mut().b_marktree.borrow().meta_root[K_MTMETA_LINES] != 0
 }
 
-pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn win_get_fill(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     decor_virt_lines(wp, lnum - 1, lnum, None, None, true) + diff_check_fill(wp, lnum)
 }
 
-pub fn plines_win(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
+pub fn plines_win(wp: &WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
     plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(wp, lnum)
 }
 
-pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
+pub fn plines_win_nofill(wp: &WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
     if decor_conceal_line(wp, lnum - 1, false) {
         return 0;
     }
-    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width.get() == 0 || line_folded(&mut *wp, lnum) {
+    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width.get() == 0 || line_folded(wp, lnum) {
         return 1;
     }
-    let lines = plines_win_nofold(&mut *wp, lnum);
+    let lines = plines_win_nofold(wp, lnum);
     if limit_winheight && lines > wp.w_view_height.get() {
         wp.w_view_height.get()
     } else {
@@ -1338,10 +1324,10 @@ pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bo
     }
 }
 
-pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn plines_win_nofold(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
-    let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
+    let cstype = init_charsize_arg_extconceal(&mut csarg, wp, lnum, &mut spans);
     if csarg.line.to_bytes().is_empty() && csarg.virt_row < 0 {
         return 1;
     }
@@ -1364,7 +1350,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
         return 1;
     }
     col -= i64::from(width);
-    width += win_col_off2(&mut *wp);
+    width += win_col_off2(wp);
     let lines = (col + (i64::from(width) - 1)) / i64::from(width) + 1;
     if lines > 0 && lines <= i64::from(i32::MAX) {
         lines as i32
@@ -1373,7 +1359,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     }
 }
 
-pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
+pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut lines = win_get_fill(wp, lnum);
     if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width.get() == 0 {
         return lines + 1;
@@ -1381,7 +1367,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
-    let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
+    let cstype = init_charsize_arg_extconceal(&mut csarg, wp, lnum, &mut spans);
     let line_cstr = csarg.line;
 
     let mut vcol: Colnr = 0;
@@ -1392,7 +1378,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
         let use_tabstop = csarg.use_tabstop;
         while !ci.ptr.is_empty() && ci.offset_from(line_cstr) < limit_col {
             let cli = utf_cluster_info(ci);
-            vcol += charsize_fast_impl(&mut *wp, use_tabstop, vcol, ci.chr.value, cli.cells).width;
+            vcol += charsize_fast_impl(wp, use_tabstop, vcol, ci.chr.value, cli.cells).width;
             ci = cli.next;
         }
         raw_vcol = vcol;
@@ -1421,20 +1407,20 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
     lines += 1;
     if col > width {
-        lines += (col - width) / (width + win_col_off2(&mut *wp)) + 1;
+        lines += (col - width) / (width + win_col_off2(wp)) + 1;
     }
     lines
 }
 
 pub fn plines_win_full(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     mut lnum: Linenr,
     nextp: Option<&mut Linenr>,
     mut foldedp: Option<&mut bool>,
     cache: bool,
     limit_winheight: bool,
 ) -> i32 {
-    let folded = has_folding_win(&mut *wp, lnum, Some(&mut lnum), nextp, cache, None);
+    let folded = has_folding_win(wp, lnum, Some(&mut lnum), nextp, cache, None);
     if let Some(ref mut p) = foldedp {
         **p = folded;
     }
@@ -1442,7 +1428,7 @@ pub fn plines_win_full(
     let filler_lines = if lnum == wp.w_topline.get() {
         wp.w_topfill.get()
     } else {
-        win_get_fill(&mut *wp, lnum)
+        win_get_fill(wp, lnum)
     };
 
     if decor_conceal_line(wp, lnum - 1, false) {
@@ -1456,11 +1442,11 @@ pub fn plines_win_full(
     }) + filler_lines
 }
 
-pub fn plines_m_win(wp: &mut WinInfoInfo, mut first: Linenr, last: Linenr, max: i32) -> i32 {
+pub fn plines_m_win(wp: &WinInfoInfo, mut first: Linenr, last: Linenr, max: i32) -> i32 {
     let mut count = 0;
     while first <= last && count < max {
         let mut next = first;
-        count += plines_win_full(&mut *wp, first, Some(&mut next), None, false, false);
+        count += plines_win_full(wp, first, Some(&mut next), None, false, false);
         first = next + 1;
     }
     if first == wp.buf_mut().b_ml.ml_line_count.get() + 1 {
@@ -1469,7 +1455,7 @@ pub fn plines_m_win(wp: &mut WinInfoInfo, mut first: Linenr, last: Linenr, max: 
     max.min(count)
 }
 
-pub fn plines_m_win_fill(wp: &mut WinInfoInfo, first: Linenr, last: Linenr) -> i32 {
+pub fn plines_m_win_fill(wp: &WinInfoInfo, first: Linenr, last: Linenr) -> i32 {
     let mut count = last - first + 1 + decor_virt_lines(wp, first - 1, last, None, None, false);
 
     if diffopt_filler() {
@@ -1483,7 +1469,7 @@ pub fn plines_m_win_fill(wp: &mut WinInfoInfo, first: Linenr, last: Linenr) -> i
 }
 
 pub fn win_text_height(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     start_lnum: Linenr,
     start_vcol: i64,
     end_lnum: &mut Linenr,
@@ -1505,11 +1491,11 @@ pub fn win_text_height(
 
     if start_vcol >= 0 {
         let mut lnum_next = lnum;
-        cur_folded = has_folding(&mut *wp, lnum, Some(&mut lnum), Some(&mut lnum_next));
-        height_cur_nofill = i64::from(plines_win_nofill(&mut *wp, lnum, false));
+        cur_folded = has_folding(wp, lnum, Some(&mut lnum), Some(&mut lnum_next));
+        height_cur_nofill = i64::from(plines_win_nofill(wp, lnum, false));
         height_sum_nofill += height_cur_nofill;
         let start_disp = if !vcol_is_disp && !cur_folded {
-            extconceal_vcol_map(&mut *wp, lnum, start_vcol, true, false)
+            extconceal_vcol_map(wp, lnum, start_vcol, true, false)
         } else {
             start_vcol
         };
@@ -1524,9 +1510,9 @@ pub fn win_text_height(
 
     while lnum <= *end_lnum && height_sum_nofill + height_sum_fill < max {
         let mut lnum_next = lnum;
-        cur_folded = has_folding(&mut *wp, lnum, Some(&mut lnum), Some(&mut lnum_next));
+        cur_folded = has_folding(wp, lnum, Some(&mut lnum), Some(&mut lnum_next));
         height_sum_fill += i64::from(win_get_fill(wp, lnum));
-        height_cur_nofill = i64::from(plines_win_nofill(&mut *wp, lnum, false));
+        height_cur_nofill = i64::from(plines_win_nofill(wp, lnum, false));
         height_sum_nofill += height_cur_nofill;
         cur_lnum = lnum;
         lnum = lnum_next + 1;
@@ -1537,7 +1523,7 @@ pub fn win_text_height(
     if use_vcol {
         height_sum_nofill -= height_cur_nofill;
         let end_disp = if !vcol_is_disp && !cur_folded {
-            extconceal_vcol_map(&mut *wp, cur_lnum, vcol_end, true, false)
+            extconceal_vcol_map(wp, cur_lnum, vcol_end, true, false)
         } else {
             vcol_end
         };
@@ -1555,9 +1541,9 @@ pub fn win_text_height(
         vcol_end = 0;
     } else {
         let linesize = i64::from(if vcol_is_disp {
-            linetabsize_disp_eol(&mut *wp, cur_lnum)
+            linetabsize_disp_eol(wp, cur_lnum)
         } else {
-            linetabsize_eol(&mut *wp, cur_lnum)
+            linetabsize_eol(wp, cur_lnum)
         });
         vcol_end = (if use_vcol { vcol_end } else { i64::MAX }).min(linesize);
     }
@@ -1567,7 +1553,7 @@ pub fn win_text_height(
         let mut end_disp = if vcol_is_disp {
             vcol_end
         } else {
-            extconceal_vcol_map(&mut *wp, cur_lnum, vcol_end, true, false)
+            extconceal_vcol_map(wp, cur_lnum, vcol_end, true, false)
         };
         if end_disp > i64::from(width2) {
             end_disp -= (end_disp - i64::from(width1)) % i64::from(width2)
@@ -1575,7 +1561,7 @@ pub fn win_text_height(
             vcol_end = if vcol_is_disp {
                 end_disp
             } else {
-                extconceal_vcol_map(&mut *wp, cur_lnum, end_disp, false, false)
+                extconceal_vcol_map(wp, cur_lnum, end_disp, false, false)
             };
         }
     }
@@ -1588,7 +1574,7 @@ pub fn win_text_height(
     height_sum_fill + height_sum_nofill
 }
 
-pub fn win_max_displaywidth(wp: &mut WinInfoInfo, first: Linenr, last: Linenr, max: i32) -> i32 {
+pub fn win_max_displaywidth(wp: &WinInfoInfo, first: Linenr, last: Linenr, max: i32) -> i32 {
     let mut width = 0;
     let mut lnum = first;
     while lnum <= last && width < max {

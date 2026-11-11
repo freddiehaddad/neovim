@@ -3277,7 +3277,7 @@ fn get_tag_details(tag: &mut Taggy, retdict: &TvDict) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &TvDict) {
+pub fn get_tagstack(wp: &WinInfoInfo, retdict: &TvDict) {
     tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen.get() as Varnumber);
     tv_dict_add_nr(
         retdict,
@@ -3294,7 +3294,7 @@ pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &TvDict) {
     }
 }
 
-fn tagstack_clear(wp: &mut WinInfoInfo) {
+fn tagstack_clear(wp: &WinInfoInfo) {
     for i in 0..wp.w_tagstacklen.get() as usize {
         tagstack_clear_entry(&mut wp.w_tagstack.borrow_mut()[i]);
     }
@@ -3302,7 +3302,7 @@ fn tagstack_clear(wp: &mut WinInfoInfo) {
     wp.w_tagstackidx.set(0);
 }
 
-fn tagstack_shift(wp: &mut WinInfoInfo) {
+fn tagstack_shift(wp: &WinInfoInfo) {
     let len = wp.w_tagstacklen.get() as usize;
     (&mut wp.w_tagstack.borrow_mut())[..len].rotate_left(1);
     tagstack_clear_entry(&mut wp.w_tagstack.borrow_mut()[len - 1]);
@@ -3310,7 +3310,7 @@ fn tagstack_shift(wp: &mut WinInfoInfo) {
 }
 
 fn tagstack_push_item(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     tagname: Option<std::ffi::CString>,
     cur_fnum: i32,
     cur_match: i32,
@@ -3339,7 +3339,7 @@ fn tagstack_push_item(
     entry.user_data = user_data;
 }
 
-fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
+fn tagstack_push_items(wp: &WinInfoInfo, l: Option<&TvList>) {
     for li in tv_list_iter(l) {
         let itemdict_id = {
             let li_tv = li.tv();
@@ -3379,13 +3379,13 @@ fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
     }
 }
 
-fn tagstack_set_curidx(wp: &mut WinInfoInfo, curidx: i32) {
+fn tagstack_set_curidx(wp: &WinInfoInfo, curidx: i32) {
     wp.w_tagstackidx
         .set(curidx.max(0).min(wp.w_tagstacklen.get()));
 }
 
 /// Set the tag stack entries of the specified window.
-pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
+pub fn set_tagstack(wp: &WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
     if tag_st(|st| st.tfu_in_use.get()) {
         emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
         return false;
@@ -3422,7 +3422,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bo
             tagstack_clear(wp);
         }
 
-        tagstack_push_items(&mut *wp, l);
+        tagstack_push_items(wp, l);
         wp.w_tagstackidx.set(wp.w_tagstacklen.get());
     }
 

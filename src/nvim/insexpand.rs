@@ -2582,7 +2582,7 @@ pub fn ins_compl_active() -> bool {
     INSEXPAND.with(|s| s.compl_started.get())
 }
 
-pub fn ins_compl_win_active(wp: &mut WinInfoInfo) -> bool {
+pub fn ins_compl_win_active(wp: &WinInfoInfo) -> bool {
     ins_compl_active()
         && INSEXPAND.with(|s| s.compl_curr_win.get()) == wp
         && INSEXPAND.with(|s| s.compl_curr_buf.get()) == wp.w_buffer.get()
@@ -3272,8 +3272,8 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
     redo_append_lit(&ptr_bytes[len.min(ptr_bytes.len())..]);
 }
 
-fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
-    let mut buf = crate::globals::BufPtr::from(&*buf_arg);
+fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> &'static FileBuf {
+    let mut buf = crate::globals::BufPtr::from(buf_arg);
     if flag == b'w' as i32 {
         if g_st().curbuf.get() == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
             INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::curwin_ptr()));
@@ -3362,7 +3362,7 @@ fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {
     }
 }
 
-pub fn set_buflocal_cpt_callbacks(buf: Option<&mut FileBuf>) {
+pub fn set_buflocal_cpt_callbacks(buf: Option<&FileBuf>) {
     let Some(buf) = buf else {
         return;
     };
@@ -4135,7 +4135,7 @@ fn process_next_cpt_value(
         && !INSEXPAND.with(|s| s.compl_time_slice_expired.get())
         && crate::strings::vim_haschr(c"buwU", i32::from(st.e_cpt_char()))
         && {
-            st.ins_buf = crate::globals::BufPtr::new(ins_compl_next_buf(
+            st.ins_buf = crate::globals::BufPtr::from(ins_compl_next_buf(
                 st.ins_buf.borrow_mut(),
                 i32::from(st.e_cpt_char()),
             ));
@@ -4657,7 +4657,7 @@ fn get_next_spell_completion(lnum: Linenr) {
 }
 
 fn ins_compl_get_next_word_or_line<'a>(
-    ins_buf: &'a mut FileBuf,
+    ins_buf: &'a FileBuf,
     cur_match_pos: &mut CursorPos,
     match_len: &mut i32,
     cont_s_ipos: &mut bool,
@@ -6687,7 +6687,7 @@ fn ins_compl_start() -> bool {
             g_st().edit_submode_pre.set(Some(gettext(c" Adding")));
         }
         if ctrl_x_mode_line_or_eval() {
-            let old = std::mem::take(&mut curbuf_mut().b_p_com);
+            let old = curbuf_mut().b_p_com.take();
             let lnum = curwin_mut().w_cursor.get().lnum;
             INSEXPAND.with(|s| {
                 let mut p = s.compl_startpos.get();
@@ -6701,7 +6701,7 @@ fn ins_compl_start() -> bool {
                 s.compl_startpos.set(p);
             });
             ins_eol(b'\r' as i32);
-            curbuf_mut().b_p_com = old;
+            curbuf_mut().b_p_com.set(old);
             INSEXPAND.with(|s| s.compl_length.set(0));
             INSEXPAND.with(|s| s.compl_col.set(curwin_mut().w_cursor.get().col));
             INSEXPAND.with(|s| s.compl_lnum.set(curwin_mut().w_cursor.get().lnum));

@@ -173,7 +173,7 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-pub fn ns_in_win(ns_id: u32, wp: &mut WinInfoInfo) -> bool {
+pub fn ns_in_win(ns_id: u32, wp: &WinInfoInfo) -> bool {
     if !g_st().namespace_localscope.borrow().contains(&ns_id) {
         return true;
     }
@@ -1098,7 +1098,7 @@ pub fn nvim_buf_set_extmark(
             len = if opts.ephemeral {
                 MAXCOL as Colnr
             } else {
-                ml_get_buf_len(&mut *b, (line as Linenr) + 1)
+                ml_get_buf_len(b, (line as Linenr) + 1)
             };
         }
 
@@ -1120,7 +1120,7 @@ pub fn nvim_buf_set_extmark(
                 len = if opts.ephemeral {
                     MAXCOL as Colnr
                 } else {
-                    ml_get_buf_len(&mut *b, line2 + 1)
+                    ml_get_buf_len(b, line2 + 1)
                 };
             } else if line2 == b.b_ml.ml_line_count.get() {
                 len = 0;
@@ -1140,7 +1140,7 @@ pub fn nvim_buf_set_extmark(
 
         if opts.ephemeral
             && !g_st().decor_state.borrow().win.is_null()
-            && g_st().decor_state.borrow().win.w_buffer.get() == (&raw mut *b)
+            && g_st().decor_state.borrow().win.w_buffer.get() == (std::ptr::from_ref(b).cast_mut())
         {
             let r = line as i32;
             let c = col as i32;
@@ -1508,7 +1508,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     if count != if enabled { 1 } else { 0 } {
         return;
     }
-    let b_ptr = crate::globals::BufPtr::from(&*b);
+    let b_ptr = crate::globals::BufPtr::from(b);
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(if g_st().curtab.get() == tp {
             g_st().firstwin.get().as_ptr()
@@ -1523,7 +1523,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
 }
 
 fn extmark_get_index_from_obj(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ns_id: Integer,
     obj: Object,
     row: &mut i32,
@@ -1711,7 +1711,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
-                if windows.contains(&(&raw mut *wp))
+                if windows.contains(&(std::ptr::from_ref(wp).cast_mut()))
                     && wp.w_ns_set.borrow_mut().insert(ns_id as u32)
                     && (*wp)
                         .buf_mut()
@@ -1719,10 +1719,10 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                         .borrow()
                         .contains_key(&(ns_id as u32))
                 {
-                    changed_window_setting(&mut *wp);
+                    changed_window_setting(wp);
                 }
 
-                if !windows.contains(&(&raw mut *wp))
+                if !windows.contains(&(std::ptr::from_ref(wp).cast_mut()))
                     && wp.w_ns_set.borrow_mut().remove(&(ns_id as u32))
                     && (*wp)
                         .buf_mut()
@@ -1730,7 +1730,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                         .borrow()
                         .contains_key(&(ns_id as u32))
                 {
-                    changed_window_setting(&mut *wp);
+                    changed_window_setting(wp);
                 }
             }
         }

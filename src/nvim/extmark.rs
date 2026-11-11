@@ -203,17 +203,17 @@ pub enum ExtmarkUndoObject {
 
 /// Records a raw mark's position in the open undo block, for `extmark_apply_undo()` to replay.
 fn extmark_push_savepos(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     mark: u64,
     undo_row: i32,
     undo_col: Colnr,
     redo_row: i32,
     redo_col: Colnr,
 ) {
-    let Some(uh) = u_force_get_undo_header(&mut *buf) else {
+    let Some(uh) = u_force_get_undo_header(buf) else {
         return;
     };
-    crate::undo::uhp_mut(&*buf, uh)
+    crate::undo::uhp_mut(buf, uh)
         .uh_extmark
         .push(ExtmarkUndoObject::SavePos(ExtmarkSavePos {
             mark,
@@ -227,7 +227,7 @@ fn extmark_push_savepos(
 
 /// Create or update an extmark (`extmark_set`).
 pub fn extmark_set(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ns_id: u32,
     mut idp: Option<&mut u32>,
     row: i32,
@@ -336,8 +336,8 @@ pub fn extmark_set(
 
     if decor_flags != 0 || decor.is_ext() {
         let r2 = if end_row > -1 { end_row } else { row };
-        buf_put_decor(&mut *buf, decor, row, r2);
-        decor_redraw(&mut *buf, row, r2, col, decor);
+        buf_put_decor(buf, decor, row, r2);
+        decor_redraw(buf, row, r2, col, decor);
     }
 
     if let Some(ref mut p) = idp {
@@ -359,7 +359,7 @@ pub fn extmark_set(
 }
 
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
-fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) {
+fn extmark_setraw(buf: &FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) {
     let mut itr = MarkTreeIter::new();
     let key = marktree_lookup(&buf.b_marktree.borrow(), mark, Some(&mut itr));
     let move_ = key.pos.row != row || key.pos.col != col;
@@ -369,13 +369,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
     }
 
     if !invalid && mt_decor_any(key) && key.pos.row != row {
-        decor_redraw(
-            &mut *buf,
-            key.pos.row,
-            key.pos.row,
-            key.pos.col,
-            mt_decor(key),
-        );
+        decor_redraw(buf, key.pos.row, key.pos.row, key.pos.col, mt_decor(key));
     }
 
     let mut row1: i32 = 0;
@@ -398,7 +392,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
         row1 = alt.pos.row.min(key.pos.row.min(row));
         row2 = alt.pos.row.max(key.pos.row.max(row));
         buf_signcols_count_range(
-            &mut *buf,
+            buf,
             row1,
             (curbuf_mut().b_ml.ml_line_count.get() - 1).min(row2),
             0,
@@ -412,7 +406,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
 
     if invalid {
         buf_put_decor(
-            &mut *buf,
+            buf,
             mt_decor(key),
             row.min(alt.pos.row),
             row.max(alt.pos.row),
@@ -422,7 +416,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
         && buf.b_signcols.autom.get()
     {
         buf_signcols_count_range(
-            &mut *buf,
+            buf,
             row1,
             (curbuf_mut().b_ml.ml_line_count.get() - 1).min(row2),
             0,
@@ -432,7 +426,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
 }
 
 /// Remove an extmark in `ns_id` by `id` (`extmark_del_id`).
-pub fn extmark_del_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> bool {
+pub fn extmark_del_id(buf: &FileBuf, ns_id: u32, id: u32) -> bool {
     let mut itr = MarkTreeIter::new();
     let key = marktree_lookup_ns(&buf.b_marktree.borrow(), ns_id, id, false, Some(&mut itr));
     if key.id != 0 {
@@ -442,7 +436,7 @@ pub fn extmark_del_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> bool {
 }
 
 /// Remove a (paired) extmark `key` pointed to by `itr` (`extmark_del`).
-pub fn extmark_del(buf: &mut FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, restore: bool) {
+pub fn extmark_del(buf: &FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, restore: bool) {
     debug_assert!(key.pos.row >= 0);
 
     let mut key2 = key;
@@ -479,7 +473,7 @@ pub fn extmark_del(buf: &mut FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, re
 
 /// Free extmarks in a ns between lines (`extmark_clear`).
 pub fn extmark_clear(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ns_id: u32,
     l_row: i32,
     l_col: Colnr,
@@ -539,7 +533,7 @@ pub fn extmark_clear(
 
 /// Return the position of marks between a range (`extmark_get`).
 pub fn extmark_get(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ns_id: u32,
     l_row: i32,
     l_col: Colnr,
@@ -614,7 +608,7 @@ fn push_mark(array: &mut ExtmarkInfoArray, ns_id: u32, type_filter: ExtmarkType,
 }
 
 /// Lookup an extmark by id (`extmark_from_id`).
-pub fn extmark_from_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> MTPair {
+pub fn extmark_from_id(buf: &FileBuf, ns_id: u32, id: u32) -> MTPair {
     let mark = marktree_lookup_ns(&buf.b_marktree.borrow(), ns_id, id, false, None);
     if mark.id == 0 {
         return mtpair_from(mark, mark);
@@ -627,7 +621,7 @@ pub fn extmark_from_id(buf: &mut FileBuf, ns_id: u32, id: u32) -> MTPair {
 
 /// Creates or updates point extmark (`extmark_set_pos`).
 pub fn extmark_set_pos(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     ns_id: u32,
     mark: &mut u32,
     pos: CursorPos,
@@ -659,7 +653,7 @@ pub fn extmark_set_pos(
 }
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
-pub fn extmark_get_pos(buf: &mut FileBuf, ns_id: u32, id: u32, pos: &mut CursorPos) -> bool {
+pub fn extmark_get_pos(buf: &FileBuf, ns_id: u32, id: u32, pos: &mut CursorPos) -> bool {
     let mtp = extmark_from_id(buf, ns_id, id);
     if mtp.start.id == 0 {
         return false;
@@ -670,7 +664,7 @@ pub fn extmark_get_pos(buf: &mut FileBuf, ns_id: u32, id: u32, pos: &mut CursorP
 }
 
 /// Free extmarks from the buffer (`extmark_free_all`).
-pub fn extmark_free_all(buf: &mut FileBuf) {
+pub fn extmark_free_all(buf: &FileBuf) {
     let mut itr = MarkTreeIter::new();
     marktree_itr_get(&buf.b_marktree.borrow(), 0, 0, &mut itr);
     loop {
@@ -698,7 +692,7 @@ pub fn extmark_free_all(buf: &mut FileBuf) {
 
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
 pub fn extmark_splice_delete(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     l_row: i32,
     l_col: Colnr,
     u_row: i32,
@@ -869,7 +863,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
 
 /// Adjust extmark row for inserted/deleted rows (`extmark_adjust`).
 pub fn extmark_adjust(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     line1: Linenr,
     line2: Linenr,
     amount: Linenr,
@@ -914,7 +908,7 @@ pub fn extmark_adjust(
 
 /// Adjusts extmarks after a text edit, and emits the `on_bytes` event (`extmark_splice`).
 pub fn extmark_splice(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_row: i32,
     start_col: Colnr,
     old_row: i32,
@@ -945,7 +939,7 @@ pub fn extmark_splice(
 }
 
 pub fn extmark_splice_impl(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
@@ -959,7 +953,7 @@ pub fn extmark_splice_impl(
 ) {
     buf.deleted_bytes2.set(0);
     buf_updates_send_splice(
-        &mut *buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
+        buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
         new_byte,
     );
 
@@ -978,7 +972,7 @@ pub fn extmark_splice_impl(
             buf.b_ml.ml_line_count.get()
         };
         buf_signcols_count_range(
-            &mut *buf,
+            buf,
             start_row,
             (count - 1).min(start_row + old_row),
             0,
@@ -999,7 +993,7 @@ pub fn extmark_splice_impl(
 
     if old_row > 0 || new_row > 0 {
         let row2 = (buf.b_ml.ml_line_count.get() - 1).min(start_row + new_row);
-        buf_signcols_count_range(&mut *buf, start_row, row2, 0, K_NONE);
+        buf_signcols_count_range(buf, start_row, row2, 0, K_NONE);
     }
 
     if undo == K_EXTMARK_UNDO {
@@ -1056,7 +1050,7 @@ pub fn extmark_splice_impl(
 }
 
 pub fn extmark_splice_cols(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_row: i32,
     start_col: Colnr,
     old_col: Colnr,
@@ -1078,7 +1072,7 @@ pub fn extmark_splice_cols(
 }
 
 pub fn extmark_move_region(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     start_row: i32,
     start_col: Colnr,
     start_byte: Bcount,
@@ -1092,7 +1086,7 @@ pub fn extmark_move_region(
 ) {
     buf.deleted_bytes2.set(0);
     buf_updates_send_splice(
-        &mut *buf,
+        buf,
         start_row,
         start_col,
         start_byte,
@@ -1106,7 +1100,7 @@ pub fn extmark_move_region(
 
     let row1 = start_row.min(new_row);
     let row2 = start_row.max(new_row) + extent_row;
-    buf_signcols_count_range(&mut *buf, row1, row2, 0, K_TRUE);
+    buf_signcols_count_range(buf, row1, row2, 0, K_TRUE);
 
     marktree_move_region(
         &mut buf.b_marktree.borrow_mut(),
@@ -1118,10 +1112,10 @@ pub fn extmark_move_region(
         new_col,
     );
 
-    buf_signcols_count_range(&mut *buf, row1, row2, 0, K_NONE);
+    buf_signcols_count_range(buf, row1, row2, 0, K_NONE);
 
     buf_updates_send_splice(
-        &mut *buf,
+        buf,
         new_row,
         new_col,
         new_byte,
@@ -1134,7 +1128,7 @@ pub fn extmark_move_region(
     );
 
     if undo == K_EXTMARK_UNDO {
-        let Some(uh) = u_force_get_undo_header(&mut *buf) else {
+        let Some(uh) = u_force_get_undo_header(buf) else {
             return;
         };
 
@@ -1149,7 +1143,7 @@ pub fn extmark_move_region(
             extent_byte,
             new_byte,
         };
-        crate::undo::uhp_mut(&*buf, uh)
+        crate::undo::uhp_mut(buf, uh)
             .uh_extmark
             .push(ExtmarkUndoObject::Move(move_));
     }

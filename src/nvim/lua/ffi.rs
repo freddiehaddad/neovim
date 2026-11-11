@@ -1988,7 +1988,7 @@ unsafe extern "C" fn on_parser_progress(state: *mut TSParseState) -> bool {
 #[repr(C)]
 struct TSInputCallbackContext {
     buf: *mut crate::buffer::FileBuf,
-    read_cb: fn(&mut crate::buffer::FileBuf, TSPoint, &mut [u8; 256]) -> u32,
+    read_cb: fn(&crate::buffer::FileBuf, TSPoint, &mut [u8; 256]) -> u32,
     input_buf: [u8; 256],
 }
 
@@ -2013,13 +2013,13 @@ unsafe extern "C" fn ts_input_read_trampoline(
 pub fn ts_parser_parse_with_input(
     p: *mut TSParser,
     old_tree: *const TSTree,
-    buf: &mut crate::buffer::FileBuf,
-    read_cb: fn(&mut crate::buffer::FileBuf, TSPoint, &mut [u8; 256]) -> u32,
+    buf: &crate::buffer::FileBuf,
+    read_cb: fn(&crate::buffer::FileBuf, TSPoint, &mut [u8; 256]) -> u32,
     timeout_ns: u64,
 ) -> *mut TSTree {
     unsafe {
         let mut ctx = TSInputCallbackContext {
-            buf: std::ptr::from_mut(buf),
+            buf: std::ptr::from_ref(buf).cast_mut(),
             read_cb,
             input_buf: [0; 256],
         };

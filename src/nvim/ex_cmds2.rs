@@ -109,17 +109,17 @@ pub fn ex_perldo(eap: &mut Exarg) {
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
+pub fn autowrite(buf: &FileBuf, forceit: bool) -> bool {
     if (!opt_vars().p_aw.get() && !opt_vars().p_awa.get())
         || !opt_vars().p_write.get()
-        || bt_dontwrite(Some(&*buf))
+        || bt_dontwrite(Some(buf))
         || (!forceit && buf.b_p_ro.get())
         || buf.b_ffname.get().is_none()
     {
         return false;
     }
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, Some(&mut *buf));
+    set_bufref(&mut bufref, Some(buf));
     let mut r = buf_write_all(buf, forceit);
 
     if bufref_valid(Some(&bufref)) && buf_is_changed_fn(buf) {
@@ -136,9 +136,9 @@ pub fn autowrite_all() {
 
     let mut buf = g_st().firstbuf.get();
     while let Some(buf_ref) = buf.opt_mut() {
-        if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro.get() && !bt_dontwrite(Some(&*buf_ref)) {
+        if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro.get() && !bt_dontwrite(Some(buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, Some(&mut *buf_ref));
+            set_bufref(&mut bufref, Some(buf_ref));
 
             buf_write_all(buf_ref, false);
 
@@ -153,10 +153,10 @@ pub fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
+pub fn check_changed(buf: &FileBuf, flags: i32) -> bool {
     let forceit = (flags & CCGD_FORCEIT) != 0;
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, Some(&mut *buf));
+    set_bufref(&mut bufref, Some(buf));
 
     if !forceit
         && buf_is_changed_fn(buf)
@@ -195,7 +195,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
-pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
+pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
     let mut ea: Exarg = Exarg::new();
 
@@ -235,7 +235,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 && !buf2_ref.b_p_ro.get()
             {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, Some(&mut *buf2_ref));
+                set_bufref(&mut bufref, Some(buf2_ref));
 
                 let b_fname = buf2_ref.fname_opt().map(CStr::to_owned);
                 let b_ffname = buf2_ref.ffname_opt().map(CStr::to_owned);
@@ -260,13 +260,13 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
-            unchanged(&mut *buf2, true, false);
+            unchanged(buf2, true, false);
         }
     }
 }
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
-pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
+pub fn dialog_close_terminal(buf: &FileBuf) -> bool {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
     let fname = buf.fname_opt().unwrap_or(c"?");
     format_to_buf!(&mut buff, gettext(c"Close \"%s\"?"), fname);
@@ -274,7 +274,7 @@ pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
-pub fn can_abandon(buf: &mut FileBuf, forceit: bool) -> bool {
+pub fn can_abandon(buf: &FileBuf, forceit: bool) -> bool {
     buf_hide(buf)
         || !buf_is_changed_fn(buf)
         || buf.b_nwindows.get() > 1
@@ -330,7 +330,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
             && buf_is_changed_fn(buf_ref)
         {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, Some(&mut *buf_ref));
+            set_bufref(&mut bufref, Some(buf_ref));
 
             if check_changed(
                 buf_ref,
@@ -425,7 +425,7 @@ pub fn check_fname() -> bool {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
+pub fn buf_write_all(buf: &FileBuf, forceit: bool) -> bool {
     let old_curbuf = g_st().curbuf.get();
     let ffname = buf.ffname_opt().map(CStr::to_owned);
     let fname = buf.fname_opt().map(CStr::to_owned);

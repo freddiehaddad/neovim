@@ -338,7 +338,7 @@ pub fn with_stl_hltab<R>(f: impl FnOnce(&[StlHlrec]) -> R) -> R {
 }
 
 /// Redraw the status line of window `wp`.
-pub fn win_redr_status(wp: &mut WinInfoInfo) {
+pub fn win_redr_status(wp: &WinInfoInfo) {
     let is_stl_global = global_stl_height() > 0;
 
     if with_stl_state(|st| st.redr_status_busy.get())
@@ -371,20 +371,20 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
         } else {
             wp.w_p_fcs_chars.get().vert
         };
-        let attr = win_hl_attr(&mut *wp, group);
-        grid_line_start(&g_st().default_gridview, w_endrow(&*wp));
+        let attr = win_hl_attr(wp, group);
+        grid_line_start(&g_st().default_gridview, w_endrow(wp));
         grid_line_put_schar(w_endcol(wp), fillchar, attr);
         grid_line_flush();
     }
     with_stl_state(|st| st.redr_status_busy.set(false));
 }
 
-pub fn get_trans_bufname(buf: &mut FileBuf) {
-    if let Some(sp) = buf_spname(&*buf) {
+pub fn get_trans_bufname(buf: &FileBuf) {
+    if let Some(sp) = buf_spname(buf) {
         crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
         home_replace(
-            Some(&*buf),
+            Some(buf),
             buf.fname_opt(),
             &mut *g_st().name_buff_bytes_mut(),
             true,
@@ -395,7 +395,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
 
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
-pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
+pub fn stl_connected(wp: &WinInfoInfo) -> bool {
     let mut fr = wp.w_frame.get().clone();
     while !fr.fr_parent.get().is_null() {
         let parent = fr.fr_parent.get();
@@ -486,7 +486,7 @@ enum ClickDefsTarget {
 
 /// Redraws the statusline, winbar, ruler or tabline.
 fn win_redr_stl_expr(
-    wp_arg: Option<&mut WinInfoInfo>,
+    wp_arg: Option<&WinInfoInfo>,
     draw_winbar: bool,
     draw_ruler: bool,
     ui_event: bool,
@@ -583,7 +583,7 @@ fn win_redr_stl_expr(
         } else {
             HLF_WBRNC
         };
-        attr = win_hl_attr(&mut *wp_ref, group);
+        attr = win_hl_attr(wp_ref, group);
         maxwidth = wp_ref.w_view_width.get();
         stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut());
         stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut(), maxwidth);
@@ -660,7 +660,7 @@ fn win_redr_stl_expr(
             col = wp_ref.w_wincol_off.get();
             maxwidth = wp_ref.w_view_width.get();
         } else {
-            row = w_endrow(&*wp_ref);
+            row = w_endrow(wp_ref);
             col = wp_ref.w_wincol.get();
             maxwidth = wp_ref.w_width.get();
         }
@@ -731,7 +731,7 @@ fn win_redr_stl_expr(
                 StlGridTarget::Default => &g_st().default_grid,
                 StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow_mut(),
                 StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow_mut(),
-                StlGridTarget::WinAlloc(w) => &mut w.borrow_mut().w_grid_alloc,
+                StlGridTarget::WinAlloc(w) => &w.borrow_mut().w_grid_alloc,
             };
             screengrid_line_start(grid_ref, row, 0);
         }
@@ -836,7 +836,7 @@ fn win_redr_stl_expr(
         g_st().curbuf.set(restore_curwin.w_buffer.get());
     }
 }
-pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
+pub fn win_redr_winbar(wp: &WinInfoInfo) {
     if with_stl_state(|st| st.winbar_entered.replace(true)) {
         return;
     }
@@ -885,8 +885,8 @@ pub fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
-    if (&raw mut *wp) == curwin_ptr() {
+pub fn fillchar_status(group: &mut Hlf, wp: &WinInfoInfo) -> Schar {
+    if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr() {
         *group = HLF_S;
         wp.w_p_fcs_chars.get().stl
     } else {
@@ -1214,7 +1214,7 @@ pub fn draw_tabline() {
 
 /// Build the `'statuscolumn'` string for line `lnum`.
 pub fn build_statuscol_str(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     lnum: Linenr,
     relnum: i32,
     virtnum: i32,
@@ -1541,7 +1541,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
 /// Build a string from the status line items in `fmt`.
 pub fn build_stl_str_hl_slice(
-    mut wp: crate::globals::WinPtr,
+    wp: crate::globals::WinPtr,
     out_buf: &mut [u8],
     fmt: Option<&CStr>,
     opt_idx: OptIndex,
@@ -1584,7 +1584,7 @@ pub fn build_stl_str_hl_slice(
     }
 
     let use_sandbox = if opt_idx != K_OPT_INVALID {
-        was_set_insecurely(Some(&mut *wp), opt_idx, opt_scope) != 0
+        was_set_insecurely(wp.opt(), opt_idx, opt_scope) != 0
     } else {
         false
     };
@@ -2077,7 +2077,7 @@ pub fn build_stl_str_hl_slice(
                     let save_curwin = curwin_ptr();
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.borrow().active;
-                    set_curwin(&mut *wp);
+                    set_curwin(wp);
                     g_st().curbuf.set(wp.w_buffer.get());
                     if curwin_ptr() != save_curwin {
                         g_st().visual_global.borrow_mut().active = false;

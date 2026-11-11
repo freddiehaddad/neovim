@@ -79,7 +79,6 @@ use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::option::OptInt;
 pub type FlushBuffers = i32;
@@ -449,7 +448,7 @@ fn add_buff(buf: &mut StuffBuf, slice: &[u8]) {
 fn add_num_buff(buf: &mut StuffBuf, n: i32) {
     let mut number = [0u8; 32];
     let numberlen = format_to_buf!(&mut number, c"%d", n) as usize;
-    add_buff(&mut *buf, &number[..numberlen]);
+    add_buff(buf, &number[..numberlen]);
 }
 
 fn key_byte_encode(c: i32, temp: &mut [u8; 4]) -> isize {
@@ -2018,7 +2017,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 let Some(win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
                     return;
                 };
-                let win_ptr = ptr::from_mut(win);
+                let win_ptr = crate::globals::WinPtr::from(win);
 
                 mouse_comp_pos(win, &mut row, &mut col, &mut lnum);
 

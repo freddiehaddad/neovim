@@ -1152,9 +1152,9 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
 
     let hikey = uf2hikey(fp);
     let len = if !func_is_global(fp) && uflen > 3 {
-        format_to_buf!(&mut *buf, c"<SNR>%s", &hikey[3..])
+        format_to_buf!(buf, c"<SNR>%s", &hikey[3..])
     } else {
-        format_to_buf!(&mut *buf, c"%s", hikey)
+        format_to_buf!(buf, c"%s", hikey)
     };
 
     debug_assert!(len > 0);

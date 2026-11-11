@@ -892,7 +892,7 @@ pub fn call_func_retlist(
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
-pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
+pub fn eval_expr_option_number(cb: &Callback, use_sandbox: bool) -> i32 {
     let copy = Callback::NONE;
     callback_copy(&copy, cb);
     if use_sandbox {
@@ -916,7 +916,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
 
 /// Evaluate a "expr" option ('foldtext'/'includeexpr') via its callback, under |textlock| and an
 /// isolated funccal stack; evaluates in the |sandbox| when `use_sandbox`.
-pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut TypVal) -> bool {
+pub fn eval_expr_option_tv(cb: &Callback, use_sandbox: bool, ret_tv: &mut TypVal) -> bool {
     save_funccal();
     {
         if use_sandbox {
@@ -938,9 +938,9 @@ pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut Ty
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
+pub fn eval_foldexpr(wp: &WinInfoInfo, cp: &mut i32) -> i32 {
     let saved_sctx = g_st().current_sctx.get();
-    let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
+    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
 
     g_st()
         .current_sctx
@@ -988,11 +988,11 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
 }
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
-pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
-    let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
+pub fn eval_foldtext(wp: &WinInfoInfo) -> Object {
+    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
     let mut tv = tv_initial_value();
     let retval: Object;
-    if !eval_expr_option_tv(&mut wp.w_onebuf_opt.wo_fdt, use_sandbox, &mut tv) {
+    if !eval_expr_option_tv(&wp.w_onebuf_opt.wo_fdt, use_sandbox, &mut tv) {
         retval = Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(NvimString::new()),
@@ -5249,20 +5249,19 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
 
 /// Convert the specified byte index of line 'lnum' in buffer 'buf' to a
 /// character index.
-pub fn buf_byteidx_to_charidx(
-    mut buf: Option<&mut FileBuf>,
-    mut lnum: Linenr,
-    byteidx: i32,
-) -> i32 {
-    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none() {
+pub fn buf_byteidx_to_charidx(buf: Option<&FileBuf>, mut lnum: Linenr, byteidx: i32) -> i32 {
+    let Some(buf) = buf else {
+        return -1;
+    };
+    if buf.b_ml.ml_mfp.borrow().is_none() {
         return -1;
     }
 
-    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
-        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
+    if lnum > buf.b_ml.ml_line_count.get() {
+        lnum = buf.b_ml.ml_line_count.get();
     }
 
-    let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
+    let str_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
 
     if str_bytes.is_empty() {
         return 0;
@@ -5284,20 +5283,19 @@ pub fn buf_byteidx_to_charidx(
 
 /// Convert the specified character index of line 'lnum' in buffer 'buf' to a
 /// byte index.
-pub fn buf_charidx_to_byteidx(
-    mut buf: Option<&mut FileBuf>,
-    mut lnum: Linenr,
-    mut charidx: i32,
-) -> i32 {
-    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none() {
+pub fn buf_charidx_to_byteidx(buf: Option<&FileBuf>, mut lnum: Linenr, mut charidx: i32) -> i32 {
+    let Some(buf) = buf else {
+        return -1;
+    };
+    if buf.b_ml.ml_mfp.borrow().is_none() {
         return -1;
     }
 
-    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
-        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
+    if lnum > buf.b_ml.ml_line_count.get() {
+        lnum = buf.b_ml.ml_line_count.get();
     }
 
-    let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
+    let str_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
 
     let mut off: usize = 0;
     while off < str_bytes.len() {
@@ -5317,7 +5315,7 @@ pub fn var2fpos(
     dollar_lnum: bool,
     ret_fnum: &mut i32,
     charcol: bool,
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
 ) -> Option<CursorPos> {
     let bp = wp.w_buffer.get();
     let mut pos = CursorPos {
@@ -5432,7 +5430,7 @@ pub fn var2fpos(
             };
             return Some(pos);
         } else if name_bytes.get(1) == Some(&b'$') {
-            validate_botline_win(&mut *wp);
+            validate_botline_win(wp);
             pos.lnum = if wp.w_botline.get() > 0 {
                 wp.w_botline.get() - 1
             } else {
@@ -6055,11 +6053,11 @@ pub fn var_item_copy(
         | VarType::VarPartial
         | VarType::VarBool
         | VarType::VarSpecial => {
-            tv_copy(&*from, &mut *to);
+            tv_copy(&*from, to);
         }
         VarType::VarString => {
             let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
-                tv_copy(&*from, &mut *to);
+                tv_copy(&*from, to);
                 EVAL_STATE.with(|s| {
                     s.var_item_copy_recurse
                         .set(s.var_item_copy_recurse.get() - (1))
@@ -6067,15 +6065,15 @@ pub fn var_item_copy(
                 return ret;
             };
             if from.vval.v_string_is_null() {
-                tv_copy(&*from, &mut *to);
+                tv_copy(&*from, to);
             } else {
                 if let Some(conv_bytes) = string_convert(conv, from.vval.v_string_bytes(), None) {
                     crate::eval::typval::tv_set_string(
-                        &mut *to,
+                        to,
                         Some(crate::memory::bytes_as_cstr(&conv_bytes)),
                     );
                 } else {
-                    crate::eval::typval::tv_set_string(&mut *to, from.vval.v_string_cstr());
+                    crate::eval::typval::tv_set_string(to, from.vval.v_string_cstr());
                 }
                 to.v_lock = VAR_UNLOCKED;
             }
@@ -6739,8 +6737,8 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
 }
 
 /// Gets the current user-input in prompt buffer `buf`, or `None` if buffer is not a prompt buffer.
-pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
-    if !bt_prompt(Some(&*buf)) {
+pub fn prompt_get_input(buf: &FileBuf) -> Option<std::ffi::CString> {
+    if !bt_prompt(Some(buf)) {
         return None;
     }
     let lnum_start = buf.b_prompt_start.borrow().mark.lnum;

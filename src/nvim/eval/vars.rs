@@ -3234,8 +3234,8 @@ fn get_var_from(
     deftv: &mut TypVal,
     htname: i32,
     tp_in: Option<&TabPageInfo>,
-    win_in: Option<&mut WinInfoInfo>,
-    buf_in: Option<&mut FileBuf>,
+    win_in: Option<&WinInfoInfo>,
+    buf_in: Option<&FileBuf>,
 ) {
     let tp = crate::globals::TabpagePtr::from(tp_in);
     let win = crate::globals::WinPtr::from(win_in);

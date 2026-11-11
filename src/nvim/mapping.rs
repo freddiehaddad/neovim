@@ -364,7 +364,7 @@ pub fn with_maphash_list<R>(state: i32, c: i32, f: impl FnOnce(&[Mapblock]) -> R
 
 #[inline]
 fn with_map_tables_mut<R>(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     local: bool,
     is_abbrev: bool,
     f: impl FnOnce(&mut [Vec<Mapblock>]) -> R,
@@ -729,7 +729,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
 }
 
 fn map_add(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     local: bool,
     keys: &CStr,
     args: &MapArguments,
@@ -813,7 +813,7 @@ fn buf_do_map(
     args: &mut MapArguments,
     mode: i32,
     is_abbrev: bool,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
 ) -> i32 {
     let mut retval: i32 = 0;
     let local = args.buffer;
@@ -950,7 +950,7 @@ fn buf_do_map(
             }
 
             if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
-                with_map_buckets(Some(&*buf), is_abbrev, |buckets| {
+                with_map_buckets(Some(buf), is_abbrev, |buckets| {
                     for bucket in buckets {
                         if g_st().got_int.get() {
                             break;
@@ -1239,7 +1239,7 @@ fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: bool, abbr: bool) {
 }
 
 /// Clear all mappings in "mode".
-pub fn map_clear_mode(buf: &mut FileBuf, mode: i32, local: bool, abbr: bool) {
+pub fn map_clear_mode(buf: &FileBuf, mode: i32, local: bool, abbr: bool) {
     with_map_tables_mut(buf, local, abbr, |tables| {
         for hash in 0..tables.len() {
             let mut idx: usize = 0;

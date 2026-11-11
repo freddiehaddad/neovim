@@ -501,7 +501,7 @@ fn mt_decor_virt_id(mark: MTKey) -> DecorVirtId {
 }
 
 pub fn bufhl_add_hl_pos_offset(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     src_id: i32,
     hl_id: i32,
     pos_start: Lpos,
@@ -553,7 +553,7 @@ pub fn bufhl_add_hl_pos_offset(
     }
 }
 
-pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
+pub fn decor_redraw(buf: &FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
     if decor.is_ext() {
         for_each_virt_text(decor.data.ext().vt, |_, vt| {
             let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
@@ -581,7 +581,7 @@ pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: D
     }
 }
 
-pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHighlight) {
+pub fn decor_redraw_sh(buf: &FileBuf, row1: i32, row2: i32, sh: DecorSignHighlight) {
     if (sh.hl_id != 0
         || sh.url.is_some()
         || (sh.flags
@@ -677,7 +677,7 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     }
 }
 
-pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: i32) {
+pub fn buf_put_decor(buf: &FileBuf, decor: DecorInline, row: i32, mut row2: i32) {
     if decor.is_ext() && row < buf.b_ml.ml_line_count.get() {
         let mut idx = decor.data.ext().sh_idx;
         row2 = row2.min(buf.b_ml.ml_line_count.get() - 1);
@@ -695,7 +695,7 @@ pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: 
     }
 }
 
-fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
+fn may_force_numberwidth_recompute(buf: &FileBuf, unplace: bool) {
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(if g_st().curtab.get() == tp {
             g_st().firstwin.get().as_ptr()
@@ -713,26 +713,26 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
     }
 }
 
-pub fn buf_put_decor_sh(buf: &mut FileBuf, sh: &mut DecorSignHighlight, row1: i32, row2: i32) {
+pub fn buf_put_decor_sh(buf: &FileBuf, sh: &mut DecorSignHighlight, row1: i32, row2: i32) {
     if (sh.flags & K_SHIS_SIGN) != 0 {
         sh.sign_add_id = DECOR_MOD_STATE.with(|s| s.sign_add_id.get());
         DECOR_MOD_STATE.with(|s| s.sign_add_id.set(s.sign_add_id.get() + (1)));
         if sh.text[0] != 0 {
-            buf_signcols_count_range(&mut *buf, row1, row2, 1, K_FALSE);
+            buf_signcols_count_range(buf, row1, row2, 1, K_FALSE);
             may_force_numberwidth_recompute(buf, false);
         }
     }
 }
 
 pub fn buf_decor_remove(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     row1: i32,
     mut row2: i32,
     col1: i32,
     decor: DecorInline,
     free: bool,
 ) {
-    decor_redraw(&mut *buf, row1, row2, col1, decor);
+    decor_redraw(buf, row1, row2, col1, decor);
     if decor.is_ext() && row1 < buf.b_ml.ml_line_count.get() {
         let mut idx = decor.data.ext().sh_idx;
         row2 = row2.min(buf.b_ml.ml_line_count.get() - 1);
@@ -748,12 +748,12 @@ pub fn buf_decor_remove(
     }
 }
 
-pub fn buf_remove_decor_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: &DecorSignHighlight) {
+pub fn buf_remove_decor_sh(buf: &FileBuf, row1: i32, row2: i32, sh: &DecorSignHighlight) {
     if (sh.flags & K_SHIS_SIGN) != 0 && sh.text[0] != 0 {
-        if buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) != 0 {
-            buf_signcols_count_range(&mut *buf, row1, row2, -1, K_FALSE);
+        if buf_meta_total(buf, K_MTMETA_SIGN_TEXT) != 0 {
+            buf_signcols_count_range(buf, row1, row2, -1, K_FALSE);
         } else {
-            may_force_numberwidth_recompute(&mut *buf, true);
+            may_force_numberwidth_recompute(buf, true);
             buf.b_signcols.count[0].set(0);
             buf.b_signcols.max.set(0);
         }
@@ -809,7 +809,7 @@ fn decor_free_sh(first_idx: u32) {
     });
 }
 
-pub fn decor_state_invalidate(buf: &mut FileBuf) {
+pub fn decor_state_invalidate(buf: &FileBuf) {
     let same_buf = g_st()
         .decor_state
         .borrow()
@@ -918,7 +918,7 @@ pub fn next_virt_text_chunk<'a>(
     text
 }
 
-pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> Option<DecorVirtId> {
+pub fn decor_find_virttext(buf: &FileBuf, row: i32, ns_id: u64) -> Option<DecorVirtId> {
     let mut itr = MarkTreeIter::new();
     marktree_itr_get(&buf.b_marktree.borrow(), row, 0, &mut itr);
     loop {
@@ -943,9 +943,9 @@ pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> Option<De
     None
 }
 
-pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool {
+pub fn decor_redraw_reset(wp: &WinInfoInfo, state: &mut DecorState) -> bool {
     state.row = -1;
-    state.win = crate::globals::WinPtr::new(wp);
+    state.win = crate::globals::WinPtr::from(wp);
 
     state.slots.clear();
     state.ranges_i.clear();
@@ -969,7 +969,7 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     }
 }
 
-pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: i32, state: &mut DecorState) -> bool {
+pub fn decor_redraw_start(wp: &WinInfoInfo, top_row: i32, state: &mut DecorState) -> bool {
     state.top_row = top_row;
     state.itr_valid = true;
 
@@ -1025,7 +1025,7 @@ fn decor_state_pack(state: &mut DecorState) {
     state.future_begin = fut_beg;
 }
 
-pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: i32, state: &mut DecorState) {
+pub fn decor_redraw_line(wp: &WinInfoInfo, row: i32, state: &mut DecorState) {
     decor_state_pack(state);
 
     if state.row == -1 {
@@ -1263,13 +1263,13 @@ pub fn decor_recheck_draw_col(win_col: i32, hidden: bool, state: &mut DecorState
         let slot_idx = (&state.ranges_i)[i as usize] as usize;
         let r = (&mut state.slots)[slot_idx].range_mut();
         if r.draw_col == -3 {
-            decor_init_draw_col(win_col, hidden, &mut *r);
+            decor_init_draw_col(win_col, hidden, r);
         }
     }
 }
 
 pub fn decor_redraw_col_impl(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     col: i32,
     win_col: i32,
     hidden: bool,
@@ -1299,8 +1299,7 @@ pub fn decor_redraw_col_impl(
             break;
         }
 
-        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, &mut *wp)
-        {
+        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, wp) {
             let endpos = marktree_get_altpos(&buf.b_marktree.borrow(), mark, None);
             decor_range_add_from_inline(
                 state,
@@ -1429,7 +1428,7 @@ pub fn decor_redraw_col_impl(
             }
 
             if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
-                decor_init_draw_col(win_col, hidden, &mut *r);
+                decor_init_draw_col(win_col, hidden, r);
             }
         }
 
@@ -1463,7 +1462,7 @@ pub fn decor_redraw_col_impl(
     attr
 }
 
-fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) -> bool {
+fn decor_row_has_mark(wp: &WinInfoInfo, row: i32, meta: usize, flag: u32) -> bool {
     if buf_meta_total((*wp).buf_mut(), meta) == 0 {
         return false;
     }
@@ -1475,9 +1474,7 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
     let b = &(*wp).buf_mut().b_marktree.borrow();
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if !mt_invalid(pair.start)
-            && (pair.start.flags & flag) != 0
-            && ns_in_win(pair.start.ns, &mut *wp)
+        if !mt_invalid(pair.start) && (pair.start.flags & flag) != 0 && ns_in_win(pair.start.ns, wp)
         {
             return true;
         }
@@ -1490,7 +1487,7 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
         if mark.pos.row > row {
             break;
         }
-        if !mt_invalid(mark) && (mark.flags & flag) != 0 && ns_in_win(mark.ns, &mut *wp) {
+        if !mt_invalid(mark) && (mark.flags & flag) != 0 && ns_in_win(mark.ns, wp) {
             return true;
         }
         marktree_itr_next_filter(b, &mut itr, row + 1, 0, &filter);
@@ -1499,27 +1496,27 @@ fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) ->
     false
 }
 
-pub fn decor_row_has_conceal(wp: &mut WinInfoInfo, row: i32) -> bool {
+pub fn decor_row_has_conceal(wp: &WinInfoInfo, row: i32) -> bool {
     decor_row_has_mark(wp, row, K_MTMETA_CONCEAL, MT_FLAG_DECOR_CONCEAL)
 }
 
-pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
+pub fn decor_conceal_line(wp: &WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     if row < 0
         || row >= wp.buf_mut().b_ml.ml_line_count.get()
         || wp.w_onebuf_opt.wo_cole.get() < 2
         || (!check_cursor
             && wp == curwin_ptr()
             && row + 1 == wp.w_cursor.get().lnum
-            && !conceal_cursor_line(&*wp))
+            && !conceal_cursor_line(wp))
     {
         return false;
     }
 
-    decor_providers_invoke_conceal(&mut *wp, row, true);
+    decor_providers_invoke_conceal(wp, row, true);
     decor_row_has_mark(wp, row, K_MTMETA_CONCEAL_LINES, MT_FLAG_DECOR_CONCEAL_LINES)
 }
 
-pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {
+pub fn win_lines_concealed(wp: &WinInfoInfo) -> bool {
     has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole.get() >= 2
 }
 
@@ -1553,15 +1550,15 @@ pub fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {
 }
 
 pub fn decor_redraw_signs(
-    wp: &mut WinInfoInfo,
-    buf: &mut FileBuf,
+    wp: &WinInfoInfo,
+    buf: &FileBuf,
     row: i32,
     mut sattrs: Option<&mut [SignTextAttrs]>,
     mut line_id: Option<&mut i32>,
     mut cul_id: Option<&mut i32>,
     mut num_id: Option<&mut i32>,
 ) {
-    if !buf_has_signs(&*buf) {
+    if !buf_has_signs(buf) {
         return;
     }
 
@@ -1573,10 +1570,7 @@ pub fn decor_redraw_signs(
 
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if !mt_invalid(pair.start)
-            && mt_decor_sign(pair.start)
-            && ns_in_win(pair.start.ns, &mut *wp)
-        {
+        if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp) {
             let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
             num_text += i32::from(sh.text[0] != 0);
             signs.push(SignItem {
@@ -1593,8 +1587,7 @@ pub fn decor_redraw_signs(
         if mark.pos.row != row {
             break;
         }
-        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, &mut *wp)
-        {
+        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, wp) {
             let sh = decor_find_sign(mt_decor(mark)).unwrap();
             num_text += i32::from(sh.text[0] != 0);
             signs.push(SignItem { sh, id: mark.id });
@@ -1656,13 +1649,7 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<DecorSignHighlight> {
     })
 }
 
-pub fn buf_signcols_count_range(
-    buf: &mut FileBuf,
-    row1: i32,
-    row2: i32,
-    add: i32,
-    clear: TriState,
-) {
+pub fn buf_signcols_count_range(buf: &FileBuf, row1: i32, row2: i32, add: i32, clear: TriState) {
     if !buf.b_signcols.autom.get() || row2 < row1 || buf_meta_total(buf, K_MTMETA_SIGN_TEXT) == 0 {
         return;
     }
@@ -1717,7 +1704,7 @@ pub fn buf_signcols_count_range(
 
 #[inline]
 pub fn decor_redraw_col(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     col: i32,
     win_col: i32,
     hidden: bool,
@@ -1731,7 +1718,7 @@ pub fn decor_redraw_col(
 }
 
 pub fn decor_redraw_eol(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     state: &mut DecorState,
     eol_attr: &mut i32,
     eol_col: i32,
@@ -1755,13 +1742,13 @@ pub fn decor_redraw_eol(
 }
 
 #[inline]
-fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> bool {
+fn decor_virt_line_wrap(wp: &WinInfoInfo, overflow: VirtLineOverflow) -> bool {
     overflow == K_VLOVERFLOW_WRAP
         || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap.get())
 }
 
 pub fn decor_virt_line_rows(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     vl: &VirtLine,
     target_row: i32,
     mut skip_cells: Option<&mut i32>,
@@ -1816,7 +1803,7 @@ pub fn decor_virt_line_rows(
 }
 
 pub fn decor_virt_lines(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     start_row: i32,
     end_row: i32,
     mut num_below: Option<&mut i32>,
@@ -1847,7 +1834,7 @@ pub fn decor_virt_lines(
     let mut n_virt_lines: i32 = 0;
     loop {
         let mark = marktree_itr_current(b, &itr);
-        if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
+        if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
             for_each_virt_text(mt_decor_virt_id(mark), |_, vt_ref| {
                 let virt_lines = vt_ref.data.virt_lines();
                 if (vt_ref.flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
@@ -1862,7 +1849,7 @@ pub fn decor_virt_lines(
                     {
                         if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
                             for item in virt_lines {
-                                let rows = decor_virt_line_rows(&mut *wp, item, 0, None);
+                                let rows = decor_virt_line_rows(wp, item, 0, None);
                                 n_virt_lines += rows;
                                 if num_below.is_some() && !above {
                                     *num_below.as_deref_mut().unwrap() += rows;

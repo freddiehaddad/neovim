@@ -234,7 +234,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
 }
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
-pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
+pub fn mf_close_file(buf: &FileBuf, getlines: bool) {
     if buf.b_ml.mfp_opt().is_none_or(|m| m.mf_fd < 0) {
         return;
     }

@@ -719,7 +719,7 @@ fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<std::rc::Rc<QfInfo>> {
 }
 
 #[inline]
-fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
+fn tab_firstwin(tp: &TabPageInfo) -> &'static WinInfoInfo {
     if g_st().curtab.get() == tp {
         g_st().firstwin.get().borrow_mut()
     } else {
@@ -785,7 +785,7 @@ fn qf_init_process_nextline(
 }
 
 pub fn qf_init(
-    wp: Option<&mut WinInfoInfo>,
+    wp: Option<&WinInfoInfo>,
     efile: Option<&CStr>,
     errorformat: &CStr,
     newlist: i32,
@@ -1106,14 +1106,14 @@ fn qf_get_next_list_line(
 
 fn qf_get_next_buf_line(
     state: &mut Qfstate,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     buflnum: Linenr,
     lnumlast: Linenr,
 ) -> QfStatus {
     if buflnum > lnumlast {
         return QfStatus::EndOfInput;
     }
-    let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
     let p_buf = ml_get_buf(buf, buflnum).to_bytes();
     let len = p_buf.len();
     state.source = QfInputSource::Buf {
@@ -1390,7 +1390,7 @@ fn qf_setup_state(
     enc: Option<&CStr>,
     efile: Option<&CStr>,
     tv: Option<&mut TypVal>,
-    buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     lnumfirst: Linenr,
     lnumlast: Linenr,
 ) -> bool {
@@ -1435,7 +1435,7 @@ fn qf_init_ext(
     qi: &QfInfo,
     mut qf_idx: i32,
     efile: Option<&CStr>,
-    mut buf: Option<&mut FileBuf>,
+    buf: Option<&FileBuf>,
     mut tv: Option<&mut TypVal>,
     errorformat: &CStr,
     newlist: bool,
@@ -1456,7 +1456,7 @@ fn qf_init_ext(
         enc,
         efile,
         tv.as_deref_mut(),
-        buf.as_deref_mut(),
+        buf,
         lnumfirst,
         lnumlast,
     ) {
@@ -1482,7 +1482,7 @@ fn qf_init_ext(
 
     let efm = if ptr::eq(errorformat.as_ptr(), opt_vars().p_efm.as_ptr())
         && tv.is_none()
-        && let Some(ref b) = buf
+        && let Some(b) = buf
         && !b.b_p_efm.is_empty()
     {
         b.b_p_efm.as_cstr()
@@ -2061,7 +2061,7 @@ fn ll_free_all(qi: Option<&QfInfo>) {
     }
 }
 
-pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
+pub fn qf_free_all(wp: Option<&WinInfoInfo>) {
     if let Some(wp) = wp {
         let llist = wp.w_llist.replace(QfInfoId::NULL);
         ll_free_all(llist.rc().as_deref());
@@ -2117,7 +2117,7 @@ fn qf_add_entry(
     let buf = if bufnum != 0 {
         let b = buflist_findnr_opt(bufnum);
         qfp.qf_fnum = bufnum;
-        if let Some(ref mut b) = b.map(|r| &mut *r) {
+        if let Some(b) = b {
             b.b_has_qf_entry.set(
                 b.b_has_qf_entry.get()
                     | if is_qf_list(qfl) {
@@ -2186,7 +2186,7 @@ pub fn qf_resize_stack(n: i32) {
     qf_resize_stack_base(&ql_info(), n);
 }
 
-pub fn ll_resize_stack(wp: &mut WinInfoInfo, n: i32) {
+pub fn ll_resize_stack(wp: &WinInfoInfo, n: i32) {
     if is_ll_window(wp) {
         qf_sync_llw_to_win(wp);
     } else {
@@ -2219,13 +2219,13 @@ pub fn qf_init_stack() {
     let _ = qf_alloc_stack(QFLT_QUICKFIX, opt_vars().p_chi.get() as i32);
 }
 
-fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
+fn qf_sync_llw_to_win(llw: &WinInfoInfo) {
     if let Some(wp) = qf_find_win_with_loclist(&llw.w_llist_ref.get().unwrap_rc()) {
         wp.w_onebuf_opt.wo_lhi.set(llw.w_onebuf_opt.wo_lhi.get());
     }
 }
 
-fn qf_sync_win_to_llw(pwp: &mut WinInfoInfo) {
+fn qf_sync_win_to_llw(pwp: &WinInfoInfo) {
     let llw = pwp.w_llist.get();
     if !llw.is_null() {
         for wp in win_iter_mut(tab_firstwin(&curtab_mut())) {
@@ -2287,7 +2287,7 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> std::rc::Rc<QfInfo> {
     qi
 }
 
-fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> std::rc::Rc<QfInfo> {
+fn ll_get_or_alloc_list(wp: &WinInfoInfo) -> std::rc::Rc<QfInfo> {
     if is_ll_window(wp) {
         return wp.w_llist_ref.get().unwrap_rc();
     }
@@ -2319,7 +2319,7 @@ fn qf_cmd_get_stack_opt(eap: &mut Exarg, print_emsg: bool) -> Option<std::rc::Rc
 
 fn qf_cmd_get_or_alloc_stack(
     eap: &Exarg,
-    pwinp: &mut Option<&'static mut WinInfoInfo>,
+    pwinp: &mut Option<&'static WinInfoInfo>,
 ) -> std::rc::Rc<QfInfo> {
     if is_loclist_cmd(eap.cmdidx) {
         *pwinp = Some(curwin_mut());
@@ -2395,8 +2395,8 @@ fn copy_loclist(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
     true
 }
 
-pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
-    let Some(ref qi) = get_loc_list_opt(&*from) else {
+pub fn copy_loclist_stack(from: &WinInfoInfo, to: &WinInfoInfo) {
+    let Some(ref qi) = get_loc_list_opt(from) else {
         return;
     };
 
@@ -2413,7 +2413,7 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
             &qf_get_list(qi, idx).borrow(),
             &mut qf_get_list(&to_ll, idx).borrow_mut(),
         ) {
-            qf_free_all(Some(&mut *to));
+            qf_free_all(Some(to));
             return;
         }
     }
@@ -2685,16 +2685,13 @@ fn qf_get_entry<'a>(
     qfl.cur_entry()
 }
 
-fn qf_find_help_win() -> Option<&'static mut WinInfoInfo> {
-    for wp in win_iter_ptr(tab_firstwin(&curtab_mut())) {
-        if bt_help(wp.buf_opt()) && win_is_focusable(wp) {
-            return Some(&mut *wp);
-        }
-    }
-    None
+fn qf_find_help_win() -> Option<&'static WinInfoInfo> {
+    win_iter_ptr(tab_firstwin(&curtab_mut()))
+        .find(|&wp| bt_help(wp.buf_opt()) && win_is_focusable(wp))
+        .map(|v| v as _)
 }
 
-fn win_set_loclist(wp: &mut WinInfoInfo, qi: &QfInfo) {
+fn win_set_loclist(wp: &WinInfoInfo, qi: &QfInfo) {
     wp.w_llist.set(qi.qf_id_handle);
     qi.qf_refcount.set(qi.qf_refcount.get() + (1));
 }
@@ -2743,22 +2740,16 @@ fn jump_to_help_window(qi: &QfInfo, newwin: bool, opened_window: &mut bool) -> b
     true
 }
 
-fn qf_find_win_with_loclist(ll: &QfInfo) -> Option<&'static mut WinInfoInfo> {
-    for wp in win_iter_ptr(tab_firstwin(&curtab_mut())) {
-        if wp.w_llist.get() == ll && !bt_quickfix(wp.buf_opt()) {
-            return Some(&mut *wp);
-        }
-    }
-    None
+fn qf_find_win_with_loclist(ll: &QfInfo) -> Option<&'static WinInfoInfo> {
+    win_iter_ptr(tab_firstwin(&curtab_mut()))
+        .find(|&wp| wp.w_llist.get() == ll && !bt_quickfix(wp.buf_opt()))
+        .map(|v| v as _)
 }
 
-fn qf_find_win_with_normal_buf() -> Option<&'static mut WinInfoInfo> {
-    for wp in win_iter_ptr(tab_firstwin(&curtab_mut())) {
-        if bt_normal(wp.buf_opt()) {
-            return Some(&mut *wp);
-        }
-    }
-    None
+fn qf_find_win_with_normal_buf() -> Option<&'static WinInfoInfo> {
+    win_iter_ptr(tab_firstwin(&curtab_mut()))
+        .find(|&wp| bt_normal(wp.buf_opt()))
+        .map(|v| v as _)
 }
 
 fn qf_goto_tabwin_with_file(fnum: i32) -> bool {
@@ -2790,11 +2781,7 @@ fn qf_open_new_file_win(ll_ref: Option<&QfInfo>) -> bool {
     true
 }
 
-fn qf_goto_win_with_ll_file(
-    use_win: Option<&mut WinInfoInfo>,
-    qf_fnum: i32,
-    ll_ref: Option<&QfInfo>,
-) {
+fn qf_goto_win_with_ll_file(use_win: Option<&WinInfoInfo>, qf_fnum: i32, ll_ref: Option<&QfInfo>) {
     let mut win = crate::globals::WinPtr::from(use_win);
 
     if win.is_null() {
@@ -2872,7 +2859,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
 }
 
 fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool) -> bool {
-    let mut usable_wp: Option<&mut WinInfoInfo> = None;
+    let mut usable_wp: Option<&WinInfoInfo> = None;
     let mut usable_win = false;
 
     let ll_ref = if newwin {
@@ -3655,7 +3642,7 @@ fn qf_free(qfl: &mut QfList) {
 }
 
 pub fn qf_mark_adjust(
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     wp: Option<&WinInfoInfo>,
     line1: Linenr,
     line2: Linenr,
@@ -3954,10 +3941,10 @@ pub fn ex_copen(eap: &mut Exarg) {
     update_topline(curwin_mut());
 }
 
-fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
+fn qf_win_goto(win: &WinInfoInfo, lnum: Linenr) {
     let old_curwin = curwin_ptr();
 
-    set_curwin(&mut *win);
+    set_curwin(win);
     g_st().curbuf.set(win.w_buffer.get());
     curwin_mut().w_cursor.set_lnum(lnum);
     curwin_mut().w_cursor.set_col(0);
@@ -3984,8 +3971,8 @@ pub fn ex_cbottom(eap: &mut Exarg) {
     }
 }
 
-pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
-    let qi_rc = if is_ll_window(&*wp) {
+pub fn qf_current_entry(wp: &WinInfoInfo) -> Linenr {
+    let qi_rc = if is_ll_window(wp) {
         wp.w_llist_ref.get().unwrap_rc()
     } else {
         ql_info()
@@ -4021,16 +4008,13 @@ fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
     false
 }
 
-fn qf_find_win(qi: &QfInfo) -> Option<&'static mut WinInfoInfo> {
-    for win in win_iter_ptr(tab_firstwin(&curtab_mut())) {
-        if is_qf_win(&*win, qi) {
-            return Some(&mut *win);
-        }
-    }
-    None
+fn qf_find_win(qi: &QfInfo) -> Option<&'static WinInfoInfo> {
+    win_iter_ptr(tab_firstwin(&curtab_mut()))
+        .find(|&win| is_qf_win(win, qi))
+        .map(|v| v as _)
 }
 
-fn qf_find_buf(qi: &QfInfo) -> Option<&'static mut FileBuf> {
+fn qf_find_buf(qi: &QfInfo) -> Option<&'static FileBuf> {
     if qi.qf_bufnr.get() != INVALID_QFBUFNR {
         if let Some(qfbuf) = buflist_findnr_opt(qi.qf_bufnr.get()) {
             return Some(qfbuf);
@@ -4056,8 +4040,8 @@ fn qf_update_win_titlevar(qi: &QfInfo) {
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_ptr(tab_firstwin(&tp)) {
-            if is_qf_win(&*win, qi) {
-                set_curwin(&mut *win);
+            if is_qf_win(win, qi) {
+                set_curwin(win);
                 qf_set_title_var(&qfl);
             }
         }
@@ -4071,8 +4055,8 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
     };
 
     let old_line_count = buf.b_ml.ml_line_count.get();
-    let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
-    let old_bytecount = get_region_bytecount(&mut *buf, 1, old_line_count, 0, old_endcol);
+    let old_endcol = ml_get_buf_len(buf, old_line_count);
+    let old_bytecount = get_region_bytecount(buf, 1, old_line_count, 0, old_endcol);
     let mut qf_winid: i32 = 0;
 
     if is_ll_stack(qi) {
@@ -4091,21 +4075,21 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     if old_count == 0 {
-        ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
+        ctx_switch(&mut aco, None, None, Some(buf), 0);
     }
 
     qf_update_win_titlevar(qi);
 
-    qf_fill_buffer(Some(qf_get_curlist(qi)), &mut *buf, old_count, qf_winid);
+    qf_fill_buffer(Some(qf_get_curlist(qi)), buf, old_count, qf_winid);
 
     let new_line_count = buf.b_ml.ml_line_count.get();
-    let new_endcol = ml_get_buf_len(&mut *buf, new_line_count);
+    let new_endcol = ml_get_buf_len(buf, new_line_count);
     let delta = new_line_count - old_line_count;
 
     if old_count == 0 {
-        let new_byte_count = get_region_bytecount(&mut *buf, 1, new_line_count, 0, new_endcol);
+        let new_byte_count = get_region_bytecount(buf, 1, new_line_count, 0, new_endcol);
         extmark_splice(
-            &mut *buf,
+            buf,
             0,
             0,
             old_line_count - 1,
@@ -4117,7 +4101,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
             K_EXTMARK_NO_UNDO,
         );
         changed_lines(
-            &mut *buf,
+            buf,
             1,
             0,
             if old_line_count > 0 {
@@ -4130,10 +4114,9 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
         );
     } else if delta > 0 {
         let start_lnum = old_line_count + 1;
-        let new_byte_count =
-            get_region_bytecount(&mut *buf, start_lnum, new_line_count, 0, new_endcol);
+        let new_byte_count = get_region_bytecount(buf, start_lnum, new_line_count, 0, new_endcol);
         extmark_splice(
-            &mut *buf,
+            buf,
             old_line_count - 1,
             old_endcol,
             0,
@@ -4144,7 +4127,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
             new_byte_count,
             K_EXTMARK_NO_UNDO,
         );
-        changed_lines(&mut *buf, start_lnum, 0, start_lnum, delta, true);
+        changed_lines(buf, start_lnum, 0, start_lnum, delta, true);
     }
     buf.b_changed.set(0);
 
@@ -4156,7 +4139,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
     if let Some(win) = qf_find_win(qi)
         && old_line_count < win.w_botline.get()
     {
-        redraw_buf_later(&*buf, UPD_NOT_VALID);
+        redraw_buf_later(buf, UPD_NOT_VALID);
     }
 
     decr_quickfix_busy();
@@ -4164,7 +4147,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
 
 fn qf_buf_add_line(
     _qfl: &QfList,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     lnum: Linenr,
     qfp: &Qfline,
     dirname: &mut [u8],
@@ -4224,7 +4207,7 @@ fn qf_buf_add_line(
 
     gap.push(0);
     let text_len = gap.len().saturating_sub(1);
-    if !ml_append_buf(&mut *buf, lnum, &gap[..text_len], gap.len() as Colnr, false) {
+    if !ml_append_buf(buf, lnum, &gap[..text_len], gap.len() as Colnr, false) {
         return false;
     }
 
@@ -4299,7 +4282,7 @@ fn call_qftf_func(
     qftf_list
 }
 
-fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf_winid: i32) {
+fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &FileBuf, old_count: usize, qf_winid: i32) {
     let old_key_typed = g_st().key_typed.get();
 
     if old_count == 0 {
@@ -4363,7 +4346,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
             let qfp_fnum = qfl.qf_items[lnum as usize].qf_fnum;
             if !qf_buf_add_line(
                 &qfl,
-                &mut *buf,
+                buf,
                 lnum,
                 &qfl.qf_items[lnum as usize],
                 &mut dirname,
@@ -5240,7 +5223,7 @@ fn vgr_load_dummy_buf(
     fname: &CStr,
     dirname_start: &CStr,
     dirname_now: &mut [u8],
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let save_ei = au_event_disable(c",Filetype");
 
     let save_mls = opt_vars().p_mls.get();
@@ -5278,7 +5261,7 @@ fn vgr_qflist_valid(
 fn vgr_match_buflines(
     qfl: &mut QfList,
     fname: Option<&CStr>,
-    buf: &mut FileBuf,
+    buf: &FileBuf,
     spat: Option<&CStr>,
     regmatch: &mut Regmmatch,
     tomatch: &mut i32,
@@ -5293,16 +5276,7 @@ fn vgr_match_buflines(
     while lnum <= buf.b_ml.ml_line_count.get() && *tomatch > 0 {
         let mut col: Colnr = 0;
         if (flags & VGR_FUZZY) == 0 {
-            while vim_regexec_multi(
-                regmatch,
-                Some(curwin_mut()),
-                &mut *buf,
-                lnum,
-                col,
-                None,
-                None,
-            ) > 0
-            {
+            while vim_regexec_multi(regmatch, Some(curwin_mut()), buf, lnum, col, None, None) > 0 {
                 let entry_fnum = if duplicate_name != 0 {
                     0
                 } else {
@@ -5489,7 +5463,7 @@ fn vgr_process_files(
     qi: &QfInfo,
     cmd_args: &mut VgrArgs,
     redraw_for_dummy: &mut bool,
-    first_match_buf: &mut Option<&'static mut FileBuf>,
+    first_match_buf: &mut Option<&'static FileBuf>,
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
     let wp = crate::globals::WinPtr::from(wp_in);
@@ -5590,13 +5564,13 @@ fn vgr_process_files(
                     let mut aco: CtxSwitch = CtxSwitch::new();
                     let b_p_ft = buf.b_p_ft.to_owned();
                     let b_fname = buf.fname_opt().map(CStr::to_owned);
-                    ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
+                    ctx_switch(&mut aco, None, None, Some(buf), 0);
                     apply_autocmds(
                         EVENT_FILETYPE,
                         Some(&b_p_ft),
                         b_fname.as_deref(),
                         true,
-                        Some(&mut *buf),
+                        Some(buf),
                     );
                     do_modelines(OPT_NOWIN);
                     ctx_restore(&mut aco);
@@ -5632,10 +5606,10 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         return;
     }
 
-    let mut wp: Option<&'static mut WinInfoInfo> = None;
+    let mut wp: Option<&'static WinInfoInfo> = None;
     let qi_rc = qf_cmd_get_or_alloc_stack(eap, &mut wp);
     let qi = &*qi_rc;
-    let wp_ptr = crate::globals::WinPtr::from(wp.as_deref());
+    let wp_ptr = crate::globals::WinPtr::from(wp);
     let mut target_dir: Option<std::ffi::CString> = None;
     let mut args = VgrArgs::new();
     if vgr_process_args(eap, &mut args) {
@@ -5651,7 +5625,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         incr_quickfix_busy();
 
         let mut redraw_for_dummy = false;
-        let mut first_match_buf: Option<&'static mut FileBuf> = None;
+        let mut first_match_buf: Option<&'static FileBuf> = None;
         let status = vgr_process_files(
             wp_ptr.opt(),
             qi,
@@ -5691,7 +5665,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                             qi,
                             eap.forceit,
                             &mut redraw_for_dummy,
-                            first_match_buf.as_deref(),
+                            first_match_buf,
                             target_dir.as_deref(),
                         );
                     }
@@ -5736,7 +5710,7 @@ fn load_dummy_buffer(
     fname: &CStr,
     dirname_start: &CStr,
     resulting_dir: &mut [u8],
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let mut newbuf = crate::globals::BufPtr::from(buflist_new(None, None, 1, BLN_DUMMY));
     if newbuf.is_null() {
         return None;
@@ -5809,7 +5783,7 @@ fn load_dummy_buffer(
     Some(newbuf.borrow_mut())
 }
 
-fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
+fn wipe_dummy_buffer(buf: &FileBuf, dirname_start: Option<&CStr>) {
     let mut give_up = false;
     loop {
         if buf.b_nwindows.get() <= 0 {
@@ -5848,9 +5822,8 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
     buf.b_flags.set(buf.b_flags.get() & (!BF_DUMMY));
 }
 
-fn unload_dummy_buffer(buf: &mut FileBuf, dirname_start: &CStr) {
-    let buf_ptr = ptr::from_mut(buf);
-    if g_st().curbuf.get() == buf_ptr {
+fn unload_dummy_buffer(buf: &FileBuf, dirname_start: &CStr) {
+    if g_st().curbuf.get() == buf {
         return;
     }
 
@@ -6763,7 +6736,7 @@ fn qf_set_properties(qi: &QfInfo, what: &TvDict, action: i32, title: Option<&CSt
     retval
 }
 
-fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi: &QfInfo) {
+fn qf_free_stack(wp_in: Option<&WinInfoInfo>, qi: &QfInfo) {
     let mut wp = crate::globals::WinPtr::from(wp_in);
     let qfwin = crate::globals::WinPtr::from(qf_find_win(qi));
 
@@ -6804,7 +6777,7 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi: &QfInfo) {
 }
 
 pub fn set_errorlist(
-    mut wp: Option<&mut WinInfoInfo>,
+    mut wp: Option<&WinInfoInfo>,
     list: Option<&TvList>,
     action: i32,
     title: Option<&CStr>,
@@ -6941,7 +6914,7 @@ fn cbuffer_process_args(
     eap: &mut Exarg,
     line1: &mut Linenr,
     line2: &mut Linenr,
-) -> Option<&'static mut FileBuf> {
+) -> Option<&'static FileBuf> {
     let mut buf = crate::globals::BufPtr::NULL;
 
     if eap.arg.is_empty() {
@@ -6997,10 +6970,10 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         return;
     }
 
-    let mut wp: Option<&'static mut WinInfoInfo> = None;
+    let mut wp: Option<&'static WinInfoInfo> = None;
     let qi_rc = qf_cmd_get_or_alloc_stack(eap, &mut wp);
     let qi = &*qi_rc;
-    let wp_ptr = crate::globals::WinPtr::from(wp.as_deref());
+    let wp_ptr = crate::globals::WinPtr::from(wp);
 
     let mut line1: Linenr = 0;
     let mut line2: Linenr = 0;
@@ -7097,10 +7070,10 @@ fn trigger_cexpr_autocmd(cmdidx: Cmdidx) -> bool {
 }
 
 pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
-    let mut wp: Option<&'static mut WinInfoInfo> = None;
+    let mut wp: Option<&'static WinInfoInfo> = None;
     let qi_rc = qf_cmd_get_or_alloc_stack(eap, &mut wp);
     let qi = &*qi_rc;
-    let wp_ptr = crate::globals::WinPtr::from(wp.as_deref());
+    let wp_ptr = crate::globals::WinPtr::from(wp);
 
     if (tv.v_type == VarType::VarString && !tv.vval.v_string_is_null())
         || tv.v_type == VarType::VarList
@@ -7380,7 +7353,7 @@ pub fn free_quickfix() {
     qf_free_all(None);
     for tab in for_all_tabpages_mut() {
         for win in win_iter_ptr(tab_firstwin(&tab)) {
-            qf_free_all(Some(&mut *win));
+            qf_free_all(Some(win));
         }
     }
 
@@ -7414,14 +7387,14 @@ fn get_qf_loc_list(
 
 pub fn f_getloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    get_qf_loc_list(false, wp.as_deref(), &mut argvars[1], rettv);
+    get_qf_loc_list(false, wp, &mut argvars[1], rettv);
 }
 
 pub fn f_getqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     get_qf_loc_list(true, None, &mut argvars[0], rettv);
 }
 
-fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut TypVal) {
+fn set_qf_ll_list(wp: Option<&WinInfoInfo>, args: &mut [TypVal], rettv: &mut TypVal) {
     let mut title: Option<&CStr> = None;
     let title_cow;
     let mut action: u8 = b' ';

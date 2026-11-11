@@ -175,7 +175,7 @@ fn decor_provider_invoke(
 }
 
 pub fn decor_providers_invoke_spell(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     start_row: i32,
     start_col: i32,
     end_row: i32,
@@ -208,7 +208,7 @@ pub fn decor_providers_invoke_spell(
 }
 
 /// Invokes the `_on_conceal_line` (if `lines`) or `_on_conceal` callback for buffer row `row` (`decor_providers_invoke_conceal`).
-pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: bool) {
+pub fn decor_providers_invoke_conceal(wp: &WinInfoInfo, row: i32, lines: bool) {
     if !lines
         && (row < 0
             || wp.w_onebuf_opt.wo_cole.get() < 1
@@ -285,7 +285,7 @@ pub fn decor_providers_start() {
 }
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
-pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
+pub fn decor_providers_invoke_win(wp: &WinInfoInfo) {
     debug_assert!(
         g_st().decor_state.borrow().current_end == 0
             && g_st().decor_state.borrow().future_begin
@@ -293,7 +293,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
     );
 
     if providers_len() > 0 {
-        validate_botline_win(&mut *wp);
+        validate_botline_win(wp);
     }
     let botline: Linenr = wp
         .w_botline
@@ -334,7 +334,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
+pub fn decor_providers_invoke_line(wp: &WinInfoInfo, row: i32) {
     g_st().decor_state.borrow_mut().running_decor_provider = true;
     let mut i = 0usize;
     while i < providers_len() {
@@ -367,7 +367,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
 }
 
 pub fn decor_providers_invoke_range(
-    wp: &mut WinInfoInfo,
+    wp: &WinInfoInfo,
     start_row: i32,
     start_col: i32,
     end_row: i32,
@@ -438,7 +438,7 @@ pub fn decor_providers_invoke_range(
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
-pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
+pub fn decor_providers_invoke_buf(buf: &FileBuf) {
     let mut i = 0usize;
     while i < providers_len() {
         let redraw_buf = with_providers_mut(|providers| {

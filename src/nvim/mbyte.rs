@@ -2814,7 +2814,7 @@ pub fn mb_adjust_cursor() {
         .update_mut(|c| mark_mb_adjustpos(curbuf_mut(), c));
 }
 
-pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
+pub fn mb_check_adjust_col(win: &WinInfoInfo) {
     let oldcol = win.w_cursor.get().col;
 
     if oldcol != 0 {
