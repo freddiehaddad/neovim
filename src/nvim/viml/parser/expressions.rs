@@ -1054,7 +1054,66 @@ impl Drop for ExprAST {
     }
 }
 
-type ExprASTStack = Vec<*mut Option<Box<ExprASTNode>>>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AstStep {
+    Root,
+    Children,
+    ChildrenNext,
+}
+
+type ExprASTStack = Vec<AstStep>;
+
+#[inline]
+fn ast_slot<'a>(
+    root: &'a Option<Box<ExprASTNode>>,
+    stack: &[AstStep],
+    idx: usize,
+) -> &'a Option<Box<ExprASTNode>> {
+    let mut slot = root;
+    for &step in &stack[1..=idx] {
+        let node = slot.as_deref().unwrap();
+        slot = match step {
+            AstStep::Root => unreachable!(),
+            AstStep::Children => &node.children,
+            AstStep::ChildrenNext => &node.children.as_deref().unwrap().next,
+        };
+    }
+    slot
+}
+
+#[inline]
+fn ast_slot_mut<'a>(
+    root: &'a mut Option<Box<ExprASTNode>>,
+    stack: &[AstStep],
+    idx: usize,
+) -> &'a mut Option<Box<ExprASTNode>> {
+    let mut slot = root;
+    for &step in &stack[1..=idx] {
+        let node = slot.as_deref_mut().unwrap();
+        slot = match step {
+            AstStep::Root => unreachable!(),
+            AstStep::Children => &mut node.children,
+            AstStep::ChildrenNext => &mut node.children.as_deref_mut().unwrap().next,
+        };
+    }
+    slot
+}
+
+#[inline]
+fn ast_top<'a>(
+    root: &'a Option<Box<ExprASTNode>>,
+    stack: &[AstStep],
+) -> &'a Option<Box<ExprASTNode>> {
+    ast_slot(root, stack, stack.len() - 1)
+}
+
+#[inline]
+fn ast_top_mut<'a>(
+    root: &'a mut Option<Box<ExprASTNode>>,
+    stack: &[AstStep],
+) -> &'a mut Option<Box<ExprASTNode>> {
+    ast_slot_mut(root, stack, stack.len() - 1)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ExprASTWantedNode {
@@ -1770,13 +1829,14 @@ fn east_set_error(
 
 fn viml_pexpr_handle_bop(
     pstate: &ParserState<'_>,
+    root: &mut Option<Box<ExprASTNode>>,
     ast_stack: &mut ExprASTStack,
     mut bop_node: Box<ExprASTNode>,
     want_node_p: &mut ExprASTWantedNode,
     ast_err: &mut ExprASTError,
 ) -> bool {
     let mut ret = true;
-    let mut top_node_p = crate::globals::GraphPtr::<Option<Box<ExprASTNode>>>::NULL.as_ptr();
+    let mut top_step = None;
     let mut top_node_lvl = ExprOpLvl::Invalid;
     let mut top_node_ass = ExprOpAssociativity::No;
     debug_assert!(!ast_stack.is_empty());
@@ -1787,22 +1847,17 @@ fn viml_pexpr_handle_bop(
             node_lvl(&bop_node)
         };
     loop {
-        let new_top_node_p = *ast_stack.last().unwrap();
-        let new_top_node = crate::globals::GraphPtr::of(new_top_node_p)
-            .borrow()
-            .as_ref()
-            .unwrap();
+        let new_top_node = ast_top(root, ast_stack).as_ref().unwrap();
         let new_top_node_lvl = node_lvl(new_top_node);
         let new_top_node_ass = node_ass(new_top_node);
-        if !top_node_p.is_null()
+        if top_step.is_some()
             && (bop_node_lvl > new_top_node_lvl
                 || (bop_node_lvl == new_top_node_lvl
                     && new_top_node_ass == ExprOpAssociativity::No))
         {
             break;
         }
-        ast_stack.pop();
-        top_node_p = new_top_node_p;
+        top_step = ast_stack.pop();
         top_node_lvl = new_top_node_lvl;
         top_node_ass = new_top_node_ass;
         if bop_node_lvl == top_node_lvl && top_node_ass == ExprOpAssociativity::Right {
@@ -1812,24 +1867,19 @@ fn viml_pexpr_handle_bop(
             break;
         }
     }
+    ast_stack.push(top_step.unwrap());
     if top_node_ass == ExprOpAssociativity::Left || top_node_lvl != bop_node_lvl {
-        let top_slot = crate::globals::GraphPtr::of(top_node_p).borrow_mut();
+        let top_slot = ast_top_mut(root, ast_stack);
         bop_node.children = top_slot.take();
 
         debug_assert!(bop_node.children.as_ref().unwrap().next.is_none());
 
         *top_slot = Some(bop_node);
 
-        let bop_ref = top_slot.as_deref_mut().unwrap();
-        let child_ref = bop_ref.children.as_deref_mut().unwrap();
-        ast_stack.push(top_node_p);
-        ast_stack.push(&raw mut child_ref.next);
+        ast_stack.push(AstStep::ChildrenNext);
     } else {
         debug_assert!(top_node_lvl == bop_node_lvl && top_node_ass == ExprOpAssociativity::Right);
-        let top_ref = crate::globals::GraphPtr::of(top_node_p)
-            .borrow_mut()
-            .as_deref_mut()
-            .unwrap();
+        let top_ref = ast_top_mut(root, ast_stack).as_deref_mut().unwrap();
         debug_assert!(
             top_ref.children.is_some() && top_ref.children.as_ref().unwrap().next.is_some()
         );
@@ -1839,17 +1889,8 @@ fn viml_pexpr_handle_bop(
         bop_node.children = top_child.next.take();
         debug_assert!(bop_node.children.as_ref().unwrap().next.is_none());
         top_child.next = Some(bop_node);
-        let next_slot =
-            crate::globals::GraphPtr::<Option<Box<ExprASTNode>>>::of(&raw mut top_child.next)
-                .as_ptr();
-        let bop_ref = crate::globals::GraphPtr::of(next_slot)
-            .borrow_mut()
-            .as_deref_mut()
-            .unwrap();
-        let bop_child = bop_ref.children.as_deref_mut().unwrap();
-        ast_stack.push(top_node_p);
-        ast_stack.push(next_slot);
-        ast_stack.push(&raw mut bop_child.next);
+        ast_stack.push(AstStep::ChildrenNext);
+        ast_stack.push(AstStep::ChildrenNext);
         if bop_type == K_EXPR_NODE_COMPARISON {
             east_set_error(
                 pstate,
@@ -2261,7 +2302,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
         },
         root: None,
     };
-    let mut ast_stack: ExprASTStack = vec![&raw mut ast.root];
+    let mut ast_stack: ExprASTStack = vec![AstStep::Root];
     let mut want_node = ExprASTWantedNode::Value;
     let mut pt_stack: ExprASTParseTypeStack = vec![ExprASTParseType::Expr];
     if (flags & K_EXPR_FLAGS_PARSE_LET) != 0 {
@@ -2270,14 +2311,13 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
     let mut prev_token = LexExprToken::new();
     prev_token.r#type = K_EXPR_LEX_MISSING;
     let mut highlighted_prev_spacing = false;
-    let mut lambda_node = crate::globals::GraphPtr::<ExprASTNode>::NULL;
+    let mut lambda_idx: Option<usize> = None;
     let mut asgn_level: usize = 0;
 
     'parse_loop: loop {
         let is_concat_or_subscript = want_node == ExprASTWantedNode::Value
             && ast_stack.len() > 1
-            && crate::globals::GraphPtr::of(ast_stack[ast_stack.len() - 2])
-                .borrow()
+            && ast_slot(&ast.root, &ast_stack, ast_stack.len() - 2)
                 .as_ref()
                 .unwrap()
                 .r#type
@@ -2290,8 +2330,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
             }
             | if want_node == ExprASTWantedNode::Value
                 && (ast_stack.len() == 1 || {
-                    let prev_t = crate::globals::GraphPtr::of(ast_stack[ast_stack.len() - 2])
-                        .borrow()
+                    let prev_t = ast_slot(&ast.root, &ast_stack, ast_stack.len() - 2)
                         .as_ref()
                         .unwrap()
                         .r#type;
@@ -2341,7 +2380,6 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 highlighted_prev_spacing = true;
             }
             let pline = pstate.reader.lines.as_slice()[cur_token.start.line].clone();
-            let top_node_p = crate::globals::GraphPtr::of(*ast_stack.last().unwrap()).borrow_mut();
             debug_assert!(!ast_stack.is_empty());
 
             let node_is_key = is_concat_or_subscript
@@ -2354,9 +2392,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 && prev_token.r#type != K_EXPR_LEX_SPACING;
             if is_concat_or_subscript && !node_is_key {
                 let prev_idx = ast_stack.len() - 2;
-
-                crate::globals::GraphPtr::of(ast_stack[prev_idx])
-                    .borrow_mut()
+                ast_slot_mut(&mut ast.root, &ast_stack, prev_idx)
                     .as_mut()
                     .unwrap()
                     .r#type = K_EXPR_NODE_CONCAT;
@@ -2376,7 +2412,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 && !cur_token.data.var().autoload)
                             && tok_type != K_EXPR_LEX_ARROW)
                     {
-                        let lnode = lambda_node.borrow_mut();
+                        let lnode = ast_slot_mut(&mut ast.root, &ast_stack, lambda_idx.unwrap())
+                            .as_deref_mut()
+                            .unwrap();
                         lnode.data.fig_mut().type_guesses.allow_lambda = false;
 
                         if lnode
@@ -2392,7 +2430,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 cur_token.start,
                             );
                         } else {
-                            lambda_node = crate::globals::GraphPtr::NULL;
+                            lambda_idx = None;
                             pt_stack.pop();
                         }
                     }
@@ -2443,14 +2481,14 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
             }
             debug_assert!(!pt_stack.is_empty());
             let cur_pt = *pt_stack.last().unwrap();
-            debug_assert!(lambda_node.is_null() || cur_pt == ExprASTParseType::LambdaArguments);
+            debug_assert!(lambda_idx.is_none() || cur_pt == ExprASTParseType::LambdaArguments);
 
             macro_rules! op_missing {
                 () => {{
                     if (flags & K_EXPR_FLAGS_MULTI) != 0 && ast_stack.len() == 1 {
                         break 'parse_loop;
                     } else {
-                        debug_assert!((*top_node_p).is_some());
+                        debug_assert!(ast_top(&ast.root, &ast_stack).is_some());
                         east_set_error(
                             pstate,
                             &mut ast.err,
@@ -2462,6 +2500,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         cur_node.len = 0;
                         let _ = viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -2481,7 +2520,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         let mut cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
                         cur_node.len = 0;
-                        *top_node_p = Some(cur_node);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                         want_node = ExprASTWantedNode::Operator;
                     }
                 }};
@@ -2509,7 +2548,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let mut cur_node =
                         new_node_with_cur_pos(K_EXPR_NODE_REGISTER, cur_token, prev_token);
                     cur_node.data.reg_mut().name = cur_token.data.reg().name;
-                    *top_node_p = Some(cur_node);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                     want_node = ExprASTWantedNode::Operator;
                     viml_parser_highlight(
                         pstate,
@@ -2522,9 +2561,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     if want_node == ExprASTWantedNode::Value {
                         let cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_UNARY_PLUS, cur_token, prev_token);
-                        *top_node_p = Some(cur_node);
-                        let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                        ast_stack.push(&raw mut node_ref.children);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                        ast_stack.push(AstStep::Children);
                         viml_parser_highlight(
                             pstate,
                             cur_token.start,
@@ -2536,6 +2574,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_BINARY_PLUS, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -2554,9 +2593,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     if want_node == ExprASTWantedNode::Value {
                         let cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_UNARY_MINUS, cur_token, prev_token);
-                        *top_node_p = Some(cur_node);
-                        let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                        ast_stack.push(&raw mut node_ref.children);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                        ast_stack.push(AstStep::Children);
                         viml_parser_highlight(
                             pstate,
                             cur_token.start,
@@ -2568,6 +2606,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_BINARY_MINUS, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -2593,6 +2632,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     );
                     let _ = viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -2610,6 +2650,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     );
                     let _ = viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -2661,6 +2702,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     };
                     let _ = viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -2687,7 +2729,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             pline.as_bytes()[off..off + opt.name_len].to_vec();
                         cur_node.data.opt_mut().scope = opt.scope;
                     }
-                    *top_node_p = Some(cur_node);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                     want_node = ExprASTWantedNode::Operator;
                     viml_parser_highlight(
                         pstate,
@@ -2744,7 +2786,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             cur_token.start,
                         );
                     }
-                    *top_node_p = Some(cur_node);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                     want_node = ExprASTWantedNode::Operator;
                     viml_parser_highlight(
                         pstate,
@@ -2772,9 +2814,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         op_missing!();
                     }
                     let cur_node = new_node_with_cur_pos(K_EXPR_NODE_NOT, cur_token, prev_token);
-                    *top_node_p = Some(cur_node);
-                    let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                    ast_stack.push(&raw mut node_ref.children);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                    ast_stack.push(AstStep::Children);
                     viml_parser_highlight(
                         pstate,
                         cur_token.start,
@@ -2797,6 +2838,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     }
                     is_invalid |= !viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -2845,13 +2887,15 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         let mut cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
                         cur_node.len = 0;
-                        *top_node_p = Some(cur_node);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                         want_node = ExprASTWantedNode::Operator;
                     }
                     if cur_pt == ExprASTParseType::LambdaArguments {
-                        debug_assert!(!lambda_node.is_null());
+                        debug_assert!(lambda_idx.is_some());
 
-                        let lnode = lambda_node.borrow_mut();
+                        let lnode = ast_slot_mut(&mut ast.root, &ast_stack, lambda_idx.unwrap())
+                            .as_deref_mut()
+                            .unwrap();
                         lnode.r#type = K_EXPR_NODE_LAMBDA;
 
                         if let Some(colors) = &mut pstate.colors {
@@ -2862,9 +2906,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let mut valid_comma = false;
                     if ast_stack.len() >= 2 {
                         for i in 1..ast_stack.len() {
-                            let eastnode_p = ast_stack[ast_stack.len() - i - 1];
-                            let eastnode = crate::globals::GraphPtr::of(eastnode_p)
-                                .borrow()
+                            let eastnode = ast_slot(&ast.root, &ast_stack, ast_stack.len() - i - 1)
                                 .as_ref()
                                 .unwrap();
                             let eastnode_type = eastnode.r#type;
@@ -2898,6 +2940,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let cur_node = new_node_with_cur_pos(K_EXPR_NODE_COMMA, cur_token, prev_token);
                     is_invalid |= !viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -2917,18 +2960,26 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     if ast_stack.len() >= 2 {
                         let mut can_be_ternary = true;
                         for i in 1..ast_stack.len() {
-                            let eastnode_p = ast_stack[ast_stack.len() - i - 1];
-                            let eastnode = crate::globals::GraphPtr::of(eastnode_p)
-                                .borrow_mut()
-                                .as_deref_mut()
-                                .unwrap();
-                            let eastnode_type = eastnode.r#type;
-                            let eastnode_lvl = node_lvl(eastnode);
+                            let eastnode_idx = ast_stack.len() - i - 1;
+                            let (eastnode_type, eastnode_lvl, got_colon) = {
+                                let eastnode = ast_slot(&ast.root, &ast_stack, eastnode_idx)
+                                    .as_deref()
+                                    .unwrap();
+                                (
+                                    eastnode.r#type,
+                                    node_lvl(eastnode),
+                                    eastnode.data.ter().got_colon,
+                                )
+                            };
                             if can_be_ternary
                                 && eastnode_type == K_EXPR_NODE_TERNARY_VALUE
-                                && !eastnode.data.ter().got_colon
+                                && !got_colon
                             {
+                                add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
                                 ast_stack.truncate(ast_stack.len() - i);
+                                let eastnode = ast_top_mut(&mut ast.root, &ast_stack)
+                                    .as_deref_mut()
+                                    .unwrap();
                                 eastnode.start = cur_token.start;
                                 eastnode.len = cur_token.len;
                                 if prev_token.r#type == K_EXPR_LEX_SPACING {
@@ -2937,12 +2988,14 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 }
                                 is_ternary = true;
                                 eastnode.data.ter_mut().got_colon = true;
-                                add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
-                                let child = eastnode.children.as_deref_mut().unwrap();
-                                ast_stack.push(&raw mut child.next);
+                                ast_stack.push(AstStep::ChildrenNext);
                                 valid_colon = true;
                                 break;
                             } else if eastnode_type == K_EXPR_NODE_UNKNOWN_FIGURE {
+                                let eastnode =
+                                    ast_slot_mut(&mut ast.root, &ast_stack, eastnode_idx)
+                                        .as_deref_mut()
+                                        .unwrap();
                                 eastnode.r#type = K_EXPR_NODE_DICT_LITERAL;
                                 if let Some(colors) = &mut pstate.colors {
                                     colors[eastnode.data.fig().opening_hl_idx].group =
@@ -2970,8 +3023,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     }
                     if is_subscript {
                         if want_node == ExprASTWantedNode::Value
-                            && crate::globals::GraphPtr::of(ast_stack[ast_stack.len() - 2])
-                                .borrow()
+                            && ast_slot(&ast.root, &ast_stack, ast_stack.len() - 2)
                                 .as_ref()
                                 .unwrap()
                                 .r#type
@@ -2980,7 +3032,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             let mut cur_node =
                                 new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
                             cur_node.len = 0;
-                            *top_node_p = Some(cur_node);
+                            *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                             want_node = ExprASTWantedNode::Operator;
                         } else {
                             add_value_if_missing!(c"E15: Expected value, got colon: %.*s");
@@ -2989,6 +3041,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_COLON, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -3031,6 +3084,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 new_node_with_cur_pos(K_EXPR_NODE_COLON, cur_token, prev_token);
                             is_invalid |= !viml_pexpr_handle_bop(
                                 pstate,
+                                &mut ast.root,
                                 &mut ast_stack,
                                 cur_node,
                                 &mut want_node,
@@ -3048,9 +3102,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 }
                 K_EXPR_LEX_BRACKET => {
                     if cur_token.data.brc().closing {
-                        let mut new_top_node_p;
                         ast_stack.pop();
                         if ast_stack.is_empty() {
+                            ast_stack.push(AstStep::Root);
                             let mut cur_node = new_node_with_cur_pos(
                                 K_EXPR_NODE_LIST_LITERAL,
                                 cur_token,
@@ -3058,10 +3112,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             );
                             cur_node.len = 0;
                             if want_node != ExprASTWantedNode::Value {
-                                cur_node.children = (*top_node_p).take();
+                                cur_node.children = ast.root.take();
                             }
-                            *top_node_p = Some(cur_node);
-                            new_top_node_p = std::ptr::from_mut(top_node_p);
+                            ast.root = Some(cur_node);
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -3078,11 +3131,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         } else {
                             if want_node == ExprASTWantedNode::Value {
                                 let last_type =
-                                    crate::globals::GraphPtr::of(*ast_stack.last().unwrap())
-                                        .borrow()
-                                        .as_ref()
-                                        .unwrap()
-                                        .r#type;
+                                    ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                                 if last_type != K_EXPR_NODE_LIST_LITERAL
                                     && last_type != K_EXPR_NODE_COMMA
                                     && last_type != K_EXPR_NODE_COLON
@@ -3096,25 +3145,15 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     );
                                 }
                             }
-                            loop {
-                                new_top_node_p = ast_stack.pop().unwrap();
-                                if ast_stack.is_empty()
-                                    || (!new_top_node_p.is_null()
-                                        && crate::globals::GraphPtr::of(new_top_node_p)
-                                            .borrow()
-                                            .as_ref()
-                                            .is_some_and(|n| {
-                                                n.r#type == K_EXPR_NODE_LIST_LITERAL
-                                                    || n.r#type == K_EXPR_NODE_SUBSCRIPT
-                                            }))
-                                {
-                                    break;
-                                }
+                            while ast_stack.len() > 1
+                                && !ast_top(&ast.root, &ast_stack).as_ref().is_some_and(|n| {
+                                    n.r#type == K_EXPR_NODE_LIST_LITERAL
+                                        || n.r#type == K_EXPR_NODE_SUBSCRIPT
+                                })
+                            {
+                                ast_stack.pop();
                             }
-                            let new_top_node = crate::globals::GraphPtr::of(new_top_node_p)
-                                .borrow()
-                                .as_ref()
-                                .unwrap();
+                            let new_top_node = ast_top(&ast.root, &ast_stack).as_ref().unwrap();
                             match new_top_node.r#type {
                                 K_EXPR_NODE_LIST_LITERAL => {
                                     if pt_is_assignment(cur_pt) && new_top_node.children.is_none() {
@@ -3162,7 +3201,6 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 }
                             }
                         }
-                        ast_stack.push(new_top_node_p);
                         want_node = ExprASTWantedNode::Operator;
                         if ast_stack.len() <= asgn_level {
                             asgn_level = 0;
@@ -3179,9 +3217,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     } else if want_node == ExprASTWantedNode::Value {
                         let cur_node =
                             new_node_with_cur_pos(K_EXPR_NODE_LIST_LITERAL, cur_token, prev_token);
-                        *top_node_p = Some(cur_node);
-                        let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                        ast_stack.push(&raw mut node_ref.children);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                        ast_stack.push(AstStep::Children);
                         if cur_pt == ExprASTParseType::Assignment {
                             pt_stack.push(ExprASTParseType::SingleAssignment);
                         } else if cur_pt == ExprASTParseType::SingleAssignment {
@@ -3207,6 +3244,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_SUBSCRIPT, cur_token, prev_token);
                         is_invalid |= !viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -3230,9 +3268,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 }
                 K_EXPR_LEX_FIGURE_BRACE => {
                     if cur_token.data.brc().closing {
-                        let mut new_top_node_p;
                         ast_stack.pop();
                         if ast_stack.is_empty() {
+                            ast_stack.push(AstStep::Root);
                             let mut cur_node = new_node_with_cur_pos(
                                 K_EXPR_NODE_UNKNOWN_FIGURE,
                                 cur_token,
@@ -3243,10 +3281,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             cur_node.data.fig_mut().type_guesses.allow_ident = false;
                             cur_node.len = 0;
                             if want_node != ExprASTWantedNode::Value {
-                                cur_node.children = (*top_node_p).take();
+                                cur_node.children = ast.root.take();
                             }
-                            *top_node_p = Some(cur_node);
-                            new_top_node_p = std::ptr::from_mut(top_node_p);
+                            ast.root = Some(cur_node);
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -3267,11 +3304,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         } else {
                             if want_node == ExprASTWantedNode::Value {
                                 let last_type =
-                                    crate::globals::GraphPtr::of(*ast_stack.last().unwrap())
-                                        .borrow()
-                                        .as_ref()
-                                        .unwrap()
-                                        .r#type;
+                                    ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                                 if last_type != K_EXPR_NODE_UNKNOWN_FIGURE
                                     && last_type != K_EXPR_NODE_COMMA
                                 {
@@ -3284,26 +3317,17 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     );
                                 }
                             }
-                            loop {
-                                new_top_node_p = ast_stack.pop().unwrap();
-                                if ast_stack.is_empty()
-                                    || (!new_top_node_p.is_null()
-                                        && crate::globals::GraphPtr::of(new_top_node_p)
-                                            .borrow()
-                                            .as_ref()
-                                            .is_some_and(|n| {
-                                                n.r#type == K_EXPR_NODE_UNKNOWN_FIGURE
-                                                    || n.r#type == K_EXPR_NODE_DICT_LITERAL
-                                                    || n.r#type
-                                                        == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
-                                                    || n.r#type == K_EXPR_NODE_LAMBDA
-                                            }))
-                                {
-                                    break;
-                                }
+                            while ast_stack.len() > 1
+                                && !ast_top(&ast.root, &ast_stack).as_ref().is_some_and(|n| {
+                                    n.r#type == K_EXPR_NODE_UNKNOWN_FIGURE
+                                        || n.r#type == K_EXPR_NODE_DICT_LITERAL
+                                        || n.r#type == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
+                                        || n.r#type == K_EXPR_NODE_LAMBDA
+                                })
+                            {
+                                ast_stack.pop();
                             }
-                            let new_top_node = crate::globals::GraphPtr::of(new_top_node_p)
-                                .borrow_mut()
+                            let new_top_node = ast_top_mut(&mut ast.root, &ast_stack)
                                 .as_deref_mut()
                                 .unwrap();
                             match new_top_node.r#type {
@@ -3409,7 +3433,6 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 }
                             }
                         }
-                        ast_stack.push(new_top_node_p);
                         want_node = ExprASTWantedNode::Operator;
                         if ast_stack.len() <= asgn_level
                             && cur_pt == ExprASTParseType::Expr
@@ -3456,17 +3479,15 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             if let Some(colors) = &pstate.colors {
                                 cur_node.data.fig_mut().opening_hl_idx = colors.len() - 1;
                             }
-                            *top_node_p = Some(cur_node);
-                            let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                            ast_stack.push(&raw mut node_ref.children);
+                            *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                            lambda_idx = Some(ast_stack.len() - 1);
+                            ast_stack.push(AstStep::Children);
                             pt_stack.push(ExprASTParseType::LambdaArguments);
-                            lambda_node =
-                                crate::globals::GraphPtr::<ExprASTNode>::from_ref(&*node_ref);
                         } else {
                             if prev_token.r#type == K_EXPR_LEX_SPACING {
                                 op_missing!();
                             }
-                            let top_type = (*top_node_p).as_ref().unwrap().r#type;
+                            let top_type = ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                             if top_type == K_EXPR_NODE_COMPLEX_IDENTIFIER
                                 || top_type == K_EXPR_NODE_PLAIN_IDENTIFIER
                                 || top_type == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
@@ -3477,12 +3498,10 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     prev_token,
                                 );
                                 comp_node.len = 0;
-                                comp_node.children = (*top_node_p).take();
-                                *top_node_p = Some(comp_node);
-                                let comp_ref = (*top_node_p).as_deref_mut().unwrap();
-                                let comp_child = comp_ref.children.as_deref_mut().unwrap();
-                                ast_stack.push(&raw mut comp_child.next);
-                                let new_top_node_p = *ast_stack.last().unwrap();
+                                let top_slot = ast_top_mut(&mut ast.root, &ast_stack);
+                                comp_node.children = top_slot.take();
+                                *top_slot = Some(comp_node);
+                                ast_stack.push(AstStep::ChildrenNext);
                                 let mut cur_node = new_node_with_cur_pos(
                                     K_EXPR_NODE_CURLY_BRACES_IDENTIFIER,
                                     cur_token,
@@ -3499,12 +3518,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 }
                                 want_node = ExprASTWantedNode::Value;
 
-                                let new_top_slot =
-                                    crate::globals::GraphPtr::of(new_top_node_p).borrow_mut();
-                                *new_top_slot = Some(cur_node);
-
-                                let cur_ref = new_top_slot.as_deref_mut().unwrap();
-                                ast_stack.push(&raw mut cur_ref.children);
+                                *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                                ast_stack.push(AstStep::Children);
                                 viml_parser_highlight(
                                     pstate,
                                     cur_token.start,
@@ -3528,25 +3543,17 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             ast_stack.pop();
                         }
                         while {
-                            let t = crate::globals::GraphPtr::of(*ast_stack.last().unwrap())
-                                .borrow()
-                                .as_ref()
-                                .unwrap()
-                                .r#type;
+                            let t = ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                             t != K_EXPR_NODE_LAMBDA && t != K_EXPR_NODE_UNKNOWN_FIGURE
                         } {
                             ast_stack.pop();
                         }
 
-                        debug_assert!(
-                            lambda_node
-                                == crate::globals::GraphPtr::of(*ast_stack.last().unwrap())
-                                    .borrow()
-                                    .as_deref()
-                                    .unwrap()
-                        );
+                        debug_assert_eq!(lambda_idx, Some(ast_stack.len() - 1));
 
-                        let lnode = lambda_node.borrow_mut();
+                        let lnode = ast_top_mut(&mut ast.root, &ast_stack)
+                            .as_deref_mut()
+                            .unwrap();
                         lnode.r#type = K_EXPR_NODE_LAMBDA;
 
                         if let Some(colors) = &mut pstate.colors {
@@ -3557,34 +3564,15 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_ARROW, cur_token, prev_token);
                         if lnode.children.is_none() {
                             lnode.children = Some(cur_node);
-
-                            let children_slot =
-                                crate::globals::GraphPtr::<Option<Box<ExprASTNode>>>::of(
-                                    &raw mut lnode.children,
-                                )
-                                .as_ptr();
-                            let arrow_ref = crate::globals::GraphPtr::of(children_slot)
-                                .borrow_mut()
-                                .as_deref_mut()
-                                .unwrap();
-                            ast_stack.push(children_slot);
-                            ast_stack.push(&raw mut arrow_ref.children);
+                            ast_stack.push(AstStep::Children);
+                            ast_stack.push(AstStep::Children);
                         } else {
                             let lchild = lnode.children.as_deref_mut().unwrap();
                             lchild.next = Some(cur_node);
-                            let next_slot =
-                                crate::globals::GraphPtr::<Option<Box<ExprASTNode>>>::of(
-                                    &raw mut lchild.next,
-                                )
-                                .as_ptr();
-                            let arrow_ref = crate::globals::GraphPtr::of(next_slot)
-                                .borrow_mut()
-                                .as_deref_mut()
-                                .unwrap();
-                            ast_stack.push(next_slot);
-                            ast_stack.push(&raw mut arrow_ref.children);
+                            ast_stack.push(AstStep::ChildrenNext);
+                            ast_stack.push(AstStep::Children);
                         }
-                        lambda_node = crate::globals::GraphPtr::NULL;
+                        lambda_idx = None;
                     } else {
                         is_invalid = true;
                         if want_node == ExprASTWantedNode::Value {
@@ -3597,7 +3585,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             let mut missing_node =
                                 new_node_with_cur_pos(K_EXPR_NODE_MISSING, cur_token, prev_token);
                             missing_node.len = 0;
-                            *top_node_p = Some(missing_node);
+                            *ast_top_mut(&mut ast.root, &ast_stack) = Some(missing_node);
                             want_node = ExprASTWantedNode::Operator;
                         }
                         east_set_error(
@@ -3610,6 +3598,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             new_node_with_cur_pos(K_EXPR_NODE_ARROW, cur_token, prev_token);
                         let _ = viml_pexpr_handle_bop(
                             pstate,
+                            &mut ast.root,
                             &mut ast_stack,
                             cur_node,
                             &mut want_node,
@@ -3651,7 +3640,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             + scope_shift
                             ..cur_token.start.col + cur_token.len]
                             .to_vec();
-                        *top_node_p = Some(cur_node);
+                        *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                         if scope_shift != 0 {
                             viml_parser_highlight(
                                 pstate,
@@ -3696,7 +3685,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         if prev_token.r#type == K_EXPR_LEX_SPACING {
                             op_missing!();
                         }
-                        let top_type = (*top_node_p).as_ref().unwrap().r#type;
+                        let top_type = ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                         if top_type == K_EXPR_NODE_COMPLEX_IDENTIFIER
                             || top_type == K_EXPR_NODE_PLAIN_IDENTIFIER
                             || top_type == K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
@@ -3707,12 +3696,10 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 prev_token,
                             );
                             comp_node.len = 0;
-                            comp_node.children = (*top_node_p).take();
-                            *top_node_p = Some(comp_node);
-                            let comp_ref = (*top_node_p).as_deref_mut().unwrap();
-                            let comp_child = comp_ref.children.as_deref_mut().unwrap();
-                            ast_stack.push(&raw mut comp_child.next);
-                            let new_top_node_p = *ast_stack.last().unwrap();
+                            let top_slot = ast_top_mut(&mut ast.root, &ast_stack);
+                            comp_node.children = top_slot.take();
+                            *top_slot = Some(comp_node);
+                            ast_stack.push(AstStep::ChildrenNext);
                             let mut cur_node = new_node_with_cur_pos(
                                 K_EXPR_NODE_PLAIN_IDENTIFIER,
                                 cur_token,
@@ -3724,8 +3711,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 .to_vec();
                             want_node = ExprASTWantedNode::Operator;
 
-                            *crate::globals::GraphPtr::of(new_top_node_p).borrow_mut() =
-                                Some(cur_node);
+                            *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
 
                             viml_parser_highlight(
                                 pstate,
@@ -3796,7 +3782,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         n
                     };
                     want_node = ExprASTWantedNode::Operator;
-                    *top_node_p = Some(cur_node);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                 }
                 K_EXPR_LEX_DOT => {
                     add_value_if_missing!(c"E15: Unexpected dot: %.*s");
@@ -3838,6 +3824,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     };
                     let _ = viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -3850,8 +3837,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         if want_node == ExprASTWantedNode::Value {
                             if ast_stack.len() > 1 {
                                 let prev_top_node =
-                                    crate::globals::GraphPtr::of(ast_stack[ast_stack.len() - 2])
-                                        .borrow()
+                                    ast_slot(&ast.root, &ast_stack, ast_stack.len() - 2)
                                         .as_ref()
                                         .unwrap();
                                 if prev_top_node.r#type == K_EXPR_NODE_CALL {
@@ -3873,41 +3859,29 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     prev_token,
                                 );
                                 cur_node.len = 0;
-                                *top_node_p = Some(cur_node);
+                                *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                             }
                         } else {
                             ast_stack.pop();
                         }
-                        let mut new_top_node_p =
-                            crate::globals::GraphPtr::<Option<Box<ExprASTNode>>>::of(
-                                std::ptr::null_mut(),
-                            )
-                            .as_ptr();
-                        while !ast_stack.is_empty()
-                            && (new_top_node_p.is_null()
-                                || crate::globals::GraphPtr::of(new_top_node_p)
-                                    .borrow()
-                                    .as_ref()
-                                    .is_none_or(|n| {
-                                        n.r#type != K_EXPR_NODE_NESTED
-                                            && n.r#type != K_EXPR_NODE_CALL
-                                    }))
-                        {
-                            new_top_node_p = ast_stack.pop().unwrap();
-                        }
-                        if !new_top_node_p.is_null()
-                            && crate::globals::GraphPtr::of(new_top_node_p)
-                                .borrow()
-                                .as_ref()
-                                .is_some_and(|n| {
-                                    n.r#type == K_EXPR_NODE_NESTED || n.r#type == K_EXPR_NODE_CALL
+                        let mut matched_paren = false;
+                        if !ast_stack.is_empty() {
+                            while ast_stack.len() > 1
+                                && ast_top(&ast.root, &ast_stack).as_ref().is_none_or(|n| {
+                                    n.r#type != K_EXPR_NODE_NESTED && n.r#type != K_EXPR_NODE_CALL
                                 })
-                        {
-                            if crate::globals::GraphPtr::of(new_top_node_p)
-                                .borrow()
-                                .as_ref()
-                                .unwrap()
-                                .r#type
+                            {
+                                ast_stack.pop();
+                            }
+                            matched_paren =
+                                ast_top(&ast.root, &ast_stack).as_ref().is_some_and(|n| {
+                                    n.r#type == K_EXPR_NODE_NESTED || n.r#type == K_EXPR_NODE_CALL
+                                });
+                        } else {
+                            ast_stack.push(AstStep::Root);
+                        }
+                        if matched_paren {
+                            if ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type
                                 == K_EXPR_NODE_NESTED
                             {
                                 viml_parser_highlight(
@@ -3933,9 +3907,6 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 );
                             }
                         } else {
-                            if new_top_node_p.is_null() {
-                                new_top_node_p = top_node_p;
-                            }
                             is_invalid = true;
                             east_set_error(
                                 pstate,
@@ -3957,13 +3928,10 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             cur_node.start = cur_token.start;
                             cur_node.len = 0;
 
-                            let new_top_slot =
-                                crate::globals::GraphPtr::of(new_top_node_p).borrow_mut();
+                            let new_top_slot = ast_top_mut(&mut ast.root, &ast_stack);
                             cur_node.children = new_top_slot.take();
-
                             *new_top_slot = Some(cur_node);
                         }
-                        ast_stack.push(new_top_node_p);
                         want_node = ExprASTWantedNode::Operator;
                     } else {
                         match want_node {
@@ -3973,9 +3941,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     cur_token,
                                     prev_token,
                                 );
-                                *top_node_p = Some(cur_node);
-                                let node_ref = (*top_node_p).as_deref_mut().unwrap();
-                                ast_stack.push(&raw mut node_ref.children);
+                                *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
+                                ast_stack.push(AstStep::Children);
                                 viml_parser_highlight(
                                     pstate,
                                     cur_token.start,
@@ -3989,7 +3956,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             }
                             ExprASTWantedNode::Operator => {
                                 if prev_token.r#type == K_EXPR_LEX_SPACING {
-                                    let top_type = (*top_node_p).as_ref().unwrap().r#type;
+                                    let top_type =
+                                        ast_top(&ast.root, &ast_stack).as_ref().unwrap().r#type;
                                     if top_type != K_EXPR_NODE_PLAIN_IDENTIFIER
                                         && top_type != K_EXPR_NODE_COMPLEX_IDENTIFIER
                                         && top_type != K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
@@ -4001,6 +3969,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                     new_node_with_cur_pos(K_EXPR_NODE_CALL, cur_token, prev_token);
                                 is_invalid |= !viml_pexpr_handle_bop(
                                     pstate,
+                                    &mut ast.root,
                                     &mut ast_stack,
                                     cur_node,
                                     &mut want_node,
@@ -4027,6 +3996,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         new_node_with_cur_pos(K_EXPR_NODE_TERNARY, cur_token, prev_token);
                     is_invalid |= !viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -4041,13 +4011,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let mut ter_val_node =
                         new_node_with_cur_pos(K_EXPR_NODE_TERNARY_VALUE, cur_token, prev_token);
                     ter_val_node.data.ter_mut().got_colon = false;
-                    let slot =
-                        crate::globals::GraphPtr::of(*ast_stack.last().unwrap()).borrow_mut();
-
-                    *slot = Some(ter_val_node);
-
-                    let ter_ref = slot.as_deref_mut().unwrap();
-                    ast_stack.push(&raw mut ter_ref.children);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(ter_val_node);
+                    ast_stack.push(AstStep::Children);
                 }
                 K_EXPR_LEX_DOUBLE_QUOTED_STRING | K_EXPR_LEX_SINGLE_QUOTED_STRING => {
                     let is_double = tok_type == K_EXPR_LEX_DOUBLE_QUOTED_STRING;
@@ -4077,7 +4042,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         prev_token,
                     );
                     parse_quoted_string(pstate, &mut cur_node, cur_token, &ast_stack, is_invalid);
-                    *top_node_p = Some(cur_node);
+                    *ast_top_mut(&mut ast.root, &ast_stack) = Some(cur_node);
                     want_node = ExprASTWantedNode::Operator;
                 }
                 K_EXPR_LEX_ASSIGNMENT => {
@@ -4130,6 +4095,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     viml_parser_highlight(pstate, cur_token.start, cur_token.len, hl_grp);
                     let _ = viml_pexpr_handle_bop(
                         pstate,
+                        &mut ast.root,
                         &mut ast_stack,
                         cur_node,
                         &mut want_node,
@@ -4156,21 +4122,22 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
         );
     } else if ast_stack.len() != 1 {
         ast_stack.pop();
-        while ast.err.msg.is_none()
-            && let Some(node_p) = ast_stack.pop()
-        {
-            let cur_node = crate::globals::GraphPtr::of(node_p)
-                .borrow_mut()
+        while ast.err.msg.is_none() && !ast_stack.is_empty() {
+            let cur_node = ast_top_mut(&mut ast.root, &ast_stack)
                 .as_deref_mut()
                 .unwrap();
-            match cur_node.r#type {
+            let cur_type = cur_node.r#type;
+            let cur_start = cur_node.start;
+            let got_colon = cur_node.data.ter().got_colon;
+            ast_stack.pop();
+            match cur_type {
                 K_EXPR_NODE_OP_MISSING | K_EXPR_NODE_MISSING => {}
                 K_EXPR_NODE_CALL => {
                     east_set_error(
                         pstate,
                         &mut ast.err,
                         c"E116: Missing closing parenthesis for function call: %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_NESTED => {
@@ -4178,7 +4145,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         pstate,
                         &mut ast.err,
                         c"E110: Missing closing parenthesis for nested expression: %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_LIST_LITERAL => {
@@ -4186,7 +4153,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         pstate,
                         &mut ast.err,
                         c"E697: Missing end of List ']': %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_DICT_LITERAL => {
@@ -4194,7 +4161,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         pstate,
                         &mut ast.err,
                         c"E723: Missing end of Dictionary '}': %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_UNKNOWN_FIGURE => {
@@ -4202,7 +4169,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         pstate,
                         &mut ast.err,
                         c"E15: Missing closing figure brace: %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_LAMBDA => {
@@ -4210,7 +4177,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         pstate,
                         &mut ast.err,
                         c"E15: Missing closing figure brace for lambda: %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 K_EXPR_NODE_CURLY_BRACES_IDENTIFIER
@@ -4225,12 +4192,12 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 | K_EXPR_NODE_PLAIN_KEY => {
                     std::process::abort();
                 }
-                K_EXPR_NODE_TERNARY_VALUE if !cur_node.data.ter_mut().got_colon => {
+                K_EXPR_NODE_TERNARY_VALUE if !got_colon => {
                     east_set_error(
                         pstate,
                         &mut ast.err,
                         c"E109: Missing ':' after '?': %.*s",
-                        cur_node.start,
+                        cur_start,
                     );
                 }
                 _ => {}
