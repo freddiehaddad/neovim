@@ -1505,7 +1505,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         Some(partial_name(partial.opt()).to_owned())
     } else if nlua_is_table_from_lua(&argvars[0]) {
         owned = true;
-        nlua_register_table_as_callable(&argvars[0]).map(CStr::to_owned)
+        nlua_register_table_as_callable(&argvars[0])
     } else {
         Some(tv_get_string(&argvars[0]).to_owned())
     };
@@ -2570,15 +2570,13 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 pt.pt_refcount.set(1);
-                if !arg_pt.is_null() && !arg_pt.pt_func.get().is_null() {
-                    pt.pt_func.set(arg_pt.pt_func.get());
-
-                    func_ptr_ref(pt.pt_func.get().opt_mut());
+                if let Some(arg_fp) = arg_pt.opt().and_then(|p| p.func_rc()) {
+                    func_ptr_ref(Some(&arg_fp));
+                    pt.set_func(Some(arg_fp));
                 } else if is_funcref {
-                    pt.pt_func
-                        .set(crate::eval::userfunc::UfuncId::from(find_func(trans_name)));
-
-                    func_ptr_ref(pt.pt_func.get().opt_mut());
+                    let found_fp = find_func(trans_name);
+                    func_ptr_ref(found_fp.as_deref());
+                    pt.set_func(found_fp);
                 } else {
                     func_ref(Some(name_cstr.as_c_str()));
                     pt.set_name(Some(name_cstr));
@@ -2676,9 +2674,9 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 }
                 if what.to_bytes().first().copied().unwrap_or(0) == b'n'
                     && pt.name_cstr().is_none()
-                    && !pt.pt_func.get().is_null()
+                    && let Some(uf) = pt.func_opt()
                 {
-                    name = printable_func_name(pt.pt_func.get().borrow_mut());
+                    name = printable_func_name(uf);
                 }
                 crate::eval::typval::tv_set_string(rettv, Some(name));
                 rettv.v_type = if what.to_bytes().first().copied().unwrap_or(0) == b'f' {

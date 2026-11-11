@@ -3186,9 +3186,9 @@ pub(crate) fn fill_submatch_list(
     _argc: i32,
     argv: &mut [TypVal],
     argskip: i32,
-    fp: &mut UserFunc,
+    fp: &UserFunc,
 ) -> i32 {
-    if fp.uf_varargs == 0 && (fp.uf_args.len() as i32) <= argskip {
+    if fp.uf_varargs.get() == 0 && (fp.uf_args.borrow().len() as i32) <= argskip {
         return argskip;
     }
     let listarg = &mut argv[argskip as usize];
@@ -3368,7 +3368,7 @@ fn vim_regsub_both(
                     fe_evaluate: true,
                     fe_partial: crate::eval::typval::PartialId::NULL,
                     fe_selfdict: crate::eval::typval::DictId::NULL,
-                    fe_basetv: crate::globals::GraphPtr::NULL,
+                    fe_basetv: None,
                     fe_found_var: false,
                 };
                 if expr.v_type == VarType::VarFunc {

@@ -341,7 +341,7 @@ pub struct CallerScope {
     pub autocmd_match: Option<std::ffi::CString>,
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: i32,
-    pub funccalp: crate::globals::GraphPtr<crate::profile::Funccall>,
+    pub funccalp: crate::eval::userfunc::FunccalId,
 }
 
 #[inline]
@@ -544,7 +544,7 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
         fe_evaluate: true,
         fe_partial: partial_ptr,
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
     if !call_func(s, -1, rettv, argc, argv, &mut funcexe) {
@@ -574,7 +574,7 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
     if !call_func(s, -1, rettv, argc, argv, &mut funcexe) {
@@ -845,7 +845,7 @@ pub fn call_vim_function(
         fe_evaluate: true,
         fe_partial: pt,
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
     let ret = call_func(func, len, &mut *rettv, argc, argv, &mut funcexe);
@@ -2028,10 +2028,7 @@ fn eval_func(
         fe_evaluate: evaluate,
         fe_partial: partial,
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: basetv.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        ),
+        fe_basetv: basetv.map(std::mem::take),
         fe_found_var: found_var,
     };
     let mut ret = get_func_tv(&s_cstr, len, &mut *rettv, arg, evalarg, &mut funcexe);
@@ -3002,10 +2999,7 @@ fn call_func_rettv(
         fe_evaluate: evaluate,
         fe_partial: pt.clone(),
         fe_selfdict: crate::eval::typval::DictId::from(selfdict),
-        fe_basetv: basetv.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        ),
+        fe_basetv: basetv.map(std::mem::take),
         fe_found_var: false,
     };
     let ret = get_func_tv(
@@ -3954,7 +3948,7 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
         if let Some(name) = pt.name_cstr() {
             return name;
         }
-        if let Some(uf) = pt.pt_func.get().opt() {
+        if let Some(uf) = pt.func_opt() {
             return uf.uf_name.as_c_str();
         }
     }
@@ -4386,7 +4380,7 @@ fn set_ref_in_item_partial(
 
     pt.pt_copy_id.set(copy_id);
 
-    let mut abort = set_ref_in_func(pt.name_cstr(), pt.pt_func.get().opt_mut(), copy_id);
+    let mut abort = set_ref_in_func(pt.name_cstr(), pt.func_opt(), copy_id);
 
     if !pt.pt_dict.get().is_null() {
         let mut dtv = TypVal {
@@ -4864,7 +4858,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         }
     } else if is_lua_tbl {
         if let Some(name) = nlua_register_table_as_callable(arg) {
-            callback.data = crate::eval::typval::CallbackData::funcref(name.to_owned());
+            callback.data = crate::eval::typval::CallbackData::funcref(name);
         } else {
             r = false;
         }
@@ -4973,7 +4967,7 @@ pub fn callback_call(
         fe_evaluate: true,
         fe_partial: partial.clone(),
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
 
@@ -6580,10 +6574,7 @@ pub fn eval_call_provider(
         autocmd_match: g_st().autocmd_match.clone(),
         autocmd_fname_full: g_st().autocmd_fname_full,
         autocmd_bufnr: g_st().autocmd_bufnr,
-        funccalp: get_current_funccal().map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        ),
+        funccalp: get_current_funccal().into(),
     };
     let saved_provider_caller_scope =
         std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
@@ -6617,7 +6608,7 @@ pub fn eval_call_provider(
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: crate::eval::typval::DictId::NULL,
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
     call_func(

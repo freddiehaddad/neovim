@@ -215,7 +215,7 @@ pub enum LineGetter {
     ExLine,
     CmdKeyCmd,
     AutoCmd(crate::globals::GraphPtr<crate::autocmd::AutoPatCmd>),
-    Func(crate::globals::GraphPtr<crate::profile::Funccall>),
+    Func(crate::eval::userfunc::FunccalId),
     Source(crate::globals::GraphPtr<crate::runtime::SourceCookie>),
     Loop(crate::globals::GraphPtr<crate::ex_docmd::LoopCookie>),
     List(crate::globals::GraphPtr<crate::eval::funcs::GetListLineCookie>),
@@ -258,9 +258,9 @@ impl LineGetter {
     }
 
     #[inline]
-    pub fn as_func(self) -> Option<&'static mut crate::profile::Funccall> {
+    pub fn as_func(self) -> Option<std::rc::Rc<crate::profile::Funccall>> {
         match self.inner() {
-            Self::Func(p) => p.opt_mut(),
+            Self::Func(id) => id.rc(),
             _ => None,
         }
     }
@@ -278,6 +278,58 @@ impl LineGetter {
         self.as_source()
     }
 
+    #[inline]
+    pub fn breakpoint_get(self) -> Option<crate::cursor::Linenr> {
+        match self.inner() {
+            Self::Func(id) => id.rc().map(|fc| fc.fc_breakpoint.get()),
+            Self::Source(p) => p.opt().map(|sp| sp.breakpoint),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn breakpoint_set(self, val: crate::cursor::Linenr) {
+        match self.inner() {
+            Self::Func(id) => {
+                if let Some(fc) = id.rc() {
+                    fc.fc_breakpoint.set(val);
+                }
+            }
+            Self::Source(p) => {
+                if let Some(sp) = p.opt_mut() {
+                    sp.breakpoint = val;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[inline]
+    pub fn dbg_tick_get(self) -> Option<i32> {
+        match self.inner() {
+            Self::Func(id) => id.rc().map(|fc| fc.fc_dbg_tick.get()),
+            Self::Source(p) => p.opt().map(|sp| sp.dbg_tick),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn dbg_tick_set(self, val: i32) {
+        match self.inner() {
+            Self::Func(id) => {
+                if let Some(fc) = id.rc() {
+                    fc.fc_dbg_tick.set(val);
+                }
+            }
+            Self::Source(p) => {
+                if let Some(sp) = p.opt_mut() {
+                    sp.dbg_tick = val;
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn call(self, c: i32, indent: i32, do_concat: bool) -> Option<std::ffi::CString> {
         match self {
             Self::None => None,
@@ -287,7 +339,7 @@ impl LineGetter {
                 crate::autocmd::getnextac(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::Func(cookie) => {
-                crate::eval::userfunc::get_func_line(c, cookie.borrow_mut(), indent, do_concat)
+                crate::eval::userfunc::get_func_line(c, &cookie.unwrap_rc(), indent, do_concat)
             }
             Self::Source(cookie) => {
                 crate::runtime::getsourceline(c, cookie.borrow_mut(), indent, do_concat)

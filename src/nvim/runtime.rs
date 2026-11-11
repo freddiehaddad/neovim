@@ -242,9 +242,9 @@ pub struct SourceCookie {
     fileformat: i32,
     #[cfg(windows)]
     error: bool,
-    breakpoint: Linenr,
+    pub(crate) breakpoint: Linenr,
     fname: Option<std::ffi::CString>,
-    dbg_tick: i32,
+    pub(crate) dbg_tick: i32,
     level: i32,
     conv: Vimconv,
 }
@@ -454,13 +454,13 @@ pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) {
 }
 
 /// Add a user function to the execution stack.
-pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
+pub fn estack_push_ufunc(ufunc: &UserFunc, lnum: Linenr) {
     let name_owned = if let Some(ref exp) = ufunc.uf_name_exp {
         exp.clone()
     } else {
         ufunc.uf_name.clone()
     };
-    let ufunc_id = ufunc.into();
+    let ufunc_id = ufunc.uf_id;
     EXESTACK.with(|c| {
         c.borrow_mut().push(Estack {
             es_type: ETYPE_UFUNC,
@@ -494,7 +494,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
             for entry in stack.iter().rev() {
                 if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                     let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                        entry.es_info.ufunc().unwrap().uf_script_ctx
+                        entry.es_info.ufunc().unwrap().uf_script_ctx.get()
                     } else {
                         entry.es_info.aucmd_sctx()
                     };
@@ -562,7 +562,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
 
 fn stacktrace_push_item(
     l: &mut TvList,
-    fp: Option<&mut UserFunc>,
+    fp: Option<&UserFunc>,
     event: Option<&CStr>,
     lnum: Linenr,
     filepath: Option<&CStr>,
@@ -598,14 +598,14 @@ pub fn stacktrace_create() -> &'static mut TvList {
             stacktrace_push_item(&mut *l, None, None, lnum, entry.name_cstr());
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
-            let sctx = fp.as_deref().unwrap().uf_script_ctx;
+            let sctx = fp.as_deref().unwrap().uf_script_ctx.get();
             let filepath = if sctx.sc_sid > 0 {
                 get_scriptname(sctx, false)
             } else {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(&mut *l, fp, None, lnum, Some(&filepath));
+            stacktrace_push_item(&mut *l, fp.as_deref(), None, lnum, Some(&filepath));
         } else if entry.es_type == ETYPE_AUCMD {
             let sctx = entry.es_info.aucmd_sctx();
             let filepath = if sctx.sc_sid > 0 {
@@ -2406,14 +2406,6 @@ pub fn ex_options(_eap: &mut Exarg) {
     cmd_source(c"$VIMRUNTIME/scripts/optwin.lua", None);
 }
 
-pub fn source_breakpoint(sp: &mut SourceCookie) -> &mut Linenr {
-    &mut sp.breakpoint
-}
-
-pub fn source_dbg_tick(sp: &mut SourceCookie) -> &mut i32 {
-    &mut sp.dbg_tick
-}
-
 pub fn source_level(sp: &mut SourceCookie) -> i32 {
     sp.level
 }
@@ -3099,8 +3091,10 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     let l = tv_list_alloc(functbl.len() as isize);
 
     for fp in functbl {
-        let fp_ref = fp.borrow();
-        if fp_ref.uf_script_ctx.sc_sid == sid {
+        let Some(fp_ref) = fp.rc() else {
+            continue;
+        };
+        if fp_ref.uf_script_ctx.get().sc_sid == sid {
             let name = if let Some(ref exp) = fp_ref.uf_name_exp {
                 exp.as_c_str()
             } else {

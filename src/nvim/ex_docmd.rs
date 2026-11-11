@@ -78,7 +78,7 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::{
     current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
-    func_breakpoint, func_dbg_tick, func_has_abort, func_has_ended, func_level, func_name,
+    func_has_abort, func_has_ended, func_level, func_name,
 };
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, ENV_STARTREASON, VV_ARGV, VV_EXITREASON, VV_HLSEARCH, VV_OLDFILES,
@@ -208,8 +208,8 @@ use crate::register::{
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
-    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, set_sourcing_lnum, source_breakpoint,
-    source_dbg_tick, source_finished, source_level, source_runtime, sourcing_lnum, sourcing_name,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, set_sourcing_lnum, source_finished,
+    source_level, source_runtime, sourcing_lnum, sourcing_name,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -4996,8 +4996,6 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut current_line: i32 = 0;
         let mut fname_opt: Option<&CStr> = None;
         let sname_owned: Option<std::ffi::CString>;
-        let mut breakpoint = crate::globals::GraphPtr::<Linenr>::NULL.as_ptr();
-        let mut dbg_tick = crate::globals::GraphPtr::<i32>::NULL.as_ptr();
         let mut debug_saved = DbgStuff::new();
 
         let mut cmd_getline: LineGetter;
@@ -5012,18 +5010,15 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             return false;
         }
 
-        if let Some(fcp) = fgetline.as_func() {
+        if let Some(ref fcp) = fgetline.as_func() {
             if g_st().ex_nesting_level == func_level(fcp) {
                 g_st().ex_nesting_level += 1;
             }
-            fname_opt = Some(func_name(fcp));
-            breakpoint = func_breakpoint(fcp);
-            dbg_tick = func_dbg_tick(fcp);
-        } else if let Some(sp) = fgetline.as_source() {
+            sname_owned = Some(func_name(fcp));
+            fname_opt = sname_owned.as_deref();
+        } else if fgetline.is_source() {
             sname_owned = sourcing_name();
             fname_opt = sname_owned.as_deref();
-            breakpoint = source_breakpoint(sp);
-            dbg_tick = source_dbg_tick(sp);
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
@@ -5052,7 +5047,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 && cstack.cs_idx < 0
                 && !fgetline
                     .as_func()
-                    .is_some_and(|fcp| func_has_abort(fcp) != 0)
+                    .is_some_and(|fcp| func_has_abort(&fcp) != 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5061,7 +5056,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 cmdline_buf.clear();
                 has_cmdline_copy = false;
 
-                if let Some(fcp) = fgetline.as_func() {
+                if let Some(ref fcp) = fgetline.as_func() {
                     if g_st().do_profiling == PROF_YES {
                         func_line_end(fcp);
                     }
@@ -5079,30 +5074,36 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 }
 
                 let fname_cstr = fname_opt.unwrap_or(c"");
-                if !breakpoint.is_null()
-                    && !dbg_tick.is_null()
-                    && *crate::globals::GraphPtr::of(dbg_tick).borrow() != g_st().debug_tick
+                if fgetline
+                    .dbg_tick_get()
+                    .is_some_and(|dt| dt != g_st().debug_tick)
                 {
-                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, sourcing_lnum());
-                    *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
+                    fgetline.breakpoint_set(dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        fname_cstr,
+                        sourcing_lnum(),
+                    ));
+                    fgetline.dbg_tick_set(g_st().debug_tick);
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
                 next_cmdline = Some(wp.line.as_c_str());
                 set_sourcing_lnum(wp.lnum);
 
-                if !breakpoint.is_null()
-                    && *crate::globals::GraphPtr::of(breakpoint).borrow() != 0
-                    && *crate::globals::GraphPtr::of(breakpoint).borrow() <= sourcing_lnum()
+                if fgetline
+                    .breakpoint_get()
+                    .is_some_and(|bp| bp != 0 && bp <= sourcing_lnum())
                 {
                     dbg_breakpoint(fname_opt, sourcing_lnum());
-                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, sourcing_lnum());
-                    *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
+                    fgetline.breakpoint_set(dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        fname_cstr,
+                        sourcing_lnum(),
+                    ));
+                    fgetline.dbg_tick_set(g_st().debug_tick);
                 }
                 if g_st().do_profiling == PROF_YES {
-                    if let Some(fcp) = fgetline.as_func() {
+                    if let Some(ref fcp) = fgetline.as_func() {
                         func_line_start(fcp);
                     } else if fgetline.is_source() {
                         script_line_start();
@@ -5237,7 +5238,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 && !g_st().force_abort
                 && fgetline
                     .as_func()
-                    .is_some_and(|fcp| func_has_abort(fcp) == 0)
+                    .is_some_and(|fcp| func_has_abort(&fcp) == 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5260,15 +5261,17 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                         cstack.cs_lflags |= CSL_HAD_LOOP;
                         line_breakcheck();
 
-                        if !breakpoint.is_null()
+                        if fgetline.breakpoint_get().is_some()
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
                             let fname_cstr = fname_opt.unwrap_or(c"");
-                            *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                                dbg_find_breakpoint(fgetline.is_source(), fname_cstr, wp.lnum - 1);
-                            *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() =
-                                g_st().debug_tick;
+                            fgetline.breakpoint_set(dbg_find_breakpoint(
+                                fgetline.is_source(),
+                                fname_cstr,
+                                wp.lnum - 1,
+                            ));
+                            fgetline.dbg_tick_set(g_st().debug_tick);
                         }
                     } else if cstack.cs_idx >= 0 {
                         let prev_idx = cstack.cs_idx - 1;
@@ -5346,7 +5349,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 && ((fgetline.is_source() && !source_finished(fgetline))
                     || fgetline
                         .as_func()
-                        .is_some_and(|fcp| func_has_ended(fcp) == 0))
+                        .is_some_and(|fcp| func_has_ended(&fcp) == 0))
             {
                 let top_flags = cstack.cs_flags[cstack.cs_idx as usize];
                 if (top_flags & CSF_TRY) != 0 {
@@ -5396,7 +5399,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
             || fgetline
                 .as_func()
-                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(fcp) + 1)
+                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&fcp) + 1)
         {
             if !g_st().did_throw {
                 g_st().check_cstack = true;
@@ -6228,7 +6231,7 @@ fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
         }
 
         if !skip {
-            if let Some(fcp) = fgetline.as_func() {
+            if let Some(ref fcp) = fgetline.as_func() {
                 func_line_exec(fcp);
             } else if fgetline.is_source() {
                 script_line_exec();

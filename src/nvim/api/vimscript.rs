@@ -267,7 +267,7 @@ fn call_function_impl(
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: crate::eval::typval::DictId::from(self_dict),
-        fe_basetv: crate::globals::GraphPtr::NULL,
+        fe_basetv: None,
         fe_found_var: false,
     };
 

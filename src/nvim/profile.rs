@@ -125,9 +125,9 @@ pub enum EStackInfo {
 
 impl EStackInfo {
     #[inline]
-    pub fn ufunc(&self) -> Option<&'static mut UserFunc> {
+    pub fn ufunc(&self) -> Option<std::rc::Rc<UserFunc>> {
         match *self {
-            Self::Ufunc(p) => p.opt_mut(),
+            Self::Ufunc(p) => p.rc(),
             _ => None,
         }
     }
@@ -156,67 +156,56 @@ impl Estack {
     }
 }
 
-#[repr(C)]
 pub struct Funccall {
-    pub fc_func: crate::eval::userfunc::UfuncId,
-    pub fc_linenr: i32,
-    pub fc_returned: i32,
-    pub fc_l_vars: crate::eval::typval::DictId,
-    pub fc_l_vars_var: crate::eval::typval::DictitemId,
-    pub fc_l_avars: crate::eval::typval::DictId,
-    pub fc_l_avars_var: crate::eval::typval::DictitemId,
-    pub fc_l_varlist: crate::eval::typval::ListId,
-    pub fc_rettv: crate::globals::GraphPtr<TypVal>,
-    pub fc_breakpoint: i32,
-    pub fc_dbg_tick: i32,
-    pub fc_level: i32,
-    pub fc_defer: Vec<DeferCall>,
-    pub fc_prof_child: Proftime,
-    pub fc_caller: crate::globals::GraphPtr<Funccall>,
-    pub fc_refcount: i32,
-    pub fc_copy_id: i32,
-    pub fc_ufuncs: Vec<crate::eval::userfunc::UfuncId>,
-    pub fc_arena_idx: usize,
+    pub fc_func: std::cell::Cell<crate::eval::userfunc::UfuncId>,
+    pub fc_linenr: std::cell::Cell<i32>,
+    pub fc_returned: std::cell::Cell<i32>,
+    pub fc_l_vars: std::cell::Cell<crate::eval::typval::DictId>,
+    pub fc_l_vars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    pub fc_l_avars: std::cell::Cell<crate::eval::typval::DictId>,
+    pub fc_l_avars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    pub fc_l_varlist: std::cell::Cell<crate::eval::typval::ListId>,
+    pub fc_rettv: std::cell::RefCell<TypVal>,
+    pub fc_breakpoint: std::cell::Cell<i32>,
+    pub fc_dbg_tick: std::cell::Cell<i32>,
+    pub fc_level: std::cell::Cell<i32>,
+    pub fc_defer: std::cell::RefCell<Vec<DeferCall>>,
+    pub fc_prof_child: std::cell::Cell<Proftime>,
+    pub fc_caller: std::cell::Cell<crate::eval::userfunc::FunccalId>,
+    pub fc_refcount: std::cell::Cell<i32>,
+    pub fc_copy_id: std::cell::Cell<i32>,
+    pub fc_ufuncs: std::cell::RefCell<Vec<crate::eval::userfunc::UfuncId>>,
+    pub fc_id: crate::eval::userfunc::FunccalId,
 }
 
 impl Funccall {
     pub const fn new() -> Self {
         Self {
-            fc_func: crate::eval::userfunc::UfuncId::NULL,
-            fc_linenr: 0,
-            fc_returned: 0,
-            fc_l_vars: crate::eval::typval::DictId::NULL,
-            fc_l_vars_var: crate::eval::typval::DictitemId::NULL,
-            fc_l_avars: crate::eval::typval::DictId::NULL,
-            fc_l_avars_var: crate::eval::typval::DictitemId::NULL,
-            fc_l_varlist: crate::eval::typval::ListId::NULL,
-            fc_rettv: crate::globals::GraphPtr::NULL,
-            fc_breakpoint: 0,
-            fc_dbg_tick: 0,
-            fc_level: 0,
-            fc_defer: Vec::new(),
-            fc_prof_child: 0,
-            fc_caller: crate::globals::GraphPtr::NULL,
-            fc_refcount: 0,
-            fc_copy_id: i32::MIN,
-            fc_ufuncs: Vec::new(),
-            fc_arena_idx: usize::MAX,
+            fc_func: std::cell::Cell::new(crate::eval::userfunc::UfuncId::NULL),
+            fc_linenr: std::cell::Cell::new(0),
+            fc_returned: std::cell::Cell::new(0),
+            fc_l_vars: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
+            fc_l_vars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            fc_l_avars: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
+            fc_l_avars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            fc_l_varlist: std::cell::Cell::new(crate::eval::typval::ListId::NULL),
+            fc_rettv: std::cell::RefCell::new(TypVal::new()),
+            fc_breakpoint: std::cell::Cell::new(0),
+            fc_dbg_tick: std::cell::Cell::new(0),
+            fc_level: std::cell::Cell::new(0),
+            fc_defer: std::cell::RefCell::new(Vec::new()),
+            fc_prof_child: std::cell::Cell::new(0),
+            fc_caller: std::cell::Cell::new(crate::eval::userfunc::FunccalId::NULL),
+            fc_refcount: std::cell::Cell::new(0),
+            fc_copy_id: std::cell::Cell::new(i32::MIN),
+            fc_ufuncs: std::cell::RefCell::new(Vec::new()),
+            fc_id: crate::eval::userfunc::FunccalId::NULL,
         }
     }
 
     #[inline]
-    pub fn func_mut(&self) -> &'static mut UserFunc {
-        self.fc_func.borrow_mut()
-    }
-
-    #[inline]
-    pub fn rettv_mut(&self) -> &'static mut TypVal {
-        self.fc_rettv.borrow_mut()
-    }
-
-    #[inline]
-    pub fn caller_opt(&self) -> Option<&'static mut Funccall> {
-        self.fc_caller.opt_mut()
+    pub fn func_rc(&self) -> std::rc::Rc<UserFunc> {
+        self.fc_func.get().unwrap_rc()
     }
 }
 
@@ -348,23 +337,25 @@ pub fn profile_reset() {
     }
 
     for fp in func_tbl_values() {
-        let uf = fp.borrow_mut();
-        if uf.uf_prof_initialized {
-            uf.uf_profiling = 0;
-            uf.uf_tm_count = 0;
-            uf.uf_tm_total = profile_zero();
-            uf.uf_tm_self = profile_zero();
-            uf.uf_tm_children = profile_zero();
+        let Some(uf) = fp.rc() else {
+            continue;
+        };
+        if uf.uf_prof_initialized.get() {
+            uf.uf_profiling.set(0);
+            uf.uf_tm_count.set(0);
+            uf.uf_tm_total.set(profile_zero());
+            uf.uf_tm_self.set(profile_zero());
+            uf.uf_tm_children.set(profile_zero());
 
-            uf.uf_tml_count.fill(0);
-            uf.uf_tml_total.fill(0);
-            uf.uf_tml_self.fill(0);
+            uf.uf_tml_count.borrow_mut().fill(0);
+            uf.uf_tml_total.borrow_mut().fill(0);
+            uf.uf_tml_self.borrow_mut().fill(0);
 
-            uf.uf_tml_start = profile_zero();
-            uf.uf_tml_children = profile_zero();
-            uf.uf_tml_wait = profile_zero();
-            uf.uf_tml_idx = -1;
-            uf.uf_tml_execed = 0;
+            uf.uf_tml_start.set(profile_zero());
+            uf.uf_tml_children.set(profile_zero());
+            uf.uf_tml_wait.set(profile_zero());
+            uf.uf_tml_idx.set(-1);
+            uf.uf_tml_execed.set(0);
         }
     }
 
@@ -494,15 +485,20 @@ fn prof_func_line(
     }
 }
 
-fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, prefer_self: bool) {
+fn prof_sort_list(
+    fd: &CFile,
+    sorttab: &[std::rc::Rc<UserFunc>],
+    title: &std::ffi::CStr,
+    prefer_self: bool,
+) {
     fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title);
     fprintf!(fd, c"count  total (s)   self (s)  function\n");
-    for &fp in sorttab.iter().take(20) {
+    for fp in sorttab.iter().take(20) {
         prof_func_line(
             fd,
-            fp.uf_tm_count,
-            &fp.uf_tm_total,
-            &fp.uf_tm_self,
+            fp.uf_tm_count.get(),
+            &fp.uf_tm_total.get(),
+            &fp.uf_tm_self.get(),
             prefer_self,
         );
         let name_cstr = fp.uf_name.as_c_str();
@@ -519,50 +515,50 @@ fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, pre
     fprintf!(fd, c"\n");
 }
 
-fn prof_total_cmp(s1: &&UserFunc, s2: &&UserFunc) -> std::cmp::Ordering {
-    s2.uf_tm_total.cmp(&s1.uf_tm_total)
+fn prof_total_cmp(s1: &std::rc::Rc<UserFunc>, s2: &std::rc::Rc<UserFunc>) -> std::cmp::Ordering {
+    s2.uf_tm_total.get().cmp(&s1.uf_tm_total.get())
 }
 
-fn prof_self_cmp(s1: &&UserFunc, s2: &&UserFunc) -> std::cmp::Ordering {
-    s2.uf_tm_self.cmp(&s1.uf_tm_self)
+fn prof_self_cmp(s1: &std::rc::Rc<UserFunc>, s2: &std::rc::Rc<UserFunc>) -> std::cmp::Ordering {
+    s2.uf_tm_self.get().cmp(&s1.uf_tm_self.get())
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
-pub fn func_do_profile(fp: &mut UserFunc) {
-    let mut len = fp.uf_lines.len() as i32;
+pub fn func_do_profile(fp: &UserFunc) {
+    let mut len = fp.uf_lines.borrow().len() as i32;
 
-    if !fp.uf_prof_initialized {
+    if !fp.uf_prof_initialized.get() {
         if len == 0 {
             len = 1;
         }
-        fp.uf_tm_count = 0;
-        fp.uf_tm_self = profile_zero();
-        fp.uf_tm_total = profile_zero();
+        fp.uf_tm_count.set(0);
+        fp.uf_tm_self.set(profile_zero());
+        fp.uf_tm_total.set(profile_zero());
 
         let count_len = len as usize;
-        if fp.uf_tml_count.is_empty() {
-            fp.uf_tml_count.resize(count_len, 0);
+        if fp.uf_tml_count.borrow().is_empty() {
+            fp.uf_tml_count.borrow_mut().resize(count_len, 0);
         }
-        if fp.uf_tml_total.is_empty() {
-            fp.uf_tml_total.resize(count_len, 0);
+        if fp.uf_tml_total.borrow().is_empty() {
+            fp.uf_tml_total.borrow_mut().resize(count_len, 0);
         }
-        if fp.uf_tml_self.is_empty() {
-            fp.uf_tml_self.resize(count_len, 0);
+        if fp.uf_tml_self.borrow().is_empty() {
+            fp.uf_tml_self.borrow_mut().resize(count_len, 0);
         }
 
-        fp.uf_tml_idx = -1;
-        fp.uf_prof_initialized = true;
+        fp.uf_tml_idx.set(-1);
+        fp.uf_prof_initialized.set(true);
     }
 
-    fp.uf_profiling = 1;
+    fp.uf_profiling.set(1);
 }
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
 pub fn prof_child_enter(tm: &mut Proftime) {
     if let Some(fc) = get_current_funccal()
-        && fc.func_mut().uf_profiling != 0
+        && fc.func_rc().uf_profiling.get() != 0
     {
-        fc.fc_prof_child = profile_start();
+        fc.fc_prof_child.set(profile_start());
     }
     script_prof_save(tm);
 }
@@ -570,56 +566,67 @@ pub fn prof_child_enter(tm: &mut Proftime) {
 /// Take care of time spent in a child (`prof_child_exit`).
 pub fn prof_child_exit(tm: &mut Proftime) {
     if let Some(fc) = get_current_funccal()
-        && fc.func_mut().uf_profiling != 0
+        && fc.func_rc().uf_profiling.get() != 0
     {
-        let child_elapsed = profile_sub_wait(*tm, profile_end(fc.fc_prof_child));
-        fc.fc_prof_child = child_elapsed;
-        let func = fc.func_mut();
-        func.uf_tm_children = profile_add(func.uf_tm_children, child_elapsed);
-        func.uf_tml_children = profile_add(func.uf_tml_children, child_elapsed);
+        let child_elapsed = profile_sub_wait(*tm, profile_end(fc.fc_prof_child.get()));
+        fc.fc_prof_child.set(child_elapsed);
+        let func = fc.func_rc();
+        func.uf_tm_children
+            .set(profile_add(func.uf_tm_children.get(), child_elapsed));
+        func.uf_tml_children
+            .set(profile_add(func.uf_tml_children.get(), child_elapsed));
     }
     script_prof_restore(tm);
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-pub fn func_line_start(fcp: &mut Funccall) {
-    let fp = fcp.func_mut();
+pub fn func_line_start(fcp: &Funccall) {
+    let fp = fcp.func_rc();
     let slnum = sourcing_lnum();
 
-    if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
-        fp.uf_tml_idx = slnum - 1;
-        while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_none() {
-            fp.uf_tml_idx -= 1;
+    if fp.uf_profiling.get() != 0 && slnum >= 1 && slnum <= fp.uf_lines.borrow().len() as i32 {
+        fp.uf_tml_idx.set(slnum - 1);
+        while fp.uf_tml_idx.get() > 0
+            && fp.uf_lines.borrow()[fp.uf_tml_idx.get() as usize].is_none()
+        {
+            fp.uf_tml_idx.set(fp.uf_tml_idx.get() - (1));
         }
-        fp.uf_tml_execed = 0;
-        fp.uf_tml_start = profile_start();
-        fp.uf_tml_children = profile_zero();
-        fp.uf_tml_wait = profile_get_wait();
+        fp.uf_tml_execed.set(0);
+        fp.uf_tml_start.set(profile_start());
+        fp.uf_tml_children.set(profile_zero());
+        fp.uf_tml_wait.set(profile_get_wait());
     }
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-pub fn func_line_exec(fcp: &mut Funccall) {
-    let fp = fcp.func_mut();
-    if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
-        fp.uf_tml_execed = 1;
+pub fn func_line_exec(fcp: &Funccall) {
+    let fp = fcp.func_rc();
+    if fp.uf_profiling.get() != 0 && fp.uf_tml_idx.get() >= 0 {
+        fp.uf_tml_execed.set(1);
     }
 }
 
 /// Called when done with a function line (`func_line_end`).
-pub fn func_line_end(fcp: &mut Funccall) {
-    let fp = fcp.func_mut();
+pub fn func_line_end(fcp: &Funccall) {
+    let fp = fcp.func_rc();
 
-    if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
-        if fp.uf_tml_execed != 0 {
-            let idx = fp.uf_tml_idx as usize;
-            fp.uf_tml_count[idx] += 1;
-            fp.uf_tml_start = profile_sub_wait(fp.uf_tml_wait, profile_end(fp.uf_tml_start));
-            fp.uf_tml_total[idx] = profile_add(fp.uf_tml_total[idx], fp.uf_tml_start);
-            fp.uf_tml_self[idx] =
-                profile_self(fp.uf_tml_self[idx], fp.uf_tml_start, fp.uf_tml_children);
+    if fp.uf_profiling.get() != 0 && fp.uf_tml_idx.get() >= 0 {
+        if fp.uf_tml_execed.get() != 0 {
+            let idx = fp.uf_tml_idx.get() as usize;
+            fp.uf_tml_count.borrow_mut()[idx] += 1;
+            let elapsed =
+                profile_sub_wait(fp.uf_tml_wait.get(), profile_end(fp.uf_tml_start.get()));
+            fp.uf_tml_start.set(elapsed);
+            let new_total = profile_add(fp.uf_tml_total.borrow()[idx], elapsed);
+            fp.uf_tml_total.borrow_mut()[idx] = new_total;
+            let new_self = profile_self(
+                fp.uf_tml_self.borrow()[idx],
+                elapsed,
+                fp.uf_tml_children.get(),
+            );
+            fp.uf_tml_self.borrow_mut()[idx] = new_self;
         }
-        fp.uf_tml_idx = -1;
+        fp.uf_tml_idx.set(-1);
     }
 }
 
@@ -630,12 +637,12 @@ fn func_dump_profile(fd: &CFile) {
         return;
     }
 
-    let mut sorttab: Vec<&UserFunc> = Vec::with_capacity(todo);
+    let mut sorttab: Vec<std::rc::Rc<UserFunc>> = Vec::with_capacity(todo);
 
     for fp_id in functbl {
-        let fp = fp_id.borrow();
-        if fp.uf_prof_initialized {
-            sorttab.push(fp);
+        let fp = fp_id.unwrap_rc();
+        if fp.uf_prof_initialized.get() {
+            sorttab.push(fp.clone());
 
             let name_cstr = fp.uf_name.as_c_str();
             if name_cstr.to_bytes().first() == Some(&K_SPECIAL) {
@@ -647,34 +654,39 @@ fn func_dump_profile(fd: &CFile) {
             } else {
                 fprintf!(fd, c"FUNCTION  %s()\n", name_cstr);
             }
-            if fp.uf_script_ctx.sc_sid != 0 {
-                let p = get_scriptname(fp.uf_script_ctx, true);
+            if fp.uf_script_ctx.get().sc_sid != 0 {
+                let p = get_scriptname(fp.uf_script_ctx.get(), true);
 
-                fprintf!(fd, c"    Defined: %s:%d\n", &p, fp.uf_script_ctx.sc_lnum,);
+                fprintf!(
+                    fd,
+                    c"    Defined: %s:%d\n",
+                    &p,
+                    fp.uf_script_ctx.get().sc_lnum,
+                );
             }
-            if fp.uf_tm_count == 1 {
+            if fp.uf_tm_count.get() == 1 {
                 fprintf!(fd, c"Called 1 time\n");
             } else {
-                fprintf!(fd, c"Called %d times\n", fp.uf_tm_count);
+                fprintf!(fd, c"Called %d times\n", fp.uf_tm_count.get());
             }
 
-            fprintf!(fd, c"Total time: %s\n", &profile_msg(fp.uf_tm_total));
+            fprintf!(fd, c"Total time: %s\n", &profile_msg(fp.uf_tm_total.get()));
 
-            fprintf!(fd, c" Self time: %s\n", &profile_msg(fp.uf_tm_self));
+            fprintf!(fd, c" Self time: %s\n", &profile_msg(fp.uf_tm_self.get()));
 
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            for (idx, line_opt) in fp.uf_lines.iter().enumerate() {
+            for (idx, line_opt) in fp.uf_lines.borrow().iter().enumerate() {
                 let Some(ref line) = *line_opt else {
                     continue;
                 };
 
                 prof_func_line(
                     fd,
-                    fp.uf_tml_count.as_slice()[idx],
-                    &fp.uf_tml_total.as_slice()[idx],
-                    &fp.uf_tml_self.as_slice()[idx],
+                    fp.uf_tml_count.borrow().as_slice()[idx],
+                    &fp.uf_tml_total.borrow().as_slice()[idx],
+                    &fp.uf_tml_self.borrow().as_slice()[idx],
                     true,
                 );
 

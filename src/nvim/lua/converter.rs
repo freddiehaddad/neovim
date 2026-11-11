@@ -455,7 +455,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
             LUA_TFUNCTION => {
                 let func = nlua_ref_global(lstate, -1);
                 let name = register_luafunc(func);
-                crate::eval::typval::tv_set_string(&mut cur.tv, Some(name));
+                crate::eval::typval::tv_set_string(&mut cur.tv, Some(&name));
                 cur.tv_mut().v_type = VarType::VarFunc;
             }
             LUA_TUSERDATA => {
@@ -596,9 +596,9 @@ fn lua_convert_one_value(
         VarType::VarFunc => {
             if let Some(fun) = tv_ref.vval.v_string_cstr() {
                 if let Some(fp) = find_func(Some(fun))
-                    && (fp.uf_flags & FC_LUAREF) != 0
+                    && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
-                    nlua_pushref(lstate, fp.uf_luaref);
+                    nlua_pushref(lstate, fp.uf_luaref.get());
                 } else {
                     lua_conv_nil(lstate);
                 }
@@ -611,9 +611,9 @@ fn lua_convert_one_value(
             if !pt.is_null() {
                 let fun = partial_name(pt.opt());
                 if let Some(fp) = find_func(Some(fun))
-                    && (fp.uf_flags & FC_LUAREF) != 0
+                    && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
-                    nlua_pushref(lstate, fp.uf_luaref);
+                    nlua_pushref(lstate, fp.uf_luaref.get());
                 } else {
                     lua_conv_nil(lstate);
                 }

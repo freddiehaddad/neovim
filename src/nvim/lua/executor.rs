@@ -2224,7 +2224,7 @@ pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
     }
 }
 
-pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
+pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<std::ffi::CString> {
     let table_ref = if arg.v_type == VarType::VarDict {
         arg.vval.v_dict().lua_table_ref
     } else if arg.v_type == VarType::VarList {

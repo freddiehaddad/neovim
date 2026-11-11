@@ -2437,9 +2437,9 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             .vval
             .v_string_cstr()
             .and_then(|s| find_func(Some(s)))
-        && (fp.uf_flags & FC_LUAREF) != 0
+        && (fp.uf_flags.get() & FC_LUAREF) != 0
     {
-        rhs_lua = api_new_luaref(fp.uf_luaref);
+        rhs_lua = api_new_luaref(fp.uf_luaref.get());
 
         orig_rhs = Some(std::ffi::CString::default());
     }

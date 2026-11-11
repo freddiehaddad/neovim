@@ -227,7 +227,7 @@ pub struct TvPartial {
     pub pt_refcount: std::cell::Cell<i32>,
     pub pt_copy_id: std::cell::Cell<i32>,
     pub pt_name: std::cell::OnceCell<std::ffi::CString>,
-    pub pt_func: std::cell::Cell<crate::eval::userfunc::UfuncId>,
+    pub pt_func: std::cell::OnceCell<std::rc::Rc<crate::eval::userfunc::UserFunc>>,
     pub pt_auto: std::cell::Cell<bool>,
     pub pt_argv: std::cell::RefCell<Vec<TypVal>>,
     pub pt_dict: std::cell::Cell<DictId>,
@@ -245,6 +245,23 @@ impl TvPartial {
             let _ = self.pt_name.set(name);
         }
     }
+
+    #[inline]
+    pub fn func_opt(&self) -> Option<&crate::eval::userfunc::UserFunc> {
+        self.pt_func.get().map(std::rc::Rc::as_ref)
+    }
+
+    #[inline]
+    pub fn func_rc(&self) -> Option<std::rc::Rc<crate::eval::userfunc::UserFunc>> {
+        self.pt_func.get().cloned()
+    }
+
+    #[inline]
+    pub fn set_func(&self, fp: Option<std::rc::Rc<crate::eval::userfunc::UserFunc>>) {
+        if let Some(fp) = fp {
+            let _ = self.pt_func.set(fp);
+        }
+    }
 }
 
 impl Default for TvPartial {
@@ -253,7 +270,7 @@ impl Default for TvPartial {
             pt_refcount: std::cell::Cell::new(0),
             pt_copy_id: std::cell::Cell::new(0),
             pt_name: std::cell::OnceCell::new(),
-            pt_func: std::cell::Cell::new(crate::eval::userfunc::UfuncId::NULL),
+            pt_func: std::cell::OnceCell::new(),
             pt_auto: std::cell::Cell::new(false),
             pt_argv: std::cell::RefCell::new(Vec::new()),
             pt_dict: std::cell::Cell::new(DictId::NULL),
@@ -273,7 +290,7 @@ impl Drop for TvPartial {
         if let Some(name) = self.pt_name.get() {
             func_unref(Some(name.as_c_str()));
         } else {
-            crate::eval::userfunc::func_ptr_unref(self.pt_func.get().opt_mut());
+            crate::eval::userfunc::func_ptr_unref(self.func_opt());
         }
     }
 }
@@ -4046,7 +4063,7 @@ pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bo
 }
 
 /// Add a function entry to dictionary.
-pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &mut UserFunc) -> bool {
+pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &UserFunc) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
     tv_set_string_len(
         &mut item.di_tv,

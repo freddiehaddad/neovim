@@ -92,11 +92,11 @@ fn convert_one_value(
         VarType::VarFunc => {
             let obj = if let Some(fun) = tv.vval.v_string_cstr()
                 && let Some(fp) = find_func(Some(fun))
-                && (fp.uf_flags & FC_LUAREF) != 0
+                && (fp.uf_flags.get() & FC_LUAREF) != 0
             {
                 Object {
                     obj_type: ObjectType::ObjectTypeLuaRef,
-                    data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref)),
+                    data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref.get())),
                 }
             } else {
                 nil_obj()
@@ -107,11 +107,11 @@ fn convert_one_value(
             let obj = if let Some(pt) = tv.vval.v_partial_opt() {
                 let fun = partial_name(Some(pt));
                 if let Some(fp) = find_func(Some(fun))
-                    && (fp.uf_flags & FC_LUAREF) != 0
+                    && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
                     Object {
                         obj_type: ObjectType::ObjectTypeLuaRef,
-                        data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref)),
+                        data: ObjectData::LuaRef(api_new_luaref(fp.uf_luaref.get())),
                     }
                 } else {
                     nil_obj()
@@ -413,7 +413,7 @@ pub fn object_to_vim_take_luaref(
                 ref_id = api_new_luaref(ref_id);
             }
             let name = register_luafunc(ref_id);
-            crate::eval::typval::tv_set_string(tv_ref, Some(name));
+            crate::eval::typval::tv_set_string(tv_ref, Some(&name));
             tv_ref.v_type = VarType::VarFunc;
         }
     }

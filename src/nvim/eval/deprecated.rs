@@ -143,7 +143,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
         g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
         g_st().autocmd_bufnr = g_st().provider_caller_scope.autocmd_bufnr;
-        set_current_funccal(g_st().provider_caller_scope.funccalp.opt_mut());
+        set_current_funccal(g_st().provider_caller_scope.funccalp);
     }
 
     let mut err = Error::new();
