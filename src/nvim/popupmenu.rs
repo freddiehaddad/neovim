@@ -551,13 +551,16 @@ pub fn pum_display(
         }
 
         if let Some(target_win) = target_win.opt() {
-            PUM.with(|s| s.anchor_grid.set(target_win.w_grid.target.borrow().handle));
+            PUM.with(|s| {
+                s.anchor_grid
+                    .set(target_win.w_grid.target.get().borrow().handle)
+            });
 
-            pum_win_row += target_win.w_grid.row_offset;
+            pum_win_row += target_win.w_grid.row_offset.get();
 
-            cursor_col += target_win.w_grid.col_offset;
+            cursor_col += target_win.w_grid.col_offset.get();
 
-            if target_win.w_grid.target != crate::grid::GridTarget::Default {
+            if target_win.w_grid.target.get() != crate::grid::GridTarget::Default {
                 pum_win_row += target_win.w_winrow.get();
 
                 cursor_col += target_win.w_wincol.get();
@@ -1996,9 +1999,9 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
     if !use_mouse_pos {
         g_st()
             .mouse_row
-            .set(curwin_mut().w_grid.row_offset + curwin_mut().w_wrow.get());
+            .set(curwin_mut().w_grid.row_offset.get() + curwin_mut().w_wrow.get());
         g_st().mouse_col.set(
-            curwin_mut().w_grid.col_offset
+            curwin_mut().w_grid.col_offset.get()
                 + if curwin_mut().w_onebuf_opt.wo_rl.get() {
                     curwin_mut().w_view_width.get() - curwin_mut().w_wcol.get() - 1
                 } else {
@@ -2008,8 +2011,8 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
         if ui_has(K_UIMULTIGRID) {
             g_st()
                 .mouse_grid
-                .set(curwin_mut().w_grid.target.borrow().handle);
-        } else if curwin_mut().w_grid.target != crate::grid::GridTarget::Default {
+                .set(curwin_mut().w_grid.target.get().borrow().handle);
+        } else if curwin_mut().w_grid.target.get() != crate::grid::GridTarget::Default {
             g_st().mouse_grid.set(0);
             g_st()
                 .mouse_row

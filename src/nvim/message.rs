@@ -428,7 +428,7 @@ pub fn msg_grid_set_pos(row: i32, scrolled: bool) {
     }
     g_st().msg_grid_pos.set(row);
     if crate::grid::grid_allocated(&g_st().msg_grid) {
-        g_st().msg_grid_adj.row_offset = -row;
+        g_st().msg_grid_adj.row_offset.set(-row);
     }
 }
 
@@ -482,15 +482,18 @@ pub fn msg_grid_validate() {
 
         g_st().msg_scrolled_at_flush.set(g_st().msg_scrolled.get());
         g_st().msg_grid.mouse_enabled = false;
-        g_st().msg_grid_adj.target = crate::grid::GridTarget::Msg;
+        g_st().msg_grid_adj.target.set(crate::grid::GridTarget::Msg);
     } else if !should_alloc && !msg_grid_empty {
         ui_comp_remove_grid(&mut g_st().msg_grid);
         grid_free(&mut g_st().msg_grid);
         g_st().msg_grid.dirty_col = Vec::new();
         ui_call_grid_destroy(g_st().msg_grid.handle as Integer);
         g_st().msg_grid.throttled = false;
-        g_st().msg_grid_adj.row_offset = 0;
-        g_st().msg_grid_adj.target = crate::grid::GridTarget::Default;
+        g_st().msg_grid_adj.row_offset.set(0);
+        g_st()
+            .msg_grid_adj
+            .target
+            .set(crate::grid::GridTarget::Default);
         g_st().redraw_cmdline.set(true);
     } else if !msg_grid_empty
         && g_st().msg_scrolled.get() == 0

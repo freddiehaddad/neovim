@@ -2958,10 +2958,10 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
         changed_window_setting(&mut *wp);
     }
 
-    let old_row_offset = wp.w_grid.row_offset;
+    let old_row_offset = wp.w_grid.row_offset.get();
     win_grid_alloc(&mut *wp);
 
-    if wp.w_lines_valid.get() == 0 || wp.w_grid.row_offset != old_row_offset {
+    if wp.w_lines_valid.get() == 0 || wp.w_grid.row_offset.get() != old_row_offset {
         opts.flush = true;
     }
 
@@ -3127,7 +3127,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     let cwin = if !win.is_null() { win } else { curwin_ptr() };
-    if opts.cursor && cwin.w_grid.target.opt().is_none_or(|g| !g.valid) {
+    if opts.cursor && cwin.w_grid.target.get().opt().is_none_or(|g| !g.valid) {
         opts.flush = true;
     }
 

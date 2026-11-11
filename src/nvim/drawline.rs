@@ -3751,7 +3751,7 @@ pub fn win_line(
                 || (may_have_inline_virt
                     && has_more_inline_virt(&wlv, (ptr as isize) - (line as isize))))
         {
-            let grid_width = wp.w_grid.target.borrow().cols;
+            let grid_width = wp.w_grid.target.get().borrow().cols;
             let wrap = is_wrapped
                 && wlv.filler_todo <= 0
                 && lcs_eol_todo

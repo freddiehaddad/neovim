@@ -1629,11 +1629,11 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
 
         if grid == 0 {
-            row -= curwin_mut().w_grid_alloc.comp_row + curwin_mut().w_grid.row_offset;
-            col -= curwin_mut().w_grid_alloc.comp_col + curwin_mut().w_grid.col_offset;
+            row -= curwin_mut().w_grid_alloc.comp_row + curwin_mut().w_grid.row_offset.get();
+            col -= curwin_mut().w_grid_alloc.comp_col + curwin_mut().w_grid.col_offset.get();
         } else if grid != DEFAULT_GRID_HANDLE {
-            row -= curwin_mut().w_grid.row_offset;
-            col -= curwin_mut().w_grid.col_offset;
+            row -= curwin_mut().w_grid.row_offset.get();
+            col -= curwin_mut().w_grid.col_offset.get();
         }
 
         if row < 0 {
@@ -2038,8 +2038,8 @@ fn mouse_find_grid_win(
             && !wp.w_grid_alloc.chars.is_empty()
             && !(wp.w_floating.get() && !wp.w_config.mouse)
         {
-            *rowp = (*rowp - wp.w_grid.row_offset).min(wp.w_view_height.get() - 1);
-            *colp = (*colp - wp.w_grid.col_offset).min(wp.w_view_width.get() - 1);
+            *rowp = (*rowp - wp.w_grid.row_offset.get()).min(wp.w_view_height.get() - 1);
+            *colp = (*colp - wp.w_grid.col_offset.get()).min(wp.w_view_width.get() - 1);
             return Some(wp);
         }
     } else if *gridp == 0 {
@@ -2055,8 +2055,8 @@ fn mouse_find_grid_win(
                         continue;
                     }
                     *gridp = grid.handle;
-                    *rowp -= wp.w_winrow.get() + wp.w_grid.row_offset;
-                    *colp -= wp.w_wincol.get() + wp.w_grid.col_offset;
+                    *rowp -= wp.w_winrow.get() + wp.w_grid.row_offset.get();
+                    *colp -= wp.w_wincol.get() + wp.w_grid.col_offset.get();
                     return Some(wp);
                 }
             }

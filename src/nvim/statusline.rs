@@ -720,8 +720,8 @@ fn win_redr_stl_expr(
         if !ui_event {
             let grid_ref = match grid_target {
                 StlGridTarget::Default => &mut g_st().default_grid,
-                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.borrow_mut(),
-                StlGridTarget::WinGrid(w) => w.w_grid.target.borrow_mut(),
+                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow_mut(),
+                StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow_mut(),
                 StlGridTarget::WinAlloc(w) => &mut w.borrow_mut().w_grid_alloc,
             };
             screengrid_line_start(grid_ref, row, 0);

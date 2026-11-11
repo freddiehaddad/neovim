@@ -159,11 +159,11 @@ impl ScreenGrid {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct GridView {
-    pub target: GridTarget,
-    pub row_offset: i32,
-    pub col_offset: i32,
+    pub target: std::cell::Cell<GridTarget>,
+    pub row_offset: std::cell::Cell<i32>,
+    pub col_offset: std::cell::Cell<i32>,
 }
 
 #[repr(C)]
@@ -271,9 +271,9 @@ pub fn grid_adjust_opt(
     row_off: &mut i32,
     col_off: &mut i32,
 ) -> Option<&'static mut ScreenGrid> {
-    *row_off += grid.row_offset;
-    *col_off += grid.col_offset;
-    grid.target.opt_mut()
+    *row_off += grid.row_offset.get();
+    *col_off += grid.col_offset.get();
+    grid.target.get().opt_mut()
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
@@ -1220,13 +1220,17 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     }
 
     if want_allocation {
-        wp.w_grid.target = GridTarget::Win(wp.handle);
-        wp.w_grid.row_offset = wp.w_winrow_off.get();
-        wp.w_grid.col_offset = wp.w_wincol_off.get();
+        wp.w_grid.target.set(GridTarget::Win(wp.handle));
+        wp.w_grid.row_offset.set(wp.w_winrow_off.get());
+        wp.w_grid.col_offset.set(wp.w_wincol_off.get());
     } else {
-        wp.w_grid.target = GridTarget::Default;
-        wp.w_grid.row_offset = wp.w_winrow.get() + wp.w_winrow_off.get();
-        wp.w_grid.col_offset = wp.w_wincol.get() + wp.w_wincol_off.get();
+        wp.w_grid.target.set(GridTarget::Default);
+        wp.w_grid
+            .row_offset
+            .set(wp.w_winrow.get() + wp.w_winrow_off.get());
+        wp.w_grid
+            .col_offset
+            .set(wp.w_wincol.get() + wp.w_wincol_off.get());
     }
 
     if (g_st().resizing_screen.get() || was_resized) && want_allocation {

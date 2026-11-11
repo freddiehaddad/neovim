@@ -682,9 +682,9 @@ impl WinInfoInfo {
             w_tagstackidx: std::cell::Cell::new(0),
             w_tagstacklen: std::cell::Cell::new(0),
             w_grid: GridView {
-                target: GridTarget::None,
-                row_offset: 0,
-                col_offset: 0,
+                target: std::cell::Cell::new(GridTarget::None),
+                row_offset: std::cell::Cell::new(0),
+                col_offset: std::cell::Cell::new(0),
             },
             w_grid_alloc: SCREEN_GRID_INIT,
             w_pos_changed: std::cell::Cell::new(false),
