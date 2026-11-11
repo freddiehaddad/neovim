@@ -1608,7 +1608,7 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 pub fn do_digraph(mut c: i32) -> i32 {
     if c == -1 {
         DIGR_STATE.with(|st| st.backspaced.set(-1));
-    } else if opt_vars().p_dg {
+    } else if opt_vars().p_dg.get() {
         let bs = DIGR_STATE.with(|st| st.backspaced.get());
         if bs >= 0 {
             c = digraph_get(bs, c, false);

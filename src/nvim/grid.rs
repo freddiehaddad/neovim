@@ -591,7 +591,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
         assert!(maxcol as usize <= linebuf_size);
     });
 
-    if g_st().full_screen && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
+    if g_st().full_screen && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0 {
         assert!(linebuf_size > 0);
         g_st().linebuf_char.fill(u32::MAX);
         g_st().linebuf_attr.fill(-1);
@@ -854,7 +854,7 @@ pub fn grid_line_flush_if_valid_row() {
             || st.grid_line_row.get() >= st.grid_line_grid.get().borrow().rows
     });
     if invalid {
-        if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
+        if (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0 {
             std::process::abort();
         } else {
             grid_st(|st| st.grid_line_grid.set(GridTarget::None));
@@ -901,7 +901,7 @@ fn grid_char_needs_redraw(grid: &mut ScreenGrid, col: i32, off_to: usize, cols: 
             || (cols > 1
                 && g_st().linebuf_char[(col + 1) as usize] == 0
                 && g_st().linebuf_char[(col + 1) as usize] != grid.chars[off_to + 1]))
-            || (opt_vars().rdb_flags & K_OPT_RDB_FLAG_NODELTA) != 0)
+            || (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_NODELTA) != 0)
 }
 
 pub fn grid_put_linebuf(
@@ -945,7 +945,7 @@ pub fn grid_put_linebuf(
         clear_width = col;
     }
 
-    if opt_vars().p_arshape && !opt_vars().p_tbidi && endcol > col {
+    if opt_vars().p_arshape.get() && !opt_vars().p_tbidi.get() && endcol > col {
         line_do_arabic_shape(&mut g_st().linebuf_char[col as usize..endcol as usize]);
     }
 
@@ -1037,7 +1037,7 @@ pub fn grid_put_linebuf(
         let off = off_to + c as usize;
         if grid.chars[off] != schar_from_ascii(b' ')
             || grid.attrs[off] != clear_attr
-            || (opt_vars().rdb_flags & K_OPT_RDB_FLAG_NODELTA) != 0
+            || (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_NODELTA) != 0
         {
             grid.chars[off] = schar_from_ascii(b' ');
             grid.attrs[off] = clear_attr;

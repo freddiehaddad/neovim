@@ -939,7 +939,7 @@ fn nowin() -> crate::globals::WinPtr {
 #[inline]
 fn rows_avail() -> OptInt {
     OptInt::from(g_st().rows_global)
-        - opt_vars().p_ch
+        - opt_vars().p_ch.get()
         - OptInt::from(tabline_height())
         - OptInt::from(global_stl_height())
 }
@@ -1045,11 +1045,11 @@ pub fn swbuf_goto_win_with_buf(buf: Option<&mut FileBuf>) -> Option<&'static mut
     let buf_ptr = crate::globals::BufPtr::from(buf_ref);
     let mut wp: Option<&'static mut WinInfoInfo> = None;
 
-    if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USEOPEN) != 0 {
+    if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USEOPEN) != 0 {
         wp = buf_jump_open_win(buf_ptr.borrow_mut());
     }
 
-    if wp.is_none() && (opt_vars().swb_flags & K_OPT_SWB_FLAG_USETAB) != 0 {
+    if wp.is_none() && (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USETAB) != 0 {
         wp = buf_jump_open_tab(buf_ptr.borrow_mut());
     }
 
@@ -1083,7 +1083,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
         setpcmark();
 
         let mut wp = crate::globals::WinPtr::NULL;
-        if (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
+        if (opt_vars().swb_flags.get() & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && g_st().cmdmod.cmod_tab == 0
         {
             let found = buflist_findname_exp(Some(&fname_cstr));
@@ -1382,7 +1382,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                 if prenum != 0 {
                     g_st().g_do_tagpreview = prenum;
                 } else {
-                    g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+                    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
                 }
             } else {
                 g_st().g_do_tagpreview = 0;
@@ -1446,7 +1446,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                         if prenum != 0 {
                             g_st().g_do_tagpreview = prenum;
                         } else {
-                            g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+                            g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
                         }
                     }
                     if prenum != 0 {
@@ -1526,15 +1526,15 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
         K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD,
     );
     if win_ok {
-        let save_acd = opt_vars().p_acd;
+        let save_acd = opt_vars().p_acd.get();
         if !switchwin.cs_same_win {
-            opt_vars().p_acd = false;
+            opt_vars().p_acd.set(false);
         }
 
         do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, buf.b_fnum, 0);
 
         if !switchwin.cs_same_win {
-            opt_vars().p_acd = save_acd;
+            opt_vars().p_acd.set(save_acd);
         }
     }
     try_leave(&tstate, err);
@@ -1650,7 +1650,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 }
             }
         } else if c.relative == K_FLOAT_RELATIVE_LASTSTATUS {
-            row += f64::from(g_st().rows_global - opt_vars().p_ch as i32 - last_stl_height(false));
+            row += f64::from(
+                g_st().rows_global - opt_vars().p_ch.get() as i32 - last_stl_height(false),
+            );
         } else if c.relative == K_FLOAT_RELATIVE_TABLINE {
             row += f64::from(tabline_height());
         }
@@ -1674,7 +1676,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
         let mut comp_row = (row as i32) - if south { wp.w_height_outer } else { 0 };
         let mut comp_col = (col as i32) - if east { wp.w_width_outer } else { 0 };
         let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
-            opt_vars().p_ch as i32
+            opt_vars().p_ch.get() as i32
         } else {
             0
         };
@@ -1922,8 +1924,9 @@ pub fn win_split_ins(
     let vertical = (flags & WSP_VERT) != 0;
     let toplevel = (flags & (WSP_TOP | WSP_BOT)) != 0;
 
-    if one_window(firstwin_mut(), None) && opt_vars().p_ls == 1 && oldwin.w_status_height == 0 {
-        if OptInt::from(oldwin.w_height) <= opt_vars().p_wmh {
+    if one_window(firstwin_mut(), None) && opt_vars().p_ls.get() == 1 && oldwin.w_status_height == 0
+    {
+        if OptInt::from(oldwin.w_height) <= opt_vars().p_wmh.get() {
             emsg(gettext(E_NOROOM));
             return None;
         }
@@ -1937,14 +1940,14 @@ pub fn win_split_ins(
     let mut did_set_fraction = false;
 
     if vertical {
-        let wmw1 = if opt_vars().p_wmw == 0 {
+        let wmw1 = if opt_vars().p_wmw.get() == 0 {
             1
         } else {
-            opt_vars().p_wmw as i32
+            opt_vars().p_wmw.get() as i32
         };
         let mut needed = wmw1 + 1;
         if (flags & WSP_ROOM) != 0 {
-            needed += opt_vars().p_wiw as i32 - wmw1;
+            needed += opt_vars().p_wiw.get() as i32 - wmw1;
         }
         let mut minwidth: i32;
         let available: i32;
@@ -1952,7 +1955,7 @@ pub fn win_split_ins(
             minwidth = frame_minwidth(&topframe_mut(), nowin());
             available = crate::globals::topframe_mut().fr_width.get();
             needed += minwidth;
-        } else if opt_vars().p_ea {
+        } else if opt_vars().p_ea.get() {
             minwidth = frame_minwidth(oldwin.w_frame.borrow(), nowin());
 
             let mut prevfrp = oldwin.w_frame.clone();
@@ -1986,7 +1989,7 @@ pub fn win_split_ins(
         }
         new_size = new_size.min(available - minwidth - 1).max(wmw1);
 
-        if OptInt::from(oldwin.w_width - new_size - 1) < opt_vars().p_wmw {
+        if OptInt::from(oldwin.w_width - new_size - 1) < opt_vars().p_wmw.get() {
             do_equal = true;
         }
 
@@ -1995,7 +1998,7 @@ pub fn win_split_ins(
         }
 
         if !do_equal
-            && opt_vars().p_ea
+            && opt_vars().p_ea.get()
             && size == 0
             && opt_vars().p_ead.first_byte() != b'v'
             && !oldwin.frame_mut().fr_parent.get().is_null()
@@ -2012,12 +2015,12 @@ pub fn win_split_ins(
             }
         }
     } else {
-        let wmh1 = (opt_vars().p_wmh as i32).max(1) + oldwin.w_winbar_height;
+        let wmh1 = (opt_vars().p_wmh.get() as i32).max(1) + oldwin.w_winbar_height;
         let mut needed = wmh1 + STATUS_HEIGHT;
         if (flags & WSP_ROOM) != 0 {
-            needed += opt_vars().p_wh as i32 - wmh1 + oldwin.w_winbar_height;
+            needed += opt_vars().p_wh.get() as i32 - wmh1 + oldwin.w_winbar_height;
         }
-        if opt_vars().p_ch < 1 {
+        if opt_vars().p_ch.get() < 1 {
             needed += 1;
         }
         let mut minheight: i32;
@@ -2026,7 +2029,7 @@ pub fn win_split_ins(
             minheight = frame_minheight(&topframe_mut(), nowin()) + need_status;
             available = crate::globals::topframe_mut().fr_height.get();
             needed += minheight;
-        } else if opt_vars().p_ea {
+        } else if opt_vars().p_ea.get() {
             minheight = frame_minheight(oldwin.w_frame.borrow(), nowin()) + need_status;
 
             let mut prevfrp = oldwin.w_frame.clone();
@@ -2068,7 +2071,7 @@ pub fn win_split_ins(
             .min(available - minheight - STATUS_HEIGHT)
             .max(wmh1);
 
-        if OptInt::from(oldwin_height - new_size - STATUS_HEIGHT) < opt_vars().p_wmh {
+        if OptInt::from(oldwin_height - new_size - STATUS_HEIGHT) < opt_vars().p_wmh.get() {
             do_equal = true;
         }
 
@@ -2085,7 +2088,7 @@ pub fn win_split_ins(
         }
 
         if !do_equal
-            && opt_vars().p_ea
+            && opt_vars().p_ea.get()
             && size == 0
             && opt_vars().p_ead.first_byte() != b'h'
             && !oldwin.frame_mut().fr_parent.get().is_null()
@@ -2108,9 +2111,9 @@ pub fn win_split_ins(
             || (flags & WSP_BELOW) != 0
             || ((flags & WSP_ABOVE) == 0
                 && if vertical {
-                    opt_vars().p_spr
+                    opt_vars().p_spr.get()
                 } else {
-                    opt_vars().p_sb
+                    opt_vars().p_sb.get()
                 }))
     {
         if new_wp.is_null() {
@@ -2184,9 +2187,9 @@ pub fn win_split_ins(
         } else if (flags & WSP_ABOVE) != 0 {
             before = true;
         } else if vertical {
-            before = !opt_vars().p_spr;
+            before = !opt_vars().p_spr.get();
         } else {
-            before = !opt_vars().p_sb;
+            before = !opt_vars().p_sb.get();
         }
     }
     if curfrp.fr_parent.get().is_null() || curfrp.parent_mut().fr_layout.get() != layout {
@@ -2240,7 +2243,7 @@ pub fn win_split_ins(
         }
         if toplevel {
             wp.w_winrow = tabline_height();
-            let ls_h = i32::from(opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+            let ls_h = i32::from(opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
 
             win_new_height(&mut *wp, curfrp.fr_height.get() - ls_h);
 
@@ -2316,7 +2319,7 @@ pub fn win_split_ins(
                     new_fr_height -= 1;
                 }
             } else {
-                if !((flags & WSP_BOT) != 0 && opt_vars().p_ls == 0) {
+                if !((flags & WSP_BOT) != 0 && opt_vars().p_ls.get() == 0) {
                     new_fr_height -= STATUS_HEIGHT;
                 }
                 if (flags & WSP_BOT) != 0 {
@@ -2397,14 +2400,14 @@ pub fn win_split_ins(
 
     let i: i32;
     if (flags & WSP_VERT) != 0 {
-        i = opt_vars().p_wiw as i32;
+        i = opt_vars().p_wiw.get() as i32;
         if size != 0 {
-            opt_vars().p_wiw = OptInt::from(size);
+            opt_vars().p_wiw.set(OptInt::from(size));
         }
     } else {
-        i = opt_vars().p_wh as i32;
+        i = opt_vars().p_wh.get() as i32;
         if size != 0 {
-            opt_vars().p_wh = OptInt::from(size);
+            opt_vars().p_wh.set(OptInt::from(size));
         }
     }
 
@@ -2422,9 +2425,9 @@ pub fn win_split_ins(
         );
     }
     if vertical {
-        opt_vars().p_wiw = OptInt::from(i);
+        opt_vars().p_wiw.set(OptInt::from(i));
     } else {
-        opt_vars().p_wh = OptInt::from(i);
+        opt_vars().p_wh.set(OptInt::from(i));
     }
 
     if win_valid(oldwin_ptr.opt()) {
@@ -2546,13 +2549,13 @@ pub fn win_count() -> i32 {
 pub fn make_windows(mut count: i32, vertical: bool) -> i32 {
     let mut maxcount = if vertical {
         ((OptInt::from(curwin_mut().w_width + curwin_mut().w_vsep_width)
-            - (opt_vars().p_wiw - opt_vars().p_wmw)) as i32)
-            / (opt_vars().p_wmw as i32 + 1)
+            - (opt_vars().p_wiw.get() - opt_vars().p_wmw.get())) as i32)
+            / (opt_vars().p_wmw.get() as i32 + 1)
     } else {
         ((OptInt::from(
             curwin_mut().w_height + curwin_mut().w_hsep_height + curwin_mut().w_status_height,
-        ) - (opt_vars().p_wh - opt_vars().p_wmh)) as i32)
-            / (opt_vars().p_wmh as i32 + STATUS_HEIGHT + global_winbar_height())
+        ) - (opt_vars().p_wh.get() - opt_vars().p_wmh.get())) as i32)
+            / (opt_vars().p_wmh.get() as i32 + STATUS_HEIGHT + global_winbar_height())
     };
 
     maxcount = maxcount.max(2);
@@ -2825,7 +2828,7 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
     if size == 0 && (flags & WSP_VERT) == 0 && win_valid(wp.opt()) && !wp.borrow_mut().w_floating {
         win_setheight_win(height, wp.borrow_mut(), true);
 
-        if opt_vars().p_ea {
+        if opt_vars().p_ea.get() {
             win_equal(curwin_ptr().opt(), wp == curwin_ptr(), b'v' as i32);
         }
     }
@@ -2890,24 +2893,25 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
 
 fn get_maximum_wincount(fr: &Frame, mut height: i32) -> i32 {
     if fr.fr_layout.get() != FR_COL {
-        return height / (opt_vars().p_wmh as i32 + STATUS_HEIGHT + frame2win(fr).w_winbar_height);
+        return height
+            / (opt_vars().p_wmh.get() as i32 + STATUS_HEIGHT + frame2win(fr).w_winbar_height);
     } else if global_winbar_height() != 0 {
-        return height / (opt_vars().p_wmh as i32 + STATUS_HEIGHT + 1);
+        return height / (opt_vars().p_wmh.get() as i32 + STATUS_HEIGHT + 1);
     }
 
     let mut total_wincount: i32 = 0;
     for frp in frame_iter_ptr(fr.fr_child.get()) {
         let wp = frame2win(&frp);
         if OptInt::from(height)
-            < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + wp.w_winbar_height))
+            < (opt_vars().p_wmh.get() + OptInt::from(STATUS_HEIGHT + wp.w_winbar_height))
         {
             break;
         }
-        height -= opt_vars().p_wmh as i32 + STATUS_HEIGHT + wp.w_winbar_height;
+        height -= opt_vars().p_wmh.get() as i32 + STATUS_HEIGHT + wp.w_winbar_height;
         total_wincount += 1;
     }
 
-    total_wincount += height / (opt_vars().p_wmh as i32 + STATUS_HEIGHT);
+    total_wincount += height / (opt_vars().p_wmh.get() as i32 + STATUS_HEIGHT);
     total_wincount
 }
 
@@ -2974,13 +2978,13 @@ fn win_equal_rec(
             } else {
                 extra_sep = 0;
             }
-            totwincount = (n + extra_sep) / (opt_vars().p_wmw as i32 + 1);
+            totwincount = (n + extra_sep) / (opt_vars().p_wmw.get() as i32 + 1);
             has_next_curwin = frame_has_win(topfr, next_curwin.opt());
 
             let m = frame_minwidth(topfr, next_curwin);
             room = width - m;
             if room < 0 {
-                next_curwin_size = opt_vars().p_wiw as i32 + room;
+                next_curwin_size = opt_vars().p_wiw.get() as i32 + room;
                 room = 0;
             } else {
                 next_curwin_size = -1;
@@ -2989,15 +2993,15 @@ fn win_equal_rec(
                         n = frame_minwidth(&fr, nowin());
                         let mut new_size = fr.fr_width.get();
                         if frame_has_win(&fr, next_curwin.opt()) {
-                            room += opt_vars().p_wiw as i32 - opt_vars().p_wmw as i32;
+                            room += opt_vars().p_wiw.get() as i32 - opt_vars().p_wmw.get() as i32;
                             next_curwin_size = 0;
-                            new_size = new_size.max(opt_vars().p_wiw as i32);
+                            new_size = new_size.max(opt_vars().p_wiw.get() as i32);
                         } else {
                             totwincount -= (n + if fr.fr_next.get().is_null() {
                                 extra_sep
                             } else {
                                 0
-                            }) / (opt_vars().p_wmw as i32 + 1);
+                            }) / (opt_vars().p_wmw.get() as i32 + 1);
                         }
                         room -= new_size - n;
                         if room < 0 {
@@ -3012,17 +3016,17 @@ fn win_equal_rec(
                         next_curwin_size = 0;
                     } else if totwincount > 1
                         && OptInt::from((room + (totwincount - 2)) / (totwincount - 1))
-                            > opt_vars().p_wiw
+                            > opt_vars().p_wiw.get()
                     {
                         next_curwin_size = ((OptInt::from(room)
-                            + opt_vars().p_wiw
-                            + OptInt::from(totwincount - 1) * opt_vars().p_wmw
+                            + opt_vars().p_wiw.get()
+                            + OptInt::from(totwincount - 1) * opt_vars().p_wmw.get()
                             + OptInt::from(totwincount - 1))
                             as i32)
                             / totwincount;
-                        room -= next_curwin_size - opt_vars().p_wiw as i32;
+                        room -= next_curwin_size - opt_vars().p_wiw.get() as i32;
                     } else {
-                        next_curwin_size = opt_vars().p_wiw as i32;
+                        next_curwin_size = opt_vars().p_wiw.get() as i32;
                     }
                 }
             }
@@ -3048,7 +3052,7 @@ fn win_equal_rec(
                     extra_sep
                 } else {
                     0
-                }) / (opt_vars().p_wmw as i32 + 1);
+                }) / (opt_vars().p_wmw.get() as i32 + 1);
                 let m = frame_minwidth(&fr, next_curwin);
                 let hnc = has_next_curwin && frame_has_win(&fr, next_curwin.opt());
                 if hnc {
@@ -3060,7 +3064,7 @@ fn win_equal_rec(
                     (wincount * room + (totwincount / 2)) / totwincount
                 };
                 if hnc {
-                    next_curwin_size -= opt_vars().p_wiw as i32 - (m - n);
+                    next_curwin_size -= opt_vars().p_wiw.get() as i32 - (m - n);
                     next_curwin_size = next_curwin_size.max(0);
                     ns += next_curwin_size;
                     room -= ns - next_curwin_size;
@@ -3088,7 +3092,7 @@ fn win_equal_rec(
 
         if dir != b'h' as i32 {
             let mut n = frame_minheight(topfr, nowin());
-            if row + height >= g_st().cmdline_row && opt_vars().p_ls == 0 {
+            if row + height >= g_st().cmdline_row && opt_vars().p_ls.get() == 0 {
                 extra_sep = STATUS_HEIGHT;
             } else if global_stl_height() > 0 {
                 extra_sep = 1;
@@ -3101,7 +3105,7 @@ fn win_equal_rec(
             let m = frame_minheight(topfr, next_curwin);
             room = height - m;
             if room < 0 {
-                next_curwin_size = opt_vars().p_wh as i32 + room;
+                next_curwin_size = opt_vars().p_wh.get() as i32 + room;
                 room = 0;
             } else {
                 next_curwin_size = -1;
@@ -3110,9 +3114,9 @@ fn win_equal_rec(
                         n = frame_minheight(&fr, nowin());
                         let mut new_size = fr.fr_height.get();
                         if frame_has_win(&fr, next_curwin.opt()) {
-                            room += opt_vars().p_wh as i32 - opt_vars().p_wmh as i32;
+                            room += opt_vars().p_wh.get() as i32 - opt_vars().p_wmh.get() as i32;
                             next_curwin_size = 0;
-                            new_size = new_size.max(opt_vars().p_wh as i32);
+                            new_size = new_size.max(opt_vars().p_wh.get() as i32);
                         } else {
                             totwincount -= get_maximum_wincount(
                                 &fr,
@@ -3136,17 +3140,17 @@ fn win_equal_rec(
                         next_curwin_size = 0;
                     } else if totwincount > 1
                         && OptInt::from((room + (totwincount - 2)) / (totwincount - 1))
-                            > opt_vars().p_wh
+                            > opt_vars().p_wh.get()
                     {
                         next_curwin_size = ((OptInt::from(room)
-                            + opt_vars().p_wh
-                            + OptInt::from(totwincount - 1) * opt_vars().p_wmh
+                            + opt_vars().p_wh.get()
+                            + OptInt::from(totwincount - 1) * opt_vars().p_wmh.get()
                             + OptInt::from(totwincount - 1))
                             as i32)
                             / totwincount;
-                        room -= next_curwin_size - opt_vars().p_wh as i32;
+                        room -= next_curwin_size - opt_vars().p_wh.get() as i32;
                     } else {
-                        next_curwin_size = opt_vars().p_wh as i32;
+                        next_curwin_size = opt_vars().p_wh.get() as i32;
                     }
                 }
             }
@@ -3187,7 +3191,7 @@ fn win_equal_rec(
                     (wincount * room + (totwincount / 2)) / totwincount
                 };
                 if hnc {
-                    next_curwin_size -= opt_vars().p_wh as i32 - (m - n);
+                    next_curwin_size -= opt_vars().p_wh.get() as i32 - (m - n);
                     ns += next_curwin_size;
                     room -= ns - next_curwin_size;
                 } else {
@@ -3658,7 +3662,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     }
 
     let had_cmdline_ruler =
-        opt_vars().p_ru && win == curwin_ptr() && win.borrow_mut().w_status_height == 0;
+        opt_vars().p_ru.get() && win == curwin_ptr() && win.borrow_mut().w_status_height == 0;
     let mut dir: i32 = 0;
     let mut wp = crate::globals::WinPtr::from(win_free_mem(win.borrow_mut(), &mut dir, None));
 
@@ -3706,7 +3710,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         last_status(false);
 
         if !curwin_mut().w_floating
-            && opt_vars().p_ea
+            && opt_vars().p_ea.get()
             && (opt_vars().p_ead.first_byte() == b'b'
                 || i32::from(opt_vars().p_ead.first_byte()) == dir)
         {
@@ -4343,7 +4347,7 @@ fn win_altframe(win: &mut WinInfoInfo, tp: Option<&TabPageInfo>) -> crate::globa
 
     if !frp.fr_parent.get().is_null()
         && frp.parent_mut().fr_layout.get() == FR_COL
-        && opt_vars().p_sb
+        && opt_vars().p_sb.get()
     {
         target_fr = frp.fr_prev.get();
         other_fr = frp.fr_next.get();
@@ -4351,7 +4355,7 @@ fn win_altframe(win: &mut WinInfoInfo, tp: Option<&TabPageInfo>) -> crate::globa
 
     if !frp.fr_parent.get().is_null()
         && frp.parent_mut().fr_layout.get() == FR_ROW
-        && opt_vars().p_spr
+        && opt_vars().p_spr.get()
     {
         target_fr = frp.fr_prev.get();
         other_fr = frp.fr_next.get();
@@ -4369,14 +4373,14 @@ fn win_altframe(win: &mut WinInfoInfo, tp: Option<&TabPageInfo>) -> crate::globa
 }
 
 fn alt_tabpage() -> Option<crate::globals::TabpagePtr> {
-    if (opt_vars().tcl_flags & K_OPT_TCL_FLAG_USELAST) != 0
+    if (opt_vars().tcl_flags.get() & K_OPT_TCL_FLAG_USELAST) != 0
         && valid_tabpage(g_st().lastused_tabpage.opt())
     {
         return Some(g_st().lastused_tabpage.clone());
     }
 
     let forward = !curtab_mut().tp_next.get().is_null()
-        && ((opt_vars().tcl_flags & K_OPT_TCL_FLAG_LEFT) == 0
+        && ((opt_vars().tcl_flags.get() & K_OPT_TCL_FLAG_LEFT) == 0
             || g_st().curtab == g_st().first_tabpage);
 
     if forward {
@@ -4427,8 +4431,8 @@ pub fn frame_new_height(topfrp: &Frame, mut height: i32, topfirst: bool, wfh: bo
     if topfrp.fr_parent.get().is_null() && set_ch {
         let new_ch = WIN_STATE
             .with(|s| s.min_set_ch.get())
-            .max(opt_vars().p_ch + OptInt::from(topfrp.fr_height.get() - height));
-        if new_ch != opt_vars().p_ch {
+            .max(opt_vars().p_ch.get() + OptInt::from(topfrp.fr_height.get() - height));
+        if new_ch != opt_vars().p_ch.get() {
             let save_ch = WIN_STATE.with(|s| s.min_set_ch.get());
             set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
             WIN_STATE.with(|s| s.min_set_ch.set(save_ch));
@@ -4707,10 +4711,12 @@ fn frame_minheight(topfrp: &Frame, next_curwin: crate::globals::WinPtr) -> i32 {
     if let Some(win) = topfrp.win_opt() {
         let extra_height = win.w_winbar_height + win.w_hsep_height + win.w_status_height;
         if topfrp.fr_win.get() == next_curwin.as_ptr() {
-            m = opt_vars().p_wh as i32 + extra_height;
+            m = opt_vars().p_wh.get() as i32 + extra_height;
         } else {
-            m = opt_vars().p_wmh as i32 + extra_height;
-            if topfrp.fr_win.get() == curwin_ptr() && next_curwin.is_null() && opt_vars().p_wmh == 0
+            m = opt_vars().p_wmh.get() as i32 + extra_height;
+            if topfrp.fr_win.get() == curwin_ptr()
+                && next_curwin.is_null()
+                && opt_vars().p_wmh.get() == 0
             {
                 m += 1;
             }
@@ -4736,10 +4742,12 @@ fn frame_minwidth(topfrp: &Frame, next_curwin: crate::globals::WinPtr) -> i32 {
     let mut m: i32;
     if let Some(win) = topfrp.win_opt() {
         if topfrp.fr_win.get() == next_curwin.as_ptr() {
-            m = opt_vars().p_wiw as i32 + win.w_vsep_width;
+            m = opt_vars().p_wiw.get() as i32 + win.w_vsep_width;
         } else {
-            m = opt_vars().p_wmw as i32 + win.w_vsep_width;
-            if opt_vars().p_wmw == 0 && topfrp.fr_win.get() == curwin_ptr() && next_curwin.is_null()
+            m = opt_vars().p_wmw.get() as i32 + win.w_vsep_width;
+            if opt_vars().p_wmw.get() == 0
+                && topfrp.fr_win.get() == curwin_ptr()
+                && next_curwin.is_null()
             {
                 m += 1;
             }
@@ -4805,8 +4813,8 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
         }
         if !r {
             if message != 0
-                && (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                && opt_vars().p_write
+                && (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+                && opt_vars().p_write.get()
             {
                 dialog_changed(wp.borrow().buf_mut(), false);
                 if !win_valid(wp.opt()) {
@@ -4844,7 +4852,7 @@ pub fn unuse_tabpage(tp: &TabPageInfo) {
     tp.tp_firstwin.set(g_st().firstwin);
     tp.tp_lastwin.set(g_st().lastwin);
     tp.tp_curwin.set(crate::globals::curwin_ptr());
-    tp.tp_ch_used.set(opt_vars().p_ch);
+    tp.tp_ch_used.set(opt_vars().p_ch.get());
 }
 
 pub fn use_tabpage(tp: &TabPageInfo) {
@@ -4853,7 +4861,7 @@ pub fn use_tabpage(tp: &TabPageInfo) {
     g_st().firstwin = curtab_mut().tp_firstwin.get();
     g_st().lastwin = curtab_mut().tp_lastwin.get();
     set_curwin(curtab_mut().tp_curwin.get().as_ptr());
-    opt_vars().p_ch = curtab_mut().tp_ch_used.get();
+    opt_vars().p_ch.set(curtab_mut().tp_ch_used.get());
 }
 
 pub fn win_alloc_first() {
@@ -4905,7 +4913,7 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
         .set(g_st().columns_global);
     crate::globals::topframe_mut()
         .fr_height
-        .set(g_st().rows_global - opt_vars().p_ch as i32 - global_stl_height());
+        .set(g_st().rows_global - opt_vars().p_ch.get() as i32 - global_stl_height());
 
     true
 }
@@ -4942,7 +4950,7 @@ fn alloc_tabpage() -> crate::globals::TabpagePtr {
     let winvar = crate::eval::typval::tv_dict_item_alloc_static();
     init_var_dict(&tv_dict_alloc(), &winvar, VAR_SCOPE);
     tp.tp_winvar.set(winvar);
-    tp.tp_ch_used.set(opt_vars().p_ch);
+    tp.tp_ch_used.set(opt_vars().p_ch.get());
 
     tp
 }
@@ -5123,7 +5131,7 @@ fn may_open_tabpage() -> bool {
 }
 
 pub fn make_tabpages(maxcount: i32) -> i32 {
-    let count = maxcount.min(opt_vars().p_tpm as i32);
+    let count = maxcount.min(opt_vars().p_tpm.get() as i32);
 
     block_autocmds();
 
@@ -5267,14 +5275,14 @@ fn enter_tabpage(
     let old_off = tp.firstwin_mut().w_winrow;
     let next_prevwin = tp.tp_prevwin.get().as_ptr();
     let old_curtab_ptr = curtab_mut();
-    let prev_p_ch = opt_vars().p_ch;
+    let prev_p_ch = opt_vars().p_ch.get();
 
     use_tabpage(tp);
 
-    if g_st().curtab != old_curtab_ptr && opt_vars().p_ch != prev_p_ch {
+    if g_st().curtab != old_curtab_ptr && opt_vars().p_ch.get() != prev_p_ch {
         tabpage_check_windows(old_curtab_ptr.borrow());
-        let new_ch = opt_vars().p_ch;
-        opt_vars().p_ch = prev_p_ch;
+        let new_ch = opt_vars().p_ch.get();
+        opt_vars().p_ch.set(prev_p_ch);
         WIN_STATE.with(|s| s.command_frame_height.set(false));
         set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
         WIN_STATE.with(|s| s.command_frame_height.set(true));
@@ -5790,20 +5798,20 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
         redraw_later(prevwin_opt(), UPD_NOT_VALID);
     }
 
-    if OptInt::from(curwin_mut().w_height) < opt_vars().p_wh
+    if OptInt::from(curwin_mut().w_height) < opt_vars().p_wh.get()
         && !curwin_mut().w_onebuf_opt.wo_wfh
         && !curwin_mut().w_floating
     {
-        win_setheight(opt_vars().p_wh as i32);
+        win_setheight(opt_vars().p_wh.get() as i32);
     } else if curwin_mut().w_height == 0 {
         win_setheight(1);
     }
 
-    if OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw
+    if OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw.get()
         && !curwin_mut().w_onebuf_opt.wo_wfw
         && !curwin_mut().w_floating
     {
-        win_setwidth(opt_vars().p_wiw as i32);
+        win_setwidth(opt_vars().p_wiw.get() as i32);
     }
 
     if !curwin_invalid
@@ -5853,10 +5861,10 @@ pub fn update_cwd(cause: CdCause) {
             crate::memory::bytes_as_cstr(&cwd),
             K_PATH_CMP_LITERAL,
         );
-        if !opt_vars().p_acd && dir_differs {
+        if !opt_vars().p_acd.get() && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, true);
         }
-        if os_chdir(new_dir_cstr) == 0 && !opt_vars().p_acd && dir_differs {
+        if os_chdir(new_dir_cstr) == 0 && !opt_vars().p_acd.get() && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, false);
         }
         g_st().last_chdir_reason = None;
@@ -5867,10 +5875,10 @@ pub fn update_cwd(cause: CdCause) {
             crate::memory::bytes_as_cstr(&cwd),
             K_PATH_CMP_LITERAL,
         );
-        if !opt_vars().p_acd && dir_differs {
+        if !opt_vars().p_acd.get() && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, true);
         }
-        if os_chdir(&gdir) == 0 && !opt_vars().p_acd && dir_differs {
+        if os_chdir(&gdir) == 0 && !opt_vars().p_acd.get() && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, false);
         }
         g_st().last_chdir_reason = None;
@@ -6190,10 +6198,12 @@ fn frame_remove(frp: &Frame) {
 
 pub fn win_new_screensize() {
     if WIN_STATE.with(|s| s.old_rows.get()) != g_st().rows_global {
-        if opt_vars().p_window == OptInt::from(WIN_STATE.with(|s| s.old_rows.get()) - 1)
+        if opt_vars().p_window.get() == OptInt::from(WIN_STATE.with(|s| s.old_rows.get()) - 1)
             || (WIN_STATE.with(|s| s.old_rows.get()) == 0 && !option_was_set(K_OPT_WINDOW))
         {
-            opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
+            opt_vars()
+                .p_window
+                .set(OptInt::from(g_st().rows_global - 1));
         }
         WIN_STATE.with(|s| s.old_rows.set(g_st().rows_global));
         win_new_screen_rows();
@@ -6221,7 +6231,7 @@ pub fn win_new_screen_rows() {
     win_comp_pos();
     win_reconfig_floats();
     compute_cmdrow();
-    curtab_mut().tp_ch_used.set(opt_vars().p_ch);
+    curtab_mut().tp_ch_used.set(opt_vars().p_ch.get());
 
     if !g_st().skip_win_fix_scroll {
         win_fix_scroll(true);
@@ -6611,9 +6621,9 @@ pub fn win_setheight(height: i32) {
 
 pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool) {
     let min_wmh = if win == curwin_ptr() {
-        opt_vars().p_wmh.max(1)
+        opt_vars().p_wmh.get().max(1)
     } else {
-        opt_vars().p_wmh
+        opt_vars().p_wmh.get()
     } as i32;
     height = height.max(min_wmh + win.w_winbar_height);
 
@@ -6678,7 +6688,7 @@ fn frame_setheight(curfrp: &Frame, mut height: i32, from_top: bool) {
             } else {
                 let wp = lastwin_nofloating(None);
                 room_cmdline = g_st().rows_global
-                    - opt_vars().p_ch as i32
+                    - opt_vars().p_ch.get() as i32
                     - global_stl_height()
                     - (wp.w_winrow + wp.w_height + wp.w_hsep_height + wp.w_status_height);
                 room_cmdline = room_cmdline.max(0);
@@ -6695,7 +6705,7 @@ fn frame_setheight(curfrp: &Frame, mut height: i32, from_top: bool) {
             frame_setheight(
                 curfrp.fr_parent.get().borrow(),
                 height + frame_minheight(curfrp.fr_parent.get().borrow(), nowin())
-                    - opt_vars().p_wmh as i32
+                    - opt_vars().p_wmh.get() as i32
                     - 1,
                 from_top,
             );
@@ -6771,7 +6781,7 @@ pub fn win_setwidth(width: i32) {
 
 pub fn win_setwidth_win(mut width: i32, wp: &mut WinInfoInfo, from_left: bool) {
     if wp == curwin_ptr() {
-        width = width.max(opt_vars().p_wmw as i32).max(1);
+        width = width.max(opt_vars().p_wmw.get() as i32).max(1);
     } else if width < 0 {
         width = 0;
     }
@@ -6834,7 +6844,7 @@ fn frame_setwidth(curfrp: &Frame, mut width: i32, from_left: bool) {
             frame_setwidth(
                 curfrp.fr_parent.get().borrow(),
                 width + frame_minwidth(curfrp.fr_parent.get().borrow(), nowin())
-                    - opt_vars().p_wmw as i32
+                    - opt_vars().p_wmw.get() as i32
                     - 1,
                 from_left,
             );
@@ -6899,13 +6909,13 @@ fn frame_setwidth(curfrp: &Frame, mut width: i32, from_left: bool) {
 
 pub fn did_set_winminheight(_args: &mut Optset) -> Option<&'static CStr> {
     let mut first = true;
-    while opt_vars().p_wmh > 0 {
-        let room = g_st().rows_global - opt_vars().p_ch as i32;
+    while opt_vars().p_wmh.get() > 0 {
+        let room = g_st().rows_global - opt_vars().p_ch.get() as i32;
         let needed = min_rows_for_all_tabpages();
         if room >= needed {
             break;
         }
-        opt_vars().p_wmh -= 1;
+        opt_vars().p_wmh.set(opt_vars().p_wmh.get() - (1));
         if first {
             emsg(gettext(E_NOROOM));
             first = false;
@@ -6916,13 +6926,13 @@ pub fn did_set_winminheight(_args: &mut Optset) -> Option<&'static CStr> {
 
 pub fn did_set_winminwidth(_args: &mut Optset) -> Option<&'static CStr> {
     let mut first = true;
-    while opt_vars().p_wmw > 0 {
+    while opt_vars().p_wmw.get() > 0 {
         let room = g_st().columns_global;
         let needed = frame_minwidth(&topframe_mut(), crate::globals::WinPtr::NULL);
         if room >= needed {
             break;
         }
-        opt_vars().p_wmw -= 1;
+        opt_vars().p_wmw.set(opt_vars().p_wmw.get() - (1));
         if first {
             emsg(gettext(E_NOROOM));
             first = false;
@@ -6983,7 +6993,7 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
     } else {
         room = g_st().rows_global - g_st().cmdline_row;
         if !curfr.fr_next.get().is_null() {
-            room -= opt_vars().p_ch as i32 + global_stl_height();
+            room -= opt_vars().p_ch.get() as i32 + global_stl_height();
         } else if WIN_STATE.with(|s| s.min_set_ch.get()) > 0 {
             room -= 1;
         }
@@ -7430,34 +7440,34 @@ pub fn command_height() {
         frp = frp.fr_prev.get();
     }
 
-    while opt_vars().p_ch > OptInt::from(old_p_ch)
+    while opt_vars().p_ch.get() > OptInt::from(old_p_ch)
         && WIN_STATE.with(|s| s.command_frame_height.get())
     {
         if frp.is_null() {
             emsg(gettext(E_NOROOM));
-            opt_vars().p_ch = OptInt::from(old_p_ch);
+            opt_vars().p_ch.set(OptInt::from(old_p_ch));
             break;
         }
-        let h = ((opt_vars().p_ch - OptInt::from(old_p_ch)) as i32)
+        let h = ((opt_vars().p_ch.get() - OptInt::from(old_p_ch)) as i32)
             .min(frp.fr_height.get() - frame_minheight(frp.borrow(), crate::globals::WinPtr::NULL));
         frame_add_height(frp.borrow(), -h);
         old_p_ch += h;
 
         frp = frp.fr_prev.get();
     }
-    if opt_vars().p_ch < OptInt::from(old_p_ch)
+    if opt_vars().p_ch.get() < OptInt::from(old_p_ch)
         && WIN_STATE.with(|s| s.command_frame_height.get())
         && !frp.is_null()
     {
         frame_add_height(
             frp.borrow(),
-            (OptInt::from(old_p_ch) - opt_vars().p_ch) as i32,
+            (OptInt::from(old_p_ch) - opt_vars().p_ch.get()) as i32,
         );
     }
 
     win_comp_pos();
     win_fix_scroll(true);
-    g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as i32;
+    g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch.get() as i32;
     g_st().redraw_cmdline = true;
 
     if g_st().msg_scrolled == 0 && g_st().full_screen {
@@ -7478,8 +7488,8 @@ pub fn command_height() {
         g_st().msg_row = g_st().cmdline_row;
     }
 
-    curtab_mut().tp_ch_used.set(opt_vars().p_ch);
-    WIN_STATE.with(|s| s.min_set_ch.set(opt_vars().p_ch));
+    curtab_mut().tp_ch_used.set(opt_vars().p_ch.get());
+    WIN_STATE.with(|s| s.min_set_ch.set(opt_vars().p_ch.get()));
 }
 
 fn frame_add_height(frp: &Frame, n: i32) {
@@ -7667,7 +7677,7 @@ pub fn tabline_height() -> i32 {
         return 0;
     }
     debug_assert!(!g_st().first_tabpage.is_null());
-    match opt_vars().p_stal {
+    match opt_vars().p_stal.get() {
         0 => 0,
         1 => i32::from(!crate::globals::first_tabpage_mut().tp_next.get().is_null()),
         _ => 1,
@@ -7679,7 +7689,7 @@ pub fn global_winbar_height() -> i32 {
 }
 
 pub fn global_stl_height() -> i32 {
-    if opt_vars().p_ls == 3 {
+    if opt_vars().p_ls.get() == 3 {
         STATUS_HEIGHT
     } else {
         0
@@ -7687,8 +7697,8 @@ pub fn global_stl_height() -> i32 {
 }
 
 pub fn last_stl_height(morewin: bool) -> i32 {
-    if opt_vars().p_ls > 1
-        || (opt_vars().p_ls == 1 && (morewin || !one_window(firstwin_mut(), None)))
+    if opt_vars().p_ls.get() > 1
+        || (opt_vars().p_ls.get() == 1 && (morewin || !one_window(firstwin_mut(), None)))
     {
         STATUS_HEIGHT
     } else {
@@ -7704,7 +7714,7 @@ pub fn min_rows(tp: &TabPageInfo) -> i32 {
     let mut total = frame_minheight(&tp.topframe_mut(), crate::globals::WinPtr::NULL);
     total += tabline_height() + global_stl_height();
     if (if g_st().curtab == tp {
-        opt_vars().p_ch
+        opt_vars().p_ch.get()
     } else {
         tp.tp_ch_used.get()
     }) > 0
@@ -7723,7 +7733,7 @@ pub fn min_rows_for_all_tabpages() -> i32 {
     for tp in for_all_tabpages_ptr() {
         let mut n = frame_minheight(&tp.topframe_mut(), crate::globals::WinPtr::NULL);
         if (if g_st().curtab == tp {
-            opt_vars().p_ch
+            opt_vars().p_ch.get()
         } else {
             tp.tp_ch_used.get()
         }) > 0

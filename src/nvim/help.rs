@@ -181,13 +181,17 @@ pub fn ex_help(eap: &mut Exarg) {
                 && curwin_mut().w_width != g_st().columns_global
                 && curwin_mut().w_width < 80
             {
-                n |= if opt_vars().p_sb { WSP_BOT } else { WSP_TOP };
+                n |= if opt_vars().p_sb.get() {
+                    WSP_BOT
+                } else {
+                    WSP_TOP
+                };
             }
             if !win_split(0, n) {
                 early_ret = true;
             } else {
-                if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
-                    win_setheight(opt_vars().p_hh as i32);
+                if (curwin_mut().w_height as OptInt) < opt_vars().p_hh.get() {
+                    win_setheight(opt_vars().p_hh.get() as i32);
                 }
 
                 alt_fnum = curbuf_mut().b_fnum;

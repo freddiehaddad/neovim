@@ -230,7 +230,7 @@ pub fn modify_fname(
                     // Do not call shorten_fname() here since it removes the prefix
                     // even though the path does not have a prefix.
                     if path_cmp(
-                        opt_vars().p_fic,
+                        opt_vars().p_fic.get(),
                         p_cstr,
                         crate::memory::bytes_as_cstr(&dirname),
                         dirnamelen,
@@ -1083,7 +1083,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
     if !error {
         xpc.xp_context = EXPAND_FILES;
-        if opt_vars().p_wic {
+        if opt_vars().p_wic.get() {
             options += WILD_ICASE;
         }
         if rettv.v_type == VarType::VarString {
@@ -1985,7 +1985,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut binary = false;
     let mut append = false;
     let mut defer = false;
-    let mut do_fsync = opt_vars().p_fs;
+    let mut do_fsync = opt_vars().p_fs.get();
     let mut mkdir_p = false;
     if argvars[2].v_type != VarType::VarUnknown {
         let Some(flags_cstr) = tv_get_string_chk(&argvars[2]) else {

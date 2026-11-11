@@ -659,7 +659,7 @@ pub fn do_record(c: i32) -> bool {
         restore_v_event(&dict, &mut save_v_event);
         g_st().reg_recorded = g_st().reg_recording;
         g_st().reg_recording = 0;
-        if opt_vars().p_ch == 0 || ui_has(K_UIMESSAGES) {
+        if opt_vars().p_ch.get() == 0 || ui_has(K_UIMESSAGES) {
             showmode();
         } else {
             msg(c"", 0);
@@ -1203,7 +1203,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
         if yank_type == MotionType::MtCharWise && yanklines == 1 {
             yanklines = 0;
         }
-        if yanklines > opt_vars().p_report as usize {
+        if yanklines > opt_vars().p_report.get() as usize {
             let mut namebuf = [0u8; 100];
             if oap.regname == 0 {
                 namebuf[0] = 0;

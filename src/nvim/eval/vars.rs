@@ -866,7 +866,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
 
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_string(VV_VAL, Some(badword), -1);
-    if opt_vars().p_verbose == 0 {
+    if opt_vars().p_verbose.get() == 0 {
         g_st().emsg_off += 1;
     }
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
@@ -882,7 +882,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
         }
     }
 
-    if opt_vars().p_verbose == 0 {
+    if opt_vars().p_verbose.get() == 0 {
         g_st().emsg_off -= 1;
     }
     get_vim_var_tv(VV_VAL).clear_tv();

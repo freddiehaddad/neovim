@@ -1904,14 +1904,14 @@ fn cmdline_fuzzy_completion_supported(xp: &ExpandCtx) -> bool {
         | EXPAND_TAGS_LISTFILES
         | EXPAND_USER_LIST
         | EXPAND_USER_LUA => false,
-        _ => (opt_vars().wop_flags & K_OPT_WOP_FLAG_FUZZY) != 0,
+        _ => (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_FUZZY) != 0,
     }
 }
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
 pub fn cmdline_fuzzy_complete(fuzzystr: &CStr) -> bool {
-    (opt_vars().wop_flags & K_OPT_WOP_FLAG_FUZZY) != 0 && !fuzzystr.to_bytes().is_empty()
+    (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_FUZZY) != 0 && !fuzzystr.to_bytes().is_empty()
 }
 
 /// Sort function for the completion matches.
@@ -2079,7 +2079,11 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             | WILD_ADD_SLASH
             | WILD_SILENT
             | if escape { WILD_ESCAPE } else { 0 }
-            | if opt_vars().p_wic { WILD_ICASE } else { 0 };
+            | if opt_vars().p_wic.get() {
+                WILD_ICASE
+            } else {
+                0
+            };
         let orig =
             bytes_to_cstring((ccline.cmdbuff().wrapping_add(i as usize)).slice(xp.xp_pattern_len));
         p = expand_one(xp, Some(tmp.as_c_str()), Some(orig), use_options, type_arg);
@@ -2266,7 +2270,7 @@ pub fn cmdline_compl_is_fuzzy() -> bool {
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
 fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
     (need_wildmenu
-        && (opt_vars().wop_flags & K_OPT_WOP_FLAG_PUM) != 0
+        && (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_PUM) != 0
         && !(ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null()))
         || ui_has(K_UIWILDMENU_CONST)
         || (ui_has(K_UICMDLINE) && ui_has(K_UIPOPUPMENU_CONST))
@@ -2475,10 +2479,10 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                 g_st().wild_menu_showing = WM_SCROLLED;
             } else {
                 if lastwin_mut().w_status_height == 0 && global_stl_height() == 0 {
-                    g_st().save_p_ls = opt_vars().p_ls as i32;
-                    g_st().save_p_wmh = opt_vars().p_wmh as i32;
-                    opt_vars().p_ls = 2;
-                    opt_vars().p_wmh = 0;
+                    g_st().save_p_ls = opt_vars().p_ls.get() as i32;
+                    g_st().save_p_wmh = opt_vars().p_wmh.get() as i32;
+                    opt_vars().p_ls.set(2);
+                    opt_vars().p_wmh.set(0);
                     last_status(false);
                 }
                 g_st().wild_menu_showing = WM_SHOWN;
@@ -2564,7 +2568,7 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
         }
     }
 
-    if opt_vars().p_wmnu {
+    if opt_vars().p_wmnu.get() {
         let ccline = get_cmdline_info();
         *ccline.compl_orig.borrow_mut() = xp.xp_orig.clone();
         ccline
@@ -2685,7 +2689,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
             let ci_bytes = files[i].as_bytes();
             let ci = utf_ptr2char(ci_bytes.get(len..).unwrap_or(&[]));
 
-            if opt_vars().p_fic
+            if opt_vars().p_fic.get()
                 && (xp.xp_context == EXPAND_DIRECTORIES
                     || xp.xp_context == EXPAND_FILES
                     || xp.xp_context == EXPAND_SHELLCMD
@@ -3279,7 +3283,7 @@ fn set_cmd_index<'a>(
     let mut p_idx: usize;
 
     if !fuzzy
-        && !opt_vars().p_ic
+        && !opt_vars().p_ic.get()
         && cmd_bytes.first() == Some(&b'k')
         && cmd_bytes.get(1) != Some(&b'e')
     {
@@ -3487,7 +3491,7 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
             p = skip_regexp(
                 crate::memory::CStrSubslice::advance(p, 1),
                 i32::from(p.to_bytes()[0]),
-                i32::from(opt_vars().p_magic),
+                i32::from(opt_vars().p_magic.get()),
             );
         }
     }
@@ -3523,7 +3527,7 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
         p = skip_regexp(
             crate::memory::CStrSubslice::advance(p, 1),
             i32::from(delim),
-            i32::from(opt_vars().p_magic),
+            i32::from(opt_vars().p_magic.get()),
         );
         let bytes = p.to_bytes();
         if let Some(mut rem) = bytes.strip_prefix(&[delim]) {
@@ -3729,7 +3733,7 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
     let mut skiplen: i32 = 0;
     let mut dummy: i32 = 0;
     let mut patlen: i32 = 0;
-    let mut magic = opt_vars().p_magic;
+    let mut magic = opt_vars().p_magic.get();
     let mut pos = CMDEXP_STATE.with(|s| s.pre_incsearch_pos.get());
     let retval =
         parse_pattern_and_range(&mut pos, &mut dummy, &mut skiplen, &mut patlen, &mut magic);
@@ -3883,7 +3887,7 @@ fn set_context_by_cmdname<'a>(
         | Cmdidx::CmdTjump
         | Cmdidx::CmdStjump
         | Cmdidx::CmdPtjump => {
-            if (opt_vars().wop_flags & K_OPT_WOP_FLAG_TAGFILE) != 0 {
+            if (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_TAGFILE) != 0 {
                 xp.xp_context = EXPAND_TAGS_LISTFILES;
             } else {
                 xp.xp_context = EXPAND_TAGS;
@@ -4384,7 +4388,7 @@ pub fn expand_cmdline(
         addstar(xp.xp_pattern.slice(xp.xp_pattern_len), xp.xp_context)
     };
 
-    if opt_vars().p_wic {
+    if opt_vars().p_wic.get() {
         options += WILD_ICASE;
     }
 
@@ -4464,9 +4468,9 @@ fn expand_files_and_dirs(
         };
         drop(pat_owned);
         #[cfg(windows)]
-        if ((options & WILD_USE_SHELLSLASH) != 0 && !opt_vars().p_ssl)
+        if ((options & WILD_USE_SHELLSLASH) != 0 && !opt_vars().p_ssl.get())
             || ((options & WILD_USE_COMPLETESLASH) != 0
-                && ((opt_vars().p_csl.is_empty() && !opt_vars().p_ssl)
+                && ((opt_vars().p_csl.is_empty() && !opt_vars().p_ssl.get())
                     || opt_vars().p_csl.first_byte() == b'b'))
         {
             for slot in matches.iter_mut() {
@@ -5074,7 +5078,11 @@ fn expand_from_context(
     if !fuzzy {
         regmatch.set_prog(vim_regcomp(
             pat_cstr,
-            if opt_vars().p_magic { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic.get() {
+                RE_MAGIC
+            } else {
+                0
+            },
         ));
         if regmatch.regprog.is_null() {
             return false;
@@ -5636,7 +5644,7 @@ fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         && cclp.cmdpos.get() > 0
         && cmd_slice.get((cclp.cmdpos.get() - 1) as usize) == Some(&b'.')
     {
-        key = opt_vars().p_wc as i32;
+        key = opt_vars().p_wc.get() as i32;
         g_st().key_typed = true;
     } else if key == K_UP {
         let mut found = false;
@@ -5664,7 +5672,7 @@ fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         if i > 0 {
             cmdline_del(cclp, i);
         }
-        key = opt_vars().p_wc as i32;
+        key = opt_vars().p_wc.get() as i32;
         g_st().key_typed = true;
         xp.xp_context = EXPAND_NOTHING;
     }
@@ -5685,7 +5693,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
             || cmd_slice[(cclp.cmdpos.get() - 2) as usize] != b'.'
             || cmd_slice[(cclp.cmdpos.get() - 3) as usize] != b'.')
     {
-        key = opt_vars().p_wc as i32;
+        key = opt_vars().p_wc.get() as i32;
         g_st().key_typed = true;
     } else if xp.xp_pattern.as_bytes().starts_with(&upseg[1..4]) && key == K_DOWN {
         let mut found = false;
@@ -5709,7 +5717,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         {
             drop(cmd_vec);
             cmdline_del(cclp, j - 2);
-            key = opt_vars().p_wc as i32;
+            key = opt_vars().p_wc.get() as i32;
             g_st().key_typed = true;
         }
     } else if key == K_UP {
@@ -5763,7 +5771,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
             cmdline_del(cclp, i);
         }
 
-        key = opt_vars().p_wc as i32;
+        key = opt_vars().p_wc.get() as i32;
         g_st().key_typed = true;
     }
 
@@ -5787,7 +5795,7 @@ pub fn wildmenu_process_key(cclp: &CmdlineInfo, key: i32, xp: &mut ExpandCtx) ->
 
 /// Free expanded names when finished walking through the matches.
 pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
-    if !opt_vars().p_wmnu || g_st().wild_menu_showing == 0 {
+    if !opt_vars().p_wmnu.get() || g_st().wild_menu_showing == 0 {
         return;
     }
 
@@ -5805,8 +5813,8 @@ pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
         redrawcmd();
         g_st().wild_menu_showing = 0;
     } else if g_st().save_p_ls != -1 {
-        opt_vars().p_ls = OptInt::from(g_st().save_p_ls);
-        opt_vars().p_wmh = OptInt::from(g_st().save_p_wmh);
+        opt_vars().p_ls.set(OptInt::from(g_st().save_p_ls));
+        opt_vars().p_wmh.set(OptInt::from(g_st().save_p_wmh));
         last_status(false);
         update_screen();
         redrawcmd();
@@ -5838,7 +5846,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         filtered = tv_get_bool_chk(&argvars[2], None) != 0;
     }
 
-    if opt_vars().p_wic {
+    if opt_vars().p_wic.get() {
         options |= WILD_ICASE;
     }
 
@@ -6017,7 +6025,7 @@ fn copy_substring_from_pos(
     end: &mut CursorPos,
     match_end: &mut CursorPos,
 ) -> Option<CString> {
-    let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
+    let exacttext = (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
 
     if start.lnum > end.lnum || (start.lnum == end.lnum && start.col >= end.col) {
         return None;
@@ -6091,8 +6099,8 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
     if regmatch.regprog.is_null() {
         return false;
     }
-    regmatch.rm_ic = opt_vars().p_ic;
-    if opt_vars().p_ic && opt_vars().p_scs {
+    regmatch.rm_ic = opt_vars().p_ic.get();
+    if opt_vars().p_ic.get() && opt_vars().p_scs.get() {
         regmatch.rm_ic = !pat_has_uppercase(pat);
     }
 
@@ -6134,7 +6142,7 @@ fn concat_pattern_with_buffer_match(
 
 /// Search for strings matching "pat" in the specified range and return them.
 fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>) -> bool {
-    let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
+    let exacttext = (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
     let has_range = g_st().search_global.first_line != 0;
 
     matches.clear();
@@ -6185,7 +6193,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
             1,
             search_flags,
             RE_LAST,
-            opt_vars().p_magic,
+            opt_vars().p_magic.get(),
             None,
         );
         g_st().msg_silent -= 1;

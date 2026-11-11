@@ -3105,10 +3105,10 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         flush_ui = true;
     }
 
-    let save_lz = opt_vars().p_lz;
+    let save_lz = opt_vars().p_lz.get();
     let save_rd = g_st().redrawing_disabled;
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = false;
+    opt_vars().p_lz.set(false);
     if opts.statuscolumn || opts.statusline || opts.winbar {
         if win.is_null() {
             for wp in for_all_windows_mut() {
@@ -3144,7 +3144,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     g_st().redrawing_disabled = save_rd;
-    opt_vars().p_lz = save_lz;
+    opt_vars().p_lz.set(save_lz);
 }
 
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);

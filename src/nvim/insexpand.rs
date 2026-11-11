@@ -1169,7 +1169,7 @@ pub fn ins_compl_add_infercase(
     let mut flags: i32 = 0;
     let mut tofree: Vec<u8> = Vec::new();
 
-    let final_slice = if opt_vars().p_ic && curbuf_mut().b_p_inf && len > 0 {
+    let final_slice = if opt_vars().p_ic.get() && curbuf_mut().b_p_inf && len > 0 {
         let mut char_len: i32 = 0;
         {
             let mut rem = str_slice;
@@ -1668,7 +1668,7 @@ pub fn get_cot_flags() -> u32 {
     if curbuf_mut().b_cot_flags != 0 {
         curbuf_mut().b_cot_flags
     } else {
-        opt_vars().cot_flags
+        opt_vars().cot_flags.get()
     }
 }
 
@@ -2001,7 +2001,7 @@ fn ins_compl_build_pum() -> i32 {
             let leader = get_leader_for_startcol(Some(comp.meta()), true);
 
             if ctrl_x_mode_normal()
-                && !opt_vars().p_inf
+                && !opt_vars().p_inf.get()
                 && !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
                 && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_cstr())
                 && !cot_fuzzy()
@@ -2217,9 +2217,9 @@ fn ins_compl_dictionaries(
     let mut buf_vec = vec![0u8; LSIZE];
     regmatch.free_prog();
 
-    let save_p_scs = opt_vars().p_scs;
+    let save_p_scs = opt_vars().p_scs.get();
     if curbuf_mut().b_p_inf {
-        opt_vars().p_scs = false;
+        opt_vars().p_scs.set(false);
     }
 
     if ctrl_x_mode_line_or_eval() {
@@ -2234,10 +2234,14 @@ fn ins_compl_dictionaries(
     } else {
         regmatch.set_prog(vim_regcomp(
             pat_cstr,
-            if opt_vars().p_magic { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic.get() {
+                RE_MAGIC
+            } else {
+                0
+            },
         ));
         if regmatch.regprog.is_null() {
-            opt_vars().p_scs = save_p_scs;
+            opt_vars().p_scs.set(save_p_scs);
             regmatch.free_prog();
             return;
         }
@@ -2301,7 +2305,7 @@ fn ins_compl_dictionaries(
         }
     }
 
-    opt_vars().p_scs = save_p_scs;
+    opt_vars().p_scs.set(save_p_scs);
     regmatch.free_prog();
 }
 
@@ -2334,7 +2338,7 @@ fn thesaurus_add_words_in_line(
             status = ins_compl_add_infercase(
                 &wstart[..wlen],
                 wlen as i32,
-                opt_vars().p_ic,
+                opt_vars().p_ic.get(),
                 fname,
                 dir,
                 false,
@@ -2421,7 +2425,7 @@ fn ins_compl_files(
                         let add_r = ins_compl_add_infercase(
                             &rem_slice[..match_len as usize],
                             match_len,
-                            opt_vars().p_ic,
+                            opt_vars().p_ic.get(),
                             Some(file_cstr.as_c_str()),
                             *dir,
                             false,
@@ -2457,7 +2461,7 @@ fn ins_compl_files(
                     let mut add_r = ins_compl_add_infercase(
                         &from_start[..match_len],
                         match_len as i32,
-                        opt_vars().p_ic,
+                        opt_vars().p_ic.get(),
                         Some(file_cstr.as_c_str()),
                         *dir,
                         false,
@@ -2605,7 +2609,10 @@ pub fn ins_compl_len() -> i32 {
 
 pub fn ins_compl_has_preinsert() -> bool {
     let cur_cot_flags = get_cot_flags();
-    if INSEXPAND.with(|s| s.compl_autocomplete.get()) && opt_vars().p_ic && !opt_vars().p_inf {
+    if INSEXPAND.with(|s| s.compl_autocomplete.get())
+        && opt_vars().p_ic.get()
+        && !opt_vars().p_inf.get()
+    {
         return false;
     }
     if !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
@@ -2693,7 +2700,7 @@ fn ins_compl_need_restart() -> bool {
 }
 
 pub fn ins_compl_has_autocomplete() -> bool {
-    curbuf_mut().b_p_ac.unwrap_or(opt_vars().p_ac)
+    curbuf_mut().b_p_ac.unwrap_or(opt_vars().p_ac.get())
 }
 
 fn ins_compl_fuzzy_sort() {
@@ -3426,21 +3433,21 @@ pub fn set_ref_in_insexpand_funcs(copy_id: i32) -> bool {
     abort
 }
 
-fn get_insert_callback(type_: i32) -> &'static mut Callback {
+fn get_insert_callback(type_: i32) -> &'static Callback {
     if type_ == CTRL_X_FUNCTION {
-        return &mut curbuf_mut().b_p_cfu;
+        return &curbuf_mut().b_p_cfu;
     }
     if type_ == CTRL_X_OMNI {
-        return &mut curbuf_mut().b_p_ofu;
+        return &curbuf_mut().b_p_ofu;
     }
     if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-        &mut curbuf_mut().b_p_tsrfu
+        &curbuf_mut().b_p_tsrfu
     } else {
-        &mut opt_vars().p_tsrfu
+        &opt_vars().p_tsrfu
     }
 }
 
-fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callback>) {
+fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>) {
     let mut matchlist = crate::eval::typval::ListId::NULL;
     let mut matchdict = crate::eval::typval::DictId::NULL;
     let mut rettv: TypVal = TypVal::new();
@@ -3689,7 +3696,7 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
             .set(cbuf_to_string(&line_slice[start_u..start_u + len_u]))
     });
     save_orig_extmarks();
-    if opt_vars().p_ic {
+    if opt_vars().p_ic.get() {
         flags |= CP_ICASE;
     }
     if ins_compl_add(
@@ -4278,10 +4285,10 @@ fn get_next_dict_tsr_completion(compl_type: i32, dict: Option<&CStr>, dict_f: i3
 }
 
 fn get_next_tag_completion() {
-    let save_p_ic = opt_vars().p_ic;
+    let save_p_ic = opt_vars().p_ic.get();
     let pat = compl_pattern();
     let pat_cstr = pat.as_deref().unwrap_or(c"");
-    opt_vars().p_ic = ignorecase(pat_cstr);
+    opt_vars().p_ic.set(ignorecase(pat_cstr));
 
     g_st().g_tag_at_cursor = true;
     let mut matches: Vec<Vec<u8>> = Vec::new();
@@ -4314,7 +4321,7 @@ fn get_next_tag_completion() {
                 [const { None }; CPT_COUNT],
                 None,
                 dir,
-                CP_FAST | if opt_vars().p_ic { CP_ICASE } else { 0 },
+                CP_FAST | if opt_vars().p_ic.get() { CP_ICASE } else { 0 },
                 false,
                 None,
                 FUZZY_SCORE_NONE,
@@ -4327,7 +4334,7 @@ fn get_next_tag_completion() {
         }
     }
     g_st().g_tag_at_cursor = false;
-    opt_vars().p_ic = save_p_ic;
+    opt_vars().p_ic.set(save_p_ic);
 }
 
 fn ins_compl_longest_insert(prefix: &[u8]) {
@@ -4470,7 +4477,7 @@ fn get_next_filename_completion() {
     tilde_replace(pat.as_deref().map_or(&[], CStr::to_bytes), &mut matches);
     #[cfg(windows)]
     {
-        if (curbuf_mut().b_p_csl.is_empty() && !opt_vars().p_ssl)
+        if (curbuf_mut().b_p_csl.is_empty() && !opt_vars().p_ssl.get())
             || curbuf_mut().b_p_csl.first_byte() == b'b'
         {
             for slot in &mut matches {
@@ -4517,7 +4524,7 @@ fn get_next_filename_completion() {
                     None,
                     dir,
                     CP_FAST
-                        | if opt_vars().p_fic || opt_vars().p_wic {
+                        | if opt_vars().p_fic.get() || opt_vars().p_wic.get() {
                             CP_ICASE
                         } else {
                             0
@@ -4550,7 +4557,7 @@ fn get_next_filename_completion() {
     if !matches.is_empty() {
         ins_compl_add_matches(
             &mut matches,
-            i32::from(opt_vars().p_fic || opt_vars().p_wic),
+            i32::from(opt_vars().p_fic.get() || opt_vars().p_wic.get()),
         );
     }
 }
@@ -4616,7 +4623,7 @@ fn get_next_spell_completion(lnum: Linenr) {
     let pat = compl_pattern();
     expand_spelling(lnum, pat.as_deref().unwrap_or(c""), &mut matches);
     if !matches.is_empty() {
-        ins_compl_add_matches(&mut matches, i32::from(opt_vars().p_ic));
+        ins_compl_add_matches(&mut matches, i32::from(opt_vars().p_ic.get()));
     }
 }
 
@@ -4633,7 +4640,7 @@ fn ins_compl_get_next_word_or_line<'a>(
             return None;
         }
         let mut res_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
-        if !opt_vars().p_paste {
+        if !opt_vars().p_paste.get() {
             res_slice = crate::charset::skipwhite_slice(res_slice);
         }
         let len = res_slice.len() as i32;
@@ -4690,7 +4697,7 @@ fn ins_compl_get_next_word_or_line<'a>(
                         iobuff[len as usize] = b' ';
                         len += 1;
                     }
-                    if opt_vars().p_js {
+                    if opt_vars().p_js.get() {
                         let prev = iobuff[(len - 2) as usize];
                         if prev == b'.' || prev == b'?' || prev == b'!' {
                             iobuff[len as usize] = b' ';
@@ -4728,17 +4735,17 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let mut score = FUZZY_SCORE_NONE;
     let in_curbuf = st.ins_buf == g_st().curbuf;
 
-    let save_p_scs = opt_vars().p_scs;
+    let save_p_scs = opt_vars().p_scs.get();
     debug_assert!(!st.ins_buf.is_null());
     if st.ins_buf.b_p_inf {
-        opt_vars().p_scs = false;
+        opt_vars().p_scs.set(false);
     }
 
-    let save_p_ws = opt_vars().p_ws;
+    let save_p_ws = opt_vars().p_ws.get();
     if !in_curbuf {
-        opt_vars().p_ws = false;
+        opt_vars().p_ws.set(false);
     } else if st.e_cpt_char() == b'.' {
-        opt_vars().p_ws = true;
+        opt_vars().p_ws.set(true);
     }
     let mut looped_around = false;
     let mut found_new_match: bool;
@@ -4785,7 +4792,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 1,
                 SEARCH_KEEP + SEARCH_NFMSG,
                 RE_LAST,
-                opt_vars().p_magic,
+                opt_vars().p_magic.get(),
                 None,
             ) != 0;
         }
@@ -4852,7 +4859,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         if ins_compl_add_infercase(
             m_slice,
             len,
-            opt_vars().p_ic,
+            opt_vars().p_ic.get(),
             if in_curbuf {
                 None
             } else {
@@ -4874,8 +4881,8 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             break;
         }
     }
-    opt_vars().p_scs = save_p_scs;
-    opt_vars().p_ws = save_p_ws;
+    opt_vars().p_scs.set(save_p_scs);
+    opt_vars().p_ws.set(save_p_ws);
 
     found_new_match
 }
@@ -4913,7 +4920,7 @@ fn get_register_completion() {
                 let orig_bytes = orig_str.as_bytes();
                 let str_prefix = &str_b[..orig_bytes.len().min(str_b.len())];
                 let matches = orig_str.data.is_null()
-                    || if opt_vars().p_ic {
+                    || if opt_vars().p_ic.get() {
                         str_prefix.eq_ignore_ascii_case(orig_bytes)
                     } else {
                         str_prefix == orig_bytes
@@ -4922,7 +4929,7 @@ fn get_register_completion() {
                     && ins_compl_add_infercase(
                         str_b,
                         str_len,
-                        opt_vars().p_ic,
+                        opt_vars().p_ic.get(),
                         None,
                         dir,
                         false,
@@ -4951,7 +4958,7 @@ fn get_register_completion() {
                     let orig_bytes = orig_str.as_bytes();
                     let p_prefix = &rem[..orig_bytes.len().min(rem.len())];
                     let matches = orig_str.data.is_null()
-                        || if opt_vars().p_ic {
+                        || if opt_vars().p_ic.get() {
                             p_prefix.eq_ignore_ascii_case(orig_bytes)
                         } else {
                             p_prefix == orig_bytes
@@ -4961,7 +4968,7 @@ fn get_register_completion() {
                         && ins_compl_add_infercase(
                             &rem[..len],
                             len as i32,
-                            opt_vars().p_ic,
+                            opt_vars().p_ic.get(),
                             None,
                             dir,
                             false,
@@ -5084,7 +5091,7 @@ fn get_next_bufname_token() {
                     [const { None }; CPT_COUNT],
                     None,
                     0,
-                    if opt_vars().p_ic { CP_ICASE } else { 0 },
+                    if opt_vars().p_ic.get() { CP_ICASE } else { 0 },
                     false,
                     None,
                     FUZZY_SCORE_NONE,
@@ -5161,7 +5168,7 @@ fn prepare_cpt_compl_funcs() {
 }
 
 fn compl_source_start_timer(source_idx: i32) {
-    if INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto > 0 {
+    if INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto.get() > 0 {
         with_cpt_source_mut(source_idx as usize, |s| s.compl_start_tv = os_hrtime());
         INSEXPAND.with(|s| s.compl_time_slice_expired.set(false));
     }
@@ -5234,15 +5241,15 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         && !cpt_sources_is_empty();
     if normal_mode_strict {
         INSEXPAND.with(|s| s.cpt_sources_index.set(0));
-        if INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto > 0 {
+        if INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto.get() > 0 {
             compl_source_start_timer(0);
             INSEXPAND.with(|s| s.compl_time_slice_expired.set(false));
             INSEXPAND.with(|s| {
                 s.compl_timeout_ms
                     .set(if INSEXPAND.with(|s| s.compl_autocomplete.get()) {
-                        (COMPL_INITIAL_TIMEOUT_MS as OptInt).max(opt_vars().p_act) as u64
+                        (COMPL_INITIAL_TIMEOUT_MS as OptInt).max(opt_vars().p_act.get()) as u64
                     } else {
-                        opt_vars().p_cto as u64
+                        opt_vars().p_cto.get() as u64
                     })
             });
         }
@@ -5279,7 +5286,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         let mut compl_timeout_save: u64 = 0;
         if normal_mode_strict
             && type_ == CTRL_X_FUNCTION
-            && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto > 0)
+            && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto.get() > 0)
         {
             compl_timeout_save = INSEXPAND.with(|s| s.compl_timeout_ms.get());
             INSEXPAND.with(|s| {
@@ -5332,7 +5339,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
 
         if normal_mode_strict
             && type_ == CTRL_X_FUNCTION
-            && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto > 0)
+            && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto.get() > 0)
         {
             INSEXPAND.with(|s| s.compl_timeout_ms.set(compl_timeout_save));
         }
@@ -5536,7 +5543,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<NvimS
             let leader = get_leader_for_startcol(Some(compl.meta()), true);
 
             if ctrl_x_mode_normal()
-                && !opt_vars().p_inf
+                && !opt_vars().p_inf.get()
                 && !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
                 && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_cstr())
             {
@@ -6026,7 +6033,7 @@ pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
                 && !cpt_sources_is_empty()
                 && INSEXPAND.with(|s| s.cpt_sources_index.get()) >= 0;
             if normal_mode_strict
-                && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto > 0)
+                && (INSEXPAND.with(|s| s.compl_autocomplete.get()) || opt_vars().p_cto.get() > 0)
             {
                 check_elapsed_time();
             }
@@ -6034,7 +6041,7 @@ pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
 
         if INSEXPAND.with(|s| s.compl_pending.get()) != 0
             && !g_st().got_int
-            && (opt_vars().cot_flags & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_FUZZY)) == 0
+            && (opt_vars().cot_flags.get() & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_FUZZY)) == 0
             && (!INSEXPAND.with(|s| s.compl_autocomplete.get()) || ins_compl_has_preinsert())
         {
             let todo = INSEXPAND.with(|s| s.compl_pending.get()).abs();
@@ -6120,7 +6127,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         let col_u = (INSEXPAND.with(|s| s.compl_col.get()).max(0) as usize).min(line_bytes.len());
         let len_u = INSEXPAND.with(|s| s.compl_length.get()).max(0) as usize;
         let pat_bytes = &line_bytes[col_u..(col_u + len_u).min(line_bytes.len())];
-        if opt_vars().p_ic {
+        if opt_vars().p_ic.get() {
             set_compl_pattern(str_foldcase(pat_bytes, None));
         } else {
             set_compl_pattern_bytes(pat_bytes);
@@ -6228,7 +6235,7 @@ fn get_wholeline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     let start = (INSEXPAND.with(|s| s.compl_col.get()) as usize).min(line_bytes.len());
     let end = (start + INSEXPAND.with(|s| s.compl_length.get()) as usize).min(line_bytes.len());
     let pat_bytes = &line_bytes[start..end];
-    if opt_vars().p_ic {
+    if opt_vars().p_ic.get() {
         set_compl_pattern(str_foldcase(pat_bytes, None));
     } else {
         set_compl_pattern_bytes(pat_bytes);
@@ -6691,7 +6698,7 @@ fn ins_compl_start() -> bool {
     });
     save_orig_extmarks();
     let mut flags = CP_ORIGINAL_TEXT;
-    if opt_vars().p_ic {
+    if opt_vars().p_ic.get() {
         flags |= CP_ICASE;
     }
     if ins_compl_add(
@@ -6785,7 +6792,7 @@ fn ins_compl_show_statusmsg() {
     g_st().redraw_mode = true;
     if !shortmess(K_SHM_COMPLETIONMENU) {
         if let Some(extra) = g_st().edit_submode_extra.clone() {
-            if !opt_vars().p_smd {
+            if !opt_vars().p_smd.get() {
                 g_st().msg_hist_off = true;
                 msg_ext_set_kind(c"completion");
                 msg(
@@ -6936,7 +6943,7 @@ pub fn ins_compl_disarm_autostart() {
 }
 
 pub fn ins_compl_arm_autocomplete_delay() -> bool {
-    if opt_vars().p_acl > 0 {
+    if opt_vars().p_acl.get() > 0 {
         INSEXPAND.with(|s| s.compl_autocomplete_start_tv.set(os_hrtime()));
         INSEXPAND.with(|s| s.compl_autocomplete_pending.set(true));
         return true;
@@ -6982,10 +6989,10 @@ fn quote_meta(mut dest: Option<&mut [u8]>, src: &[u8]) -> usize {
                 if ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus() {
                     false
                 } else {
-                    opt_vars().p_magic
+                    opt_vars().p_magic.get()
                 }
             }
-            b'~' => opt_vars().p_magic,
+            b'~' => opt_vars().p_magic.get(),
             b'\\' => !(ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus()),
             b'^' | b'$' => true,
             _ => false,

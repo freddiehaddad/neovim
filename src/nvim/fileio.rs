@@ -279,7 +279,7 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
     if shortmess(K_SHM_OVERALL)
         && g_st().msg_listdo_overwrite == 0
         && !g_st().exiting
-        && opt_vars().p_verbose == 0
+        && opt_vars().p_verbose.get() == 0
     {
         g_st().msg_scroll = 0;
     }
@@ -514,7 +514,7 @@ pub fn readfile(
             }
 
             if ((shortmess(K_SHM_OVER) && g_st().msg_listdo_overwrite == 0) || curbuf_mut().b_help)
-                && opt_vars().p_verbose == 0
+                && opt_vars().p_verbose.get() == 0
             {
                 g_st().msg_scroll = 0;
             } else {
@@ -2966,7 +2966,7 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
     let mut use_tmp_file = false;
 
     if path_equal(from, to, K_PATH_CMP_LITERAL) {
-        if opt_vars().p_fic && path_tail(from) != path_tail(to) {
+        if opt_vars().p_fic.get() && path_tail(from) != path_tail(to) {
             use_tmp_file = true;
         } else {
             return 0;
@@ -3171,7 +3171,10 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 
         if os_isdir(buf.fname_cstr()) {
             // Don't do anything for a directory.
-        } else if buf.b_p_ar.unwrap_or(opt_vars().p_ar) && !buf_is_changed_fn(buf) && file_info_ok {
+        } else if buf.b_p_ar.unwrap_or(opt_vars().p_ar.get())
+            && !buf_is_changed_fn(buf)
+            && file_info_ok
+        {
             reload = RELOAD_NORMAL;
         } else {
             let (reason, reasonlen) = if !file_info_ok {
@@ -3364,7 +3367,9 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let old_cursor = curwin_mut().w_cursor;
     let old_topline = curwin_mut().w_topline;
 
-    if opt_vars().p_ur < 0 || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur {
+    if opt_vars().p_ur.get() < 0
+        || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur.get()
+    {
         u_sync(false);
         saved = u_savecommon(
             curbuf_mut(),
@@ -3805,7 +3810,7 @@ pub fn match_file_pat(
     let mut regmatch: Regmatch = Regmatch::new();
     let mut result = false;
 
-    regmatch.rm_ic = opt_vars().p_fic;
+    regmatch.rm_ic = opt_vars().p_fic.get();
     if let Some(prog) = prog {
         regmatch.borrow_prog(Some(prog));
     } else {

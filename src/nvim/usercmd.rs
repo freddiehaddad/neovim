@@ -773,7 +773,7 @@ fn uc_list(name_prefix: &[u8]) {
                         0
                     },
                 );
-                if opt_vars().p_verbose > 0 {
+                if opt_vars().p_verbose.get() > 0 {
                     last_set_msg(cmd.uc_script_ctx);
                 }
                 line_breakcheck();

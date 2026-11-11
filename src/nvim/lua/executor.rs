@@ -2326,7 +2326,7 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
 
     current.sc_lnum = 0;
 
-    if opt_vars().p_verbose <= 0 {
+    if opt_vars().p_verbose.get() <= 0 {
         return;
     }
     let lstate = NLUA_STATE.with(|s| s.active_lstate.get());

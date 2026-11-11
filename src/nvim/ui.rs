@@ -189,7 +189,7 @@ pub fn ui_free_all_mem() {
 }
 
 pub fn ui_rgb_attached() -> bool {
-    if opt_vars().p_tgc {
+    if opt_vars().p_tgc.get() {
         return true;
     }
     for ui_rc in ui_rcs() {
@@ -292,10 +292,10 @@ pub fn ui_refresh() {
 
     ui_default_colors_set();
 
-    let save_p_lz = opt_vars().p_lz;
-    opt_vars().p_lz = false;
+    let save_p_lz = opt_vars().p_lz.get();
+    opt_vars().p_lz.set(false);
     screen_resize(width, height);
-    opt_vars().p_lz = save_p_lz;
+    opt_vars().p_lz.set(save_p_lz);
 
     ui_mode_info_set();
     ui_state(|st| st.pending_mode_update.set(true));
@@ -389,7 +389,9 @@ pub fn vim_beep(val: u32) {
     }
     g_st().did_beep += 1;
 
-    if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & K_OPT_BO_FLAG_ALL) == 0 {
+    if (opt_vars().bo_flags.get() & val) == 0
+        && (opt_vars().bo_flags.get() & K_OPT_BO_FLAG_ALL) == 0
+    {
         let now = os_hrtime();
         let count = ui_state(|st| {
             let start = st.beep_start_time.get();
@@ -402,7 +404,7 @@ pub fn vim_beep(val: u32) {
             c
         });
         if count <= 3 {
-            if opt_vars().p_vb {
+            if opt_vars().p_vb.get() {
                 ui_call_visual_bell();
             } else {
                 ui_call_bell();
@@ -553,14 +555,14 @@ pub fn ui_line(
         &grid.attrs[off..],
     );
 
-    if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
+    if opt_vars().p_wd.get() != 0 && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_LINE) != 0 {
         ui_call_grid_cursor_goto(
             Integer::from(grid.handle),
             Integer::from(row),
             Integer::from(clearcol.min(grid.cols - 1)),
         );
         ui_call_flush();
-        os_sleep(opt_vars().p_wd.unsigned_abs());
+        os_sleep(opt_vars().p_wd.get().unsigned_abs());
         ui_state(|st| st.pending_cursor_update.set(true));
     }
 }
@@ -687,8 +689,8 @@ pub fn ui_flush() {
     }
     ui_call_flush();
 
-    if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_FLUSH) != 0 {
-        os_sleep(opt_vars().p_wd.unsigned_abs());
+    if opt_vars().p_wd.get() != 0 && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_FLUSH) != 0 {
+        os_sleep(opt_vars().p_wd.get().unsigned_abs());
     }
 }
 

@@ -877,7 +877,7 @@ pub fn search_for_fuzzy_match<'a>(
         if dir == FORWARD {
             current_pos.lnum += 1;
             if current_pos.lnum > line_count {
-                if opt_vars().p_ws {
+                if opt_vars().p_ws.get() {
                     current_pos.lnum = 1;
                     looped_around = true;
                 } else {
@@ -887,7 +887,7 @@ pub fn search_for_fuzzy_match<'a>(
         } else {
             current_pos.lnum -= 1;
             if current_pos.lnum < 1 {
-                if opt_vars().p_ws {
+                if opt_vars().p_ws.get() {
                     current_pos.lnum = line_count;
                     looped_around = true;
                 } else {

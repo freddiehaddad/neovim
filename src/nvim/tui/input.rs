@@ -209,8 +209,8 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
     input.paste = 0;
     input.in_fd = STDIN_FILENO;
     {
-        input.ttimeout = opt_vars().p_ttimeout;
-        input.ttimeoutlen = opt_vars().p_ttm;
+        input.ttimeout = opt_vars().p_ttimeout.get();
+        input.ttimeoutlen = opt_vars().p_ttm.get();
     }
 
     rstream_init_fd(loop_, &mut input.read_stream, input.in_fd);

@@ -1279,7 +1279,7 @@ pub fn os_set_errno(val: i32) {
 
 /// Changes the current directory to `path`.
 pub fn os_chdir(path: &CStr) -> i32 {
-    if opt_vars().p_verbose >= 5 {
+    if opt_vars().p_verbose.get() >= 5 {
         verbose_enter();
         let _ = smsg!(0, c"chdir(%s)", path);
         verbose_leave();

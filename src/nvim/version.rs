@@ -4115,7 +4115,7 @@ pub fn list_version() {
     msg_putchar(b'\n' as i32);
     list_lua_version();
 
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         msg_putchar(b'\n' as i32);
         msg_puts(c"Vim versions: ");
 
@@ -4149,7 +4149,7 @@ pub fn list_version() {
         }
     }
 
-    version_msg(if opt_vars().p_verbose > 0 {
+    version_msg(if opt_vars().p_verbose.get() > 0 {
         c"\nRun :checkhealth for more info"
     } else if starting_val() != 0 {
         c"\nRun \"nvim -V1 -v\" for more info"
@@ -4193,7 +4193,7 @@ pub fn intro_message(colon: bool) {
 
     let lines_size = lines.len() as i32;
     let mut blanklines = g_st().rows_global - (lines_size - 1);
-    if opt_vars().p_ls > 1 {
+    if opt_vars().p_ls.get() > 1 {
         blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height.get();
     }
     if blanklines < 0 {

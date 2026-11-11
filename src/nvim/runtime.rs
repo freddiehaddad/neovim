@@ -754,7 +754,7 @@ pub fn do_in_path(
     let rtp_copy = path_cstr.to_owned();
     let mut buf_vec = vec![0u8; MAXPATHL];
     {
-        if opt_vars().p_verbose > 10
+        if opt_vars().p_verbose.get() > 10
             && let Some(name) = name_opt
         {
             verbose_enter();
@@ -807,7 +807,7 @@ pub fn do_in_path(
                         debug_assert!(MAXPATHL >= tail_off);
                         copy_option_part(&mut np, &mut buf_vec[tail_off..MAXPATHL], c"\t ");
 
-                        if opt_vars().p_verbose > 10 {
+                        if opt_vars().p_verbose.get() > 10 {
                             verbose_enter();
                             smsg!(0, gettext(c"Searching for \"%s\""), &buf_vec);
                             verbose_leave();
@@ -848,7 +848,7 @@ pub fn do_in_path(
 
         if (flags & DIP_ERR) != 0 {
             semsg!(gettext(E_DIRNOTF), basepath, name);
-        } else if opt_vars().p_verbose > 1 {
+        } else if opt_vars().p_verbose.get() > 1 {
             verbose_enter();
             smsg!(0, gettext(c"not found in '%s': \"%s\""), basepath, name);
             verbose_leave();
@@ -875,7 +875,7 @@ fn do_in_cached_path(
     let mut did_one = false;
     let mut buf = [0u8; MAXPATHL];
 
-    if opt_vars().p_verbose > 10
+    if opt_vars().p_verbose.get() > 10
         && let Some(name) = name_opt
     {
         verbose_enter();
@@ -911,7 +911,7 @@ fn do_in_cached_path(
                 debug_assert!(MAXPATHL >= tail_off);
                 copy_option_part(&mut np, &mut buf[tail_off..MAXPATHL], c"\t ");
 
-                if opt_vars().p_verbose > 10 {
+                if opt_vars().p_verbose.get() > 10 {
                     verbose_enter();
                     smsg!(0, gettext(c"Searching for \"%s\""), &buf);
                     verbose_leave();
@@ -940,7 +940,7 @@ fn do_in_cached_path(
     if !did_one && let Some(name) = name_opt {
         if (flags & DIP_ERR) != 0 {
             semsg!(gettext(E_DIRNOTF), c"runtime path", name);
-        } else if opt_vars().p_verbose > 1 {
+        } else if opt_vars().p_verbose.get() > 1 {
             verbose_enter();
             smsg!(0, gettext(c"not found in runtime path: \"%s\""), name);
             verbose_leave();
@@ -1440,7 +1440,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
                     break 'block;
                 };
                 if path_cmp(
-                    opt_vars().p_fic,
+                    opt_vars().p_fic.get(),
                     &rtp_ffname,
                     ffname_owned.as_c_str(),
                     fname_len,
@@ -1732,7 +1732,7 @@ pub fn ex_packloadall(eap: &mut Exarg) {
 
 /// Read all the plugin files at startup.
 pub fn load_plugins() {
-    if opt_vars().p_lpl {
+    if opt_vars().p_lpl.get() {
         let mut rtp_copy_owned: Option<std::ffi::CString> = None;
         let plugin_pattern = c"plugin/**/*";
 
@@ -2679,7 +2679,7 @@ fn do_source_ext(
         }
 
         if cookie.fp.is_none() && !cookie.source_from_buf_or_str {
-            if opt_vars().p_verbose > 1 {
+            if opt_vars().p_verbose.get() > 1 {
                 verbose_enter();
                 if sourcing_name().is_none() {
                     smsg!(0, gettext(c"could not source \"%s\""), fname_cstr_or_empty);
@@ -2696,7 +2696,7 @@ fn do_source_ext(
             break 'block;
         }
 
-        if opt_vars().p_verbose > 1 {
+        if opt_vars().p_verbose.get() > 1 {
             verbose_enter();
             if sourcing_name().is_none() {
                 smsg!(0, gettext(c"sourcing \"%s\""), fname_cstr_or_empty);
@@ -2883,7 +2883,7 @@ fn do_source_ext(
             emsg(gettext(E_INTERR));
         }
         estack_pop();
-        if opt_vars().p_verbose > 1 {
+        if opt_vars().p_verbose.get() > 1 {
             verbose_enter();
             smsg!(0, gettext(c"finished sourcing %s"), fname_cstr_or_empty);
             if let Some(ref sname) = sourcing_name() {
@@ -3114,7 +3114,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let l = rettv.vval.v_list_opt().unwrap();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.rm_ic = opt_vars().p_ic;
+    regmatch.rm_ic = opt_vars().p_ic.get();
     let mut filterpat = false;
     let mut sid: Varnumber = -1;
 

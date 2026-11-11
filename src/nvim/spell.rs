@@ -1231,7 +1231,7 @@ pub fn spell_move_to(
             if dir == BACKWARD {
                 if lnum > 1 {
                     lnum -= 1;
-                } else if !opt_vars().p_ws {
+                } else if !opt_vars().p_ws.get() {
                     break;
                 } else {
                     lnum = wp.buf_mut().b_ml.ml_line_count;
@@ -1244,7 +1244,7 @@ pub fn spell_move_to(
             } else {
                 if lnum < wp.buf_mut().b_ml.ml_line_count {
                     lnum += 1;
-                } else if !opt_vars().p_ws {
+                } else if !opt_vars().p_ws.get() {
                     break;
                 } else {
                     lnum = 1;
@@ -2222,7 +2222,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
 }
 pub fn ex_spellrepall(_eap: &mut Exarg) {
     let pos = curwin_mut().w_cursor;
-    let save_ws = opt_vars().p_ws;
+    let save_ws = opt_vars().p_ws.get();
     let mut prev_lnum: Linenr = 0;
     let (Some(repl_from_cstr), Some(repl_to_cstr)) =
         with_spell_ext(|ext| (ext.repl_from.borrow().clone(), ext.repl_to.borrow().clone()))
@@ -2241,7 +2241,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
         c"\\V\\<%s\\>",
         &repl_from_cstr,
     ) as usize;
-    opt_vars().p_ws = false;
+    opt_vars().p_ws.set(false);
     g_st().sub_nsubs = 0;
     g_st().sub_nlines = 0;
     curwin_mut().w_cursor.lnum = 0;
@@ -2292,7 +2292,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
         }
         curwin_mut().w_cursor.col += repl_to_len as Colnr;
     }
-    opt_vars().p_ws = save_ws;
+    opt_vars().p_ws.set(save_ws);
     curwin_mut().w_cursor = pos;
     if g_st().sub_nsubs == 0 {
         semsg!(gettext(c"E753: Not found: %s"), &repl_from_cstr);
@@ -2907,7 +2907,7 @@ fn dump_word(
         }) && ins_compl_add_infercase(
             p_bytes,
             p_bytes.len() as i32,
-            opt_vars().p_ic,
+            opt_vars().p_ic.get(),
             None,
             *dir.as_deref_mut().unwrap(),
             false,

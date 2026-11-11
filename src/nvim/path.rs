@@ -183,7 +183,7 @@ pub fn path_equal(s1: &CStr, s2: &CStr, flags: PathCmpFlags) -> bool {
     if flags == K_PATH_CMP_LITERAL {
         let is_url = path_with_url(s1.to_bytes()) || path_with_url(s2.to_bytes());
         return (!is_url || s1.to_bytes().len() == s2.to_bytes().len())
-            && path_cmp(opt_vars().p_fic, s1, s2, MAXPATHL) == 0;
+            && path_cmp(opt_vars().p_fic.get(), s1, s2, MAXPATHL) == 0;
     }
 
     if (flags & K_PATH_CMP_EXPAND) != 0 {
@@ -205,7 +205,7 @@ pub fn path_equal(s1: &CStr, s2: &CStr, flags: PathCmpFlags) -> bool {
         );
         vim_full_name(Some(s2), &mut full2, false);
         return path_cmp(
-            opt_vars().p_fic,
+            opt_vars().p_fic.get(),
             crate::memory::bytes_as_cstr(&full1),
             crate::memory::bytes_as_cstr(&full2),
             MAXPATHL,
@@ -556,7 +556,7 @@ fn do_path_expand(
             let is_esc_wild =
                 crate::strings::vim_haschr(PATH_ESC_WILDCARDS, i32::from(path_bytes[path_idx]));
             #[cfg(not(windows))]
-            let is_icase_alpha = !opt_vars().p_fic
+            let is_icase_alpha = !opt_vars().p_fic.get()
                 && (flags & EW_ICASE) != 0
                 && mb_isalpha(crate::mbyte::utf_ptr2char(&path_bytes[path_idx..]));
             #[cfg(windows)]
@@ -599,7 +599,7 @@ fn do_path_expand(
 
     let mut regmatch = Regmatch {
         #[cfg(unix)]
-        rm_ic: (flags & EW_ICASE) != 0 || opt_vars().p_fic,
+        rm_ic: (flags & EW_ICASE) != 0 || opt_vars().p_fic.get(),
         #[cfg(not(unix))]
         rm_ic: true,
         ..Regmatch::new()
@@ -659,7 +659,7 @@ fn do_path_expand(
             let reg_ok = (!regmatch.regprog.is_null() && vim_regexec(&mut regmatch, name, 0))
                 || ((flags & EW_NOTWILD) != 0
                     && path_cmp(
-                        opt_vars().p_fic,
+                        opt_vars().p_fic.get(),
                         &path[len.min(path_bytes.len())..],
                         name,
                         e_pos - s_idx,
@@ -711,7 +711,7 @@ fn do_path_expand(
     let matches = gap.len() - start_len;
     if matches > 0 && !g_st().got_int {
         gap[start_len..].sort_by(|a, b| {
-            let cmp = path_cmp(opt_vars().p_fic, a, b, MAXPATHL);
+            let cmp = path_cmp(opt_vars().p_fic.get(), a, b, MAXPATHL);
             if cmp < 0 {
                 Ordering::Less
             } else if cmp > 0 {
@@ -901,7 +901,7 @@ fn uniquefy_paths(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, path_option:
         let dir_end = gettail_dir(path_cstr);
 
         let dir_len = path_bytes.len() - dir_end.to_bytes().len();
-        let is_in_curdir = path_cmp(opt_vars().p_fic, curdir_cstr, path_cstr, dir_len) == 0
+        let is_in_curdir = path_cmp(opt_vars().p_fic.get(), curdir_cstr, path_cstr, dir_len) == 0
             && curdir_arr[dir_len] == 0;
         if is_in_curdir {
             in_curdir[i] = Some(gap[i].clone());
@@ -1322,8 +1322,16 @@ pub fn slash_adjust(p: &mut [u8]) {
         return;
     }
 
-    let from = if opt_vars().p_ssl { b'\\' } else { PATHSEP };
-    let to = if opt_vars().p_ssl { PATHSEP } else { b'\\' };
+    let from = if opt_vars().p_ssl.get() {
+        b'\\'
+    } else {
+        PATHSEP
+    };
+    let to = if opt_vars().p_ssl.get() {
+        PATHSEP
+    } else {
+        b'\\'
+    };
     let len = p_bytes.len();
     for b in &mut p[..len] {
         if *b == from {
@@ -1618,7 +1626,7 @@ pub fn path_with_extension(path: &CStr, extension: &CStr) -> bool {
     let Some(pos) = bytes.iter().rposition(|&b| b == b'.') else {
         return false;
     };
-    mb_strcmp_ic(opt_vars().p_fic, &path[pos + 1..], extension) == 0
+    mb_strcmp_ic(opt_vars().p_fic.get(), &path[pos + 1..], extension) == 0
 }
 
 #[allow(non_snake_case)]
@@ -1749,7 +1757,7 @@ pub fn same_directory(f1: Option<&CStr>, f2: Option<&CStr>) -> bool {
     let t2 = path_tail_with_sep(f2);
     let d1 = ffname_cstr.to_bytes().len() - t1.to_bytes().len();
     let d2 = f2.to_bytes().len() - t2.to_bytes().len();
-    d1 == d2 && path_cmp(opt_vars().p_fic, ffname_cstr, f2, d1) == 0
+    d1 == d2 && path_cmp(opt_vars().p_fic.get(), ffname_cstr, f2, d1) == 0
 }
 
 pub fn path_fold_char(ic: bool, p: &[u8], len: &mut i32) -> i32 {
@@ -1857,7 +1865,7 @@ pub fn path_shorten_fname<'a>(full_path: Option<&'a CStr>, dir_name: &CStr) -> O
     let dir_bytes = dir_name.to_bytes();
     let len = dir_bytes.len();
 
-    let ic = opt_vars().p_fic;
+    let ic = opt_vars().p_fic.get();
 
     if path_cmp(ic, dir_name, full_path, len) != 0 {
         return None;
@@ -1951,7 +1959,7 @@ pub fn match_suffix(fname: &CStr) -> bool {
         } else {
             if fnamelen >= setsuflen
                 && path_cmp(
-                    opt_vars().p_fic,
+                    opt_vars().p_fic.get(),
                     crate::memory::bytes_as_cstr(&suf_buf),
                     &fname[fnamelen - setsuflen..],
                     setsuflen,
@@ -2264,15 +2272,15 @@ mod tests {
         assert!(path_is_absolute(b"~/in/my/home~/directory"));
         assert!(!path_is_absolute(b"not/in/my/home~/directory"));
 
-        let saved_fic = opt_vars().p_fic;
-        opt_vars().p_fic = false;
+        let saved_fic = opt_vars().p_fic.get();
+        opt_vars().p_fic.set(false);
         assert!(path_with_extension(c"/some/path/file.lua", c"lua"));
         assert!(!path_with_extension(c"/some/path/file.vim", c"lua"));
         assert!(!path_with_extension(c"/some/path/file", c"lua"));
         assert!(!path_with_extension(c"/some/path/file.LUA", c"lua"));
-        opt_vars().p_fic = true;
+        opt_vars().p_fic.set(true);
         assert!(path_with_extension(c"/some/path/file.LUA", c"lua"));
-        opt_vars().p_fic = saved_fic;
+        opt_vars().p_fic.set(saved_fic);
 
         assert!(path_with_url(b"test://xyz/foo/b0"));
         assert!(!path_with_url(b"test:\\\\xyz\\foo\\b0"));
@@ -2337,12 +2345,12 @@ mod tests {
                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL
             ));
 
-            let saved_fic = opt_vars().p_fic;
-            opt_vars().p_fic = false;
+            let saved_fic = opt_vars().p_fic.get();
+            opt_vars().p_fic.set(false);
             assert!(!path_equal(c"Foo", c"foo", K_PATH_CMP_LITERAL));
-            opt_vars().p_fic = true;
+            opt_vars().p_fic.set(true);
             assert!(path_equal(c"Foo", c"foo", K_PATH_CMP_LITERAL));
-            opt_vars().p_fic = saved_fic;
+            opt_vars().p_fic.set(saved_fic);
 
             // path_full_dir_name
             let mut out = [0u8; MAXPATHL];

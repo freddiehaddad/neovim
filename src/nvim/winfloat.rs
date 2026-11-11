@@ -127,12 +127,13 @@ pub fn win_new_float(
         wp
     };
     wp.w_floating = true;
-    wp.w_status_height =
-        if !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2) {
-            STATUS_HEIGHT
-        } else {
-            0
-        };
+    wp.w_status_height = if !wp.w_onebuf_opt.wo_stl.is_empty()
+        && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2)
+    {
+        STATUS_HEIGHT
+    } else {
+        0
+    };
     wp.w_winbar_height = 0;
     wp.w_hsep_height = 0;
     wp.w_vsep_width = 0;
@@ -211,8 +212,8 @@ pub fn win_border_width(wp: &mut WinInfoInfo) -> i32 {
 
 pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     // Process statusline changes before applying new height from config
-    let show_stl =
-        !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+    let show_stl = !wp.w_onebuf_opt.wo_stl.is_empty()
+        && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
     if wp.w_status_height != 0 && !show_stl {
         win_remove_status_line(wp, false);
     } else if wp.w_status_height == 0 && show_stl {
@@ -257,7 +258,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 
     if !ui_has(K_UIMULTIGRID) {
         let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
-            opt_vars().p_ch as i32
+            opt_vars().p_ch.get() as i32
         } else {
             0
         };
@@ -358,8 +359,8 @@ pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
 pub fn win_float_update_statusline() {
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
         let has_status = wp.w_status_height > 0;
-        let should_show =
-            !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+        let should_show = !wp.w_onebuf_opt.wo_stl.is_empty()
+            && (opt_vars().p_ls.get() == 1 || opt_vars().p_ls.get() == 2);
         if should_show != has_status {
             let cfg = wp.w_config.clone();
             win_config_float(wp, cfg);
@@ -580,7 +581,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
     let need_h = want_h + border_h;
     let need_w = want_w + border_w;
-    let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch as i32);
+    let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch.get() as i32);
     let space_above = row - 1;
     let space_right = g_st().columns_global - col - 1;
     let space_left = col;

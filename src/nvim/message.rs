@@ -439,7 +439,7 @@ pub fn msg_use_grid() -> bool {
 pub fn msg_grid_validate() {
     grid_assign_handle(&mut g_st().msg_grid);
     let should_alloc = msg_use_grid();
-    let max_rows = g_st().rows_global - opt_vars().p_ch as i32;
+    let max_rows = g_st().rows_global - opt_vars().p_ch.get() as i32;
     let msg_grid_empty = !crate::grid::grid_allocated(&g_st().msg_grid);
     if should_alloc
         && (g_st().msg_grid.rows != g_st().rows_global
@@ -1216,7 +1216,7 @@ pub fn emsg_multiline(
                 g_st().global_busy += 1;
             }
 
-            if opt_vars().p_eb {
+            if opt_vars().p_eb.get() {
                 beep_flush(); // also includes flush_buffers()
             } else {
                 flush_buffers(FLUSH_MINIMAL); // flush internal buffers
@@ -1822,7 +1822,7 @@ pub fn wait_return(redraw: i32) {
         }
 
         // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-        if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
+        if opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
             msg_grid_validate();
             msg_scroll_up(false, true);
             g_st().msg_scrolled += 1;
@@ -1850,7 +1850,7 @@ pub fn wait_return(redraw: i32) {
                 g_st().reg_recording = save_reg_recording;
                 g_st().scriptout = save_scriptout;
 
-                if g_st().key_typed && opt_vars().p_more {
+                if g_st().key_typed && opt_vars().p_more.get() {
                     if c == b'b' as i32
                         || c == CTRL_B_CONST
                         || c == b'k' as i32
@@ -1959,15 +1959,15 @@ pub fn wait_return(redraw: i32) {
 
 /// Write the hit-return prompt.
 fn hit_return_msg(newline_sb: bool) {
-    let save_p_more = opt_vars().p_more;
+    let save_p_more = opt_vars().p_more.get();
 
     if !newline_sb {
-        opt_vars().p_more = false;
+        opt_vars().p_more.set(false);
     }
     if g_st().msg_didout {
         msg_putchar(NL);
     }
-    opt_vars().p_more = false;
+    opt_vars().p_more.set(false);
     if g_st().got_int {
         msg_puts(gettext(c"Interrupt: "));
     }
@@ -1980,7 +1980,7 @@ fn hit_return_msg(newline_sb: bool) {
     if msg_use_printf() == 0 {
         msg_clr_eos();
     }
-    opt_vars().p_more = save_p_more;
+    opt_vars().p_more.set(save_p_more);
 }
 
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
@@ -2002,8 +2002,8 @@ pub fn set_keep_msg(s: Option<&std::ffi::CStr>, hl_id: i32) {
 
 /// Return true if printing messages should currently be done.
 pub fn messaging() -> bool {
-    !(opt_vars().p_lz && char_avail() && !g_st().key_typed)
-        && (opt_vars().p_ch > 0 || ui_has(K_UIMESSAGES))
+    !(opt_vars().p_lz.get() && char_avail() && !g_st().key_typed)
+        && (opt_vars().p_ch.get() > 0 || ui_has(K_UIMESSAGES))
 }
 
 pub fn msgmore(n: i32) {
@@ -2017,7 +2017,7 @@ pub fn msgmore(n: i32) {
 
     let pn = n.abs();
 
-    if i64::from(pn) > opt_vars().p_report {
+    if i64::from(pn) > opt_vars().p_report.get() {
         if n > 0 {
             format_to_buf!(
                 &mut g_st().msg_buf,
@@ -2088,13 +2088,13 @@ pub fn msg_start() {
         highlight_changed();
     }
 
-    if g_st().need_clr_eos || (opt_vars().p_ch == 0 && g_st().redrawing_cmdline) {
+    if g_st().need_clr_eos || (opt_vars().p_ch.get() == 0 && g_st().redrawing_cmdline) {
         g_st().need_clr_eos = false;
         msg_clr_eos();
     }
 
     // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-    if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
+    if opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
         msg_grid_validate();
         msg_scroll_up(false, true);
         g_st().msg_scrolled += 1;
@@ -2104,8 +2104,8 @@ pub fn msg_start() {
     if g_st().msg_scroll == 0 && g_st().full_screen {
         g_st().msg_row = g_st().cmdline_row;
         g_st().msg_col = 0;
-    } else if (g_st().msg_didout || opt_vars().p_ch == 0) && !ui_has(K_UIMESSAGES) {
-        if ((opt_vars().p_ch == 0 && !g_st().msg_didout)
+    } else if (g_st().msg_didout || opt_vars().p_ch.get() == 0) && !ui_has(K_UIMESSAGES) {
+        if ((opt_vars().p_ch.get() == 0 && !g_st().msg_didout)
             || MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()))
             && msg_use_printf() != 0
         {
@@ -2714,8 +2714,8 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
         msg_hist_add(slice, len as i32, hl_id);
     }
 
-    let overflow =
-        !ui_has(K_UIMESSAGES) && g_st().msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
+    let overflow = !ui_has(K_UIMESSAGES)
+        && g_st().msg_scrolled > if opt_vars().p_ch.get() == 0 { 1 } else { 0 };
 
     if overflow && !g_st().msg_scrolled_ign && slice != b"\r" {
         g_st().need_wait_return = true;
@@ -2828,7 +2828,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
 
         loop {
             if g_st().msg_col >= g_st().columns_global {
-                if opt_vars().p_more && recurse == 0 {
+                if opt_vars().p_more.get() && recurse == 0 {
                     store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                 }
                 if g_st().msg_no_more && g_st().lines_left == 0 {
@@ -2866,7 +2866,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                         g_st().lines_left -= 1;
                     }
 
-                    if opt_vars().p_more
+                    if opt_vars().p_more.get()
                         && g_st().lines_left == 0
                         && g_st().state_global != MODE_HITRETURN
                         && !g_st().msg_no_more
@@ -2926,7 +2926,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                     g_st().msg_didout = false;
                     g_st().msg_col = 0;
                     g_st().msg_row += 1;
-                    if opt_vars().p_more && recurse == 0 {
+                    if opt_vars().p_more.get() && recurse == 0 {
                         store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                     }
                 } else if c == b'\r' {
@@ -2955,7 +2955,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
         }
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
-        if opt_vars().p_more && recurse == 0 {
+        if opt_vars().p_more.get() && recurse == 0 {
             store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 0);
         }
 
@@ -2996,12 +2996,12 @@ pub fn message_filtered(msg: &std::ffi::CStr) -> bool {
 /// including horizontal separator
 pub fn msg_scrollsize() -> i32 {
     g_st().msg_scrolled
-        + opt_vars().p_ch as i32
-        + i32::from(opt_vars().p_ch > 0 || g_st().msg_scrolled > 1)
+        + opt_vars().p_ch.get() as i32
+        + i32::from(opt_vars().p_ch.get() > 0 || g_st().msg_scrolled > 1)
 }
 
 pub fn msg_do_throttle() -> bool {
-    msg_use_grid() && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_NOTHROTTLE) == 0
+    msg_use_grid() && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_NOTHROTTLE) == 0
 }
 
 /// Scroll the screen up one line for displaying the next message line.
@@ -3099,7 +3099,7 @@ pub fn msg_reset_scroll() {
         return;
     }
     g_st().msg_grid.throttled = false;
-    msg_grid_set_pos(g_st().rows_global - opt_vars().p_ch as i32, false);
+    msg_grid_set_pos(g_st().rows_global - opt_vars().p_ch.get() as i32, false);
     g_st().clear_cmdline = true;
     if crate::grid::grid_allocated(&g_st().msg_grid) {
         let limit = msg_scrollsize().min(g_st().msg_grid.rows);
@@ -3374,7 +3374,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
         while !rem.is_empty() {
             let len = (utf_ptr2len(rem) as usize).max(1).min(rem.len());
             let first = rem[0];
-            if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
+            if !(g_st().silent_mode && opt_vars().p_verbose.get() == 0) {
                 let mut pos = 0usize;
                 if first == b'\n'
                     && !g_st().info_message

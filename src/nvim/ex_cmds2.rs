@@ -110,8 +110,8 @@ pub fn ex_perldo(eap: &mut Exarg) {
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
 pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
-    if (!opt_vars().p_aw && !opt_vars().p_awa)
-        || !opt_vars().p_write
+    if (!opt_vars().p_aw.get() && !opt_vars().p_awa.get())
+        || !opt_vars().p_write.get()
         || bt_dontwrite(Some(&*buf))
         || (!forceit && buf.b_p_ro)
         || buf.b_ffname.is_none()
@@ -130,7 +130,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
 
 /// Flush all buffers, except the ones that are readonly or are never written (`autowrite_all`).
 pub fn autowrite_all() {
-    if (!opt_vars().p_aw && !opt_vars().p_awa) || !opt_vars().p_write {
+    if (!opt_vars().p_aw.get() && !opt_vars().p_awa.get()) || !opt_vars().p_write.get() {
         return;
     }
 
@@ -163,8 +163,8 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
         && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
         && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
     {
-        if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-            && opt_vars().p_write
+        if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            && opt_vars().p_write.get()
         {
             let mut count: i32 = 0;
 
@@ -331,7 +331,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
             if check_changed(
                 buf_ref,
-                (if opt_vars().p_awa { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
+                (if opt_vars().p_awa.get() { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
             ) && bufref_valid(Some(&bufref))
             {
                 break;
@@ -344,7 +344,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let buf_ref = buf.borrow();
         ret = true;
         g_st().exiting = false;
-        if !opt_vars().p_confirm && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
+        if !opt_vars().p_confirm.get() && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
             if g_st().vgetc_busy > 0 {
                 g_st().msg_row = g_st().cmdline_row;
                 g_st().msg_col = 0;

@@ -535,11 +535,11 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     assert!(
-        opt_vars().p_ch >= 0
-            && i64::from(g_st().rows_global) >= opt_vars().p_ch
-            && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(i32::MAX)
+        opt_vars().p_ch.get() >= 0
+            && i64::from(g_st().rows_global) >= opt_vars().p_ch.get()
+            && i64::from(g_st().rows_global) - opt_vars().p_ch.get() <= i64::from(i32::MAX)
     );
-    g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as i32;
+    g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch.get() as i32;
     g_st().msg_row = g_st().cmdline_row;
     default_grid_alloc();
     set_init_2(g_st().headless_mode);
@@ -607,7 +607,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     let vimrc_none = params.use_vimrc.as_deref() == Some(c"NONE");
 
     if vimrc_none && !params.clean {
-        opt_vars().p_lpl = false;
+        opt_vars().p_lpl.set(false);
     }
 
     exe_pre_commands(&mut params);
@@ -643,11 +643,11 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     time_msg_if_enabled(c"inits 3");
 
     if params.no_swap_file {
-        opt_vars().p_uc = 0;
+        opt_vars().p_uc.set(0);
     }
 
     if g_st().silent_mode {
-        opt_vars().p_ut = 1;
+        opt_vars().p_ut.set(1);
     }
 
     if !opt_vars().p_shada.is_empty() {
@@ -746,7 +746,8 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         stuffchar_readbuff(K_NOP);
     }
 
-    if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0
+    if (opt_vars().cb_flags.get() & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST))
+        != 0
     {
         eval_has_provider(b"clipboard", false);
     }
@@ -983,7 +984,7 @@ pub fn getout(mut exitval: i32) -> ! {
         wait_return(0);
     }
 
-    if opt_vars().p_title && !opt_vars().p_titleold.is_empty() {
+    if opt_vars().p_title.get() && !opt_vars().p_titleold.is_empty() {
         ui_call_set_title(cstr_as_string(Some(opt_vars().p_titleold.as_cstr())));
     }
 
@@ -1315,7 +1316,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         want_argument = true;
                         argv_idx += 6;
                     } else if strnicmp_ascii(sub, b"noplugin") {
-                        opt_vars().p_lpl = false;
+                        opt_vars().p_lpl.set(false);
                     } else if strnicmp_ascii(sub, b"cmd") {
                         want_argument = true;
                         argv_idx += 3;
@@ -1369,10 +1370,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b'M' => {
                     reset_modifiable();
-                    opt_vars().p_write = false;
+                    opt_vars().p_write.set(false);
                 }
                 b'm' => {
-                    opt_vars().p_write = false;
+                    opt_vars().p_write.set(false);
                 }
                 b'n' => {
                     parmp.no_swap_file = true;
@@ -1405,7 +1406,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                 b'R' => {
                     g_st().readonlymode = true;
                     curbuf_mut().b_p_ro = true;
-                    opt_vars().p_uc = 10000;
+                    opt_vars().p_uc.set(10000);
                 }
                 b'r' | b'L' => {
                     g_st().recoverymode = true;
@@ -1444,7 +1445,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                     os_exit(0);
                 }
                 b'V' => {
-                    opt_vars().p_verbose = i64::from(get_number_arg(arg0, &mut argv_idx, 10));
+                    opt_vars()
+                        .p_verbose
+                        .set(i64::from(get_number_arg(arg0, &mut argv_idx, 10)));
                     if (argv_idx as usize) < arg0.len() {
                         set_option_value_give_err(
                             K_OPT_VERBOSEFILE,
@@ -1562,7 +1565,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b'l' => {
                         g_st().headless_mode = true;
                         g_st().silent_mode = true;
-                        opt_vars().p_verbose = 1;
+                        opt_vars().p_verbose.set(1);
                         parmp.no_swap_file = true;
                         if parmp.use_vimrc.is_none() {
                             parmp.use_vimrc = Some(c"NONE".to_owned());
@@ -1947,8 +1950,8 @@ fn create_windows(parmp: &mut Mparm) {
             dorewind = false;
             g_st().curbuf = curwin_mut().w_buffer;
             if curbuf_mut().b_ml.ml_mfp.is_none() {
-                if opt_vars().p_fdls >= 0 {
-                    curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
+                if opt_vars().p_fdls.get() >= 0 {
+                    curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls.get();
                 }
                 g_st().swap_exists_action = SEA_DIALOG;
                 set_buflisted(1);
@@ -2179,9 +2182,9 @@ fn do_system_initialization() {
 }
 
 fn do_user_initialization() -> bool {
-    let mut do_exrc = opt_vars().p_exrc;
+    let mut do_exrc = opt_vars().p_exrc.get();
     if execute_env(c"VIMINIT") {
-        do_exrc = opt_vars().p_exrc;
+        do_exrc = opt_vars().p_exrc.get();
         return do_exrc;
     }
 
@@ -2194,13 +2197,13 @@ fn do_user_initialization() -> bool {
         if os_path_exists(user_vimrc.as_c_str()) {
             semsg!(E_CONFLICTING_CONFIGS, &init_lua_path, &user_vimrc);
         }
-        do_exrc = opt_vars().p_exrc;
+        do_exrc = opt_vars().p_exrc.get();
         return do_exrc;
     }
     drop(init_lua_path);
 
     if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
-        do_exrc = opt_vars().p_exrc;
+        do_exrc = opt_vars().p_exrc.get();
         if do_exrc {
             do_exrc = !path_equal(c".nvimrc", user_vimrc.as_c_str(), K_PATH_CMP_EXPAND);
         }
@@ -2250,7 +2253,7 @@ fn do_user_initialization() -> bool {
                 if os_path_exists(crate::memory::bytes_as_cstr(&init_vim)) {
                     semsg!(E_CONFLICTING_CONFIGS, &init_lua, &init_vim);
                 }
-                do_exrc = opt_vars().p_exrc;
+                do_exrc = opt_vars().p_exrc.get();
                 return do_exrc;
             }
 
@@ -2260,7 +2263,7 @@ fn do_user_initialization() -> bool {
                 DOSO_VIMRC,
                 None,
             ) {
-                do_exrc = opt_vars().p_exrc;
+                do_exrc = opt_vars().p_exrc.get();
                 if do_exrc {
                     do_exrc = !path_equal(
                         c".nvimrc",
@@ -2278,7 +2281,7 @@ fn do_user_initialization() -> bool {
     }
 
     if execute_env(c"EXINIT") {
-        do_exrc = opt_vars().p_exrc;
+        do_exrc = opt_vars().p_exrc.get();
         return do_exrc;
     }
     do_exrc

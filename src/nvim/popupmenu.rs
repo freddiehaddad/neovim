@@ -267,8 +267,9 @@ fn pum_compute_vertical_placement(
     let context_lines: i32;
 
     PUM.with(|s| s.height.set(size.min(PUM_DEF_HEIGHT)));
-    if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
-        PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
+    if opt_vars().p_ph.get() > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph.get()
+    {
+        PUM.with(|s| s.height.set(opt_vars().p_ph.get() as i32));
     }
 
     if pum_win_row + 2 + pum_border_size >= below_row - PUM.with(|s| s.height.get())
@@ -292,12 +293,15 @@ fn pum_compute_vertical_placement(
             PUM.with(|s| s.row.set(0));
             PUM.with(|s| s.height.set(pum_win_row - context_lines));
         }
-        if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
+        if opt_vars().p_ph.get() > 0
+            && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph.get()
+        {
             PUM.with(|s| {
-                s.row
-                    .set(s.row.get() + (PUM.with(|s| s.height.get()) - (opt_vars().p_ph as i32)))
+                s.row.set(
+                    s.row.get() + (PUM.with(|s| s.height.get()) - (opt_vars().p_ph.get() as i32)),
+                )
             });
-            PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
+            PUM.with(|s| s.height.set(opt_vars().p_ph.get() as i32));
         }
 
         if pum_border_size > 0
@@ -328,8 +332,10 @@ fn pum_compute_vertical_placement(
             s.height
                 .set((below_row - PUM.with(|s| s.row.get())).min(size))
         });
-        if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
-            PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
+        if opt_vars().p_ph.get() > 0
+            && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph.get()
+        {
+            PUM.with(|s| s.height.set(opt_vars().p_ph.get() as i32));
         }
 
         if PUM.with(|s| s.row.get()) + PUM.with(|s| s.height.get()) + pum_border_size
@@ -352,19 +358,19 @@ fn pum_compute_vertical_placement(
 fn set_pum_width_aligned_with_cursor(mut width: i32, available_width: i32) -> bool {
     let mut end_padding = true;
 
-    if i64::from(width) < opt_vars().p_pw {
-        width = opt_vars().p_pw as i32;
+    if i64::from(width) < opt_vars().p_pw.get() {
+        width = opt_vars().p_pw.get() as i32;
         end_padding = false;
     }
-    if opt_vars().p_pmw > 0 && i64::from(width) > opt_vars().p_pmw {
-        width = opt_vars().p_pmw as i32;
+    if opt_vars().p_pmw.get() > 0 && i64::from(width) > opt_vars().p_pmw.get() {
+        width = opt_vars().p_pmw.get() as i32;
         end_padding = false;
     }
 
     PUM.with(|s| {
         s.width.set(
             width
-                + if end_padding && i64::from(width) >= opt_vars().p_pw {
+                + if end_padding && i64::from(width) >= opt_vars().p_pw.get() {
                     1
                 } else {
                     0
@@ -401,7 +407,7 @@ fn pum_compute_horizontal_placement(
         return;
     }
 
-    if i64::from(available_width) > opt_vars().p_pw {
+    if i64::from(available_width) > opt_vars().p_pw.get() {
         PUM.with(|s| s.width.set(available_width));
         return;
     }
@@ -412,8 +418,8 @@ fn pum_compute_horizontal_placement(
         available_width += cursor_col;
     }
 
-    if i64::from(available_width) > opt_vars().p_pw {
-        PUM.with(|s| s.width.set((opt_vars().p_pw as i32) + 1));
+    if i64::from(available_width) > opt_vars().p_pw.get() {
+        PUM.with(|s| s.width.set((opt_vars().p_pw.get() as i32) + 1));
         if PUM.with(|s| s.rl.get()) {
             PUM.with(|s| {
                 s.col.set(
@@ -770,21 +776,21 @@ fn pum_grid_puts_with_attrs(
 
 #[inline]
 fn pum_align_order(order: &mut [i32; 3]) {
-    let is_default = opt_vars().cia_flags == 0;
+    let is_default = opt_vars().cia_flags.get() == 0;
     order[0] = if is_default {
         CPT_ABBR
     } else {
-        (opt_vars().cia_flags / 100) as i32
+        (opt_vars().cia_flags.get() / 100) as i32
     };
     order[1] = if is_default {
         CPT_KIND
     } else {
-        ((opt_vars().cia_flags / 10) % 10) as i32
+        ((opt_vars().cia_flags.get() / 10) % 10) as i32
     };
     order[2] = if is_default {
         CPT_MENU
     } else {
-        (opt_vars().cia_flags % 10) as i32
+        (opt_vars().cia_flags.get() % 10) as i32
     };
 }
 
@@ -901,7 +907,7 @@ pub fn pum_redraw() {
             col_off += 1;
         }
     }
-    g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
+    g_st().pum_grid.blending = opt_vars().p_pb.get() > 0 || fconfig.shadow;
     grid_assign_handle(&mut g_st().pum_grid);
 
     PUM.with(|s| s.left_col.set(PUM.with(|s| s.col.get()) - col_off));
@@ -1451,8 +1457,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             }
 
             g_st().g_do_tagpreview = 3;
-            if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_st().g_do_tagpreview) {
-                g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+            if opt_vars().p_pvh.get() > 0
+                && opt_vars().p_pvh.get() < i64::from(g_st().g_do_tagpreview)
+            {
+                g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
             }
             g_st().redrawing_disabled += 1;
             g_st().no_u_sync += 1;
@@ -1513,7 +1521,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     );
 
                     if repeat == 0 && !use_float {
-                        lnum = lnum.min(opt_vars().p_pvh as Linenr);
+                        lnum = lnum.min(opt_vars().p_pvh.get() as Linenr);
                         if curwin_mut().w_height < lnum {
                             win_setheight(lnum);
                             resized = true;
@@ -1899,7 +1907,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
     PUM.with(|s| s.selected.set(-1));
     PUM.with(|s| s.first.set(0));
-    if !opt_vars().p_mousemev {
+    if !opt_vars().p_mousemev.get() {
         ui_call_option_set(NvimString::from_cstr(c"mousemoveevent"), boolean_obj(true));
     }
 
@@ -1957,7 +1965,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     }
 
     pum_undisplay(true);
-    if !opt_vars().p_mousemev {
+    if !opt_vars().p_mousemev.get() {
         ui_call_option_set(NvimString::from_cstr(c"mousemoveevent"), boolean_obj(false));
     }
 }

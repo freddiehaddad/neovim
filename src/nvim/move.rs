@@ -277,7 +277,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
     let save_so = if use_win_so {
         wp.w_onebuf_opt.wo_so
     } else {
-        opt_vars().p_so
+        opt_vars().p_so.get()
     };
 
     if g_st().skip_update_topline {
@@ -303,7 +303,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
         if use_win_so {
             wp.w_onebuf_opt.wo_so = drag_so;
         } else {
-            opt_vars().p_so = drag_so;
+            opt_vars().p_so.set(drag_so);
         }
         drag_so
     } else {
@@ -472,16 +472,16 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
     if use_win_so {
         wp.w_onebuf_opt.wo_so = save_so;
     } else {
-        opt_vars().p_so = save_so;
+        opt_vars().p_so.set(save_so);
     }
 }
 
 /// Return the scrolljump value to use for the window `wp`.
 fn scrolljump_value(wp: &mut WinInfoInfo) -> i32 {
-    if opt_vars().p_sj >= 0 {
-        opt_vars().p_sj as i32
+    if opt_vars().p_sj.get() >= 0 {
+        opt_vars().p_sj.get() as i32
     } else {
-        (wp.w_view_height * (-opt_vars().p_sj as i32)) / 100
+        (wp.w_view_height * (-opt_vars().p_sj.get() as i32)) / 100
     }
 }
 
@@ -939,19 +939,21 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: bool) {
         if off_left < 0 || off_right > 0 {
             let mut diff = if off_left < 0 { -off_left } else { off_right };
 
-            let mut new_leftcol =
-                if opt_vars().p_ss == 0 || diff >= i64::from(width1 / 2) || off_right >= off_left {
-                    wp.w_wcol - extra - width1 / 2
+            let mut new_leftcol = if opt_vars().p_ss.get() == 0
+                || diff >= i64::from(width1 / 2)
+                || off_right >= off_left
+            {
+                wp.w_wcol - extra - width1 / 2
+            } else {
+                if diff < opt_vars().p_ss.get() {
+                    diff = opt_vars().p_ss.get();
+                }
+                if off_left < 0 {
+                    wp.w_leftcol - diff as i32
                 } else {
-                    if diff < opt_vars().p_ss {
-                        diff = opt_vars().p_ss;
-                    }
-                    if off_left < 0 {
-                        wp.w_leftcol - diff as i32
-                    } else {
-                        wp.w_leftcol + diff as i32
-                    }
-                };
+                    wp.w_leftcol + diff as i32
+                }
+            };
             new_leftcol = new_leftcol.max(0);
             if new_leftcol != wp.w_leftcol {
                 wp.w_leftcol = new_leftcol;
@@ -2469,10 +2471,10 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
     } else {
         let one_window = g_st().firstwin == g_st().lastwin;
         count *= if one_window
-            && opt_vars().p_window > 0
-            && opt_vars().p_window < i64::from(g_st().rows_global - 1)
+            && opt_vars().p_window.get() > 0
+            && opt_vars().p_window.get() < i64::from(g_st().rows_global - 1)
         {
-            (opt_vars().p_window as i32 - 2).max(1)
+            (opt_vars().p_window.get() as i32 - 2).max(1)
         } else {
             get_scroll_overlap(dir)
         };
@@ -2502,7 +2504,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
         beep_flush();
     } else if !curwin_mut().w_onebuf_opt.wo_sms {
         beginline(BL_SOL | BL_FIX);
-    } else if opt_vars().p_sol {
+    } else if opt_vars().p_sol.get() {
         nv_g_home_m_cmd(&mut ca);
     }
 

@@ -635,7 +635,7 @@ pub fn vim_strsave_shellescape(
     let csh_like = csh_like_shell() != 0;
     let fish_like = fish_like_shell();
     #[cfg(windows)]
-    let use_double_quote = !opt_vars().p_ssl;
+    let use_double_quote = !opt_vars().p_ssl.get();
     #[cfg(not(windows))]
     let use_double_quote = false;
 
@@ -3457,8 +3457,9 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            crate::option_vars::opt_vars().cmp_flags =
-                crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
+            crate::option_vars::opt_vars().cmp_flags.set(
+                crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII,
+            );
 
             for (s, esc, expected) in [
                 (b"abcd" as &[u8], b"abcd" as &[u8], "\\a\\b\\c\\d"),

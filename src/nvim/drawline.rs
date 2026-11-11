@@ -3114,9 +3114,10 @@ pub fn win_line(
                         );
 
                         if wlv.n_extra == 0 {
-                            wlv.n_extra = opt_vars().dy_escape_width - 1;
+                            wlv.n_extra = opt_vars().dy_escape_width.get() - 1;
                         }
-                        if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 && wp.w_onebuf_opt.wo_rl
+                        if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX) != 0
+                            && wp.w_onebuf_opt.wo_rl
                         {
                             rl_mirror_ascii(&mut wlv.extra);
                         }
@@ -3139,7 +3140,7 @@ pub fn win_line(
                                 wlv.set_p_extra(crate::memory::bytes_as_cstr(extra_slice));
                             });
                         } else {
-                            wlv.n_extra = opt_vars().dy_escape_width - 1;
+                            wlv.n_extra = opt_vars().dy_escape_width.get() - 1;
                             let extra_cstr = &crate::memory::bytes_as_cstr(&wlv.extra)[1..];
                             let extra_owned = extra_cstr.to_owned();
                             wlv.set_p_extra_owned(extra_owned);

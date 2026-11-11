@@ -149,8 +149,8 @@ pub fn get_history_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
 /// Initialize or resize command-line history tables (`init_history`).
 pub fn init_history() {
-    assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (i32::MAX as i64));
-    let newlen = opt_vars().p_hi as i32;
+    assert!(opt_vars().p_hi.get() >= 0 && opt_vars().p_hi.get() <= (i32::MAX as i64));
+    let newlen = opt_vars().p_hi.get() as i32;
     let oldlen = hist_st(|st| st.hislen.get());
 
     if newlen == oldlen {

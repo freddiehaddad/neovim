@@ -1668,7 +1668,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
             } else {
                 msg_puts_hl(&handler_str, HLF_8, false);
             }
-            if opt_vars().p_verbose > 0 {
+            if opt_vars().p_verbose.get() > 0 {
                 last_set_msg(script_ctx);
             }
 
@@ -1742,7 +1742,7 @@ pub fn aubuflocal_remove(buf: &mut FileBuf) {
                 }
             }
         });
-        if opt_vars().p_verbose >= 6 {
+        if opt_vars().p_verbose.get() >= 6 {
             for _ in 0..removed_count {
                 verbose_enter();
                 smsg!(
@@ -3222,7 +3222,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
             let pat_str = ap.pat.to_string_lossy();
             let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
             let name_cstr = CString::new(formatted).unwrap_or_default();
-            if opt_vars().p_verbose >= 8 {
+            if opt_vars().p_verbose.get() >= 8 {
                 verbose_enter();
                 smsg!(0, tr(c"Executing %s"), &name_cstr);
                 verbose_leave();
@@ -3340,7 +3340,8 @@ pub fn getnextac(
             let ac = &mut acs[auidx];
             assert!(ac.pat.is_some());
             let oneshot = ac.once;
-            let handler_str = (opt_vars().p_verbose >= 9).then(|| aucmd_handler_to_string(ac));
+            let handler_str =
+                (opt_vars().p_verbose.get() >= 9).then(|| aucmd_handler_to_string(ac));
             let nested = ac.nested;
             let script_ctx = ac.script_ctx;
             let group = ac.pat.as_ref().unwrap().group;
@@ -3643,7 +3644,8 @@ pub fn au_exists(arg: &CStr) -> bool {
                             if let Some(fnum) = buflocal_fnum {
                                 ap.buflocal_nr == fnum
                             } else {
-                                mb_strcmp_ic(opt_vars().p_fic, ap.pat.as_c_str(), pattern) == 0
+                                mb_strcmp_ic(opt_vars().p_fic.get(), ap.pat.as_c_str(), pattern)
+                                    == 0
                             }
                         } else {
                             true

@@ -403,9 +403,9 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
     check_screensize();
     if !ui_has(K_UIMESSAGES) {
         let max_p_ch = OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1);
-        if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
-            opt_vars().p_ch = max_p_ch.max(1);
-            curtab_mut().tp_ch_used.set(opt_vars().p_ch);
+        if opt_vars().p_ch.get() > 0 && opt_vars().p_ch.get() > max_p_ch {
+            opt_vars().p_ch.set(max_p_ch.max(1));
+            curtab_mut().tp_ch_used.set(opt_vars().p_ch.get());
         }
         for tp in for_all_tabpages_ptr() {
             if g_st().curtab != tp {
@@ -418,8 +418,10 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
     }
     height = g_st().rows_global;
     width = g_st().columns_global;
-    opt_vars().p_lines = OptInt::from(g_st().rows_global);
-    opt_vars().p_columns = OptInt::from(g_st().columns_global);
+    opt_vars().p_lines.set(OptInt::from(g_st().rows_global));
+    opt_vars()
+        .p_columns
+        .set(OptInt::from(g_st().columns_global));
 
     ui_call_grid_resize(1, Integer::from(width), Integer::from(height));
 
@@ -512,7 +514,7 @@ pub fn check_screensize() {
 
 pub fn redrawing() -> bool {
     g_st().redrawing_disabled == 0
-        && !(opt_vars().p_lz && char_avail() && !g_st().key_typed && !g_st().do_redraw)
+        && !(opt_vars().p_lz.get() && char_avail() && !g_st().key_typed && !g_st().do_redraw)
 }
 
 pub fn update_screen() -> bool {
@@ -575,7 +577,7 @@ pub fn update_screen() -> bool {
                     &mut g_st().msg_grid,
                     g_st().msg_grid.line_offset[i as usize],
                     g_st().msg_grid.cols,
-                    OptInt::from(i) < opt_vars().p_ch,
+                    OptInt::from(i) < opt_vars().p_ch.get(),
                 );
             }
         }
@@ -585,7 +587,7 @@ pub fn update_screen() -> bool {
         if type_ == UPD_NOT_VALID && !ui_has(K_UIMULTIGRID) && g_st().msg_scrolled != 0 {
             was_invalidated = ui_comp_set_screen_valid(false);
             let mut i = valid;
-            while i < g_st().rows_global - (opt_vars().p_ch as i32) {
+            while i < g_st().rows_global - (opt_vars().p_ch.get() as i32) {
                 grid_clear_line(
                     &mut g_st().default_grid,
                     g_st().default_grid.line_offset[i as usize],
@@ -604,11 +606,11 @@ pub fn update_screen() -> bool {
                     }
                 }
             }
-            if is_stl_global && g_st().rows_global - (opt_vars().p_ch as i32) - 1 > valid {
+            if is_stl_global && g_st().rows_global - (opt_vars().p_ch.get() as i32) - 1 > valid {
                 curwin_mut().w_redr_status = true;
             }
         }
-        msg_grid_set_pos(g_st().rows_global - (opt_vars().p_ch as i32), false);
+        msg_grid_set_pos(g_st().rows_global - (opt_vars().p_ch.get() as i32), false);
         ds_st(|st| st.msg_grid_invalid.set(false));
         if was_invalidated {
             ui_comp_set_screen_valid(true);
@@ -644,7 +646,7 @@ pub fn update_screen() -> bool {
     if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(K_UIMESSAGES) {
         grid_clear(
             &mut g_st().default_gridview,
-            g_st().rows_global - (opt_vars().p_ch as i32),
+            g_st().rows_global - (opt_vars().p_ch.get() as i32),
             g_st().rows_global,
             0,
             g_st().columns_global,
@@ -807,13 +809,13 @@ pub fn update_screen() -> bool {
 }
 
 pub fn start_search_hl() {
-    if !opt_vars().p_hls || g_st().search_global.no_hlsearch {
+    if !opt_vars().p_hls.get() || g_st().search_global.no_hlsearch {
         return;
     }
 
     end_search_hl();
     last_pat_prog(&mut g_st().screen_search_hl.rm);
-    g_st().screen_search_hl.tm = profile_setlimit(opt_vars().p_rdt);
+    g_st().screen_search_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
 }
 
 pub fn end_search_hl() {
@@ -845,8 +847,8 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 }
 
 pub fn redraw_custom_title_later() -> bool {
-    if (opt_vars().p_icon && (g_st().stl_syntax & STL_IN_ICON) != 0)
-        || (opt_vars().p_title && (g_st().stl_syntax & STL_IN_TITLE) != 0)
+    if (opt_vars().p_icon.get() && (g_st().stl_syntax & STL_IN_ICON) != 0)
+        || (opt_vars().p_title.get() && (g_st().stl_syntax & STL_IN_TITLE) != 0)
     {
         g_st().need_maketitle = true;
         return true;
@@ -923,13 +925,13 @@ pub fn showmode() -> i32 {
     msg_ext_ui_flush();
     msg_grid_validate();
 
-    let do_mode = (opt_vars().p_smd && g_st().msg_silent == 0)
+    let do_mode = (opt_vars().p_smd.get() && g_st().msg_silent == 0)
         && ((g_st().state_global & MODE_TERMINAL) != 0
             || (g_st().state_global & MODE_INSERT) != 0
             || g_st().restart_edit != 0
             || g_st().visual_global.active);
 
-    let can_show_mode = opt_vars().p_ch != 0 || ui_has(K_UIMESSAGES);
+    let can_show_mode = opt_vars().p_ch.get() != 0 || ui_has(K_UIMESSAGES);
     if (do_mode || g_st().reg_recording != 0) && can_show_mode {
         if skip_showmode() {
             return 0;
@@ -991,7 +993,7 @@ pub fn showmode() -> i32 {
                 } else if (g_st().state_global & REPLACE_FLAG) != 0 {
                     msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
                 } else if (g_st().state_global & MODE_INSERT) != 0 {
-                    if opt_vars().p_ri {
+                    if opt_vars().p_ri.get() {
                         msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
                     }
                     msg_puts_hl(gettext(c" INSERT"), hl_id, false);
@@ -1023,7 +1025,7 @@ pub fn showmode() -> i32 {
                         );
                     }
                 }
-                if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste {
+                if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste.get() {
                     msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                 }
 
@@ -1134,7 +1136,7 @@ pub fn comp_col() {
 
     g_st().sc_col = 0;
     g_st().ru_col = 0;
-    if opt_vars().p_ru {
+    if opt_vars().p_ru.get() {
         g_st().ru_col = if g_st().ru_wid != 0 {
             g_st().ru_wid
         } else {
@@ -1144,9 +1146,9 @@ pub fn comp_col() {
             g_st().sc_col = g_st().ru_col;
         }
     }
-    if opt_vars().p_sc && opt_vars().p_sloc.first_byte() == b'l' {
+    if opt_vars().p_sc.get() && opt_vars().p_sloc.first_byte() == b'l' {
         g_st().sc_col += SHOWCMD_COLS;
-        if !opt_vars().p_ru || last_has_status {
+        if !opt_vars().p_ru.get() || last_has_status {
             g_st().sc_col += 1;
         }
     }
@@ -1444,7 +1446,7 @@ fn win_update(wp: &mut WinInfoInfo) {
 
     let save_got_int = g_st().got_int;
     g_st().got_int = false;
-    let syntax_tm = profile_setlimit(opt_vars().p_rdt);
+    let syntax_tm = profile_setlimit(opt_vars().p_rdt.get());
     syn_set_timeout(Some(syntax_tm));
 
     g_st().win_extmark_arr.clear();
@@ -2133,7 +2135,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                     && wl_cur.wl_valid
                     && wl_cur.wl_lnum == lnum
                     && lnum > wp.w_topline
-                    && (opt_vars().dy_flags & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE))
+                    && (opt_vars().dy_flags.get()
+                        & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE))
                         == 0
                     && srow + i32::from(wl_cur.wl_size) > wp.w_view_height
                     && win_get_fill(wp, lnum) == 0
@@ -2293,7 +2296,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             } else if win_get_fill(wp, lnum) >= wp.w_view_height - srow {
                 wp.w_botline = lnum;
                 wp.w_filler_rows = wp.w_view_height - srow;
-            } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_TRUNCATE) != 0 {
+            } else if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_TRUNCATE) != 0 {
                 grid_line_start(&mut wp.w_grid, wp.w_view_height - 1);
                 grid_line_fill(
                     0,
@@ -2305,7 +2308,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 grid_line_flush();
                 set_empty_rows(&mut *wp, srow);
                 wp.w_botline = lnum;
-            } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_LASTLINE) != 0 {
+            } else if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_LASTLINE) != 0 {
                 grid_line_start(&mut wp.w_grid, wp.w_view_height - 1);
                 let width = if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0 {
                     4
@@ -2547,10 +2550,10 @@ pub fn win_draw_end(
 
 pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: i32) -> i32 {
     let fdc = win_fdccol_count(wp);
-    let wmw = if wp == curwin_ptr() && opt_vars().p_wmw == 0 {
+    let wmw = if wp == curwin_ptr() && opt_vars().p_wmw.get() == 0 {
         1
     } else {
-        opt_vars().p_wmw as i32
+        opt_vars().p_wmw.get() as i32
     };
     let n = wp.w_view_width - (col + wmw);
     fdc.min(n)
@@ -2687,7 +2690,7 @@ pub fn redraw_buf_status_later(buf: &FileBuf) {
             set_must_redraw(UPD_VALID);
         }
     }
-    if opt_vars().p_ru
+    if opt_vars().p_ru.get()
         && ptr::eq(curwin_mut().w_buffer.as_ptr(), buf)
         && curwin_mut().w_status_height == 0
         && !curwin_mut().w_redr_status
@@ -2727,7 +2730,7 @@ pub fn status_redraw_buf(buf: &FileBuf) {
             redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
-    if opt_vars().p_ru && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
+    if opt_vars().p_ru.get() && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
         g_st().redraw_cmdline = true;
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }

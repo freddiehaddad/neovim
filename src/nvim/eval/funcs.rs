@@ -1429,14 +1429,14 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
         return g_st().lastbuf.opt_mut();
     }
 
-    let save_magic = opt_vars().p_magic;
-    opt_vars().p_magic = true;
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_magic = opt_vars().p_magic.get();
+    opt_vars().p_magic.set(true);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let buf = buflist_findnr(buflist_findpat(name_bytes, true, false, curtab_only != 0));
 
-    opt_vars().p_magic = save_magic;
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_magic.set(save_magic);
+    opt_vars().p_cpo.set(save_cpo);
 
     if buf.is_none() {
         return find_buffer(tv);
@@ -2197,14 +2197,14 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let s_cstr = tv_get_string(&argvars[0]);
     if matches!(s_cstr.to_bytes().first(), Some(b'%' | b'#' | b'<')) {
-        if opt_vars().p_verbose == 0 {
+        if opt_vars().p_verbose.get() == 0 {
             g_st().emsg_off += 1;
         }
         let mut len: usize = 0;
         let mut errormsg = None;
         let mut s_buf = s_cstr.to_bytes_with_nul().to_vec();
         let result = eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false);
-        if opt_vars().p_verbose == 0 {
+        if opt_vars().p_verbose.get() == 0 {
             g_st().emsg_off -= 1;
         } else if let Some(msg) = errormsg {
             emsg(&msg);
@@ -2228,7 +2228,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if !error {
             let mut xpc: ExpandCtx = ExpandCtx::new();
             xpc.xp_context = EXPAND_FILES;
-            if opt_vars().p_wic {
+            if opt_vars().p_wic.get() {
                 options += WILD_ICASE;
             }
             if rettv.v_type == VarType::VarString {
@@ -4027,7 +4027,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_inputrestore(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if let Some(mut saved) = GA_USERINPUT.with(|g| g.borrow_mut().pop()) {
         restore_typeahead(&mut saved);
-    } else if opt_vars().p_verbose > 1 {
+    } else if opt_vars().p_verbose.get() > 1 {
         verb_msg(gettext(
             c"called inputrestore() more often than inputsave()",
         ));
@@ -4225,7 +4225,7 @@ pub fn create_environment(
                     tv_dict_item_remove(&env, &dv);
                 }
             }
-            if opt_vars().p_tgc {
+            if opt_vars().p_tgc.get() {
                 tv_dict_add_str(&env, c"COLORTERM", Some(c"truecolor"));
             }
         }
@@ -4948,7 +4948,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
     let mut idx: i32 = 0;
     let mut tofree_owned: Option<std::ffi::CString> = None;
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     match type_ {
@@ -5032,7 +5032,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
         regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC + RE_STRING));
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = opt_vars().p_ic;
+            regmatch.rm_ic = opt_vars().p_ic.get();
 
             loop {
                 if !l.is_null() {
@@ -5167,7 +5167,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
     }
 
     drop(tofree_owned);
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 }
 
 fn get_matches_in_str(
@@ -5292,12 +5292,12 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
     }
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        regmatch.rm_ic = opt_vars().p_ic;
+        regmatch.rm_ic = opt_vars().p_ic.get();
 
         while slnum <= elnum {
             let str_cstr = ml_get_buf(buf.borrow_mut(), slnum);
@@ -5310,7 +5310,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.free_prog();
     }
 
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 }
 
 /// "match()" function
@@ -5356,12 +5356,12 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     };
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        regmatch.rm_ic = opt_vars().p_ic;
+        regmatch.rm_ic = opt_vars().p_ic.get();
 
         'cleanup: {
             let mut submatches = false;
@@ -5398,7 +5398,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.free_prog();
     }
 
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 }
 
 /// "matchstrpos()" function
@@ -6353,8 +6353,8 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
     for (i, &b) in flags_bytes.iter().enumerate() {
         match b {
             b'b' => dir = BACKWARD,
-            b'w' => opt_vars().p_ws = true,
-            b'W' => opt_vars().p_ws = false,
+            b'w' => opt_vars().p_ws.set(true),
+            b'W' => opt_vars().p_ws.set(false),
             _ => {
                 let mut mask: i32 = 0;
                 if flagsp.is_some() {
@@ -6386,7 +6386,7 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
 }
 
 fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp: &mut i32) -> i32 {
-    let save_p_ws = opt_vars().p_ws;
+    let save_p_ws = opt_vars().p_ws.get();
     let mut retval: i32 = 0;
     let mut lnum_stop: Linenr = 0;
     let mut time_limit: i64 = 0;
@@ -6466,7 +6466,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 1,
                 options,
                 RE_SEARCH,
-                opt_vars().p_magic,
+                opt_vars().p_magic.get(),
                 Some(&mut sia),
             );
             if firstpos.lnum != 0 && equalpos(pos, firstpos) {
@@ -6522,7 +6522,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             curwin_mut().w_set_curswant = true;
         }
     }
-    opt_vars().p_ws = save_p_ws;
+    opt_vars().p_ws.set(save_p_ws);
     retval
 }
 
@@ -6659,7 +6659,7 @@ pub fn f_searchdecl(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 }
 
 fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> i32 {
-    let save_p_ws = opt_vars().p_ws;
+    let save_p_ws = opt_vars().p_ws.get();
     let mut flags: i32 = 0;
     let mut retval: i32 = 0;
     let mut lnum_stop: Linenr = 0;
@@ -6688,7 +6688,7 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         }
 
         if (flags & SP_REPEAT) != 0 {
-            opt_vars().p_ws = false;
+            opt_vars().p_ws.set(false);
         }
 
         let skip: Option<&TypVal> = if argvars[3].v_type == VarType::VarUnknown
@@ -6718,7 +6718,7 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         );
     }
 
-    opt_vars().p_ws = save_p_ws;
+    opt_vars().p_ws.set(save_p_ws);
     retval
 }
 
@@ -6764,7 +6764,7 @@ pub fn do_searchpair(
     let mut use_skip = false;
     let mut options = SEARCH_KEEP;
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let tm = profile_setlimit(time_limit);
 
@@ -6921,7 +6921,7 @@ pub fn do_searchpair(
     drop(pat2_vec);
     drop(pat3_vec);
     if opt_vars().p_cpo.is_null() {
-        opt_vars().p_cpo = save_cpo;
+        opt_vars().p_cpo.set(save_cpo);
     } else if opt_vars().p_cpo.is_empty() {
         set_option_value_give_err(
             K_OPT_CPOPTIONS,
@@ -7652,7 +7652,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut keepempty = false;
     let mut typeerr = false;
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let str_cow = tv_get_string(&argvars[0]);
     let mut str_cstr: &CStr = &str_cow;
@@ -7715,7 +7715,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         }
     }
 
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 }
 
 fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {

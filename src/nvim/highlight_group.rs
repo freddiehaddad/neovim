@@ -1737,7 +1737,7 @@ fn highlight_list_one(id: i32) {
     if !didh {
         highlight_list_arg(id, didh, LIST_STRING, 0, Some(c"cleared"), c"");
     }
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         last_set_msg(sgp.sg_script_ctx);
     }
 }

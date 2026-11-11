@@ -442,7 +442,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         stacktrace,
     });
 
-    if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level > 0 {
         let save_msg_silent = g_st().msg_silent;
 
         if g_st().debug_break_level > 0 {
@@ -485,7 +485,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         g_st().current_exception = None;
     }
 
-    if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level > 0 {
         let save_msg_silent = g_st().msg_silent;
         let saved_iobuff = g_st().iobuff_cstr().to_owned();
         if g_st().debug_break_level > 0 {
@@ -550,7 +550,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         set_vim_var_string(VV_THROWPOINT, None, -1);
     }
 
-    if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level > 0 {
         let save_msg_silent = g_st().msg_silent;
 
         if g_st().debug_break_level > 0 {
@@ -703,7 +703,7 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
 }
 
 pub fn report_make_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
         }
@@ -715,7 +715,7 @@ pub fn report_make_pending(pending: i32, value: PendingVal) {
 }
 
 fn report_resume_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
         }
@@ -727,7 +727,7 @@ fn report_resume_pending(pending: i32, value: PendingVal) {
 }
 
 fn report_discard_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose >= 14 || g_st().debug_break_level > 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level > 0 {
         if g_st().debug_break_level <= 0 {
             verbose_enter();
         }
@@ -1164,13 +1164,13 @@ pub fn ex_catch(eap: &mut Exarg) {
                     None
                 };
                 let pat_ref: &CStr = pat_cstr.as_deref().unwrap_or_else(|| pat.as_cstr());
-                let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+                let save_cpo = opt_vars().p_cpo.take();
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(pat_ref, RE_MAGIC + RE_STRING));
                 g_st().emsg_off -= 1;
                 regmatch.rm_ic = false;
-                opt_vars().p_cpo = save_cpo;
+                opt_vars().p_cpo.set(save_cpo);
                 if regmatch.regprog.is_null() {
                     semsg!(gettext(E_INVARG2), pat_ref);
                 } else {

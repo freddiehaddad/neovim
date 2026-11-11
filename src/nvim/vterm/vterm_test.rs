@@ -1021,7 +1021,7 @@ mod tests {
     }
 
     fn init() -> TestVt {
-        crate::option_vars::opt_vars().p_emoji = true;
+        crate::option_vars::opt_vars().p_emoji.set(true);
         let mut vt = vterm_new(25, 80);
         vterm_output_set_callback(&mut vt, Some(term_output), None);
         crate::vterm::vterm::vterm_set_utf8(&mut vt, 1);

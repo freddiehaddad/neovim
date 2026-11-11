@@ -208,18 +208,18 @@ pub fn input_get(
             let t = st
                 .cursorhold_time
                 .get()
-                .min((opt_vars().p_ut as u64) * 1_000_000);
+                .min((opt_vars().p_ut.get() as u64) * 1_000_000);
             st.cursorhold_time.set(t);
             t
         });
         let delay_pending = ins_compl_autocomplete_pending()
-            && opt_vars().p_acl > 0
+            && opt_vars().p_acl.get() > 0
             && g_st().typebuf.tb_len == 0
             && !ins_compl_active()
             && (get_real_state() & MODE_INSERT) != 0;
-        let mut wait_time = opt_vars().p_ut - ((ch_time / 1_000_000) as i64);
+        let mut wait_time = opt_vars().p_ut.get() - ((ch_time / 1_000_000) as i64);
         if delay_pending {
-            let delay_left = opt_vars().p_acl - ins_compl_autocomplete_elapsed();
+            let delay_left = opt_vars().p_acl.get() - ins_compl_autocomplete_elapsed();
             wait_time = delay_left.max(0).min(wait_time);
         }
         if !inbuf_poll(wait_time as i32, events) {
@@ -228,7 +228,7 @@ pub fn input_get(
                 getout(0);
             }
             if delay_pending
-                && ins_compl_autocomplete_elapsed() >= opt_vars().p_acl
+                && ins_compl_autocomplete_elapsed() >= opt_vars().p_acl.get()
                 && (out_buf.is_none() || maxlen >= 3)
                 && !typebuf_changed(tb_change_cnt)
             {
@@ -470,7 +470,7 @@ fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut b
     if is_click {
         // For click events the number of clicks is updated.
         let mouse_time = os_hrtime(); // time of current mouse click (ns)
-        let mouset = (opt_vars().p_mouset as u64).wrapping_mul(1_000_000);
+        let mouset = (opt_vars().p_mouset.get() as u64).wrapping_mul(1_000_000);
         osi_st(|st| {
             let timediff = mouse_time.wrapping_sub(st.orig_mouse_time.get());
             let clicks = st.orig_num_clicks.get();

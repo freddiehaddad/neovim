@@ -167,7 +167,7 @@ fn whitechar<C: crate::charset::AsciiInt>(cc: C) -> bool {
 
 /// Return true if format option `x` is in effect (`has_format_option`).
 pub fn has_format_option(x: i32) -> bool {
-    if opt_vars().p_paste {
+    if opt_vars().p_paste.get() {
         return false;
     }
     crate::strings::vim_haschr(curbuf_mut().b_p_fo.as_cstr(), x)
@@ -1048,8 +1048,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 }
 
                 g_st().state_global = MODE_INSERT;
-                let smd_save = opt_vars().p_smd;
-                opt_vars().p_smd = false;
+                let smd_save = opt_vars().p_smd.get();
+                opt_vars().p_smd.set(false);
 
                 insertchar(
                     0,
@@ -1065,7 +1065,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 );
 
                 g_st().state_global = old_state;
-                opt_vars().p_smd = smd_save;
+                opt_vars().p_smd.set(smd_save);
                 ui_cursor_shape();
 
                 second_indent = -1;

@@ -652,7 +652,7 @@ fn do_incsearch_highlighting(
     *skiplen = 0;
     *patlen = get_cmdline_info().cmdlen.get();
 
-    if !opt_vars().p_is || g_st().cmd_silent {
+    if !opt_vars().p_is.get() || g_st().cmd_silent {
         return false;
     }
 
@@ -687,7 +687,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     let mut skiplen: i32 = 0;
     let mut patlen: i32 = 0;
     let mut search_delim: i32 = 0;
-    let mut magic: bool = opt_vars().p_magic;
+    let mut magic: bool = opt_vars().p_magic.get();
 
     // Parsing range may already set the last search pattern.
     // NOTE: must call restore_last_search_pattern() before returning!
@@ -743,7 +743,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     if patlen != 0 || use_last_pat {
         let mut search_flags = SEARCH_OPT + SEARCH_NOOF + SEARCH_PEEK;
-        if !opt_vars().p_hls {
+        if !opt_vars().p_hls.get() {
             search_flags += SEARCH_KEEP;
         }
         if g_st().search_global.first_line != 0 {
@@ -834,7 +834,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     validate_cursor(curwin_mut());
 
     // May redraw the status line to show the cursor position.
-    if opt_vars().p_ru && (curwin_mut().w_status_height > 0 || global_stl_height() > 0) {
+    if opt_vars().p_ru.get() && (curwin_mut().w_status_height > 0 || global_stl_height() > 0) {
         curwin_mut().w_redr_status = true;
     }
 
@@ -871,7 +871,7 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
     let mut skiplen: i32 = 0;
     let mut patlen: i32 = 0;
     let mut search_delim: i32 = 0;
-    let mut magic: bool = opt_vars().p_magic;
+    let mut magic: bool = opt_vars().p_magic.get();
 
     // Parsing range may already set the last search pattern.
     // NOTE: must call restore_last_search_pattern() before returning!
@@ -898,15 +898,15 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             // If 'ignorecase' and 'smartcase' are set and the
             // command line has no uppercase characters, convert
             // the character to lowercase
-            if opt_vars().p_ic
-                && opt_vars().p_scs
+            if opt_vars().p_ic.get()
+                && opt_vars().p_scs.get()
                 && !pat_has_uppercase(
                     (get_cmdline_info().cmdbuff().wrapping_add(skiplen as usize)).as_cstr(),
                 )
             {
                 *c = mb_tolower(*c);
             }
-            let special_chars = if opt_vars().p_magic {
+            let special_chars = if opt_vars().p_magic.get() {
                 c"\\~^$.*["
             } else {
                 c"\\^$"
@@ -1292,7 +1292,7 @@ fn command_line_enter(
         }
 
         msg_check();
-        if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) {
+        if opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES) {
             set_must_redraw(UPD_VALID);
         }
         g_st().msg_scroll = s.save_msg_scroll;
@@ -1455,8 +1455,10 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
     let mut options = WILD_NO_BEEP;
     let escape = s.firstc != b'@' as i32;
     let redraw_if_menu_empty = s.c == K_WILD;
-    let wim_noselect = opt_vars().p_wmnu && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOSELECT) != 0;
-    let wim_noinsert = opt_vars().p_wmnu && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOINSERT) != 0;
+    let wim_noselect =
+        opt_vars().p_wmnu.get() && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOSELECT) != 0;
+    let wim_noinsert =
+        opt_vars().p_wmnu.get() && (g_st().wim_flags[0] & K_OPT_WIM_FLAG_NOINSERT) != 0;
 
     if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LASTUSED) != 0 {
         options |= WILD_BUFLASTUSED;
@@ -1471,7 +1473,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                     xpc,
                     false,
                     true,
-                    if opt_vars().p_wmnu {
+                    if opt_vars().p_wmnu.get() {
                         g_st().wim_flags[s.wim_index as usize] as i32
                     } else {
                         0
@@ -1494,8 +1496,8 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         let wim_full = (g_st().wim_flags[0] & K_OPT_WIM_FLAG_FULL) != 0;
 
         s.wim_index = 0;
-        if s.c as OptInt == opt_vars().p_wc
-            || s.c as OptInt == opt_vars().p_wcm
+        if s.c as OptInt == opt_vars().p_wc.get()
+            || s.c as OptInt == opt_vars().p_wcm.get()
             || s.c == K_WILD
             || s.c == CTRL_Z_CONST
         {
@@ -1540,7 +1542,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         {
             if wim_longest {
                 let found_longest_prefix = get_cmdline_info().cmdpos.get() != cmdpos_before;
-                let show_menu = opt_vars().p_wmnu && wim_full;
+                let show_menu = opt_vars().p_wmnu.get() && wim_full;
                 if wim_list || show_menu {
                     with_ccline_xpc(|xpc| {
                         showmatches(xpc, show_menu, wim_list, K_OPT_WIM_FLAG_NOSELECT as i32);
@@ -1551,7 +1553,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                     let wim_noselect_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_NOSELECT) != 0;
                     let wim_noinsert_next = (g_st().wim_flags[1] & K_OPT_WIM_FLAG_NOINSERT) != 0;
                     if wim_list_next
-                        || (opt_vars().p_wmnu
+                        || (opt_vars().p_wmnu.get()
                             && (wim_full_next || wim_noselect_next || wim_noinsert_next))
                     {
                         if wim_full_next && !wim_noselect_next && !wim_noinsert_next {
@@ -1562,9 +1564,10 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                             with_ccline_xpc(|xpc| {
                                 showmatches(
                                     xpc,
-                                    opt_vars().p_wmnu && (wim_noselect_next || wim_noinsert_next),
+                                    opt_vars().p_wmnu.get()
+                                        && (wim_noselect_next || wim_noinsert_next),
                                     wim_list_next,
-                                    if opt_vars().p_wmnu {
+                                    if opt_vars().p_wmnu.get() {
                                         g_st().wim_flags[1] as i32
                                     } else {
                                         0
@@ -1578,14 +1581,15 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
                     }
                 }
             } else {
-                let show_menu = opt_vars().p_wmnu && (wim_full || wim_noselect || wim_noinsert);
+                let show_menu =
+                    opt_vars().p_wmnu.get() && (wim_full || wim_noselect || wim_noinsert);
                 if wim_list || show_menu {
                     with_ccline_xpc(|xpc| {
                         showmatches(
                             xpc,
                             show_menu,
                             wim_list,
-                            if opt_vars().p_wmnu {
+                            if opt_vars().p_wmnu.get() {
                                 g_st().wim_flags[0] as i32
                             } else {
                                 0
@@ -1643,7 +1647,7 @@ fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: i32) 
         });
     }
     s.did_wild_list = false;
-    if !opt_vars().p_wmnu || (c != K_UP && c != K_DOWN) {
+    if !opt_vars().p_wmnu.get() || (c != K_UP && c != K_DOWN) {
         with_ccline_xpc(|xpc| xpc.xp_context = EXPAND_NOTHING);
     }
     s.wim_index = 0;
@@ -1745,21 +1749,21 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         s.lookforlen = 0;
     }
 
-    if s.c as OptInt != opt_vars().p_wc
+    if s.c as OptInt != opt_vars().p_wc.get()
         && s.c == K_S_TAB
         && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0)
     {
         s.c = CTRL_P;
     }
 
-    if opt_vars().p_wmnu {
+    if opt_vars().p_wmnu.get() {
         let ccline = get_cmdline_info();
         s.c = with_ccline_xpc(|xpc| wildmenu_translate_key(&ccline, s.c, xpc, s.did_wild_list));
     }
 
     let mut wild_type: i32 = 0;
-    let key_is_wc =
-        (s.c as OptInt == opt_vars().p_wc && g_st().key_typed) || s.c as OptInt == opt_vars().p_wcm;
+    let key_is_wc = (s.c as OptInt == opt_vars().p_wc.get() && g_st().key_typed)
+        || s.c as OptInt == opt_vars().p_wcm.get();
     if (cmdline_pum_active() || g_st().wild_menu_showing != 0 || s.did_wild_list)
         && !key_is_wc
         && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0)
@@ -1808,7 +1812,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         command_line_end_wildmenu(s, key_is_wc, s.c);
     }
 
-    if opt_vars().p_wmnu {
+    if opt_vars().p_wmnu.get() {
         let ccline = get_cmdline_info();
         s.c = with_ccline_xpc(|xpc| wildmenu_process_key(&ccline, s.c, xpc));
     }
@@ -1854,8 +1858,8 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         return 0;
     }
 
-    if (s.c as OptInt == opt_vars().p_wc && !s.gotesc && g_st().key_typed)
-        || s.c as OptInt == opt_vars().p_wcm
+    if (s.c as OptInt == opt_vars().p_wc.get() && !s.gotesc && g_st().key_typed)
+        || s.c as OptInt == opt_vars().p_wcm.get()
         || s.c == K_WILD
         || s.c == CTRL_Z_CONST
     {
@@ -1883,15 +1887,15 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         if with_ccline_xpc(|xpc| xpc.xp_numfiles > 1)
             && ((!s.did_wild_list
                 && (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0)
-                || opt_vars().p_wmnu)
+                || opt_vars().p_wmnu.get())
         {
             let list = (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LIST) != 0;
             with_ccline_xpc(|xpc| {
                 showmatches(
                     xpc,
-                    opt_vars().p_wmnu && !list,
+                    opt_vars().p_wmnu.get() && !list,
                     list,
-                    if opt_vars().p_wmnu {
+                    if opt_vars().p_wmnu.get() {
                         g_st().wim_flags[0] as i32
                     } else {
                         0
@@ -1937,7 +1941,7 @@ fn may_do_command_line_next_incsearch(
     let mut skiplen: i32 = 0;
     let mut patlen: i32 = 0;
     let mut search_delim: i32 = 0;
-    let mut magic: bool = opt_vars().p_magic;
+    let mut magic: bool = opt_vars().p_magic.get();
 
     save_last_search_pattern();
 
@@ -1992,7 +1996,7 @@ fn may_do_command_line_next_incsearch(
     } else {
         t = s.match_start;
     }
-    if !opt_vars().p_hls {
+    if !opt_vars().p_hls.get() {
         search_flags += SEARCH_KEEP;
     }
     g_st().emsg_off += 1;
@@ -2522,7 +2526,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                             xpc,
                             false,
                             true,
-                            if opt_vars().p_wmnu {
+                            if opt_vars().p_wmnu.get() {
                                 g_st().wim_flags[0] as i32
                             } else {
                                 0
@@ -2834,7 +2838,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                 }
 
                 CTRL_CONST_CONST => {
-                    if !opt_vars().p_ari {
+                    if !opt_vars().p_ari.get() {
                         break 'key_switch;
                     }
                     return command_line_not_changed(s);
@@ -2915,7 +2919,7 @@ fn empty_pattern(p: &[u8], delim: i32) -> bool {
         skip_regexp_magic(
             slice,
             delim,
-            i32::from(opt_vars().p_magic),
+            i32::from(opt_vars().p_magic.get()),
             Some(&mut magic_val),
         );
     } else {
@@ -3013,7 +3017,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
 fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinInfoInfo> {
     let save_curwin = curwin_ptr();
 
-    if !win_split(opt_vars().p_cwh as i32, WSP_BOT) {
+    if !win_split(opt_vars().p_cwh.get() as i32, WSP_BOT) {
         return None;
     }
 
@@ -3088,12 +3092,12 @@ fn cmdpreview_prepare() -> CpInfo {
         }
     }
 
-    cpinfo.save_hls = opt_vars().p_hls;
+    cpinfo.save_hls = opt_vars().p_hls.get();
     cpinfo.save_cmdmod = std::mem::take(&mut g_st().cmdmod);
     win_size_save(&mut cpinfo.save_view);
     save_search_patterns();
 
-    opt_vars().p_hls = false;
+    opt_vars().p_hls.set(false);
     g_st().cmdmod.cmod_split = 0;
     g_st().cmdmod.cmod_tab = 0;
     g_st().cmdmod.cmod_flags |= CMOD_NOSWAPFILE;
@@ -3138,7 +3142,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     }
 
     g_st().cmdmod = std::mem::take(&mut cpinfo.save_cmdmod);
-    opt_vars().p_hls = cpinfo.save_hls;
+    opt_vars().p_hls.set(cpinfo.save_hls);
     restore_search_patterns();
     win_size_restore(&cpinfo.save_view);
 }
@@ -3311,7 +3315,10 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
 
     may_trigger_cursormovedc(s);
 
-    if opt_vars().p_arshape && !opt_vars().p_tbidi && !ui_has(K_UICMDLINE) && vpeekc() == NUL as i32
+    if opt_vars().p_arshape.get()
+        && !opt_vars().p_tbidi.get()
+        && !ui_has(K_UICMDLINE)
+        && vpeekc() == NUL as i32
     {
         redrawcmd();
     }
@@ -4381,7 +4388,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         let arg_b = crate::memory::bytes_until_nul(&vec_val);
 
         let mut p_slice = arg_b;
-        if opt_vars().p_is && regname == CTRL_W_CONST {
+        if opt_vars().p_is.get() && regname == CTRL_W_CONST {
             let ccline_rc = get_cmdline_info();
             let cmd_vec = ccline_rc.cmdbuff_vec.borrow();
             let cmd_bytes = &cmd_vec[..ccline_rc.cmdpos.get() as usize];
@@ -4396,7 +4403,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
             let len = cmd_bytes.len() - w_idx;
             let w_slice = &cmd_bytes[w_idx..];
             let arg_prefix = &arg_b[..len.min(arg_b.len())];
-            let matches = if opt_vars().p_ic {
+            let matches = if opt_vars().p_ic.get() {
                 w_slice.eq_ignore_ascii_case(arg_prefix)
             } else {
                 w_slice == arg_prefix
@@ -4537,7 +4544,7 @@ pub fn compute_cmdrow() {
         g_st().cmdline_row =
             wp.w_winrow + wp.w_height + wp.w_hsep_height + wp.w_status_height + global_stl_height();
     }
-    if g_st().cmdline_row == g_st().rows_global && opt_vars().p_ch > 0 {
+    if g_st().cmdline_row == g_st().rows_global && opt_vars().p_ch.get() > 0 {
         g_st().cmdline_row -= 1;
     }
     g_st().lines_left = g_st().cmdline_row;
@@ -4572,7 +4579,7 @@ pub fn gotocmdline(clr: bool) {
 fn ccheck_abbr(c: i32) -> i32 {
     let mut spos: i32 = 0;
 
-    if opt_vars().p_paste || g_st().no_abbr {
+    if opt_vars().p_paste.get() || g_st().no_abbr {
         return 0;
     }
 

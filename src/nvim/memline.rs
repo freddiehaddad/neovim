@@ -616,7 +616,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         buf.b_p_swf = false;
     }
 
-    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc != 0 && buf.b_p_swf;
+    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc.get() != 0 && buf.b_p_swf;
 
     buf.b_ml.ml_mfp = mf_open(None, 0);
     if buf.b_ml.mfp_ref().is_none() {
@@ -712,7 +712,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
     let mfp_addr = buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize);
     if buf.b_ml.mfp_mut().mf_fd < 0 {
-        if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
+        if opt_vars().p_uc.get() != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
         }
         return;
@@ -3809,7 +3809,7 @@ fn findswapname(
 
                 if os_path_exists(buf.fname_cstr()) && swapfile_unchanged(fname_cstr) {
                     choice = SEA_CHOICE_DELETE;
-                    if opt_vars().p_verbose > 0 {
+                    if opt_vars().p_verbose.get() > 0 {
                         verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
                     }
                 }

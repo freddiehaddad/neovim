@@ -646,7 +646,7 @@ fn win_redr_stl_expr(
             0
         };
         if is_stl_global {
-            row = g_st().rows_global - (opt_vars().p_ch as i32) - 1;
+            row = g_st().rows_global - (opt_vars().p_ch.get() as i32) - 1;
             col = 0;
             maxwidth = g_st().columns_global;
         } else if wp_ref.w_status_height == 0 {
@@ -804,7 +804,7 @@ fn win_redr_stl_expr(
             sp_idx += 1;
         }
 
-        if opt_vars().p_sc && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
+        if opt_vars().p_sc.get() && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
             showcmd_update_clear_state();
         }
 
@@ -848,7 +848,10 @@ pub fn redraw_ruler() {
     let is_stl_global = global_stl_height() > 0;
 
     let part_of_status = wp.w_status_height != 0 || is_stl_global;
-    if !opt_vars().p_ru || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES)) {
+    if !opt_vars().p_ru.get()
+        || part_of_status
+        || (opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES))
+    {
         if with_stl_state(|st| st.did_show_ext_ruler.get()) && ui_has(K_UIMESSAGES) {
             ui_call_msg_ruler(Array::new());
             with_stl_state(|st| st.did_show_ext_ruler.set(false));
@@ -1150,7 +1153,7 @@ pub fn draw_tabline() {
         let c = if use_sep_chars { b'_' } else { b' ' };
         grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
 
-        if opt_vars().p_sc && opt_vars().p_sloc.first_byte() == b't' {
+        if opt_vars().p_sc.get() && opt_vars().p_sloc.first_byte() == b't' {
             let n = g_st().columns_global - col - i32::from(tabcount > 1) * 3;
             let sc_width = 10.min(n);
 
@@ -2167,7 +2170,7 @@ pub fn build_stl_str_hl_slice(
                 str_slice = Some(&buf_tmp);
             }
             STL_SHOWCMD => {
-                if opt_vars().p_sc
+                if opt_vars().p_sc.get()
                     && (opt_idx == K_OPT_INVALID
                         || find_option(opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {

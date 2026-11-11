@@ -520,7 +520,7 @@ fn showmap(mp: &Mapblock, local: bool) {
         msg_puts(c"\n                 ");
         msg_puts(desc);
     }
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         last_set_msg(mp.m_script_ctx);
     }
     msg_clr_eos();

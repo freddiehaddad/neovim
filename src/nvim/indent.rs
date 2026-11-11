@@ -403,7 +403,7 @@ pub fn get_indent_buf(buf: &mut FileBuf, lnum: Linenr) -> i32 {
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
 pub fn indent_size_no_ts(ptr: &[u8]) -> i32 {
-    let tab_size = opt_vars().dy_escape_width;
+    let tab_size = opt_vars().dy_escape_width.get();
     let mut vcol: i32 = 0;
     for &c in ptr {
         if c == b' ' {
@@ -792,7 +792,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
             || st.prev_tick != buf_tick
             || st.prev_listopt != wp.w_briopt_list
             || st.prev_no_ts != no_ts
-            || st.prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
+            || st.prev_dy_uhex != (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX)
             || st.prev_flp.as_deref() != Some(&flp_val)
             || st
                 .prev_line
@@ -821,7 +821,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
             st.prev_listopt = wp.w_briopt_list;
             st.prev_list = 0;
             st.prev_no_ts = no_ts;
-            st.prev_dy_uhex = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
+            st.prev_dy_uhex = opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX;
             st.prev_flp = Some(new_flp.clone());
         });
 
@@ -909,7 +909,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         while i >= 0 && !g_st().got_int {
             if i > 1
                 && (i % 50 == 0 || i == oap.line_count - 1)
-                && i64::from(oap.line_count) > opt_vars().p_report
+                && i64::from(oap.line_count) > opt_vars().p_report.get()
             {
                 let fmt_ptr = gettext(c"%ld lines to indent... ");
                 let fmt_str = fmt_ptr.to_string_lossy();
@@ -974,7 +974,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         redraw_curbuf_later(UPD_INVERTED);
     }
 
-    if i64::from(oap.line_count) > opt_vars().p_report {
+    if i64::from(oap.line_count) > opt_vars().p_report.get() {
         i = oap.line_count - (i + 1);
         let fmt_ptr = ngettext(c"%ld line indented ", c"%ld lines indented ", i as u64);
         let fmt_str = fmt_ptr.to_string_lossy();
@@ -1014,7 +1014,7 @@ pub fn may_do_si() -> bool {
     curbuf_mut().b_p_si
         && !curbuf_mut().b_p_cin
         && curbuf_mut().b_p_inde.cb_type() == K_CALLBACK_NONE_CONST
-        && !opt_vars().p_paste
+        && !opt_vars().p_paste.get()
 }
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
@@ -1810,7 +1810,7 @@ pub fn use_indentexpr_for_lisp() -> bool {
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
 pub fn fix_indent() {
-    if opt_vars().p_paste {
+    if opt_vars().p_paste.get() {
         return;
     }
     if curbuf_mut().b_p_lisp && curbuf_mut().b_p_ai {

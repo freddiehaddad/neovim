@@ -1566,7 +1566,7 @@ fn is_filter_char(c: i32) -> bool {
             }
         }
     };
-    (opt_vars().tpf_flags & flag) != 0
+    (opt_vars().tpf_flags.get() & flag) != 0
 }
 
 pub fn terminal_set_streamed_paste(term_id: TermId, streamed: bool) {

@@ -930,7 +930,7 @@ pub fn current_block(
     } else {
         OptString::from_cstr(c"%")
     };
-    let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, new_cpo);
+    let save_cpo = opt_vars().p_cpo.replace(new_cpo);
     pos = findmatch(None, what);
     if pos.is_some() {
         while {
@@ -959,7 +959,7 @@ pub fn current_block(
             start_pos = p;
         }
     }
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 
     if pos.is_none() || {
         end_pos = findmatch(None, other);
@@ -1092,11 +1092,11 @@ fn in_html_tag(end_tag: bool) -> bool {
 pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool {
     let mut count = count_arg;
     let mut do_include = include;
-    let save_p_ws = opt_vars().p_ws;
+    let save_p_ws = opt_vars().p_ws.get();
     let mut retval = false;
     let mut is_inclusive = true;
 
-    opt_vars().p_ws = false;
+    opt_vars().p_ws.set(false);
 
     let old_pos = curwin_mut().w_cursor;
     let mut old_end = curwin_mut().w_cursor;
@@ -1151,7 +1151,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
             ) <= 0
             {
                 curwin_mut().w_cursor = old_pos;
-                opt_vars().p_ws = save_p_ws;
+                opt_vars().p_ws.set(save_p_ws);
                 return retval;
             }
         }
@@ -1166,7 +1166,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         }
         if len == 0 {
             curwin_mut().w_cursor = old_pos;
-            opt_vars().p_ws = save_p_ws;
+            opt_vars().p_ws.set(save_p_ws);
             return retval;
         }
 
@@ -1271,7 +1271,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
         break 'again;
     }
 
-    opt_vars().p_ws = save_p_ws;
+    opt_vars().p_ws.set(save_p_ws);
     retval
 }
 

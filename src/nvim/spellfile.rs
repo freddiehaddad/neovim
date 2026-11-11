@@ -508,14 +508,14 @@ fn spell_load_file_into(fname_cstr: &std::ffi::CStr, lp: &mut Slang, silent: boo
     let Some(fd) = CFile::open(fname_cstr, c"r") else {
         if !silent {
             semsg!(gettext(E_NOTOPEN), fname_cstr);
-        } else if opt_vars().p_verbose > 2 {
+        } else if opt_vars().p_verbose.get() > 2 {
             verbose_enter();
             smsg!(0, E_NOTOPEN, fname_cstr);
             verbose_leave();
         }
         return false;
     };
-    if opt_vars().p_verbose > 2 {
+    if opt_vars().p_verbose.get() > 2 {
         verbose_enter();
         smsg!(0, gettext(c"Reading spell file \"%s\""), fname_cstr);
         verbose_leave();
@@ -2890,7 +2890,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
 
         let dw_bytes = w_bytes.to_vec();
         if !ht.insert(dw_bytes) {
-            if opt_vars().p_verbose > 0 {
+            if opt_vars().p_verbose.get() > 0 {
                 smsg!(
                     0,
                     gettext(c"Duplicate word in %s line %d: %s"),
@@ -3871,7 +3871,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
 
     let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
 
-    if spin.si_verbose || opt_vars().p_verbose > 2 {
+    if spin.si_verbose || opt_vars().p_verbose.get() > 2 {
         let perc: i64 = if tot > 1_000_000 {
             ((tot - n) / (tot / 100)) as i64
         } else if tot == 0 {
@@ -4945,7 +4945,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 }
 
 fn spell_message(spin: &Spellinfo, str_: &std::ffi::CStr) {
-    if spin.si_verbose || opt_vars().p_verbose > 2 {
+    if spin.si_verbose || opt_vars().p_verbose.get() > 2 {
         if !spin.si_verbose {
             verbose_enter();
         }

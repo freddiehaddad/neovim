@@ -277,7 +277,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
         } else if oap.motion_type == MT_BLOCK_WISE {
             shift_block(oap, amount);
         } else if first_char != b'#' as i32 || !preprocs_left() {
-            shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr, amount, 0);
+            shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr.get(), amount, 0);
         }
         curwin_mut().w_cursor.lnum += 1;
         i -= 1;
@@ -294,7 +294,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
     }
     fold_open_cursor();
 
-    if i64::from(oap.line_count) > opt_vars().p_report {
+    if i64::from(oap.line_count) > opt_vars().p_report.get() {
         let op = if oap.op_type == OP_RSHIFT { c">" } else { c"<" };
 
         let msg_line_single = ngettext(
@@ -456,9 +456,9 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let sw_val = get_sw_value_indent(curbuf_mut(), left);
     let ts_val = curbuf_mut().b_p_ts as i32;
     let mut bd = BlockDef::new();
-    let old_p_ri = opt_vars().p_ri;
+    let old_p_ri = opt_vars().p_ri.get();
 
-    opt_vars().p_ri = false;
+    opt_vars().p_ri.set(false);
 
     g_st().state_global = MODE_INSERT;
     block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
@@ -658,7 +658,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     );
     g_st().state_global = oldstate;
     curwin_mut().w_cursor.col = oldcol;
-    opt_vars().p_ri = old_p_ri;
+    opt_vars().p_ri.set(old_p_ri);
 }
 
 fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut BlockDef) {
@@ -1459,7 +1459,7 @@ pub fn op_tilde(oap: &mut Oparg) {
         curbuf_mut().b_op_end = oap.end;
     }
 
-    if i64::from(oap.line_count) > opt_vars().p_report {
+    if i64::from(oap.line_count) > opt_vars().p_report.get() {
         smsg!(
             0,
             ngettext(
@@ -1980,7 +1980,7 @@ pub fn do_join(
                 } else {
                     spaces_vec[t as usize] += 1;
                 }
-                if opt_vars().p_js
+                if opt_vars().p_js.get()
                     && (endcurr1 == b'.' as i32
                         || endcurr1 == b'?' as i32
                         || endcurr1 == b'!' as i32)
@@ -2558,7 +2558,7 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
             curbuf_mut().b_op_start = startpos;
         }
 
-        if (change_cnt as i64) > opt_vars().p_report {
+        if (change_cnt as i64) > opt_vars().p_report.get() {
             smsg!(
                 0,
                 ngettext(
@@ -3028,7 +3028,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             }
 
             if l_visual_mode == CTRL_V_CONST {
-                let saved_sbr = std::mem::take(&mut opt_vars().p_sbr);
+                let saved_sbr = opt_vars().p_sbr.take();
                 let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
                 oparg.is_visual = true;
@@ -3042,7 +3042,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     &mut oparg.end_vcol,
                     0,
                 );
-                opt_vars().p_sbr = saved_sbr;
+                opt_vars().p_sbr.set(saved_sbr);
                 curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
                 if curwin_mut().w_curswant == MAXCOL {
                     oparg.end_vcol = MAXCOL;
@@ -3244,13 +3244,13 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             );
         }
         if dict.is_none() {
-            let p = std::mem::take(&mut opt_vars().p_shm);
-            if opt_vars().p_ch < 1 {
+            let p = opt_vars().p_shm.take();
+            if opt_vars().p_ch.get() < 1 {
                 msg_start();
                 g_st().msg_scroll = 1;
             }
             msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
-            opt_vars().p_shm = p;
+            opt_vars().p_shm.set(p);
         }
     }
 
@@ -3969,7 +3969,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         let oap = &mut cap.oap;
         g_st().virtual_op = K_NONE;
         if !gui_yank {
-            if !opt_vars().p_sol
+            if !opt_vars().p_sol.get()
                 && oap.motion_type == MT_LINE_WISE
                 && !oap.end_adjusted
                 && (oap.op_type == OP_LSHIFT

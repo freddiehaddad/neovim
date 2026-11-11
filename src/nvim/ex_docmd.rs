@@ -4959,7 +4959,7 @@ fn msg_verbose_cmd(lnum: Linenr, cmd: &CStr) {
 fn do_cmdline_start() -> bool {
     debug_assert!(DOCMD_STATE.with(|s| s.cmdline_call_depth.get()) >= 0);
     if DOCMD_STATE.with(|s| s.cmdline_call_depth.get()) >= 200
-        && OptInt::from(DOCMD_STATE.with(|s| s.cmdline_call_depth.get())) >= opt_vars().p_mfd
+        && OptInt::from(DOCMD_STATE.with(|s| s.cmdline_call_depth.get())) >= opt_vars().p_mfd.get()
     {
         return false;
     }
@@ -5218,8 +5218,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 did_inc = true;
             }
 
-            if (opt_vars().p_verbose >= 15 && sourcing_name().is_some())
-                || opt_vars().p_verbose >= 16
+            if (opt_vars().p_verbose.get() >= 15 && sourcing_name().is_some())
+                || opt_vars().p_verbose.get() >= 16
             {
                 msg_verbose_cmd(sourcing_lnum(), crate::memory::bytes_as_cstr(&cmdline_buf));
             }
@@ -7144,9 +7144,11 @@ pub fn apply_cmdmod(cmod: &mut Cmdmod) {
     }
     if cmod.cmod_verbose > 0 {
         if cmod.cmod_verbose_save == 0 {
-            cmod.cmod_verbose_save = opt_vars().p_verbose + 1;
+            cmod.cmod_verbose_save = opt_vars().p_verbose.get() + 1;
         }
-        opt_vars().p_verbose = OptInt::from(cmod.cmod_verbose - 1);
+        opt_vars()
+            .p_verbose
+            .set(OptInt::from(cmod.cmod_verbose - 1));
     }
 
     if (cmod.cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0 && cmod.cmod_save_msg_silent == 0 {
@@ -7173,7 +7175,7 @@ pub fn apply_cmdmod(cmod: &mut Cmdmod) {
 
 pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     if cmod.cmod_verbose_save > 0 {
-        opt_vars().p_verbose = cmod.cmod_verbose_save - 1;
+        opt_vars().p_verbose.set(cmod.cmod_verbose_save - 1);
         cmod.cmod_verbose_save = 0;
     }
 
@@ -7717,7 +7719,7 @@ pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
             cmd = skip_regexp(
                 crate::memory::CStrSubslice::advance(cmd, 1),
                 i32::from(b0),
-                i32::from(opt_vars().p_magic),
+                i32::from(opt_vars().p_magic.get()),
             );
             if cmd.to_bytes().is_empty()
                 && let Some(ref mut ctx) = ctx
@@ -7877,7 +7879,7 @@ pub fn get_address(
                     }
                     if skip {
                         let mut skipped =
-                            skip_regexp(after_delim, c, i32::from(opt_vars().p_magic));
+                            skip_regexp(after_delim, c, i32::from(opt_vars().p_magic.get()));
                         if skipped.to_bytes().first().copied().map(i32::from) == Some(c) {
                             skipped = crate::memory::CStrSubslice::advance(skipped, 1);
                         }
@@ -7907,7 +7909,7 @@ pub fn get_address(
                             after_delim.to_bytes().len(),
                             1,
                             search_flags,
-                            opt_vars().p_magic,
+                            opt_vars().p_magic.get(),
                             None,
                         ) == 0
                         {
@@ -7961,7 +7963,7 @@ pub fn get_address(
                             1,
                             SEARCH_MSG,
                             pat_use,
-                            opt_vars().p_magic,
+                            opt_vars().p_magic.get(),
                             None,
                         ) != 0
                         {
@@ -8401,7 +8403,7 @@ pub fn expand_filename(
             let mut options = WILD_LIST_NOTFOUND | WILD_NOERROR | WILD_ADD_SLASH;
 
             xpc.xp_context = EXPAND_FILES;
-            if opt_vars().p_wic {
+            if opt_vars().p_wic.get() {
                 options += WILD_ICASE;
             }
             let Some(expanded) = expand_one(
@@ -9007,7 +9009,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
         && DOCMD_STATE.with(|s| s.quitmore.get()) == 0
     {
         if message {
-            if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && curbuf_mut().fname_opt().is_some()
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
@@ -9150,7 +9152,7 @@ fn ex_quit(eap: &mut Exarg) {
     if (!buf_hide(wp.borrow().buf_mut())
         && check_changed(
             wp.borrow().buf_mut(),
-            (if opt_vars().p_awa { CCGD_AW } else { 0 })
+            (if opt_vars().p_awa.get() { CCGD_AW } else { 0 })
                 | (if eap.forceit { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
         ))
@@ -9636,8 +9638,8 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPage
 
     let mut need_hide = buf_is_changed_fn(win.buf_mut()) && win.buf_mut().b_nwindows <= 1;
     if need_hide && !buf_hide(win.buf_mut()) && !forceit {
-        if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-            && opt_vars().p_write
+        if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            && opt_vars().p_write.get()
         {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf.opt_mut());
@@ -9909,7 +9911,7 @@ fn ex_recover(eap: &mut Exarg) {
     g_st().recoverymode = true;
     if !check_changed(
         curbuf_mut(),
-        (if opt_vars().p_awa { CCGD_AW } else { 0 })
+        (if opt_vars().p_awa.get() { CCGD_AW } else { 0 })
             | CCGD_MULTWIN
             | (if eap.forceit { CCGD_FORCEIT } else { 0 })
             | CCGD_EXCMD,
@@ -9952,7 +9954,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();
-    let retval = callback_call(&*cb, 2, &mut args, &mut rettv);
+    let retval = callback_call(cb, 2, &mut args, &mut rettv);
 
     g_st().current_sctx = saved_sctx;
     g_st().textlock -= 1;
@@ -10844,7 +10846,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         None
     };
 
-    if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh {
+    if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh.get() {
         expand_env(c"$HOME", g_st().name_buff_bytes_mut());
         new_dir_cstr = g_st().name_buff_cstr();
     }
@@ -10915,18 +10917,20 @@ pub fn ex_cd(eap: &mut Exarg) {
 
     if eap.forceit && (new_dir).is_empty() && scope != K_CD_SCOPE_GLOBAL {
         chdir_clear(scope);
-        if g_st().key_typed || opt_vars().p_verbose >= 5 {
+        if g_st().key_typed || opt_vars().p_verbose.get() >= 5 {
             ex_pwd(eap);
         }
         return;
     }
 
-    if (new_dir).is_empty() && !opt_vars().p_cdh {
+    if (new_dir).is_empty() && !opt_vars().p_cdh.get() {
         ex_pwd(&mut crate::ex_docmd::Exarg::new());
         return;
     }
 
-    if do_chdir((new_dir).as_opt_cstr(), scope) && (g_st().key_typed || opt_vars().p_verbose >= 5) {
+    if do_chdir((new_dir).as_opt_cstr(), scope)
+        && (g_st().key_typed || opt_vars().p_verbose.get() >= 5)
+    {
         ex_pwd(eap);
     }
 }
@@ -10935,7 +10939,7 @@ fn ex_pwd(_eap: &mut Exarg) {
     if os_dirname(g_st().name_buff_bytes_mut()) {
         #[cfg(windows)]
         slash_adjust(g_st().name_buff_bytes_mut());
-        if opt_vars().p_verbose > 0 {
+        if opt_vars().p_verbose.get() > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason {
                 reason
             } else if curbuf_mut().b_localdir.is_some() {
@@ -11428,10 +11432,10 @@ fn ex_redraw(eap: &mut Exarg) {
         return;
     }
     let r = g_st().redrawing_disabled;
-    let p = opt_vars().p_lz;
+    let p = opt_vars().p_lz.get();
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = false;
+    opt_vars().p_lz.set(false);
     validate_cursor(curwin_mut());
     update_topline(curwin_mut());
     if eap.forceit {
@@ -11445,7 +11449,7 @@ fn ex_redraw(eap: &mut Exarg) {
         maketitle();
     }
     g_st().redrawing_disabled = r;
-    opt_vars().p_lz = p;
+    opt_vars().p_lz.set(p);
 
     g_st().msg_didout = false;
     g_st().msg_col = 0;
@@ -11459,7 +11463,7 @@ fn ex_redrawstatus(eap: &mut Exarg) {
         return;
     }
     let r = g_st().redrawing_disabled;
-    let p = opt_vars().p_lz;
+    let p = opt_vars().p_lz.get();
 
     if eap.forceit {
         status_redraw_all();
@@ -11468,7 +11472,7 @@ fn ex_redrawstatus(eap: &mut Exarg) {
     }
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = false;
+    opt_vars().p_lz.set(false);
     if (g_st().state_global & MODE_CMDLINE) != 0 {
         redraw_statuslines();
     } else {
@@ -11478,21 +11482,21 @@ fn ex_redrawstatus(eap: &mut Exarg) {
         update_screen();
     }
     g_st().redrawing_disabled = r;
-    opt_vars().p_lz = p;
+    opt_vars().p_lz.set(p);
     ui_flush();
 }
 
 fn ex_redrawtabline(_eap: &mut Exarg) {
     let r = g_st().redrawing_disabled;
-    let p = opt_vars().p_lz;
+    let p = opt_vars().p_lz.get();
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = false;
+    opt_vars().p_lz.set(false);
 
     draw_tabline();
 
     g_st().redrawing_disabled = r;
-    opt_vars().p_lz = p;
+    opt_vars().p_lz.set(p);
     ui_flush();
 }
 
@@ -11614,7 +11618,7 @@ fn ex_normal(eap: &mut Exarg) {
         return;
     }
 
-    if OptInt::from(g_st().ex_normal_busy) >= opt_vars().p_mmd {
+    if OptInt::from(g_st().ex_normal_busy) >= opt_vars().p_mmd.get() {
         let _ = emsg(gettext(c"E192: Recursive use of :normal too deep"));
         return;
     }
@@ -11773,7 +11777,7 @@ fn ex_checkpath(eap: &mut Exarg) {
 }
 
 fn ex_psearch(eap: &mut Exarg) {
-    g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
     ex_findpat(eap);
     g_st().g_do_tagpreview = 0;
 }
@@ -11810,7 +11814,7 @@ fn ex_findpat(eap: &mut Exarg) {
         eap.arg = eap.arg.wrapping_add(1);
         let pat_len = {
             let arg_cstr = eap.arg.as_cstr();
-            let p_cstr = skip_regexp(arg_cstr, b'/' as i32, i32::from(opt_vars().p_magic));
+            let p_cstr = skip_regexp(arg_cstr, b'/' as i32, i32::from(opt_vars().p_magic.get()));
             (p_cstr.as_ptr() as usize) - (arg_cstr.as_ptr() as usize)
         };
         let mut p = eap.arg.wrapping_add(pat_len);
@@ -11849,7 +11853,7 @@ fn ex_findpat(eap: &mut Exarg) {
 }
 
 fn ex_ptag(eap: &mut Exarg) {
-    g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
     ex_tag_cmd(
         eap,
         crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
@@ -11871,7 +11875,7 @@ fn ex_pbuffer(eap: &mut Exarg) {
 }
 
 fn prepare_preview_window() {
-    g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+    g_st().g_do_tagpreview = opt_vars().p_pvh.get() as i32;
     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
 }
 
@@ -12465,7 +12469,7 @@ pub fn set_no_hlsearch(flag: bool) {
     g_st().search_global.no_hlsearch = flag;
     set_vim_var_nr(
         VV_HLSEARCH,
-        Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls),
+        Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls.get()),
     );
 }
 

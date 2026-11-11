@@ -621,8 +621,8 @@ pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -
     }
 
     if (HLF_PNI..=HLF_PST).contains(&idx) {
-        if attrs.hl_blend == -1 && opt_vars().p_pb > 0 {
-            attrs.hl_blend = opt_vars().p_pb as i32;
+        if attrs.hl_blend == -1 && opt_vars().p_pb.get() > 0 {
+            attrs.hl_blend = opt_vars().p_pb.get() as i32;
         }
         if pum_drawn() {
             g_st().must_redraw_pum = true;

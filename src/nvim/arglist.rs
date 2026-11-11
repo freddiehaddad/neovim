@@ -337,7 +337,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
 fn arglist_del_files(alist_ga: &[CString]) {
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.rm_ic = opt_vars().p_fic;
+    regmatch.rm_ic = opt_vars().p_fic.get();
 
     for orig_p in alist_ga {
         if g_st().got_int {
@@ -348,7 +348,11 @@ fn arglist_del_files(alist_ga: &[CString]) {
         };
         regmatch.set_prog(vim_regcomp(
             &p,
-            if opt_vars().p_magic { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic.get() {
+                RE_MAGIC
+            } else {
+                0
+            },
         ));
         if regmatch.regprog.is_null() {
             break;
@@ -1003,11 +1007,11 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 g_st().autocmd_no_enter -= 1;
             }
             if !aall.use_firstwin {
-                let p_ea_save = opt_vars().p_ea;
-                opt_vars().p_ea = true;
+                let p_ea_save = opt_vars().p_ea.get();
+                opt_vars().p_ea.set(true);
                 let ok = win_split(0, WSP_ROOM | WSP_BELOW);
                 split_ret = ok;
-                opt_vars().p_ea = p_ea_save;
+                opt_vars().p_ea.set(p_ea_save);
                 if !ok {
                     i += 1;
                     continue;
@@ -1045,7 +1049,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
         }
         os_breakcheck();
 
-        if aall.had_tab > 0 && (tabpage_index(None) as OptInt) <= opt_vars().p_tpm {
+        if aall.had_tab > 0 && (tabpage_index(None) as OptInt) <= opt_vars().p_tpm.get() {
             g_st().cmdmod.cmod_tab = 9999;
         }
         i += 1;

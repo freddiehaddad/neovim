@@ -454,7 +454,7 @@ pub fn setpcmark() {
         curwin_mut().w_pcmark.lnum = 1;
     }
 
-    if (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) != 0
+    if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_STACK) != 0
         && curwin_mut().w_jumplistidx < curwin_mut().w_jumplistlen - 1
     {
         curwin_mut().w_jumplistlen = curwin_mut().w_jumplistidx + 1;
@@ -1806,7 +1806,7 @@ pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
         let mustfree = if i >= wp.w_jumplistlen {
             false
         } else if i > from + 1 {
-            (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) == 0
+            (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_STACK) == 0
         } else {
             true
         };

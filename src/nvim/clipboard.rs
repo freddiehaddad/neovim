@@ -49,7 +49,7 @@ const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
 pub fn adjust_clipboard_name(name: &mut i32, quiet: bool, writing: bool) -> Option<RegIdx> {
     let reg_char = *name;
-    let flags = opt_vars().cb_flags;
+    let flags = opt_vars().cb_flags.get();
     let explicit_cb_reg = reg_char == b'*' as i32 || reg_char == b'+' as i32;
     let implicit_cb_reg =
         reg_char == 0 && (flags & (K_OPT_CB_FLAG_UNNAMED | K_OPT_CB_FLAG_UNNAMEDPLUS)) != 0;

@@ -706,7 +706,9 @@ fn get_varp(p: Vimoption) -> OptVar {
 
 pub fn set_init_tablocal() {
     // cmdheight calls itself OPT_GLOBAL but is really tablocal!
-    opt_vars().p_ch = get_option(K_OPT_CMDHEIGHT).def_val.data.integer();
+    opt_vars()
+        .p_ch
+        .set(get_option(K_OPT_CMDHEIGHT).def_val.data.integer());
 }
 
 /// Initialize the 'shell' option to a default value.
@@ -1100,7 +1102,9 @@ pub fn set_init_2(_headless: bool) {
     comp_col();
 
     if !option_was_set(K_OPT_WINDOW) {
-        opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
+        opt_vars()
+            .p_window
+            .set(OptInt::from(g_st().rows_global - 1));
     }
     change_option_default(
         K_OPT_WINDOW,
@@ -1179,11 +1183,11 @@ pub fn set_helplang_default(lang: Option<&std::ffi::CStr>) {
 pub fn set_title_defaults() {
     if (get_option(K_OPT_TITLE).flags & K_OPT_FLAG_WAS_SET) == 0 {
         change_option_default(K_OPT_TITLE, boolean_obj(false));
-        opt_vars().p_title = false;
+        opt_vars().p_title.set(false);
     }
     if (get_option(K_OPT_ICON).flags & K_OPT_FLAG_WAS_SET) == 0 {
         change_option_default(K_OPT_ICON, boolean_obj(false));
-        opt_vars().p_icon = false;
+        opt_vars().p_icon.set(false);
     }
 }
 
@@ -1620,7 +1624,7 @@ fn validate_opt_idx(
             *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE);
             return false;
         }
-        if (flags & K_OPT_FLAG_MLE) != 0 && !opt_vars().p_mle {
+        if (flags & K_OPT_FLAG_MLE) != 0 && !opt_vars().p_mle.get() {
             *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF);
             return false;
         }
@@ -1907,7 +1911,7 @@ fn do_one_set_option<'a>(
         }
         showoneopt(opt.clone(), opt_flags);
 
-        if opt_vars().p_verbose > 0 {
+        if opt_vars().p_verbose.get() > 0 {
             if varp.is_some() && varp == opt.var() {
                 last_set_msg(opt.script_ctx);
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
@@ -2123,10 +2127,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
                 curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
-                OPT_STATE.with(|s| s.p_tw_nobin.set(opt_vars().p_tw));
-                OPT_STATE.with(|s| s.p_wm_nobin.set(opt_vars().p_wm));
-                OPT_STATE.with(|s| s.p_ml_nobin.set(opt_vars().p_ml));
-                OPT_STATE.with(|s| s.p_et_nobin.set(opt_vars().p_et));
+                OPT_STATE.with(|s| s.p_tw_nobin.set(opt_vars().p_tw.get()));
+                OPT_STATE.with(|s| s.p_wm_nobin.set(opt_vars().p_wm.get()));
+                OPT_STATE.with(|s| s.p_ml_nobin.set(opt_vars().p_ml.get()));
+                OPT_STATE.with(|s| s.p_et_nobin.set(opt_vars().p_et.get()));
             }
         }
 
@@ -2137,11 +2141,11 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
             curbuf_mut().b_p_et = false;
         }
         if (opt_flags & OPT_LOCAL) == 0 {
-            opt_vars().p_tw = 0;
-            opt_vars().p_wm = 0;
-            opt_vars().p_ml = false;
-            opt_vars().p_et = false;
-            opt_vars().p_bin = true;
+            opt_vars().p_tw.set(0);
+            opt_vars().p_wm.set(0);
+            opt_vars().p_ml.set(false);
+            opt_vars().p_et.set(false);
+            opt_vars().p_bin.set(true);
         }
     } else if oldval != 0 {
         if (opt_flags & OPT_GLOBAL) == 0 {
@@ -2151,10 +2155,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
             curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
         }
         if (opt_flags & OPT_LOCAL) == 0 {
-            opt_vars().p_tw = OPT_STATE.with(|s| s.p_tw_nobin.get());
-            opt_vars().p_wm = OPT_STATE.with(|s| s.p_wm_nobin.get());
-            opt_vars().p_ml = OPT_STATE.with(|s| s.p_ml_nobin.get());
-            opt_vars().p_et = OPT_STATE.with(|s| s.p_et_nobin.get());
+            opt_vars().p_tw.set(OPT_STATE.with(|s| s.p_tw_nobin.get()));
+            opt_vars().p_wm.set(OPT_STATE.with(|s| s.p_wm_nobin.get()));
+            opt_vars().p_ml.set(OPT_STATE.with(|s| s.p_ml_nobin.get()));
+            opt_vars().p_et.set(OPT_STATE.with(|s| s.p_et_nobin.get()));
         }
     }
 
@@ -2574,14 +2578,14 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut errmsg: Option<&CStr> = None;
 
     if win.w_onebuf_opt.wo_arab {
-        if !opt_vars().p_tbidi {
+        if !opt_vars().p_tbidi.get() {
             if !win.w_onebuf_opt.wo_rl {
                 win.w_onebuf_opt.wo_rl = true;
                 changed_window_setting(&mut *win);
             }
 
-            if !opt_vars().p_arshape {
-                opt_vars().p_arshape = true;
+            if !opt_vars().p_arshape.get() {
+                opt_vars().p_arshape.set(true);
                 redraw_all_later(UPD_NOT_VALID);
             }
         }
@@ -2592,7 +2596,7 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             set_vim_var_string(VV_WARNINGMSG, Some(tr(W_ARABIC)), -1);
         }
 
-        opt_vars().p_deco = true;
+        opt_vars().p_deco.set(true);
 
         errmsg = set_option_value(
             K_OPT_KEYMAP,
@@ -2602,7 +2606,7 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             args.os_errbuf.take(),
         );
     } else {
-        if !opt_vars().p_tbidi && win.w_onebuf_opt.wo_rl {
+        if !opt_vars().p_tbidi.get() && win.w_onebuf_opt.wo_rl {
             win.w_onebuf_opt.wo_rl = false;
             changed_window_setting(&mut *win);
         }
@@ -2655,14 +2659,16 @@ pub fn did_set_buflisted<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_cmdheight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let old_value = args.os_oldval.data.integer();
 
-    if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1) {
-        opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1);
+    if opt_vars().p_ch.get() > OptInt::from(g_st().rows_global - min_rows(&curtab_mut()) + 1) {
+        opt_vars().p_ch.set(OptInt::from(
+            g_st().rows_global - min_rows(&curtab_mut()) + 1,
+        ));
     }
 
-    if (opt_vars().p_ch != old_value
+    if (opt_vars().p_ch.get() != old_value
         || OptInt::from(
             tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height.get(),
-        ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
+        ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch.get())
         && g_st().full_screen
     {
         command_height();
@@ -2689,7 +2695,7 @@ pub fn did_set_eof_eol_fixeol_bomb<'a>(_args: &mut Optset<'a>) -> Option<&'a CSt
 
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_ea && !args.os_oldval.data.boolean() {
+    if opt_vars().p_ea.get() && !args.os_oldval.data.boolean() {
         win_equal(args.os_win.opt(), false, 0);
     }
     None
@@ -2746,9 +2752,9 @@ pub fn did_set_follow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_helpheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !firstwin_mut().w_next.is_null()
         && curbuf_mut().b_help
-        && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
+        && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh.get()
     {
-        win_setheight(opt_vars().p_hh as i32);
+        win_setheight(opt_vars().p_hh.get() as i32);
     }
     None
 }
@@ -2761,7 +2767,7 @@ pub fn did_set_hlsearch<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the updated 'ignorecase' option value.
 pub fn did_set_ignorecase<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_hls {
+    if opt_vars().p_hls.get() {
         redraw_all_later(UPD_SOME_VALID);
     }
     None
@@ -2776,13 +2782,13 @@ pub fn did_set_iminsert<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the updated 'langnoremap' option value.
 pub fn did_set_langnoremap<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    opt_vars().p_lrm = !opt_vars().p_lnr;
+    opt_vars().p_lrm.set(!opt_vars().p_lnr.get());
     None
 }
 
 /// Process the updated 'langremap' option value.
 pub fn did_set_langremap<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    opt_vars().p_lnr = !opt_vars().p_lrm;
+    opt_vars().p_lnr.set(!opt_vars().p_lrm.get());
     None
 }
 
@@ -2811,31 +2817,39 @@ pub fn did_set_laststatus<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the updated 'lines' or 'columns' option value.
 pub fn did_set_lines_or_columns<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_lines != OptInt::from(g_st().rows_global)
-        || opt_vars().p_columns != OptInt::from(g_st().columns_global)
+    if opt_vars().p_lines.get() != OptInt::from(g_st().rows_global)
+        || opt_vars().p_columns.get() != OptInt::from(g_st().columns_global)
     {
         if g_st().updating_screen {
             let oldval = integer_obj(args.os_oldval.data.integer());
             set_option_varp(args.os_idx, args.os_varp, oldval);
         } else if g_st().full_screen {
-            screen_resize(opt_vars().p_columns as i32, opt_vars().p_lines as i32);
+            screen_resize(
+                opt_vars().p_columns.get() as i32,
+                opt_vars().p_lines.get() as i32,
+            );
         } else {
-            g_st().rows_global = opt_vars().p_lines as i32;
-            g_st().columns_global = opt_vars().p_columns as i32;
+            g_st().rows_global = opt_vars().p_lines.get() as i32;
+            g_st().columns_global = opt_vars().p_columns.get() as i32;
             check_screensize();
-            let new_row = (OptInt::from(g_st().rows_global) - opt_vars().p_ch.max(1)) as i32;
-            if g_st().cmdline_row > new_row && OptInt::from(g_st().rows_global) > opt_vars().p_ch {
+            let new_row = (OptInt::from(g_st().rows_global) - opt_vars().p_ch.get().max(1)) as i32;
+            if g_st().cmdline_row > new_row
+                && OptInt::from(g_st().rows_global) > opt_vars().p_ch.get()
+            {
                 g_st().cmdline_row = new_row;
             }
         }
-        if opt_vars().p_window >= OptInt::from(g_st().rows_global) || !option_was_set(K_OPT_WINDOW)
+        if opt_vars().p_window.get() >= OptInt::from(g_st().rows_global)
+            || !option_was_set(K_OPT_WINDOW)
         {
-            opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
+            opt_vars()
+                .p_window
+                .set(OptInt::from(g_st().rows_global - 1));
         }
     }
 
-    if opt_vars().p_sj >= OptInt::from(g_st().rows_global) && g_st().full_screen {
-        opt_vars().p_sj = OptInt::from(g_st().rows_global / 2);
+    if opt_vars().p_sj.get() >= OptInt::from(g_st().rows_global) && g_st().full_screen {
+        opt_vars().p_sj.set(OptInt::from(g_st().rows_global / 2));
     }
 
     None
@@ -2883,7 +2897,7 @@ pub fn did_set_numberwidth<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the updated 'paste' option value.
 pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_paste {
+    if opt_vars().p_paste.get() {
         if !OPT_STATE.with(|s| s.old_p_paste.get()) {
             for buf in for_all_buffers_mut() {
                 buf.b_p_tw_nopaste = buf.b_p_tw;
@@ -2894,15 +2908,15 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
                 buf.b_p_vsts_nopaste = (!buf.b_p_vsts.is_empty()).then(|| buf.b_p_vsts.to_owned());
             }
 
-            OPT_STATE.with(|s| s.save_sm.set(opt_vars().p_sm));
-            OPT_STATE.with(|s| s.save_sta.set(opt_vars().p_sta));
-            OPT_STATE.with(|s| s.save_ru.set(opt_vars().p_ru));
-            OPT_STATE.with(|s| s.save_ri.set(opt_vars().p_ri));
-            OPT_STATE.with(|s| s.p_ai_nopaste.set(opt_vars().p_ai));
-            OPT_STATE.with(|s| s.p_et_nopaste.set(opt_vars().p_et));
-            OPT_STATE.with(|s| s.p_sts_nopaste.set(opt_vars().p_sts));
-            OPT_STATE.with(|s| s.p_tw_nopaste.set(opt_vars().p_tw));
-            OPT_STATE.with(|s| s.p_wm_nopaste.set(opt_vars().p_wm));
+            OPT_STATE.with(|s| s.save_sm.set(opt_vars().p_sm.get()));
+            OPT_STATE.with(|s| s.save_sta.set(opt_vars().p_sta.get()));
+            OPT_STATE.with(|s| s.save_ru.set(opt_vars().p_ru.get()));
+            OPT_STATE.with(|s| s.save_ri.set(opt_vars().p_ri.get()));
+            OPT_STATE.with(|s| s.p_ai_nopaste.set(opt_vars().p_ai.get()));
+            OPT_STATE.with(|s| s.p_et_nopaste.set(opt_vars().p_et.get()));
+            OPT_STATE.with(|s| s.p_sts_nopaste.set(opt_vars().p_sts.get()));
+            OPT_STATE.with(|s| s.p_tw_nopaste.set(opt_vars().p_tw.get()));
+            OPT_STATE.with(|s| s.p_wm_nopaste.set(opt_vars().p_wm.get()));
             P_VSTS_NOPASTE.with(|cell| {
                 *cell.borrow_mut() =
                     (!opt_vars().p_vsts.is_empty()).then(|| opt_vars().p_vsts.to_owned());
@@ -2919,18 +2933,18 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             buf.b_p_vsts_array.clear();
         }
 
-        opt_vars().p_sm = false;
-        opt_vars().p_sta = false;
-        if opt_vars().p_ru {
+        opt_vars().p_sm.set(false);
+        opt_vars().p_sta.set(false);
+        if opt_vars().p_ru.get() {
             status_redraw_all();
         }
-        opt_vars().p_ru = false;
-        opt_vars().p_ri = false;
-        opt_vars().p_tw = 0;
-        opt_vars().p_wm = 0;
-        opt_vars().p_sts = 0;
-        opt_vars().p_ai = false;
-        opt_vars().p_et = false;
+        opt_vars().p_ru.set(false);
+        opt_vars().p_ri.set(false);
+        opt_vars().p_tw.set(0);
+        opt_vars().p_wm.set(0);
+        opt_vars().p_sts.set(0);
+        opt_vars().p_ai.set(false);
+        opt_vars().p_et.set(false);
         opt_vars().p_vsts.clear_option_str();
     } else if OPT_STATE.with(|s| s.old_p_paste.get()) {
         for buf in for_all_buffers_mut() {
@@ -2950,26 +2964,36 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             }
         }
 
-        opt_vars().p_sm = OPT_STATE.with(|s| s.save_sm.get());
-        opt_vars().p_sta = OPT_STATE.with(|s| s.save_sta.get());
-        if opt_vars().p_ru != OPT_STATE.with(|s| s.save_ru.get()) {
+        opt_vars().p_sm.set(OPT_STATE.with(|s| s.save_sm.get()));
+        opt_vars().p_sta.set(OPT_STATE.with(|s| s.save_sta.get()));
+        if opt_vars().p_ru.get() != OPT_STATE.with(|s| s.save_ru.get()) {
             status_redraw_all();
         }
-        opt_vars().p_ru = OPT_STATE.with(|s| s.save_ru.get());
-        opt_vars().p_ri = OPT_STATE.with(|s| s.save_ri.get());
-        opt_vars().p_ai = OPT_STATE.with(|s| s.p_ai_nopaste.get());
-        opt_vars().p_et = OPT_STATE.with(|s| s.p_et_nopaste.get());
-        opt_vars().p_sts = OPT_STATE.with(|s| s.p_sts_nopaste.get());
-        opt_vars().p_tw = OPT_STATE.with(|s| s.p_tw_nopaste.get());
-        opt_vars().p_wm = OPT_STATE.with(|s| s.p_wm_nopaste.get());
-        opt_vars().p_vsts = P_VSTS_NOPASTE.with(|cell| {
+        opt_vars().p_ru.set(OPT_STATE.with(|s| s.save_ru.get()));
+        opt_vars().p_ri.set(OPT_STATE.with(|s| s.save_ri.get()));
+        opt_vars()
+            .p_ai
+            .set(OPT_STATE.with(|s| s.p_ai_nopaste.get()));
+        opt_vars()
+            .p_et
+            .set(OPT_STATE.with(|s| s.p_et_nopaste.get()));
+        opt_vars()
+            .p_sts
+            .set(OPT_STATE.with(|s| s.p_sts_nopaste.get()));
+        opt_vars()
+            .p_tw
+            .set(OPT_STATE.with(|s| s.p_tw_nopaste.get()));
+        opt_vars()
+            .p_wm
+            .set(OPT_STATE.with(|s| s.p_wm_nopaste.get()));
+        opt_vars().p_vsts.set(P_VSTS_NOPASTE.with(|cell| {
             cell.borrow()
                 .as_deref()
                 .map_or_else(OptString::new, OptString::from_cstr)
-        });
+        }));
     }
 
-    OPT_STATE.with(|s| s.old_p_paste.set(opt_vars().p_paste));
+    OPT_STATE.with(|s| s.old_p_paste.set(opt_vars().p_paste.get()));
 
     didset_options_sctx(OPT_LOCAL | OPT_GLOBAL, P_PASTE_DEP_OPTS);
 
@@ -3087,7 +3111,7 @@ pub fn did_set_spell<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'swapfile' option value.
 pub fn did_set_swapfile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
-    if buf.b_p_swf && opt_vars().p_uc != 0 {
+    if buf.b_p_swf && opt_vars().p_uc.get() != 0 {
         ml_open_file(buf);
     } else {
         mf_close_file(buf, true);
@@ -3114,7 +3138,7 @@ pub fn did_set_title_icon<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'titlelen' option value.
 pub fn did_set_titlelen<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let old_value = args.os_oldval.data.integer();
-    if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen {
+    if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen.get() {
         g_st().need_maketitle = true;
     }
     None
@@ -3124,7 +3148,7 @@ pub fn did_set_titlelen<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.os_buf.as_ptr();
 
-    if !args.buf_mut().b_p_udf && !opt_vars().p_udf {
+    if !args.buf_mut().b_p_udf && !opt_vars().p_udf.get() {
         return None;
     }
 
@@ -3145,9 +3169,9 @@ pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new global 'undolevels' option value.
 pub fn did_set_global_undolevels(value: OptInt, old_value: OptInt) -> Option<&'static CStr> {
-    opt_vars().p_ul = old_value;
+    opt_vars().p_ul.set(old_value);
     u_sync(true);
-    opt_vars().p_ul = value;
+    opt_vars().p_ul.set(value);
     None
 }
 
@@ -3183,7 +3207,7 @@ pub fn did_set_undolevels<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'updatecount' option value.
 pub fn did_set_updatecount<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let old_value = args.os_oldval.data.integer();
-    if opt_vars().p_uc != 0 && old_value == 0 {
+    if opt_vars().p_uc.get() != 0 && old_value == 0 {
         ml_open_files();
     }
     None
@@ -3218,24 +3242,32 @@ pub fn did_set_winblend<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'window' option value.
 pub fn did_set_window<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().rows_global) {
-        opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
+    if opt_vars().p_window.get() < 1
+        || opt_vars().p_window.get() >= OptInt::from(g_st().rows_global)
+    {
+        opt_vars()
+            .p_window
+            .set(OptInt::from(g_st().rows_global - 1));
     }
     None
 }
 
 /// Process the new 'winheight' value.
 pub fn did_set_winheight<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh {
-        win_setheight(opt_vars().p_wh as i32);
+    if !firstwin_mut().w_next.is_null()
+        && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh.get()
+    {
+        win_setheight(opt_vars().p_wh.get() as i32);
     }
     None
 }
 
 /// Process the new 'winwidth' option value.
 pub fn did_set_winwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw {
-        win_setwidth(opt_vars().p_wiw as i32);
+    if !firstwin_mut().w_next.is_null()
+        && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw.get()
+    {
+        win_setwidth(opt_vars().p_wiw.get() as i32);
     }
     None
 }
@@ -3256,7 +3288,7 @@ pub fn did_set_xhistory<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let is_p_chi = args.os_varp.ptr_eq(&opt_vars().p_chi);
 
     if is_p_chi {
-        qf_resize_stack(opt_vars().p_chi as i32);
+        qf_resize_stack(opt_vars().p_chi.get() as i32);
     } else {
         let val = args.os_varp.int_val() as i32;
         ll_resize_stack(args.win_mut(), val);
@@ -3377,28 +3409,28 @@ fn validate_num_option<'a>(
         K_OPT_WINHEIGHT => {
             if value < 1 {
                 return Some(E_POSITIVE);
-            } else if opt_vars().p_wmh > value {
+            } else if opt_vars().p_wmh.get() > value {
                 return Some(E_WINHEIGHT);
             }
         }
         K_OPT_WINMINHEIGHT => {
             if value < 0 {
                 return Some(E_POSITIVE);
-            } else if value > opt_vars().p_wh {
+            } else if value > opt_vars().p_wh.get() {
                 return Some(E_WINHEIGHT);
             }
         }
         K_OPT_WINWIDTH => {
             if value < 1 {
                 return Some(E_POSITIVE);
-            } else if opt_vars().p_wmw > value {
+            } else if opt_vars().p_wmw.get() > value {
                 return Some(E_WINWIDTH);
             }
         }
         K_OPT_WINMINWIDTH => {
             if value < 0 {
                 return Some(E_POSITIVE);
-            } else if value > opt_vars().p_wiw {
+            } else if value > opt_vars().p_wiw.get() {
                 return Some(E_WINWIDTH);
             }
         }
@@ -3611,12 +3643,7 @@ macro_rules! opt_cb {
 
 macro_rules! opt_var {
     ($field:ident) => {
-        Some(|| {
-            OptVar::from(crate::optionstr::OptRef::Global(
-                |v| &v.$field,
-                |v| &mut v.$field,
-            ))
-        })
+        Some(|| OptVar::from(crate::optionstr::OptRef::Global(|v| &v.$field)))
     };
 }
 
@@ -3656,7 +3683,7 @@ macro_rules! winopt_var {
 
 macro_rules! opt_flags {
     ($field:ident) => {
-        Some(|| &mut opt_vars().$field)
+        Some(|| &opt_vars().$field)
     };
 }
 
@@ -6903,11 +6930,11 @@ pub fn get_equalprg() -> std::ffi::CString {
 }
 
 /// Get the value of 'findfunc', either the buffer-local one or the global one.
-pub fn get_findfunc() -> &'static mut Callback {
+pub fn get_findfunc() -> &'static Callback {
     if curbuf_mut().b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
-        &mut curbuf_mut().b_p_ffu
+        &curbuf_mut().b_p_ffu
     } else {
-        &mut opt_vars().p_ffu
+        &opt_vars().p_ffu
     }
 }
 
@@ -7128,42 +7155,42 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 free_buf_options(buf, false);
             }
 
-            buf.b_p_ai = opt_vars().p_ai;
+            buf.b_p_ai = opt_vars().p_ai.get();
             copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
             buf.b_p_ai_nopaste = OPT_STATE.with(|s| s.p_ai_nopaste.get());
-            buf.b_p_sw = opt_vars().p_sw;
+            buf.b_p_sw = opt_vars().p_sw.get();
             copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
-            buf.b_p_scbk = opt_vars().p_scbk;
+            buf.b_p_scbk = opt_vars().p_scbk.get();
             copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
-            buf.b_p_tw = opt_vars().p_tw;
+            buf.b_p_tw = opt_vars().p_tw.get();
             copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
             buf.b_p_tw_nopaste = OPT_STATE.with(|s| s.p_tw_nopaste.get());
             buf.b_p_tw_nobin = OPT_STATE.with(|s| s.p_tw_nobin.get());
-            buf.b_p_wm = opt_vars().p_wm;
+            buf.b_p_wm = opt_vars().p_wm.get();
             copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
             buf.b_p_wm_nopaste = OPT_STATE.with(|s| s.p_wm_nopaste.get());
             buf.b_p_wm_nobin = OPT_STATE.with(|s| s.p_wm_nobin.get());
-            buf.b_p_bin = opt_vars().p_bin;
+            buf.b_p_bin = opt_vars().p_bin.get();
             copy_opt_sctx(buf, K_BUF_OPT_BINARY);
-            buf.b_p_bomb = opt_vars().p_bomb;
+            buf.b_p_bomb = opt_vars().p_bomb.get();
             copy_opt_sctx(buf, K_BUF_OPT_BOMB);
-            buf.b_p_et = opt_vars().p_et;
+            buf.b_p_et = opt_vars().p_et.get();
             copy_opt_sctx(buf, K_BUF_OPT_EXPANDTAB);
-            buf.b_p_fixeol = opt_vars().p_fixeol;
+            buf.b_p_fixeol = opt_vars().p_fixeol.get();
             copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
-            buf.b_p_follow = opt_vars().p_follow;
+            buf.b_p_follow = opt_vars().p_follow.get();
             copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
             buf.b_p_et_nobin = OPT_STATE.with(|s| s.p_et_nobin.get());
             buf.b_p_et_nopaste = OPT_STATE.with(|s| s.p_et_nopaste.get());
-            buf.b_p_ml = opt_vars().p_ml;
+            buf.b_p_ml = opt_vars().p_ml.get();
             copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
             buf.b_p_ml_nobin = OPT_STATE.with(|s| s.p_ml_nobin.get());
-            buf.b_p_inf = opt_vars().p_inf;
+            buf.b_p_inf = opt_vars().p_inf.get();
             copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
             if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
                 buf.b_p_swf = false;
             } else {
-                buf.b_p_swf = opt_vars().p_swf;
+                buf.b_p_swf = opt_vars().p_swf.get();
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
             }
             buf.b_p_cpt.set_option_cstr(opt_vars().p_cpt.as_cstr());
@@ -7181,7 +7208,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_OMNIFUNC);
             callback_copy(&buf.b_p_tfu, &opt_vars().p_tfu);
             copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
-            buf.b_p_sts = opt_vars().p_sts;
+            buf.b_p_sts = opt_vars().p_sts.get();
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
             buf.b_p_sts_nopaste = OPT_STATE.with(|s| s.p_sts_nopaste.get());
             buf.b_p_vsts.set_option_cstr(opt_vars().p_vsts.as_cstr());
@@ -7204,12 +7231,12 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
             buf.b_p_mps.set_option_cstr(opt_vars().p_mps.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
-            buf.b_p_si = opt_vars().p_si;
+            buf.b_p_si = opt_vars().p_si.get();
             copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
             buf.b_p_channel = 0;
-            buf.b_p_ci = opt_vars().p_ci;
+            buf.b_p_ci = opt_vars().p_ci.get();
             copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
-            buf.b_p_cin = opt_vars().p_cin;
+            buf.b_p_cin = opt_vars().p_cin.get();
             copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
             buf.b_p_cink.set_option_cstr(opt_vars().p_cink.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
@@ -7221,14 +7248,14 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
             buf.b_p_ft.set(empty_opt.clone());
-            buf.b_p_pi = opt_vars().p_pi;
+            buf.b_p_pi = opt_vars().p_pi.get();
             copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
             buf.b_p_cinw.set_option_cstr(opt_vars().p_cinw.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
-            buf.b_p_lisp = opt_vars().p_lisp;
+            buf.b_p_lisp = opt_vars().p_lisp.get();
             copy_opt_sctx(buf, K_BUF_OPT_LISP);
             buf.b_p_syn.set(empty_opt.clone());
-            buf.b_p_smc = opt_vars().p_smc;
+            buf.b_p_smc = opt_vars().p_smc.get();
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
             buf.b_s.b_syn_isk = None;
             buf.b_s.b_p_spc.set_option_cstr(opt_vars().p_spc.as_cstr());
@@ -7240,7 +7267,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
             buf.b_s.b_p_spo.set_option_cstr(opt_vars().p_spo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
-            buf.b_s.b_p_spo_flags = opt_vars().spo_flags;
+            buf.b_s.b_p_spo_flags = opt_vars().spo_flags.get();
             callback_copy(&buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
             buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
@@ -7256,9 +7283,9 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 .set_option_cstr(opt_vars().p_keymap.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
             buf.b_kmap_state |= KEYMAP_INIT;
-            buf.b_p_iminsert = opt_vars().p_iminsert;
+            buf.b_p_iminsert = opt_vars().p_iminsert.get();
             copy_opt_sctx(buf, K_BUF_OPT_IMINSERT);
-            buf.b_p_imsearch = opt_vars().p_imsearch;
+            buf.b_p_imsearch = opt_vars().p_imsearch.get();
             copy_opt_sctx(buf, K_BUF_OPT_IMSEARCH);
 
             buf.b_p_ac = None;
@@ -7295,7 +7322,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 .set(crate::eval::typval::CallbackData::NONE);
             buf.b_p_qe.set_option_cstr(opt_vars().p_qe.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
-            buf.b_p_udf = opt_vars().p_udf;
+            buf.b_p_udf = opt_vars().p_udf.get();
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
             buf.b_p_lw.set(empty_opt.clone());
             buf.b_p_menc = empty_opt;
@@ -7314,7 +7341,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_isk = opt_vars().p_isk.clone();
                 copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
                 did_isk = true;
-                buf.b_p_ts = opt_vars().p_ts;
+                buf.b_p_ts = opt_vars().p_ts.get();
                 copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
                 buf.b_p_vts = opt_vars().p_vts.clone();
                 copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
@@ -7330,7 +7357,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 if buf.b_p_bt.first_byte() == b'h' {
                     buf.b_p_bt.clear_option_str();
                 }
-                buf.b_p_ma = opt_vars().p_ma;
+                buf.b_p_ma = opt_vars().p_ma.get();
                 copy_opt_sctx(buf, K_BUF_OPT_MODIFIABLE);
             }
         }
@@ -7349,18 +7376,18 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
 /// Reset the 'modifiable' option and its default value.
 pub fn reset_modifiable() {
     curbuf_mut().b_p_ma = false;
-    opt_vars().p_ma = false;
+    opt_vars().p_ma.set(false);
     change_option_default(K_OPT_MODIFIABLE, boolean_obj(false));
 }
 
 /// Set the global value for 'iminsert' to the local value.
 pub fn set_iminsert_global(buf: &mut FileBuf) {
-    opt_vars().p_iminsert = buf.b_p_iminsert;
+    opt_vars().p_iminsert.set(buf.b_p_iminsert);
 }
 
 /// Set the global value for 'imsearch' to the local value.
 pub fn set_imsearch_global(buf: &mut FileBuf) {
-    opt_vars().p_imsearch = buf.b_p_imsearch;
+    opt_vars().p_imsearch.set(buf.b_p_imsearch);
 }
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
@@ -8052,7 +8079,7 @@ pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
     if buf.b_bkc_flags != 0 {
         buf.b_bkc_flags
     } else {
-        opt_vars().bkc_flags
+        opt_vars().bkc_flags.get()
     }
 }
 
@@ -8070,7 +8097,7 @@ pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
     let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
         wp.w_onebuf_opt.wo_ve_flags
     } else {
-        opt_vars().ve_flags
+        opt_vars().ve_flags.get()
     };
     f & !(K_OPT_VE_FLAG_NONE | K_OPT_VE_FLAG_NONE_U)
 }
@@ -8287,7 +8314,7 @@ pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
         return 0;
     }
     if wp.w_onebuf_opt.wo_so < 0 {
-        opt_vars().p_so
+        opt_vars().p_so.get()
     } else {
         wp.w_onebuf_opt.wo_so
     }
@@ -8296,7 +8323,7 @@ pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
 /// Return the effective 'scrolloffpad' value for the current window.
 pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
     if wp.w_onebuf_opt.wo_sop == -1 {
-        opt_vars().p_sop
+        opt_vars().p_sop.get()
     } else {
         wp.w_onebuf_opt.wo_sop
     }
@@ -8305,7 +8332,7 @@ pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
 /// Return the effective 'sidescrolloff' value for the current window.
 pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
     if wp.w_onebuf_opt.wo_siso < 0 {
-        opt_vars().p_siso
+        opt_vars().p_siso.get()
     } else {
         wp.w_onebuf_opt.wo_siso
     }

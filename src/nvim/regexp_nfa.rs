@@ -2740,7 +2740,7 @@ fn addstate_idx(
             if l.n as usize == l.t.capacity() {
                 let newlen = l.t.capacity() * 3 / 2 + 50;
                 let newsize = newlen * size_of::<NfaThread>();
-                if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
+                if ((newsize >> 10) as i64) >= opt_vars().p_mmp.get() {
                     emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                     return false;
                 }
@@ -3059,7 +3059,7 @@ fn addstate_here(
         if (l.n + count) as usize > l.t.len() {
             let newlen = l.t.len() * 3 / 2 + 50;
             let newsize = newlen * size_of::<NfaThread>();
-            if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
+            if ((newsize >> 10) as i64) >= opt_vars().p_mmp.get() {
                 emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                 return false;
             }

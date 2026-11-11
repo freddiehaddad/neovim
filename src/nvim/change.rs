@@ -730,7 +730,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         drop(newp_vec);
         inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
-        if opt_vars().p_sm
+        if opt_vars().p_sm.get()
             && (g_st().state_global & MODE_INSERT) != 0
             && g_st().msg_silent == 0
             && !ins_compl_active()
@@ -738,7 +738,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
             showmatch(crate::mbyte::utf_slice2char(buf_slice));
         }
 
-        if !opt_vars().p_ri || (g_st().state_global & REPLACE_FLAG) != 0 {
+        if !opt_vars().p_ri.get() || (g_st().state_global & REPLACE_FLAG) != 0 {
             curwin_mut().w_cursor.col += charlen as Colnr;
         }
     }
@@ -816,7 +816,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     }
 
     let col_u = col as usize;
-    if opt_vars().p_deco
+    if opt_vars().p_deco.get()
         && use_delcombine
         && utfc_ptr2len(oldp_bytes.get(col_u..).unwrap_or(&[])) >= count
     {
@@ -1080,7 +1080,7 @@ pub fn open_line(
         g_st().ins_global.did_ai = true;
     }
 
-    let do_cindent = !opt_vars().p_paste
+    let do_cindent = !opt_vars().p_paste.get()
         && (curbuf_mut().b_p_cin || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
         && in_cinkeys(
             if dir == FORWARD {
@@ -1638,7 +1638,7 @@ pub fn open_line(
             curwin_mut().w_cursor.lnum += 1;
             if g_st().ins_global.did_si {
                 let sw = get_sw_value(curbuf_mut());
-                if opt_vars().p_sr {
+                if opt_vars().p_sr.get() {
                     newindent -= newindent % sw;
                 }
                 newindent += sw;
@@ -1777,7 +1777,7 @@ pub fn open_line(
             0
         };
 
-        if !opt_vars().p_paste {
+        if !opt_vars().p_paste.get() {
             if allocated_vec.is_empty()
                 && !use_indentexpr_for_lisp()
                 && curbuf_mut().b_p_lisp

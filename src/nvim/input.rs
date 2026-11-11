@@ -334,7 +334,7 @@ pub fn mb_byte2len_check(b: i32) -> i32 {
 pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
     if !opt_vars().p_langmap.is_empty()
         && condition
-        && (opt_vars().p_lrm
+        && (opt_vars().p_lrm.get()
             || if g_st().vgetc_busy != 0 {
                 typebuf_maplen() == 0
             } else {
@@ -1506,12 +1506,12 @@ fn updatescript(c: i32) {
     }
     let idle = c == 0;
     if idle
-        || (opt_vars().p_uc > 0 && {
+        || (opt_vars().p_uc.get() > 0 && {
             INP_STATE.with(|s| s.updatescript_count.set(s.updatescript_count.get() + (1)));
-            (INP_STATE.with(|s| s.updatescript_count.get()) as OptInt) >= opt_vars().p_uc
+            (INP_STATE.with(|s| s.updatescript_count.get()) as OptInt) >= opt_vars().p_uc.get()
         })
     {
-        ml_sync_all(i32::from(idle), 1, opt_vars().p_fs || idle);
+        ml_sync_all(i32::from(idle), 1, opt_vars().p_fs.get() || idle);
         INP_STATE.with(|s| s.updatescript_count.set(0));
     }
 }
@@ -1537,7 +1537,7 @@ pub fn merge_modifiers(c_arg: i32, modifiers: &mut i32) -> i32 {
 }
 
 fn add_byte_to_showcmd(byte: u8) {
-    if !opt_vars().p_sc || g_st().msg_silent != 0 {
+    if !opt_vars().p_sc.get() || g_st().msg_silent != 0 {
         return;
     }
 
@@ -2156,7 +2156,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         && (g_st().typebuf.tb_maplen == 0
             || is_plug_map
             || (g_st().typebuf.tb_noremap[tb_off] & (RM_NONE | RM_ABBR)) == 0)
-        && !(opt_vars().p_paste && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
+        && !(opt_vars().p_paste.get() && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
         && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
         && g_st().state_global != MODE_ASKMORE
         && !at_ins_compl_key()
@@ -2342,7 +2342,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         del_typebuf(keylen, 0);
 
         *mapdepth += 1;
-        if (*mapdepth as OptInt) >= opt_vars().p_mmd {
+        if (*mapdepth as OptInt) >= opt_vars().p_mmd.get() {
             emsg(gettext(E_RECURSIVE_MAPPING));
             if (g_st().state_global & MODE_CMDLINE) != 0 {
                 redrawcmdline();
@@ -2596,8 +2596,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                     && g_st().ex_normal_busy == 0
                     && g_st().typebuf.tb_maplen == 0
                     && (g_st().state_global & MODE_INSERT) != 0
-                    && (opt_vars().p_timeout
-                        || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout))
+                    && (opt_vars().p_timeout.get()
+                        || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout.get()))
                     && {
                         c = inchar(
                             (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
@@ -2722,7 +2722,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     break;
                 }
 
-                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz)
+                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz.get())
                     && (g_st().state_global & MODE_CMDLINE) == 0
                     && advance
                     && g_st().must_redraw != 0
@@ -2787,14 +2787,14 @@ fn vgetorpeek(advance: bool) -> i32 {
                 let mut wait_time: i64 = 0;
                 if advance {
                     if g_st().typebuf.tb_len == 0
-                        || !(opt_vars().p_timeout
-                            || (opt_vars().p_ttimeout && keylen == KEYLEN_PART_KEY))
+                        || !(opt_vars().p_timeout.get()
+                            || (opt_vars().p_ttimeout.get() && keylen == KEYLEN_PART_KEY))
                     {
                         wait_time = -1;
-                    } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
-                        wait_time = opt_vars().p_ttm;
+                    } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm.get() >= 0 {
+                        wait_time = opt_vars().p_ttm.get();
                     } else {
-                        wait_time = opt_vars().p_tm;
+                        wait_time = opt_vars().p_tm.get();
                     }
                 }
 
@@ -2851,7 +2851,7 @@ fn vgetorpeek(advance: bool) -> i32 {
     }
 
     if advance
-        && opt_vars().p_smd
+        && opt_vars().p_smd.get()
         && g_st().msg_silent == 0
         && (g_st().state_global & MODE_INSERT) != 0
     {

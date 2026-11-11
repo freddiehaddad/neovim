@@ -216,7 +216,7 @@ pub fn ascii2cells(b: i32) -> i32 {
     if (b' ' as i32..=b'~' as i32).contains(&b) {
         1
     } else {
-        opt_vars().dy_escape_width
+        opt_vars().dy_escape_width.get()
     }
 }
 
@@ -598,7 +598,7 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: &mut [u8], mut c: i32)
     }
     assert!(c <= 0xff);
 
-    if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
+    if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
         transchar_hex(charbuf, c);
     } else {
         charbuf[0] = b'^';

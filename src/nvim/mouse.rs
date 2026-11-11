@@ -416,9 +416,11 @@ fn get_fpos_of_mouse(
 
     if winrow >= wp.w_view_height + wp.w_status_height {
         if g_st().mouse_grid <= 1
-            && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch
+            && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch.get()
             && i64::from(g_st().mouse_row)
-                >= i64::from(g_st().rows_global) - opt_vars().p_ch - i64::from(global_stl_height())
+                >= i64::from(g_st().rows_global)
+                    - opt_vars().p_ch.get()
+                    - i64::from(global_stl_height())
         {
             return IN_STATUS_LINE;
         }
@@ -1162,7 +1164,7 @@ pub fn do_mouse(
 
     if (!g_st().visual_global.active && old_active && g_st().mode_displayed)
         || (g_st().visual_global.active
-            && opt_vars().p_smd
+            && opt_vars().p_smd.get()
             && g_st().msg_silent == 0
             && (!old_active || g_st().visual_global.mode != old_mode))
     {
@@ -1217,7 +1219,7 @@ pub fn do_mousescroll(cap: &mut Cmdarg) {
             if shift_or_ctrl {
                 cap.count1 = curwin_mut().w_botline - curwin_mut().w_topline;
             } else {
-                cap.count1 = opt_vars().p_mousescroll_vert as i32;
+                cap.count1 = opt_vars().p_mousescroll_vert.get() as i32;
             }
             if cap.count1 > 0 {
                 cap.count0 = cap.count1;
@@ -1228,7 +1230,7 @@ pub fn do_mousescroll(cap: &mut Cmdarg) {
         let step = if shift_or_ctrl {
             curwin_mut().w_view_width
         } else {
-            opt_vars().p_mousescroll_hor as i32
+            opt_vars().p_mousescroll_hor.get() as i32
         };
         let leftcol =
             (curwin_mut().w_leftcol + if cap.arg == MSCR_RIGHT { -step } else { step }).max(0);
@@ -1712,7 +1714,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         may_start_select(b'o' as i32);
         setmouse();
 
-        if opt_vars().p_smd && g_st().msg_silent == 0 {
+        if opt_vars().p_smd.get() && g_st().msg_silent == 0 {
             g_st().redraw_cmdline = true;
         }
     }

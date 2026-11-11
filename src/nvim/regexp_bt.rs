@@ -2694,7 +2694,7 @@ impl BtRegStack {
 
     #[inline(always)]
     fn push(&mut self, state: Regstate, scan: Option<usize>) -> Option<&mut Regitem> {
-        if i64::from((self.byte_len() as u32) >> 10) >= opt_vars().p_mmp {
+        if i64::from((self.byte_len() as u32) >> 10) >= opt_vars().p_mmp.get() {
             emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
             return None;
         }
@@ -3592,7 +3592,8 @@ fn regmatch_inner(
                             } else {
                                 rst.count >= rst.maxval
                             } {
-                                if i64::from((regstack.byte_len() as u32) >> 10) >= opt_vars().p_mmp
+                                if i64::from((regstack.byte_len() as u32) >> 10)
+                                    >= opt_vars().p_mmp.get()
                                 {
                                     emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                                     status = RegAction::Fail;
@@ -3626,7 +3627,9 @@ fn regmatch_inner(
                             }
                         }
                         BEHIND | NOBEHIND => {
-                            if i64::from((regstack.byte_len() as u32) >> 10) >= opt_vars().p_mmp {
+                            if i64::from((regstack.byte_len() as u32) >> 10)
+                                >= opt_vars().p_mmp.get()
+                            {
                                 emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                                 status = RegAction::Fail;
                             } else if let Some(rp) = regstack.push(RS_BEHIND1, scan) {

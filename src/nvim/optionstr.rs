@@ -155,7 +155,7 @@ impl OptSetPrep {
 }
 
 pub enum OptRef<T: 'static> {
-    Global(fn(&OptionVars) -> &T, fn(&mut OptionVars) -> &mut T),
+    Global(fn(&OptionVars) -> &T),
     Win(
         crate::globals::WinPtr,
         fn(&WinInfoInfo) -> &T,
@@ -181,7 +181,7 @@ impl<T: 'static> OptRef<T> {
     #[inline]
     pub fn get(self) -> &'static T {
         match self {
-            Self::Global(f, _) => f(opt_vars()),
+            Self::Global(f) => f(opt_vars()),
             Self::Win(w, f, _) => f(w.borrow()),
             Self::Buf(b, f, _) => f(b.borrow()),
         }
@@ -190,7 +190,7 @@ impl<T: 'static> OptRef<T> {
     #[inline]
     pub fn get_mut(self) -> &'static mut T {
         match self {
-            Self::Global(_, f) => f(opt_vars()),
+            Self::Global(_) => unreachable!(),
             Self::Win(w, _, f) => f(w.borrow_mut()),
             Self::Buf(b, _, f) => f(b.borrow_mut()),
         }
@@ -215,6 +215,8 @@ impl<T: 'static> Eq for OptRef<T> {}
 pub enum OptVar {
     #[default]
     None,
+    GlobalBool(OptRef<std::cell::Cell<bool>>),
+    GlobalInt(OptRef<std::cell::Cell<crate::option::OptInt>>),
     Bool(OptRef<bool>),
     I32Bool(OptRef<i32>),
     OptBool(OptRef<Option<bool>>),
@@ -240,6 +242,8 @@ impl OptVar {
         let p = std::ptr::from_ref(other).cast::<()>();
         match self {
             Self::None => false,
+            Self::GlobalBool(g) => std::ptr::eq(g.as_ptr(), p),
+            Self::GlobalInt(g) => std::ptr::eq(g.as_ptr(), p),
             Self::Bool(g) => std::ptr::eq(g.as_ptr(), p),
             Self::I32Bool(g) => std::ptr::eq(g.as_ptr(), p),
             Self::OptBool(g) => std::ptr::eq(g.as_ptr(), p),
@@ -297,6 +301,7 @@ impl OptVar {
     #[inline]
     pub fn int_val(self) -> crate::option::OptInt {
         match self {
+            Self::GlobalInt(p) => p.get().get(),
             Self::Int(p) => *p.get(),
             _ => 0,
         }
@@ -304,14 +309,17 @@ impl OptVar {
 
     #[inline]
     pub fn set_int(self, val: crate::option::OptInt) {
-        if let Self::Int(p) = self {
-            *p.get_mut() = val;
+        match self {
+            Self::GlobalInt(p) => p.get().set(val),
+            Self::Int(p) => *p.get_mut() = val,
+            _ => {}
         }
     }
 
     #[inline]
     pub fn bool_tristate(self) -> i32 {
         match self {
+            Self::GlobalBool(p) => i32::from(p.get().get()),
             Self::Bool(p) => i32::from(*p.get()),
             Self::I32Bool(p) => i32::from(*p.get() != 0),
             Self::OptBool(p) => match *p.get() {
@@ -325,6 +333,7 @@ impl OptVar {
     #[inline]
     pub fn set_bool(self, val: Option<bool>) {
         match self {
+            Self::GlobalBool(p) => p.get().set(val.unwrap()),
             Self::Bool(p) => *p.get_mut() = val.unwrap(),
             Self::I32Bool(p) => *p.get_mut() = i32::from(val.unwrap()),
             Self::OptBool(p) => *p.get_mut() = val,
@@ -338,6 +347,20 @@ impl OptVar {
             Self::Callback(p) => p.get(),
             _ => unreachable!(),
         }
+    }
+}
+
+impl From<OptRef<std::cell::Cell<bool>>> for OptVar {
+    #[inline]
+    fn from(r: OptRef<std::cell::Cell<bool>>) -> Self {
+        Self::GlobalBool(r)
+    }
+}
+
+impl From<OptRef<std::cell::Cell<crate::option::OptInt>>> for OptVar {
+    #[inline]
+    fn from(r: OptRef<std::cell::Cell<crate::option::OptInt>>) -> Self {
+        Self::GlobalInt(r)
     }
 }
 
@@ -473,7 +496,7 @@ pub struct Vimoption {
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
     pub var: Option<fn() -> OptVar>,
-    pub flags_var: Option<fn() -> &'static mut u32>,
+    pub flags_var: Option<fn() -> &'static std::cell::Cell<u32>>,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
     pub values: &'static [&'static std::ffi::CStr],
@@ -492,7 +515,7 @@ impl Vimoption {
     }
 
     #[inline]
-    pub fn flags_var_mut(&self) -> Option<&'static mut u32> {
+    pub fn flags_var_mut(&self) -> Option<&'static std::cell::Cell<u32>> {
         self.flags_var.map(|f| f())
     }
 }
@@ -1219,7 +1242,20 @@ fn check_str_opt<'a>(
     let val_cstr = var_cstr.unwrap_or_else(|| opt.var().as_cstr());
     let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
-    opt_strings_flags(val_cstr, values, opt.flags_var_mut(), list, errbuf)
+    let mut new_flags = 0u32;
+    let err = opt_strings_flags(
+        val_cstr,
+        values,
+        opt.flags_var_mut().map(|_| &mut new_flags),
+        list,
+        errbuf,
+    );
+    if err.is_none()
+        && let Some(slot) = opt.flags_var_mut()
+    {
+        slot.set(new_flags);
+    }
+    err
 }
 
 pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -1457,27 +1493,32 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt_flags = args.os_flags;
     let p_bkc = opt_vars().p_bkc.to_owned();
     let mut bkc = p_bkc.as_c_str();
-    let mut flags: &mut u32 = &mut opt_vars().bkc_flags;
+    let is_local = (opt_flags & OPT_LOCAL) != 0;
 
-    if (opt_flags & OPT_LOCAL) != 0 {
+    if is_local {
         bkc = buf.b_p_bkc.as_cstr();
-        flags = &mut buf.b_bkc_flags;
     } else if (opt_flags & OPT_GLOBAL) == 0 {
         buf.b_bkc_flags = 0;
     }
 
-    if (opt_flags & OPT_LOCAL) != 0 && bkc.to_bytes().is_empty() {
-        *flags = 0;
+    if is_local && bkc.to_bytes().is_empty() {
+        buf.b_bkc_flags = 0;
     } else {
+        let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
             bkc,
             &OPT_BKC_VALUES,
-            Some(flags),
+            Some(&mut new_flags),
             true,
             args.os_errbuf.take(),
         );
         if errmsg.is_some() {
             return errmsg;
+        }
+        if is_local {
+            buf.b_bkc_flags = new_flags;
+        } else {
+            opt_vars().bkc_flags.set(new_flags);
         }
     }
 
@@ -1509,11 +1550,13 @@ pub fn validate_backupext_or_patchmode<'a>(args: &mut Optset<'a>) -> Option<&'a 
 
 /// The 'breakat' option is changed.
 pub fn did_set_breakat<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    opt_vars().breakat_flags = [false; 256];
+    for b in &opt_vars().breakat_flags {
+        b.set(false);
+    }
 
     if !opt_vars().p_breakat.is_null() {
         for &p_byte in opt_vars().p_breakat.as_bytes() {
-            opt_vars().breakat_flags[p_byte as usize] = true;
+            opt_vars().breakat_flags[p_byte as usize].set(true);
         }
     }
 
@@ -1878,7 +1921,7 @@ pub fn validate_completeitemalign<'a>(args: &mut Optset<'a>) -> Option<&'a CStr>
 
 /// The 'completeitemalign' option is changed.
 pub fn did_set_completeitemalign<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    opt_vars().cia_flags = args.os_prep.as_flags();
+    opt_vars().cia_flags.set(args.os_prep.as_flags());
     None
 }
 
@@ -1887,22 +1930,30 @@ pub fn did_set_completeopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
     let p_cot = opt_vars().p_cot.to_owned();
     let mut cot = p_cot.as_c_str();
-    let mut flags: &mut u32 = &mut opt_vars().cot_flags;
+    let is_local = (args.os_flags & OPT_LOCAL) != 0;
 
-    if (args.os_flags & OPT_LOCAL) != 0 {
+    if is_local {
         cot = buf.b_p_cot.as_cstr();
-        flags = &mut buf.b_cot_flags;
     } else if opt_flags_is_both(args.os_flags) {
         buf.b_cot_flags = 0;
     }
 
-    opt_strings_flags(
+    let mut new_flags = 0u32;
+    let err = opt_strings_flags(
         cot,
         &OPT_COT_VALUES,
-        Some(flags),
+        Some(&mut new_flags),
         true,
         args.os_errbuf.take(),
-    )
+    );
+    if err.is_none() {
+        if is_local {
+            buf.b_cot_flags = new_flags;
+        } else {
+            opt_vars().cot_flags.set(new_flags);
+        }
+    }
+    err
 }
 
 #[inline]
@@ -2026,11 +2077,13 @@ pub fn did_set_display<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if errmsg.is_some() {
         return errmsg;
     }
-    opt_vars().dy_escape_width = if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 {
-        4
-    } else {
-        2
-    };
+    opt_vars()
+        .dy_escape_width
+        .set(if (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX) != 0 {
+            4
+        } else {
+            2
+        });
     msg_grid_validate();
     None
 }
@@ -2435,16 +2488,16 @@ pub fn did_set_mousescroll<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
         opt_keyset(opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
-    opt_vars().p_mousescroll_hor = if has_hor {
+    opt_vars().p_mousescroll_hor.set(if has_hor {
         i64::from(v.hor as i32)
     } else {
         MOUSESCROLL_HOR_DFLT
-    };
-    opt_vars().p_mousescroll_vert = if has_ver {
+    });
+    opt_vars().p_mousescroll_vert.set(if has_ver {
         i64::from(v.ver as i32)
     } else {
         MOUSESCROLL_VERT_DFLT
-    };
+    });
     None
 }
 
@@ -2697,17 +2750,12 @@ pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt_flags = args.os_flags;
     let val = args.os_newval.data.as_cstr();
 
-    if (opt_flags & OPT_LOCAL) == 0
-        && opt_strings_flags(
-            val,
-            &OPT_SPO_VALUES,
-            Some(&mut opt_vars().spo_flags),
-            true,
-            None,
-        )
-        .is_some()
-    {
-        return opt_strings_flags(val, &OPT_SPO_VALUES, None, true, args.os_errbuf.take());
+    if (opt_flags & OPT_LOCAL) == 0 {
+        let mut new_flags = 0u32;
+        if opt_strings_flags(val, &OPT_SPO_VALUES, Some(&mut new_flags), true, None).is_some() {
+            return opt_strings_flags(val, &OPT_SPO_VALUES, None, true, args.os_errbuf.take());
+        }
+        opt_vars().spo_flags.set(new_flags);
     }
     if (opt_flags & OPT_GLOBAL) == 0 {
         let ws = args.win_mut().w_s_ptr();
@@ -2831,20 +2879,32 @@ pub fn did_set_tagcase<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
     let p_tc = opt_vars().p_tc.to_owned();
+    let is_local = (opt_flags & OPT_LOCAL) != 0;
 
-    let (p, flags): (&CStr, &mut u32) = if (opt_flags & OPT_LOCAL) != 0 {
-        (buf.b_p_tc.as_cstr(), &mut buf.b_tc_flags)
+    let p: &CStr = if is_local {
+        buf.b_p_tc.as_cstr()
     } else {
-        (p_tc.as_c_str(), &mut opt_vars().tc_flags)
+        p_tc.as_c_str()
     };
 
-    if (opt_flags & OPT_LOCAL) != 0 && p.to_bytes().is_empty() {
-        *flags = 0;
+    if is_local && p.to_bytes().is_empty() {
+        buf.b_tc_flags = 0;
     } else {
-        let errmsg =
-            opt_strings_flags(p, &OPT_TC_VALUES, Some(flags), false, args.os_errbuf.take());
+        let mut new_flags = 0u32;
+        let errmsg = opt_strings_flags(
+            p,
+            &OPT_TC_VALUES,
+            Some(&mut new_flags),
+            false,
+            args.os_errbuf.take(),
+        );
         if errmsg.is_some() {
             return errmsg;
+        }
+        if is_local {
+            buf.b_tc_flags = new_flags;
+        } else {
+            opt_vars().tc_flags.set(new_flags);
         }
     }
     None
@@ -2928,21 +2988,32 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     let p_ve = opt_vars().p_ve.to_owned();
     let mut ve = p_ve.as_c_str();
-    let mut flags: &mut u32 = &mut opt_vars().ve_flags;
+    let is_local = (args.os_flags & OPT_LOCAL) != 0;
 
-    if (args.os_flags & OPT_LOCAL) != 0 {
+    if is_local {
         ve = win.w_onebuf_opt.wo_ve.as_cstr();
-        flags = &mut win.w_onebuf_opt.wo_ve_flags;
     }
 
-    if (args.os_flags & OPT_LOCAL) != 0 && ve.to_bytes().is_empty() {
-        *flags = 0;
+    if is_local && ve.to_bytes().is_empty() {
+        win.w_onebuf_opt.wo_ve_flags = 0;
     } else {
-        let errmsg =
-            opt_strings_flags(ve, &OPT_VE_VALUES, Some(flags), true, args.os_errbuf.take());
+        let mut new_flags = 0u32;
+        let errmsg = opt_strings_flags(
+            ve,
+            &OPT_VE_VALUES,
+            Some(&mut new_flags),
+            true,
+            args.os_errbuf.take(),
+        );
         if errmsg.is_some() {
             return errmsg;
-        } else if ve.to_bytes() != args.os_oldval.data.string().as_bytes() {
+        }
+        if is_local {
+            win.w_onebuf_opt.wo_ve_flags = new_flags;
+        } else {
+            opt_vars().ve_flags.set(new_flags);
+        }
+        if ve.to_bytes() != args.os_oldval.data.string().as_bytes() {
             validate_virtcol(win);
             let vc = win.w_virtcol;
             coladvance(win, vc);

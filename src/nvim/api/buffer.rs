@@ -1274,10 +1274,10 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     let mut ren_ret = true;
     try_wrap(err, || {
         let is_curbuf = b_fnum == curbuf_mut().b_fnum;
-        let save_acd = opt_vars().p_acd;
+        let save_acd = opt_vars().p_acd.get();
         if !is_curbuf {
             g_st().redrawing_disabled += 1;
-            opt_vars().p_acd = false;
+            opt_vars().p_acd.set(false);
         }
 
         let mut aco: CtxSwitch = CtxSwitch::new();
@@ -1287,7 +1287,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
         if !is_curbuf {
             g_st().redrawing_disabled -= 1;
-            opt_vars().p_acd = save_acd;
+            opt_vars().p_acd.set(save_acd);
         }
     });
 

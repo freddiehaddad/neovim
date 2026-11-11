@@ -5,7 +5,7 @@ use crate::option_vars::*;
 
 #[inline]
 fn arshape_enabled() -> bool {
-    opt_vars().p_arshape && !opt_vars().p_tbidi
+    opt_vars().p_arshape.get() && !opt_vars().p_tbidi.get()
 }
 
 const A_HAMZA: u32 = 0x0621;
@@ -594,8 +594,8 @@ mod tests {
 
     #[test]
     fn combine_and_shape_lam_alef_and_contextual_forms() {
-        opt_vars().p_arshape = true;
-        opt_vars().p_tbidi = false;
+        opt_vars().p_arshape.set(true);
+        opt_vars().p_tbidi.set(false);
 
         assert!(arabic_maycombine(A_ALEF as i32));
         assert!(arabic_combine(A_LAM as i32, A_ALEF as i32));

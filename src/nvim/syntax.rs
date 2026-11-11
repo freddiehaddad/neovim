@@ -4454,9 +4454,9 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         let pat_slice = &arg_bytes[1..1 + pat_len];
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
-        let cpo_save = std::mem::take(&mut opt_vars().p_cpo);
+        let cpo_save = opt_vars().p_cpo.take();
         ci.sp_prog = crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
-        opt_vars().p_cpo = cpo_save;
+        opt_vars().p_cpo.set(cpo_save);
         ci.sp_pattern = Some(pat_cstr);
 
         ci.sp_prog.as_ref()?;
@@ -4629,10 +4629,10 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                 win_s(curwin_mut()).b_syn_linecont_ic = win_s(curwin_mut()).b_syn_ic;
 
-                let cpo_save = std::mem::take(&mut opt_vars().p_cpo);
+                let cpo_save = opt_vars().p_cpo.take();
                 win_s(curwin_mut()).b_syn_linecont_prog =
                     crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
-                opt_vars().p_cpo = cpo_save;
+                opt_vars().p_cpo.set(cpo_save);
                 syn_clear_time(&mut win_s(curwin_mut()).b_syn_linecont_time);
 
                 if win_s(curwin_mut()).b_syn_linecont_prog.is_none() {

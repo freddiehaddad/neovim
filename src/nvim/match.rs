@@ -356,7 +356,7 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
         cur.mit_hl.buf = buf;
         cur.mit_hl.lnum = 0;
         cur.mit_hl.first_lnum = 0;
-        cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
+        cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
     }
     search_hl.buf = wp.w_buffer;
     search_hl.lnum = 0;

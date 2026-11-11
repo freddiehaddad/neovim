@@ -240,7 +240,7 @@ pub fn free_all_mem() {
         MEM_STATE.with(|s| s.entered_free_all_mem.set(true));
         block_autocmds();
 
-        opt_vars().p_ea = false;
+        opt_vars().p_ea.set(false);
         if !g_st().first_tabpage.is_null()
             && !crate::globals::first_tabpage_mut().tp_next.get().is_null()
         {
@@ -289,7 +289,7 @@ pub fn free_all_mem() {
         g_st().new_last_cmdline = None;
         set_keep_msg(None, 0);
 
-        opt_vars().p_hi = 0;
+        opt_vars().p_hi.set(0);
         init_history();
 
         free_quickfix();
@@ -301,7 +301,7 @@ pub fn free_all_mem() {
 
         free_all_options();
 
-        opt_vars().p_acd = false;
+        opt_vars().p_acd.set(false);
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mut bufref = Bufref {

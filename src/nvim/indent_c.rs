@@ -234,7 +234,7 @@ pub fn cin_is_cinword(line: &[u8]) -> bool {
     false
 }
 pub fn cindent_on() -> bool {
-    !opt_vars().p_paste
+    !opt_vars().p_paste.get()
         && (curbuf_mut().b_p_cin || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
 }
 fn cin_skipcomment_slice(mut s: &[u8]) -> &[u8] {

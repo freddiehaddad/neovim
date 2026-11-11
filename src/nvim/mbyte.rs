@@ -1074,7 +1074,7 @@ pub fn utf_slice2_char_info(bytes: &[u8]) -> CharInfo {
 #[inline]
 pub fn utf_cluster_cells(bytes: &[u8]) -> i32 {
     if bytes.is_empty() {
-        return opt_vars().dy_escape_width;
+        return opt_vars().dy_escape_width.get();
     }
     let ci = utf_ptr2_str_char_info_len(bytes, bytes.len() as i32);
     let mut scratch = bytes.len() as i32;
@@ -1172,7 +1172,7 @@ pub fn utf_cluster_info(cur: StrCharInfo<'_>) -> ClusterInfo<'_> {
     if cur.is_empty() {
         return ClusterInfo {
             next: cur,
-            cells: opt_vars().dy_escape_width,
+            cells: opt_vars().dy_escape_width.get(),
             first_compose: false,
         };
     }
@@ -1324,7 +1324,11 @@ pub fn utf_char2cells(c: i32) -> i32 {
         return 2;
     }
 
-    if opt_vars().p_emoji && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop) {
+    if opt_vars().p_emoji.get()
+        && c >= 0x1f000
+        && !prop.ambiguous_width()
+        && prop_is_emojilike(prop)
+    {
         return 2;
     }
 
@@ -2182,10 +2186,10 @@ pub fn utf_fold(a: i32) -> i32 {
 }
 
 pub fn mb_toupper(a: i32) -> i32 {
-    if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
+    if a < 128 && (opt_vars().cmp_flags.get() & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
         return toupper_asc(a);
     }
-    if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
+    if (opt_vars().cmp_flags.get() & K_OPT_CMP_FLAG_INTERNAL) == 0 {
         return os_towupper(a);
     }
     if a < 128 {
@@ -2199,10 +2203,10 @@ pub fn mb_islower(a: i32) -> bool {
 }
 
 pub fn mb_tolower(a: i32) -> i32 {
-    if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
+    if a < 128 && (opt_vars().cmp_flags.get() & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
         return tolower_asc(a);
     }
-    if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
+    if (opt_vars().cmp_flags.get() & K_OPT_CMP_FLAG_INTERNAL) == 0 {
         return os_towlower(a);
     }
     if a < 128 {
@@ -2479,7 +2483,7 @@ pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> Cl
     let mut cluster_len = base.chr.len;
 
     let mut check_emoji = cells == 1
-        && opt_vars().p_emoji
+        && opt_vars().p_emoji.get()
         && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
     loop {

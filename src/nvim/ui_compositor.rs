@@ -560,7 +560,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         for i in skipstart..end_idx {
             let p = &mut abuf[i as usize];
             if *p < 0 {
-                if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
+                if (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0 {
                     std::process::abort();
                 } else {
                     *p = 0;
@@ -589,7 +589,7 @@ fn compose_debug(
     syn_id: i32,
     delay: bool,
 ) {
-    if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_COMPOSITOR) == 0 || startcol >= endcol {
+    if (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_COMPOSITOR) == 0 || startcol >= endcol {
         return;
     }
 
@@ -628,7 +628,7 @@ fn compose_debug(
 
 fn debug_delay(lines: Integer) {
     ui_call_flush();
-    let wd = opt_vars().p_wd.unsigned_abs();
+    let wd = opt_vars().p_wd.get().unsigned_abs();
     let factor = lines.clamp(1, 5) as u64;
     os_sleep(factor * wd);
 }
@@ -879,7 +879,7 @@ pub fn ui_comp_grid_scroll(
         }
     } else {
         ui_composed_call_grid_scroll(1, top, bot, left, right, rows, cols);
-        if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_COMPOSITOR) != 0 {
+        if (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_COMPOSITOR) != 0 {
             debug_delay(2);
         }
     }

@@ -2211,7 +2211,7 @@ fn qf_resize_stack_base(qi: &QfInfo, n: i32) {
 }
 
 pub fn qf_init_stack() {
-    let _ = qf_alloc_stack(QFLT_QUICKFIX, opt_vars().p_chi as i32);
+    let _ = qf_alloc_stack(QFLT_QUICKFIX, opt_vars().p_chi.get() as i32);
 }
 
 fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
@@ -2721,8 +2721,8 @@ fn jump_to_help_window(qi: &QfInfo, newwin: bool, opened_window: &mut bool) -> b
 
         *opened_window = true;
 
-        if i64::from(curwin_mut().w_height) < opt_vars().p_hh {
-            win_setheight(opt_vars().p_hh as i32);
+        if i64::from(curwin_mut().w_height) < opt_vars().p_hh.get() {
+            win_setheight(opt_vars().p_hh.get() as i32);
         }
 
         if is_ll_stack(qi) && !newwin {
@@ -2774,7 +2774,7 @@ fn qf_open_new_file_win(ll_ref: Option<&QfInfo>) -> bool {
         return false;
     }
     opt_vars().p_swb.clear_option_str();
-    opt_vars().swb_flags = 0;
+    opt_vars().swb_flags.set(0);
     reset_binding(curwin_mut());
     if let Some(ll_ref) = ll_ref {
         win_set_loclist(curwin_mut(), ll_ref);
@@ -2836,7 +2836,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         }
 
         if is_qf_window(win.borrow()) {
-            if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
+            if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USELAST) != 0
                 && win_valid(g_st().prevwin.opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
             {
@@ -2883,7 +2883,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         usable_win = true;
     }
 
-    if !usable_win && (opt_vars().swb_flags & K_OPT_SWB_FLAG_USETAB) != 0 {
+    if !usable_win && (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USETAB) != 0 {
         usable_win = qf_goto_tabwin_with_file(qf_fnum);
     }
 
@@ -3038,7 +3038,7 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: 
             qf_pattern.to_bytes().len(),
             1,
             SEARCH_KEEP,
-            opt_vars().p_magic,
+            opt_vars().p_magic.get(),
             None,
         ) == 0
         {
@@ -3104,7 +3104,7 @@ fn qf_jump_print_msg(
     let i = g_st().msg_scroll;
     if same_curbuf && curwin_mut().w_cursor.lnum == old_lnum {
         g_st().msg_scroll = 1;
-    } else if (g_st().msg_scrolled == 0 || (opt_vars().p_ch == 0 && g_st().msg_scrolled == 1))
+    } else if (g_st().msg_scrolled == 0 || (opt_vars().p_ch.get() == 0 && g_st().msg_scrolled == 1))
         && shortmess(K_SHM_OVERALL)
     {
         g_st().msg_scroll = 0;
@@ -3212,7 +3212,7 @@ fn qf_jump_to_buffer(
         );
     }
 
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_QUICKFIX) != 0 && openfold != 0 {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_QUICKFIX) != 0 && openfold != 0 {
         fold_open_cursor();
     }
     if print_message {
@@ -3230,7 +3230,7 @@ pub fn qf_jump(qi: Option<&QfInfo>, dir: i32, errornr: i32, forceit: bool) {
 
 fn qf_jump_newwin(qi_opt: Option<&QfInfo>, dir: i32, errornr: i32, forceit: bool, newwin: bool) {
     let old_swb = opt_vars().p_swb.clone();
-    let old_swb_flags = opt_vars().swb_flags;
+    let old_swb_flags = opt_vars().swb_flags.get();
     let old_key_typed = g_st().key_typed;
 
     let ql_rc;
@@ -3296,8 +3296,8 @@ fn qf_jump_newwin(qi_opt: Option<&QfInfo>, dir: i32, errornr: i32, forceit: bool
         qfl_rc.borrow_mut().qf_index = qf_index;
     }
     if opt_vars().p_swb != old_swb && opt_vars().p_swb.is_null() {
-        opt_vars().p_swb = old_swb;
-        opt_vars().swb_flags = old_swb_flags;
+        opt_vars().p_swb.set(old_swb);
+        opt_vars().swb_flags.set(old_swb_flags);
     }
     decr_quickfix_busy();
 }
@@ -4217,16 +4217,16 @@ fn call_qftf_func(
             qfl.qf_qftf_cb.cb_type() != K_CALLBACK_NONE_CONST,
         )
     };
-    let mut qfl_cb = if has_qfl_cb {
+    let qfl_cb = if has_qfl_cb {
         let cb = Callback::new();
         callback_copy(&cb, &qfl_rc.borrow().qf_qftf_cb);
         Some(cb)
     } else {
         None
     };
-    let cb = match qfl_cb.as_mut() {
+    let cb = match qfl_cb.as_ref() {
         Some(cb) => cb,
-        None => &mut opt_vars().p_qftf,
+        None => &opt_vars().p_qftf,
     };
     if cb.cb_type() != K_CALLBACK_NONE_CONST {
         let mut args: [TypVal; 1] = [TypVal::new(); 1];
@@ -4256,7 +4256,7 @@ fn call_qftf_func(
         g_st().textlock -= 1;
         tv_dict_unref(Some(&dict));
     }
-    if let Some(ref mut cb) = qfl_cb {
+    if let Some(ref cb) = qfl_cb {
         callback_free(cb);
     }
 
@@ -5180,7 +5180,7 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
         regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
     }
 
-    regmatch.rmm_ic = opt_vars().p_ic;
+    regmatch.rmm_ic = opt_vars().p_ic.get();
     regmatch.rmm_maxcol = 0;
 }
 
@@ -5204,12 +5204,12 @@ fn vgr_load_dummy_buf(
 ) -> Option<&'static mut FileBuf> {
     let save_ei = au_event_disable(c",Filetype");
 
-    let save_mls = opt_vars().p_mls;
-    opt_vars().p_mls = 0;
+    let save_mls = opt_vars().p_mls.get();
+    opt_vars().p_mls.set(0);
 
     let buf = load_dummy_buffer(fname, dirname_start, dirname_now);
 
-    opt_vars().p_mls = save_mls;
+    opt_vars().p_mls.set(save_mls);
     au_event_restore(Some(save_ei));
 
     buf
@@ -7241,7 +7241,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     }
 
     let mut updated = false;
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
     let mut new_qi = false;
     let qi_rc = if is_loclist_cmd(eap.cmdidx) {
@@ -7278,7 +7278,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     }
 
     if opt_vars().p_cpo.is_null() {
-        opt_vars().p_cpo = save_cpo;
+        opt_vars().p_cpo.set(save_cpo);
     } else if opt_vars().p_cpo.is_empty() {
         set_option_value_give_err(K_OPT_CPOPTIONS, cstr_as_obj(Some(save_cpo.as_cstr())), 0);
     }

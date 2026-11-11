@@ -942,7 +942,7 @@ fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadRes
 }
 
 fn close_file(cookie: &mut FileDescriptor) -> i32 {
-    let error = file_close(cookie, opt_vars().p_fs);
+    let error = file_close(cookie, opt_vars().p_fs.get());
     if error != 0 {
         semsg!(
             gettext(c"E886: System error while closing ShaDa file: %s"),
@@ -965,7 +965,7 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
         0,
     );
 
-    if opt_vars().p_verbose > 1 {
+    if opt_vars().p_verbose.get() > 1 {
         verbose_enter();
         let empty = c"";
         smsg!(
@@ -1262,7 +1262,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
         K_SDREAD_UNDISABLEABLE_DATA
             | K_SDREAD_REGISTERS
             | K_SDREAD_GLOBAL_MARKS
-            | if opt_vars().p_hi != 0 && (flags & K_SHA_DA_NO_HISTORY) == 0 {
+            | if opt_vars().p_hi.get() != 0 && (flags & K_SHA_DA_NO_HISTORY) == 0 {
                 K_SDREAD_HISTORY
             } else {
                 0
@@ -1311,7 +1311,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     });
     if (srni_flags & K_SDREAD_HISTORY) != 0 {
         for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
-            hms_init(hm, i as u8, opt_vars().p_hi as usize, true, true);
+            hms_init(hm, i as u8, opt_vars().p_hi.get() as usize, true, true);
         }
     }
     let mut cur_entry = MISSING_ENTRY;
@@ -1404,8 +1404,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     .take()
                     .unwrap_or_default()
                     .into_bytes_with_nul();
-                let final_sub = regtilde(&mut sub_bytes, i32::from(opt_vars().p_magic), false)
-                    .or_else(|| Some(crate::memory::cstring_until_nul(&sub_bytes)));
+                let final_sub =
+                    regtilde(&mut sub_bytes, i32::from(opt_vars().p_magic.get()), false)
+                        .or_else(|| Some(crate::memory::cstring_until_nul(&sub_bytes)));
                 sub_set_replacement(SubReplacementString {
                     sub: final_sub,
                     timestamp: cur_entry.timestamp,
@@ -2503,7 +2504,7 @@ fn shada_write(
     for (i, dump_one) in dump_one_history.iter_mut().enumerate().take(HIST_COUNT) {
         let mut num_saved = get_shada_parameter(hist_type2char(i as i32));
         if num_saved == -1 {
-            num_saved = opt_vars().p_hi as i32;
+            num_saved = opt_vars().p_hi.get() as i32;
         }
         if num_saved > 0 {
             dump_history = true;
@@ -3113,7 +3114,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         return false;
     };
 
-    if opt_vars().p_verbose > 1 {
+    if opt_vars().p_verbose.get() > 1 {
         verbose_enter();
         smsg!(0, gettext(c"Writing ShaDa file \"%s\""), fname_cstr);
         verbose_leave();

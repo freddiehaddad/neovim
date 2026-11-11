@@ -656,7 +656,7 @@ fn ctx_dirs_save(
     }
 
     if let Some(ref cs_cwd) = cs.cs_cwd
-        && opt_vars().p_acd
+        && opt_vars().p_acd.get()
     {
         let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
         do_autochdir();

@@ -722,7 +722,7 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
         let new_tail_off = pend_off - len - 1;
         let new_tail_cstr = bytes_to_cstring(&path_slice[new_tail_off..pend_off]);
         let dirname_cstr = bytes_to_cstring(dirname);
-        if path_cmp(opt_vars().p_fic, &new_tail_cstr, &dirname_cstr, len) == 0
+        if path_cmp(opt_vars().p_fic.get(), &new_tail_cstr, &dirname_cstr, len) == 0
             && (new_tail_off == 0 || after_pathsep(&path_slice[..new_tail_off]) != 0)
         {
             return new_tail_off;
@@ -966,7 +966,7 @@ pub fn home_replace(
             let cmp_ok = len != 0
                 && p_opt.is_some_and(|p| {
                     path_cmp(
-                        opt_vars().p_fic,
+                        opt_vars().p_fic.get(),
                         crate::memory::CStrSubslice::advance(src_cstr, src_idx),
                         p,
                         len,

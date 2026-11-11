@@ -81,7 +81,7 @@ fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> bool {
 }
 
 fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInfoInfo>) -> bool {
-    if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
+    if restore_size && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
         for wp in win_iter_mut(tab_firstwin.map_or(ptr::null_mut(), ptr::from_mut)) {
             if ses_do_win(wp) == 0 {
@@ -194,13 +194,13 @@ fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
     }
     let buf = wp.buf_mut();
     if buf.fname_opt().is_none() || (buf.terminal.is_null() && bt_nofilename(Some(buf))) {
-        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BLANK) as i32;
     }
     if bt_help(Some(buf)) {
-        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) as i32;
     }
     if bt_terminal(Some(buf)) {
-        return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) as i32;
     }
     1
 }
@@ -210,7 +210,7 @@ fn ses_arglist(
     cmd: &std::ffi::CStr,
     gap: &[Aentry],
     fullname: bool,
-    _flagp: &mut u32,
+    _flagp: &std::cell::Cell<u32>,
 ) -> bool {
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
         return false;
@@ -237,11 +237,11 @@ fn ses_arglist(
     true
 }
 
-fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
+fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&'a CStr> {
     if buf.b_sfname.is_some()
-        && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
-        && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
-        && !opt_vars().p_acd
+        && ptr::eq(flagp, &opt_vars().ssop_flags)
+        && (opt_vars().ssop_flags.get() & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
+        && !opt_vars().p_acd.get()
         && !DID_LCD.get()
     {
         return buf.sfname_opt();
@@ -249,7 +249,7 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
     buf.ffname_opt()
 }
 
-fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
+fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &std::cell::Cell<u32>, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
@@ -271,7 +271,7 @@ fn ses_escape_fname(name: Option<&CStr>) -> CString {
     vim_strsave_fnameescape(&sname_vec, VSE_NONE)
 }
 
-fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &mut u32) -> bool {
+fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &std::cell::Cell<u32>) -> bool {
     let p = ses_escape_fname(name);
     fd.puts(&p) >= 0
 }
@@ -281,12 +281,12 @@ fn put_view(
     wp: &mut WinInfoInfo,
     tp: &TabPageInfo,
     add_edit: bool,
-    flagp: &mut u32,
+    flagp: &std::cell::Cell<u32>,
     current_arg_idx: i32,
 ) -> bool {
     let mut did_next = false;
     let mut do_cursor =
-        ptr::eq(flagp, &raw mut opt_vars().ssop_flags) || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
+        ptr::eq(flagp, &opt_vars().ssop_flags) || (flagp.get() & K_OPT_SSOP_FLAG_CURSOR) != 0;
 
     if wp.w_alist.is_none() {
         if !put_line(fd, c"argglobal") {
@@ -299,11 +299,11 @@ fn put_view(
             fd,
             c"arglocal",
             &entries,
-            ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
-                || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
+            ptr::eq(flagp, &opt_vars().vop_flags)
+                || (flagp.get() & K_OPT_SSOP_FLAG_CURDIR) == 0
                 || tp.tp_localdir.get().is_some()
                 || wp.w_localdir.is_some(),
-            &mut *flagp,
+            flagp,
         ) {
             return false;
         }
@@ -312,7 +312,7 @@ fn put_view(
     let wargcount = crate::arglist::wargcount(&*wp);
     if wp.w_arg_idx != current_arg_idx
         && wp.w_arg_idx < wargcount
-        && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+        && ptr::eq(flagp, &opt_vars().ssop_flags)
     {
         if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx) + 1)) {
             return false;
@@ -364,16 +364,17 @@ fn put_view(
 
     if wp.w_alt_fnum != 0
         && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
-        && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+        && ptr::eq(flagp, &opt_vars().ssop_flags)
         && !alt.fname_bytes().is_empty()
         && alt.b_p_bl
-        && !(bt_terminal(Some(alt)) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-        && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, &mut *flagp, true))
+        && !(bt_terminal(Some(alt))
+            && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+        && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, flagp, true))
     {
         return false;
     }
 
-    if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
+    if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
         && !makemap(fd, wp.buf_opt())
     {
         return false;
@@ -382,16 +383,16 @@ fn put_view(
     let save_curwin = curwin_ptr();
     set_curwin(&mut *wp);
     g_st().curbuf = curwin_mut().w_buffer;
-    let f = if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
+    let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
             fd,
             OPT_LOCAL,
             i32::from(
-                ptr::eq(flagp, &raw mut opt_vars().vop_flags)
-                    || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
+                ptr::eq(flagp, &opt_vars().vop_flags)
+                    || (flagp.get() & K_OPT_SSOP_FLAG_OPTIONS) == 0,
             ),
         )
-    } else if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0 {
+    } else if (flagp.get() & K_OPT_SSOP_FLAG_FOLDS) != 0 {
         makefoldset(fd)
     } else {
         true
@@ -402,7 +403,7 @@ fn put_view(
         return false;
     }
 
-    if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
+    if (flagp.get() & K_OPT_SSOP_FLAG_FOLDS) != 0
         && (*wp).buf_mut().b_ffname.is_some()
         && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
         && !put_folds(fd, &mut *wp)
@@ -461,11 +462,10 @@ fn put_view(
     }
 
     if let Some(ref w_localdir) = wp.w_localdir
-        && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
-            || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
+        && (!ptr::eq(flagp, &opt_vars().vop_flags) || (flagp.get() & K_OPT_SSOP_FLAG_CURDIR) != 0)
     {
         if fd.puts(c"lcd ") < 0
-            || !ses_put_fname(fd, Some(w_localdir.as_c_str()), &mut *flagp)
+            || !ses_put_fname(fd, Some(w_localdir.as_c_str()), flagp)
             || !write_bytes(fd, b"\n")
         {
             return false;
@@ -539,7 +539,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         let mut cur_arg_idx: i32 = 0;
         let mut next_arg_idx: i32 = 0;
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BUFFERS) != 0 {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BUFFERS) != 0 {
             only_save_windows = false;
         }
 
@@ -550,24 +550,26 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             return false;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_GLOBALS) != 0 && !store_session_globals(fd) {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_GLOBALS) != 0
+            && !store_session_globals(fd)
+        {
             return false;
         }
 
         if !put_line(fd, c"silent only") {
             return false;
         }
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0
             && !put_line(fd, c"silent tabonly")
         {
             return false;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SESDIR) != 0 {
             if !put_line(fd, c"exe \"cd \" . escape(expand(\"<sfile>:p:h\"), ' ')") {
                 return false;
             }
-        } else if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
+        } else if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             let sname = home_replace_save(None, g_st().globaldir.as_deref().or(Some(dirnow)));
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
@@ -582,7 +584,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             return false;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_OPTIONS) == 0
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_OPTIONS) == 0
             && !put_line(fd, c"let s:shortmess_save = &shortmess")
         {
             return false;
@@ -594,9 +596,9 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         for buf in for_all_buffers_ptr() {
             if !(only_save_windows && buf.b_nwindows == 0)
-                && !(buf.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
+                && !(buf.b_help && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
                 && !(bt_terminal(Some(&*buf))
-                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+                    && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
                 && buf.b_p_bl
             {
@@ -605,7 +607,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || !ses_fname(fd, &mut *buf, &mut opt_vars().ssop_flags, true)
+                    || !ses_fname(fd, &mut *buf, &opt_vars().ssop_flags, true)
                 {
                     return false;
                 }
@@ -617,21 +619,21 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             fd,
             c"argglobal",
             &g_entries,
-            (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) == 0,
-            &mut opt_vars().ssop_flags,
+            (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) == 0,
+            &opt_vars().ssop_flags,
         ) {
             return false;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             for b in for_all_buffers_ptr() {
                 if b.b_localdir.is_none()
                     || b.fname_opt().is_none()
                     || !b.b_p_bl
                     || (only_save_windows && b.b_nwindows == 0)
-                    || (b.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
+                    || (b.b_help && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
                     || (bt_terminal(Some(&*b))
-                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+                        && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
                 }
@@ -650,7 +652,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             }
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_RESIZE) != 0
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_RESIZE) != 0
             && !write_fmt(
                 fd,
                 format!(
@@ -664,14 +666,16 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         }
 
         let mut restore_stal = false;
-        if opt_vars().p_stal == 1 && !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
+        if opt_vars().p_stal.get() == 1
+            && !crate::globals::first_tabpage_mut().tp_next.get().is_null()
+        {
             if !put_line(fd, c"set stal=2") {
                 return false;
             }
             restore_stal = true;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
             for tp in for_all_tabpages_mut() {
                 if !tp.tp_next.get().is_null()
                     && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe")
@@ -695,7 +699,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let tab_firstwin;
             let tab_topframe;
 
-            if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
+            if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
                 if g_st().curtab == tp {
                     tab_firstwin = g_st().firstwin;
                     tab_topframe = g_st().topframe.clone();
@@ -712,7 +716,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 tab_topframe = g_st().topframe.clone();
             }
 
-            if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
+            if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
                 && let Some(tp_localdir) = tp.tp_localdir.get()
             {
                 if need_tabnext && !put_line(fd, c"tabnext") {
@@ -720,7 +724,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 }
                 need_tabnext = false;
                 if fd.puts(c"tcd ") < 0
-                    || !ses_put_fname(fd, Some(tp_localdir.as_c_str()), &mut opt_vars().ssop_flags)
+                    || !ses_put_fname(fd, Some(tp_localdir.as_c_str()), &opt_vars().ssop_flags)
                     || !put_eol(fd)
                 {
                     return false;
@@ -741,7 +745,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     need_tabnext = false;
 
                     if fd.puts(c"edit ") < 0
-                        || !ses_fname(fd, wp_ref.buf_mut(), &mut opt_vars().ssop_flags, true)
+                        || !ses_fname(fd, wp_ref.buf_mut(), &opt_vars().ssop_flags, true)
                     {
                         return false;
                     }
@@ -818,7 +822,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     wp_ref,
                     tp.borrow(),
                     edited_win != wp,
-                    &mut opt_vars().ssop_flags,
+                    &opt_vars().ssop_flags,
                     cur_arg_idx,
                 ) {
                     return false;
@@ -840,12 +844,12 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
 
-            if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) == 0 {
+            if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) == 0 {
                 break;
             }
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0
             && !write_fmt(
                 fd,
                 format!("tabnext {}\n", tabpage_index(g_st().curtab.opt())),
@@ -864,13 +868,13 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             return false;
         }
 
-        let wh = opt_vars().p_wh;
-        let wiw = opt_vars().p_wiw;
+        let wh = opt_vars().p_wh.get();
+        let wiw = opt_vars().p_wiw.get();
         if !write_fmt(fd, format!("set winheight={wh} winwidth={wiw}\n")) {
             return false;
         }
 
-        if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_OPTIONS) != 0 {
+        if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_OPTIONS) != 0 {
             if !write_fmt(
                 fd,
                 format!(
@@ -966,11 +970,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
         if !view_session
             || (eap.cmdidx == Cmdidx::CmdMksession
-                && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_OPTIONS) != 0)
+                && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_OPTIONS) != 0)
         {
             let mut flags = OPT_GLOBAL;
             if eap.cmdidx == Cmdidx::CmdMksession
-                && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SKIPRTP) != 0
+                && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SKIPRTP) != 0
             {
                 flags |= OPT_SKIPRTP;
             }
@@ -995,12 +999,12 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 }
                 let dirnow_cstr = crate::memory::bytes_as_cstr(&dirnow_vec);
                 let has_dirnow = !dirnow_cstr.to_bytes().is_empty();
-                if has_dirnow && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
+                if has_dirnow && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SESDIR) != 0 {
                     if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                         shorten_fnames(true);
                     }
                 } else if has_dirnow
-                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
+                    && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
                     && let Some(ref gdir) = g_st().globaldir
                     && os_chdir(gdir) == 0
                 {
@@ -1010,8 +1014,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 failed |= !makeopens(&fd, dirnow_cstr);
 
                 if has_dirnow
-                    && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
-                        || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
+                    && ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SESDIR) != 0
+                        || ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
                             && g_st().globaldir.is_some()))
                 {
                     if os_chdir(dirnow_cstr) != 0 {
@@ -1021,16 +1025,16 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 }
             } else {
                 let flagp = if eap.cmdidx == Cmdidx::CmdMkview {
-                    &mut opt_vars().vop_flags
+                    &opt_vars().vop_flags
                 } else {
-                    &mut opt_vars().ssop_flags
+                    &opt_vars().ssop_flags
                 };
                 failed |= !put_view(&fd, curwin_mut(), &curtab_mut(), !using_vdir, flagp, -1);
             }
             if !write_bytes(&fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                 failed = true;
             }
-            if opt_vars().p_hls && !write_bytes(&fd, b"set hlsearch\n") {
+            if opt_vars().p_hls.get() && !write_bytes(&fd, b"set hlsearch\n") {
                 failed = true;
             }
             if g_st().search_global.no_hlsearch && !write_bytes(&fd, b"nohlsearch\n") {

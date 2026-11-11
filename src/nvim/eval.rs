@@ -1963,14 +1963,14 @@ pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> i32 {
     let mut matches: i32 = 0;
     let mut regmatch: Regmatch = Regmatch::new();
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = ic;
         matches = i32::from(vim_regexec_nl(&mut regmatch, text, 0));
         regmatch.free_prog();
     }
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
     matches
 }
 
@@ -2403,7 +2403,7 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
             ic = false;
             len += 1;
         } else {
-            ic = opt_vars().p_ic;
+            ic = opt_vars().p_ic.get();
         }
 
         *arg = crate::charset::skipwhite_at(p, len);
@@ -4182,7 +4182,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         did_free = free_unref_items(copy_id) != 0;
         did_free = free_unref_funccal(copy_id, i32::from(testing)) || did_free;
     } else {
-        if opt_vars().p_verbose > 0 {
+        if opt_vars().p_verbose.get() > 0 {
             verb_msg(gettext(
                 c"Not enough memory to set references, garbage collection aborted!",
             ));
@@ -4746,7 +4746,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         return;
     }
 
-    if opt_vars().p_verbose > 3 {
+    if opt_vars().p_verbose.get() > 3 {
         let cmdstr = shell_argv_to_str(&argv);
         verbose_enter_scroll();
         smsg!(0, gettext(c"Executing command: \"%s\""), &cmdstr);
@@ -4892,7 +4892,7 @@ pub fn callback_call(
     argvars_in: &mut [TypVal],
     rettv: &mut TypVal,
 ) -> bool {
-    if i64::from(EVAL_STATE.with(|s| s.callback_depth.get())) > opt_vars().p_mfd {
+    if i64::from(EVAL_STATE.with(|s| s.callback_depth.get())) > opt_vars().p_mfd.get() {
         emsg(gettext(E_COMMAND_TOO_RECURSIVE));
         return false;
     }
@@ -6397,9 +6397,9 @@ pub fn do_string_sub(
     let mut regmatch: Regmatch = Regmatch::new();
     let mut out: Option<Vec<u8>> = None;
 
-    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
+    let save_cpo = opt_vars().p_cpo.take();
 
-    regmatch.rm_ic = opt_vars().p_ic;
+    regmatch.rm_ic = opt_vars().p_ic.get();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         let mut tail_off: usize = 0;
@@ -6468,7 +6468,7 @@ pub fn do_string_sub(
     };
     drop(out);
     if opt_vars().p_cpo.is_null() {
-        opt_vars().p_cpo = save_cpo;
+        opt_vars().p_cpo.set(save_cpo);
     } else if opt_vars().p_cpo.is_empty() {
         let obj = Object {
             obj_type: ObjectType::ObjectTypeString,
@@ -6696,7 +6696,9 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
             true,
         ) {
             format_to_buf!(&mut buf, c"provider#%s#Call", &name);
-            if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_some() && opt_vars().p_lpl {
+            if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_some()
+                && opt_vars().p_lpl.get()
+            {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
                     &name,

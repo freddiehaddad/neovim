@@ -655,7 +655,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
 pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>) -> i32 {
     let mut wait_time: Proftime = 0;
 
-    if opt_vars().p_verbose > 3 {
+    if opt_vars().p_verbose.get() > 3 {
         verbose_enter();
         let p_sh = opt_vars().p_sh.to_owned();
         smsg!(

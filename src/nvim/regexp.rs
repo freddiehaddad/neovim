@@ -4049,7 +4049,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     RE_STATE.with(|re_s| {
     let mut expr = expr_arg;
 
-    re_s.regexp_engine.set(opt_vars().p_re as i32);
+    re_s.regexp_engine.set(opt_vars().p_re.get() as i32);
 
     let expr_bytes = expr.to_bytes();
     if expr_bytes.starts_with(b"\\%#=") {
@@ -4074,7 +4074,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
     let chartab = curbuf_mut().b_chartab;
     let can_cache = g_st().reg_do_extmatch == 0
-        && opt_vars().p_verbose == 0
+        && opt_vars().p_verbose.get() == 0
         && !expr.to_bytes().contains(&b'[');
     if can_cache {
         let cached = LAST_REGPROG.with(|cell| {
@@ -4180,7 +4180,7 @@ pub fn free_regexp_stuff() {
 }
 
 fn report_re_switch(pat: &CStr) {
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         verbose_enter();
         msg_puts(tr(c"Switching to backtracking RE engine for pattern: "));
         msg_puts(pat);
@@ -4231,11 +4231,11 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     rmp.regprog.set_re_in_use(false);
 
     if rmp.regprog.re_engine() == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
-        let save_p_re = opt_vars().p_re;
+        let save_p_re = opt_vars().p_re.get();
         let re_flags = rmp.regprog.re_flags() as i32;
         let pat_owned = rmp.regprog.nfa_pattern();
 
-        opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
+        opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
         report_re_switch(&pat_owned);
         if let Some(new_prog) = vim_regcomp(&pat_owned, re_flags) {
             rmp.regprog.replace_from(&new_prog);
@@ -4244,7 +4244,7 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
             rmp.regprog.set_re_in_use(false);
         }
 
-        opt_vars().p_re = save_p_re;
+        opt_vars().p_re.set(save_p_re);
     }
 
     RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
@@ -4312,11 +4312,11 @@ pub fn vim_regexec_multi(
     rmp.regprog.set_re_in_use(false);
 
     if rmp.regprog.re_engine() == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
-        let save_p_re = opt_vars().p_re;
+        let save_p_re = opt_vars().p_re.get();
         let re_flags = rmp.regprog.re_flags() as i32;
         let pat_owned = rmp.regprog.nfa_pattern();
 
-        opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
+        opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
 
         report_re_switch(&pat_owned);
         g_st().reg_do_extmatch = REX_ALL;
@@ -4331,7 +4331,7 @@ pub fn vim_regexec_multi(
             rmp.regprog.set_re_in_use(false);
         }
 
-        opt_vars().p_re = save_p_re;
+        opt_vars().p_re.set(save_p_re);
     }
 
     RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));

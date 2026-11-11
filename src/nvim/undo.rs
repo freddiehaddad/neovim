@@ -335,7 +335,7 @@ pub fn undo_allowed(buf: &mut FileBuf) -> bool {
 
 fn get_undolevel(buf: &mut FileBuf) -> OptInt {
     if buf.b_p_ul == NO_LOCAL_UNDOLEVEL {
-        opt_vars().p_ul
+        opt_vars().p_ul.get()
     } else {
         buf.b_p_ul
     }
@@ -985,7 +985,7 @@ pub fn u_write_undo(
     } else {
         f_owned = u_get_undo_file_name(buf.ffname_opt(), false);
         let Some(ref f) = f_owned else {
-            if opt_vars().p_verbose > 0 {
+            if opt_vars().p_verbose.get() > 0 {
                 verbose_enter();
                 smsg!(
                     0,
@@ -1013,7 +1013,7 @@ pub fn u_write_undo(
             if name.is_none() || !forceit {
                 let fd = os_open(file_name_cstr, O_RDONLY, 0);
                 if fd < 0 {
-                    if name.is_some() || opt_vars().p_verbose > 0 {
+                    if name.is_some() || opt_vars().p_verbose.get() > 0 {
                         if name.is_none() {
                             verbose_enter();
                         }
@@ -1034,7 +1034,7 @@ pub fn u_write_undo(
                     if len < UF_START_MAGIC_LEN as isize
                         || mbuf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
                     {
-                        if name.is_some() || opt_vars().p_verbose > 0 {
+                        if name.is_some() || opt_vars().p_verbose.get() > 0 {
                             if name.is_none() {
                                 verbose_enter();
                             }
@@ -1055,7 +1055,7 @@ pub fn u_write_undo(
         }
 
         if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
-            if opt_vars().p_verbose > 0 {
+            if opt_vars().p_verbose.get() > 0 {
                 verb_msg(gettext(c"Skipping undo file write, nothing to undo"));
             }
             break 'theend;
@@ -1071,7 +1071,7 @@ pub fn u_write_undo(
             break 'theend;
         }
         os_setperm(file_name_cstr, perm);
-        if opt_vars().p_verbose > 0 {
+        if opt_vars().p_verbose.get() > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Writing undo file: %s"), file_name_cstr);
             verbose_leave();
@@ -1158,7 +1158,7 @@ pub fn u_write_undo(
                 write_ok = true;
             }
 
-            let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs);
+            let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs.get());
             if do_fsync && bi.bi_fp.flush() == 0 && os_fsync(fd) != 0 {
                 write_ok = false;
             }
@@ -1221,7 +1221,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
                 && file_info_undo.stat.st_uid != u64::from(getuid())
             {
-                if opt_vars().p_verbose > 0 {
+                if opt_vars().p_verbose.get() > 0 {
                     verbose_enter();
                     smsg!(
                         0,
@@ -1236,7 +1236,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
         f_cstr.as_c_str()
     };
 
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         verbose_enter();
         smsg!(0, gettext(c"Reading undo file: %s"), file_name_cstr);
         verbose_leave();
@@ -1246,7 +1246,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
     'theend: {
         'error: {
             let Some(bi_fp) = fp_opt else {
-                if name.is_some() || opt_vars().p_verbose > 0 {
+                if name.is_some() || opt_vars().p_verbose.get() > 0 {
                     semsg!(
                         gettext(c"E822: Cannot open undo file for reading: %s"),
                         file_name_cstr,
@@ -1287,7 +1287,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             }
             let line_count = undo_read_4c(&mut bi) as Linenr;
             if *hash != read_hash || line_count != curbuf_mut().b_ml.ml_line_count {
-                if opt_vars().p_verbose > 0 || name.is_some() {
+                if opt_vars().p_verbose.get() > 0 || name.is_some() {
                     if name.is_none() {
                         verbose_enter();
                     }
@@ -2214,7 +2214,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 }
 
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().key_typed {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().key_typed {
         fold_open_cursor();
     }
 

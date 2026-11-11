@@ -1779,7 +1779,7 @@ fn normal_need_additional_char(s: &mut NormalState) -> bool {
 }
 
 fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
-    ((opt_vars().p_smd
+    ((opt_vars().p_smd.get()
         && g_st().msg_silent == 0
         && (g_st().restart_edit != 0
             || (g_st().visual_global.active
@@ -1930,10 +1930,10 @@ fn normal_get_additional_char(s: &mut NormalState) {
         {
             s.ca.oap.op_type = get_op_type(ch, NUL as i32);
         } else if ch == CTRL_BSL {
-            let mut towait = if opt_vars().p_ttm >= 0 {
-                opt_vars().p_ttm as i32
+            let mut towait = if opt_vars().p_ttm.get() >= 0 {
+                opt_vars().p_ttm.get() as i32
             } else {
-                opt_vars().p_tm as i32
+                opt_vars().p_tm.get() as i32
             };
             while {
                 s.c = vpeekc();
@@ -2379,7 +2379,7 @@ fn normal_check_folds(_s: &mut NormalState) {
     if has_any_folding(curwin_mut()) != 0 && !char_avail() {
         fold_check_close();
 
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_ALL) != 0 {
+        if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_ALL) != 0 {
             fold_open_cursor();
         }
     }
@@ -2746,7 +2746,7 @@ pub fn may_clear_cmdline() {
 }
 
 pub fn clear_showcmd() {
-    if !opt_vars().p_sc {
+    if !opt_vars().p_sc.get() {
         return;
     }
 
@@ -2769,7 +2769,7 @@ pub fn clear_showcmd() {
         let lines = bot - top + 1;
 
         if g_st().visual_global.mode == CTRL_V_CONST {
-            let saved_sbr = std::mem::take(&mut opt_vars().p_sbr);
+            let saved_sbr = opt_vars().p_sbr.take();
             let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
             let mut cursor = curwin_mut().w_cursor;
@@ -2782,7 +2782,7 @@ pub fn clear_showcmd() {
                 GETVCOL_END_EXCL_LBR,
             );
             curwin_mut().w_cursor = cursor;
-            opt_vars().p_sbr = saved_sbr;
+            opt_vars().p_sbr.set(saved_sbr);
             curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
             format_to_buf!(
                 &mut g_st().showcmd_buf,
@@ -2881,7 +2881,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         K_LUA,
     ];
 
-    if !opt_vars().p_sc
+    if !opt_vars().p_sc.get()
         || g_st().msg_silent != 0
         || g_st().ex_normal_busy != 0
         || g_st().key_stuffed != 0
@@ -2939,7 +2939,7 @@ pub fn add_to_showcmd_c(c: i32) {
 }
 
 fn del_from_showcmd(mut len: i32) {
-    if !opt_vars().p_sc {
+    if !opt_vars().p_sc.get() {
         return;
     }
     let old_len = crate::memory::bytes_until_nul(&g_st().showcmd_buf).len() as i32;
@@ -2952,14 +2952,14 @@ fn del_from_showcmd(mut len: i32) {
 }
 
 pub fn push_showcmd() {
-    if opt_vars().p_sc {
+    if opt_vars().p_sc.get() {
         let buf = g_st().showcmd_buf;
         norm_st(|st| st.old_showcmd_buf.set(buf));
     }
 }
 
 pub fn pop_showcmd() {
-    if !opt_vars().p_sc {
+    if !opt_vars().p_sc.get() {
         return;
     }
     g_st().showcmd_buf = norm_st(|st| st.old_showcmd_buf.get());
@@ -3025,7 +3025,7 @@ pub fn display_showcmd() {
         ui_call_msg_showcmd(content);
         return;
     }
-    if opt_vars().p_ch == 0 {
+    if opt_vars().p_ch.get() == 0 {
         return;
     }
 
@@ -3218,7 +3218,7 @@ fn nv_gd(oap: &mut Oparg, nchar: i32, thisblock: i32) {
         return;
     }
 
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) != 0
         && g_st().key_typed
         && oap.op_type == OP_NOP
     {
@@ -3289,10 +3289,10 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
         let pat_cstr = crate::memory::bytes_as_cstr(&pat_vec);
 
         let old_pos = curwin_mut().w_cursor;
-        let save_p_ws = opt_vars().p_ws;
-        let save_p_scs = opt_vars().p_scs;
-        opt_vars().p_ws = false;
-        opt_vars().p_scs = false;
+        let save_p_ws = opt_vars().p_ws.get();
+        let save_p_scs = opt_vars().p_scs.get();
+        opt_vars().p_ws.set(false);
+        opt_vars().p_scs.set(false);
 
         if !locally || !findpar(&mut incll, BACKWARD, 1, b'{' as i32, false) {
             setpcmark();
@@ -3389,8 +3389,8 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
         }
 
         drop(pat_vec);
-        opt_vars().p_ws = save_p_ws;
-        opt_vars().p_scs = save_p_scs;
+        opt_vars().p_ws.set(save_p_ws);
+        opt_vars().p_scs.set(save_p_scs);
 
         retval
     }
@@ -4337,13 +4337,13 @@ fn nv_ident(cap: &mut Cmdarg) {
         buflen += plen;
     } else {
         let aux_cstr = if cmdchar == b'*' as i32 {
-            if opt_vars().p_magic {
+            if opt_vars().p_magic.get() {
                 c"/.*~[^$\\"
             } else {
                 c"/^$\\"
             }
         } else if cmdchar == b'#' as i32 {
-            if opt_vars().p_magic {
+            if opt_vars().p_magic.get() {
                 c"/?.*~[^$\\"
             } else {
                 c"/?^$\\"
@@ -4616,7 +4616,7 @@ fn nv_right(cap: &mut Cmdarg) {
         n -= 1;
     }
     if n != cap.count1
-        && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+        && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -4669,7 +4669,7 @@ fn nv_left(cap: &mut Cmdarg) {
         n -= 1;
     }
     if n != cap.count1
-        && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+        && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -4771,7 +4771,7 @@ fn nv_dollar(cap: &mut Cmdarg) {
     }
     if !cursor_down(cap.count1 - 1, cap.oap.op_type == OP_NOP) {
         clearopbeep(&mut cap.oap);
-    } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+    } else if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -4822,7 +4822,7 @@ fn nv_next(cap: &mut Cmdarg) {
     }
 
     if i > 0
-        && opt_vars().p_hls
+        && opt_vars().p_hls.get()
         && !g_st().search_global.no_hlsearch
         && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
     {
@@ -4857,7 +4857,7 @@ fn normal_search(
             patlen,
             cap.count1,
             opt | SEARCH_OPT | SEARCH_ECHO | SEARCH_MSG,
-            opt_vars().p_magic,
+            opt_vars().p_magic.get(),
             Some(&mut sia),
         );
         if let Some(wrapped) = wrapped {
@@ -4871,14 +4871,14 @@ fn normal_search(
             }
             curwin_mut().w_cursor.coladd = 0;
             if cap.oap.op_type == OP_NOP
-                && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+                && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) != 0
                 && g_st().key_typed
             {
                 fold_open_cursor();
             }
         }
         if !equalpos(curwin_mut().w_cursor, prev_cursor)
-            && opt_vars().p_hls
+            && opt_vars().p_hls.get()
             && !g_st().search_global.no_hlsearch
             && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
         {
@@ -4936,7 +4936,7 @@ fn nv_csearch(cap: &mut Cmdarg) {
         curwin_mut().w_cursor.coladd = 0;
     }
     adjust_for_sel(cap);
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -5069,7 +5069,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
         setpcmark();
         curwin_mut().w_cursor = p;
         curwin_mut().w_set_curswant = true;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+        if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_BLOCK) != 0
             && g_st().key_typed
             && cap.oap.op_type == OP_NOP
         {
@@ -5151,7 +5151,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             if cap.oap.op_type == OP_NOP {
                 beginline(BL_WHITE | BL_FIX);
             }
-            if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+            if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_BLOCK) != 0
                 && g_st().key_typed
                 && cap.oap.op_type == OP_NOP
             {
@@ -5292,7 +5292,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             curwin_mut().w_set_curswant = true;
         }
         if cap.oap.op_type == OP_NOP
-            && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0
+            && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) != 0
             && g_st().key_typed
         {
             fold_open_cursor();
@@ -5367,7 +5367,7 @@ fn nv_percent(cap: &mut Cmdarg) {
     }
     if cap.oap.op_type == OP_NOP
         && lnum != curwin_mut().w_cursor.lnum
-        && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_PERCENT) != 0
+        && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_PERCENT) != 0
         && g_st().key_typed
     {
         fold_open_cursor();
@@ -5387,7 +5387,7 @@ fn nv_brace(cap: &mut Cmdarg) {
 
     adjust_cursor(&mut cap.oap);
     curwin_mut().w_cursor.coladd = 0;
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_BLOCK) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -5422,7 +5422,7 @@ fn nv_findpar(cap: &mut Cmdarg) {
     }
 
     curwin_mut().w_cursor.coladd = 0;
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_BLOCK) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -5511,7 +5511,7 @@ fn nv_replace(cap: &mut Cmdarg) {
 
     if had_ctrl_v != CTRL_V_CONST
         && cap.nchar == b'\t' as i32
-        && (curbuf_mut().b_p_et || opt_vars().p_sta)
+        && (curbuf_mut().b_p_et || opt_vars().p_sta.get())
     {
         stuffnum_readbuff(cap.count1);
         stuffchar_readbuff(b'R' as i32);
@@ -5834,7 +5834,7 @@ fn nv_optrans(cap: &mut Cmdarg) {
 }
 
 fn nv_gomark(cap: &mut Cmdarg) {
-    let mut flags: MarkMove = if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
+    let mut flags: MarkMove = if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 {
         K_MARK_SET_VIEW
     } else {
         0
@@ -5868,7 +5868,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
     if cap.oap.op_type == OP_NOP
         && (move_res & K_MARK_MOVE_SUCCESS) != 0
         && ((move_res & K_MARK_SWITCHED_BUF) != 0 || (move_res & K_MARK_CHANGED_CURSOR) != 0)
-        && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_MARK) != 0
+        && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_MARK) != 0
         && old_key_typed
     {
         fold_open_cursor();
@@ -5876,7 +5876,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
 }
 
 fn nv_pcmark(cap: &mut Cmdarg) {
-    let mut flags: MarkMove = if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
+    let mut flags: MarkMove = if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 {
         K_MARK_SET_VIEW
     } else {
         0
@@ -5918,7 +5918,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
 
     if cap.oap.op_type == OP_NOP
         && ((move_res & K_MARK_SWITCHED_BUF) != 0 || (move_res & K_MARK_CHANGED_LINE) != 0)
-        && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_MARK) != 0
+        && (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_MARK) != 0
         && old_key_typed
     {
         fold_open_cursor();
@@ -5972,7 +5972,7 @@ fn nv_visual(cap: &mut Cmdarg) {
             may_start_select(b'c' as i32);
         }
         setmouse();
-        if opt_vars().p_smd && g_st().msg_silent == 0 {
+        if opt_vars().p_smd.get() && g_st().msg_silent == 0 {
             g_st().redraw_cmdline = true;
         }
         if g_st().visual_global.resel.mode != b'v' as i32
@@ -6065,7 +6065,7 @@ fn n_start_visual_mode(c: i32) {
     setmouse();
     conceal_check_cursor_line();
 
-    if opt_vars().p_smd && g_st().msg_silent == 0 {
+    if opt_vars().p_smd.get() && g_st().msg_silent == 0 {
         g_st().redraw_cmdline = true;
     }
     if curwin_mut().w_redr_type < UPD_INVERTED {
@@ -6646,7 +6646,7 @@ fn nv_undo_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_tilde(cap: &mut Cmdarg) {
-    if !opt_vars().p_to && !g_st().visual_global.active && cap.oap.op_type != OP_TILDE {
+    if !opt_vars().p_to.get() && !g_st().visual_global.active && cap.oap.op_type != OP_TILDE {
         if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(&mut cap.oap);
             return;
@@ -6737,7 +6737,7 @@ fn nv_bck_word(cap: &mut Cmdarg) {
     curwin_mut().w_set_curswant = true;
     if !bck_word(cap.count1, cap.arg != 0, false) {
         clearopbeep(&mut cap.oap);
-    } else if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+    } else if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -6779,7 +6779,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
         clearopbeep(&mut cap.oap);
     } else {
         adjust_for_sel(cap);
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+        if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
             && g_st().key_typed
             && cap.oap.op_type == OP_NOP
         {
@@ -6805,7 +6805,7 @@ fn nv_beginline(cap: &mut Cmdarg) {
     cap.oap.motion_type = MT_CHAR_WISE;
     cap.oap.inclusive = false;
     beginline(cap.arg);
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -6894,7 +6894,7 @@ fn nv_goto(cap: &mut Cmdarg) {
     lnum = lnum.max(1).min(curbuf_mut().b_ml.ml_line_count);
     curwin_mut().w_cursor.lnum = lnum;
     beginline(BL_SOL | BL_FIX);
-    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_JUMP) != 0
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_JUMP) != 0
         && g_st().key_typed
         && cap.oap.op_type == OP_NOP
     {
@@ -7284,7 +7284,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         let regname = cap.oap.regname;
         let keep_registers = cap.cmdchar == b'P' as i32;
         let clipoverwrite = (regname == b'+' as i32 || regname == b'*' as i32)
-            && (opt_vars().cb_flags
+            && (opt_vars().cb_flags.get()
                 & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST))
                 != 0;
         if regname == 0

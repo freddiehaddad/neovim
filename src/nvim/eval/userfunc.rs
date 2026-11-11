@@ -1443,7 +1443,7 @@ pub fn call_user_func(
     let mut did_save_redo = false;
     let mut save_redo = RedoState::new();
 
-    if i64::from(UF_STATE.with(|s| s.call_depth.get())) >= opt_vars().p_mfd {
+    if i64::from(UF_STATE.with(|s| s.call_depth.get())) >= opt_vars().p_mfd.get() {
         emsg(gettext(
             c"E132: Function call depth is higher than 'maxfuncdepth'",
         ));
@@ -1612,12 +1612,12 @@ pub fn call_user_func(
 
     estack_push_ufunc(fp, 1);
     let estack_len_before = crate::runtime::estack_len() as i32;
-    if opt_vars().p_verbose >= 12 {
+    if opt_vars().p_verbose.get() >= 12 {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
         smsg!(0, gettext(c"calling %s"), sourcing_name().as_deref());
-        if opt_vars().p_verbose >= 14 {
+        if opt_vars().p_verbose.get() >= 14 {
             msg_puts(c"(");
             for (i, arg_tv) in argvars.iter_mut().take(argcount as usize).enumerate() {
                 if i > 0 {
@@ -1753,7 +1753,7 @@ pub fn call_user_func(
         }
     }
 
-    if opt_vars().p_verbose >= 12 {
+    if opt_vars().p_verbose.get() >= 12 {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
@@ -1800,7 +1800,7 @@ pub fn call_user_func(
         g_st().sandbox -= 1;
     }
 
-    if opt_vars().p_verbose >= 12 && sourcing_name().as_deref().is_some() {
+    if opt_vars().p_verbose.get() >= 12 && sourcing_name().as_deref().is_some() {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
@@ -2026,7 +2026,7 @@ pub fn func_call(
 }
 
 pub fn callback_call_retnr(
-    callback: &mut Callback,
+    callback: &Callback,
     argcount: i32,
     argvars: &mut [TypVal],
 ) -> Varnumber {
@@ -2407,7 +2407,7 @@ fn list_func_head(fp: &UserFunc, indent: bool, force: bool) -> bool {
         msg_puts(c" closure");
     }
     msg_clr_eos();
-    if opt_vars().p_verbose > 0 {
+    if opt_vars().p_verbose.get() > 0 {
         last_set_msg(fp.uf_script_ctx.get());
     }
 
@@ -2743,7 +2743,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> crate::strings::OwnedSlice {
         let pat_cstr = bytes_to_cstring(pat_start.slice(pat_len));
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = opt_vars().p_ic;
+            regmatch.rm_ic = opt_vars().p_ic.get();
             list_functions(Some(&mut regmatch));
             regmatch.free_prog();
         }
@@ -2968,7 +2968,7 @@ fn get_function_body(
                         nextcmd_opt = Some(la);
                     } else if !p_cstr.is_empty()
                         && p_cstr.to_bytes().first() != Some(&b'"')
-                        && opt_vars().p_verbose > 0
+                        && opt_vars().p_verbose.get() > 0
                     {
                         swmsg!(
                             true,
