@@ -743,12 +743,11 @@ pub fn searchit(
     magic: bool,
     mut extra_arg: Option<&mut SearchitArg>,
 ) -> i32 {
-    let win = crate::globals::GraphPtr::from(win);
+    let win = crate::globals::WinPtr::from(win);
     {
         let mut found: i32;
         let mut lnum: Linenr;
         let mut regmatch: Regmmatch = Regmmatch::new();
-        let mut ptr_line;
         let mut matchcol: Colnr;
         let mut endpos: Lpos;
         let mut matchpos: Lpos;
@@ -878,8 +877,6 @@ pub fn searchit(
                             } else {
                                 ml_get_buf(buf, lnum + matchpos.lnum)
                             };
-                        ptr_line = ptr_line_cstr.as_ptr().cast_mut();
-
                         if dir == FORWARD && at_first_line {
                             match_ok = true;
 
@@ -889,10 +886,8 @@ pub fn searchit(
                                 } else {
                                     matchpos.col
                                         - i32::from(
-                                            *crate::globals::GraphPtr::of(
-                                                ptr_line.wrapping_add(matchpos.col as usize),
-                                            )
-                                            .borrow()
+                                            ptr_line_cstr.to_bytes_with_nul()
+                                                [matchpos.col as usize]
                                                 == 0,
                                         )
                                         < start_pos.col + extra_col
@@ -905,11 +900,7 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && *crate::globals::GraphPtr::of(
-                                            ptr_line.wrapping_add(matchcol as usize),
-                                        )
-                                        .borrow()
-                                            != 0
+                                        && ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0
                                     {
                                         matchcol += utfc_ptr2len(
                                             &ptr_line_cstr[(matchcol as usize)
@@ -918,12 +909,7 @@ pub fn searchit(
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
-                                    if *crate::globals::GraphPtr::of(
-                                        ptr_line.wrapping_add(matchcol as usize),
-                                    )
-                                    .borrow()
-                                        != 0
-                                    {
+                                    if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0 {
                                         matchcol += utfc_ptr2len(
                                             &ptr_line_cstr[(matchcol as usize)
                                                 .min(ptr_line_cstr.to_bytes().len())..],
@@ -933,24 +919,18 @@ pub fn searchit(
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
                                     break;
                                 }
-                                if *crate::globals::GraphPtr::of(
-                                    ptr_line.wrapping_add(matchcol as usize),
-                                )
-                                .borrow()
-                                    == 0
-                                    || {
-                                        nmatched = vim_regexec_multi(
-                                            &mut regmatch,
-                                            win.opt_mut(),
-                                            &mut *buf,
-                                            lnum,
-                                            matchcol,
-                                            tm,
-                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                        );
-                                        nmatched == 0
-                                    }
-                                {
+                                if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] == 0 || {
+                                    nmatched = vim_regexec_multi(
+                                        &mut regmatch,
+                                        win.opt_mut(),
+                                        &mut *buf,
+                                        lnum,
+                                        matchcol,
+                                        tm,
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                    );
+                                    nmatched == 0
+                                } {
                                     match_ok = false;
                                     break;
                                 }
@@ -965,7 +945,6 @@ pub fn searchit(
                                     break;
                                 }
                                 ptr_line_cstr = ml_get_buf(buf, lnum);
-                                ptr_line = ptr_line_cstr.as_ptr().cast_mut();
                             }
                             if !match_ok {
                                 lnum += dir;
@@ -1003,11 +982,7 @@ pub fn searchit(
                                     }
                                     matchcol = endpos.col;
                                     if matchcol == matchpos.col
-                                        && *crate::globals::GraphPtr::of(
-                                            ptr_line.wrapping_add(matchcol as usize),
-                                        )
-                                        .borrow()
-                                            != 0
+                                        && ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0
                                     {
                                         matchcol += utfc_ptr2len(
                                             &ptr_line_cstr[(matchcol as usize)
@@ -1019,36 +994,25 @@ pub fn searchit(
                                         break;
                                     }
                                     matchcol = matchpos.col;
-                                    if *crate::globals::GraphPtr::of(
-                                        ptr_line.wrapping_add(matchcol as usize),
-                                    )
-                                    .borrow()
-                                        != 0
-                                    {
+                                    if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0 {
                                         matchcol += utfc_ptr2len(
                                             &ptr_line_cstr[(matchcol as usize)
                                                 .min(ptr_line_cstr.to_bytes().len())..],
                                         );
                                     }
                                 }
-                                if *crate::globals::GraphPtr::of(
-                                    ptr_line.wrapping_add(matchcol as usize),
-                                )
-                                .borrow()
-                                    == 0
-                                    || {
-                                        nmatched = vim_regexec_multi(
-                                            &mut regmatch,
-                                            win.opt_mut(),
-                                            &mut *buf,
-                                            lnum + matchpos.lnum,
-                                            matchcol,
-                                            tm,
-                                            extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
-                                        );
-                                        nmatched == 0
-                                    }
-                                {
+                                if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] == 0 || {
+                                    nmatched = vim_regexec_multi(
+                                        &mut regmatch,
+                                        win.opt_mut(),
+                                        &mut *buf,
+                                        lnum + matchpos.lnum,
+                                        matchcol,
+                                        tm,
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                                    );
+                                    nmatched == 0
+                                } {
                                     if tm.is_some_and(profile_passed_limit) {
                                         match_ok = false;
                                     }
@@ -1058,7 +1022,6 @@ pub fn searchit(
                                     break;
                                 }
                                 ptr_line_cstr = ml_get_buf(buf, lnum + matchpos.lnum);
-                                ptr_line = ptr_line_cstr.as_ptr().cast_mut();
                             }
 
                             if !match_ok {
@@ -3253,7 +3216,7 @@ pub fn find_pattern_in_path(
         let mut i: i32;
         let mut already = false;
         let mut startp_idx: Option<usize> = None;
-        let mut curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+        let mut curwin_save = crate::globals::WinPtr::NULL;
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
 
         let mut file_line_vec: Vec<u8> = vec![0; LSIZE];
@@ -3816,8 +3779,7 @@ pub fn find_pattern_in_path(
                                 did_show = true;
                             } else {
                                 if l_g_do_tagpreview != 0 {
-                                    curwin_save =
-                                        crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
+                                    curwin_save = curwin_ptr();
                                     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
                                 }
                                 if action == ACTION_SPLIT {

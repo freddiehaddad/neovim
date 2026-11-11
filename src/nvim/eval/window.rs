@@ -105,24 +105,24 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         return 0;
     }
 
-    let mut tp = crate::globals::GraphPtr::<TabPageInfo>::NULL;
-    let wp: crate::globals::GraphPtr<WinInfoInfo>;
+    let mut tp = crate::globals::TabpagePtr::NULL;
+    let wp: crate::globals::WinPtr;
     if argvars[1].v_type == VarType::VarUnknown {
-        tp = crate::globals::GraphPtr::<TabPageInfo>::of(g_st().curtab);
-        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(g_st().firstwin);
+        tp = g_st().curtab;
+        wp = g_st().firstwin;
     } else {
         let mut tabnr = tv_get_number(&argvars[1]) as i32;
         for tp2 in for_all_tabpages_ptr() {
             tabnr -= 1;
             if tabnr == 0 {
-                tp = crate::globals::GraphPtr::<TabPageInfo>::of(tp2);
+                tp = crate::globals::TabpagePtr::from(&*tp2);
                 break;
             }
         }
         if tp.is_null() {
             return -1;
         }
-        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(first_win_in_tab(tp.borrow_mut()));
+        wp = crate::globals::WinPtr::from(first_win_in_tab(tp.borrow_mut()));
     }
     let tp_ref = tp.borrow_mut();
     for wp_ref in win_iter_mut(wp) {
@@ -301,9 +301,9 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut nr: i32 = 1;
 
     let mut twin = if g_st().curtab == tp {
-        curwin_ptr().as_ptr()
+        curwin_ptr()
     } else {
-        tp.tp_curwin.as_ptr()
+        tp.tp_curwin
     };
     if argvar.v_type != VarType::VarUnknown {
         let mut invalid_arg = false;
@@ -311,15 +311,15 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
             let bytes = arg.to_bytes();
             if bytes == b"$" {
                 twin = if g_st().curtab == tp {
-                    g_st().lastwin.as_ptr()
+                    g_st().lastwin
                 } else {
-                    tp.tp_lastwin.as_ptr()
+                    tp.tp_lastwin
                 };
             } else if bytes == b"#" {
                 twin = if g_st().curtab == tp {
-                    g_st().prevwin.as_ptr()
+                    g_st().prevwin
                 } else {
-                    tp.tp_prevwin.as_ptr()
+                    tp.tp_prevwin
                 };
                 if twin.is_null() {
                     nr = 0;
@@ -332,19 +332,23 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !rem.is_empty() {
                     let tail = rem;
-                    let twin_ref = crate::globals::GraphPtr::of(twin).borrow_mut();
+                    let twin_ref = twin.borrow_mut();
                     if tail == b"j" {
-                        twin = win_vert_neighbor(tp, twin_ref, false, count)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        twin = crate::globals::WinPtr::from(win_vert_neighbor(
+                            tp, twin_ref, false, count,
+                        ));
                     } else if tail == b"k" {
-                        twin = win_vert_neighbor(tp, twin_ref, true, count)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        twin = crate::globals::WinPtr::from(win_vert_neighbor(
+                            tp, twin_ref, true, count,
+                        ));
                     } else if tail == b"h" {
-                        twin = win_horz_neighbor(tp, twin_ref, true, count)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        twin = crate::globals::WinPtr::from(win_horz_neighbor(
+                            tp, twin_ref, true, count,
+                        ));
                     } else if tail == b"l" {
-                        twin = win_horz_neighbor(tp, twin_ref, false, count)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        twin = crate::globals::WinPtr::from(win_horz_neighbor(
+                            tp, twin_ref, false, count,
+                        ));
                     } else {
                         invalid_arg = true;
                     }
@@ -359,7 +363,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
         } else {
             nr = 0;
         }
-    } else if !win_has_winnr(crate::globals::GraphPtr::of(twin).borrow_mut(), tp) {
+    } else if !win_has_winnr(twin.borrow_mut(), tp) {
         nr = 0;
     }
 
@@ -371,7 +375,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut found = false;
     for wp in win_iter_mut(first_win_in_tab(tp)) {
         nr += i32::from(win_has_winnr(wp, tp));
-        if ptr::eq(wp, twin) {
+        if twin == wp {
             found = true;
             break;
         }
@@ -446,7 +450,7 @@ fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
 
 /// `gettabinfo()` function (`f_gettabinfo`).
 pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tparg = crate::globals::GraphPtr::<TabPageInfo>::NULL;
+    let mut tparg = crate::globals::TabpagePtr::NULL;
 
     tv_list_alloc_ret(
         rettv,
@@ -458,8 +462,8 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     );
 
     if argvars[0].v_type != VarType::VarUnknown {
-        tparg = crate::globals::GraphPtr::from(find_tabpage(
-            tv_get_number_chk(&argvars[0], None) as i32
+        tparg = crate::globals::TabpagePtr::from(find_tabpage(
+            tv_get_number_chk(&argvars[0], None) as i32,
         ));
         if tparg.is_null() {
             return;
@@ -482,7 +486,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `getwininfo()` function (`f_getwininfo`).
 pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wparg = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut wparg = crate::globals::WinPtr::NULL;
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
@@ -490,7 +494,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let Some(wp) = win_id2wp(tv_get_number(&argvars[0]) as i32) else {
             return;
         };
-        wparg = crate::globals::GraphPtr::<WinInfoInfo>::of(wp);
+        wparg = crate::globals::WinPtr::from(&*wp);
     }
 
     let mut tabnr: i16 = 0;
@@ -693,8 +697,8 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_splitmove()` function (`f_win_splitmove`).
 pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(find_win_by_nr_or_id(&argvars[0]));
-    let targetwin = crate::globals::GraphPtr::<WinInfoInfo>::of(find_win_by_nr_or_id(&argvars[1]));
+    let wp = crate::globals::WinPtr::from(find_win_by_nr_or_id(&argvars[0]));
+    let targetwin = crate::globals::WinPtr::from(find_win_by_nr_or_id(&argvars[1]));
     let oldwin = curwin_ptr();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);

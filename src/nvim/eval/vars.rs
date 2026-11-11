@@ -1545,6 +1545,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     let arg_subsc = arg;
                     let subsc_ok = handle_subscript(
                         &mut arg,
+                        name_start,
                         &mut tv,
                         Some(&mut g_st().evalarg_evaluate),
                         true,
@@ -3527,6 +3528,7 @@ pub fn var_exists(var_in: &CStr) -> bool {
     let mut tofree: Option<std::ffi::CString> = None;
     let mut n = false;
 
+    let start_var = var;
     let mut name = var;
     let len = get_name_len(&mut var, &mut tofree, true, false);
     if len > 0 {
@@ -3537,7 +3539,13 @@ pub fn var_exists(var_in: &CStr) -> bool {
         }
         n = eval_variable(name, len, Some(&mut tv), None, false, true);
         if n {
-            n = handle_subscript(&mut var, &mut tv, Some(&mut g_st().evalarg_evaluate), false);
+            n = handle_subscript(
+                &mut var,
+                start_var,
+                &mut tv,
+                Some(&mut g_st().evalarg_evaluate),
+                false,
+            );
             if n {
                 tv_clear(&mut tv);
             }

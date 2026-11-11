@@ -46,7 +46,6 @@ use crate::strings::{format_to_buf, gettext, vim_strchr};
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::CStr;
-use std::ptr;
 
 const SIGN_DEF_PRIO: i32 = 10;
 
@@ -338,20 +337,19 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
     let mut lbuf = [0u8; MSG_BUF_LEN];
     let mut namebuf = [0u8; MSG_BUF_LEN];
     let mut groupbuf = [0u8; MSG_BUF_LEN];
-    let rbuf_ptr = rbuf.map_or(ptr::null(), |b| &raw const *b);
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::of(if !rbuf_ptr.is_null() {
-        rbuf_ptr
+    let mut buf = if let Some(rbuf) = rbuf {
+        crate::globals::BufPtr::from(rbuf)
     } else {
-        g_st().firstbuf.as_ptr()
-    })
-    .as_ptr()
-    .cast_const();
+        g_st().firstbuf
+    };
     let ns = group_get_ns(group);
 
     msg_puts_title(gettext(c"\n--- Signs ---"));
 
-    while !buf.is_null() && !g_st().got_int {
-        let buf_ref = crate::globals::GraphPtr::of(buf).borrow();
+    while let Some(buf_ref) = buf.opt() {
+        if g_st().got_int {
+            break;
+        }
         if buf_has_signs(buf_ref) {
             msg_putchar(b'\n' as i32);
             let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
@@ -415,7 +413,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         if rbuf.is_some() {
             return;
         }
-        buf = buf_ref.b_next.as_ptr();
+        buf = buf_ref.b_next;
     }
 }
 
@@ -1461,7 +1459,7 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 }
 
 pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
     let mut lnum: Linenr = 0;
     let mut sign_id: i32 = 0;
     let mut group: Option<&CStr> = None;
@@ -1471,7 +1469,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     tv_list_alloc_ret(rettv, 0);
 
     if argvars[0].v_type != VarType::VarUnknown {
-        buf = crate::globals::GraphPtr::from(get_buf_arg(&mut argvars[0]));
+        buf = crate::globals::BufPtr::from(get_buf_arg(&mut argvars[0]));
         if buf.is_null() {
             return;
         }
@@ -1717,7 +1715,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i32 {
     let mut id: i32 = 0;
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
     let group_cstr = if let Some(group_tv) = group_tv {
         Some(tv_get_string(group_tv))
     } else {
@@ -1727,7 +1725,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
 
     if dict.is_some() {
         if let Some(di_buf) = tv_dict_find_opt(dict, c"buffer", -1) {
-            buf = crate::globals::GraphPtr::from(get_buf_arg(&mut di_buf.di_tv));
+            buf = crate::globals::BufPtr::from(get_buf_arg(&mut di_buf.di_tv));
             if buf.is_null() {
                 return -1;
             }

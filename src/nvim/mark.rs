@@ -486,17 +486,16 @@ pub fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<Fmark> {
-    let wp = win.as_ptr();
+pub fn get_jumplist(mut win: crate::globals::WinPtr, mut count: i32) -> Option<Fmark> {
     cleanup_jumplist(win, true);
 
-    if crate::globals::GraphPtr::of(wp).borrow().w_jumplistlen == 0 {
+    if win.w_jumplistlen == 0 {
         return None;
     }
 
     loop {
-        let jl_idx = crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx;
-        let jl_len = crate::globals::GraphPtr::of(wp).borrow().w_jumplistlen;
+        let jl_idx = win.w_jumplistidx;
+        let jl_len = win.w_jumplistlen;
         if jl_idx + count < 0 || jl_idx + count >= jl_len {
             return None;
         }
@@ -504,35 +503,25 @@ pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<Fmark
         if jl_idx == jl_len {
             setpcmark();
 
-            crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplistidx -= 1;
+            win.w_jumplistidx -= 1;
 
-            if crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx + count < 0 {
+            if win.w_jumplistidx + count < 0 {
                 return None;
             }
         }
 
-        crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplistidx += count;
+        win.w_jumplistidx += count;
 
-        let idx = crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx as usize;
-        if crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
-            .fmark
-            .fnum
-            == 0
-        {
-            fname2fnum(&crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]);
+        let idx = win.w_jumplistidx as usize;
+        if win.w_jumplist[idx].fmark.fnum == 0 {
+            fname2fnum(&win.w_jumplist[idx]);
         }
-        let fnum = crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
-            .fmark
-            .fnum;
+        let fnum = win.w_jumplist[idx].fmark.fnum;
         if fnum != curbuf_mut().b_fnum && buflist_findnr(fnum).is_none() {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return Some(
-            crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
-                .fmark
-                .clone(),
-        );
+        return Some(win.w_jumplist[idx].fmark.clone());
     }
 }
 
@@ -1786,26 +1775,16 @@ pub fn mark_col_adjust(
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
 pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
-    let wp_ptr = wp.as_ptr();
     if loadfiles {
-        let len = crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplistlen as usize;
+        let len = wp.w_jumplistlen as usize;
         for i in 0..len {
-            if crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]
-                .fmark
-                .fnum
-                == 0
-                && crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]
-                    .fmark
-                    .mark
-                    .lnum
-                    != 0
-            {
-                fname2fnum(&crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]);
+            if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
+                fname2fnum(&wp.w_jumplist[i]);
             }
         }
     }
 
-    let wp = crate::globals::GraphPtr::of(wp_ptr).borrow_mut();
+    let wp = wp.borrow_mut();
     let mut to: i32 = 0;
     for from in 0..wp.w_jumplistlen {
         let from_u = from as usize;

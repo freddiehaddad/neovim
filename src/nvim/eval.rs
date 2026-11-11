@@ -955,15 +955,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
     let mut tv = tv_initial_value();
     let mut argv = [tv_initial_value()];
     let retval: Varnumber;
-    if !callback_call(
-        crate::globals::GraphPtr::of(
-            (&raw mut wp.w_onebuf_opt.wo_fde).cast::<crate::eval::typval::Callback>(),
-        )
-        .borrow_mut(),
-        0,
-        &mut argv,
-        &mut tv,
-    ) {
+    if !callback_call(&wp.w_onebuf_opt.wo_fde, 0, &mut argv, &mut tv) {
         retval = 0;
     } else {
         if tv.v_type == VarType::VarNumber {
@@ -999,14 +991,7 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
     let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
     let mut tv = tv_initial_value();
     let retval: Object;
-    if !eval_expr_option_tv(
-        crate::globals::GraphPtr::of(
-            (&raw mut wp.w_onebuf_opt.wo_fdt).cast::<crate::eval::typval::Callback>(),
-        )
-        .borrow_mut(),
-        use_sandbox,
-        &mut tv,
-    ) {
+    if !eval_expr_option_tv(&mut wp.w_onebuf_opt.wo_fdt, use_sandbox, &mut tv) {
         retval = Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(NvimString::new()),
@@ -2884,7 +2869,7 @@ fn eval7(
     *arg = crate::charset::skipwhite(arg);
 
     if ok {
-        ok = handle_subscript(arg, &mut *rettv, evalarg, true);
+        ok = handle_subscript(arg, start_arg, &mut *rettv, evalarg, true);
     }
 
     if ok && evaluate && leader_len > 0 {
@@ -3082,6 +3067,7 @@ fn eval_method<'a>(
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
+    let orig_arg = *arg;
     *arg = crate::memory::CStrSubslice::advance(*arg, 2);
     let mut base = std::mem::take(rettv);
 
@@ -3176,7 +3162,7 @@ fn eval_method<'a>(
                 }
                 ret = false;
             } else if ascii_iswhite(i32::from(
-                *crate::globals::GraphPtr::of(arg.as_ptr().wrapping_sub(1)).borrow() as u8,
+                orig_arg.to_bytes()[orig_arg.to_bytes().len() - arg.to_bytes().len() - 1],
             )) {
                 if verbose {
                     emsg(gettext(E_NOWHITESPACE));
@@ -3978,10 +3964,10 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
     let evaluate = evalarg
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut l = crate::eval::typval::ListId::NULL;
 
     if evaluate {
-        l = crate::globals::GraphPtr::<TvList>::of(tv_list_alloc(K_LIST_LEN_SHOULD_KNOW));
+        l = crate::eval::typval::ListId::from(tv_list_alloc(K_LIST_LEN_SHOULD_KNOW));
     }
 
     *arg = crate::charset::skipwhite_at(arg, 1);
@@ -4489,9 +4475,9 @@ fn eval_dict(
         return None;
     }
 
-    let mut d = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut d = crate::eval::typval::DictId::NULL;
     if evaluate {
-        d = crate::globals::GraphPtr::<TvDict>::of(tv_dict_alloc());
+        d = crate::eval::typval::DictId::from(tv_dict_alloc());
     }
     let mut tvkey = tv_initial_value();
     tv.v_type = VarType::VarUnknown;
@@ -5911,6 +5897,7 @@ pub fn string_slice(
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
 pub fn handle_subscript<'a>(
     arg: &mut &'a CStr,
+    start_arg: &'a CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     verbose: bool,
@@ -5948,7 +5935,16 @@ pub fn handle_subscript<'a>(
             || (arg.to_bytes_with_nul()[0] == b'.' && rettv.v_type == VarType::VarDict)
             || (arg.to_bytes_with_nul()[0] == b'(' && (!evaluate || tv_is_func(rettv))))
             && !ascii_iswhite(i32::from(
-                *crate::globals::GraphPtr::of(arg.as_ptr().wrapping_sub(1)).borrow() as u8,
+                start_arg
+                    .to_bytes()
+                    .get(
+                        start_arg
+                            .to_bytes()
+                            .len()
+                            .saturating_sub(arg.to_bytes().len() + 1),
+                    )
+                    .copied()
+                    .unwrap_or(0),
             )))
             || arg.to_bytes().starts_with(b"->"))
     {

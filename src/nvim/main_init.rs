@@ -897,7 +897,7 @@ pub fn getout(mut exitval: i32) -> ! {
                     continue;
                 }
                 let buf = wp.buf_mut();
-                let buf_ptr = crate::globals::GraphPtr::<crate::buffer::FileBuf>::from_ref(buf);
+                let buf_ptr = crate::globals::BufPtr::from(&*buf);
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf_ptr.opt_mut());
@@ -1856,7 +1856,7 @@ fn read_stdin() {
             semsg!(c"Failed to create buffer for stdin");
             return;
         };
-        let stdin_buf = crate::globals::GraphPtr::<crate::buffer::FileBuf>::from_ref(stdin_buf_ref);
+        let stdin_buf = crate::globals::BufPtr::from(&*stdin_buf_ref);
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
         set_curbuf(stdin_buf.borrow_mut(), 0, false);
@@ -2081,25 +2081,18 @@ fn edit_buffers(parmp: &mut Mparm) {
     g_st().autocmd_no_enter -= 1;
 
     let mut win = if parmp.window_count > 1 {
-        g_st().firstwin.as_ptr()
+        g_st().firstwin
     } else {
-        curwin_ptr().as_ptr()
+        curwin_ptr()
     };
-    while crate::globals::GraphPtr::of(win)
-        .borrow()
-        .w_onebuf_opt
-        .wo_pvw
-    {
-        win = crate::globals::GraphPtr::of(win)
-            .borrow_mut()
-            .w_next
-            .as_ptr();
+    while win.w_onebuf_opt.wo_pvw {
+        win = win.w_next;
         if win.is_null() {
-            win = g_st().firstwin.as_ptr();
+            win = g_st().firstwin;
             break;
         }
     }
-    win_enter(crate::globals::GraphPtr::of(win).borrow_mut(), false);
+    win_enter(win.borrow_mut(), false);
 
     g_st().autocmd_no_leave -= 1;
     time_msg_if_enabled(c"editing files in windows");

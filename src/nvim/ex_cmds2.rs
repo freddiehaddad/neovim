@@ -143,7 +143,7 @@ pub fn autowrite_all() {
             buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
-                buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+                buf = g_st().firstbuf;
                 continue;
             }
         }
@@ -248,7 +248,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                     buf_write_all(buf2.borrow_mut(), false);
                 }
                 if !bufref_valid(Some(&bufref)) {
-                    buf2 = crate::globals::GraphPtr::of(g_st().firstbuf);
+                    buf2 = g_st().firstbuf;
                     continue;
                 }
             }
@@ -318,10 +318,10 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         add_bufnum(&mut bufnrs, b.b_fnum);
     }
 
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
     let mut i: usize = 0;
     while i < bufnrs.len() {
-        buf = crate::globals::GraphPtr::from(buflist_findnr(bufnrs[i]));
+        buf = crate::globals::BufPtr::from(buflist_findnr(bufnrs[i]));
         if let Some(buf_ref) = buf.opt_mut()
             && (!hidden || buf_ref.b_nwindows == 0)
             && buf_is_changed_fn(buf_ref)
@@ -520,16 +520,16 @@ pub fn ex_listdo(eap: &mut Exarg) {
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
-            buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+            buf = g_st().firstbuf;
             while let Some(buf_ref) = buf.opt()
                 && (buf_ref.b_fnum < eap.line1 || !buf_ref.b_p_bl)
             {
                 if buf_ref.b_fnum > eap.line2 {
-                    buf = crate::globals::GraphPtr::NULL;
+                    buf = crate::globals::BufPtr::NULL;
                     break;
                 }
 
-                buf = crate::globals::GraphPtr::of(buf_ref.b_next);
+                buf = buf_ref.b_next;
             }
             if let Some(buf_ref) = buf.opt() {
                 goto_buffer(eap, DOBUF_FIRST, FORWARD, buf_ref.b_fnum);
@@ -542,11 +542,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
             qf_size = qf_get_valid_size(eap);
             debug_assert!(eap.line1 >= 0);
             if qf_size == 0 || (eap.line1 as usize) > qf_size {
-                buf = crate::globals::GraphPtr::NULL;
+                buf = crate::globals::BufPtr::NULL;
             } else {
                 ex_cc(eap);
 
-                buf = crate::globals::GraphPtr::of(g_st().curbuf);
+                buf = g_st().curbuf;
                 i = eap.line1 - 1;
                 if eap.addr_count <= 0 {
                     debug_assert!(qf_size < MAXLNUM);
@@ -678,7 +678,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         au_event_restore(save_ei);
 
-        let mut buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+        let mut buf = g_st().firstbuf;
         while let Some(buf_ref) = buf.opt_mut() {
             let mut bnext = buf_ref.b_next;
             if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
@@ -710,9 +710,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     ctx_restore(&mut aco);
                 }
 
-                bnext = crate::globals::GraphPtr::of(g_st().firstbuf);
+                bnext = g_st().firstbuf;
             }
-            buf = crate::globals::GraphPtr::of(crate::globals::GraphPtr::of(bnext));
+            buf = bnext;
         }
     }
 }
@@ -832,7 +832,7 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    let buf = crate::globals::GraphPtr::from(buflist_findnr(curwin_arglist().ae_fnum));
+    let buf = crate::globals::BufPtr::from(buflist_findnr(curwin_arglist().ae_fnum));
 
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {

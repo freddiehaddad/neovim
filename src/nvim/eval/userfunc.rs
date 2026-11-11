@@ -3845,7 +3845,13 @@ fn ex_call_inner<'a>(
             break;
         }
 
-        if !handle_subscript(arg, &mut rettv, Some(&mut g_st().evalarg_evaluate), true) {
+        if !handle_subscript(
+            arg,
+            startarg,
+            &mut rettv,
+            Some(&mut g_st().evalarg_evaluate),
+            true,
+        ) {
             failed = true;
             break;
         }

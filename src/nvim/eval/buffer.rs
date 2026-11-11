@@ -69,12 +69,12 @@ impl Default for Cob {
 
 /// Find a buffer by number or exact name (`find_buffer`).
 pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut buf = crate::globals::BufPtr::NULL;
 
     if avar.v_type == VarType::VarNumber {
-        buf = crate::globals::GraphPtr::from(buflist_findnr(avar.vval.v_number() as i32));
+        buf = crate::globals::BufPtr::from(buflist_findnr(avar.vval.v_number() as i32));
     } else if avar.v_type == VarType::VarString && !avar.vval.v_string_is_null() {
-        buf = crate::globals::GraphPtr::from(buflist_findname_exp(avar.vval.v_string_cstr()));
+        buf = crate::globals::BufPtr::from(buflist_findname_exp(avar.vval.v_string_cstr()));
         if buf.is_null() {
             let target = avar.vval.v_string_bytes();
             for bp in for_all_buffers_mut() {
@@ -82,7 +82,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
                     && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&*bp)))
                     && bp.fname_bytes() == target
                 {
-                    buf = crate::globals::GraphPtr::<FileBuf>::of(&bp);
+                    buf = crate::globals::BufPtr::from(&*bp);
                     break;
                 }
             }
@@ -103,7 +103,7 @@ fn find_win_for_curbuf() {
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
 fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
-    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
+    let buf_ptr = crate::globals::BufPtr::from(&*buf);
     *cob = Cob::new();
 
     cob.cob_save_visual_active = g_st().visual_global.active;
@@ -144,7 +144,7 @@ fn set_buffer_lines(
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     };
-    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
+    let buf_ptr = crate::globals::BufPtr::from(&*buf);
     let is_curbuf = buf_ptr == g_st().curbuf.as_ptr();
     if (!is_curbuf && buf.b_ml.ml_mfp.is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -399,7 +399,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let Some(buf_ref) = tv_get_buf_from_arg(&mut argvars[0]) else {
         return;
     };
-    let mut buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_ref);
+    let mut buf = crate::globals::BufPtr::from(&*buf_ref);
     if !bt_prompt(buf.opt()) {
         return;
     }
@@ -523,15 +523,12 @@ pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `bufname(expr)` function (`f_bufname`).
 pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, None);
-    let buf =
-        crate::globals::GraphPtr::<FileBuf>::of(if argvars[0].v_type == VarType::VarUnknown {
-            g_st().curbuf.as_ptr()
-        } else {
-            tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b)
-        })
-        .as_ptr()
-        .cast_const();
-    if let Some(buf) = crate::globals::GraphPtr::of(buf).opt()
+    let buf = if argvars[0].v_type == VarType::VarUnknown {
+        g_st().curbuf
+    } else {
+        crate::globals::BufPtr::from(tv_get_buf_from_arg(&mut argvars[0]))
+    };
+    if let Some(buf) = buf.opt()
         && buf.fname_opt().is_some()
     {
         tv_set_string(rettv, buf.fname_opt());
@@ -544,20 +541,17 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let mut buf =
-        crate::globals::GraphPtr::<FileBuf>::of(if argvars[0].v_type == VarType::VarUnknown {
-            g_st().curbuf.as_ptr()
-        } else {
-            if !tv_check_str_or_nr(&argvars[0]) {
-                return;
-            }
-            g_st().emsg_off += 1;
-            let b = tv_get_buf(&mut argvars[0], 0).map_or(ptr::null(), |b| b);
-            g_st().emsg_off -= 1;
-            b
-        })
-        .as_ptr()
-        .cast_const();
+    let mut buf = if argvars[0].v_type == VarType::VarUnknown {
+        g_st().curbuf
+    } else {
+        if !tv_check_str_or_nr(&argvars[0]) {
+            return;
+        }
+        g_st().emsg_off += 1;
+        let b = crate::globals::BufPtr::from(tv_get_buf(&mut argvars[0], 0));
+        g_st().emsg_off -= 1;
+        b
+    };
 
     if buf.is_null()
         && argvars[1].v_type != VarType::VarUnknown
@@ -565,21 +559,16 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         && !error
         && let Some(name) = tv_get_string_chk(&argvars[0])
     {
-        buf = buflist_new(Some(&name), None, 1, 0).map_or(ptr::null(), |b| b);
+        buf = crate::globals::BufPtr::from(buflist_new(Some(&name), None, 1, 0));
     }
 
-    if !buf.is_null() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(
-            crate::globals::GraphPtr::of(buf).borrow().b_fnum as Varnumber,
-        );
+    if let Some(buf_ref) = buf.opt() {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(buf_ref.b_fnum as Varnumber);
     }
 }
 
 fn buf_win_common(argvars: &mut [TypVal], rettv: &mut TypVal, get_nr: bool) {
-    let buf = crate::globals::GraphPtr::<FileBuf>::of(
-        tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b),
-    )
-    .as_ptr();
+    let buf = crate::globals::BufPtr::from(tv_get_buf_from_arg(&mut argvars[0]));
     if buf.is_null() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         return;
@@ -635,7 +624,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
+    let buf_ptr = crate::globals::BufPtr::from(&*buf);
     let is_curbuf = g_st().curbuf == buf_ptr;
     let mut cob = Cob::new();
     if !is_curbuf {
@@ -744,7 +733,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
 
 /// `getbufinfo()` function (`f_getbufinfo`).
 pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut argbuf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut argbuf = crate::globals::BufPtr::NULL;
     let mut filtered = false;
     let mut sel_buflisted = false;
     let mut sel_bufloaded = false;
@@ -760,7 +749,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             sel_bufmodified = tv_dict_get_bool(Some(sel_d), c"bufmodified", 0) != 0;
         }
     } else if argvars[0].v_type != VarType::VarUnknown {
-        argbuf = crate::globals::GraphPtr::from(tv_get_buf_from_arg(&mut argvars[0]));
+        argbuf = crate::globals::BufPtr::from(tv_get_buf_from_arg(&mut argvars[0]));
         if argbuf.is_null() {
             return;
         }

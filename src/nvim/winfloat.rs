@@ -56,7 +56,7 @@ pub fn win_new_float(
         debug_assert!(!last);
         debug_assert!(!wp.w_floating);
 
-        let win_tp = crate::globals::GraphPtr::from(win_find_tabpage(wp));
+        let win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp));
         debug_assert!(!win_tp.is_null());
         if (win_tp == g_st().curtab.as_ptr()
             && g_st().firstwin == wp
@@ -82,7 +82,7 @@ pub fn win_new_float(
         winframe_remove(wp, &mut dir, tp.opt_mut(), None);
 
         if !wp.w_frame.is_null() {
-            crate::globals::GraphPtr::of(wp.w_frame.as_ptr()).drop_box();
+            wp.w_frame.drop_box();
         }
 
         wp.w_frame = crate::globals::FramePtr::NULL;
@@ -97,12 +97,11 @@ pub fn win_new_float(
         win_append(Some(prev), wp, tp.opt_mut());
         wp
     } else {
-        let mut tp_last = crate::globals::GraphPtr::<WinInfoInfo>::of(if last {
-            g_st().lastwin.as_ptr()
+        let mut tp_last = if last {
+            g_st().lastwin
         } else {
-            lastwin_nofloating(None)
-        })
-        .as_ptr();
+            crate::globals::WinPtr::from(lastwin_nofloating(None))
+        };
         if fconfig.window != 0 {
             debug_assert!(!last);
             let parent_wp = find_window_by_handle(fconfig.window, err);
@@ -110,14 +109,15 @@ pub fn win_new_float(
                 return None;
             }
             let tp_ref = win_find_tabpage(parent_wp.borrow())?;
-            let tp = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp_ref);
-            tp_last = lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
-                None
-            } else {
-                tp.opt()
-            });
+            let tp = crate::globals::TabpagePtr::from(tp_ref);
+            tp_last =
+                crate::globals::WinPtr::from(lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
+                    None
+                } else {
+                    tp.opt()
+                }));
         }
-        let wp = win_alloc(crate::globals::GraphPtr::of(tp_last).opt_mut(), false);
+        let wp = win_alloc(tp_last.opt_mut(), false);
         win_init(wp, curwin_mut(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             wp.w_onebuf_opt.wo_wbr.clear_option_str();
@@ -326,21 +326,17 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 }
 
 pub fn win_float_remove(bang: bool, mut count: i32) {
-    let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
+    let mut float_win_arr: Vec<crate::globals::WinPtr> = Vec::new();
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
         if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp {
-            float_win_arr.push(wp);
+            float_win_arr.push(crate::globals::WinPtr::from(&*wp));
         }
     }
     if !float_win_arr.is_empty() {
-        float_win_arr.sort_unstable_by_key(|&w| {
-            std::cmp::Reverse(crate::globals::GraphPtr::of(w).borrow().w_config.zindex)
-        });
+        float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(w.w_config.zindex));
     }
-    for w in float_win_arr {
-        if win_valid(crate::globals::GraphPtr::of(w).opt())
-            && !win_close(crate::globals::GraphPtr::of(w).borrow_mut(), false, false)
-        {
+    for mut w in float_win_arr {
+        if win_valid(w.opt()) && !win_close(&mut w, false, false) {
             break;
         }
         if !bang {
@@ -414,12 +410,12 @@ pub fn win_float_find_altwin(
 
     debug_assert!(g_st().curtab != tp);
     let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.opt()) {
-        tp.tp_prevwin.as_ptr()
+        tp.tp_prevwin
     } else {
-        tp.tp_firstwin.as_ptr()
+        tp.tp_firstwin
     };
-    if let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut()
-        && !ptr::eq(wp, win)
+    if let Some(wp_ref) = wp.opt_mut()
+        && wp != win
         && win_is_focusable(wp_ref)
     {
         wp_ref

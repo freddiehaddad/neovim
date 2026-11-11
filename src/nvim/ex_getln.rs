@@ -152,7 +152,6 @@ use crate::window::{
     may_trigger_win_scrolled_resized, win_enter, win_size_restore, win_size_save, win_split,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
@@ -2956,12 +2955,12 @@ pub fn cmdpreview_get_ns() -> i32 {
 /// Sets up command preview buffer.
 fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
     let mut cmdpreview_buf = if GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) != 0 {
-        buflist_findnr(GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()))
-            .map_or(ptr::null_mut(), ptr::from_mut)
+        crate::globals::BufPtr::from(buflist_findnr(
+            GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()),
+        ))
     } else {
-        ptr::null_mut()
+        crate::globals::BufPtr::NULL
     };
-
     if cmdpreview_buf.is_null() {
         let mut err = error_init();
         let bufnr = nvim_create_buf(false, true, &mut err);
@@ -2970,10 +2969,10 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
             return None;
         }
 
-        cmdpreview_buf = buflist_findnr(bufnr).map_or(ptr::null_mut(), ptr::from_mut);
+        cmdpreview_buf = crate::globals::BufPtr::from(buflist_findnr(bufnr));
     }
 
-    if cmdpreview_buf == g_st().curbuf.as_ptr() {
+    if cmdpreview_buf == g_st().curbuf {
         return None;
     }
 
@@ -2982,7 +2981,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         &mut aco,
         None,
         None,
-        crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut(),
+        cmdpreview_buf.opt_mut(),
         K_CTX_KEEP_DIRS,
     );
     let retv = rename_buffer(Some(c"[Preview]"));
@@ -2996,7 +2995,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         &mut aco,
         None,
         None,
-        crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut(),
+        cmdpreview_buf.opt_mut(),
         K_CTX_KEEP_DIRS,
     );
     buf_clear();
@@ -3004,7 +3003,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
     curbuf_mut().b_p_ul = -1;
     curbuf_mut().b_p_tw = 0;
     ctx_restore(&mut aco);
-    let buf_ref = crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut()?;
+    let buf_ref = cmdpreview_buf.opt_mut()?;
     GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(buf_ref.b_fnum));
 
     Some(buf_ref)
@@ -3041,14 +3040,11 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
 
 /// Closes any open command preview windows.
 fn cmdpreview_close_win() {
-    let buf = if GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) != 0 {
-        buflist_findnr(GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()))
-            .map_or(ptr::null_mut(), ptr::from_mut)
-    } else {
-        ptr::null_mut()
-    };
-    if !buf.is_null() {
-        close_windows(crate::globals::GraphPtr::of(buf).opt_mut(), false);
+    let bufnr = GETLN_STATE.with(|s| s.cmdpreview_bufnr.get());
+    if bufnr != 0
+        && let Some(buf) = buflist_findnr(bufnr)
+    {
+        close_windows(Some(buf), false);
     }
 }
 
@@ -3093,8 +3089,7 @@ fn cmdpreview_prepare() -> CpInfo {
     }
 
     cpinfo.save_hls = opt_vars().p_hls;
-    cpinfo.save_cmdmod =
-        crate::globals::GraphPtr::of(&raw mut g_st().cmdmod).replace_val(Cmdmod::new());
+    cpinfo.save_cmdmod = std::mem::take(&mut g_st().cmdmod);
     win_size_save(&mut cpinfo.save_view);
     save_search_patterns();
 
@@ -3179,8 +3174,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     let mut icm_split = opt_vars().p_icm.first_byte() == b's';
-    let mut cmdpreview_buf = crate::globals::GraphPtr::<FileBuf>::NULL;
-    let mut cmdpreview_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut cmdpreview_buf = crate::globals::BufPtr::NULL;
+    let mut cmdpreview_win = crate::globals::WinPtr::NULL;
 
     g_st().emsg_silent += 1;
     g_st().msg_silent += 1;
@@ -3189,7 +3184,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut cpinfo = cmdpreview_prepare();
 
     if icm_split {
-        cmdpreview_buf = crate::globals::GraphPtr::from(cmdpreview_open_buf());
+        cmdpreview_buf = crate::globals::BufPtr::from(cmdpreview_open_buf());
         if cmdpreview_buf.is_null() {
             set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"nosplit")), 0, SID_NONE);
             icm_split = false;
@@ -3216,7 +3211,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 
     if icm_split && cmdpreview_type == 2 {
         cmdpreview_win =
-            crate::globals::GraphPtr::from(cmdpreview_open_win(cmdpreview_buf.borrow_mut()));
+            crate::globals::WinPtr::from(cmdpreview_open_win(cmdpreview_buf.borrow_mut()));
         if cmdpreview_win.is_null() {
             cmdpreview_type = 1;
         }
@@ -5134,7 +5129,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     let prompt_cstr: &CStr;
     let mut defstr: &CStr = c"";
-    let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
+    let mut cancelreturn: Option<&TypVal> = None;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
@@ -5166,7 +5161,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         };
         defstr = defstr_cstr;
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
-            cancelreturn = crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_di.di_tv);
+            cancelreturn = Some(&cancelreturn_di.di_tv);
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
             xp_name = None;
@@ -5199,8 +5194,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 if inputdialog {
                     cancelreturn_strarg2.v_type = VarType::VarString;
                     cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::from_cstr(strarg2);
-                    cancelreturn =
-                        crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_strarg2);
+                    cancelreturn = Some(&cancelreturn_strarg2);
                 } else {
                     xp_name = Some(strarg2);
                 }
@@ -5258,8 +5252,8 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     if let Some(res_cstr) = res {
         crate::eval::typval::tv_set_string_len(&mut *rettv, Some(res_cstr.as_bytes()));
-    } else if !cancelreturn.is_null() {
-        tv_copy(cancelreturn.borrow(), &mut *rettv);
+    } else if let Some(cancelreturn) = cancelreturn {
+        tv_copy(cancelreturn, &mut *rettv);
     }
 
     g_st().need_wait_return = false;
