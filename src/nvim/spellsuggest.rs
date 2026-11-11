@@ -905,7 +905,7 @@ fn spell_find_suggest(
     }
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
-    let mut p: Option<&CStr> = None;
+    let mut p: Option<std::borrow::Cow<'_, CStr>> = None;
     let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
         let list_ptr = crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(list);
@@ -918,7 +918,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                     add_suggestion(
                         su,
                         false,
-                        p.map_or(&[][..], CStr::to_bytes),
+                        p.as_deref().map_or(&[][..], CStr::to_bytes),
                         su.su_badlen,
                         score,
                         0,

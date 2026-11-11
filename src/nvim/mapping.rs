@@ -2113,7 +2113,7 @@ pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     };
 
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(name, mode, abbr)));
+        crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(&name, mode, abbr)));
 }
 
 fn mapblock_fill_dict(
@@ -2416,7 +2416,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             return;
         }
         let d = argvars[2].vval.v_dict();
-        (which, is_abbr, d)
+        (std::borrow::Cow::Borrowed(which), is_abbr, d)
     };
     let mode = get_map_mode_string(which.to_bytes(), is_abbr != 0);
     if mode == 0 {

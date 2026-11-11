@@ -859,7 +859,7 @@ pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
 
 pub fn init_highlight(both: bool, reset: bool) {
     if let Some(p) = get_var_value(c"g:colors_name") {
-        let copy_p = p.to_owned();
+        let copy_p = p.into_owned();
         let okay = load_colors(&copy_p);
         if okay {
             return;

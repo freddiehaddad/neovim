@@ -650,7 +650,7 @@ pub fn eval_to_string_skip(arg: &CStr, eap: &mut Exarg, skip: bool) -> Option<st
     if !eval0(arg, &mut tv, Some(&mut *eap), &mut evalarg) || skip {
         retval = None;
     } else {
-        retval = Some(tv_get_string(&tv).to_owned());
+        retval = Some(tv_get_string(&tv).into_owned());
         tv_clear(&mut tv);
     }
     if skip {
@@ -699,7 +699,7 @@ fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> 
     } else if tv.v_type == VarType::VarList || tv.v_type == VarType::VarDict {
         return Some(encode_tv2string(&mut *tv, None));
     }
-    Some(tv_get_string(&*tv).to_owned())
+    Some(tv_get_string(&*tv).into_owned())
 }
 
 /// Top level evaluation function, returning a string.
@@ -864,7 +864,7 @@ pub fn call_func_retstr(func: &CStr, argc: i32, argv: &mut [TypVal]) -> Option<s
         return None;
     }
 
-    let retval = tv_get_string(&rettv).to_owned();
+    let retval = tv_get_string(&rettv).into_owned();
     tv_clear(&mut rettv);
     Some(retval)
 }
@@ -1014,7 +1014,7 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
         } else {
             retval = Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(Some(tv_get_string(&tv)))),
+                data: ObjectData::String(cstr_to_string(Some(&tv_get_string(&tv)))),
             };
         }
         tv_clear(&mut tv);
@@ -1063,7 +1063,7 @@ fn get_lval_dict_item<'a>(
     let p0 = p_cstr.to_bytes().first().copied().unwrap_or(0);
 
     let key: &CStr = if len == -1 {
-        tv_get_string(&*var1)
+        &tv_get_string(&*var1)
     } else {
         key_in
     };
@@ -3473,13 +3473,15 @@ fn eval_index_inner(
             }
         }
         VarType::VarDict => {
+            let k_cow;
             let key: &CStr = match key_opt {
                 Some(k) => k,
                 None => {
                     let Some(k) = tv_get_string_chk(var1.unwrap()) else {
                         return false;
                     };
-                    k
+                    k_cow = k;
+                    &k_cow
                 }
             };
 
@@ -4664,7 +4666,7 @@ pub fn tv_to_argv(
         if let Some(cmd_out) = cmd {
             *cmd_out = (*cmd_str).to_owned();
         }
-        return shell_build_argv(Some(cmd_str), None);
+        return shell_build_argv(Some(&cmd_str), None);
     }
 
     if cmd_tv.v_type != VarType::VarList {
@@ -4685,7 +4687,7 @@ pub fn tv_to_argv(
     let Some(arg0) = arg0 else {
         return Vec::new();
     };
-    if !os_can_exe(arg0, Some(&mut exe_resolved), true) {
+    if !os_can_exe(&arg0, Some(&mut exe_resolved), true) {
         if let Some(executable) = executable {
             let mut buf = [0u8; IOSIZE];
             format_to_buf!(&mut buf, c"'%s' is not executable", arg0);
@@ -4704,7 +4706,7 @@ pub fn tv_to_argv(
         argv.push(if i == 0 {
             exe_cstr.clone()
         } else {
-            a.to_owned()
+            a.into_owned()
         });
     }
     if let Some(cmd_out) = cmd {
@@ -6247,8 +6249,10 @@ pub fn ex_execute(eap: &mut Exarg) {
 
         if !eap.skip {
             let mut argstr_owned: Option<std::ffi::CString> = None;
-            let argstr = if eap.cmdidx == Cmdidx::CmdExecute {
-                tv_get_string(&rettv)
+            let argstr_cow;
+            let argstr: &CStr = if eap.cmdidx == Cmdidx::CmdExecute {
+                argstr_cow = tv_get_string(&rettv);
+                &argstr_cow
             } else {
                 argstr_owned = Some(if rettv.v_type == VarType::VarString {
                     encode_tv2echo(&mut rettv, None)

@@ -7608,7 +7608,7 @@ pub fn cmd_exists(name: &CStr) -> i32 {
 }
 
 pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut name = crate::strings::OwnedSlice::from_cstr(tv_get_string(&argvars[0]));
+    let mut name = crate::strings::OwnedSlice::from_cstr(&tv_get_string(&argvars[0]));
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -9305,7 +9305,7 @@ fn ex_restart(eap: &mut Exarg) {
                     .iter()
                     .any(|b| matches!(b, b':' | b'/' | b'\\'))
                 {
-                    listen_arg = to_slash_save(Some(addr));
+                    listen_arg = to_slash_save(Some(&addr));
                     #[cfg(windows)]
                     {
                         li = next_li.li_next.as_ptr();
@@ -9389,7 +9389,7 @@ fn ex_restart(eap: &mut Exarg) {
     let globaldir_opt = g_st().borrow_mut().globaldir.as_deref();
     let channel = channel_job_start(
         argv_vec,
-        Some(exepath),
+        Some(&exepath),
         on_stdout,
         on_err,
         on_exit,
@@ -12075,6 +12075,7 @@ pub fn eval_vars(
         return Some(bytes_to_cstring(ident));
     } else {
         let mut result_cstr: Option<&CStr> = None;
+        let oldfile_cow;
         match spec_idx {
             SPEC_PERC => {
                 if let Some(f) = curbuf_mut().fname_opt() {
@@ -12118,7 +12119,8 @@ pub fn eval_vars(
                             *errormsg = Some(std::borrow::Cow::Borrowed(c""));
                             return None;
                         };
-                        result_cstr = Some(oldfile);
+                        oldfile_cow = oldfile;
+                        result_cstr = Some(&oldfile_cow);
                     } else {
                         if i == 0 && is_lt && *usedlen > 1 {
                             *usedlen = 1;

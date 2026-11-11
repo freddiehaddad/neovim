@@ -735,7 +735,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
     } else {
         if let Some(p) = get_var_value(c"g:current_compiler") {
-            old_cur_comp = Some(p.to_owned());
+            old_cur_comp = Some(p.into_owned());
         }
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
     }
@@ -751,7 +751,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
     do_cmdline_cmd(c":delcommand CompilerSet");
 
     if let Some(p) = get_var_value(c"g:current_compiler") {
-        set_internal_string_var(c"b:current_compiler", p);
+        set_internal_string_var(c"b:current_compiler", &p);
     }
 
     if !eap.forceit {

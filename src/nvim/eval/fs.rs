@@ -544,15 +544,15 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     if flags_bytes.is_empty() {
         // delete a file
         rettv.vval =
-            crate::eval::typval::TypvalVval::Number(if os_remove(name) == 0 { 0 } else { -1 });
+            crate::eval::typval::TypvalVval::Number(if os_remove(&name) == 0 { 0 } else { -1 });
     } else if flags_bytes == b"d" {
         // delete an empty directory
         rettv.vval =
-            crate::eval::typval::TypvalVval::Number(if os_rmdir(name) == 0 { 0 } else { -1 });
+            crate::eval::typval::TypvalVval::Number(if os_rmdir(&name) == 0 { 0 } else { -1 });
     } else if flags_bytes == b"rf" {
         // delete a directory recursively
         rettv.vval =
-            crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(name)));
+            crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(&name)));
     } else {
         semsg!(gettext(E_INVEXPR2), flags);
     }
@@ -566,7 +566,7 @@ pub fn f_executable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     // Check in $PATH and also check directly if there is a directory name
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(os_can_exe(
-        tv_get_string(&argvars[0]),
+        &tv_get_string(&argvars[0]),
         None,
         true,
     )));
@@ -580,7 +580,7 @@ pub fn f_exepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     let mut path: Option<std::ffi::CString> = None;
 
-    os_can_exe(tv_get_string(&argvars[0]), Some(&mut path), true);
+    os_can_exe(&tv_get_string(&argvars[0]), Some(&mut path), true);
 
     rettv.v_type = VarType::VarString;
     if let Some(p) = path {
@@ -616,12 +616,12 @@ pub fn f_filecopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let from = tv_get_string(&argvars[0]);
 
     let mut from_info = FileInfo::new();
-    if os_fileinfo_link(from, &mut from_info)
+    if os_fileinfo_link(&from, &mut from_info)
         && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_copyfile(
-            tv_get_string(&argvars[0]),
-            tv_get_string(&argvars[1]),
+            &tv_get_string(&argvars[0]),
+            &tv_get_string(&argvars[1]),
         )));
     }
 }
@@ -630,7 +630,7 @@ pub fn f_filecopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_filereadable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        !p.to_bytes().is_empty() && !os_isdir(p) && os_file_is_readable(p),
+        !p.to_bytes().is_empty() && !os_isdir(&p) && os_file_is_readable(&p),
     ));
 }
 
@@ -640,7 +640,7 @@ pub fn f_filereadable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let filename = tv_get_string(&argvars[0]);
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(os_file_is_writable(filename)));
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(os_file_is_writable(&filename)));
 }
 
 fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileWhat) {
@@ -745,7 +745,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     };
 
     #[cfg(windows)]
-    let initial_cstr = path_to_slash_save(Some(fname_cstr)).unwrap_or_default();
+    let initial_cstr = path_to_slash_save(Some(&fname_cstr)).unwrap_or_default();
     #[cfg(not(windows))]
     let initial_cstr = fname_cstr.to_owned();
     len = initial_cstr.as_bytes().len();
@@ -974,7 +974,7 @@ pub fn f_getfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let flags = *b"rwx";
 
     let filename = tv_get_string(&argvars[0]);
-    let file_perm = os_getperm(filename);
+    let file_perm = os_getperm(&filename);
     if file_perm >= 0 {
         let mut perm = [b'-'; 9];
         for i in 0..9 {
@@ -994,7 +994,7 @@ pub fn f_getfsize(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let fname = tv_get_string(&argvars[0]);
 
     let mut file_info = FileInfo::new();
-    if os_fileinfo(fname, &mut file_info) {
+    if os_fileinfo(&fname, &mut file_info) {
         let filesize = os_fileinfo_size(&file_info);
         if s_isdir(file_info.stat.st_mode) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -1016,7 +1016,7 @@ pub fn f_getftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let fname = tv_get_string(&argvars[0]);
 
     let mut file_info = FileInfo::new();
-    if os_fileinfo(fname, &mut file_info) {
+    if os_fileinfo(&fname, &mut file_info) {
         rettv.vval =
             crate::eval::typval::TypvalVval::Number(file_info.stat.st_mtim.tv_sec as Varnumber);
     } else {
@@ -1029,7 +1029,7 @@ pub fn f_getftype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let fname = tv_get_string(&argvars[0]);
 
     let mut file_info = FileInfo::new();
-    if os_fileinfo_link(fname, &mut file_info) {
+    if os_fileinfo_link(&fname, &mut file_info) {
         let mode = file_info.stat.st_mode;
         let t = if s_isreg(mode) {
             c"file"
@@ -1087,7 +1087,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if rettv.v_type == VarType::VarString {
             if let Some(exp) = expand_one(
                 &mut xpc,
-                Some(tv_get_string(&argvars[0])),
+                Some(&tv_get_string(&argvars[0])),
                 None,
                 options,
                 WILD_ALL,
@@ -1099,7 +1099,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         } else {
             expand_one(
                 &mut xpc,
-                Some(tv_get_string(&argvars[0])),
+                Some(&tv_get_string(&argvars[0])),
                 None,
                 options,
                 WILD_ALL_KEEP,
@@ -1150,7 +1150,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && !error
     {
         let mut ga: Vec<std::ffi::CString> = Vec::new();
-        globpath(tv_get_string(&argvars[0]), file, &mut ga, flags, false);
+        globpath(&tv_get_string(&argvars[0]), file, &mut ga, flags, false);
 
         if rettv.v_type == VarType::VarString {
             let joined = crate::path::concat_cstrings(&ga, c"\n");
@@ -1231,9 +1231,9 @@ pub fn f_isabsolutepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 
 /// "isdirectory()" function
 pub fn f_isdirectory(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(os_isdir(tv_get_string(
-        &argvars[0],
-    ))));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(os_isdir(
+        &tv_get_string(&argvars[0]),
+    )));
 }
 
 /// "mkdir()" function
@@ -1271,13 +1271,13 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             }
         }
         let arg2 = tv_get_string(&argvars[1]);
-        defer = crate::strings::vim_haschr(arg2, b'D' as i32);
-        defer_recurse = crate::strings::vim_haschr(arg2, b'R' as i32);
+        defer = crate::strings::vim_haschr(&arg2, b'D' as i32);
+        defer_recurse = crate::strings::vim_haschr(&arg2, b'R' as i32);
         if (defer || defer_recurse) && !can_add_defer() {
             return;
         }
 
-        if crate::strings::vim_haschr(arg2, b'p' as i32) {
+        if crate::strings::vim_haschr(&arg2, b'p' as i32) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(
                 dir_cstr,
@@ -1326,7 +1326,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     if let Some(p) = tv_get_string_chk(&argvars[0]) {
-        let mut v = p.to_owned().into_bytes_with_nul();
+        let mut v = p.into_owned().into_bytes_with_nul();
         shorten_dir_len(&mut v, trim_len);
         crate::eval::typval::tv_set_string(
             rettv,
@@ -1381,7 +1381,7 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     };
     let path = tv_get_string(arg0);
     let mut entries: Vec<std::ffi::CString> = Vec::new();
-    let ret = readdir_core(&mut entries, path, Some(arg1));
+    let ret = readdir_core(&mut entries, &path, Some(arg1));
     if ret {
         for entry in &entries {
             tv_list_append_string(rettv.vval.v_list_ref(), Some(entry.as_c_str()), -1);
@@ -1458,7 +1458,8 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 size = tv_get_number(&argvars[2]);
             }
         } else {
-            let arg1 = tv_get_string(&argvars[1]).to_bytes();
+            let arg1_cow = tv_get_string(&argvars[1]);
+            let arg1 = arg1_cow.to_bytes();
             if arg1 == b"b" {
                 binary = true;
             } else if arg1 == b"B" {
@@ -1480,7 +1481,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
     // their own about CR-LF conversion.
     let fname = tv_get_string(&argvars[0]);
 
-    if os_isdir(fname) {
+    if os_isdir(&fname) {
         semsg!(gettext(E_ISADIR2), fname);
         return;
     }
@@ -1488,7 +1489,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
         return;
     }
-    let Some(fd) = CFile::open(fname, c"rb") else {
+    let Some(fd) = CFile::open(&fname, c"rb") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return;
     };
@@ -1633,7 +1634,7 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else {
         let mut buf = [0u8; NUMBUFLEN];
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
-            tv_get_string(&argvars[0]),
+            &tv_get_string(&argvars[0]),
             tv_get_string_buf(&argvars[1], &mut buf),
         )));
     }
@@ -1645,14 +1646,14 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let fname = tv_get_string(&argvars[0]);
     #[cfg(windows)]
     {
-        let mut v = os_resolve_shortcut(Some(fname));
-        if v.is_none() && os_is_reparse_point_include(fname) {
-            v = os_realpath_cstr(fname, MAXPATHL + 1);
+        let mut v = os_resolve_shortcut(Some(&fname));
+        if v.is_none() && os_is_reparse_point_include(&fname) {
+            v = os_realpath_cstr(&fname, MAXPATHL + 1);
         }
         if let Some(resolved) = v {
             crate::eval::typval::tv_set_string(rettv, Some(resolved.as_c_str()));
         } else {
-            crate::eval::typval::tv_set_string(rettv, Some(fname));
+            crate::eval::typval::tv_set_string(rettv, Some(&fname));
         }
     }
     #[cfg(not(windows))]

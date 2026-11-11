@@ -3859,7 +3859,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 ccline_colors.colors.push(CmdlineColorChunk {
                     start: start as i32,
                     end: end as i32,
-                    hl_id: syn_name2id(group),
+                    hl_id: syn_name2id(&group),
                 });
             }
             if prev_end < colored_ccline.cmdlen.get() as Varnumber {
@@ -4845,7 +4845,7 @@ pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(
-        tv_get_string(&argvars[0]),
+        &tv_get_string(&argvars[0]),
         pos,
     ) as Varnumber);
 }

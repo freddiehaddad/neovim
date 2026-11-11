@@ -3127,7 +3127,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             let Some(pat) = tv_get_string_chk(&di.di_tv) else {
                 return;
             };
-            pattern = Some(pat.to_owned());
+            pattern = Some(pat.into_owned());
         }
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pos", -1) {
             if di.di_tv.v_type != VarType::VarList {

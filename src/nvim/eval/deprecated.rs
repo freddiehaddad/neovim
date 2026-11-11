@@ -72,7 +72,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     let ok = rpc_send_event(
         argvars[0].vval.v_number() as u64,
-        tv_get_string(&argvars[1]),
+        &tv_get_string(&argvars[1]),
         args,
     );
 
@@ -149,10 +149,9 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut err = Error::new();
     let chan_id = argvars[0].vval.v_number() as u64;
     let method = tv_get_string(&argvars[1]);
-    let method_cstr = method;
 
     let mut res_mem = ArenaMem::NULL;
-    let result = rpc_send_call(chan_id, method_cstr, args, -1, &mut res_mem, &mut err);
+    let result = rpc_send_call(chan_id, &method, args, -1, &mut res_mem, &mut err);
     arena_mem_free(arena_finish(&mut arena));
 
     if l_provider_call_nesting != 0 {
@@ -244,7 +243,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && let Some(args) = args
     {
         for li in crate::eval::typval::list_iter_mut(args.first_opt()) {
-            argv.push(tv_get_string(&li.li_tv).to_owned());
+            argv.push(tv_get_string(&li.li_tv).into_owned());
         }
     }
 

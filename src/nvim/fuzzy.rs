@@ -449,6 +449,7 @@ fn fuzzy_match_in_list(
         }
 
         let mut itemstr: Option<&CStr> = None;
+        let itemstr_cow;
         let mut rettv = TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -463,7 +464,8 @@ fn fuzzy_match_in_list(
         {
             let d = tv.vval.v_dict_ref();
             if let Some(k) = key {
-                itemstr = tv_dict_get_string(Some(&*d), k);
+                itemstr_cow = tv_dict_get_string(Some(&*d), k);
+                itemstr = itemstr_cow.as_deref();
             } else {
                 d.dv_refcount += 1;
                 let d_id = d.dv_id;
@@ -629,7 +631,8 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     );
     let out_list = rettv.vval.v_list_ref();
     let in_list = arg0.vval.v_list_ref();
-    let pat_bytes = tv_get_string(arg1).to_bytes();
+    let pat_cow = tv_get_string(arg1);
+    let pat_bytes = pat_cow.to_bytes();
 
     fuzzy_match_in_list(
         Some(&*in_list),

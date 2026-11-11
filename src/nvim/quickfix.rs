@@ -4306,12 +4306,14 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
         let qfl = qfl_rc.borrow();
         while (lnum as usize) < qfl.qf_items.len() {
             let mut qftf_str: Option<&CStr> = None;
+            let qftf_cow;
 
             if let Some(qftf_li) = qftf_iter.next()
                 && !invalid_val
             {
                 if let Some(s) = tv_get_string_chk(&qftf_li.li_tv) {
-                    qftf_str = Some(s);
+                    qftf_cow = s;
+                    qftf_str = Some(&qftf_cow);
                 } else {
                     invalid_val = true;
                 }
@@ -7346,6 +7348,7 @@ pub fn f_getqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut TypVal) {
     let mut title: Option<&CStr> = None;
+    let title_cow;
     let mut action: u8 = b' ';
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     let mut what: Option<&TvDict> = None;
@@ -7379,7 +7382,8 @@ fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut
                 let Some(t) = tv_get_string_chk(&args[2]) else {
                     return;
                 };
-                title = Some(t);
+                title_cow = t;
+                title = Some(&title_cow);
             } else if args[2].v_type == VarType::VarDict
                 && let Some(d) = args[2].vval.v_dict_opt()
             {

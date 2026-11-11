@@ -588,9 +588,10 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     if !error && arg0.v_type == VarType::VarString {
+        let arg1_cow = tv_get_string_chk(arg1);
         n = count_string(
             arg0.vval.v_string_opt_bytes(),
-            tv_get_string_chk(arg1).map(CStr::to_bytes),
+            arg1_cow.as_deref().map(CStr::to_bytes),
             ic,
         );
     } else if !error && arg0.v_type == VarType::VarList {
@@ -644,6 +645,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
         }
 
         if let Some(d2) = argvars[1].vval.v_dict_opt() {
+            let act_cow;
             let mut action = c"force";
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VarUnknown {
@@ -653,7 +655,8 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     }
                     return;
                 };
-                action = act;
+                act_cow = act;
+                action = &act_cow;
                 let action_bytes = action.to_bytes();
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {

@@ -493,7 +493,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 pub fn f_bufadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let name = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(buflist_add(
-        (!name.is_empty()).then_some(name),
+        (!name.is_empty()).then_some(&name),
         0,
     ) as Varnumber);
 }
@@ -575,7 +575,7 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         && !error
         && let Some(name) = tv_get_string_chk(&argvars[0])
     {
-        buf = buflist_new(Some(name), None, 1, 0).map_or(ptr::null(), |b| b);
+        buf = buflist_new(Some(&name), None, 1, 0).map_or(ptr::null(), |b| b);
     }
 
     if !buf.is_null() {

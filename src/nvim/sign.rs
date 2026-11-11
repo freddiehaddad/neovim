@@ -1434,7 +1434,7 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(name_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
     };
-    let name_owned = name_cstr.to_owned();
+    let name_owned = name_cstr.into_owned();
 
     let d = if argvars[1].v_type == VarType::VarDict {
         argvars[1].vval.v_dict_opt().map(|r| &*r)
@@ -1465,6 +1465,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     let mut lnum: Linenr = 0;
     let mut sign_id: i32 = 0;
     let mut group: Option<&CStr> = None;
+    let group_cow;
     let mut notanum = false;
 
     tv_list_alloc_ret(rettv, 0);
@@ -1497,7 +1498,8 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                     return;
                 };
                 if !g.is_empty() {
-                    group = Some(g);
+                    group_cow = g;
+                    group = Some(&group_cow);
                 }
             }
         }
@@ -1522,7 +1524,7 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let Some(group_cstr) = tv_get_string_chk(&argvars[1]) else {
         return;
     };
-    let group_owned = (!group_cstr.is_empty()).then(|| group_cstr.to_owned());
+    let group_owned = (!group_cstr.is_empty()).then(|| group_cstr.into_owned());
 
     let Some(buf_ref) = get_buf_arg(&mut argvars[2]) else {
         return;
@@ -1561,6 +1563,7 @@ fn sign_place_from_dict(
     }
 
     let mut group: Option<&CStr> = None;
+    let group_cow;
     if group_tv.is_none()
         && let Some(di) = tv_dict_find_opt(dict, c"group", -1)
     {
@@ -1571,7 +1574,8 @@ fn sign_place_from_dict(
             return -1;
         };
         if !g.is_empty() {
-            group = Some(g);
+            group_cow = g;
+            group = Some(&group_cow);
         }
     }
 
@@ -1617,7 +1621,7 @@ fn sign_place_from_dict(
     }
 
     let mut uid = id as u32;
-    if sign_place(&mut uid, group, name_cstr, buf_ref, lnum, prio) {
+    if sign_place(&mut uid, group, &name_cstr, buf_ref, lnum, prio) {
         return uid as i32;
     }
 
@@ -1678,7 +1682,7 @@ fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
         if let Some(name) = tv_get_string_chk(&li.li_tv)
-            && sign_undefine_by_name(name)
+            && sign_undefine_by_name(&name)
         {
             retval = 0;
         }
@@ -1705,7 +1709,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let Some(name) = tv_get_string_chk(&argvars[0]) else {
             return;
         };
-        if sign_undefine_by_name(name) {
+        if sign_undefine_by_name(&name) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     }
@@ -1737,7 +1741,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
         }
     }
 
-    if sign_unplace(buf.opt_mut(), id, group, 0) {
+    if sign_unplace(buf.opt_mut(), id, group.as_deref(), 0) {
         0
     } else {
         -1

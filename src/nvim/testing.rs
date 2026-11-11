@@ -314,7 +314,7 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: &mut [TypVal], cmd: Opti
 }
 
 fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
-    let cmd_owned = tv_get_string_chk(&argvars[0]).map(CStr::to_owned);
+    let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
     let mut ret: i32 = 0;
 
     let beeps = g_st().did_beep;
@@ -519,7 +519,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().in_assert_fails = true;
     g_st().no_wait_return += 1;
 
-    let cmd_owned = tv_get_string_chk(&argvars[0]).map(CStr::to_owned);
+    let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
     do_cmdline_cmd(cmd_owned.as_deref().unwrap_or(c""));
 
     g_st().trylevel = save_trylevel;
@@ -573,7 +573,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
-                        let s = get_vim_var_str(VV_ERRMSG).to_owned();
+                        let s = get_vim_var_str(VV_ERRMSG).into_owned();
                         tofree = Some(s);
                         actual_cstr = tofree.as_deref().unwrap_or(c"");
                         let last_tv = &list_ref.last_opt().unwrap().li_tv;
@@ -803,7 +803,7 @@ pub fn f_assert_notmatch(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 pub fn f_assert_report(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut ga = Vec::new();
     prepare_assert_error(&mut ga);
-    buf_concat_cstr(&mut ga, Some(tv_get_string(&argvars[0])));
+    buf_concat_cstr(&mut ga, Some(&tv_get_string(&argvars[0])));
     assert_error(&ga);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }

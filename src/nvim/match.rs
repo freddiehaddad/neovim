@@ -900,9 +900,9 @@ pub fn get_search_match_hl(
     }
 }
 
-fn matchadd_dict_arg(
-    tv: &TypVal,
-    conceal_char: &mut Option<&'static std::ffi::CStr>,
+fn matchadd_dict_arg<'a>(
+    tv: &'a TypVal,
+    conceal_char: &mut Option<std::borrow::Cow<'a, std::ffi::CStr>>,
     win: &mut &'static mut WinInfoInfo,
 ) -> bool {
     if tv.v_type != VarType::VarDict {
@@ -1067,11 +1067,29 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let conceal = tv_dict_find_opt(Some(d), c"conceal", 7).map(|di| tv_get_string(&di.di_tv));
         if i == 0 {
             let pat = tv_dict_get_string(Some(d), c"pattern");
-            if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
+            if match_add(
+                &mut *win,
+                group,
+                pat.as_deref(),
+                priority,
+                id,
+                None,
+                conceal.as_deref(),
+            ) != id
+            {
                 match_add_failed = true;
             }
         } else {
-            if match_add(&mut *win, group, None, priority, id, s.opt(), conceal) != id {
+            if match_add(
+                &mut *win,
+                group,
+                None,
+                priority,
+                id,
+                s.opt(),
+                conceal.as_deref(),
+            ) != id
+            {
                 match_add_failed = true;
             }
             tv_list_unref(s.opt_mut());
@@ -1092,7 +1110,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut prio: i32 = 10;
     let mut id: i32 = -1;
     let mut error = false;
-    let mut conceal_char: Option<&'static std::ffi::CStr> = None;
+    let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
     let mut win = curwin_mut();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1126,7 +1144,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         prio,
         id,
         None,
-        conceal_char,
+        conceal_char.as_deref(),
     ) as Varnumber);
 }
 
@@ -1152,7 +1170,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut error = false;
     let mut prio: i32 = 10;
     let mut id: i32 = -1;
-    let mut conceal_char: Option<&'static std::ffi::CStr> = None;
+    let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
     let mut win = curwin_mut();
 
     if argvars[2].v_type != VarType::VarUnknown {
@@ -1183,7 +1201,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         prio,
         id,
         l.as_deref(),
-        conceal_char,
+        conceal_char.as_deref(),
     ) as Varnumber);
 }
 

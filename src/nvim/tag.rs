@@ -3323,12 +3323,12 @@ fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
                 let ud_ptr = tv_dict_get_string(Some(itemdict), c"user_data");
                 tagstack_push_item(
                     wp,
-                    Some(tagname.to_owned()),
+                    Some(tagname.into_owned()),
                     tv_dict_get_number(Some(itemdict), c"bufnr") as i32,
                     tv_dict_get_number(Some(itemdict), c"matchnr") as i32 - 1,
                     mark,
                     fnum,
-                    ud_ptr.map(std::ffi::CStr::to_owned),
+                    ud_ptr.map(std::borrow::Cow::into_owned),
                 );
             }
         }

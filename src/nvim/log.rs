@@ -340,7 +340,8 @@ fn do_log_to_file_str(
     if regen {
         let mut parent_buf = [0u8; MAXPATHL];
         let parent = path_tail(os_getenv_buf(c"NVIM", &mut parent_buf).unwrap_or(c""));
-        let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
+        let serv_cow = get_vim_var_str(VV_SEND_SERVER);
+        let serv = path_tail(&serv_cow);
         let mut formatted = Vec::with_capacity(32);
         if !parent.to_bytes().is_empty() {
             let p = parent.to_bytes();

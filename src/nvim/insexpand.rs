@@ -3545,10 +3545,10 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
         commit_chars = crate::eval::typval::tv_dict_get_cstring(Some(d), c"commit_chars");
 
         let user_abbr_hlname = tv_dict_get_string(Some(d), c"abbr_hlgroup");
-        user_hl[0] = get_user_highlight_id(user_abbr_hlname);
+        user_hl[0] = get_user_highlight_id(user_abbr_hlname.as_deref());
 
         let user_kind_hlname = tv_dict_get_string(Some(d), c"kind_hlgroup");
-        user_hl[1] = get_user_highlight_id(user_kind_hlname);
+        user_hl[1] = get_user_highlight_id(user_kind_hlname.as_deref());
 
         tv_dict_get_tv(Some(d), c"user_data", &mut user_data);
 

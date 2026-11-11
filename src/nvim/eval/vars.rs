@@ -848,7 +848,10 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) -> i32 {
+pub fn get_spellword<'a>(
+    list: &'a mut TvList,
+    ret_word: &mut Option<std::borrow::Cow<'a, CStr>>,
+) -> i32 {
     if tv_list_len(Some(list)) != 2 {
         emsg(gettext(
             c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
@@ -1588,7 +1591,7 @@ fn ex_let_env<'a>(
         let mut tofree: Option<std::ffi::CString> = None;
         let name_cstr = bytes_to_cstring(&name.to_bytes()[..len]);
         let mut p_opt = tv_get_string_chk(&*tv);
-        if let Some(p_cstr) = p_opt
+        if let Some(ref p_cstr) = p_opt
             && op_b == b'.'
             && let Some(s) = vim_getenv(&name_cstr)
         {
@@ -1596,9 +1599,9 @@ fn ex_let_env<'a>(
             bytes.extend_from_slice(p_cstr.to_bytes());
             let joined = crate::memory::bytes_to_cstring(&bytes);
             tofree = Some(joined);
-            p_opt = tofree.as_deref();
+            p_opt = tofree.as_deref().map(std::borrow::Cow::Borrowed);
         }
-        if let Some(p_cstr) = p_opt {
+        if let Some(ref p_cstr) = p_opt {
             vim_setenv_ext(&name_cstr, p_cstr);
             arg_end = Some(arg);
         }
@@ -1769,7 +1772,7 @@ fn ex_let_register<'a>(
     } else {
         let mut ptofree: Option<std::ffi::CString> = None;
         let mut p_opt = tv_get_string_chk(&*tv);
-        if let Some(p_cstr) = p_opt
+        if let Some(ref p_cstr) = p_opt
             && op_b == b'.'
         {
             let reg_c = if arg_b0 == b'@' {
@@ -1782,10 +1785,10 @@ fn ex_let_register<'a>(
                 bytes.extend_from_slice(p_cstr.to_bytes());
                 let joined = bytes_to_cstring(&bytes);
                 ptofree = Some(joined);
-                p_opt = ptofree.as_deref();
+                p_opt = ptofree.as_deref().map(std::borrow::Cow::Borrowed);
             }
         }
-        if let Some(p_cstr) = p_opt {
+        if let Some(ref p_cstr) = p_opt {
             let reg_c = if arg_b0 == b'@' {
                 b'"' as i32
             } else {
@@ -2225,7 +2228,7 @@ pub fn get_vim_var_dict(idx: VimVarIndex) -> &'static mut TvDict {
     get_vim_var_tv(idx).vval.v_dict_ref()
 }
 
-pub fn get_vim_var_str(idx: VimVarIndex) -> &'static CStr {
+pub fn get_vim_var_str(idx: VimVarIndex) -> std::borrow::Cow<'static, CStr> {
     tv_get_string(get_vim_var_tv(idx))
 }
 
@@ -2740,7 +2743,7 @@ pub fn find_var_ht<'a>(
 }
 
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
-pub fn get_var_value(name: &std::ffi::CStr) -> Option<&'static CStr> {
+pub fn get_var_value(name: &std::ffi::CStr) -> Option<std::borrow::Cow<'static, CStr>> {
     let v = find_var_opt(name, name.to_bytes().len(), None, 0)?;
     Some(tv_get_string(&v.di_tv))
 }
@@ -2889,7 +2892,7 @@ pub fn before_set_vvar(
         tv_clear(&mut di.di_tv);
         if copy || tv.v_type != VarType::VarString {
             let val = tv_get_string(&*tv);
-            crate::eval::typval::tv_set_string(&mut di.di_tv, Some(val));
+            crate::eval::typval::tv_set_string(&mut di.di_tv, Some(&val));
         } else {
             di.di_tv.v_type = VarType::VarString;
             di.di_tv.vval =
@@ -3259,7 +3262,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     let varname = tv_get_string_chk(&head[off + 1]);
 
     get_var_from(
-        varname,
+        varname.as_deref(),
         rettv,
         &mut tail[0],
         b'w' as i32,
@@ -3628,7 +3631,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     get_var_from(
-        varname,
+        varname.as_deref(),
         &mut *rettv,
         arg2,
         b't' as i32,
@@ -3657,7 +3660,7 @@ pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let buf = tv_get_buf_from_arg(arg0);
 
     get_var_from(
-        varname,
+        varname.as_deref(),
         &mut *rettv,
         arg2,
         b'b' as i32,

@@ -1914,11 +1914,13 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     };
 
-    let which = if argvars[1].v_type != VarType::VarUnknown {
+    let which_cow;
+    let which: &CStr = if argvars[1].v_type != VarType::VarUnknown {
         let Some(w) = tv_get_string_chk(&argvars[1]) else {
             return;
         };
-        w
+        which_cow = w;
+        &which_cow
     } else {
         c""
     };

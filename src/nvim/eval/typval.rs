@@ -1489,9 +1489,6 @@ impl ListSortItem {
 }
 
 pub(crate) struct TypvalArenas {
-    dict_numbuf: [u8; NUMBUFLEN],
-    mybuf_chk: [u8; NUMBUFLEN],
-    mybuf: [u8; NUMBUFLEN],
     dictitem_arena: Vec<Option<Box<Dictitem>>>,
     free_dictitems: Vec<usize>,
     dict_arena: Vec<Option<Box<TvDict>>>,
@@ -1505,9 +1502,6 @@ pub(crate) struct TypvalArenas {
 impl TypvalArenas {
     pub(crate) const fn new() -> Self {
         Self {
-            dict_numbuf: [0; NUMBUFLEN],
-            mybuf_chk: [0; NUMBUFLEN],
-            mybuf: [0; NUMBUFLEN],
             dictitem_arena: Vec::new(),
             free_dictitems: Vec::new(),
             dict_arena: Vec::new(),
@@ -2706,10 +2700,12 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         emsg(tr(E_LISTREQ));
         return;
     }
+    let sep_cow;
     let sep = if argvars[1].v_type == VarType::VarUnknown {
         Some(c" ")
     } else {
-        tv_get_string_chk(&argvars[1])
+        sep_cow = tv_get_string_chk(&argvars[1]);
+        sep_cow.as_deref()
     };
 
     rettv.v_type = VarType::VarString;
@@ -3130,7 +3126,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             info.item_compare_ic = true;
         } else if argvars[1].v_type != VarType::VarNumber {
             let s = tv_get_string(&argvars[1]);
-            info.item_compare_func = Some(s.to_owned());
+            info.item_compare_func = Some(s.into_owned());
         } else if nr != 0 {
             emsg(tr(E_INVARG));
             return false;
@@ -3328,7 +3324,10 @@ pub fn tv_list_find_nr(
 }
 
 /// Get list item l[n] as a string.
-pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> Option<&'static std::ffi::CStr> {
+pub fn tv_list_find_str(
+    l: Option<&mut TvList>,
+    n: i32,
+) -> Option<std::borrow::Cow<'static, std::ffi::CStr>> {
     let Some(li) = tv_list_find_opt(l, n) else {
         semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
         return None;
@@ -3887,13 +3886,16 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
 
 /// Get an owned `CString` item from a dictionary.
 pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<std::ffi::CString> {
-    let mut numbuf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-    tv_dict_get_string_buf(d, key, &mut numbuf).map(std::ffi::CStr::to_owned)
+    tv_dict_get_string(d, key).map(std::borrow::Cow::into_owned)
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string<'a>(d: Option<&'a TvDict>, key: &CStr) -> Option<&'a std::ffi::CStr> {
-    tv_dict_get_string_buf(d, key, &mut tv_arenas().dict_numbuf)
+pub fn tv_dict_get_string<'a>(
+    d: Option<&'a TvDict>,
+    key: &CStr,
+) -> Option<std::borrow::Cow<'a, std::ffi::CStr>> {
+    let di = tv_dict_find_opt(d, key, -1)?;
+    Some(tv_get_string(&di.di_tv))
 }
 
 /// Get a string item from a dictionary.
@@ -4616,7 +4618,7 @@ pub fn f_has_key(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     };
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(
-        tv_dict_find(Some(d), tv_get_string(&argvars[1]), -1).is_some(),
+        tv_dict_find(Some(d), &tv_get_string(&argvars[1]), -1).is_some(),
     ));
 }
 
@@ -4628,7 +4630,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         && !value_check_lock(d.dv_lock, Some(arg_errmsg), TV_TRANSLATE)
         && let Some(key) = tv_get_string_chk(&argvars[1])
     {
-        let Some(di) = tv_dict_find_opt(Some(d), key, -1) else {
+        let Some(di) = tv_dict_find_opt(Some(d), &key, -1) else {
             semsg!(tr(E_DICTKEY), key);
             return;
         };
@@ -4638,7 +4640,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             *rettv = std::mem::replace(&mut di.di_tv, tv_initial_value());
             tv_dict_item_remove(d, di);
             if tv_dict_is_watched_inline(Some(d)) {
-                tv_dict_watcher_notify(d, key, None, Some(&*rettv));
+                tv_dict_watcher_notify(d, &key, None, Some(&*rettv));
             }
         }
     }
@@ -5673,13 +5675,25 @@ pub fn tv_get_string_buf_chk<'a>(
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string_chk(tv: &TypVal) -> Option<&std::ffi::CStr> {
-    tv_get_string_buf_chk(tv, &mut tv_arenas().mybuf_chk)
+pub fn tv_get_string_chk(tv: &TypVal) -> Option<std::borrow::Cow<'_, std::ffi::CStr>> {
+    match tv.v_type {
+        VarType::VarString => Some(std::borrow::Cow::Borrowed(tv.vval.v_string_cstr_or_empty())),
+        VarType::VarBool => Some(std::borrow::Cow::Borrowed(
+            ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize],
+        )),
+        VarType::VarSpecial => Some(std::borrow::Cow::Borrowed(
+            ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize],
+        )),
+        _ => {
+            let mut buf = [0u8; NUMBUFLEN];
+            tv_get_string_buf_chk(tv, &mut buf).map(|s| std::borrow::Cow::Owned(s.to_owned()))
+        }
+    }
 }
 
 /// Get the string value of a "stringish" Vimscript object.
-pub fn tv_get_string(tv: &TypVal) -> &std::ffi::CStr {
-    tv_get_string_buf(tv, &mut tv_arenas().mybuf)
+pub fn tv_get_string(tv: &TypVal) -> std::borrow::Cow<'_, std::ffi::CStr> {
+    tv_get_string_chk(tv).unwrap_or(std::borrow::Cow::Borrowed(c""))
 }
 
 /// Get the string value of a "stringish" Vimscript object.
@@ -5797,8 +5811,14 @@ mod tests {
             tv_list_insert_tv(l2, &mut tv_ins, first2);
             assert_eq!(tv_list_len_inline(Some(&*l2)), 3);
             assert_eq!(tv_list_find_nr(Some(&mut *l2), 0, None), 99);
-            assert_eq!(tv_list_find_str(Some(&mut *l2), 1), Some(c"hello"));
-            assert_eq!(tv_list_find_str(Some(&mut *l2), 2), Some(c"world"));
+            assert_eq!(
+                tv_list_find_str(Some(&mut *l2), 1).as_deref(),
+                Some(c"hello")
+            );
+            assert_eq!(
+                tv_list_find_str(Some(&mut *l2), 2).as_deref(),
+                Some(c"world")
+            );
 
             // copy, extend, concat, join, equal
             let mut l2_copy = tv_list_copy(None, Some(&mut *l2), true, 0);
@@ -5861,7 +5881,10 @@ mod tests {
             assert_eq!(tv_dict_get_number(Some(&*d), c"missing"), 0);
 
             let mut numbuf = [0u8; NUMBUFLEN];
-            assert_eq!(tv_dict_get_string(Some(&*d), c"str"), Some(c"bar"));
+            assert_eq!(
+                tv_dict_get_string(Some(&*d), c"str").as_deref(),
+                Some(c"bar")
+            );
             let saved = tv_dict_get_cstring(Some(&*d), c"foo").unwrap();
             assert_eq!(saved.as_bytes(), b"42");
 

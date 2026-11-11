@@ -5103,7 +5103,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
         curwin_mut().w_onebuf_opt.wo_spell = false;
     }
 
-    let old_value = get_var_value(c"b:current_syntax").map(ToOwned::to_owned);
+    let old_value = get_var_value(c"b:current_syntax").map(std::borrow::Cow::into_owned);
 
     apply_autocmds(
         EVENT_SYNTAX,
@@ -5114,7 +5114,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     );
 
     if let Some(new_value) = get_var_value(c"b:current_syntax") {
-        set_internal_string_var(c"w:current_syntax", new_value);
+        set_internal_string_var(c"w:current_syntax", &new_value);
     }
 
     if let Some(ref old_cstr) = old_value {

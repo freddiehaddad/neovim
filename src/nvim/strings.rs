@@ -816,9 +816,12 @@ pub fn tv_str<'a>(
         None
     } else {
         *idxp += 1;
-        if tv.v_type == VarType::VarString || tv.v_type == VarType::VarNumber {
+        if tv.v_type == VarType::VarString {
             *tofree = None;
-            tv_get_string_chk(tv)
+            tv.vval.v_string_cstr()
+        } else if tv.v_type == VarType::VarNumber {
+            *tofree = tv_get_string_chk(tv).map(std::borrow::Cow::into_owned);
+            tofree.as_deref()
         } else {
             let encoded = encode_tv2echo(tv, None);
             *tofree = Some(encoded);
@@ -2786,7 +2789,8 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    let mut p = tv_get_string(&argvars[0]).to_bytes();
+    let s_cow = tv_get_string(&argvars[0]);
+    let mut p = s_cow.to_bytes();
     while !p.is_empty() {
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
         let step = (utf_ptr2len(p) as usize).min(p.len());
@@ -2809,7 +2813,8 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
 
-    let mut p = crate::charset::skipwhite_slice(tv_get_string(&argvars[0]).to_bytes());
+    let s_cow = tv_get_string(&argvars[0]);
+    let mut p = crate::charset::skipwhite_slice(s_cow.to_bytes());
     let isneg = p.first() == Some(&b'-');
     if matches!(p.first(), Some(b'+' | b'-')) {
         p = crate::charset::skipwhite_slice(&p[1..]);
@@ -2900,7 +2905,8 @@ pub fn f_strlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 }
 
 fn strchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, skipcc: bool) {
-    let mut s = tv_get_string(&argvars[0]).to_bytes();
+    let s_cow = tv_get_string(&argvars[0]);
+    let mut s = s_cow.to_bytes();
     let mut len: Varnumber = 0;
     let func_mb_ptr2char_adv: fn(&mut &[u8]) -> i32 = if skipcc {
         mb_ptr2char_adv
@@ -2946,7 +2952,8 @@ pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         countcc = tv_get_bool(&argvars[1]);
     }
 
-    let mut s = tv_get_string(&argvars[0]).to_bytes();
+    let s_cow = tv_get_string(&argvars[0]);
+    let mut s = s_cow.to_bytes();
     let mut len: Varnumber = 0;
     let func_mb_ptr2char_adv: fn(&mut &[u8]) -> i32 = if countcc != 0 {
         mb_cptr2char_adv
@@ -2970,7 +2977,7 @@ pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         col = tv_get_number(&argvars[1]) as i32;
     }
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(linetabsize_col(col, s) - col));
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(linetabsize_col(col, &s) - col));
 }
 
 pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -3239,7 +3246,8 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
 
-    let mut in_str = tv_get_string(&argvars[0]).to_bytes();
+    let in_str_cow = tv_get_string(&argvars[0]);
+    let mut in_str = in_str_cow.to_bytes();
     let fromstr_cstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
     let tostr_cstr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 

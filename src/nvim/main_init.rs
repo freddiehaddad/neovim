@@ -488,7 +488,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     if use_builtin_ui && !remote_ui {
         g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
-        let rv = ui_client_start_server(get_vim_var_str(VV_PROGPATH), &params.argv);
+        let rv = ui_client_start_server(&get_vim_var_str(VV_PROGPATH), &params.argv);
         if rv == 0 {
             fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
             os_exit(1);

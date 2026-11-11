@@ -3090,7 +3090,7 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     convert_setup(&mut vimconv, Some(from.as_c_str()), Some(to.as_c_str()));
 
     if vimconv.vc_type == CONV_NONE {
-        crate::eval::typval::tv_set_string(rettv, Some(str_));
+        crate::eval::typval::tv_set_string(rettv, Some(&str_));
     } else if let Some(conv_bytes) = string_convert(&vimconv, str_.to_bytes(), None) {
         crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&conv_bytes)));
     }

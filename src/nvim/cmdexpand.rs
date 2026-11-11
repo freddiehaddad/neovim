@@ -5471,7 +5471,7 @@ pub fn expand_process_user_list(
                 let Some(word) = tv_dict_get_string(Some(d), c"word") else {
                     continue;
                 };
-                p = word.to_owned();
+                p = word.into_owned();
                 abbr = crate::eval::typval::tv_dict_get_cstring(Some(d), c"abbr");
                 kind = crate::eval::typval::tv_dict_get_cstring(Some(d), c"kind");
                 menu = crate::eval::typval::tv_dict_get_cstring(Some(d), c"menu");
@@ -5867,9 +5867,9 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_col = cmdline_len;
     } else {
-        xpc.xp_pattern = crate::strings::OwnedSlice::from_cstr(pattern_cstr);
+        xpc.xp_pattern = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
-        xpc.xp_line = crate::strings::OwnedSlice::from_cstr(pattern_cstr);
+        xpc.xp_line = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
 
         xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
         match xpc.xp_context {
@@ -5892,23 +5892,23 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 xpc.xp_arg = Some(type_str[11..].to_owned());
             }
             EXPAND_MENUS => {
-                set_context_in_menu_cmd(&mut xpc, c"menu", pattern_cstr, false);
+                set_context_in_menu_cmd(&mut xpc, c"menu", &pattern_cstr, false);
                 xpc.xp_pattern_len -=
                     ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_SIGN => {
-                set_context_in_sign_cmd(&mut xpc, pattern_cstr);
+                set_context_in_sign_cmd(&mut xpc, &pattern_cstr);
                 xpc.xp_pattern_len -=
                     ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_RUNTIME => {
-                set_context_in_runtime_cmd(&mut xpc, pattern_cstr);
+                set_context_in_runtime_cmd(&mut xpc, &pattern_cstr);
                 xpc.xp_pattern_len -=
                     ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_SHELLCMDLINE => {
                 let mut context = EXPAND_SHELLCMDLINE;
-                set_context_for_wildcard_arg(None, pattern_cstr, false, &mut xpc, &mut context);
+                set_context_for_wildcard_arg(None, &pattern_cstr, false, &mut xpc, &mut context);
                 xpc.xp_pattern_len -=
                     ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }

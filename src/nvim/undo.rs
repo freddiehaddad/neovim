@@ -2853,7 +2853,7 @@ pub fn f_undofile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let fname = tv_get_string(&argvars[0]);
 
     if !fname.to_bytes().is_empty()
-        && let Some(ffname) = FullName_save(Some(fname), true)
+        && let Some(ffname) = FullName_save(Some(&fname), true)
         && let Some(ufile) = u_get_undo_file_name(Some(ffname.as_c_str()), false)
     {
         crate::eval::typval::tv_set_string(rettv, Some(ufile.as_c_str()));

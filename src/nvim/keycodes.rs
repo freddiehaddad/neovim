@@ -2706,6 +2706,7 @@ pub fn replace_termcodes(
 
             if len != 0 {
                 let leader_bytes = leader_opt
+                    .as_deref()
                     .map(CStr::to_bytes)
                     .filter(|b| !b.is_empty() && b.len() <= 8 * 6)
                     .unwrap_or(b"\\");

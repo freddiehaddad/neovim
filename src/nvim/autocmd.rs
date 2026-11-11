@@ -3164,7 +3164,7 @@ pub extern "C" fn unblock_autocmds() {
         && AU_STATE.with(|s| s.termresponse_changed.get())
         && has_event(EVENT_TERMRESPONSE)
     {
-        let sequence = cstr_to_string(Some(get_vim_var_str(VV_TERMRESPONSE)));
+        let sequence = cstr_to_string(Some(&get_vim_var_str(VV_TERMRESPONSE)));
         do_termresponse_autocmd(sequence, AU_STATE.with(|s| s.termresponse_chan_id.get()));
         api_free_string(sequence);
     }
