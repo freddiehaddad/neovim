@@ -291,13 +291,12 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                         };
                     } else {
                         let di = tv_dict_item_alloc_len(slice);
-                        let di_id = di.di_id;
-                        if !tv_dict_add(cur.tv_mut(ret_tv).vval.v_dict().borrow_mut(), di) {
+                        if !tv_dict_add(cur.tv_mut(ret_tv).vval.v_dict().borrow_mut(), &di) {
                             std::process::abort();
                         }
                         stack.push(cur);
                         cur = TVPopStackItem {
-                            tv: TVPopTarget::DictItem(di_id),
+                            tv: TVPopTarget::DictItem(di),
                             list_len: 0,
                             container: false,
                             special: false,
@@ -429,7 +428,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                         4,
                                     )
                                     .unwrap();
-                                    cur.tv = TVPopTarget::DictItem(val_di.di_id);
+                                    cur.tv = TVPopTarget::DictItem(val_di);
                                     cur.tv_mut(ret_tv)
                                         .vval
                                         .v_list()
@@ -677,31 +676,32 @@ fn lua_convert_one_value(
             let mut handled_special = false;
             if dict.dv_hashtab.ht_used == 2
                 && let Some(type_di) = tv_dict_find(dict.opt(), c"_TYPE", 5)
-                && type_di.di_tv.v_type == VarType::VarList
+                && type_di.tv().v_type == VarType::VarList
                 && let Some(val_di) = tv_dict_find(dict.opt(), c"_VAL", 4)
             {
                 let mut mp_idx = NUM_MSGPACK_TYPES;
                 for i in 0..NUM_MSGPACK_TYPES {
-                    if type_di.di_tv.vval.v_list() == eval_msgpack_type_list(i) {
+                    if type_di.tv().vval.v_list() == eval_msgpack_type_list(i) {
                         mp_idx = i;
                         break;
                     }
                 }
                 if mp_idx < NUM_MSGPACK_TYPES {
+                    let val_tv = val_di.tv().clone();
                     match mp_idx {
                         K_MP_NIL => {
                             lua_conv_nil(lstate);
                             handled_special = true;
                         }
                         K_MP_BOOLEAN => {
-                            if val_di.di_tv.v_type == VarType::VarNumber {
-                                lua_pushboolean_safe(lstate, val_di.di_tv.vval.v_number() != 0);
+                            if val_tv.v_type == VarType::VarNumber {
+                                lua_pushboolean_safe(lstate, val_tv.vval.v_number() != 0);
                                 handled_special = true;
                             }
                         }
                         K_MP_INTEGER => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 if tv_list_len(val_list.opt()) == 4 {
                                     let sign_li = tv_list_first(val_list.opt()).unwrap();
                                     let highest_li = sign_li.li_next.get();
@@ -739,23 +739,23 @@ fn lua_convert_one_value(
                             }
                         }
                         K_MP_FLOAT => {
-                            if val_di.di_tv.v_type == VarType::VarFloat {
-                                lua_pushnumber_safe(lstate, val_di.di_tv.vval.v_float());
+                            if val_tv.v_type == VarType::VarFloat {
+                                lua_pushnumber_safe(lstate, val_tv.vval.v_float());
                                 handled_special = true;
                             }
                         }
                         K_MP_STRING => {
-                            if val_di.di_tv.v_type == VarType::VarList
+                            if val_tv.v_type == VarType::VarList
                                 && let Some(buf) =
-                                    encode_vim_list_to_buf(val_di.di_tv.vval.v_list().opt())
+                                    encode_vim_list_to_buf(val_tv.vval.v_list().opt())
                             {
                                 lua_push_bytes(lstate, &buf);
                                 handled_special = true;
                             }
                         }
                         K_MP_ARRAY => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 let saved_copy_id = val_list.lv_copy_id.get();
                                 let mut copy_id_val = saved_copy_id;
                                 let self_ref = lua_check_self_reference(
@@ -781,8 +781,8 @@ fn lua_convert_one_value(
                             }
                         }
                         K_MP_MAP => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 if val_list.is_null() || tv_list_len(val_list.opt()) == 0 {
                                     lua_conv_empty_dict(lstate);
                                     handled_special = true;
@@ -830,8 +830,8 @@ fn lua_convert_one_value(
                                 }
                             }
                         }
-                        K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
-                            let val_list = val_di.di_tv.vval.v_list();
+                        K_MP_EXT if val_tv.v_type == VarType::VarList => {
+                            let val_list = val_tv.vval.v_list();
                             if tv_list_len(val_list.opt()) == 2 {
                                 let first = tv_list_first(val_list.opt()).unwrap();
                                 let last = tv_list_last(val_list.opt()).unwrap();
@@ -911,12 +911,12 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
                     *hi_idx += 1;
                 }
-                let hi = dict.dv_hashtab.as_slice()[*hi_idx];
-                let di = crate::eval::typval::tv_dict_hi2di(&hi);
+                let hi = &dict.dv_hashtab.as_slice()[*hi_idx];
+                let di = crate::eval::typval::tv_dict_hi2di(hi);
                 *todo -= 1;
                 *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());
-                di.di_tv.clone()
+                di.tv().clone()
             }
             MPConvStackData::List {
                 ref list,
@@ -1755,24 +1755,66 @@ pub fn nlua_push_keydict<T: KeyDict>(lstate: *mut lua_State, value: &T, table: &
     }
 }
 
+enum TVPopRef<'a> {
+    Root(&'a TypVal),
+    Guard(std::cell::Ref<'a, TypVal>),
+}
+
+impl std::ops::Deref for TVPopRef<'_> {
+    type Target = TypVal;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Root(tv) => tv,
+            Self::Guard(tv) => tv,
+        }
+    }
+}
+
+enum TVPopMut<'a> {
+    Root(&'a mut TypVal),
+    Guard(std::cell::RefMut<'a, TypVal>),
+}
+
+impl std::ops::Deref for TVPopMut<'_> {
+    type Target = TypVal;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Root(tv) => tv,
+            Self::Guard(tv) => tv,
+        }
+    }
+}
+
+impl std::ops::DerefMut for TVPopMut<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Root(tv) => tv,
+            Self::Guard(tv) => tv,
+        }
+    }
+}
+
 impl TVPopStackItem {
     #[inline]
-    fn tv_ref<'a>(&'a self, root: &'a TypVal) -> crate::eval::vars::LvalTvRef<'a> {
+    fn tv_ref<'a>(&'a self, root: &'a TypVal) -> TVPopRef<'a> {
         match &self.tv {
-            TVPopTarget::Root => crate::eval::vars::LvalTvRef::Dict(root),
-            TVPopTarget::ListItem(li) => crate::eval::vars::LvalTvRef::List(li.tv()),
-            TVPopTarget::DictItem(di) => crate::eval::vars::LvalTvRef::Dict(&di.borrow().di_tv),
+            TVPopTarget::Root => TVPopRef::Root(root),
+            TVPopTarget::ListItem(li) => TVPopRef::Guard(li.tv()),
+            TVPopTarget::DictItem(di) => TVPopRef::Guard(di.tv()),
         }
     }
 
     #[inline]
-    fn tv_mut<'a>(&'a self, root: &'a mut TypVal) -> crate::eval::vars::LvalTvMut<'a> {
+    fn tv_mut<'a>(&'a self, root: &'a mut TypVal) -> TVPopMut<'a> {
         match &self.tv {
-            TVPopTarget::Root => crate::eval::vars::LvalTvMut::Dict(root),
-            TVPopTarget::ListItem(li) => crate::eval::vars::LvalTvMut::List(li.tv_mut()),
-            TVPopTarget::DictItem(di) => {
-                crate::eval::vars::LvalTvMut::Dict(&mut di.borrow_mut().di_tv)
-            }
+            TVPopTarget::Root => TVPopMut::Root(root),
+            TVPopTarget::ListItem(li) => TVPopMut::Guard(li.tv_mut()),
+            TVPopTarget::DictItem(di) => TVPopMut::Guard(di.tv_mut()),
         }
     }
 }

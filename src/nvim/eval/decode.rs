@@ -67,15 +67,18 @@ fn json_err(fmt: &std::ffi::CStr, slice: &[u8]) {
 fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let dict = tv_dict_alloc();
     let type_di = tv_dict_item_alloc_len(b"_TYPE");
-    type_di.di_tv.v_type = VarType::VarList;
-    type_di.di_tv.v_lock = VAR_UNLOCKED;
-    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(eval_msgpack_type_list(mp_type));
-    tv_list_ref(type_di.di_tv.vval.v_list_opt());
-    tv_dict_add(&mut *dict, type_di);
+    let mp_list = eval_msgpack_type_list(mp_type);
+    tv_list_ref(mp_list.opt());
+    type_di.set_tv(TypVal {
+        v_type: VarType::VarList,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::List(mp_list),
+    });
+    tv_dict_add(&mut *dict, &type_di);
 
     let val_di = tv_dict_item_alloc_len(b"_VAL");
-    val_di.di_tv = val;
-    tv_dict_add(&mut *dict, val_di);
+    val_di.set_tv(val);
+    tv_dict_add(&mut *dict, &val_di);
     dict.dv_refcount += 1;
     *rettv = TypVal {
         v_type: VarType::VarDict,
@@ -186,10 +189,10 @@ fn json_decoder_pop(
             let obj_di = tv_dict_item_alloc(key.val.vval.v_string_cstr_or_empty());
             tv_clear(&mut key.val);
             let dict = last_container.container.vval.v_dict_ref();
-            if !tv_dict_add(dict, obj_di) {
+            if !tv_dict_add(dict, &obj_di) {
                 std::process::abort();
             }
-            obj_di.di_tv = obj.val;
+            obj_di.set_tv(obj.val);
         }
     } else {
         if !obj.is_special_string && obj.val.v_type != VarType::VarString {
@@ -1174,20 +1177,20 @@ fn typval_parse_exit(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: u
                 for pair in &items[..len] {
                     let di =
                         crate::eval::typval::tv_dict_item_alloc_len(pair[0].vval.v_string_bytes());
-                    if !tv_dict_add(&mut *dict, di) {
-                        for (_, d) in dict.dv_hashtab.iter_items_mut() {
-                            d.di_tv = TypVal {
+                    if !tv_dict_add(&mut *dict, &di) {
+                        for (_, d) in dict.dv_hashtab.iter_items() {
+                            d.set_tv(TypVal {
                                 v_type: VarType::VarSpecial,
                                 v_lock: VAR_UNLOCKED,
                                 vval: crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL),
-                            };
+                            });
                         }
                         tv_clear(&mut tv);
-                        crate::eval::typval::tv_dict_item_free(di);
+                        crate::eval::typval::tv_dict_item_free(&di);
                         can_be_dict = false;
                         break;
                     }
-                    di.di_tv = pair[1].clone();
+                    di.set_tv(pair[1].clone());
                 }
             }
 

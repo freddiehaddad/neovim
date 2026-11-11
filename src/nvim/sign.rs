@@ -1478,23 +1478,24 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             }
             let dict = argvars[1].vval.v_dict_opt();
             if let Some(di_lnum) = tv_dict_find_opt(dict.as_deref(), c"lnum", -1) {
-                lnum = tv_get_lnum(&di_lnum.di_tv);
+                lnum = tv_get_lnum(&di_lnum.tv());
                 if lnum <= 0 {
                     return;
                 }
             }
             if let Some(di_id) = tv_dict_find_opt(dict.as_deref(), c"id", -1) {
-                sign_id = tv_get_number_chk(&di_id.di_tv, Some(&mut notanum)) as i32;
+                sign_id = tv_get_number_chk(&di_id.tv(), Some(&mut notanum)) as i32;
                 if notanum {
                     return;
                 }
             }
             if let Some(di_group) = tv_dict_find_opt(dict.as_deref(), c"group", -1) {
-                let Some(g) = tv_get_string_chk(&di_group.di_tv) else {
+                let di_tv = di_group.tv();
+                let Some(g) = tv_get_string_chk(&di_tv) else {
                     return;
                 };
                 if !g.is_empty() {
-                    group_cow = g;
+                    group_cow = std::borrow::Cow::Owned(g.into_owned());
                     group = Some(&group_cow);
                 }
             }
@@ -1534,19 +1535,21 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 }
 
 fn sign_place_from_dict(
-    mut id_tv: Option<&TypVal>,
-    mut group_tv: Option<&TypVal>,
-    mut name_tv: Option<&TypVal>,
-    mut buf_tv: Option<&mut TypVal>,
+    id_tv: Option<&TypVal>,
+    group_tv: Option<&TypVal>,
+    name_tv: Option<&TypVal>,
+    buf_tv: Option<&mut TypVal>,
     dict: Option<&TvDict>,
 ) -> i32 {
     let mut id: i32 = 0;
     let mut notanum = false;
-    if id_tv.is_none()
-        && let Some(di) = tv_dict_find_opt(dict, c"id", -1)
-    {
-        id_tv = Some(&di.di_tv);
-    }
+    let id_di = if id_tv.is_none() {
+        tv_dict_find_opt(dict, c"id", -1)
+    } else {
+        None
+    };
+    let id_di_tv = id_di.as_ref().map(|di| di.tv());
+    let id_tv = id_tv.or(id_di_tv.as_deref());
     if let Some(id_tv) = id_tv {
         id = tv_get_number_chk(id_tv, Some(&mut notanum)) as i32;
         if notanum {
@@ -1560,11 +1563,13 @@ fn sign_place_from_dict(
 
     let mut group: Option<&CStr> = None;
     let group_cow;
-    if group_tv.is_none()
-        && let Some(di) = tv_dict_find_opt(dict, c"group", -1)
-    {
-        group_tv = Some(&di.di_tv);
-    }
+    let group_di = if group_tv.is_none() {
+        tv_dict_find_opt(dict, c"group", -1)
+    } else {
+        None
+    };
+    let group_di_tv = group_di.as_ref().map(|di| di.tv());
+    let group_tv = group_tv.or(group_di_tv.as_deref());
     if let Some(group_tv) = group_tv {
         let Some(g) = tv_get_string_chk(group_tv) else {
             return -1;
@@ -1575,11 +1580,13 @@ fn sign_place_from_dict(
         }
     }
 
-    if name_tv.is_none()
-        && let Some(di) = tv_dict_find_opt(dict, c"name", -1)
-    {
-        name_tv = Some(&di.di_tv);
-    }
+    let name_di = if name_tv.is_none() {
+        tv_dict_find_opt(dict, c"name", -1)
+    } else {
+        None
+    };
+    let name_di_tv = name_di.as_ref().map(|di| di.tv());
+    let name_tv = name_tv.or(name_di_tv.as_deref());
     let Some(name_tv) = name_tv else {
         return -1;
     };
@@ -1587,11 +1594,13 @@ fn sign_place_from_dict(
         return -1;
     };
 
-    if buf_tv.is_none()
-        && let Some(di) = tv_dict_find_opt(dict, c"buffer", -1)
-    {
-        buf_tv = Some(&mut di.di_tv);
-    }
+    let buf_di = if buf_tv.is_none() {
+        tv_dict_find_opt(dict, c"buffer", -1)
+    } else {
+        None
+    };
+    let mut buf_di_tv = buf_di.as_ref().map(|di| di.tv_mut());
+    let buf_tv = buf_tv.or(buf_di_tv.as_deref_mut());
     let Some(buf_tv) = buf_tv else {
         return -1;
     };
@@ -1601,7 +1610,7 @@ fn sign_place_from_dict(
 
     let mut lnum: Linenr = 0;
     if let Some(di_lnum) = tv_dict_find_opt(dict, c"lnum", -1) {
-        lnum = tv_get_lnum(&di_lnum.di_tv);
+        lnum = tv_get_lnum(&di_lnum.tv());
         if lnum <= 0 {
             emsg(gettext(E_INVARG));
             return -1;
@@ -1610,7 +1619,7 @@ fn sign_place_from_dict(
 
     let mut prio: i32 = -1;
     if let Some(di_prio) = tv_dict_find_opt(dict, c"priority", -1) {
-        prio = tv_get_number_chk(&di_prio.di_tv, Some(&mut notanum)) as i32;
+        prio = tv_get_number_chk(&di_prio.tv(), Some(&mut notanum)) as i32;
         if notanum {
             return -1;
         }
@@ -1716,7 +1725,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
 
     if dict.is_some() {
         if let Some(di_buf) = tv_dict_find_opt(dict, c"buffer", -1) {
-            buf = crate::globals::BufPtr::from(get_buf_arg(&mut di_buf.di_tv));
+            buf = crate::globals::BufPtr::from(get_buf_arg(&mut di_buf.tv_mut()));
             if buf.is_null() {
                 return -1;
             }

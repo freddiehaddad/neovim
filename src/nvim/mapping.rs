@@ -2425,9 +2425,9 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(d_opt, c"rhs");
     let mut rhs_lua: LuaRef = LUA_NOREF;
     if let Some(callback_di) = tv_dict_find(d_opt, c"callback", 8)
-        && callback_di.di_tv.v_type == VarType::VarFunc
+        && callback_di.tv().v_type == VarType::VarFunc
         && let Some(fp) = callback_di
-            .di_tv
+            .tv()
             .vval
             .v_string_cstr()
             .and_then(|s| find_func(Some(s)))

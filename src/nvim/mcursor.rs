@@ -293,7 +293,7 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
 }
 
 pub fn mc_replaying() -> bool {
-    get_vim_var_tv(VV_CASCADING).vval.v_bool() == K_BOOL_VAR_TRUE_CONST
+    get_vim_var_tv(VV_CASCADING).tv().vval.v_bool() == K_BOOL_VAR_TRUE_CONST
 }
 
 fn mc_mark_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {

@@ -1126,7 +1126,7 @@ pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return -1;
     };
-    b.changedtick_di.di_tv.vval.v_number()
+    b.changedtick_di.tv().vval.v_number()
 }
 
 /// Gets a list of buffer-local |mapping| definitions.

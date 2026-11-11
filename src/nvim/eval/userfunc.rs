@@ -316,8 +316,8 @@ impl Funcdict {
     }
 
     #[inline]
-    pub fn di_mut(&self) -> &'static mut Dictitem {
-        self.fd_di.borrow_mut()
+    pub fn di_mut(&self) -> &Dictitem {
+        &self.fd_di
     }
 }
 
@@ -870,16 +870,16 @@ pub fn deref_func_name<'a>(
     mut partialp: Option<&mut Option<std::rc::Rc<TvPartial>>>,
     no_autoload: bool,
     found_var: Option<&mut bool>,
-) -> &'a CStr {
+) -> std::borrow::Cow<'a, CStr> {
     if let Some(ref mut partialp) = partialp {
         **partialp = None;
     }
 
     let Some(v) = crate::eval::vars::find_var_opt(name, *lenp as usize, None, no_autoload as i32)
     else {
-        return name;
+        return std::borrow::Cow::Borrowed(name);
     };
-    let tv = &mut v.di_tv;
+    let tv = v.tv();
     if let Some(found_var) = found_var {
         *found_var = true;
     }
@@ -887,27 +887,27 @@ pub fn deref_func_name<'a>(
     if tv.v_type == VarType::VarFunc {
         if tv.vval.v_string_is_null() {
             *lenp = 0;
-            return c"";
+            return std::borrow::Cow::Borrowed(c"");
         }
-        let s = tv.vval.v_string_cstr_or_empty();
-        *lenp = s.to_bytes().len() as i32;
-        return s;
+        let s = tv.vval.v_string_owned();
+        *lenp = s.as_bytes().len() as i32;
+        return std::borrow::Cow::Owned(s);
     }
 
     if tv.v_type == VarType::VarPartial {
         let Some(pt) = tv.vval.v_partial_opt() else {
             *lenp = 0;
-            return c"";
+            return std::borrow::Cow::Borrowed(c"");
         };
         let s = partial_name(Some(pt));
         if let Some(partialp) = partialp {
             *partialp = tv.vval.v_partial().rc();
         }
         *lenp = s.to_bytes().len() as i32;
-        return s;
+        return std::borrow::Cow::Owned(s.to_owned());
     }
 
-    name
+    std::borrow::Cow::Borrowed(name)
 }
 
 /// Give an error message with a function name. Handle `<SNR>` things.
@@ -1168,11 +1168,14 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
 /// Add a number variable `name` to dict `dp` with value `nr`.
 fn add_nr_var(dp: &mut TvDict, name: &std::ffi::CStr, nr: Varnumber) {
     let v = tv_dict_item_alloc(name);
-    v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
-    v.di_tv.v_type = VarType::VarNumber;
-    v.di_tv.v_lock = VAR_FIXED;
-    v.di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
-    hash_add(&mut dp.dv_hashtab, &mut *v);
+    v.di_flags
+        .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
+    v.set_tv(TypVal {
+        v_type: VarType::VarNumber,
+        v_lock: VAR_FIXED,
+        vval: crate::eval::typval::TypvalVval::Number(nr),
+    });
+    hash_add(&mut dp.dv_hashtab, &v);
 }
 
 impl Drop for Funccall {
@@ -1188,7 +1191,7 @@ impl Drop for Funccall {
                 tv_dict_free_slot(vars);
             }
         }
-        if let Some(v) = self.fc_l_vars_var.get().opt_mut() {
+        if let Some(v) = self.fc_l_vars_var.get().opt() {
             tv_dict_item_free_slot(v);
         }
         if let Some(avars) = self.fc_l_avars.get().opt_mut() {
@@ -1199,7 +1202,7 @@ impl Drop for Funccall {
                 tv_dict_free_slot(avars);
             }
         }
-        if let Some(v) = self.fc_l_avars_var.get().opt_mut() {
+        if let Some(v) = self.fc_l_avars_var.get().opt() {
             tv_dict_item_free_slot(v);
         }
         if let Some(varlist) = self.fc_l_varlist.get().opt() {
@@ -1237,9 +1240,9 @@ fn cleanup_function_call(fc: &Funccall) {
     } else {
         free_fc = false;
 
-        for (_, di) in fc.fc_l_avars.get().borrow_mut().dv_hashtab.iter_items_mut() {
-            let tv_val = di.di_tv.clone();
-            tv_copy(&tv_val, &mut di.di_tv);
+        for (_, di) in fc.fc_l_avars.get().borrow_mut().dv_hashtab.iter_items() {
+            let tv_val = di.tv().clone();
+            tv_copy(&tv_val, &mut di.tv_mut());
         }
     }
 
@@ -1412,9 +1415,9 @@ pub fn create_funccal(fp: Option<&UserFunc>, rettv: TypVal) -> std::rc::Rc<Funcc
     func_ptr_ref(fp);
     *fc.fc_rettv.borrow_mut() = rettv;
     fc.fc_l_vars.set(tv_dict_alloc_static().dv_id);
-    fc.fc_l_vars_var.set(tv_dict_item_alloc_static().di_id);
+    fc.fc_l_vars_var.set(tv_dict_item_alloc_static());
     fc.fc_l_avars.set(tv_dict_alloc_static().dv_id);
-    fc.fc_l_avars_var.set(tv_dict_item_alloc_static().di_id);
+    fc.fc_l_avars_var.set(tv_dict_item_alloc_static());
     fc
 }
 
@@ -1470,28 +1473,31 @@ pub fn call_user_func(
 
     init_var_dict(
         fc.fc_l_vars.get().borrow_mut(),
-        fc.fc_l_vars_var.get().borrow_mut(),
+        &fc.fc_l_vars_var.get(),
         VAR_DEF_SCOPE,
     );
 
     if !selfdict.is_null() {
         let v = tv_dict_item_alloc_len(b"self");
-        v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
-        v.di_tv.v_type = VarType::VarDict;
-        v.di_tv.v_lock = VAR_UNLOCKED;
-        v.di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
+        v.di_flags
+            .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
+        v.set_tv(TypVal {
+            v_type: VarType::VarDict,
+            v_lock: VAR_UNLOCKED,
+            vval: crate::eval::typval::TypvalVval::Dict(selfdict),
+        });
 
         {
             let mut selfdict = selfdict;
             selfdict.dv_refcount += 1;
         }
 
-        hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &mut *v);
+        hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
     }
 
     init_var_dict(
         fc.fc_l_avars.get().borrow_mut(),
-        fc.fc_l_avars_var.get().borrow_mut(),
+        &fc.fc_l_avars_var.get(),
         VAR_SCOPE,
     );
 
@@ -1514,11 +1520,14 @@ pub fn call_user_func(
     fc.fc_l_varlist.set(varlist);
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
         let v = tv_dict_item_alloc_len(b"000");
-        v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
-        v.di_tv.v_type = VarType::VarList;
-        v.di_tv.v_lock = VAR_FIXED;
-        v.di_tv.vval = crate::eval::typval::TypvalVval::List(fc.fc_l_varlist.get());
-        hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &mut *v);
+        v.di_flags
+            .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
+        v.set_tv(TypVal {
+            v_type: VarType::VarList,
+            v_lock: VAR_FIXED,
+            vval: crate::eval::typval::TypvalVval::List(fc.fc_l_varlist.get()),
+        });
+        hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
     }
 
     if (fp.uf_flags.get() & FC_NOARGS) == 0 {
@@ -1577,14 +1586,16 @@ pub fn call_user_func(
         };
 
         let v = tv_dict_item_alloc_len(name_slice);
-        v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
+        v.di_flags
+            .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
 
-        v.di_tv = if isdefault {
+        let mut arg_tv = if isdefault {
             def_rettv.clone()
         } else {
             argvars[i as usize].clone()
         };
-        v.di_tv.v_lock = VAR_FIXED;
+        arg_tv.v_lock = VAR_FIXED;
+        v.set_tv(arg_tv);
 
         if isdefault {
             tv_to_free[tv_to_free_len] = def_rettv;
@@ -1592,11 +1603,11 @@ pub fn call_user_func(
         }
 
         if addlocal {
-            let tv_val = v.di_tv.clone();
-            tv_copy(&tv_val, &mut v.di_tv);
-            hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &mut *v);
+            let tv_val = v.tv().clone();
+            tv_copy(&tv_val, &mut v.tv_mut());
+            hash_add(&mut fc.fc_l_vars.get().borrow_mut().dv_hashtab, &v);
         } else {
-            hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &mut *v);
+            hash_add(&mut fc.fc_l_avars.get().borrow_mut().dv_hashtab, &v);
         }
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
@@ -2427,7 +2438,7 @@ pub fn trans_function_name(
     mut fdp: Option<&mut Funcdict>,
     mut partial: Option<&mut Option<std::rc::Rc<TvPartial>>>,
 ) -> Option<std::ffi::CString> {
-    let mut name: Option<&CStr> = None;
+    let mut name: Option<std::borrow::Cow<'_, CStr>> = None;
     let mut len: i32;
     let mut lv: Lval = Lval::new();
 
@@ -2560,7 +2571,7 @@ pub fn trans_function_name(
             bytes.extend_from_slice(tail);
             return Some(bytes_to_cstring(&bytes));
         }
-        return Some(name_cstr.to_owned());
+        return Some(name_cstr.into_owned());
     }
 
     if let Some(ref exp_name) = lv.ll_exp_name {
@@ -3265,7 +3276,7 @@ pub fn ex_function(eap: &mut Exarg) {
     if !eap.skip {
         let arg_opt = name_owned.as_deref().or(fudi.fd_newkey.as_deref());
         if let Some(arg_cstr) = arg_opt
-            && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.di_tv))
+            && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.tv()))
             && name_owned.is_some()
         {
             let mut name_base = arg_cstr;
@@ -3380,7 +3391,7 @@ pub fn ex_function(eap: &mut Exarg) {
         let mut ht_opt: Option<&'static mut Hashtab> = None;
         let name_cstr = name_owned.as_deref().unwrap_or(c"");
         let v = find_var(name_cstr, name_cstr.to_bytes().len(), Some(&mut ht_opt), 0);
-        if v.is_some_and(|v| v.di_tv.v_type == VarType::VarFunc) {
+        if v.is_some_and(|v| v.tv().v_type == VarType::VarFunc) {
             emsg_funcname(
                 c"E707: Function name conflicts with variable: %s",
                 name_cstr,
@@ -3434,7 +3445,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if value_check_lock(fudi.fd_dict.dv_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
                 erret!();
             }
-        } else if value_check_lock(fudi.fd_di.di_tv.v_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
+        } else if value_check_lock(fudi.fd_di.tv().v_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
             erret!();
         }
 
@@ -3482,21 +3493,18 @@ pub fn ex_function(eap: &mut Exarg) {
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
                 let di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_c_str());
-                fudi.fd_di = di.di_id;
-                if !tv_dict_add(&mut fudi.fd_dict, &mut fudi.fd_di) {
-                    crate::eval::typval::tv_dict_item_free(&mut fudi.fd_di);
+                fudi.fd_di = di;
+                if !tv_dict_add(&mut fudi.fd_dict, &fudi.fd_di) {
+                    crate::eval::typval::tv_dict_item_free(&fudi.fd_di);
                     erret!();
                 }
             } else {
-                tv_clear(&mut fudi.fd_di.borrow_mut().di_tv);
+                fudi.fd_di.clear_tv();
             }
 
-            crate::eval::typval::tv_set_string_len(
-                &mut fudi.fd_di.borrow_mut().di_tv,
-                Some(name_slice),
-            );
+            crate::eval::typval::tv_set_string_len(&mut fudi.fd_di.tv_mut(), Some(name_slice));
 
-            fudi.fd_di.borrow_mut().di_tv.v_type = VarType::VarFunc;
+            fudi.fd_di.tv_mut().v_type = VarType::VarFunc;
 
             flags |= FC_DICT;
         }
@@ -4109,7 +4117,7 @@ pub fn ex_call(eap: &mut Exarg) {
 
     let failed = if eap.cmdidx == Cmdidx::CmdDefer {
         arg = startarg;
-        !ex_defer_inner(name, &mut arg, partial_opt.as_deref(), &mut evalarg)
+        !ex_defer_inner(&name, &mut arg, partial_opt.as_deref(), &mut evalarg)
     } else {
         let mut funcexe = Funcexe::new();
         funcexe.fe_partial = crate::eval::typval::PartialId::from(partial_opt);
@@ -4118,7 +4126,7 @@ pub fn ex_call(eap: &mut Exarg) {
         funcexe.fe_lastline = eap.line2;
         funcexe.fe_found_var = found_var;
         funcexe.fe_evaluate = true;
-        ex_call_inner(eap, name, &mut arg, startarg, &funcexe, &mut evalarg)
+        ex_call_inner(eap, &name, &mut arg, startarg, &funcexe, &mut evalarg)
     };
 
     if (!aborting() || g_st().did_throw) && (!failed || eap.cstack_mut().cs_trylevel > 0) {
@@ -4415,8 +4423,11 @@ pub fn get_funccal_local_ht() -> Option<&'static mut Hashtab> {
         .and_then(|fc| fc.fc_l_vars.get().opt_mut().map(|d| &mut d.dv_hashtab))
 }
 
-pub fn get_funccal_local_var() -> Option<&'static mut Dictitem> {
-    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_vars_var.get().opt_mut())
+pub fn get_funccal_local_var() -> Option<DictitemId> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let v = fc.fc_l_vars_var.get();
+        if v.is_null() { None } else { Some(v) }
+    })
 }
 
 pub fn get_funccal_args_dict() -> Option<&'static mut TvDict> {
@@ -4428,8 +4439,11 @@ pub fn get_funccal_args_ht() -> Option<&'static mut Hashtab> {
         .and_then(|fc| fc.fc_l_avars.get().opt_mut().map(|d| &mut d.dv_hashtab))
 }
 
-pub fn get_funccal_args_var() -> Option<&'static mut Dictitem> {
-    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_avars_var.get().opt_mut())
+pub fn get_funccal_args_var() -> Option<DictitemId> {
+    get_funccal_for_vars_opt().and_then(|fc| {
+        let v = fc.fc_l_avars_var.get();
+        if v.is_null() { None } else { Some(v) }
+    })
 }
 
 pub fn list_func_vars(first: &mut i32) {
@@ -4496,7 +4510,10 @@ pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>)
     found_idx
 }
 
-pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {
+pub fn find_var_in_scoped_ht(
+    name_slice: &[u8],
+    no_autoload: i32,
+) -> Option<crate::eval::typval::DictitemId> {
     let name_cstr = crate::memory::bytes_to_cstring(name_slice);
     let namelen = name_slice.len();
     if UF_STATE.with(|s| s.current_funccal.get()).is_null()
@@ -4505,7 +4522,7 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
         return None;
     }
 
-    let mut v: Option<&'static mut Dictitem> = None;
+    let mut v: Option<crate::eval::typval::DictitemId> = None;
     let old_current_funccal = UF_STATE.with(|s| s.current_funccal.get());
     let mut varname_opt: Option<&CStr> = None;
 

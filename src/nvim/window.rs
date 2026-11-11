@@ -716,7 +716,7 @@ impl WinInfoInfo {
 
     #[inline]
     pub fn w_vars(&self) -> &'static mut TvDict {
-        self.w_winvar.di_tv.vval.v_dict().borrow_mut()
+        self.w_winvar.tv().vval.v_dict().borrow_mut()
     }
 }
 
@@ -751,7 +751,7 @@ pub struct TabPageInfo {
     pub tp_diff_invalid: std::cell::Cell<i32>,
     pub tp_diff_update: std::cell::Cell<i32>,
     pub tp_snapshot: [std::cell::RefCell<Option<Box<SnapshotFrame>>>; 3],
-    pub tp_winvar: std::cell::Cell<crate::eval::typval::DictitemId>,
+    pub tp_winvar: crate::api::private::validate::CloneCell<crate::eval::typval::DictitemId>,
     pub tp_localdir: crate::api::private::validate::CloneCell<Option<std::ffi::CString>>,
     pub tp_prevdir: crate::api::private::validate::CloneCell<Option<std::ffi::CString>>,
 }
@@ -820,7 +820,9 @@ impl TabPageInfo {
                 std::cell::RefCell::new(None),
                 std::cell::RefCell::new(None),
             ],
-            tp_winvar: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            tp_winvar: crate::api::private::validate::CloneCell::new(
+                crate::eval::typval::DictitemId::NULL,
+            ),
             tp_localdir: crate::api::private::validate::CloneCell::new(None),
             tp_prevdir: crate::api::private::validate::CloneCell::new(None),
         })
@@ -828,7 +830,7 @@ impl TabPageInfo {
 
     #[inline]
     pub fn tp_vars(&self) -> &'static mut TvDict {
-        self.tp_winvar.get().di_tv.vval.v_dict().borrow_mut()
+        self.tp_winvar.get().tv().vval.v_dict().borrow_mut()
     }
 }
 
@@ -4937,9 +4939,9 @@ fn alloc_tabpage() -> crate::globals::TabpagePtr {
     let tp = crate::globals::TabpagePtr::from(TabPageInfo::new_rc(handle));
     g_st().tabpage_handles.insert(handle, tp.clone());
 
-    let winvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
+    let winvar = crate::eval::typval::tv_dict_item_alloc_static();
+    init_var_dict(tv_dict_alloc(), &winvar, VAR_SCOPE);
     tp.tp_winvar.set(winvar);
-    init_var_dict(tv_dict_alloc(), winvar.borrow_mut(), VAR_SCOPE);
     tp.tp_ch_used.set(opt_vars().p_ch);
 
     tp
@@ -4947,13 +4949,13 @@ fn alloc_tabpage() -> crate::globals::TabpagePtr {
 
 impl Drop for TabPageInfo {
     fn drop(&mut self) {
-        if let Some(tp_winvar) = self.tp_winvar.get().opt_mut() {
-            if !tp_winvar.di_tv.vval.v_dict().is_null() {
+        if let Some(tp_winvar) = self.tp_winvar.get().opt() {
+            if !tp_winvar.tv().vval.v_dict().is_null() {
                 vars_clear(&mut self.tp_vars().dv_hashtab);
                 unref_var_dict(&mut *self.tp_vars());
             }
-            self.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
             crate::eval::typval::tv_dict_item_free_slot(tp_winvar);
+            self.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
         }
     }
 }
@@ -4965,13 +4967,13 @@ pub fn free_tabpage(tp: Option<&TabPageInfo>) {
         for idx in 0..SNAP_COUNT {
             clear_snapshot(tp_ref, idx as i32);
         }
-        if let Some(tp_winvar) = tp_ref.tp_winvar.get().opt_mut() {
-            if !tp_winvar.di_tv.vval.v_dict().is_null() {
+        if let Some(tp_winvar) = tp_ref.tp_winvar.get().opt() {
+            if !tp_winvar.tv().vval.v_dict().is_null() {
                 vars_clear(&mut tp_ref.tp_vars().dv_hashtab);
                 unref_var_dict(&mut *tp_ref.tp_vars());
             }
-            tp_ref.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
             crate::eval::typval::tv_dict_item_free_slot(tp_winvar);
+            tp_ref.tp_winvar.set(crate::eval::typval::DictitemId::NULL);
         }
         if g_st().lastused_tabpage == tp_ref {
             g_st().lastused_tabpage = crate::globals::TabpagePtr::NULL;
@@ -5929,8 +5931,8 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
     new_wp.w_grid_alloc.target_kind = GridTarget::Win(new_wp.handle);
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 
-    new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
-    init_var_dict(tv_dict_alloc(), new_wp.w_winvar.borrow_mut(), VAR_SCOPE);
+    new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static();
+    init_var_dict(tv_dict_alloc(), &new_wp.w_winvar, VAR_SCOPE);
 
     block_autocmds();
     if !hidden {
@@ -6075,7 +6077,7 @@ impl Drop for WinInfoInfo {
         self.w_prevdir = None;
 
         free_jumplist(self);
-        if let Some(w_winvar) = self.w_winvar.opt_mut() {
+        if let Some(w_winvar) = self.w_winvar.opt() {
             crate::eval::typval::tv_dict_item_free_slot(w_winvar);
         }
     }

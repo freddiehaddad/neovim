@@ -3073,46 +3073,49 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
         let dict = argvars[0].vval.v_dict_opt();
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"timeout", -1) {
-            timeout = tv_get_number_chk(&di.di_tv, Some(&mut error)) as i32;
+            timeout = tv_get_number_chk(&di.tv(), Some(&mut error)) as i32;
             if error {
                 return;
             }
         }
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"maxcount", -1) {
-            maxcount = tv_get_number_chk(&di.di_tv, Some(&mut error)) as i32;
+            maxcount = tv_get_number_chk(&di.tv(), Some(&mut error)) as i32;
             if error {
                 return;
             }
         }
         recompute = tv_dict_get_bool(dict.as_deref(), c"recompute", i32::from(recompute)) != 0;
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pattern", -1) {
-            let Some(pat) = tv_get_string_chk(&di.di_tv) else {
+            let di_tv = di.tv();
+            let Some(pat) = tv_get_string_chk(&di_tv) else {
                 return;
             };
             pattern = Some(pat.into_owned());
         }
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pos", -1) {
-            if di.di_tv.v_type != VarType::VarList {
+            let di_tv = di.tv();
+            if di_tv.v_type != VarType::VarList {
                 semsg!(tr(E_INVARG2), c"pos");
                 return;
             }
-            if tv_list_len(di.di_tv.vval.v_list_opt()) != 3 {
+            let pos_list = di_tv.vval.v_list_opt();
+            if tv_list_len(pos_list) != 3 {
                 semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
                 return;
             }
-            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 0) {
+            if let Some(li) = tv_list_find_opt(pos_list, 0) {
                 pos.lnum = tv_get_number_chk(&li.tv(), Some(&mut error)) as Linenr;
                 if error {
                     return;
                 }
             }
-            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 1) {
+            if let Some(li) = tv_list_find_opt(pos_list, 1) {
                 pos.col = tv_get_number_chk(&li.tv(), Some(&mut error)) as Colnr - 1;
                 if error {
                     return;
                 }
             }
-            if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 2) {
+            if let Some(li) = tv_list_find_opt(pos_list, 2) {
                 pos.coladd = tv_get_number_chk(&li.tv(), Some(&mut error)) as Colnr;
                 if error {
                     return;

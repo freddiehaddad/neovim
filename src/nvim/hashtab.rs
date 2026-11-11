@@ -10,7 +10,7 @@ pub const HT_INIT_SIZE: usize = 16;
 const PERTURB_SHIFT: usize = 5;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Hashitem {
     pub hi_hash: HashVal,
     pub hi_removed: bool,
@@ -31,8 +31,8 @@ impl Hashitem {
     }
 
     #[inline]
-    pub fn di_opt(&self) -> Option<&'static mut crate::eval::typval::Dictitem> {
-        self.hi_di.opt_mut()
+    pub fn di_opt(&self) -> Option<&crate::eval::typval::Dictitem> {
+        self.hi_di.opt()
     }
 }
 
@@ -79,7 +79,7 @@ impl Hashtab {
     #[inline]
     pub fn iter_items_mut(
         &self,
-    ) -> impl Iterator<Item = (&Hashitem, &'static mut crate::eval::typval::Dictitem)> {
+    ) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
         self.ht_array
             .iter()
             .filter_map(|hi| hi.di_opt().map(|di| (hi, di)))
@@ -121,10 +121,12 @@ impl Default for Hashtab {
     }
 }
 
-static EMPTY_HASHARRAY: [Hashitem; HT_INIT_SIZE] = [Hashitem {
-    hi_hash: 0,
-    hi_removed: false,
-    hi_di: crate::eval::typval::DictitemId::NULL,
+const EMPTY_HASHARRAY: [Hashitem; HT_INIT_SIZE] = [const {
+    Hashitem {
+        hi_hash: 0,
+        hi_removed: false,
+        hi_di: crate::eval::typval::DictitemId::NULL,
+    }
 }; HT_INIT_SIZE];
 
 #[inline]
@@ -156,12 +158,12 @@ pub fn hash_find_len_idx(ht: &Hashtab, key: &[u8]) -> usize {
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
 pub fn hash_find(ht: &Hashtab, key: &CStr) -> Hashitem {
-    ht.as_slice()[hash_find_idx(ht, key)]
+    ht.as_slice()[hash_find_idx(ht, key)].clone()
 }
 
 /// Find item for `key` slice in `ht` (`hash_find_len`).
 pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> Hashitem {
-    ht.as_slice()[hash_find_len_idx(ht, key)]
+    ht.as_slice()[hash_find_len_idx(ht, key)].clone()
 }
 
 /// Find slot index for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
@@ -203,7 +205,7 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
 }
 
 /// Add dictionary item `di` to hashtable `ht` (`hash_add`).
-pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
+pub fn hash_add(ht: &mut Hashtab, di: &crate::eval::typval::Dictitem) -> bool {
     let key = di.key_cstr();
     let hash = hash_hash(key);
     let idx = hash_lookup_idx(ht, key.to_bytes(), hash);
@@ -214,7 +216,7 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
         );
         return false;
     }
-    hash_add_item(ht, idx, &mut *di, hash);
+    hash_add_item(ht, idx, di, hash);
     true
 }
 
@@ -222,7 +224,7 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
 pub fn hash_add_item(
     ht: &mut Hashtab,
     idx: usize,
-    di: &mut crate::eval::typval::Dictitem,
+    di: &crate::eval::typval::Dictitem,
     hash: HashVal,
 ) {
     if ht.ht_array.is_empty() {
@@ -235,7 +237,7 @@ pub fn hash_add_item(
         ht.ht_filled += 1;
     }
     hi_ref.hi_removed = false;
-    hi_ref.hi_di = di.di_id;
+    hi_ref.hi_di = crate::eval::typval::DictitemId::from(di);
     hi_ref.hi_hash = hash;
 
     hash_may_resize(ht, 0);
@@ -373,24 +375,24 @@ mod tests {
 
             let items: Vec<crate::eval::typval::DictitemId> = keys
                 .iter()
-                .map(|k| crate::eval::typval::tv_dict_item_alloc(k.as_c_str()).di_id)
+                .map(|k| crate::eval::typval::tv_dict_item_alloc(k.as_c_str()))
                 .collect();
 
-            for &di in &items {
-                assert!(hash_add(ht, di.borrow_mut()));
+            for di in &items {
+                assert!(hash_add(ht, di));
             }
             assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            let first_di = items[0];
-            assert!(!hash_add(ht, first_di.borrow_mut()));
+            let first_di = &items[0];
+            assert!(!hash_add(ht, first_di));
             crate::globals::g_st().emsg_skip -= 1;
 
-            for (k, &di) in keys.iter().zip(&items) {
+            for (k, di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_c_str());
                 assert!(!hashitem_empty(&hi));
                 assert_eq!(hi.key_cstr(), Some(k.as_c_str()));
-                assert_eq!(hi.hi_di, di);
+                assert_eq!(&hi.hi_di, di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
@@ -401,13 +403,10 @@ mod tests {
             assert_eq!(ht.ht_used, 0);
             assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);
             hash_clear(ht);
-            assert!(std::ptr::eq(
-                ht.as_slice().as_ptr(),
-                EMPTY_HASHARRAY.as_ptr()
-            ));
+            assert!(ht.ht_array.is_empty());
 
-            for di in items {
-                crate::eval::typval::tv_dict_item_free(di.borrow_mut());
+            for di in &items {
+                crate::eval::typval::tv_dict_item_free(di);
             }
         }
     }

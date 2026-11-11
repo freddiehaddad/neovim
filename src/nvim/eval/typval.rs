@@ -1156,120 +1156,162 @@ impl Drop for TvList {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct DictitemId(pub Option<std::num::NonZeroU32>);
+#[derive(Clone, Default)]
+pub struct DictitemId(Option<std::rc::Rc<Dictitem>>);
+
+impl PartialEq for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for DictitemId {}
+
+impl std::fmt::Debug for DictitemId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DictitemId")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
 
 impl DictitemId {
     pub const NULL: Self = Self(None);
 
     #[inline(always)]
-    pub const fn from_slot(idx: usize) -> Self {
-        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    pub fn from_ref(di: &Dictitem) -> Self {
+        Self::from(di)
     }
 
     #[inline(always)]
-    pub fn from_ref(di: &mut Dictitem) -> Self {
-        di.di_id
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
+    pub const fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
     #[inline(always)]
-    pub fn opt(self) -> Option<&'static Dictitem> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .dictitem_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+    pub fn opt(&self) -> Option<&Dictitem> {
+        self.0.as_deref()
     }
 
     #[inline(always)]
-    pub fn opt_mut(self) -> Option<&'static mut Dictitem> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .dictitem_arena
-            .get_mut(idx)
-            .and_then(|s| s.as_deref_mut())
+    pub fn borrow(&self) -> &Dictitem {
+        self.opt().expect("null DictitemId")
     }
 
     #[inline(always)]
-    pub fn borrow(self) -> &'static Dictitem {
-        self.opt().expect("null or freed DictitemId")
+    pub fn rc(&self) -> Option<std::rc::Rc<Dictitem>> {
+        self.0.clone()
     }
 
     #[inline(always)]
-    pub fn borrow_mut(self) -> &'static mut Dictitem {
-        self.opt_mut().expect("null or freed DictitemId")
+    pub fn unwrap_rc(&self) -> std::rc::Rc<Dictitem> {
+        self.0.clone().expect("null DictitemId")
     }
 
     #[inline(always)]
-    pub fn as_ptr(self) -> *mut Dictitem {
-        self.opt_mut().map_or(ptr::null_mut(), ptr::from_mut)
+    pub fn as_ptr(&self) -> *const Dictitem {
+        self.opt().map_or(ptr::null(), ptr::from_ref)
+    }
+}
+
+impl From<std::rc::Rc<Dictitem>> for DictitemId {
+    #[inline(always)]
+    fn from(rc: std::rc::Rc<Dictitem>) -> Self {
+        Self(Some(rc))
+    }
+}
+
+impl From<&std::rc::Rc<Dictitem>> for DictitemId {
+    #[inline(always)]
+    fn from(rc: &std::rc::Rc<Dictitem>) -> Self {
+        Self(Some(rc.clone()))
+    }
+}
+
+impl From<Option<std::rc::Rc<Dictitem>>> for DictitemId {
+    #[inline(always)]
+    fn from(opt: Option<std::rc::Rc<Dictitem>>) -> Self {
+        Self(opt)
+    }
+}
+
+impl From<&DictitemId> for DictitemId {
+    #[inline(always)]
+    fn from(id: &DictitemId) -> Self {
+        id.clone()
+    }
+}
+
+impl From<Option<DictitemId>> for DictitemId {
+    #[inline(always)]
+    fn from(opt: Option<DictitemId>) -> Self {
+        opt.unwrap_or(Self::NULL)
     }
 }
 
 impl From<&Dictitem> for DictitemId {
     #[inline(always)]
     fn from(di: &Dictitem) -> Self {
-        di.di_id
+        Self(di.self_weak.upgrade())
     }
 }
 
 impl From<&mut Dictitem> for DictitemId {
     #[inline(always)]
     fn from(di: &mut Dictitem) -> Self {
-        di.di_id
+        Self(di.self_weak.upgrade())
     }
 }
 
 impl From<Option<&Dictitem>> for DictitemId {
     #[inline(always)]
     fn from(opt: Option<&Dictitem>) -> Self {
-        opt.map_or(Self::NULL, |di| di.di_id)
+        Self(opt.and_then(|di| di.self_weak.upgrade()))
     }
 }
 
 impl From<Option<&mut Dictitem>> for DictitemId {
     #[inline(always)]
     fn from(opt: Option<&mut Dictitem>) -> Self {
-        opt.map_or(Self::NULL, |di| di.di_id)
+        Self(opt.and_then(|di| di.self_weak.upgrade()))
     }
 }
 
 impl PartialEq<Dictitem> for DictitemId {
     #[inline(always)]
     fn eq(&self, other: &Dictitem) -> bool {
-        self.0.is_some() && *self == other.di_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), other))
     }
 }
 
 impl PartialEq<&Dictitem> for DictitemId {
     #[inline(always)]
     fn eq(&self, other: &&Dictitem) -> bool {
-        self.0.is_some() && *self == other.di_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), *other))
     }
 }
 
 impl PartialEq<&mut Dictitem> for DictitemId {
     #[inline(always)]
     fn eq(&self, other: &&mut Dictitem) -> bool {
-        self.0.is_some() && *self == other.di_id
+        self.0
+            .as_ref()
+            .is_some_and(|rc| ptr::eq(rc.as_ref(), *other))
     }
 }
 
 impl PartialEq<*const Dictitem> for DictitemId {
     #[inline(always)]
     fn eq(&self, other: &*const Dictitem) -> bool {
-        ptr::eq(self.as_ptr().cast_const(), *other)
-    }
-}
-
-impl PartialEq<*mut Dictitem> for DictitemId {
-    #[inline(always)]
-    fn eq(&self, other: &*mut Dictitem) -> bool {
         ptr::eq(self.as_ptr(), *other)
     }
 }
@@ -1283,29 +1325,51 @@ impl std::ops::Deref for DictitemId {
     }
 }
 
-impl std::ops::DerefMut for DictitemId {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.borrow_mut()
-    }
-}
-
 #[repr(C)]
 pub struct Dictitem {
-    pub di_tv: TypVal,
-    pub di_flags: u8,
+    pub self_weak: std::rc::Weak<Self>,
+    pub di_tv: std::cell::RefCell<TypVal>,
+    pub di_flags: std::cell::Cell<u8>,
     pub di_key: Vec<u8>,
-    pub di_id: DictitemId,
 }
 
 impl Dictitem {
-    pub const fn new() -> Self {
-        Self {
-            di_tv: tv_initial_value(),
-            di_flags: 0,
-            di_key: Vec::new(),
-            di_id: DictitemId::NULL,
-        }
+    pub fn new_rc(key_vec: Vec<u8>, flags: u8) -> std::rc::Rc<Self> {
+        std::rc::Rc::new_cyclic(|weak| Self {
+            self_weak: weak.clone(),
+            di_tv: std::cell::RefCell::new(tv_initial_value()),
+            di_flags: std::cell::Cell::new(flags),
+            di_key: key_vec,
+        })
+    }
+
+    #[inline]
+    pub fn tv(&self) -> std::cell::Ref<'_, TypVal> {
+        self.di_tv.borrow()
+    }
+
+    #[inline]
+    pub fn tv_mut(&self) -> std::cell::RefMut<'_, TypVal> {
+        self.di_tv.borrow_mut()
+    }
+
+    #[inline]
+    pub fn set_tv(&self, tv: TypVal) {
+        *self.di_tv.borrow_mut() = tv;
+    }
+
+    #[inline]
+    pub fn clear_tv(&self) {
+        let mut tv = std::mem::replace(
+            &mut *self.di_tv.borrow_mut(),
+            TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            },
+        );
+        tv_clear(&mut tv);
+        *self.di_tv.borrow_mut() = tv;
     }
 
     #[inline]
@@ -1321,8 +1385,8 @@ impl Dictitem {
 
 impl Drop for Dictitem {
     fn drop(&mut self) {
-        if (self.di_flags & DI_FLAGS_ALLOC) != 0 {
-            tv_clear(&mut self.di_tv);
+        if (self.di_flags.get() & DI_FLAGS_ALLOC) != 0 {
+            tv_clear(self.di_tv.get_mut());
         }
     }
 }
@@ -1614,8 +1678,6 @@ impl ListSortItem {
 }
 
 pub(crate) struct TypvalArenas {
-    dictitem_arena: Vec<Option<Box<Dictitem>>>,
-    free_dictitems: Vec<usize>,
     dict_arena: Vec<Option<Box<TvDict>>>,
     free_dicts: Vec<usize>,
 }
@@ -1623,8 +1685,6 @@ pub(crate) struct TypvalArenas {
 impl TypvalArenas {
     pub(crate) const fn new() -> Self {
         Self {
-            dictitem_arena: Vec::new(),
-            free_dictitems: Vec::new(),
             dict_arena: Vec::new(),
             free_dicts: Vec::new(),
         }
@@ -1696,8 +1756,8 @@ pub fn nlua_clear_ref(r: &mut LuaRef) {
 }
 
 #[inline]
-pub fn tv_dict_hi2di(hi: &Hashitem) -> &'static mut Dictitem {
-    hi.hi_di.borrow_mut()
+pub fn tv_dict_hi2di(hi: &Hashitem) -> &Dictitem {
+    hi.hi_di.borrow()
 }
 
 #[inline]
@@ -3605,16 +3665,16 @@ pub fn tv_dict_watcher_notify(
 
     if let Some(newtv) = newtv {
         let v = tv_dict_item_alloc_len(b"new");
-        tv_copy(newtv, &mut v.di_tv);
-        tv_dict_add(&mut *changes_dict, v);
+        tv_copy(newtv, &mut v.tv_mut());
+        tv_dict_add(&mut *changes_dict, &v);
     }
 
     if let Some(oldtv) = oldtv
         && oldtv.v_type != VarType::VarUnknown
     {
         let v = tv_dict_item_alloc_len(b"old");
-        tv_copy(oldtv, &mut v.di_tv);
-        tv_dict_add(&mut *changes_dict, v);
+        tv_copy(oldtv, &mut v.tv_mut());
+        tv_dict_add(&mut *changes_dict, &v);
     }
 
     let mut any_needs_free = false;
@@ -3650,41 +3710,12 @@ pub fn tv_dict_watcher_notify(
     }
 }
 
-fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> &'static mut Dictitem {
-    let st = tv_arenas();
-    let idx = if let Some(idx) = st.free_dictitems.pop() {
-        let id = DictitemId::from_slot(idx);
-        st.dictitem_arena[idx] = Some(Box::new(Dictitem {
-            di_tv: TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
-            },
-            di_flags: flags,
-            di_key: key_vec,
-            di_id: id,
-        }));
-        idx
-    } else {
-        let idx = st.dictitem_arena.len();
-        let id = DictitemId::from_slot(idx);
-        st.dictitem_arena.push(Some(Box::new(Dictitem {
-            di_tv: TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
-            },
-            di_flags: flags,
-            di_key: key_vec,
-            di_id: id,
-        })));
-        idx
-    };
-    st.dictitem_arena[idx].as_deref_mut().unwrap()
+fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> DictitemId {
+    DictitemId::from(Dictitem::new_rc(key_vec, flags))
 }
 
 /// Allocate a dictionary item.
-pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
+pub fn tv_dict_item_alloc_len(key: &[u8]) -> DictitemId {
     let mut key_vec = Vec::with_capacity(key.len() + 1);
     key_vec.extend_from_slice(key);
     key_vec.push(0);
@@ -3692,44 +3723,39 @@ pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
 }
 
 /// Allocate a static dictionary item (without `DI_FLAGS_ALLOC`).
-pub fn tv_dict_item_alloc_static() -> &'static mut Dictitem {
+pub fn tv_dict_item_alloc_static() -> DictitemId {
     tv_dict_item_alloc_slot(Vec::new(), 0)
 }
 
+/// Allocate a static dictionary item with key (without `DI_FLAGS_ALLOC`).
+pub fn tv_dict_item_alloc_static_key(key_vec: Vec<u8>) -> DictitemId {
+    tv_dict_item_alloc_slot(key_vec, 0)
+}
+
 /// Allocate a dictionary item.
-pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
+pub fn tv_dict_item_alloc(key: &CStr) -> DictitemId {
     tv_dict_item_alloc_len(key.to_bytes())
 }
 
-/// Free a dictionary item slot in `dictitem_arena`.
-pub fn tv_dict_item_free_slot(item_in: &mut Dictitem) {
-    if let Some(nz) = item_in.di_id.0 {
-        let idx = (nz.get() - 1) as usize;
-        let st = tv_arenas();
-        let dropped = st.dictitem_arena[idx].take();
-        st.free_dictitems.push(idx);
-        drop(dropped);
-    }
+/// Free a dictionary item slot.
+pub fn tv_dict_item_free_slot(item_in: &Dictitem) {
+    *item_in.tv_mut() = TypVal::new();
 }
 
 /// Free a dictionary item, also clearing the value.
-pub fn tv_dict_item_free(item_in: &mut Dictitem) {
-    if (item_in.di_flags & DI_FLAGS_ALLOC) != 0 {
-        tv_dict_item_free_slot(item_in);
-    } else {
-        tv_clear(&mut item_in.di_tv);
-    }
+pub fn tv_dict_item_free(item_in: &Dictitem) {
+    item_in.clear_tv();
 }
 
 /// Make a copy of a dictionary item.
-pub fn tv_dict_item_copy(di: &mut Dictitem) -> &'static mut Dictitem {
+pub fn tv_dict_item_copy(di: &Dictitem) -> DictitemId {
     let new_di = tv_dict_item_alloc(di.key_cstr());
-    tv_copy(&di.di_tv, &mut new_di.di_tv);
+    tv_copy(&di.tv(), &mut new_di.tv_mut());
     new_di
 }
 
 /// Remove item from dictionary and free it.
-pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
+pub fn tv_dict_item_remove(dict: &mut TvDict, item: &Dictitem) {
     if let Some(idx) = dict.dv_hashtab.find_hi_idx(item.key_cstr()) {
         hash_remove(&mut dict.dv_hashtab, idx);
     } else {
@@ -3806,7 +3832,8 @@ pub fn tv_dict_free_contents(d: &mut TvDict) {
         if d.dv_hashtab.ht_used == 0 {
             break;
         }
-        if let Some(di) = d.dv_hashtab.ht_array[i].di_opt() {
+        let di_id = d.dv_hashtab.ht_array[i].hi_di.clone();
+        if let Some(di) = di_id.opt() {
             d.dv_hashtab.remove_at(i);
             tv_dict_item_free(di);
         }
@@ -3842,7 +3869,7 @@ pub fn tv_dict_unref(d: Option<&mut TvDict>) {
 }
 
 /// Find item in dictionary.
-pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'static mut Dictitem> {
+pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<DictitemId> {
     let d = d?;
     let hi = if len < 0 {
         d.dv_hashtab.find_hi(key)
@@ -3851,15 +3878,17 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
         d.dv_hashtab
             .find_hi_len(&bytes[..(len as usize).min(bytes.len())])
     };
-    hi.and_then(|hi| hi.hi_di.opt_mut())
+    hi.and_then(|hi| {
+        if hi.hi_di.is_null() {
+            None
+        } else {
+            Some(hi.hi_di)
+        }
+    })
 }
 
-/// Find item in dictionary and return a mutable reference if present.
-pub fn tv_dict_find_opt(
-    d: Option<&TvDict>,
-    key: &CStr,
-    len: isize,
-) -> Option<&'static mut Dictitem> {
+/// Find item in dictionary and return it if present.
+pub fn tv_dict_find_opt(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<DictitemId> {
     tv_dict_find(d, key, len)
 }
 
@@ -3874,7 +3903,7 @@ pub fn tv_dict_get_tv(d: Option<&TvDict>, key: &std::ffi::CStr, rettv: &mut TypV
         return false;
     };
 
-    tv_copy(&di.di_tv, rettv);
+    tv_copy(&di.tv(), rettv);
     true
 }
 
@@ -3888,7 +3917,7 @@ pub fn tv_dict_get_number_def(d: Option<&TvDict>, key: &std::ffi::CStr, def: i32
     let Some(di) = tv_dict_find_opt(d, key, -1) else {
         return i64::from(def);
     };
-    tv_get_number(&di.di_tv)
+    tv_get_number(&di.tv())
 }
 
 /// Gets a bool item from a dictionary, or a given default value.
@@ -3896,7 +3925,7 @@ pub fn tv_dict_get_bool(d: Option<&TvDict>, key: &std::ffi::CStr, def: i32) -> V
     let Some(di) = tv_dict_find_opt(d, key, -1) else {
         return i64::from(def);
     };
-    tv_get_bool(&di.di_tv)
+    tv_get_bool(&di.tv())
 }
 
 /// Converts a dict to an environment.
@@ -3906,7 +3935,8 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
 
     if let Some(denv) = denv {
         for (_, var) in denv.dv_hashtab.iter_items() {
-            let str_ = tv_get_string(&var.di_tv);
+            let var_tv = var.tv();
+            let str_ = tv_get_string(&var_tv);
             let key_bytes = var.key_bytes();
             let val_bytes = str_.to_bytes();
             let mut entry = Vec::with_capacity(key_bytes.len() + 1 + val_bytes.len());
@@ -3931,7 +3961,8 @@ pub fn tv_dict_get_string<'a>(
     key: &CStr,
 ) -> Option<std::borrow::Cow<'a, std::ffi::CStr>> {
     let di = tv_dict_find_opt(d, key, -1)?;
-    Some(tv_get_string(&di.di_tv))
+    let s = tv_get_string(&di.tv()).into_owned();
+    Some(std::borrow::Cow::Owned(s))
 }
 
 /// Get a string item from a dictionary.
@@ -3939,9 +3970,8 @@ pub fn tv_dict_get_string_buf<'a>(
     d: Option<&'a TvDict>,
     key: &CStr,
     numbuf: &'a mut [u8; NUMBUFLEN],
-) -> Option<&'a std::ffi::CStr> {
-    let di = tv_dict_find_opt(d, key, -1)?;
-    Some(tv_get_string_buf(&di.di_tv, numbuf))
+) -> Option<std::borrow::Cow<'a, std::ffi::CStr>> {
+    tv_dict_get_string_buf_chk(d, key, -1, numbuf, None)
 }
 
 /// Get a string item from a dictionary.
@@ -3951,11 +3981,18 @@ pub fn tv_dict_get_string_buf_chk<'a>(
     key_len: isize,
     numbuf: &'a mut [u8; NUMBUFLEN],
     def: Option<&'a std::ffi::CStr>,
-) -> Option<&'a std::ffi::CStr> {
+) -> Option<std::borrow::Cow<'a, std::ffi::CStr>> {
     let Some(di) = tv_dict_find_opt(d, key, key_len) else {
-        return def;
+        return def.map(std::borrow::Cow::Borrowed);
     };
-    tv_get_string_buf_chk(&di.di_tv, numbuf)
+    let di_tv = di.tv();
+    if di_tv.v_type == VarType::VarString {
+        return Some(std::borrow::Cow::Owned(di_tv.vval.v_string_owned()));
+    }
+    tv_get_string_buf_chk(&di_tv, numbuf)?;
+    Some(std::borrow::Cow::Borrowed(crate::memory::bytes_as_cstr(
+        numbuf,
+    )))
 }
 
 /// Get a function from a dictionary.
@@ -3971,13 +4008,13 @@ pub fn tv_dict_get_callback(
         return true;
     };
 
-    if !tv_is_func_inline(&di.di_tv) && di.di_tv.v_type != VarType::VarString {
+    if !tv_is_func_inline(&di.tv()) && di.tv().v_type != VarType::VarString {
         emsg(tr(c"E6000: Argument is not a function or function name"));
         return false;
     }
 
     let mut tv = tv_initial_value();
-    tv_copy(&di.di_tv, &mut tv);
+    tv_copy(&di.tv(), &mut tv);
     set_selfdict(&mut tv, d.unwrap());
     let res = callback_from_typval(result, &tv);
     tv_clear(&mut tv);
@@ -3985,7 +4022,7 @@ pub fn tv_dict_get_callback(
 }
 
 /// Check for adding a function to g: or l:.
-pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &mut TypVal, name: &CStr) -> i32 {
+pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &TypVal, name: &CStr) -> i32 {
     i32::from(
         (ptr::eq(d, get_globvar_dict())
             || get_funccal_local_ht().is_some_and(|lht| ptr::eq(&raw const d.dv_hashtab, lht)))
@@ -3995,9 +4032,9 @@ pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &mut TypVal, name: &CStr) -> 
 }
 
 /// Add item to dictionary.
-pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
+pub fn tv_dict_add(d: &mut TvDict, item: &Dictitem) -> bool {
     let key = crate::memory::bytes_as_cstr(&item.di_key);
-    if tv_dict_wrong_func_name(d, &mut item.di_tv, key) != 0 {
+    if tv_dict_wrong_func_name(d, &item.tv(), key) != 0 {
         return false;
     }
     hash_add(&mut d.dv_hashtab, item)
@@ -4006,11 +4043,14 @@ pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
 /// Add a list entry to dictionary.
 pub fn tv_dict_add_list(d: &mut TvDict, key: &CStr, list: Option<&TvList>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarList;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::List(ListId::from(list));
-    if !tv_dict_add(d, item) {
-        item.di_tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarList,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::List(ListId::from(list)),
+    });
+    if !tv_dict_add(d, &item) {
+        item.tv_mut().vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
+        tv_dict_item_free(&item);
         return false;
     }
     tv_list_ref_inline(list);
@@ -4020,9 +4060,9 @@ pub fn tv_dict_add_list(d: &mut TvDict, key: &CStr, list: Option<&TvList>) -> bo
 /// Add a typval entry to dictionary.
 pub fn tv_dict_add_tv(d: &mut TvDict, key: &[u8], tv: &mut TypVal) -> bool {
     let item = tv_dict_item_alloc_len(key);
-    tv_copy(&*tv, &mut item.di_tv);
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    tv_copy(&*tv, &mut item.tv_mut());
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4031,11 +4071,14 @@ pub fn tv_dict_add_tv(d: &mut TvDict, key: &[u8], tv: &mut TypVal) -> bool {
 /// Add a dictionary entry to dictionary.
 pub fn tv_dict_add_dict(d: &mut TvDict, key: &CStr, mut dict: Option<&mut TvDict>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarDict;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::from(dict.as_deref_mut()));
-    if !tv_dict_add(d, item) {
-        item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarDict,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::Dict(DictId::from(dict.as_deref_mut())),
+    });
+    if !tv_dict_add(d, &item) {
+        item.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
+        tv_dict_item_free(&item);
         return false;
     }
 
@@ -4049,10 +4092,13 @@ pub fn tv_dict_add_dict(d: &mut TvDict, key: &CStr, mut dict: Option<&mut TvDict
 /// Add a number entry to dictionary.
 pub fn tv_dict_add_nr(d: &mut TvDict, key: &std::ffi::CStr, nr: Varnumber) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarNumber;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarNumber,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::Number(nr),
+    });
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4061,10 +4107,13 @@ pub fn tv_dict_add_nr(d: &mut TvDict, key: &std::ffi::CStr, nr: Varnumber) -> bo
 /// Add a floating point number entry to dictionary.
 pub fn tv_dict_add_float(d: &mut TvDict, key: &std::ffi::CStr, nr: TvFloat) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarFloat;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarFloat,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::Float(nr),
+    });
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4073,10 +4122,13 @@ pub fn tv_dict_add_float(d: &mut TvDict, key: &std::ffi::CStr, nr: TvFloat) -> b
 /// Add a boolean entry to dictionary.
 pub fn tv_dict_add_bool(d: &mut TvDict, key: &std::ffi::CStr, val: BoolVarValue) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarBool;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::Bool(val);
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarBool,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::Bool(val),
+    });
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4090,11 +4142,15 @@ pub fn tv_dict_add_str(d: &mut TvDict, key: &CStr, val: Option<&CStr>) -> bool {
 /// Add a string entry to dictionary.
 pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    item.di_tv.v_type = VarType::VarString;
-    item.di_tv.vval =
-        crate::eval::typval::TypvalVval::from_opt_cstring(val.map(crate::memory::bytes_to_cstring));
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    item.set_tv(TypVal {
+        v_type: VarType::VarString,
+        v_lock: VAR_UNLOCKED,
+        vval: crate::eval::typval::TypvalVval::from_opt_cstring(
+            val.map(crate::memory::bytes_to_cstring),
+        ),
+    });
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4103,14 +4159,14 @@ pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bo
 /// Add a function entry to dictionary.
 pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &UserFunc) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
-    tv_set_string_len(
-        &mut item.di_tv,
-        Some(&fp.uf_name.as_bytes()[..fp.uf_namelen]),
-    );
-    item.di_tv.v_type = VarType::VarFunc;
-    func_ref(item.di_tv.vval.v_string_cstr());
-    if !tv_dict_add(d, item) {
-        tv_dict_item_free(item);
+    {
+        let mut item_tv = item.tv_mut();
+        tv_set_string_len(&mut item_tv, Some(&fp.uf_name.as_bytes()[..fp.uf_namelen]));
+        item_tv.v_type = VarType::VarFunc;
+        func_ref(item_tv.vval.v_string_cstr());
+    }
+    if !tv_dict_add(d, &item) {
+        tv_dict_item_free(&item);
         return false;
     }
     true
@@ -4126,7 +4182,8 @@ pub fn tv_dict_clear(d: &mut TvDict) {
         if d.dv_hashtab.ht_used == 0 {
             break;
         }
-        if let Some(di) = d.dv_hashtab.ht_array[i].di_opt() {
+        let di_id = d.dv_hashtab.ht_array[i].hi_di.clone();
+        if let Some(di) = di_id.opt() {
             tv_dict_item_free(di);
             d.dv_hashtab.remove_at(i);
         }
@@ -4151,7 +4208,8 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
         if todo == 0 {
             break;
         }
-        if let Some(di2) = d2.dv_hashtab.ht_array[i].di_opt() {
+        let di2_id = d2.dv_hashtab.ht_array[i].hi_di.clone();
+        if let Some(di2) = di2_id.opt() {
             todo -= 1;
             let key2 = crate::memory::bytes_as_cstr(&di2.di_key);
             let di1_opt = tv_dict_find_opt(Some(d1), key2, -1);
@@ -4162,41 +4220,44 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
                 if first_action == b'e' {
                     semsg!(tr(c"E737: Key already exists: %s"), key2);
                     break;
-                } else if first_action == b'f' && !ptr::eq(di2, di1) {
-                    if value_check_lock(di1.di_tv.v_lock, Some(arg_errmsg), arg_errmsg_len)
-                        || var_check_ro(i32::from(di1.di_flags), arg_errmsg, arg_errmsg_len)
+                } else if first_action == b'f' && !ptr::eq(di2, &*di1) {
+                    if value_check_lock(di1.tv().v_lock, Some(arg_errmsg), arg_errmsg_len)
+                        || var_check_ro(i32::from(di1.di_flags.get()), arg_errmsg, arg_errmsg_len)
                     {
                         break;
                     }
-                    if tv_dict_wrong_func_name(&mut *d1, &mut di2.di_tv, key2) != 0 {
+                    if tv_dict_wrong_func_name(&mut *d1, &di2.tv(), key2) != 0 {
                         break;
                     }
 
                     let mut oldtv = tv_initial_value();
                     if watched {
-                        tv_copy(&di1.di_tv, &mut oldtv);
+                        tv_copy(&di1.tv(), &mut oldtv);
                     }
 
-                    tv_clear(&mut di1.di_tv);
-                    tv_copy(&di2.di_tv, &mut di1.di_tv);
+                    let mut new_tv = tv_initial_value();
+                    tv_copy(&di2.tv(), &mut new_tv);
+                    di1.clear_tv();
+                    di1.set_tv(new_tv.clone());
 
                     if watched {
-                        tv_dict_watcher_notify(d1, di1.key_cstr(), Some(&di1.di_tv), Some(&oldtv));
+                        tv_dict_watcher_notify(d1, di1.key_cstr(), Some(&new_tv), Some(&oldtv));
                         tv_clear(&mut oldtv);
                     }
                 }
             } else if first_action == b'm' {
-                let new_di = di2;
-                if tv_dict_add(d1, new_di) {
+                if tv_dict_add(d1, di2) {
                     d2.dv_hashtab.remove_at(i);
-                    tv_dict_watcher_notify(d1, new_di.key_cstr(), Some(&new_di.di_tv), None);
+                    let new_tv = di2.tv().clone();
+                    tv_dict_watcher_notify(d1, di2.key_cstr(), Some(&new_tv), None);
                 }
             } else {
-                let new_di = tv_dict_item_copy(&mut *di2);
-                if !tv_dict_add(d1, new_di) {
-                    tv_dict_item_free(new_di);
+                let new_di = tv_dict_item_copy(di2);
+                if !tv_dict_add(d1, &new_di) {
+                    tv_dict_item_free(&new_di);
                 } else if watched {
-                    tv_dict_watcher_notify(d1, new_di.key_cstr(), Some(&new_di.di_tv), None);
+                    let new_tv = new_di.tv().clone();
+                    tv_dict_watcher_notify(d1, new_di.key_cstr(), Some(&new_tv), None);
                 }
             }
         }
@@ -4226,7 +4287,7 @@ pub fn tv_dict_equal(d1: Option<&TvDict>, d2: Option<&TvDict>, ic: bool) -> bool
         let Some(di2) = tv_dict_find_opt(Some(d2), di1.key_cstr(), -1) else {
             return false;
         };
-        if !tv_equal(&di1.di_tv, &di2.di_tv, ic) {
+        if !tv_equal(&di1.tv(), &di2.tv(), ic) {
             return false;
         }
     }
@@ -4247,7 +4308,13 @@ pub fn tv_dict_copy(
         orig.as_deref_mut().unwrap().dv_copy_id = copy_id;
         orig.as_deref_mut().unwrap().dv_copydict = copy.dv_id;
     }
-    for (_, di) in orig.unwrap().dv_hashtab.iter_items_mut() {
+    let items: Vec<DictitemId> = orig
+        .unwrap()
+        .dv_hashtab
+        .iter_items()
+        .map(|(_, di)| DictitemId::from(di))
+        .collect();
+    for di in items {
         if g_st().got_int {
             break;
         }
@@ -4264,15 +4331,18 @@ pub fn tv_dict_copy(
             tv_dict_item_alloc(key_cstr)
         };
         if deep {
-            if !var_item_copy(conv, &mut di.di_tv, &mut new_di.di_tv, deep, copy_id) {
-                tv_dict_item_free(new_di);
+            let mut src_tv = di.tv().clone();
+            let mut dst_tv = tv_initial_value();
+            if !var_item_copy(conv, &mut src_tv, &mut dst_tv, deep, copy_id) {
+                tv_dict_item_free(&new_di);
                 break;
             }
+            new_di.set_tv(dst_tv);
         } else {
-            tv_copy(&di.di_tv, &mut new_di.di_tv);
+            tv_copy(&di.tv(), &mut new_di.tv_mut());
         }
-        if !tv_dict_add(&mut *copy, new_di) {
-            tv_dict_item_free(new_di);
+        if !tv_dict_add(&mut *copy, &new_di) {
+            tv_dict_item_free(&new_di);
             break;
         }
     }
@@ -4289,8 +4359,9 @@ pub fn tv_dict_copy(
 
 /// Set all existing keys in "dict" as read-only.
 pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
-    for (_, di) in dict.dv_hashtab.iter_items_mut() {
-        di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
+    for (_, di) in dict.dv_hashtab.iter_items() {
+        di.di_flags
+            .set(di.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
     }
 }
 
@@ -4595,7 +4666,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
         return;
     };
 
-    for (_, di) in d.dv_hashtab.iter_items_mut() {
+    for (_, di) in d.dv_hashtab.iter_items() {
         let key_cstr = di.key_cstr();
         let mut tv_item = tv_initial_value();
 
@@ -4604,7 +4675,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                 tv_set_string(&mut tv_item, Some(key_cstr));
             }
             DictListType::Values => {
-                tv_copy(&di.di_tv, &mut tv_item);
+                tv_copy(&di.tv(), &mut tv_item);
             }
             DictListType::Items => {
                 let sub_l = tv_list_alloc(2);
@@ -4612,7 +4683,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                 tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l.clone());
                 tv_list_ref_inline(Some(&sub_l));
                 tv_list_append_string(&sub_l, Some(key_cstr), -1);
-                tv_list_append_tv(&sub_l, &di.di_tv);
+                tv_list_append_tv(&sub_l, &di.tv());
             }
         }
 
@@ -4670,11 +4741,11 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             semsg!(tr(E_DICTKEY), key);
             return;
         };
-        if !var_check_fixed(i32::from(di.di_flags), arg_errmsg, TV_TRANSLATE)
-            && !var_check_ro(i32::from(di.di_flags), arg_errmsg, TV_TRANSLATE)
+        if !var_check_fixed(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
+            && !var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
         {
-            *rettv = std::mem::replace(&mut di.di_tv, tv_initial_value());
-            tv_dict_item_remove(d, di);
+            *rettv = std::mem::replace(&mut *di.tv_mut(), tv_initial_value());
+            tv_dict_item_remove(d, &di);
             if tv_dict_is_watched_inline(Some(d)) {
                 tv_dict_watcher_notify(d, &key, None, Some(&*rettv));
             }
@@ -4863,7 +4934,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
     while !mpstack.is_empty() {
         let last_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[last_idx].saved_copy_id;
-        let tv: &mut TypVal = match mpstack[last_idx].data {
+        match mpstack[last_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 ref mut hi_idx,
@@ -4879,11 +4950,23 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
                     *hi_idx += 1;
                 }
-                let hi = dict.dv_hashtab.as_slice()[*hi_idx];
-                let di = tv_dict_hi2di(&hi);
+                let hi = &dict.dv_hashtab.as_slice()[*hi_idx];
+                let di = hi.hi_di.clone();
                 *todo -= 1;
                 *hi_idx += 1;
-                &mut di.di_tv
+                let mut item_tv = std::mem::replace(
+                    &mut *di.tv_mut(),
+                    TypVal {
+                        v_type: VarType::VarUnknown,
+                        v_lock: VAR_UNLOCKED,
+                        vval: TypvalVval::Number(0),
+                    },
+                );
+                let ok = nothing_convert_one_value(&mut mpstack, &mut item_tv, copy_id);
+                di.set_tv(item_tv);
+                if !ok {
+                    return false;
+                }
             }
             MPConvStackData::List {
                 ref list,
@@ -4913,7 +4996,6 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 if !ok {
                     return false;
                 }
-                continue;
             }
             MPConvStackData::Partial { stage, ref pt } => {
                 let pt = pt.clone();
@@ -4982,7 +5064,6 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         mpstack.pop();
                     }
                 }
-                continue;
             }
             MPConvStackData::PartialList {
                 ref pt,
@@ -5000,12 +5081,8 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 if !nothing_convert_one_value(&mut mpstack, &mut arg_tv, copy_id) {
                     return false;
                 }
-                continue;
             }
             MPConvStackData::Pairs { .. } => unreachable!(),
-        };
-        if !nothing_convert_one_value(&mut mpstack, tv, copy_id) {
-            return false;
         }
     }
     true
@@ -5110,8 +5187,15 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
             {
                 d.dv_lock = change_lock(lock, d.dv_lock);
                 if !(0..=1).contains(&deep) {
-                    for (_, di) in d.dv_hashtab.iter_items_mut() {
-                        tv_item_lock(&mut di.di_tv, deep - 1, lock, check_refcount);
+                    let items: Vec<DictitemId> = d
+                        .dv_hashtab
+                        .iter_items()
+                        .map(|(_, di)| DictitemId::from(di))
+                        .collect();
+                    for di in items {
+                        let mut item_tv = di.tv().clone();
+                        tv_item_lock(&mut item_tv, deep - 1, lock, check_refcount);
+                        di.tv_mut().v_lock = item_tv.v_lock;
                     }
                 }
             }
@@ -5911,7 +5995,8 @@ mod tests {
             assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
-                tv_dict_get_string_buf_chk(Some(&*d), c"missing", 7, &mut numbuf, Some(c"def")),
+                tv_dict_get_string_buf_chk(Some(&*d), c"missing", 7, &mut numbuf, Some(c"def"))
+                    .as_deref(),
                 Some(c"def")
             );
 
@@ -5932,7 +6017,7 @@ mod tests {
 
             tv_dict_set_keys_readonly(&mut *d2);
             let di_extra = tv_dict_find_opt(Some(&*d2), c"extra", -1).unwrap();
-            assert_ne!(di_extra.di_flags & (DI_FLAGS_RO | DI_FLAGS_FIX), 0);
+            assert_ne!(di_extra.di_flags.get() & (DI_FLAGS_RO | DI_FLAGS_FIX), 0);
 
             tv_dict_clear(d_copy_ref);
             assert_eq!(tv_dict_len_inline(Some(d_copy_ref)), 0);

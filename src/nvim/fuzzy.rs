@@ -587,7 +587,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     }
 
     let mut cb = Callback::NONE;
-    let mut key: Option<&CStr> = None;
+    let mut key_owned: Option<CString> = None;
     let mut matchseq = false;
     let mut max_matches: i32 = 0;
 
@@ -598,26 +598,27 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 
         let d = arg2.vval.v_dict_ref();
         if let Some(di_key) = tv_dict_find_opt(Some(&*d), c"key", -1) {
-            let key_cstr = di_key.di_tv.vval.v_string_cstr();
-            if di_key.di_tv.v_type != VarType::VarString
+            let di_tv = di_key.tv();
+            let key_cstr = di_tv.vval.v_string_cstr();
+            if di_tv.v_type != VarType::VarString
                 || key_cstr.is_none_or(|s| s.to_bytes().is_empty())
             {
-                semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_key.di_tv));
+                semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_tv));
                 return;
             }
-            key = key_cstr;
+            key_owned = key_cstr.map(CStr::to_owned);
         } else if !tv_dict_get_callback(Some(&mut *d), c"text_cb", -1, &mut cb) {
             semsg!(E_INVARGVAL, c"text_cb");
             return;
         }
 
         if let Some(di_limit) = tv_dict_find_opt(Some(&*d), c"limit", -1) {
-            if di_limit.di_tv.v_type != VarType::VarNumber {
+            if di_limit.tv().v_type != VarType::VarNumber {
                 callback_free(&mut cb);
                 semsg!(E_INVARGVAL, c"limit");
                 return;
             }
-            max_matches = tv_get_number_chk(&di_limit.di_tv, None) as i32;
+            max_matches = tv_get_number_chk(&di_limit.tv(), None) as i32;
         }
 
         if tv_dict_has_key(Some(&*d), c"matchseq") {
@@ -638,7 +639,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         Some(in_list),
         pat_bytes,
         matchseq,
-        key,
+        key_owned.as_deref(),
         &mut cb,
         retmatchpos,
         out_list,

@@ -12067,7 +12067,8 @@ pub fn eval_vars(
                             *usedlen = 1;
                             return None;
                         }
-                        let Some(oldfile) = tv_list_find_str(get_vim_var_list(VV_OLDFILES), i - 1)
+                        let Some(oldfile) =
+                            tv_list_find_str(get_vim_var_list(VV_OLDFILES).as_deref(), i - 1)
                         else {
                             *errormsg = Some(std::borrow::Cow::Borrowed(c""));
                             return None;

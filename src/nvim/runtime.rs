@@ -224,7 +224,7 @@ impl Drop for Scriptvar {
                 crate::eval::typval::tv_dict_free_slot(dict);
             }
         }
-        if let Some(var) = self.sv_var.opt_mut() {
+        if let Some(var) = self.sv_var.opt() {
             crate::eval::typval::tv_dict_item_free_slot(var);
         }
     }
@@ -351,7 +351,7 @@ pub fn script_item_name(id: Scid) -> Option<std::ffi::CString> {
 pub fn script_item_vars(
     id: Scid,
 ) -> (crate::eval::typval::DictitemId, crate::eval::typval::DictId) {
-    with_script_item(id, |si| (si.sn_vars.sv_var, si.sn_vars.sv_dict))
+    with_script_item(id, |si| (si.sn_vars.sv_var.clone(), si.sn_vars.sv_dict))
 }
 
 #[inline]
@@ -3123,12 +3123,12 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         if let Some(sid_di) = crate::eval::typval::tv_dict_find_opt(arg_dict.as_deref(), c"sid", 3)
         {
             let mut error = false;
-            sid = tv_get_number_chk(&sid_di.di_tv, Some(&mut error));
+            sid = tv_get_number_chk(&sid_di.tv(), Some(&mut error));
             if error {
                 return;
             }
             if sid <= 0 {
-                semsg!(gettext(E_INVARG_NVAL), c"sid", tv_get_string(&sid_di.di_tv),);
+                semsg!(gettext(E_INVARG_NVAL), c"sid", tv_get_string(&sid_di.tv()),);
                 return;
             }
         } else {

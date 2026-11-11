@@ -49,7 +49,7 @@ fn filter_map_one(
     remp: &mut bool,
 ) -> bool {
     let mut retval = false;
-    tv_copy(&*tv, &mut *get_vim_var_tv(VV_VAL));
+    tv_copy(&*tv, &mut get_vim_var_tv(VV_VAL).tv_mut());
 
     newtv.v_type = VarType::VarUnknown;
     if filtermap == FilterMap::ForEach && expr.v_type == VarType::VarString {
@@ -57,13 +57,13 @@ fn filter_map_one(
         if g_st().did_emsg == 0 {
             retval = true;
         }
-        tv_clear(get_vim_var_tv(VV_VAL));
+        get_vim_var_tv(VV_VAL).clear_tv();
         return retval;
     }
 
     let mut argv = [
-        get_vim_var_tv(VV_KEY).clone(),
-        get_vim_var_tv(VV_VAL).clone(),
+        get_vim_var_tv(VV_KEY).tv().clone(),
+        get_vim_var_tv(VV_VAL).tv().clone(),
         TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -71,7 +71,7 @@ fn filter_map_one(
         },
     ];
     if !eval_expr_typval(&*expr, false, &mut argv, 2, &mut *newtv) {
-        tv_clear(get_vim_var_tv(VV_VAL));
+        get_vim_var_tv(VV_VAL).clear_tv();
         return false;
     }
     if filtermap == FilterMap::Filter {
@@ -79,14 +79,14 @@ fn filter_map_one(
         *remp = tv_get_number_chk(&*newtv, Some(&mut error)) == 0;
         tv_clear(newtv);
         if error {
-            tv_clear(get_vim_var_tv(VV_VAL));
+            get_vim_var_tv(VV_VAL).clear_tv();
             return false;
         }
     } else if filtermap == FilterMap::ForEach {
         tv_clear(newtv);
     }
     retval = true;
-    tv_clear(get_vim_var_tv(VV_VAL));
+    get_vim_var_tv(VV_VAL).clear_tv();
     retval
 }
 
@@ -131,11 +131,14 @@ fn filter_map_dict(
             if todo == 0 {
                 break;
             }
-            if let Some(di) = d.as_deref_mut().unwrap().dv_hashtab.ht_array[i].di_opt() {
+            let di_id = d.as_deref_mut().unwrap().dv_hashtab.ht_array[i]
+                .hi_di
+                .clone();
+            if let Some(di) = di_id.opt() {
                 todo -= 1;
                 if filtermap == FilterMap::Map
-                    && (value_check_lock(di.di_tv.v_lock, Some(arg_errmsg), TV_TRANSLATE)
-                        || var_check_ro(di.di_flags as i32, arg_errmsg, TV_TRANSLATE))
+                    && (value_check_lock(di.tv().v_lock, Some(arg_errmsg), TV_TRANSLATE)
+                        || var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE))
                 {
                     break;
                 }
@@ -146,16 +149,17 @@ fn filter_map_dict(
                     vval: TypvalVval::Number(0),
                 };
                 let mut rem = false;
-                let r = filter_map_one(&mut di.di_tv, expr, filtermap, &mut newtv, &mut rem);
-                tv_clear(get_vim_var_tv(VV_KEY));
+                let mut di_tv = di.tv().clone();
+                let r = filter_map_one(&mut di_tv, expr, filtermap, &mut newtv, &mut rem);
+                get_vim_var_tv(VV_KEY).clear_tv();
                 if !r || g_st().did_emsg != 0 {
                     tv_clear(&mut newtv);
                     break;
                 }
                 if filtermap == FilterMap::Map {
-                    tv_clear(&mut di.di_tv);
+                    di.clear_tv();
                     newtv.v_lock = VAR_UNLOCKED;
-                    di.di_tv = newtv;
+                    di.set_tv(newtv);
                 } else if filtermap == FilterMap::MapNew {
                     let add_res = tv_dict_add_tv(
                         d_ret.as_deref_mut().unwrap(),
@@ -167,8 +171,8 @@ fn filter_map_dict(
                         break;
                     }
                 } else if filtermap == FilterMap::Filter && rem {
-                    if var_check_fixed(di.di_flags as i32, arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro(di.di_flags as i32, arg_errmsg, TV_TRANSLATE)
+                    if var_check_fixed(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
+                        || var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
                     {
                         break;
                     }
@@ -565,7 +569,7 @@ fn count_dict(d: Option<&TvDict>, needle: &TypVal, ic: bool) -> i64 {
     };
     let mut n: i64 = 0;
     for (_, di) in d.dv_hashtab.iter_items() {
-        if tv_equal(&di.di_tv, needle, ic) {
+        if tv_equal(&di.tv(), needle, ic) {
             n += 1;
         }
     }

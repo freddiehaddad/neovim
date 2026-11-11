@@ -11,8 +11,8 @@ use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::buffer::FileBuf;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::eval::typval::{
-    Dictitem, TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find_opt,
-    tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_watcher_notify,
+    TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find_opt, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify,
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{Scid, before_set_vvar, get_vimvar_dict};
@@ -426,7 +426,8 @@ pub fn dict_get_value(
         );
         return OBJECT_NIL;
     };
-    vim_to_object(&mut di.di_tv, arena, true)
+    let mut di_tv = di.tv().clone();
+    vim_to_object(&mut di_tv, arena, true)
 }
 
 pub fn dict_check_writable(
@@ -434,25 +435,25 @@ pub fn dict_check_writable(
     key: &NvimString,
     del: bool,
     err: &mut Error,
-) -> Option<&'static mut Dictitem> {
+) -> Option<crate::eval::typval::DictitemId> {
     let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let di = tv_dict_find_opt(Some(dict), key_cstr, key.size as isize);
     if let Some(ref di) = di {
-        if (di.di_flags & DI_FLAGS_RO) != 0 {
+        if (di.di_flags.get() & DI_FLAGS_RO) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Key is read-only: %s",
                 key,
             );
-        } else if (di.di_flags & DI_FLAGS_LOCK) != 0 {
+        } else if (di.di_flags.get() & DI_FLAGS_LOCK) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Key is locked: %s",
                 key,
             );
-        } else if del && (di.di_flags & DI_FLAGS_FIX) != 0 {
+        } else if del && (di.di_flags.get() & DI_FLAGS_FIX) != 0 {
             api_set_error!(err, ErrorType::ErrorTypeException, c"Key is fixed: %s", key,);
         }
     } else if dict.dv_lock != 0 {
@@ -493,30 +494,28 @@ pub fn dict_set_var(
             return rv;
         };
         if watched {
-            tv_dict_watcher_notify(
-                dict,
-                key.as_opt_cstr().unwrap_or(c""),
-                None,
-                Some(&di.di_tv),
-            );
+            let old_tv = di.tv().clone();
+            tv_dict_watcher_notify(dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&old_tv));
         }
         if retval {
-            rv = vim_to_object(&mut di.di_tv, arena, false);
+            let mut di_tv = di.tv().clone();
+            rv = vim_to_object(&mut di_tv, arena, false);
         }
 
-        tv_dict_item_remove(&mut *dict, di);
+        tv_dict_item_remove(&mut *dict, &di);
     } else {
         let mut tv: TypVal = TypVal::new();
         object_to_vim(value, &mut tv, err);
         let mut oldtv: TypVal = TypVal::new();
 
-        let di: &mut Dictitem = if let Some(di) = di_opt {
+        let di: crate::eval::typval::DictitemId = if let Some(di) = di_opt {
             if retval {
-                rv = vim_to_object(&mut di.di_tv, arena, false);
+                let mut di_tv = di.tv().clone();
+                rv = vim_to_object(&mut di_tv, arena, false);
             }
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && !before_set_vvar(key.as_cstr(), di, &mut tv, true, watched, &mut type_error)
+                && !before_set_vvar(key.as_cstr(), &di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -530,18 +529,18 @@ pub fn dict_set_var(
                 return rv;
             }
             if watched {
-                tv_copy(&di.di_tv, &mut oldtv);
+                tv_copy(&di.tv(), &mut oldtv);
             }
 
-            tv_clear(&mut di.di_tv);
+            di.clear_tv();
             di
         } else {
             let new_di = tv_dict_item_alloc_len(key.as_bytes());
-            tv_dict_add(dict, new_di);
+            tv_dict_add(dict, &new_di);
             new_di
         };
 
-        tv_copy(&tv, &mut di.di_tv);
+        tv_copy(&tv, &mut di.tv_mut());
 
         if watched {
             tv_dict_watcher_notify(

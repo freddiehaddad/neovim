@@ -918,14 +918,16 @@ fn matchadd_dict_arg<'a>(
     }
 
     if let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"conceal", 7) {
-        *conceal_char = Some(tv_get_string(&di.di_tv));
+        *conceal_char = Some(std::borrow::Cow::Owned(
+            tv_get_string(&di.tv()).into_owned(),
+        ));
     }
 
     let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt().as_deref(), c"window", 6) else {
         return true;
     };
 
-    let Some(found_win) = find_win_by_nr_or_id(&di.di_tv) else {
+    let Some(found_win) = find_win_by_nr_or_id(&di.tv()) else {
         emsg(gettext(E_INVALWINDOW));
         return false;
     };
@@ -1053,11 +1055,11 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
                     -1,
                 ) {
-                    if pos_di.di_tv.v_type != VarType::VarList {
+                    if pos_di.tv().v_type != VarType::VarList {
                         tv_list_unref(s.opt());
                         return;
                     }
-                    tv_list_append_tv(&s, &pos_di.di_tv);
+                    tv_list_append_tv(&s, &pos_di.tv());
                 } else {
                     break;
                 }
@@ -1069,12 +1071,13 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let group = tv_dict_get_string_buf(Some(d), c"group", &mut group_buf);
         let priority = tv_dict_get_number(Some(d), c"priority") as i32;
         let id = tv_dict_get_number(Some(d), c"id") as i32;
-        let conceal = tv_dict_find_opt(Some(d), c"conceal", 7).map(|di| tv_get_string(&di.di_tv));
+        let conceal = tv_dict_find_opt(Some(d), c"conceal", 7)
+            .map(|di| std::borrow::Cow::Owned(tv_get_string(&di.tv()).into_owned()));
         if i == 0 {
             let pat = tv_dict_get_string(Some(d), c"pattern");
             if match_add(
                 &mut *win,
-                group,
+                group.as_deref(),
                 pat.as_deref(),
                 priority,
                 id,
@@ -1087,7 +1090,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         } else {
             if match_add(
                 &mut *win,
-                group,
+                group.as_deref(),
                 None,
                 priority,
                 id,

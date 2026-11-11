@@ -5903,17 +5903,20 @@ fn get_errorlist(
     true
 }
 
-fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut TvDict) -> bool {
-    if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
+fn qf_get_list_from_lines(what: &mut TvDict, di: &Dictitem, retdict: &mut TvDict) -> bool {
+    if di.tv().v_type != VarType::VarList || di.tv().vval.v_list().is_null() {
         return false;
     }
 
+    let efm_owned: std::ffi::CString;
     let mut errorformat = opt_vars().p_efm.as_cstr();
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
-        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string_is_null() {
+        let efm_tv = efm_di.tv();
+        if efm_tv.v_type != VarType::VarString || efm_tv.vval.v_string_is_null() {
             return false;
         }
-        errorformat = efm_di.di_tv.vval.v_string_cstr_or_empty();
+        efm_owned = efm_tv.vval.v_string_owned();
+        errorformat = efm_owned.as_c_str();
     }
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5933,7 +5936,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         0,
         None,
         None,
-        Some(&mut di.di_tv),
+        Some(&mut *di.tv_mut()),
         errorformat,
         true,
         0,
@@ -6020,15 +6023,16 @@ fn qf_getprop_keys2flags(what: &TvDict, loclist: bool) -> i32 {
 fn qf_getprop_qfidx(qi: &QfInfo, what: &mut TvDict) -> i32 {
     let mut qf_idx = qi.qf_curlist.get();
     if let Some(di) = tv_dict_find_opt(Some(what), c"nr", 2) {
-        if di.di_tv.v_type == VarType::VarNumber {
-            if di.di_tv.vval.v_number() != 0 {
-                qf_idx = di.di_tv.vval.v_number() as i32 - 1;
+        let di_tv = di.tv();
+        if di_tv.v_type == VarType::VarNumber {
+            if di_tv.vval.v_number() != 0 {
+                qf_idx = di_tv.vval.v_number() as i32 - 1;
                 if qf_idx < 0 || qf_idx >= qi.qf_listcount.get() {
                     qf_idx = INVALID_QFIDX;
                 }
             }
-        } else if di.di_tv.v_type == VarType::VarString
-            && (di.di_tv.vval.v_string_opt_bytes() == Some(b"$"))
+        } else if di_tv.v_type == VarType::VarString
+            && (di_tv.vval.v_string_opt_bytes() == Some(b"$"))
         {
             qf_idx = qi.qf_listcount.get() - 1;
         } else {
@@ -6037,9 +6041,10 @@ fn qf_getprop_qfidx(qi: &QfInfo, what: &mut TvDict) -> i32 {
     }
 
     if let Some(di) = tv_dict_find_opt(Some(what), c"id", 2) {
-        if di.di_tv.v_type == VarType::VarNumber {
-            if di.di_tv.vval.v_number() != 0 {
-                qf_idx = qf_id2nr(qi, di.di_tv.vval.v_number() as u32);
+        let di_tv = di.tv();
+        if di_tv.v_type == VarType::VarNumber {
+            if di_tv.vval.v_number() != 0 {
+                qf_idx = qf_id2nr(qi, di_tv.vval.v_number() as u32);
             }
         } else {
             qf_idx = INVALID_QFIDX;
@@ -6125,10 +6130,10 @@ fn qf_getprop_items(qi: &QfInfo, qf_idx: i32, eidx: i32, retdict: &mut TvDict) -
 fn qf_getprop_ctx(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     if let Some(ref ctx) = qfl.qf_ctx {
         let di = tv_dict_item_alloc_len(b"context");
-        tv_copy(ctx, &mut di.di_tv);
-        let status = tv_dict_add(retdict, di);
+        tv_copy(ctx, &mut di.tv_mut());
+        let status = tv_dict_add(retdict, &di);
         if !status {
-            tv_dict_item_free(di);
+            tv_dict_item_free(&di);
         }
         status
     } else {
@@ -6163,7 +6168,7 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
     let mut qf_idx = INVALID_QFIDX;
 
     if let Some(di) = tv_dict_find_opt(Some(what), c"lines", 5) {
-        return qf_get_list_from_lines(what, di, retdict);
+        return qf_get_list_from_lines(what, &di, retdict);
     }
 
     let mut qi = if let Some(wp) = wp {
@@ -6189,10 +6194,11 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
     let mut eidx: i32 = 0;
 
     if let Some(di) = tv_dict_find_opt(Some(what), c"idx", 3) {
-        if di.di_tv.v_type != VarType::VarNumber {
+        let di_tv = di.tv();
+        if di_tv.v_type != VarType::VarNumber {
             return false;
         }
-        eidx = di.di_tv.vval.v_number() as i32;
+        eidx = di_tv.vval.v_number() as i32;
     }
 
     if (flags & QF_GETLIST_TITLE) != 0 {
@@ -6238,14 +6244,14 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
     status
 }
 
-fn qf_setprop_qftf(qfl: &mut QfList, di: &mut Dictitem) -> bool {
+fn qf_setprop_qftf(qfl: &mut QfList, di: &Dictitem) -> bool {
     if check_secure() {
         return false;
     }
 
     let mut cb: Callback = Callback::new();
     callback_free(&mut qfl.qf_qftf_cb);
-    if callback_from_typval(&mut cb, &di.di_tv) {
+    if callback_from_typval(&mut cb, &di.tv()) {
         qfl.qf_qftf_cb = cb;
     }
     true
@@ -6490,9 +6496,10 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: i32, newlist: &mut b
     let mut qf_idx = qi.qf_curlist.get();
 
     if let Some(di) = tv_dict_find_opt(Some(what), c"nr", 2) {
-        if di.di_tv.v_type == VarType::VarNumber {
-            if di.di_tv.vval.v_number() != 0 {
-                qf_idx = di.di_tv.vval.v_number() as i32 - 1;
+        let di_tv = di.tv();
+        if di_tv.v_type == VarType::VarNumber {
+            if di_tv.vval.v_number() != 0 {
+                qf_idx = di_tv.vval.v_number() as i32 - 1;
             }
 
             if (action == b' ' as i32 || action == b'a' as i32) && qf_idx == qi.qf_listcount.get() {
@@ -6507,8 +6514,8 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: i32, newlist: &mut b
             } else if action != b' ' as i32 {
                 *newlist = false;
             }
-        } else if di.di_tv.v_type == VarType::VarString
-            && (di.di_tv.vval.v_string_opt_bytes() == Some(b"$"))
+        } else if di_tv.v_type == VarType::VarString
+            && (di_tv.vval.v_string_opt_bytes() == Some(b"$"))
         {
             if !qf_stack_empty(Some(qi)) {
                 qf_idx = qi.qf_listcount.get() - 1;
@@ -6523,17 +6530,18 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: i32, newlist: &mut b
     }
 
     if !*newlist && let Some(di) = tv_dict_find_opt(Some(what), c"id", 2) {
-        if di.di_tv.v_type != VarType::VarNumber {
+        let di_tv = di.tv();
+        if di_tv.v_type != VarType::VarNumber {
             return INVALID_QFIDX;
         }
-        return qf_id2nr(qi, di.di_tv.vval.v_number() as u32);
+        return qf_id2nr(qi, di_tv.vval.v_number() as u32);
     }
 
     qf_idx
 }
 
 fn qf_setprop_title(qi: &QfInfo, qf_idx: i32, what: &TvDict, di: &Dictitem) -> bool {
-    if di.di_tv.v_type != VarType::VarString {
+    if di.tv().v_type != VarType::VarString {
         return false;
     }
 
@@ -6546,16 +6554,17 @@ fn qf_setprop_title(qi: &QfInfo, qf_idx: i32, what: &TvDict, di: &Dictitem) -> b
     true
 }
 
-fn qf_setprop_items(qi: &QfInfo, qf_idx: i32, di: &mut Dictitem, action: i32) -> bool {
-    if di.di_tv.v_type != VarType::VarList {
+fn qf_setprop_items(qi: &QfInfo, qf_idx: i32, di: &Dictitem, action: i32) -> bool {
+    if di.tv().v_type != VarType::VarList {
         return false;
     }
 
     let title_save = qf_get_list(qi, qf_idx).borrow().qf_title.clone();
+    let list_id = di.tv().vval.v_list();
     qf_add_entries(
         qi,
         qf_idx,
-        di.di_tv.vval.v_list_opt(),
+        list_id.opt(),
         title_save.as_deref(),
         if action == b' ' as i32 {
             b'a' as i32
@@ -6569,7 +6578,7 @@ fn qf_setprop_items_from_lines(
     qi: &QfInfo,
     qf_idx: i32,
     what: &TvDict,
-    di: &mut Dictitem,
+    di: &Dictitem,
     action: i32,
 ) -> bool {
     let efm_owned: std::ffi::CString;
@@ -6577,14 +6586,15 @@ fn qf_setprop_items_from_lines(
     let mut retval = false;
 
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
-        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string_is_null() {
+        let efm_tv = efm_di.tv();
+        if efm_tv.v_type != VarType::VarString || efm_tv.vval.v_string_is_null() {
             return false;
         }
-        efm_owned = efm_di.di_tv.vval.v_string_owned();
+        efm_owned = efm_tv.vval.v_string_owned();
         errorformat = efm_owned.as_c_str();
     }
 
-    if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
+    if di.tv().v_type != VarType::VarList || di.tv().vval.v_list().is_null() {
         return false;
     }
 
@@ -6596,7 +6606,7 @@ fn qf_setprop_items_from_lines(
         qf_idx,
         None,
         None,
-        Some(&mut di.di_tv),
+        Some(&mut *di.tv_mut()),
         errorformat,
         false,
         0,
@@ -6611,12 +6621,12 @@ fn qf_setprop_items_from_lines(
     retval
 }
 
-fn qf_setprop_context(qfl: &mut QfList, di: &mut Dictitem) -> bool {
+fn qf_setprop_context(qfl: &mut QfList, di: &Dictitem) -> bool {
     if let Some(ref mut ctx) = qfl.qf_ctx {
         tv_clear(ctx);
     }
     let mut ctx = tv_initial_value();
-    tv_copy(&di.di_tv, &mut ctx);
+    tv_copy(&di.tv(), &mut ctx);
     qfl.qf_ctx = Some(ctx);
 
     true
@@ -6626,15 +6636,16 @@ fn qf_setprop_curidx(qi: &QfInfo, qfl_rc: &QfListRc, di: &Dictitem) -> bool {
     let mut newidx: i32;
     let (old_qfidx, qfl_id) = {
         let mut qfl = qfl_rc.borrow_mut();
+        let di_tv = di.tv();
 
-        if di.di_tv.v_type == VarType::VarString
-            && !di.di_tv.vval.v_string_is_null()
-            && (di.di_tv.vval.v_string_bytes() == b"$")
+        if di_tv.v_type == VarType::VarString
+            && !di_tv.vval.v_string_is_null()
+            && (di_tv.vval.v_string_bytes() == b"$")
         {
             newidx = qfl.count();
         } else {
             let mut denote = false;
-            newidx = tv_get_number_chk(&di.di_tv, Some(&mut denote)) as i32;
+            newidx = tv_get_number_chk(&di_tv, Some(&mut denote)) as i32;
             if denote {
                 return false;
             }
@@ -6673,23 +6684,23 @@ fn qf_set_properties(qi: &QfInfo, what: &TvDict, action: i32, title: Option<&CSt
 
     let mut retval = false;
     if let Some(di) = tv_dict_find_opt(Some(what), c"title", 5) {
-        retval = qf_setprop_title(qi, qf_idx, what, di);
+        retval = qf_setprop_title(qi, qf_idx, what, &di);
     }
     if let Some(di) = tv_dict_find_opt(Some(what), c"items", 5) {
-        retval = qf_setprop_items(qi, qf_idx, di, action);
+        retval = qf_setprop_items(qi, qf_idx, &di, action);
     }
     if let Some(di) = tv_dict_find_opt(Some(what), c"lines", 5) {
-        retval = qf_setprop_items_from_lines(qi, qf_idx, what, di, action);
+        retval = qf_setprop_items_from_lines(qi, qf_idx, what, &di, action);
     }
     if let Some(di) = tv_dict_find_opt(Some(what), c"context", 7) {
-        retval = qf_setprop_context(&mut qf_get_list(qi, qf_idx).borrow_mut(), di);
+        retval = qf_setprop_context(&mut qf_get_list(qi, qf_idx).borrow_mut(), &di);
     }
     if let Some(di) = tv_dict_find_opt(Some(what), c"idx", 3) {
         let qfl_rc = qf_get_list(qi, qf_idx);
-        retval = qf_setprop_curidx(qi, &qfl_rc, di);
+        retval = qf_setprop_curidx(qi, &qfl_rc, &di);
     }
     if let Some(di) = tv_dict_find_opt(Some(what), c"quickfixtextfunc", 16) {
-        retval = qf_setprop_qftf(&mut qf_get_list(qi, qf_idx).borrow_mut(), di);
+        retval = qf_setprop_qftf(&mut qf_get_list(qi, qf_idx).borrow_mut(), &di);
     }
 
     if newlist || retval {

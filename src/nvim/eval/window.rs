@@ -727,7 +727,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             flags |= WSP_VERT;
         }
         if let Some(di) = crate::eval::typval::tv_dict_find_opt(d.as_deref(), c"rightbelow", -1) {
-            flags |= if tv_get_bool(&di.di_tv) != 0 {
+            flags |= if tv_get_bool(&di.tv()) != 0 {
                 WSP_BELOW
             } else {
                 WSP_ABOVE
@@ -877,17 +877,17 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 
     let dict = argvars[0].vval.v_dict_opt();
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"lnum", 4) {
-        curwin_mut().w_cursor.lnum = tv_get_number(&di.di_tv) as Linenr;
+        curwin_mut().w_cursor.lnum = tv_get_number(&di.tv()) as Linenr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"col", 3) {
-        curwin_mut().w_cursor.col = tv_get_number(&di.di_tv) as Colnr;
+        curwin_mut().w_cursor.col = tv_get_number(&di.tv()) as Colnr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"coladd", 6) {
-        curwin_mut().w_cursor.coladd = tv_get_number(&di.di_tv) as Colnr;
+        curwin_mut().w_cursor.coladd = tv_get_number(&di.tv()) as Colnr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topline", 7) {
         let prev_topline = curwin_mut().w_topline;
-        set_topline(curwin_mut(), tv_get_number(&di.di_tv) as Linenr);
+        set_topline(curwin_mut(), tv_get_number(&di.tv()) as Linenr);
         if curwin_mut().w_topline != prev_topline {
             curwin_mut().w_skipcol = 0;
         }
@@ -895,17 +895,17 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
     let mut vs = Viewstate::default();
     save_viewstate(curwin_mut(), &mut vs);
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"curswant", 8) {
-        vs.vs_curswant = tv_get_number(&di.di_tv) as Colnr;
+        vs.vs_curswant = tv_get_number(&di.tv()) as Colnr;
         vs.vs_set_curswant = false;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"topfill", 7) {
-        vs.vs_topfill = tv_get_number(&di.di_tv) as i32;
+        vs.vs_topfill = tv_get_number(&di.tv()) as i32;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"leftcol", 7) {
-        vs.vs_leftcol = tv_get_number(&di.di_tv) as Colnr;
+        vs.vs_leftcol = tv_get_number(&di.tv()) as Colnr;
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict.as_deref(), c"skipcol", 7) {
-        vs.vs_skipcol = tv_get_number(&di.di_tv) as Colnr;
+        vs.vs_skipcol = tv_get_number(&di.tv()) as Colnr;
     }
     restore_viewstate(curwin_mut(), &vs);
 

@@ -403,7 +403,8 @@ pub fn nvim_call_dict_function(
                 );
                 break 'body;
             };
-            if di.di_tv.v_type == VarType::VarPartial {
+            let di_tv = di.tv();
+            if di_tv.v_type == VarType::VarPartial {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -411,7 +412,7 @@ pub fn nvim_call_dict_function(
                 );
                 break 'body;
             }
-            if di.di_tv.v_type != VarType::VarFunc {
+            if di_tv.v_type != VarType::VarFunc {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -420,7 +421,8 @@ pub fn nvim_call_dict_function(
                 );
                 break 'body;
             }
-            fn_name_owned = di.di_tv.vval.v_string_cstr().map(std::ffi::CStr::to_owned);
+            fn_name_owned = di_tv.vval.v_string_cstr().map(std::ffi::CStr::to_owned);
+            drop(di_tv);
             fn_name = cstr_as_string(fn_name_owned.as_deref());
         }
 

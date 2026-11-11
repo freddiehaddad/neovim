@@ -114,49 +114,8 @@ pub enum LvalTv {
     ListItem(crate::eval::typval::ListitemId),
 }
 
-pub enum LvalTvRef<'a> {
-    Dict(&'a TypVal),
-    List(std::cell::Ref<'a, TypVal>),
-}
-
-impl std::ops::Deref for LvalTvRef<'_> {
-    type Target = TypVal;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Dict(tv) => tv,
-            Self::List(tv) => tv,
-        }
-    }
-}
-
-pub enum LvalTvMut<'a> {
-    Dict(&'a mut TypVal),
-    List(std::cell::RefMut<'a, TypVal>),
-}
-
-impl std::ops::Deref for LvalTvMut<'_> {
-    type Target = TypVal;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Dict(tv) => tv,
-            Self::List(tv) => tv,
-        }
-    }
-}
-
-impl std::ops::DerefMut for LvalTvMut<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            Self::Dict(tv) => tv,
-            Self::List(tv) => tv,
-        }
-    }
-}
+pub type LvalTvRef<'a> = std::cell::Ref<'a, TypVal>;
+pub type LvalTvMut<'a> = std::cell::RefMut<'a, TypVal>;
 
 impl LvalTv {
     #[inline]
@@ -168,8 +127,8 @@ impl LvalTv {
     pub fn opt(&self) -> Option<LvalTvRef<'_>> {
         match self {
             Self::None => None,
-            Self::DictItem(di) => di.opt().map(|d| LvalTvRef::Dict(&d.di_tv)),
-            Self::ListItem(li) => li.opt().map(|l| LvalTvRef::List(l.tv())),
+            Self::DictItem(di) => di.opt().map(|d| d.tv()),
+            Self::ListItem(li) => li.opt().map(|l| l.tv()),
         }
     }
 
@@ -177,8 +136,8 @@ impl LvalTv {
     pub fn opt_mut(&self) -> Option<LvalTvMut<'_>> {
         match self {
             Self::None => None,
-            Self::DictItem(di) => di.opt_mut().map(|d| LvalTvMut::Dict(&mut d.di_tv)),
-            Self::ListItem(li) => li.opt().map(|l| LvalTvMut::List(l.tv_mut())),
+            Self::DictItem(di) => di.opt().map(|d| d.tv_mut()),
+            Self::ListItem(li) => li.opt().map(|l| l.tv_mut()),
         }
     }
 
@@ -528,10 +487,10 @@ const VIMVARS_META: [VimVarMeta; VV_LEN] = [
 ];
 
 struct VarsState {
-    vv_di: [std::cell::Cell<crate::eval::typval::DictitemId>; VV_LEN],
-    globvars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    vv_di: [crate::globals::CloneCell<crate::eval::typval::DictitemId>; VV_LEN],
+    globvars_var: crate::globals::CloneCell<crate::eval::typval::DictitemId>,
     globvardict: std::cell::Cell<crate::eval::typval::DictId>,
-    vimvars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    vimvars_var: crate::globals::CloneCell<crate::eval::typval::DictitemId>,
     vimvardict: std::cell::Cell<crate::eval::typval::DictId>,
     compat_dict: std::cell::Cell<crate::eval::typval::DictId>,
     redir_active: std::cell::Cell<bool>,
@@ -546,10 +505,11 @@ struct VarsState {
 impl VarsState {
     const fn new() -> Self {
         Self {
-            vv_di: [const { std::cell::Cell::new(crate::eval::typval::DictitemId::NULL) }; VV_LEN],
-            globvars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            vv_di: [const { crate::globals::CloneCell::new(crate::eval::typval::DictitemId::NULL) };
+                VV_LEN],
+            globvars_var: crate::globals::CloneCell::new(crate::eval::typval::DictitemId::NULL),
             globvardict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
-            vimvars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            vimvars_var: crate::globals::CloneCell::new(crate::eval::typval::DictitemId::NULL),
             vimvardict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
             compat_dict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
             redir_active: std::cell::Cell::new(false),
@@ -614,23 +574,23 @@ pub fn tristate_from_int(val: OptInt) -> TriState {
 use crate::api::private::helpers::integer_obj;
 
 #[inline]
-fn get_globvars_var() -> &'static mut ScopeDictDictItem {
+fn get_globvars_var() -> crate::eval::typval::DictitemId {
     let mut id = VARS_STATE.with(|s| s.globvars_var.get());
     if id.is_null() {
-        id = crate::eval::typval::tv_dict_item_alloc_static().di_id;
-        VARS_STATE.with(|s| s.globvars_var.set(id));
+        id = crate::eval::typval::tv_dict_item_alloc_static();
+        VARS_STATE.with(|s| s.globvars_var.set(id.clone()));
     }
-    id.borrow_mut()
+    id
 }
 
 #[inline]
-fn get_vimvars_var() -> &'static mut ScopeDictDictItem {
+fn get_vimvars_var() -> crate::eval::typval::DictitemId {
     let mut id = VARS_STATE.with(|s| s.vimvars_var.get());
     if id.is_null() {
-        id = crate::eval::typval::tv_dict_item_alloc_static().di_id;
-        VARS_STATE.with(|s| s.vimvars_var.set(id));
+        id = crate::eval::typval::tv_dict_item_alloc_static();
+        VARS_STATE.with(|s| s.vimvars_var.set(id.clone()));
     }
-    id.borrow_mut()
+    id
 }
 
 #[inline]
@@ -646,43 +606,41 @@ fn get_compat_ht() -> &'static mut Hashtab {
 }
 
 #[inline]
-fn vimvar_di(idx: usize) -> &'static mut Dictitem {
+fn vimvar_di(idx: usize) -> crate::eval::typval::DictitemId {
     let mut id = VARS_STATE.with(|s| s.vv_di[idx].get());
     if id.is_null() {
-        let di = crate::eval::typval::tv_dict_item_alloc_static();
-        di.di_tv.v_type = VIMVARS_META[idx].vv_type;
-        id = di.di_id;
-        VARS_STATE.with(|s| s.vv_di[idx].set(id));
+        let di = crate::eval::typval::tv_dict_item_alloc_static_key(
+            VIMVARS_META[idx].vv_name.to_bytes_with_nul().to_vec(),
+        );
+        di.tv_mut().v_type = VIMVARS_META[idx].vv_type;
+        id = di;
+        VARS_STATE.with(|s| s.vv_di[idx].set(id.clone()));
     }
-    id.borrow_mut()
+    id
 }
 
 pub fn evalvars_init() {
-    init_var_dict(&mut *get_globvar_dict(), get_globvars_var(), VAR_DEF_SCOPE);
-    init_var_dict(&mut *get_vimvar_dict(), get_vimvars_var(), VAR_SCOPE);
+    init_var_dict(&mut *get_globvar_dict(), &get_globvars_var(), VAR_DEF_SCOPE);
+    init_var_dict(&mut *get_vimvar_dict(), &get_vimvars_var(), VAR_SCOPE);
     get_vimvar_dict().dv_lock = VAR_FIXED;
     hash_clear(get_compat_ht());
 
     for (i, vv) in VIMVARS_META.iter().enumerate() {
         let vv_flags = vv.vv_flags;
-        let vv_name = vv.vv_name;
         let di = vimvar_di(i);
         if (vv_flags & VV_RO) != 0 {
-            di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
+            di.di_flags.set(DI_FLAGS_RO | DI_FLAGS_FIX);
         } else if (vv_flags & VV_RO_SBX) != 0 {
-            di.di_flags = DI_FLAGS_RO_SBX | DI_FLAGS_FIX;
+            di.di_flags.set(DI_FLAGS_RO_SBX | DI_FLAGS_FIX);
         } else {
-            di.di_flags = DI_FLAGS_FIX;
+            di.di_flags.set(DI_FLAGS_FIX);
         }
 
-        let name_bytes = vv_name.to_bytes_with_nul();
-        di.di_key.clear();
-        di.di_key.extend_from_slice(name_bytes);
-        if di.di_tv.v_type != VarType::VarUnknown {
-            hash_add(&mut get_vimvar_dict().dv_hashtab, di);
+        if di.tv().v_type != VarType::VarUnknown {
+            hash_add(&mut get_vimvar_dict().dv_hashtab, &di);
         }
         if (vv_flags & VV_COMPAT) != 0 {
-            hash_add(get_compat_ht(), di);
+            hash_add(get_compat_ht(), &di);
         }
     }
     let vim_version = Varnumber::from(min_vim_version());
@@ -698,14 +656,15 @@ pub fn evalvars_init() {
         tv_list_set_lock(Some(&type_list), VAR_FIXED);
         tv_list_ref(Some(&type_list));
         let di = tv_dict_item_alloc(type_name);
-        di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
-        di.di_tv = TypVal {
+        di.di_flags
+            .set(di.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
+        di.set_tv(TypVal {
             v_type: VarType::VarList,
             v_lock: 0,
             vval: TypvalVval::List(type_list.clone()),
-        };
+        });
         EVAL_MSGPACK_TYPE_LISTS.with(|l| l.borrow_mut()[i] = type_list);
-        if !tv_dict_add(&mut *msgpack_types_dict, di) {
+        if !tv_dict_add(&mut *msgpack_types_dict, &di) {
             std::process::abort();
         }
     }
@@ -768,10 +727,10 @@ pub fn evalvars_init() {
 pub fn evalvars_clear() {
     for i in 0..VV_LEN {
         let di = vimvar_di(i);
-        if di.di_tv.v_type == VarType::VarString || di.di_tv.v_type == VarType::VarList {
-            tv_clear(&mut di.di_tv);
+        let vt = di.tv().v_type;
+        if vt == VarType::VarString || vt == VarType::VarList {
+            di.clear_tv();
         }
-        di.di_key = Vec::new();
     }
 
     partial_unref(get_vim_var_partial(VV_LUA).as_deref());
@@ -922,7 +881,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
     if opt_vars().p_verbose == 0 {
         g_st().emsg_off -= 1;
     }
-    tv_clear(get_vim_var_tv(VV_VAL));
+    get_vim_var_tv(VV_VAL).clear_tv();
     restore_vimvar(VV_VAL, &mut save_val);
     g_st().current_sctx = saved_sctx;
 
@@ -947,18 +906,22 @@ pub fn get_spellword(list: &TvList, ret_word: &mut Option<std::borrow::Cow<'stat
 /// Prepare v: variable "idx" to be used.
 pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
     let di = vimvar_di(idx as usize);
-    *save_tv = di.di_tv.clone();
-    di.di_tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-    if di.di_tv.v_type == VarType::VarUnknown {
-        hash_add(&mut get_vimvar_dict().dv_hashtab, di);
+    let was_unknown = {
+        let mut tv = di.tv_mut();
+        *save_tv = tv.clone();
+        tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+        tv.v_type == VarType::VarUnknown
+    };
+    if was_unknown {
+        hash_add(&mut get_vimvar_dict().dv_hashtab, &di);
     }
 }
 
 /// Restore v: variable "idx" to typeval "save_tv".
 pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
     let di = vimvar_di(idx as usize);
-    di.di_tv = std::mem::take(save_tv);
-    if di.di_tv.v_type != VarType::VarUnknown {
+    di.set_tv(std::mem::take(save_tv));
+    if di.tv().v_type != VarType::VarUnknown {
         return;
     }
 
@@ -1500,9 +1463,8 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
             continue;
         }
 
-        if empty != 0 || di.di_tv.v_type != VarType::VarString || !di.di_tv.vval.v_string_is_null()
-        {
-            list_one_var(&mut *di, prefix, first);
+        if empty != 0 || di.tv().v_type != VarType::VarString || !di.tv().vval.v_string_is_null() {
+            list_one_var(di, prefix, first);
         }
     }
 }
@@ -2064,11 +2026,11 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
         let mut oldtv: TypVal = TypVal::new();
 
         if watched {
-            tv_copy(&di.di_tv, &mut oldtv);
+            tv_copy(&di.tv(), &mut oldtv);
             key = Some(di.key_cstr().to_owned());
         }
 
-        tv_dict_item_remove(d, &mut *di);
+        tv_dict_item_remove(d, di);
 
         if let Some(ref k) = key {
             tv_dict_watcher_notify(d, k.as_c_str(), None, Some(&oldtv));
@@ -2125,7 +2087,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 0,
                 0,
             ) {
-                d = di.di_tv.vval.v_dict();
+                d = di.tv().vval.v_dict();
             }
             if d.is_null() {
                 internal_error(c"do_unlet()");
@@ -2147,11 +2109,11 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
         if let Some(idx) = hi_idx
             && !hashitem_empty(&ht.as_slice()[idx])
         {
-            let hi = ht.as_slice()[idx];
-            let di = tv_dict_hi2di(&hi);
+            let hi = &ht.as_slice()[idx];
+            let di = tv_dict_hi2di(hi);
             let d_lock = d.dv_lock;
-            if var_check_fixed(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
-                || var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
+            if var_check_fixed(i32::from(di.di_flags.get()), &name_cstr, TV_CSTRING)
+                || var_check_ro(i32::from(di.di_flags.get()), &name_cstr, TV_CSTRING)
                 || value_check_lock(d_lock, Some(&name_cstr), TV_CSTRING)
             {
                 return false;
@@ -2165,7 +2127,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             let watched = tv_dict_is_watched(dict_opt.as_deref());
 
             if watched {
-                tv_copy(&di.di_tv, &mut oldtv);
+                tv_copy(&di.tv(), &mut oldtv);
             }
 
             delete_var(&mut *ht, idx);
@@ -2198,20 +2160,22 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
             let Some(di) = find_var_opt(ll_name, lp.ll_name_len, None, 1) else {
                 return false;
             };
-            if (di.di_flags & DI_FLAGS_FIX) != 0
-                && di.di_tv.v_type != VarType::VarDict
-                && di.di_tv.v_type != VarType::VarList
+            if (di.di_flags.get() & DI_FLAGS_FIX) != 0
+                && di.tv().v_type != VarType::VarDict
+                && di.tv().v_type != VarType::VarList
             {
                 semsg!(gettext(E_LOCK_UNLOCK), ll_name);
                 ret = false;
             } else {
                 if lock {
-                    di.di_flags |= DI_FLAGS_LOCK;
+                    di.di_flags.set(di.di_flags.get() | DI_FLAGS_LOCK);
                 } else {
-                    di.di_flags &= !DI_FLAGS_LOCK;
+                    di.di_flags.set(di.di_flags.get() & !DI_FLAGS_LOCK);
                 }
                 if deep != 0 {
-                    tv_item_lock(&mut di.di_tv, deep, lock, false);
+                    let mut item_tv = di.tv().clone();
+                    tv_item_lock(&mut item_tv, deep, lock, false);
+                    di.tv_mut().v_lock = item_tv.v_lock;
                 }
             }
         }
@@ -2232,7 +2196,9 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
         tv_item_lock(&mut item_tv, deep, lock, false);
         lp.li_mut().tv_mut().v_lock = item_tv.v_lock;
     } else {
-        tv_item_lock(&mut lp.di_mut().di_tv, deep, lock, false);
+        let mut item_tv = lp.di_mut().tv().clone();
+        tv_item_lock(&mut item_tv, deep, lock, false);
+        lp.di_mut().tv_mut().v_lock = item_tv.v_lock;
     }
 
     ret
@@ -2250,9 +2216,9 @@ pub fn del_menutrans_vars() {
             .key_cstr()
             .is_some_and(|k| k.to_bytes().starts_with(b"menutrans_"));
         if is_menutrans {
-            let di = ght.ht_array[i].di_opt().unwrap();
+            let di = ght.ht_array[i].hi_di.clone();
             ght.remove_at(i);
-            crate::eval::typval::tv_dict_item_free(di);
+            crate::eval::typval::tv_dict_item_free(&di);
         }
     }
     hash_unlock(ght);
@@ -2285,37 +2251,38 @@ pub fn get_vimvar_dict() -> &'static mut TvDict {
 }
 
 pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
-    let tv_out = get_vim_var_tv(idx);
-    tv_clear(tv_out);
-    tv_copy(&*tv, tv_out);
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    tv_copy(&*tv, &mut di.tv_mut());
 }
 
 pub fn get_vim_var_name(idx: VimVarIndex) -> &'static std::ffi::CStr {
     VIMVARS_META[idx as usize].vv_name
 }
 
-pub fn get_vim_var_tv(idx: VimVarIndex) -> &'static mut TypVal {
-    &mut vimvar_di(idx as usize).di_tv
+pub fn get_vim_var_tv(idx: VimVarIndex) -> crate::eval::typval::DictitemId {
+    vimvar_di(idx as usize)
 }
 
 pub fn get_vim_var_nr(idx: VimVarIndex) -> Varnumber {
-    get_vim_var_tv(idx).vval.v_number()
+    get_vim_var_tv(idx).tv().vval.v_number()
 }
 
-pub fn get_vim_var_list(idx: VimVarIndex) -> Option<&'static TvList> {
-    get_vim_var_tv(idx).vval.v_list_opt()
+pub fn get_vim_var_list(idx: VimVarIndex) -> Option<crate::eval::typval::ListId> {
+    let l = get_vim_var_tv(idx).tv().vval.v_list();
+    (!l.is_null()).then_some(l)
 }
 
 pub fn get_vim_var_dict(idx: VimVarIndex) -> &'static mut TvDict {
-    get_vim_var_tv(idx).vval.v_dict_ref()
+    get_vim_var_tv(idx).tv().vval.v_dict_ref()
 }
 
 pub fn get_vim_var_str(idx: VimVarIndex) -> std::borrow::Cow<'static, CStr> {
-    tv_get_string(get_vim_var_tv(idx))
+    std::borrow::Cow::Owned(tv_get_string(&get_vim_var_tv(idx).tv()).into_owned())
 }
 
 pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<std::rc::Rc<TvPartial>> {
-    get_vim_var_tv(idx).vval.v_partial().rc()
+    get_vim_var_tv(idx).tv().vval.v_partial().rc()
 }
 
 /// Function to concatenate a prefix and a variable name.
@@ -2420,26 +2387,27 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 }
 
 pub fn set_vim_var_type(idx: VimVarIndex, v_type: VarType) {
-    let tv = get_vim_var_tv(idx);
-    tv.v_type = v_type;
+    get_vim_var_tv(idx).tv_mut().v_type = v_type;
 }
 
 pub fn set_vim_var_nr(idx: VimVarIndex, val: Varnumber) {
-    let tv = get_vim_var_tv(idx);
-    tv_clear(tv);
-    tv.vval = crate::eval::typval::TypvalVval::Number(val);
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    di.tv_mut().vval = crate::eval::typval::TypvalVval::Number(val);
 }
 
 pub fn set_vim_var_bool(idx: VimVarIndex, val: BoolVarValue) {
-    let tv = get_vim_var_tv(idx);
-    tv_clear(tv);
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    let mut tv = di.tv_mut();
     tv.v_type = VarType::VarBool;
     tv.vval = crate::eval::typval::TypvalVval::Bool(val);
 }
 
 pub fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
-    let tv = get_vim_var_tv(idx);
-    tv_clear(tv);
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    let mut tv = di.tv_mut();
     tv.v_type = VarType::VarSpecial;
     tv.vval = crate::eval::typval::TypvalVval::Special(val);
 }
@@ -2451,40 +2419,50 @@ pub fn set_vim_var_char(c: i32) {
 }
 
 pub fn set_vim_var_bytes(idx: VimVarIndex, val: &[u8]) {
-    let tv = get_vim_var_tv(idx);
-    crate::eval::typval::tv_set_bytes(tv, val);
+    let di = get_vim_var_tv(idx);
+    crate::eval::typval::tv_set_bytes(&mut di.tv_mut(), val);
 }
 
 pub fn set_vim_var_string(idx: VimVarIndex, val: Option<&CStr>, len: isize) {
-    let tv = get_vim_var_tv(idx);
+    let di = get_vim_var_tv(idx);
     let Some(val) = val else {
-        tv_clear(tv);
+        di.clear_tv();
+        let mut tv = di.tv_mut();
         tv.v_type = VarType::VarString;
         tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
     if len == -1 {
-        crate::eval::typval::tv_set_string(tv, Some(val));
+        crate::eval::typval::tv_set_string(&mut di.tv_mut(), Some(val));
     } else {
         let bytes = val.to_bytes();
-        crate::eval::typval::tv_set_string_len(tv, Some(&bytes[..(len as usize).min(bytes.len())]));
+        crate::eval::typval::tv_set_string_len(
+            &mut di.tv_mut(),
+            Some(&bytes[..(len as usize).min(bytes.len())]),
+        );
     }
 }
 
 pub fn set_vim_var_list(idx: VimVarIndex, val: Option<&TvList>) {
-    let tv = get_vim_var_tv(idx);
-    tv_clear(tv);
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    let list_id = crate::eval::typval::ListId::from(val);
+    tv_list_ref(list_id.opt());
+    let mut tv = di.tv_mut();
     tv.v_type = VarType::VarList;
-    tv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(val));
-    tv_list_ref(tv.vval.v_list_opt());
+    tv.vval = crate::eval::typval::TypvalVval::List(list_id);
 }
 
 pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
-    let tv = get_vim_var_tv(idx);
-    tv_clear(tv);
-    tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(val));
-    let Some(val_ref) = tv.vval.v_dict_opt() else {
+    let di = get_vim_var_tv(idx);
+    di.clear_tv();
+    let dict_id = crate::eval::typval::DictId::from(val);
+    {
+        let mut tv = di.tv_mut();
+        tv.v_type = VarType::VarDict;
+        tv.vval = crate::eval::typval::TypvalVval::Dict(dict_id);
+    }
+    let Some(val_ref) = dict_id.opt_mut() else {
         return;
     };
 
@@ -2493,8 +2471,9 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
 }
 
 pub fn set_vim_var_partial(idx: VimVarIndex, val: Option<std::rc::Rc<TvPartial>>) {
-    let tv = get_vim_var_tv(idx);
-    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(val));
+    let di = get_vim_var_tv(idx);
+    di.tv_mut().vval =
+        crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(val));
 }
 
 pub fn set_reg_var(c: i32) {
@@ -2504,16 +2483,20 @@ pub fn set_reg_var(c: i32) {
     } else {
         regname[0] = c as u8;
     }
-    let tv = get_vim_var_tv(VV_REG);
-    if tv.vval.v_string_is_null() || i32::from(tv.vval.v_string_first_byte()) != c {
+    let di = get_vim_var_tv(VV_REG);
+    let need_set = {
+        let tv = di.tv();
+        tv.vval.v_string_is_null() || i32::from(tv.vval.v_string_first_byte()) != c
+    };
+    if need_set {
         set_vim_var_bytes(VV_REG, &regname[..1]);
     }
 }
 
 pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
-    let tv = get_vim_var_tv(VV_EXCEPTION);
+    let di = get_vim_var_tv(VV_EXCEPTION);
     let Some(oldval) = oldval else {
-        return tv.vval.v_string_cstr().map(CStr::to_owned);
+        return di.tv().vval.v_string_cstr().map(CStr::to_owned);
     };
 
     set_vim_var_string(VV_EXCEPTION, Some(&oldval), -1);
@@ -2524,9 +2507,10 @@ pub fn set_cmdarg(
     eap: Option<&Exarg>,
     oldarg: Option<std::ffi::CString>,
 ) -> Option<std::ffi::CString> {
-    let tv = get_vim_var_tv(VV_CMDARG);
-    let oldval = crate::eval::typval::tv_take_string(tv);
+    let di = get_vim_var_tv(VV_CMDARG);
+    let oldval = crate::eval::typval::tv_take_string(&mut di.tv_mut());
     if eap.is_none() {
+        let mut tv = di.tv_mut();
         tv.v_type = VarType::VarString;
         tv.vval = crate::eval::typval::TypvalVval::from_opt_cstring(oldarg);
         return None;
@@ -2575,14 +2559,14 @@ pub fn set_cmdarg(
         newval.extend_from_slice(b" ++p");
     }
 
-    crate::eval::typval::tv_set_string_len(tv, Some(&newval));
+    crate::eval::typval::tv_set_string_len(&mut di.tv_mut(), Some(&newval));
     oldval
 }
 
 pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
-    let tv = get_vim_var_tv(VV_THROWPOINT);
+    let di = get_vim_var_tv(VV_THROWPOINT);
     let Some(oldval) = oldval else {
-        return tv.vval.v_string_cstr().map(CStr::to_owned);
+        return di.tv().vval.v_string_cstr().map(CStr::to_owned);
     };
 
     set_vim_var_string(VV_THROWPOINT, Some(&oldval), -1);
@@ -2591,11 +2575,11 @@ pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStri
 
 pub fn set_vcount(count: i64, count1: i64, set_prevcount: bool) {
     if set_prevcount {
-        get_vim_var_tv(VV_PREVCOUNT).vval =
-            crate::eval::typval::TypvalVval::Number(get_vim_var_nr(VV_COUNT));
+        let prev = get_vim_var_nr(VV_COUNT);
+        get_vim_var_tv(VV_PREVCOUNT).tv_mut().vval = crate::eval::typval::TypvalVval::Number(prev);
     }
-    get_vim_var_tv(VV_COUNT).vval = crate::eval::typval::TypvalVval::Number(count);
-    get_vim_var_tv(VV_COUNT1).vval = crate::eval::typval::TypvalVval::Number(count1);
+    get_vim_var_tv(VV_COUNT).tv_mut().vval = crate::eval::typval::TypvalVval::Number(count);
+    get_vim_var_tv(VV_COUNT1).tv_mut().vval = crate::eval::typval::TypvalVval::Number(count1);
 }
 
 /// Get the value of internal variable "name".
@@ -2603,22 +2587,21 @@ pub fn eval_variable(
     name: &CStr,
     len: i32,
     rettv: Option<&mut TypVal>,
-    dip: Option<&mut Option<&'static mut Dictitem>>,
+    dip: Option<&mut Option<crate::eval::typval::DictitemId>>,
     verbose: bool,
     no_autoload: bool,
 ) -> bool {
     let mut ret = true;
-    let mut tv: Option<&mut TypVal> = None;
+    let mut tv: Option<TypVal> = None;
 
     if let Some(v) = find_var(name, len as usize, None, i32::from(no_autoload)) {
-        let v_id = v.di_id;
-        tv = Some(&mut (v_id.borrow_mut().di_tv));
+        tv = Some(v.tv().clone());
         if let Some(dip) = dip {
-            *dip = v_id.opt_mut();
+            *dip = Some(v);
         }
     }
 
-    if let Some(tv) = tv {
+    if let Some(ref tv) = tv {
         if let Some(rettv) = rettv {
             tv_copy(tv, rettv);
         }
@@ -2659,7 +2642,7 @@ pub fn find_var(
     name_len: usize,
     htp: Option<&mut Option<&'static mut Hashtab>>,
     no_autoload: i32,
-) -> Option<&'static mut Dictitem> {
+) -> Option<crate::eval::typval::DictitemId> {
     let has_htp = htp.is_some();
     let mut varname_opt: Option<&CStr> = None;
     let ht_opt = find_var_ht(name, name_len, &mut varname_opt);
@@ -2699,7 +2682,7 @@ pub fn find_var_opt(
     name_len: usize,
     htp: Option<&mut Option<&'static mut Hashtab>>,
     no_autoload: i32,
-) -> Option<&'static mut Dictitem> {
+) -> Option<crate::eval::typval::DictitemId> {
     find_var(name, name_len, htp, no_autoload)
 }
 
@@ -2710,20 +2693,20 @@ pub fn find_var_in_ht(
     varname: &CStr,
     varname_len: usize,
     no_autoload: i32,
-) -> Option<&'static mut Dictitem> {
+) -> Option<crate::eval::typval::DictitemId> {
     if varname_len == 0 {
         let id = match htname as u8 {
             b's' => script_item_vars(g_st().current_sctx.sc_sid).0,
-            b'g' => get_globvars_var().di_id,
-            b'v' => get_vimvars_var().di_id,
-            b'b' => curbuf_mut().b_bufvar,
-            b'w' => curwin_mut().w_winvar,
+            b'g' => get_globvars_var(),
+            b'v' => get_vimvars_var(),
+            b'b' => curbuf_mut().b_bufvar.clone(),
+            b'w' => curwin_mut().w_winvar.clone(),
             b't' => curtab_mut().tp_winvar.get(),
             b'l' => crate::eval::typval::DictitemId::from(get_funccal_local_var()),
             b'a' => crate::eval::typval::DictitemId::from(get_funccal_args_var()),
             _ => crate::eval::typval::DictitemId::NULL,
         };
-        return id.opt_mut();
+        return if id.is_null() { None } else { Some(id) };
     }
 
     let varname_bytes = varname.to_bytes();
@@ -2740,7 +2723,7 @@ pub fn find_var_in_ht(
             return None;
         }
     }
-    Some(tv_dict_hi2di(&hi))
+    Some(hi.hi_di)
 }
 
 /// Finds the dict (g:, l:, s:, …) and hashtable used for a variable.
@@ -2833,7 +2816,7 @@ pub fn find_var_ht<'a>(
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
 pub fn get_var_value(name: &std::ffi::CStr) -> Option<std::borrow::Cow<'static, CStr>> {
     let v = find_var_opt(name, name.to_bytes().len(), None, 0)?;
-    Some(tv_get_string(&v.di_tv))
+    Some(std::borrow::Cow::Owned(tv_get_string(&v.tv()).into_owned()))
 }
 
 /// Allocate a new hashtab for a sourced script.
@@ -2842,23 +2825,24 @@ pub fn new_script_vars() -> Box<Scriptvar> {
     let dict = crate::eval::typval::tv_dict_alloc_static();
     let var = crate::eval::typval::tv_dict_item_alloc_static();
     sv.sv_dict = dict.dv_id;
-    sv.sv_var = var.di_id;
-    init_var_dict(dict, var, VAR_SCOPE);
+    sv.sv_var = var.clone();
+    init_var_dict(dict, &var, VAR_SCOPE);
     sv
 }
 
 /// Initialize dictionary "dict" as a scope and set variable "dict_var" to point to it.
-pub fn init_var_dict(dict: &mut TvDict, dict_var: &mut ScopeDictDictItem, scope: ScopeType) {
+pub fn init_var_dict(dict: &mut TvDict, dict_var: &ScopeDictDictItem, scope: ScopeType) {
     hash_clear(&mut dict.dv_hashtab);
     dict.dv_lock = VAR_UNLOCKED;
     dict.dv_scope = scope;
     dict.dv_refcount = DO_NOT_FREE_CNT;
     dict.dv_copy_id = 0;
-    dict_var.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict.dv_id);
-    dict_var.di_tv.v_type = VarType::VarDict;
-    dict_var.di_tv.v_lock = VAR_FIXED;
-    dict_var.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-    dict_var.di_key.clear();
+    dict_var.set_tv(TypVal {
+        v_type: VarType::VarDict,
+        v_lock: VAR_FIXED,
+        vval: crate::eval::typval::TypvalVval::Dict(dict.dv_id),
+    });
+    dict_var.di_flags.set(DI_FLAGS_RO | DI_FLAGS_FIX);
     dict.watchers.clear();
 }
 
@@ -2876,14 +2860,14 @@ pub fn vars_clear(ht: &mut Hashtab) {
 /// Like vars_clear(), but only free the value if "free_val" is true.
 pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
     hash_lock(ht);
-    for (_, v) in ht.iter_items_mut() {
+    for (_, v) in ht.iter_items() {
         if !free_val {
-            v.di_tv.v_type = VarType::VarUnknown;
+            v.set_tv(TypVal::new());
         }
-        if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
+        if (v.di_flags.get() & DI_FLAGS_ALLOC) != 0 {
             crate::eval::typval::tv_dict_item_free(v);
         } else if free_val {
-            tv_clear(&mut v.di_tv);
+            v.clear_tv();
         }
     }
     hash_clear(ht);
@@ -2891,21 +2875,23 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
 
 /// Delete a variable from hashtab "ht" at slot "hi_idx".
 fn delete_var(ht: &mut Hashtab, hi_idx: usize) {
-    let hi = ht.as_slice()[hi_idx];
-    let di = tv_dict_hi2di(&hi);
+    let di = ht.as_slice()[hi_idx].hi_di.clone();
     hash_remove(ht, hi_idx);
-    crate::eval::typval::tv_dict_item_free(di);
+    if let Some(di) = di.opt() {
+        crate::eval::typval::tv_dict_item_free(di);
+    }
 }
 
 /// List the value of one internal variable.
-fn list_one_var(v: &mut Dictitem, prefix: &CStr, first: &mut i32) {
-    let s = encode_tv2echo(&mut v.di_tv, None);
+fn list_one_var(v: &Dictitem, prefix: &CStr, first: &mut i32) {
+    let mut v_tv = v.tv().clone();
+    let s = encode_tv2echo(&mut v_tv, None);
     let key_cstr = v.key_cstr();
     list_one_var_a(
         prefix,
         Some(key_cstr),
         key_cstr.to_bytes().len() as isize,
-        v.di_tv.v_type,
+        v_tv.v_type,
         &s,
         first,
     );
@@ -2966,53 +2952,54 @@ fn list_one_var_a(
 /// Additional handling for setting a v: variable.
 pub fn before_set_vvar(
     varname: &CStr,
-    di: &mut Dictitem,
+    di: &Dictitem,
     tv: &mut TypVal,
     copy: bool,
     watched: bool,
     type_error: &mut bool,
 ) -> bool {
-    if di.di_tv.v_type == VarType::VarString {
+    let di_vtype = di.tv().v_type;
+    if di_vtype == VarType::VarString {
         let mut oldtv: TypVal = TypVal::new();
         if watched {
-            tv_copy(&di.di_tv, &mut oldtv);
+            tv_copy(&di.tv(), &mut oldtv);
         }
-        tv_clear(&mut di.di_tv);
+        di.clear_tv();
         if copy || tv.v_type != VarType::VarString {
             let val = tv_get_string(&*tv);
-            crate::eval::typval::tv_set_string(&mut di.di_tv, Some(&val));
+            crate::eval::typval::tv_set_string(&mut di.tv_mut(), Some(&val));
         } else {
-            di.di_tv.v_type = VarType::VarString;
-            di.di_tv.vval =
+            let mut di_tv = di.tv_mut();
+            di_tv.v_type = VarType::VarString;
+            di_tv.vval =
                 std::mem::replace(&mut tv.vval, crate::eval::typval::TypvalVval::NULL_STRING);
         }
         if watched {
-            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&di.di_tv), Some(&oldtv));
+            let new_tv = di.tv().clone();
+            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&new_tv), Some(&oldtv));
             tv_clear(&mut oldtv);
         }
         return false;
-    } else if di.di_tv.v_type == VarType::VarNumber {
+    } else if di_vtype == VarType::VarNumber {
         let mut oldtv: TypVal = TypVal::new();
         if watched {
-            tv_copy(&di.di_tv, &mut oldtv);
+            tv_copy(&di.tv(), &mut oldtv);
         }
-        di.di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(&*tv));
+        let n = tv_get_number(&*tv);
+        di.tv_mut().vval = crate::eval::typval::TypvalVval::Number(n);
         if varname.to_bytes() == b"searchforward" {
-            set_search_direction(if di.di_tv.vval.v_number() != 0 {
-                b'/' as i32
-            } else {
-                b'?' as i32
-            });
+            set_search_direction(if n != 0 { b'/' as i32 } else { b'?' as i32 });
         } else if varname.to_bytes() == b"hlsearch" {
-            g_st().search_global.no_hlsearch = di.di_tv.vval.v_number() == 0;
+            g_st().search_global.no_hlsearch = n == 0;
             redraw_all_later(UPD_SOME_VALID);
         }
         if watched {
-            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&di.di_tv), Some(&oldtv));
+            let new_tv = di.tv().clone();
+            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&new_tv), Some(&oldtv));
             tv_clear(&mut oldtv);
         }
         return false;
-    } else if di.di_tv.v_type != tv.v_type {
+    } else if di_vtype != tv.v_type {
         *type_error = true;
         return false;
     }
@@ -3055,21 +3042,21 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
 
     let is_vimvar_ht = std::ptr::eq(&*ht_ref, &get_vimvar_dict().dv_hashtab);
     let mut oldtv: TypVal = TypVal::new();
-    let di: &mut Dictitem = if let Some(di) = di_opt {
+    let di: crate::eval::typval::DictitemId = if let Some(di) = di_opt {
         if is_const {
             emsg(gettext(E_CANNOT_MOD));
             return;
         }
 
-        if var_check_ro(i32::from(di.di_flags), &name_cstr, name_len)
-            || value_check_lock(di.di_tv.v_lock, Some(&name_cstr), name_len)
-            || var_check_lock(i32::from(di.di_flags), &name_cstr, name_len)
+        if var_check_ro(i32::from(di.di_flags.get()), &name_cstr, name_len)
+            || value_check_lock(di.tv().v_lock, Some(&name_cstr), name_len)
+            || var_check_lock(i32::from(di.di_flags.get()), &name_cstr, name_len)
         {
             return;
         }
 
         let mut type_error = false;
-        if is_vimvar_ht && !before_set_vvar(varname_cstr, di, tv, copy, watched, &mut type_error) {
+        if is_vimvar_ht && !before_set_vvar(varname_cstr, &di, tv, copy, watched, &mut type_error) {
             if type_error {
                 semsg!(
                     gettext(E_SETTING_V_STR_TO_VALUE_WITH_WRONG_TYPE),
@@ -3080,9 +3067,9 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         }
 
         if watched {
-            tv_copy(&di.di_tv, &mut oldtv);
+            tv_copy(&di.tv(), &mut oldtv);
         }
-        tv_clear(&mut di.di_tv);
+        di.clear_tv();
         di
     } else {
         if is_vimvar_ht || get_funccal_args_ht().is_some_and(|aht| std::ptr::eq(&*ht_ref, aht)) {
@@ -3100,31 +3087,35 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         let new_di = crate::eval::typval::tv_dict_item_alloc_len(
             &varname_bytes[..varname_len.min(varname_bytes.len())],
         );
-        if !hash_add(&mut *ht_ref, new_di) {
-            crate::eval::typval::tv_dict_item_free(new_di);
+        if !hash_add(&mut *ht_ref, &new_di) {
+            crate::eval::typval::tv_dict_item_free(&new_di);
             return;
         }
         if is_const {
-            new_di.di_flags |= DI_FLAGS_LOCK;
+            new_di.di_flags.set(new_di.di_flags.get() | DI_FLAGS_LOCK);
         }
         new_di
     };
 
     if copy || tv.v_type == VarType::VarNumber || tv.v_type == VarType::VarFloat {
-        tv_copy(&*tv, &mut di.di_tv);
+        tv_copy(&*tv, &mut di.tv_mut());
     } else {
-        di.di_tv = std::mem::take(tv);
-        di.di_tv.v_lock = VAR_UNLOCKED;
+        let mut taken = std::mem::take(tv);
+        taken.v_lock = VAR_UNLOCKED;
+        di.set_tv(taken);
     }
 
     if watched {
         let key_cstr = di.key_cstr();
-        tv_dict_watcher_notify(dict_opt.unwrap(), key_cstr, Some(&di.di_tv), Some(&oldtv));
+        let new_tv = di.tv().clone();
+        tv_dict_watcher_notify(dict_opt.unwrap(), key_cstr, Some(&new_tv), Some(&oldtv));
         tv_clear(&mut oldtv);
     }
 
     if is_const {
-        tv_item_lock(&mut di.di_tv, DICT_MAXNEST, true, true);
+        let mut item_tv = di.tv().clone();
+        tv_item_lock(&mut item_tv, DICT_MAXNEST, true, true);
+        di.tv_mut().v_lock = item_tv.v_lock;
     }
 }
 
@@ -3289,13 +3280,13 @@ fn get_var_from(
                 g_st().curbuf = save_curbuf;
             } else if varname_cstr.to_bytes().is_empty() {
                 let v = if htname == b'b' as i32 {
-                    buf.b_bufvar
+                    buf.b_bufvar.clone()
                 } else if htname == b'w' as i32 {
-                    win.w_winvar
+                    win.w_winvar.clone()
                 } else {
                     tp.tp_winvar.get()
                 };
-                tv_copy(&v.borrow().di_tv, rettv);
+                tv_copy(&v.tv(), rettv);
                 done = true;
             } else {
                 let ht = if htname == b'b' as i32 {
@@ -3309,7 +3300,7 @@ fn get_var_from(
                 if let Some(v) =
                     find_var_in_ht(ht, htname, varname_cstr, varname_cstr.to_bytes().len(), 0)
                 {
-                    tv_copy(&v.di_tv, rettv);
+                    tv_copy(&v.tv(), rettv);
                     done = true;
                 }
             }
@@ -3549,12 +3540,13 @@ pub fn reset_v_option_vars() {
 
 /// Add an assert error to v:errors.
 pub fn assert_error(buf: &[u8]) {
-    let tv = get_vim_var_tv(VV_ERRORS);
+    let di = get_vim_var_tv(VV_ERRORS);
 
-    if tv.v_type != VarType::VarList || tv.vval.v_list().is_null() {
+    if di.tv().v_type != VarType::VarList || di.tv().vval.v_list().is_null() {
         set_vim_var_list(VV_ERRORS, Some(&tv_list_alloc(1)));
     }
-    crate::eval::typval::tv_list_append_bytes(get_vim_var_tv(VV_ERRORS).vval.v_list_ref(), buf);
+    let list = get_vim_var_tv(VV_ERRORS).tv().vval.v_list();
+    crate::eval::typval::tv_list_append_bytes(&list, buf);
 }
 
 pub fn var_exists(var_in: &CStr) -> bool {

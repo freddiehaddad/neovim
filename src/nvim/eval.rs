@@ -1082,10 +1082,7 @@ fn get_lval_dict_item<'a>(
         }
     }
 
-    if !lp.ll_di.is_null()
-        && tv_is_luafunc(&mut lp.ll_di.borrow_mut().di_tv)
-        && len == -1
-        && rettv.is_none()
+    if !lp.ll_di.is_null() && tv_is_luafunc(&mut lp.ll_di.tv_mut()) && len == -1 && rettv.is_none()
     {
         semsg!(E_ILLVAR, c"v:['lua']");
         return GLV_FAIL;
@@ -1116,11 +1113,11 @@ fn get_lval_dict_item<'a>(
         return GLV_STOP;
     } else if (flags & GLV_READ_ONLY) == 0
         && (var_check_ro(
-            i32::from(lp.ll_di.di_flags),
+            i32::from(lp.ll_di.di_flags.get()),
             name,
             (p_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
         ) || var_check_lock(
-            i32::from(lp.ll_di.di_flags),
+            i32::from(lp.ll_di.di_flags.get()),
             name,
             (p_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
         ))
@@ -1128,7 +1125,7 @@ fn get_lval_dict_item<'a>(
         return GLV_FAIL;
     }
 
-    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(lp.ll_di);
+    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(lp.ll_di.clone());
 
     GLV_OK
 }
@@ -1475,7 +1472,7 @@ pub fn get_lval<'a>(
     }
     let v = v?;
 
-    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(v.di_id);
+    lp.ll_tv = crate::eval::vars::LvalTv::DictItem(v);
 
     if tv_is_luafunc(&mut lp.ll_tv.borrow_mut()) {
         return Some(p_cstr);
@@ -1563,7 +1560,7 @@ pub fn set_var_lval(
                 return;
             }
 
-            let mut di: Option<&'static mut Dictitem> = None;
+            let mut di: Option<crate::eval::typval::DictitemId> = None;
             if eval_variable(
                 &name_cstr,
                 lp.ll_name_len as i32,
@@ -1573,8 +1570,8 @@ pub fn set_var_lval(
                 false,
             ) {
                 if di.is_none_or(|di| {
-                    !var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
-                        && !tv_check_lock(&di.di_tv, Some(&name_cstr), TV_CSTRING)
+                    !var_check_ro(i32::from(di.di_flags.get()), &name_cstr, TV_CSTRING)
+                        && !tv_check_lock(&di.tv(), Some(&name_cstr), TV_CSTRING)
                 }) && eexe_mod_op(&mut tv, &*rettv, op)
                 {
                     set_var(name_cstr.as_bytes(), &mut tv, false);
@@ -1636,12 +1633,11 @@ pub fn set_var_lval(
             }
 
             let di = tv_dict_item_alloc(newkey_cstr);
-            let di_id = di.di_id;
-            if !tv_dict_add(lp.tv_mut().vval.v_dict().borrow_mut(), di) {
-                tv_dict_item_free(di_id.borrow_mut());
+            if !tv_dict_add(lp.tv_mut().vval.v_dict().borrow_mut(), &di) {
+                tv_dict_item_free(&di);
                 return;
             }
-            lp.ll_tv = crate::eval::vars::LvalTv::DictItem(di_id);
+            lp.ll_tv = crate::eval::vars::LvalTv::DictItem(di);
         } else {
             if watched {
                 tv_copy(&lp.ll_tv.borrow(), &mut oldtv);
@@ -1684,7 +1680,7 @@ pub fn set_var_lval(
                 let newkey_cstr = lp.ll_newkey.as_ref().unwrap().as_c_str();
                 tv_dict_watcher_notify(dict.borrow_mut(), newkey_cstr, new_tv.as_ref(), None);
             } else {
-                let di_ = lp.ll_di;
+                let di_ = &lp.ll_di;
                 let di_key_cstr = di_.key_cstr();
                 tv_dict_watcher_notify(
                     dict.borrow_mut(),
@@ -3501,12 +3497,12 @@ fn eval_index_inner(
             let Some(item) = item else {
                 return false;
             };
-            if tv_is_luafunc(&mut item.di_tv) {
+            if tv_is_luafunc(&mut item.tv_mut()) {
                 return false;
             }
 
             let mut tmp = tv_initial_value();
-            tv_copy(&item.di_tv, &mut tmp);
+            tv_copy(&item.tv(), &mut tmp);
             tv_clear(rettv);
             *rettv = tmp;
         }
@@ -4124,7 +4120,8 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for buf in for_all_buffers_mut() {
-            abort = abort || set_ref_in_item(&mut buf.b_bufvar.di_tv, copy_id, None, None);
+            let mut b_tv = buf.b_bufvar.tv().clone();
+            abort = abort || set_ref_in_item(&mut b_tv, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_prompt_callback, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_prompt_interrupt, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_p_cfu, copy_id, None, None);
@@ -4148,26 +4145,23 @@ pub fn garbage_collect(testing: bool) -> bool {
     {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&tp) {
-                abort = abort || set_ref_in_item(&mut wp.w_winvar.di_tv, copy_id, None, None);
+                let mut w_tv = wp.w_winvar.tv().clone();
+                abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
             }
         }
 
         for cw in &g_st().ctx_win_vec {
             if let Some(cw_win) = cw.cw_win.opt_mut() {
-                abort = abort || set_ref_in_item(&mut cw_win.w_winvar.di_tv, copy_id, None, None);
+                let mut w_tv = cw_win.w_winvar.tv().clone();
+                abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
             }
         }
     }
 
     {
         for tp in for_all_tabpages_mut() {
-            abort = abort
-                || set_ref_in_item(
-                    &mut tp.tp_winvar.get().borrow_mut().di_tv,
-                    copy_id,
-                    None,
-                    None,
-                );
+            let mut tp_tv = tp.tp_winvar.get().tv().clone();
+            abort = abort || set_ref_in_item(&mut tp_tv, copy_id, None, None);
         }
     }
 
@@ -4267,10 +4261,11 @@ pub fn set_ref_in_ht(
     let mut abort = false;
     let mut ht_stack: HtStack = Vec::new();
 
-    for (_, di) in ht_ref.iter_items_mut() {
+    for (_, di) in ht_ref.iter_items() {
+        let mut item_tv = di.tv().clone();
         abort = abort
             || set_ref_in_item(
-                &mut di.di_tv,
+                &mut item_tv,
                 copy_id,
                 Some(&mut ht_stack),
                 list_stack.as_deref_mut(),
@@ -4279,10 +4274,11 @@ pub fn set_ref_in_ht(
 
     while let Some(next_d) = ht_stack.pop() {
         if !abort && let Some(d_ref) = next_d.opt_mut() {
-            for (_, di) in d_ref.dv_hashtab.iter_items_mut() {
+            for (_, di) in d_ref.dv_hashtab.iter_items() {
+                let mut item_tv = di.tv().clone();
                 abort = abort
                     || set_ref_in_item(
-                        &mut di.di_tv,
+                        &mut item_tv,
                         copy_id,
                         Some(&mut ht_stack),
                         list_stack.as_deref_mut(),
@@ -4557,10 +4553,10 @@ fn eval_dict(
                 return Some(false);
             }
             let item = tv_dict_item_alloc(key_cstr);
-            item.di_tv = std::mem::take(&mut tv);
-            item.di_tv.v_lock = VAR_UNLOCKED;
-            if !tv_dict_add(d.borrow_mut(), item) {
-                tv_dict_item_free(item);
+            tv.v_lock = VAR_UNLOCKED;
+            item.set_tv(std::mem::take(&mut tv));
+            if !tv_dict_add(d.borrow_mut(), &item) {
+                tv_dict_item_free(&item);
             }
         }
         tv_clear(&mut tvkey);
@@ -5053,10 +5049,10 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &VimTimer) {
     );
 
     let di = tv_dict_item_alloc(c"callback");
-    if !tv_dict_add(&mut *dict, di) {
-        tv_dict_item_free(di);
+    if !tv_dict_add(&mut *dict, &di) {
+        tv_dict_item_free(&di);
     } else {
-        callback_put(&timer.callback, &mut di.di_tv);
+        callback_put(&timer.callback, &mut di.tv_mut());
     }
 }
 
@@ -6961,8 +6957,8 @@ impl Lval {
     }
 
     #[inline]
-    pub fn di_mut(&self) -> &'static mut Dictitem {
-        self.ll_di.borrow_mut()
+    pub fn di_mut(&self) -> &Dictitem {
+        &self.ll_di
     }
 }
 #[cfg(test)]

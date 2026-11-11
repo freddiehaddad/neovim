@@ -302,11 +302,11 @@ pub fn vim_to_object(
                 while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
                     *hi_idx += 1;
                 }
-                let cur_hi = dict.dv_hashtab.as_slice()[*hi_idx];
+                let cur_hi = &dict.dv_hashtab.as_slice()[*hi_idx];
                 *hi_idx += 1;
                 *todo -= 1;
 
-                let di = crate::eval::typval::tv_dict_hi2di(&cur_hi);
+                let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
                 let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 
@@ -315,7 +315,7 @@ pub fn vim_to_object(
                 let d = dict_obj.data.dict_mut();
                 d.next_slot_mut().key = key_obj.data.string();
 
-                di.di_tv.clone()
+                di.tv().clone()
             }
         };
 
@@ -399,8 +399,8 @@ pub fn object_to_vim_take_luaref(
             let dict = tv_dict_alloc();
             for item in d.as_mut_slice() {
                 let di = crate::eval::typval::tv_dict_item_alloc_len(item.key.as_bytes());
-                object_to_vim_take_luaref(&mut item.value, &mut di.di_tv, take_luaref, _err);
-                tv_dict_add(&mut *dict, di);
+                object_to_vim_take_luaref(&mut item.value, &mut di.tv_mut(), take_luaref, _err);
+                tv_dict_add(&mut *dict, &di);
             }
             dict.dv_refcount += 1;
             tv_ref.v_type = VarType::VarDict;

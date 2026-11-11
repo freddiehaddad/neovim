@@ -385,14 +385,10 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             return 0;
         };
         if watched {
-            tv_dict_watcher_notify(
-                dict,
-                key.as_opt_cstr().unwrap_or(c""),
-                None,
-                Some(&di.di_tv),
-            );
+            let di_tv = di.tv().clone();
+            tv_dict_watcher_notify(dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&di_tv));
         }
-        tv_dict_item_remove(dict, di);
+        tv_dict_item_remove(dict, &di);
     } else {
         let mut tv: TypVal = TypVal::new();
 
@@ -406,7 +402,7 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let di = if let Some(di) = di_opt {
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && !before_set_vvar(key.as_cstr(), di, &mut tv, true, watched, &mut type_error)
+                && !before_set_vvar(key.as_cstr(), &di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -419,17 +415,17 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
                 return 0;
             }
             if watched {
-                tv_copy(&di.di_tv, &mut oldtv);
+                tv_copy(&di.tv(), &mut oldtv);
             }
-            tv_clear(&mut di.di_tv);
+            di.clear_tv();
             di
         } else {
             let new_di = tv_dict_item_alloc_len(key.as_bytes());
-            let _ = tv_dict_add(dict, new_di);
+            let _ = tv_dict_add(dict, &new_di);
             new_di
         };
 
-        tv_copy(&tv, &mut di.di_tv);
+        tv_copy(&tv, &mut di.tv_mut());
 
         if watched {
             tv_dict_watcher_notify(
@@ -464,7 +460,8 @@ pub extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
     let Some(di) = di else {
         return 0;
     };
-    nlua_push_typval(lstate, &mut di.di_tv, 0);
+    let mut di_tv = di.tv().clone();
+    nlua_push_typval(lstate, &mut di_tv, 0);
     1
 }
 

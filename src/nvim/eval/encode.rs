@@ -274,18 +274,19 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     let Some(type_di) = crate::eval::typval::tv_dict_find_opt(Some(spdict), c"_TYPE", 5) else {
         return false;
     };
-    if type_di.di_tv.v_type != VarType::VarList
-        || type_di.di_tv.vval.v_list() != eval_msgpack_type_list(K_MP_STRING)
+    if type_di.tv().v_type != VarType::VarList
+        || type_di.tv().vval.v_list() != eval_msgpack_type_list(K_MP_STRING)
     {
         return false;
     }
     let Some(val_di) = crate::eval::typval::tv_dict_find_opt(Some(spdict), c"_VAL", 4) else {
         return false;
     };
-    if val_di.di_tv.v_type != VarType::VarList {
+    if val_di.tv().v_type != VarType::VarList {
         return false;
     }
-    let Some(val_list) = val_di.di_tv.vval.v_list_opt() else {
+    let val_list = val_di.tv().vval.v_list();
+    let Some(val_list) = val_list.opt() else {
         return true;
     };
     for li in crate::eval::typval::list_iter_mut(val_list.first_opt()) {
@@ -1116,32 +1117,33 @@ fn convert_one_value(
             if backend.allow_specials()
                 && dict.dv_hashtab.ht_used == 2
                 && let Some(type_di) = tv_dict_find(dict.opt(), c"_TYPE", 5)
-                && type_di.di_tv.v_type == VarType::VarList
+                && type_di.tv().v_type == VarType::VarList
                 && let Some(val_di) = tv_dict_find(dict.opt(), c"_VAL", 4)
             {
                 let mut mp_idx = NUM_MSGPACK_TYPES;
                 for i in 0..NUM_MSGPACK_TYPES {
-                    if type_di.di_tv.vval.v_list() == eval_msgpack_type_list(i) {
+                    if type_di.tv().vval.v_list() == eval_msgpack_type_list(i) {
                         mp_idx = i;
                         break;
                     }
                 }
                 backend.check_before();
                 if mp_idx < NUM_MSGPACK_TYPES {
+                    let val_tv = val_di.tv().clone();
                     match mp_idx {
                         K_MP_NIL => {
                             backend.conv_nil();
                             handled_special = true;
                         }
                         K_MP_BOOLEAN => {
-                            if val_di.di_tv.v_type == VarType::VarNumber {
-                                backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
+                            if val_tv.v_type == VarType::VarNumber {
+                                backend.conv_bool(val_tv.vval.v_number() != 0);
                                 handled_special = true;
                             }
                         }
                         K_MP_INTEGER => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 if tv_list_len(val_list.opt()) == 4 {
                                     let sign_li = tv_list_first(val_list.opt()).unwrap();
                                     let highest_li = sign_li.li_next.get();
@@ -1176,17 +1178,17 @@ fn convert_one_value(
                             }
                         }
                         K_MP_FLOAT => {
-                            if val_di.di_tv.v_type == VarType::VarFloat {
-                                if !backend.conv_float(val_di.di_tv.vval.v_float()) {
+                            if val_tv.v_type == VarType::VarFloat {
+                                if !backend.conv_float(val_tv.vval.v_float()) {
                                     return false;
                                 }
                                 handled_special = true;
                             }
                         }
                         K_MP_STRING => {
-                            if val_di.di_tv.v_type == VarType::VarList
+                            if val_tv.v_type == VarType::VarList
                                 && let Some(buf) =
-                                    encode_vim_list_to_buf(val_di.di_tv.vval.v_list().opt())
+                                    encode_vim_list_to_buf(val_tv.vval.v_list().opt())
                             {
                                 if !backend.conv_str_string(Some(&buf)) {
                                     return false;
@@ -1195,8 +1197,8 @@ fn convert_one_value(
                             }
                         }
                         K_MP_ARRAY => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 let saved_copy_id = val_list.lv_copy_id.get();
                                 let mut copy_id_val = saved_copy_id;
                                 let res = backend.check_self_reference(
@@ -1225,8 +1227,8 @@ fn convert_one_value(
                             }
                         }
                         K_MP_MAP => {
-                            if val_di.di_tv.v_type == VarType::VarList {
-                                let val_list = val_di.di_tv.vval.v_list();
+                            if val_tv.v_type == VarType::VarList {
+                                let val_list = val_tv.vval.v_list();
                                 if val_list.is_null() || tv_list_len(val_list.opt()) == 0 {
                                     backend.conv_empty_dict();
                                     handled_special = true;
@@ -1276,8 +1278,8 @@ fn convert_one_value(
                                 }
                             }
                         }
-                        K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
-                            let val_list = val_di.di_tv.vval.v_list();
+                        K_MP_EXT if val_tv.v_type == VarType::VarList => {
+                            let val_list = val_tv.vval.v_list();
                             if tv_list_len(val_list.opt()) == 2 {
                                 let first = tv_list_first(val_list.opt()).unwrap();
                                 let last = tv_list_last(val_list.opt()).unwrap();
@@ -1369,8 +1371,8 @@ fn encode_vim_with_backend(
                 while hashitem_empty(&dict.dv_hashtab.as_slice()[hi_idx]) {
                     hi_idx += 1;
                 }
-                let hi = dict.dv_hashtab.as_slice()[hi_idx];
-                let di = crate::eval::typval::tv_dict_hi2di(&hi);
+                let hi = &dict.dv_hashtab.as_slice()[hi_idx];
+                let di = crate::eval::typval::tv_dict_hi2di(hi);
                 *todo -= 1;
                 if let MPConvStackData::Dict {
                     hi_idx: ref mut hi_idx_ref,
@@ -1384,7 +1386,7 @@ fn encode_vim_with_backend(
                     return false;
                 }
                 backend.conv_dict_after_key();
-                di.di_tv.clone()
+                di.tv().clone()
             }
             MPConvStackData::List {
                 ref list,

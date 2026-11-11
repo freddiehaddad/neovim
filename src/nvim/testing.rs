@@ -181,27 +181,27 @@ fn fill_assert_error(
             exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d.dv_id);
             got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d.dv_id);
 
-            for (_hi, di1) in exp_d.dv_hashtab.iter_items_mut() {
+            for (_hi, di1) in exp_d.dv_hashtab.iter_items() {
                 let hi_key = CStr::from_bytes_until_nul(&di1.di_key).unwrap_or(c"");
                 let hi_bytes = hi_key.to_bytes();
                 let item2 = crate::eval::typval::tv_dict_find_opt(Some(&*got_d), hi_key, -1);
                 if let Some(item2) = item2 {
-                    if !tv_equal(&di1.di_tv, &item2.di_tv, false) {
-                        tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
-                        tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut item2.di_tv);
+                    if !tv_equal(&di1.tv(), &item2.tv(), false) {
+                        tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.tv_mut());
+                        tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut item2.tv_mut());
                     } else {
                         omitted += 1;
                     }
                 } else {
-                    tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
+                    tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.tv_mut());
                 }
             }
 
-            for (_hi, di2) in got_d.dv_hashtab.iter_items_mut() {
+            for (_hi, di2) in got_d.dv_hashtab.iter_items() {
                 let hi_key = CStr::from_bytes_until_nul(&di2.di_key).unwrap_or(c"");
                 let hi_bytes = hi_key.to_bytes();
                 if crate::eval::typval::tv_dict_find_opt(Some(&*exp_d), hi_key, -1).is_none() {
-                    tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut di2.di_tv);
+                    tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut di2.tv_mut());
                 }
             }
         }
@@ -487,7 +487,7 @@ pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 arg1,
                 None,
                 Some(arg0),
-                &mut *get_vim_var_tv(VV_EXCEPTION),
+                &mut get_vim_var_tv(VV_EXCEPTION).tv_mut(),
                 AssertType::Other,
             );
             assert_error(&ga);

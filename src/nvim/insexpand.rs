@@ -3619,9 +3619,9 @@ fn ins_compl_add_list(list: Option<&TvList>) {
 fn ins_compl_add_dict(dict: &mut TvDict) {
     INSEXPAND.with(|s| s.compl_opt_refresh_always.set(false));
     if let Some(di_refresh) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"refresh", 7)
-        && di_refresh.di_tv.v_type == VAR_STRING
+        && di_refresh.tv().v_type == VAR_STRING
         && di_refresh
-            .di_tv
+            .tv()
             .vval
             .v_string_cstr()
             .is_some_and(|s| s.to_bytes() == b"always")
@@ -3630,9 +3630,10 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
     }
 
     if let Some(di_words) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"words", 5)
-        && di_words.di_tv.v_type == VAR_LIST
+        && di_words.tv().v_type == VAR_LIST
     {
-        ins_compl_add_list(di_words.di_tv.vval.v_list_opt());
+        let words_list = di_words.tv().vval.v_list();
+        ins_compl_add_list(words_list.opt());
     }
 }
 

@@ -5130,15 +5130,15 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         return;
     }
 
-    let prompt_cstr: &CStr;
-    let mut defstr: &CStr = c"";
-    let mut cancelreturn: Option<&TypVal> = None;
+    let prompt_cow: std::borrow::Cow<'_, CStr>;
+    let mut defstr_cow: std::borrow::Cow<'_, CStr> = std::borrow::Cow::Borrowed(c"");
+    let mut cancelreturn: Option<TypVal> = None;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
         vval: TypvalVval::Number(0),
     };
-    let mut xp_name: Option<&CStr> = None;
+    let mut xp_name_cow: Option<std::borrow::Cow<'_, CStr>> = None;
     let mut input_callback: Callback = Callback::new();
     let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
@@ -5156,25 +5156,25 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         else {
             return;
         };
-        prompt_cstr = p_cstr;
+        prompt_cow = p_cstr;
         let Some(defstr_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"default", 7, &mut defstr_buf, Some(c""))
         else {
             return;
         };
-        defstr = defstr_cstr;
+        defstr_cow = defstr_cstr;
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
-            cancelreturn = Some(&cancelreturn_di.di_tv);
+            cancelreturn = Some(cancelreturn_di.tv().clone());
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
-            xp_name = None;
+            xp_name_cow = None;
         } else {
             let Some(xp_cstr) =
                 tv_dict_get_string_buf_chk(dict_ref, c"completion", 10, &mut xp_name_buf, None)
             else {
                 return;
             };
-            xp_name = Some(xp_cstr);
+            xp_name_cow = Some(xp_cstr);
         }
         if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
             return;
@@ -5183,12 +5183,12 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         let Some(p_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
             return;
         };
-        prompt_cstr = p_cstr;
+        prompt_cow = std::borrow::Cow::Borrowed(p_cstr);
         if argvars[1].v_type != VarType::VarUnknown {
             let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
-            defstr = defstr_cstr;
+            defstr_cow = std::borrow::Cow::Borrowed(defstr_cstr);
             if argvars[2].v_type != VarType::VarUnknown {
                 let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
                 else {
@@ -5197,13 +5197,16 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 if inputdialog {
                     cancelreturn_strarg2.v_type = VarType::VarString;
                     cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::from_cstr(strarg2);
-                    cancelreturn = Some(&cancelreturn_strarg2);
+                    cancelreturn = Some(cancelreturn_strarg2);
                 } else {
-                    xp_name = Some(strarg2);
+                    xp_name_cow = Some(std::borrow::Cow::Borrowed(strarg2));
                 }
             }
         }
     }
+    let prompt_cstr: &CStr = &prompt_cow;
+    let defstr: &CStr = &defstr_cow;
+    let xp_name: Option<&CStr> = xp_name_cow.as_deref();
 
     let mut xp_type: i32 = EXPAND_NOTHING;
     let mut xp_arg: Option<std::ffi::CString> = None;
@@ -5255,7 +5258,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     if let Some(res_cstr) = res {
         crate::eval::typval::tv_set_string_len(&mut *rettv, Some(res_cstr.as_bytes()));
-    } else if let Some(cancelreturn) = cancelreturn {
+    } else if let Some(ref cancelreturn) = cancelreturn {
         tv_copy(cancelreturn, &mut *rettv);
     }
 
