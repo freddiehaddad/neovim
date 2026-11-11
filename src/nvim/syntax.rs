@@ -622,7 +622,11 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
     if valid_state()
         && SYN_STATE.with(|s| s.current_lnum.get()) < lnum
         && SYN_STATE.with(|s| s.current_lnum.get())
-            < SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count
+            < SYN_STATE
+                .with(SyntaxState::syn_buf_mut)
+                .b_ml
+                .ml_line_count
+                .get()
     {
         syn_finish_line(false);
         if !SYN_STATE.with(|s| s.current_state_stored.get()) {
@@ -673,7 +677,11 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
     let dist = if sst_len <= g_st().rows_global.get() {
         999999
     } else {
-        SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count
+        SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get()
             / (sst_len - g_st().rows_global.get())
             + 1
     };
@@ -1073,12 +1081,21 @@ pub fn syn_stack_free_all(block: &mut Synblock) {
 }
 
 fn syn_stack_alloc() {
-    let mut len = (SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count / SST_DIST
+    let mut len = (SYN_STATE
+        .with(SyntaxState::syn_buf_mut)
+        .b_ml
+        .ml_line_count
+        .get()
+        / SST_DIST
         + g_st().rows_global.get() * 2)
         .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
     let cur_len = syn_block_mut().b_sst_max;
     if cur_len > len * 2 || cur_len < len {
-        len = SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count;
+        len = SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get();
         len = ((len + len / 2) / SST_DIST + g_st().rows_global.get() * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
@@ -1155,7 +1172,11 @@ fn syn_stack_cleanup() -> bool {
     let dist = if sst_len <= g_st().rows_global.get() {
         999999
     } else {
-        SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count
+        SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get()
             / (sst_len - g_st().rows_global.get())
             + 1
     };
@@ -2564,7 +2585,13 @@ fn syn_add_end_off(
         off = spp.sp_offsets[idx];
     }
 
-    if result.lnum > SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count {
+    if result.lnum
+        > SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get()
+    {
         col = 0;
     } else if off != 0 {
         let line =
@@ -2606,8 +2633,18 @@ fn syn_add_start_off(
         col = regmatch.startpos[0].col;
         off = spp.sp_offsets[idx];
     }
-    if result.lnum > SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count {
-        result.lnum = SYN_STATE.with(SyntaxState::syn_buf_mut).b_ml.ml_line_count;
+    if result.lnum
+        > SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get()
+    {
+        result.lnum = SYN_STATE
+            .with(SyntaxState::syn_buf_mut)
+            .b_ml
+            .ml_line_count
+            .get();
         col = ml_get_buf_len(SYN_STATE.with(SyntaxState::syn_buf_mut), result.lnum);
     }
     if off != 0 {

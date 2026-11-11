@@ -891,7 +891,7 @@ pub fn show_cursor_info_later(force: bool) {
         || curwin_mut().w_virtcol.get() != curwin_mut().w_stl_virtcol.get()
         || curwin_mut().w_cursor.coladd != curwin_mut().w_stl_cursor.coladd
         || curwin_mut().w_topline.get() != curwin_mut().w_stl_topline.get()
-        || curwin_mut().buf_mut().b_ml.ml_line_count != curwin_mut().w_stl_line_count.get()
+        || curwin_mut().buf_mut().b_ml.ml_line_count.get() != curwin_mut().w_stl_line_count.get()
         || curwin_mut().w_topfill.get() != curwin_mut().w_stl_topfill.get()
         || empty_line != curwin_mut().w_stl_empty.get()
         || g_st().reg_recording.get() != curwin_mut().w_stl_recording.get()
@@ -921,7 +921,7 @@ pub fn show_cursor_info_later(force: bool) {
     curwin_mut().w_stl_topline.set(curwin_mut().w_topline.get());
     curwin_mut()
         .w_stl_line_count
-        .set(curwin_mut().buf_mut().b_ml.ml_line_count);
+        .set(curwin_mut().buf_mut().b_ml.ml_line_count.get());
     curwin_mut().w_stl_topfill.set(curwin_mut().w_topfill.get());
     curwin_mut().w_stl_recording.set(g_st().reg_recording.get());
     curwin_mut().w_stl_state.set(state);
@@ -1208,7 +1208,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
             || (wp.w_maxscwidth.get() > 1 && wp.w_minscwidth.get() != wp.w_maxscwidth.get()))
     {
         buf.b_signcols.autom = true;
-        let last_line = buf.b_ml.ml_line_count - 1;
+        let last_line = buf.b_ml.ml_line_count.get() - 1;
         buf_signcols_count_range(buf, 0, last_line, MAXLNUM, K_FALSE);
     }
 
@@ -1514,9 +1514,9 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
         decor_range_add_virt(
             &mut g_st().borrow_mut().decor_state,
-            buf.b_ml.ml_line_count - 1,
+            buf.b_ml.ml_line_count.get() - 1,
             0,
-            buf.b_ml.ml_line_count - 1,
+            buf.b_ml.ml_line_count.get() - 1,
             0,
             susp_vt,
             false,
@@ -1672,7 +1672,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     }
 
     let mut topline_conceal = wp.w_topline.get();
-    while topline_conceal < buf.b_ml.ml_line_count
+    while topline_conceal < buf.b_ml.ml_line_count.get()
         && decor_conceal_line(&mut *wp, topline_conceal - 1, false)
     {
         topline_conceal += 1;
@@ -2005,7 +2005,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 break;
             }
 
-            if lnum > buf.b_ml.ml_line_count {
+            if lnum > buf.b_ml.ml_line_count.get() {
                 eof = true;
                 break;
             }
@@ -2246,7 +2246,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                     let mut virt_below =
                         decor_virt_lines(&mut *wp, lastlnum, lastlnum + 1, None, None, true) > 0;
                     while !virt_below
-                        && w_lines_at(&mut *wp, idx as usize).wl_lastlnum < buf.b_ml.ml_line_count
+                        && w_lines_at(&mut *wp, idx as usize).wl_lastlnum
+                            < buf.b_ml.ml_line_count.get()
                         && {
                             let lastlnum = w_lines_at(wp, idx as usize).wl_lastlnum;
                             decor_conceal_line(wp, lastlnum, false)
@@ -2318,7 +2319,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 continue;
             }
 
-            if lnum > buf.b_ml.ml_line_count {
+            if lnum > buf.b_ml.ml_line_count.get() {
                 eof = true;
                 break;
             }
@@ -2391,7 +2392,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             }
         } else {
             if eof {
-                wp.w_botline.set(buf.b_ml.ml_line_count + 1);
+                wp.w_botline.set(buf.b_ml.ml_line_count.get() + 1);
                 let j = win_get_fill(wp, wp.w_botline.get());
                 if j > 0 && !wp.w_botfill.get() && row < wp.w_view_height.get() {
                     let mut zero_spv = Spellvars::default();
@@ -2428,7 +2429,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             if mid_end >= row {
                 lastline = lastline.min(mid_start);
             }
-            if mod_bot > buf.b_ml.ml_line_count {
+            if mod_bot > buf.b_ml.ml_line_count.get() {
                 lastline = 0;
             }
 
@@ -2618,7 +2619,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
     let mut lnum = if wp.w_onebuf_opt.wo_rnu.get() && !wp.w_onebuf_opt.wo_nu.get() {
         wp.w_view_height.get()
     } else {
-        wp.buf_mut().b_ml.ml_line_count
+        wp.buf_mut().b_ml.ml_line_count.get()
     };
 
     if lnum == wp.w_nrwidth_line_count.get() {
@@ -2706,8 +2707,8 @@ pub fn redraw_buf_later(buf: &FileBuf, type_: i32) {
 pub fn redraw_buf_line_later(buf: &FileBuf, line: Linenr, force: bool) {
     for wp in for_all_windows_ptr() {
         if wp.w_buffer == buf {
-            redraw_winline(&mut *wp, line.min(buf.b_ml.ml_line_count));
-            if force && line > buf.b_ml.ml_line_count {
+            redraw_winline(&mut *wp, line.min(buf.b_ml.ml_line_count.get()));
+            if force && line > buf.b_ml.ml_line_count.get() {
                 wp.w_redraw_bot.set(line);
             }
         }

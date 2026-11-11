@@ -3167,7 +3167,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
                         + plines_m_win_fill(
                             crate::globals::curwin_mut(),
                             curwin_mut().w_topline.get() + 1,
-                            curbuf_mut().b_ml.ml_line_count,
+                            curbuf_mut().b_ml.ml_line_count.get(),
                         );
                     let new_vtopline = curwin_mut().w_scbind_pos.get().min(max_vtopline).max(1);
                     let y = new_vtopline - curr_vtopline;
@@ -3507,7 +3507,8 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
                 if want + width2 < n && !has_folding(curwin_mut(), cursor_lnum, None, None) {
                     want += width2;
                 } else {
-                    if curwin_mut().w_cursor.lnum >= curwin_mut().buf_mut().b_ml.ml_line_count {
+                    if curwin_mut().w_cursor.lnum >= curwin_mut().buf_mut().b_ml.ml_line_count.get()
+                    {
                         retval = false;
                         break;
                     }
@@ -3707,8 +3708,8 @@ fn nv_zet(cap: &mut Cmdarg) {
         && cap.count0 != curwin_mut().w_cursor.lnum
     {
         setpcmark();
-        if cap.count0 > curbuf_mut().b_ml.ml_line_count {
-            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        if cap.count0 > curbuf_mut().b_ml.ml_line_count.get() {
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         } else {
             curwin_mut().w_cursor.lnum = cap.count0;
         }
@@ -3722,7 +3723,7 @@ fn nv_zet(cap: &mut Cmdarg) {
                 curwin_mut().w_cursor.lnum = curwin_mut()
                     .w_botline
                     .get()
-                    .min(curbuf_mut().b_ml.ml_line_count);
+                    .min(curbuf_mut().b_ml.ml_line_count.get());
             }
             if nchar != b't' as i32 {
                 beginline(BL_WHITE | BL_FIX);
@@ -3865,7 +3866,13 @@ fn nv_zet(cap: &mut Cmdarg) {
                 clear_folding(curwin_mut());
                 changed_window_setting(curwin_mut());
             } else if foldmethod_is_marker(curwin_mut()) {
-                delete_fold(curwin_mut(), 1, curbuf_mut().b_ml.ml_line_count, 1, false);
+                delete_fold(
+                    curwin_mut(),
+                    1,
+                    curbuf_mut().b_ml.ml_line_count.get(),
+                    1,
+                    false,
+                );
             } else {
                 emsg(tr(c"E352: Cannot erase folds with current 'foldmethod'"));
             }
@@ -4096,7 +4103,7 @@ fn nv_colon(cap: &mut Cmdarg) {
     if !cmd_result {
         clearop(&mut cap.oap);
     } else if cap.oap.op_type != OP_NOP
-        && (cap.oap.start.lnum > curbuf_mut().b_ml.ml_line_count
+        && (cap.oap.start.lnum > curbuf_mut().b_ml.ml_line_count.get()
             || cap.oap.start.col > ml_get_len(cap.oap.start.lnum)
             || g_st().did_emsg.get() != 0)
     {
@@ -4543,7 +4550,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
             validate_botline_win(curwin_mut());
             let half = (curwin_mut().w_view_height.get() - curwin_mut().w_empty_rows.get() + 1) / 2;
             n = 0;
-            while curwin_mut().w_topline.get() + n < curbuf_mut().b_ml.ml_line_count {
+            while curwin_mut().w_topline.get() + n < curbuf_mut().b_ml.ml_line_count.get() {
                 if n > 0
                     && used
                         + win_get_fill(
@@ -4585,7 +4592,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
             }
         }
         curwin_mut().w_cursor.lnum =
-            (curwin_mut().w_topline.get() + n).min(curbuf_mut().b_ml.ml_line_count);
+            (curwin_mut().w_topline.get() + n).min(curbuf_mut().b_ml.ml_line_count.get());
     }
 
     if cap.oap.op_type == OP_NOP {
@@ -4622,7 +4629,7 @@ fn nv_right(cap: &mut Cmdarg) {
                     && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'l' as i32))
                 || (cap.cmdchar == K_RIGHT
                     && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'>' as i32)))
-                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
             {
                 if cap.oap.op_type != OP_NOP
                     && !cap.oap.inclusive
@@ -4745,7 +4752,7 @@ fn nv_down(cap: &mut Cmdarg) {
         qf_view_result(false);
     } else if bt_prompt(Some(crate::globals::curbuf_mut()))
         && cap.cmdchar == CAR
-        && curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count
+        && curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count.get()
     {
         prompt_invoke_callback();
         if g_st().restart_edit.get() == 0 {
@@ -5371,18 +5378,18 @@ fn nv_percent(cap: &mut Cmdarg) {
         } else {
             cap.oap.motion_type = MT_LINE_WISE;
             setpcmark();
-            if curbuf_mut().b_ml.ml_line_count >= 21_474_836 {
+            if curbuf_mut().b_ml.ml_line_count.get() >= 21_474_836 {
                 curwin_mut().w_cursor.lnum =
-                    (curbuf_mut().b_ml.ml_line_count + 99) / 100 * cap.count0;
+                    (curbuf_mut().b_ml.ml_line_count.get() + 99) / 100 * cap.count0;
             } else {
                 curwin_mut().w_cursor.lnum =
-                    (curbuf_mut().b_ml.ml_line_count * cap.count0 + 99) / 100;
+                    (curbuf_mut().b_ml.ml_line_count.get() * cap.count0 + 99) / 100;
             }
             curwin_mut().w_cursor.lnum = curwin_mut()
                 .w_cursor
                 .lnum
                 .max(1)
-                .min(curbuf_mut().b_ml.ml_line_count);
+                .min(curbuf_mut().b_ml.ml_line_count.get());
             beginline(BL_SOL | BL_FIX);
         }
     } else {
@@ -5763,7 +5770,7 @@ fn n_swapchar(cap: &mut Cmdarg) {
         inc_cursor();
         if gchar_cursor() == NUL as i32 {
             if crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'~' as i32)
-                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
             {
                 curwin_mut().w_cursor.lnum += 1;
                 curwin_mut().w_cursor.col = 0;
@@ -6152,7 +6159,7 @@ fn nv_suspend(cap: &mut Cmdarg) {
 
 fn nv_gv_cmd(cap: &mut Cmdarg) {
     if curbuf_mut().b_visual.vi_start.lnum == 0
-        || curbuf_mut().b_visual.vi_start.lnum > curbuf_mut().b_ml.ml_line_count
+        || curbuf_mut().b_visual.vi_start.lnum > curbuf_mut().b_ml.ml_line_count.get()
         || curbuf_mut().b_visual.vi_end.lnum == 0
     {
         beep_flush();
@@ -6952,7 +6959,7 @@ fn nv_select(cap: &mut Cmdarg) {
 
 fn nv_goto(cap: &mut Cmdarg) {
     let mut lnum = if cap.arg != 0 {
-        curbuf_mut().b_ml.ml_line_count
+        curbuf_mut().b_ml.ml_line_count.get()
     } else {
         1
     };
@@ -6962,7 +6969,7 @@ fn nv_goto(cap: &mut Cmdarg) {
     if cap.count0 != 0 {
         lnum = cap.count0;
     }
-    lnum = lnum.max(1).min(curbuf_mut().b_ml.ml_line_count);
+    lnum = lnum.max(1).min(curbuf_mut().b_ml.ml_line_count.get());
     curwin_mut().w_cursor.lnum = lnum;
     beginline(BL_SOL | BL_FIX);
     if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_JUMP) != 0
@@ -7265,12 +7272,12 @@ fn nv_join(cap: &mut Cmdarg) {
 
     cap.count0 = cap.count0.max(2);
 
-    if curwin_mut().w_cursor.lnum + cap.count0 - 1 > curbuf_mut().b_ml.ml_line_count {
+    if curwin_mut().w_cursor.lnum + cap.count0 - 1 > curbuf_mut().b_ml.ml_line_count.get() {
         if cap.count0 <= 2 {
             clearopbeep(&mut cap.oap);
             return;
         }
-        cap.count0 = curbuf_mut().b_ml.ml_line_count - curwin_mut().w_cursor.lnum + 1;
+        cap.count0 = curbuf_mut().b_ml.ml_line_count.get() - curwin_mut().w_cursor.lnum + 1;
     }
 
     prep_redo_cmd(cap);
@@ -7387,7 +7394,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
             nv_operator(cap);
             do_pending_operator(cap, 0, false);
             atom_suppress(false);
-            empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+            empty = (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
             g_st().msg_silent.set(g_st().msg_silent.get() - (1));
 
             cap.oap.regname = regname;
@@ -7431,12 +7438,12 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         }
     }
 
-    if empty && crate::memline::ml_get_slice(curbuf_mut().b_ml.ml_line_count).is_empty() {
-        ml_delete_flags(curbuf_mut().b_ml.ml_line_count, ML_DEL_MESSAGE);
-        deleted_lines(curbuf_mut().b_ml.ml_line_count + 1, 1);
+    if empty && crate::memline::ml_get_slice(curbuf_mut().b_ml.ml_line_count.get()).is_empty() {
+        ml_delete_flags(curbuf_mut().b_ml.ml_line_count.get(), ML_DEL_MESSAGE);
+        deleted_lines(curbuf_mut().b_ml.ml_line_count.get() + 1, 1);
 
-        if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
-            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
             coladvance(curwin_mut(), MAXCOL);
         }
     }

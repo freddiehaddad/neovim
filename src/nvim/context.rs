@@ -947,8 +947,10 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             free_dirs,
         );
 
-        if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count {
-            curwin_mut().w_topline.set(curbuf_mut().b_ml.ml_line_count);
+        if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count.get() {
+            curwin_mut()
+                .w_topline
+                .set(curbuf_mut().b_ml.ml_line_count.get());
             curwin_mut().w_topfill.set(0);
         }
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {

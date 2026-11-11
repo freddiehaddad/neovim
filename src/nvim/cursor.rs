@@ -345,7 +345,7 @@ pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
 pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
-    pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
+    pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count.get());
     if pos.col > 0 {
         pos.col = pos.col.min(ml_get_buf_len(buf, pos.lnum));
     }
@@ -353,7 +353,7 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
 pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
-    let line_count = win.buf_mut().b_ml.ml_line_count;
+    let line_count = win.buf_mut().b_ml.ml_line_count.get();
     let mut cursor_lnum = win.w_cursor.lnum;
     if cursor_lnum > line_count && !has_folding(win, line_count, Some(&mut cursor_lnum), None) {
         cursor_lnum = line_count;
@@ -416,8 +416,8 @@ pub fn check_cursor(wp: &mut WinInfoInfo) {
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
-    if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count {
-        g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count;
+    if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+        g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count.get();
         g_st().visual_global.start.col = 0;
         g_st().visual_global.start.coladd = 0;
     } else {

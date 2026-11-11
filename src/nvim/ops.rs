@@ -798,9 +798,9 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
 /// Handle a delete operation.
 pub fn op_delete(oap: &mut Oparg) -> bool {
     let mut bd = BlockDef::new();
-    let old_lcount = curbuf_mut().b_ml.ml_line_count;
+    let old_lcount = curbuf_mut().b_ml.ml_line_count.get();
 
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         return true;
     }
 
@@ -1091,7 +1091,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
             }
         }
 
-        msgmore(curbuf_mut().b_ml.ml_line_count - old_lcount);
+        msgmore(curbuf_mut().b_ml.ml_line_count.get() - old_lcount);
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -1155,7 +1155,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
     let mut after_p: Vec<u8> = Vec::new();
     let mut had_ctrl_v_cr = false;
 
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 || oap.empty {
         return true;
     }
     if c == REPLACE_CR_NCHAR {
@@ -1729,7 +1729,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
         g_st().ins_global.can_si = may_do_si();
     }
 
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         if !u_save_cursor() {
             return 0;
         }
@@ -3030,7 +3030,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
     let l_visual_active = g_st().visual_global.active;
     let l_visual_mode = g_st().visual_global.mode;
 
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         if dict.is_none() {
             msg(tr(NO_LINES_MSG), 0);
             return;
@@ -3083,7 +3083,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             line_count_selected = max_pos.lnum - min_pos.lnum + 1;
         }
 
-        for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
+        for lnum in 1..=curbuf_mut().b_ml.ml_line_count.get() {
             if byte_count > last_check {
                 os_breakcheck();
                 if g_st().got_int.get() {
@@ -3127,7 +3127,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         Varnumber::from(len),
                         eol_size,
                     );
-                    if lnum == curbuf_mut().b_ml.ml_line_count
+                    if lnum == curbuf_mut().b_ml.ml_line_count.get()
                         && !curbuf_mut().b_p_eol.get()
                         && (curbuf_mut().b_p_bin.get() || !curbuf_mut().b_p_fixeol.get())
                         && (s_bytes.len() as i32) < len
@@ -3193,7 +3193,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         ),
                         buf1_cstr,
                         i64::from(line_count_selected),
-                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        i64::from(curbuf_mut().b_ml.ml_line_count.get()),
                         word_count_cursor as i64,
                         word_count as i64,
                         byte_count_cursor as i64,
@@ -3207,7 +3207,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         ),
                         buf1_cstr,
                         i64::from(line_count_selected),
-                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        i64::from(curbuf_mut().b_ml.ml_line_count.get()),
                         word_count_cursor as i64,
                         word_count as i64,
                         char_count_cursor as i64,
@@ -3240,7 +3240,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         buf1_cstr,
                         buf2_cstr,
                         i64::from(curwin_mut().w_cursor.lnum),
-                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        i64::from(curbuf_mut().b_ml.ml_line_count.get()),
                         word_count_cursor as i64,
                         word_count as i64,
                         byte_count_cursor as i64,
@@ -3255,7 +3255,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         buf1_cstr,
                         buf2_cstr,
                         i64::from(curwin_mut().w_cursor.lnum),
-                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        i64::from(curbuf_mut().b_ml.ml_line_count.get()),
                         word_count_cursor as i64,
                         word_count as i64,
                         char_count_cursor as i64,
@@ -3343,7 +3343,7 @@ fn op_colon(oap: &mut Oparg) {
             stuffchar_readbuff(b',' as i32);
             if oap.end.lnum == curwin_mut().w_cursor.lnum {
                 stuffchar_readbuff(b'.' as i32);
-            } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count {
+            } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count.get() {
                 stuffchar_readbuff(b'$' as i32);
             } else if oap.start.lnum == curwin_mut().w_cursor.lnum
                 && !has_folding(curwin_mut(), oap.end.lnum, None, None)
@@ -3701,7 +3701,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     oap.inclusive = false;
                     if opt_vars().p_sel.first_byte() != b'o'
                         && op_on_lines(oap.op_type) == 0
-                        && oap.end.lnum < curbuf_mut().b_ml.ml_line_count
+                        && oap.end.lnum < curbuf_mut().b_ml.ml_line_count.get()
                     {
                         oap.end.lnum += 1;
                         oap.end.col = 0;
@@ -3782,7 +3782,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
             OP_JOIN_NS | OP_JOIN => {
                 oap.line_count = oap.line_count.max(2);
-                if curwin_mut().w_cursor.lnum + oap.line_count - 1 > curbuf_mut().b_ml.ml_line_count
+                if curwin_mut().w_cursor.lnum + oap.line_count - 1
+                    > curbuf_mut().b_ml.ml_line_count.get()
                 {
                     beep_flush();
                 } else {
@@ -4040,7 +4041,7 @@ pub fn get_region_bytecount(
     start_col: Colnr,
     end_col: Colnr,
 ) -> Bcount {
-    let max_lnum = buf.b_ml.ml_line_count;
+    let max_lnum = buf.b_ml.ml_line_count.get();
     if start_lnum > max_lnum {
         return 0;
     }

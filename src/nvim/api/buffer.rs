@@ -146,7 +146,7 @@ pub fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
     if b.b_ml.ml_mfp.is_none() {
         return 0;
     }
-    i64::from(b.b_ml.ml_line_count)
+    i64::from(b.b_ml.ml_line_count.get())
 }
 
 /// Activates |api-buffer-updates| events on a channel, or as Lua callbacks.
@@ -1081,7 +1081,7 @@ pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Inte
         return -1;
     }
 
-    if index < 0 || index > i64::from(b.b_ml.ml_line_count) {
+    if index < 0 || index > i64::from(b.b_ml.ml_line_count.get()) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -1581,7 +1581,7 @@ pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
     put_c(
         &mut rv,
         c"line_dirty",
-        boolean_obj((b.b_ml.ml_flags & ML_LINE_DIRTY) != 0),
+        boolean_obj((b.b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0),
     );
     put_c(
         &mut rv,

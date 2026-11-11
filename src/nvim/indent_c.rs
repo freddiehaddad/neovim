@@ -807,7 +807,7 @@ fn cin_isfuncdecl(sp: Option<&mut &'static [u8]>, first_lnum: Linenr, min_lnum: 
             if (s[0] == b',' && cin_nocode_slice(&s[1..])) || s.len() == 1 || cin_nocode_slice(s) {
                 let comma = s[0] == b',';
                 loop {
-                    if lnum >= curbuf_mut().b_ml.ml_line_count {
+                    if lnum >= curbuf_mut().b_ml.ml_line_count.get() {
                         break;
                     }
                     lnum += 1;
@@ -816,7 +816,7 @@ fn cin_isfuncdecl(sp: Option<&mut &'static [u8]>, first_lnum: Linenr, min_lnum: 
                         break;
                     }
                 }
-                if lnum >= curbuf_mut().b_ml.ml_line_count {
+                if lnum >= curbuf_mut().b_ml.ml_line_count.get() {
                     break;
                 }
                 s = crate::charset::skipwhite_slice(s);
@@ -2543,7 +2543,7 @@ pub fn get_c_indent() -> i32 {
                 amount = curbuf_mut().b_ind_first_open.get();
                 break 'theend;
             }
-            if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
+            if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count.get()
                 && !cin_nocode_slice(theline_slice)
                 && !theline_slice.contains(&b'{')
                 && !theline_slice.contains(&b'}')
@@ -2962,7 +2962,7 @@ pub fn do_c_expr_indent() {
 pub fn f_cindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let pos = curwin_mut().w_cursor;
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
+    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         curwin_mut().w_cursor.lnum = lnum;
         rettv.vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
         curwin_mut().w_cursor = pos;

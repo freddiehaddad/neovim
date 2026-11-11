@@ -729,8 +729,8 @@ pub fn normalize_index(
     end_exclusive: bool,
     oob: &mut bool,
 ) -> i64 {
-    debug_assert!(buf.b_ml.ml_line_count > 0);
-    let max_index = i64::from(buf.b_ml.ml_line_count) + i64::from(end_exclusive) - 1;
+    debug_assert!(buf.b_ml.ml_line_count.get() > 0);
+    let max_index = i64::from(buf.b_ml.ml_line_count.get()) + i64::from(end_exclusive) - 1;
     if index < 0 {
         index = max_index + index + 1;
     }
@@ -1330,7 +1330,7 @@ pub fn set_mark(
             );
             return false;
         }
-        if line < 1 || line > i64::from(buf.b_ml.ml_line_count) {
+        if line < 1 || line > i64::from(buf.b_ml.ml_line_count.get()) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,

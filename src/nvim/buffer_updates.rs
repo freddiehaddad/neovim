@@ -62,7 +62,7 @@ pub fn buf_updates_register(
     buf.update_channels.push(channel_id);
 
     if send_buffer {
-        let line_count = buf.b_ml.ml_line_count as usize;
+        let line_count = buf.b_ml.ml_line_count.get() as usize;
         let mut linedata = Array::new();
         let mut arena = ARENA_EMPTY;
         if line_count > 0 {

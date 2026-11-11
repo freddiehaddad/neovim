@@ -482,8 +482,8 @@ fn init_incsearch_state(s: &mut IncsearchState) {
 fn set_search_match(t: &mut CursorPos) {
     t.lnum += g_st().search_global.match_lines.get();
     t.col = g_st().search_global.match_endcol.get();
-    if t.lnum > curbuf_mut().b_ml.ml_line_count {
-        t.lnum = curbuf_mut().b_ml.ml_line_count;
+    if t.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+        t.lnum = curbuf_mut().b_ml.ml_line_count.get();
         curwin_mut().w_cursor = *t;
         coladvance(curwin_mut(), MAXCOL);
         *t = curwin_mut().w_cursor;
@@ -735,9 +735,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     if g_st().search_global.first_line.get() == 0 {
         // start at the original cursor position
         curwin_mut().w_cursor = s.search_start;
-    } else if g_st().search_global.first_line.get() > curbuf_mut().b_ml.ml_line_count {
+    } else if g_st().search_global.first_line.get() > curbuf_mut().b_ml.ml_line_count.get() {
         // start after the last line
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         curwin_mut().w_cursor.col = MAXCOL;
     } else {
         // start at the first line in the range

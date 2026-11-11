@@ -992,7 +992,7 @@ pub fn get_highest_fnum() -> i32 {
 fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
     let silent = shortmess(K_SHM_FILEINFO);
 
-    let mut line_count = curbuf_mut().b_ml.ml_line_count;
+    let mut line_count = curbuf_mut().b_ml.ml_line_count.get();
     let mut retval = readfile(
         (!read_stdin).then(|| curbuf_mut().ffname_opt()).flatten(),
         (!read_stdin).then(|| curbuf_mut().fname_opt()).flatten(),
@@ -1009,7 +1009,7 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
             ml_delete(1);
         }
     } else {
-        while curbuf_mut().b_ml.ml_line_count > line_count {
+        while curbuf_mut().b_ml.ml_line_count.get() > line_count {
             ml_delete(line_count);
         }
     }
@@ -1596,7 +1596,7 @@ pub fn close_buffer(
 
 /// Make buffer not contain a file.
 pub fn buf_clear_file(buf: &mut FileBuf) {
-    buf.b_ml.ml_line_count = 1;
+    buf.b_ml.ml_line_count.set(1);
     unchanged(&mut *buf, true, true);
     buf.b_p_eof.set(false);
     buf.b_start_eof.set(false);
@@ -1605,15 +1605,15 @@ pub fn buf_clear_file(buf: &mut FileBuf) {
     buf.b_p_bomb.set(false);
     buf.b_start_bomb.set(false);
     buf.b_ml.ml_mfp = None;
-    buf.b_ml.ml_flags = ML_EMPTY;
+    buf.b_ml.ml_flags.set(ML_EMPTY);
 }
 
 /// Clears the current buffer contents.
 pub fn buf_clear() {
-    let line_count = curbuf_mut().b_ml.ml_line_count;
+    let line_count = curbuf_mut().b_ml.ml_line_count.get();
     extmark_free_all(curbuf_mut());
     mc_buf_free(curbuf_mut());
-    while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
+    while (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) == 0 {
         ml_delete(1);
     }
     deleted_lines_mark(1, line_count);
@@ -1709,9 +1709,9 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         unblock_autocmds();
     }
 
-    let count = buf.b_ml.ml_line_count;
+    let count = buf.b_ml.ml_line_count.get();
     ml_close(buf, 1);
-    buf.b_ml.ml_line_count = 0;
+    buf.b_ml.ml_line_count.set(0);
     mc_buf_clear(buf);
 
     if bt_nofilename(Some(&*buf)) && !g_st().exiting.get() {
@@ -4134,9 +4134,9 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         sep_str,
     );
 
-    let line_count = i64::from(curbuf_mut().b_ml.ml_line_count);
+    let line_count = i64::from(curbuf_mut().b_ml.ml_line_count.get());
     let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         bufferlen +=
             format_to_buf_safelen!(&mut buffer_vec[bufferlen..], c"%s", gettext(NO_LINES_MSG));
     } else if opt_vars().p_ru.get() {
@@ -4360,7 +4360,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     if wp.w_topline.get() == 1 && wp.w_topfill.get() >= 1 {
         above = 0;
     }
-    let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline.get() + 1;
+    let below = wp.buf_mut().b_ml.ml_line_count.get() - wp.w_botline.get() + 1;
     if below <= 0 {
         return format_to_buf_safelen!(
             buf,
@@ -4662,18 +4662,21 @@ pub fn do_modelines(flags: i32) {
 
     BUF_STATE.with(|s| s.modelines_entered.set(s.modelines_entered.get() + (1)));
     let mut lnum = 1;
-    while curbuf_mut().b_p_ml.get() && lnum <= curbuf_mut().b_ml.ml_line_count && lnum <= nmlines {
+    while curbuf_mut().b_p_ml.get()
+        && lnum <= curbuf_mut().b_ml.ml_line_count.get()
+        && lnum <= nmlines
+    {
         if !chk_modeline(lnum, flags) {
             nmlines = 0;
         }
         lnum += 1;
     }
 
-    lnum = curbuf_mut().b_ml.ml_line_count;
+    lnum = curbuf_mut().b_ml.ml_line_count.get();
     while curbuf_mut().b_p_ml.get()
         && lnum > 0
         && lnum > nmlines
-        && lnum > curbuf_mut().b_ml.ml_line_count - nmlines
+        && lnum > curbuf_mut().b_ml.ml_line_count.get() - nmlines
     {
         if !chk_modeline(lnum, flags) {
             nmlines = 0;
@@ -4959,10 +4962,10 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
             READ_NEW | READ_DUMMY,
             false,
         ) == Some(true)
-        && buf.b_ml.ml_line_count == curbuf_mut().b_ml.ml_line_count
+        && buf.b_ml.ml_line_count.get() == curbuf_mut().b_ml.ml_line_count.get()
     {
         differ = false;
-        for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
+        for lnum in 1..=curbuf_mut().b_ml.ml_line_count.get() {
             if ml_get_buf_slice(buf, lnum) != crate::memline::ml_get_slice(lnum) {
                 differ = true;
                 break;
@@ -4995,7 +4998,7 @@ pub fn wipe_buffer(buf: &mut FileBuf, aucmd: bool) {
 }
 
 pub fn buf_is_empty(buf: &mut FileBuf) -> bool {
-    buf.b_ml.ml_line_count == 1 && ml_get_buf_slice(buf, 1).is_empty()
+    buf.b_ml.ml_line_count.get() == 1 && ml_get_buf_slice(buf, 1).is_empty()
 }
 
 /// Increment `b:changedtick` value.
@@ -5038,7 +5041,7 @@ pub fn read_buffer_into(
 ) {
     debug_assert!(buf.is_some());
 
-    if (buf.as_deref_mut().unwrap().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (buf.as_deref_mut().unwrap().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         return;
     }
 
@@ -5066,7 +5069,7 @@ pub fn read_buffer_into(
             if lnum != end
                 || (!b.b_p_bin.get() && b.b_p_fixeol.get())
                 || (lnum != b.b_no_eol_lnum.get()
-                    && (lnum != b.b_ml.ml_line_count || b.b_p_eol.get()))
+                    && (lnum != b.b_ml.ml_line_count.get() || b.b_p_eol.get()))
             {
                 sb.push(b'\n');
             }

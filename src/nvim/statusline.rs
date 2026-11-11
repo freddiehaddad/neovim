@@ -863,7 +863,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
+    if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
         return;
     }
 
@@ -1599,8 +1599,8 @@ pub fn build_stl_str_hl_slice(
     }
 
     let mut lnum = wp.w_cursor.lnum;
-    if lnum > (*wp).buf_mut().b_ml.ml_line_count {
-        lnum = (*wp).buf_mut().b_ml.ml_line_count;
+    if lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
+        lnum = (*wp).buf_mut().b_ml.ml_line_count.get();
         wp.w_cursor.lnum = lnum;
     }
 
@@ -2145,7 +2145,7 @@ pub fn build_stl_str_hl_slice(
                         }
                     }
                 } else if stcp.is_none() {
-                    num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+                    num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                         0
                     } else {
                         wp.w_cursor.lnum
@@ -2153,7 +2153,7 @@ pub fn build_stl_str_hl_slice(
                 }
             }
             STL_NUMLINES => {
-                num = (*wp).buf_mut().b_ml.ml_line_count;
+                num = (*wp).buf_mut().b_ml.ml_line_count.get();
             }
             STL_COLUMN => {
                 num = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
@@ -2176,7 +2176,7 @@ pub fn build_stl_str_hl_slice(
             STL_PERCENTAGE => {
                 num = calc_percentage(
                     i64::from(wp.w_cursor.lnum),
-                    i64::from((*wp).buf_mut().b_ml.ml_line_count),
+                    i64::from((*wp).buf_mut().b_ml.ml_line_count.get()),
                 );
             }
             STL_ALTPERCENT => {
@@ -2215,7 +2215,7 @@ pub fn build_stl_str_hl_slice(
                     base = NumberBase::NumBaseHexadecimal;
                 }
                 let l = ml_find_line_or_offset((*wp).buf_mut(), wp.w_cursor.lnum, None, false);
-                num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || l < 0 {
+                num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 || l < 0 {
                     0
                 } else {
                     l + 1

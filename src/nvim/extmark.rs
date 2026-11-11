@@ -394,7 +394,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
         buf_signcols_count_range(
             &mut *buf,
             row1,
-            (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
+            (curbuf_mut().b_ml.ml_line_count.get() - 1).min(row2),
             0,
             K_TRUE,
         );
@@ -416,7 +416,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: i32, col: Colnr, revive: bo
         buf_signcols_count_range(
             &mut *buf,
             row1,
-            (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
+            (curbuf_mut().b_ml.ml_line_count.get() - 1).min(row2),
             0,
             K_NONE,
         );
@@ -965,7 +965,7 @@ pub fn extmark_splice_impl(
         let count = if buf.b_prev_line_count.get() > 0 {
             buf.b_prev_line_count.get()
         } else {
-            buf.b_ml.ml_line_count
+            buf.b_ml.ml_line_count.get()
         };
         buf_signcols_count_range(
             &mut *buf,
@@ -988,7 +988,7 @@ pub fn extmark_splice_impl(
     );
 
     if old_row > 0 || new_row > 0 {
-        let row2 = (buf.b_ml.ml_line_count - 1).min(start_row + new_row);
+        let row2 = (buf.b_ml.ml_line_count.get() - 1).min(start_row + new_row);
         buf_signcols_count_range(&mut *buf, start_row, row2, 0, K_NONE);
     }
 

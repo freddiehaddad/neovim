@@ -1338,7 +1338,7 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
         });
     }
     wp.w_config.anchor = 0;
-    let count = wp.buf_mut().b_ml.ml_line_count;
+    let count = wp.buf_mut().b_ml.ml_line_count.get();
     wp.w_view_width.set(wp.w_config.width);
     wp.w_config.height = plines_m_win(wp, wp.w_topline.get(), count, g_st().rows_global.get());
     wp.w_config.row = f64::from(PUM.with(|s| s.row.get()));
@@ -1550,8 +1550,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     curbuf_mut().b_p_ma.set(false);
                     if PUM.with(|s| s.selected.get()) != prev_selected {
                         curwin_mut().w_topline.set(1);
-                    } else if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count {
-                        curwin_mut().w_topline.set(curbuf_mut().b_ml.ml_line_count);
+                    } else if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count.get() {
+                        curwin_mut()
+                            .w_topline
+                            .set(curbuf_mut().b_ml.ml_line_count.get());
                     }
                     curwin_mut().w_cursor.lnum = 1;
                     curwin_mut().w_cursor.col = 0;

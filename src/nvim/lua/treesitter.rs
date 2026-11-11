@@ -414,7 +414,7 @@ extern "C-unwind" fn parser_tostring(lstate: *mut lua_State) -> i32 {
 }
 
 fn input_cb(bp: &mut FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32 {
-    if (position.row as Linenr) >= bp.b_ml.ml_line_count {
+    if (position.row as Linenr) >= bp.b_ml.ml_line_count.get() {
         return 0;
     }
     let lnum = (position.row as Linenr) + 1;
@@ -434,7 +434,7 @@ fn input_cb(bp: &mut FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32
     }
     let mut bytes_read = tocopy as u32;
     if tocopy < BUFSIZE
-        && (lnum != bp.b_ml.ml_line_count
+        && (lnum != bp.b_ml.ml_line_count.get()
             || (!bp.b_p_bin.get() && bp.b_p_fixeol.get())
             || (lnum != bp.b_no_eol_lnum.get() && bp.b_p_eol.get()))
     {

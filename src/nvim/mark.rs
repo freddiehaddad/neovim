@@ -932,7 +932,7 @@ pub fn mark_check_line_bounds(
     errormsg: &mut Option<std::borrow::Cow<'static, CStr>>,
 ) -> bool {
     if let Some(buf) = buf
-        && fm.mark.lnum > buf.b_ml.ml_line_count
+        && fm.mark.lnum > buf.b_ml.ml_line_count.get()
     {
         *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_MARKINVAL)));
         return false;
@@ -967,7 +967,7 @@ pub fn fm_getname(fmark: &mut Fmark, lead_len: i32) -> Option<std::ffi::CString>
 
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
 fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
-    if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
+    if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count.get() {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global.get() >= 0);
@@ -1399,7 +1399,7 @@ pub fn mark_adjust_buf(
         );
 
         if !equalpos(buf.b_last_cursor.mark, INITPOS)
-            && (!by_term || buf.b_last_cursor.mark.lnum < buf.b_ml.ml_line_count)
+            && (!by_term || buf.b_last_cursor.mark.lnum < buf.b_ml.ml_line_count.get())
         {
             one_adjust(
                 &mut buf.b_last_cursor.mark.lnum,
@@ -1542,7 +1542,7 @@ pub fn mark_adjust_buf(
 
                 if by_api
                     || (if by_term {
-                        win.w_cursor.lnum < buf.b_ml.ml_line_count
+                        win.w_cursor.lnum < buf.b_ml.ml_line_count.get()
                     } else {
                         win != curwin_ptr()
                     })
@@ -1565,7 +1565,7 @@ pub fn mark_adjust_buf(
                 }
                 if !by_api
                     && (if by_term {
-                        win.w_cursor.lnum < buf.b_ml.ml_line_count
+                        win.w_cursor.lnum < buf.b_ml.ml_line_count.get()
                     } else {
                         win != curwin_ptr()
                     })
@@ -1583,7 +1583,7 @@ pub fn mark_adjust_buf(
     diff_mark_adjust(buf, line1, line2, amount, amount_after);
 
     for wip in &mut buf.b_wininfo {
-        if !by_term || wip.wi_mark.mark.lnum < buf.b_ml.ml_line_count {
+        if !by_term || wip.wi_mark.mark.lnum < buf.b_ml.ml_line_count.get() {
             one_adjust_cursor(&mut wip.wi_mark.mark, line1, line2, amount, amount_after);
         }
     }

@@ -1642,7 +1642,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 row += f64::from(row_off);
                 col += f64::from(col_off);
                 if c.bufpos.lnum >= 0 {
-                    let lnum = (c.bufpos.lnum + 1).min(win.buf_mut().b_ml.ml_line_count);
+                    let lnum = (c.bufpos.lnum + 1).min(win.buf_mut().b_ml.ml_line_count.get());
                     let mut pos = CursorPos {
                         lnum,
                         col: c.bufpos.col,
@@ -1754,7 +1754,7 @@ pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
         && wp.w_viewport_invalid.get()
         && wp.w_redr_type.get() == 0
     {
-        let line_count = wp.buf_mut().b_ml.ml_line_count;
+        let line_count = wp.buf_mut().b_ml.ml_line_count.get();
         let cur_topline = wp.w_topline.get().min(line_count);
         let cur_botline = wp.w_botline.get().min(line_count);
         let mut delta: i64 = 0;
@@ -7273,7 +7273,7 @@ pub fn win_fix_scroll(resize: bool) {
 
             if opt_vars().p_spk.first_byte() == b's'
                 && wp.w_winrow.get() != wp.w_prev_winrow.get()
-                && wp.w_botline.get() - 1 <= (*wp).buf_mut().b_ml.ml_line_count
+                && wp.w_botline.get() - 1 <= (*wp).buf_mut().b_ml.ml_line_count.get()
             {
                 let diff = (wp.w_winrow.get() - wp.w_prev_winrow.get())
                     + (wp.w_height.get() - wp.w_prev_height.get());
@@ -7312,7 +7312,8 @@ fn win_fix_cursor(normal: bool) {
     let wp = curwin_mut();
     let wp = &mut *wp;
 
-    if !wp.w_do_win_fix_cursor.get() || (*wp).buf_mut().b_ml.ml_line_count < wp.w_view_height.get()
+    if !wp.w_do_win_fix_cursor.get()
+        || (*wp).buf_mut().b_ml.ml_line_count.get() < wp.w_view_height.get()
     {
         return;
     }
@@ -7331,7 +7332,7 @@ fn win_fix_cursor(normal: bool) {
 
     wp.w_cursor.lnum = lnum;
     let mut nlnum: Linenr = 0;
-    if lnum > bot && (wp.w_botline.get() - (*wp).buf_mut().b_ml.ml_line_count) != 1 {
+    if lnum > bot && (wp.w_botline.get() - (*wp).buf_mut().b_ml.ml_line_count.get()) != 1 {
         nlnum = bot;
     } else if lnum < top && wp.w_topline.get() != 1 {
         nlnum = if so == wp.w_view_height.get() / 2 {
@@ -7370,7 +7371,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
 
     if height > 0
         && (!wp.w_onebuf_opt.wo_scb.get() || wp == curwin_ptr())
-        && (height < wp.buf_mut().b_ml.ml_line_count || wp.w_topline.get() > 1)
+        && (height < wp.buf_mut().b_ml.ml_line_count.get() || wp.w_topline.get() > 1)
     {
         let mut lnum = wp.w_cursor.lnum.max(1);
         wp.w_wrow
@@ -7908,17 +7909,17 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
                     wp.w_save_cursor.w_topline_save = wp.w_topline.get();
                 }
 
-                let mut need_adjust = wp.w_cursor.lnum > curbuf_mut().b_ml.ml_line_count;
+                let mut need_adjust = wp.w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get();
                 if need_adjust {
-                    wp.w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+                    wp.w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
                 }
                 if need_adjust || !nested {
                     wp.w_save_cursor.w_cursor_corr = wp.w_cursor;
                 }
 
-                need_adjust = wp.w_topline.get() > curbuf_mut().b_ml.ml_line_count;
+                need_adjust = wp.w_topline.get() > curbuf_mut().b_ml.ml_line_count.get();
                 if need_adjust {
-                    wp.w_topline.set(curbuf_mut().b_ml.ml_line_count);
+                    wp.w_topline.set(curbuf_mut().b_ml.ml_line_count.get());
                 }
                 if need_adjust || !nested {
                     wp.w_save_cursor.w_topline_corr = wp.w_topline.get();
@@ -7954,7 +7955,7 @@ pub fn reset_lnums() {
                 {
                     wp.w_topline.set(wp.w_save_cursor.w_topline_save);
                 }
-                if wp.w_save_cursor.w_topline_save > wp.buf_mut().b_ml.ml_line_count {
+                if wp.w_save_cursor.w_topline_save > wp.buf_mut().b_ml.ml_line_count.get() {
                     wp.w_valid.set(wp.w_valid.get() & (!VALID_TOPLINE));
                 }
             }

@@ -68,11 +68,11 @@ use std::ptr;
 
 #[repr(C)]
 pub struct Memline {
-    pub ml_line_count: i32,
+    pub ml_line_count: std::cell::Cell<i32>,
     pub ml_mfp: Option<Box<crate::memfile::Memfile>>,
     pub ml_stack: Vec<Infoptr>,
     pub ml_stack_top: i32,
-    pub ml_flags: i32,
+    pub ml_flags: std::cell::Cell<i32>,
     pub ml_line_textlen: i32,
     pub ml_line_lnum: i32,
     pub ml_line_start: usize,
@@ -90,11 +90,11 @@ pub struct Memline {
 impl Memline {
     pub const fn new() -> Self {
         Self {
-            ml_line_count: 0,
+            ml_line_count: std::cell::Cell::new(0),
             ml_mfp: None,
             ml_stack: Vec::new(),
             ml_stack_top: 0,
-            ml_flags: 0,
+            ml_flags: std::cell::Cell::new(0),
             ml_line_textlen: 0,
             ml_line_lnum: 0,
             ml_line_start: 0,
@@ -125,7 +125,7 @@ impl Memline {
     #[inline(always)]
     pub fn current_line_slice(&self) -> &[u8] {
         let len = self.ml_line_textlen.max(0) as usize;
-        if (self.ml_flags & ML_LINE_DIRTY) != 0 {
+        if (self.ml_flags.get() & ML_LINE_DIRTY) != 0 {
             let s = self.ml_line_buf.as_slice();
             &s[..len.min(s.len())]
         } else if self.ml_line_start == usize::MAX {
@@ -623,8 +623,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     if buf.b_ml.mfp_ref().is_none() {
         return false;
     }
-    buf.b_ml.ml_flags = ML_EMPTY;
-    buf.b_ml.ml_line_count = 1;
+    buf.b_ml.ml_flags.set(ML_EMPTY);
+    buf.b_ml.ml_line_count.set(1);
 
     let mut hp = mf_new(buf.b_ml.mfp_mut(), false, 1);
     if buf.b_ml.mfp_ref().unwrap().bhdr(hp).bh_bnum != 0 {
@@ -1291,7 +1291,7 @@ pub fn ml_recover(checkext: bool) {
     mf_put(buf.b_ml.mfp_mut(), hp_b0, false, false);
     hp = None;
 
-    while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
+    while (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) == 0 {
         ml_delete(1);
     }
 
@@ -1597,8 +1597,8 @@ pub fn ml_recover(checkext: bool) {
         line_breakcheck();
     }
 
-    if orig_file_status != Some(true) || curbuf_mut().b_ml.ml_line_count != lnum * 2 + 1 {
-        if !(curbuf_mut().b_ml.ml_line_count == 2 && ml_get_slice(1).is_empty()) {
+    if orig_file_status != Some(true) || curbuf_mut().b_ml.ml_line_count.get() != lnum * 2 + 1 {
+        if !(curbuf_mut().b_ml.ml_line_count.get() == 2 && ml_get_slice(1).is_empty()) {
             changed_internal(curbuf_mut());
             buf_inc_changedtick(curbuf_mut());
         }
@@ -1613,8 +1613,10 @@ pub fn ml_recover(checkext: bool) {
         }
     }
 
-    while curbuf_mut().b_ml.ml_line_count > lnum && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
-        ml_delete(curbuf_mut().b_ml.ml_line_count);
+    while curbuf_mut().b_ml.ml_line_count.get() > lnum
+        && (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) == 0
+    {
+        ml_delete(curbuf_mut().b_ml.ml_line_count.get());
     }
     curbuf_mut()
         .b_flags
@@ -2120,7 +2122,8 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
 
     if buf.b_ml.mfp_ref().is_some_and(mf_need_trans) && !g_st().got_int.get() {
         let mut lnum: Linenr = 1;
-        while buf.b_ml.mfp_ref().is_some_and(mf_need_trans) && lnum <= buf.b_ml.ml_line_count {
+        while buf.b_ml.mfp_ref().is_some_and(mf_need_trans) && lnum <= buf.b_ml.ml_line_count.get()
+        {
             if ml_find_line(buf, lnum, ML_FIND).is_none() {
                 status = false;
                 break;
@@ -2188,7 +2191,7 @@ pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &mut [u8] {
     }
     assert!(buf.b_ml.ml_line_textlen > 0);
     let len = (buf.b_ml.ml_line_textlen - 1) as usize;
-    if (buf.b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
+    if (buf.b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0 {
         let s = buf.b_ml.ml_line_buf.as_mut_slice();
         let slen = s.len();
         &mut s[..len.min(slen)]
@@ -2265,7 +2268,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
         return c"";
     }
 
-    if lnum > buf.b_ml.ml_line_count {
+    if lnum > buf.b_ml.ml_line_count.get() {
         if ml_st(|st| {
             let r = st.ml_get_recursive.get();
             if r == 0 {
@@ -2317,10 +2320,14 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
         buf.b_ml.ml_line_start = start as usize;
         buf.b_ml.ml_line_textlen = len as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
-        buf.b_ml.ml_flags &= !(ML_LINE_DIRTY | ML_LINE_INPLACE);
+        buf.b_ml
+            .ml_flags
+            .set(buf.b_ml.ml_flags.get() & (!(ML_LINE_DIRTY | ML_LINE_INPLACE)));
     }
     if will_change {
-        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE;
+        buf.b_ml
+            .ml_flags
+            .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE));
         let deleted_len = crate::memory::bytes_until_nul(buf.b_ml.current_line_slice()).len();
         if g_st().inhibit_delete_count.get() == 0 {
             buf.deleted_bytes
@@ -2340,7 +2347,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &C
                 buf.deleted_codeunits.set(cu + 1);
             }
         }
-    } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0
+    } else if (buf.b_ml.ml_flags.get() & ML_LINE_INPLACE) == 0
         && buf.b_ml.current_line_slice().last() == Some(&0)
     {
         return crate::memory::cstr_from_bytes_with_nul(buf.b_ml.current_line_slice());
@@ -2358,13 +2365,13 @@ fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
 pub fn ml_line_alloced() -> i32 {
-    curbuf_mut().b_ml.ml_flags & ML_LINE_DIRTY
+    curbuf_mut().b_ml.ml_flags.get() & ML_LINE_DIRTY
 }
 
 fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, flags: i32) -> bool {
     let mut len = len_arg;
 
-    if lnum > buf.b_ml.ml_line_count || buf.b_ml.ml_mfp.is_none() {
+    if lnum > buf.b_ml.ml_line_count.get() || buf.b_ml.ml_mfp.is_none() {
         return false;
     }
 
@@ -2385,7 +2392,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         return false;
     };
 
-    buf.b_ml.ml_flags &= !ML_EMPTY;
+    buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() & (!ML_EMPTY));
 
     let mut db_idx: i32 = if lnum == 0 {
         -1
@@ -2396,7 +2403,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 
     if i64::from(buf.b_ml.mfp_ref().unwrap().bhdr(hp).db_free()) < space_needed
         && db_idx == line_count - 1
-        && lnum < buf.b_ml.ml_line_count
+        && lnum < buf.b_ml.ml_line_count.get()
     {
         buf.b_ml.ml_locked_lineadd -= 1;
         buf.b_ml.ml_locked_high -= 1;
@@ -2410,9 +2417,11 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
     }
 
     if buf.b_prev_line_count.get() == 0 {
-        buf.b_prev_line_count.set(buf.b_ml.ml_line_count);
+        buf.b_prev_line_count.set(buf.b_ml.ml_line_count.get());
     }
-    buf.b_ml.ml_line_count += 1;
+    buf.b_ml
+        .ml_line_count
+        .set(buf.b_ml.ml_line_count.get() + (1));
 
     if i64::from(buf.b_ml.mfp_ref().unwrap().bhdr(hp).db_free()) >= space_needed {
         let hp_ref = buf.b_ml.mfp_mut().bhdr_mut(hp);
@@ -2452,9 +2461,13 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             hp_ref.set_db_idx((db_idx + 1) as usize, cur | DB_MARKED);
         }
 
-        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
+        buf.b_ml
+            .ml_flags
+            .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_DIRTY));
         if (flags & ML_APPEND_NEW) == 0 {
-            buf.b_ml.ml_flags |= ML_LOCKED_POS;
+            buf.b_ml
+                .ml_flags
+                .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_POS));
         }
     } else {
         let mut data_moved: i32 = 0;
@@ -2607,10 +2620,14 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             .set_db_line_count(i64::from(line_count_right));
 
         if lines_moved != 0 || in_left {
-            buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
+            buf.b_ml
+                .ml_flags
+                .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_DIRTY));
         }
         if (flags & ML_APPEND_NEW) == 0 && db_idx >= 0 && in_left {
-            buf.b_ml.ml_flags |= ML_LOCKED_POS;
+            buf.b_ml
+                .ml_flags
+                .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_POS));
         }
         mf_put(buf.b_ml.mfp_mut(), hp_new, true, false);
 
@@ -2687,7 +2704,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                     .mfp_mut()
                     .copy_bhdr_data(hp_ptr, 0, hp_new_ptr, 0, page_size as usize);
                 let new_bnum = buf.b_ml.mfp_ref().unwrap().bhdr(hp_new_ptr).bh_bnum;
-                let total_lines = buf.b_ml.ml_line_count;
+                let total_lines = buf.b_ml.ml_line_count.get();
                 {
                     let hp_ref = buf.b_ml.mfp_mut().bhdr_mut(hp_ptr);
                     hp_ref.set_pb_count(1);
@@ -2807,7 +2824,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 }
 
 fn ml_append_flush(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
-    if lnum > buf.b_ml.ml_line_count {
+    if lnum > buf.b_ml.ml_line_count.get() {
         return false;
     }
     if buf.b_ml.ml_line_lnum != 0 {
@@ -2941,7 +2958,9 @@ pub fn ml_replace_buf_len(
 
     buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
     buf.b_ml.ml_line_lnum = lnum;
-    buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
+    buf.b_ml
+        .ml_flags
+        .set((buf.b_ml.ml_flags.get() | ML_LINE_DIRTY) & !ML_EMPTY);
     if noalloc {
         ml_flush_line_impl(buf, Some(&line_arg[..len_arg.min(line_arg.len())]));
     }
@@ -2956,9 +2975,11 @@ pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool)
     new_buf.push(0);
     buf.b_ml.ml_line_buf = new_buf;
     buf.b_ml.ml_line_textlen = (bytes.len() as Colnr) + 1;
-    buf.b_ml.ml_flags |= ML_LINE_DIRTY;
+    buf.b_ml
+        .ml_flags
+        .set(buf.b_ml.ml_flags.get() | (ML_LINE_DIRTY));
     if clear_empty {
-        buf.b_ml.ml_flags &= !ML_EMPTY;
+        buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() & (!ML_EMPTY));
     }
 }
 
@@ -2976,12 +2997,12 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         }
     });
 
-    if buf.b_ml.ml_line_count == 1 {
+    if buf.b_ml.ml_line_count.get() == 1 {
         if (flags & ML_DEL_MESSAGE) != 0 {
             set_keep_msg(Some(gettext(NO_LINES_MSG)), 0);
         }
         let i = ml_replace_buf(buf, 1, b"", true, false);
-        buf.b_ml.ml_flags |= ML_EMPTY;
+        buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() | (ML_EMPTY));
         return i;
     }
 
@@ -2997,9 +3018,11 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     let mut idx = lnum - buf.b_ml.ml_locked_low;
 
     if buf.b_prev_line_count.get() == 0 {
-        buf.b_prev_line_count.set(buf.b_ml.ml_line_count);
+        buf.b_prev_line_count.set(buf.b_ml.ml_line_count.get());
     }
-    buf.b_ml.ml_line_count -= 1;
+    buf.b_ml
+        .ml_line_count
+        .set(buf.b_ml.ml_line_count.get() - (1));
 
     let (line_start, line_size) = {
         let hp_ref = buf.b_ml.mfp_ref().unwrap().bhdr(hp);
@@ -3095,7 +3118,9 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         hp_ref.set_db_txt_start(hp_ref.db_txt_start() + line_size as u32);
         hp_ref.set_db_line_count(hp_ref.db_line_count() - 1);
 
-        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+        buf.b_ml
+            .ml_flags
+            .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_DIRTY | ML_LOCKED_POS));
     }
 
     ml_updatechunk(buf, lnum, line_size, ML_CHNK_DELLINE);
@@ -3110,7 +3135,7 @@ pub fn ml_delete(lnum: Linenr) -> bool {
 /// Like `ml_delete()` but using flags.
 pub fn ml_delete_flags(lnum: Linenr, flags: i32) -> bool {
     ml_flush_line(curbuf_mut(), false);
-    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count.get() {
         return false;
     }
     ml_delete_int(curbuf_mut(), lnum, flags)
@@ -3118,7 +3143,10 @@ pub fn ml_delete_flags(lnum: Linenr, flags: i32) -> bool {
 
 /// Set the `DB_MARKED` flag for line `lnum`.
 pub fn ml_setmarked(lnum: Linenr) {
-    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count || curbuf_mut().b_ml.ml_mfp.is_none() {
+    if lnum < 1
+        || lnum > curbuf_mut().b_ml.ml_line_count.get()
+        || curbuf_mut().b_ml.ml_mfp.is_none()
+    {
         return;
     }
     ml_st(|st| {
@@ -3134,7 +3162,10 @@ pub fn ml_setmarked(lnum: Linenr) {
     let idx = (lnum - curbuf_mut().b_ml.ml_locked_low) as usize;
     let hp_ref = curbuf_mut().b_ml.mfp_mut().bhdr_mut(hp);
     hp_ref.set_db_idx(idx, hp_ref.db_idx(idx) | DB_MARKED);
-    curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+    curbuf_mut()
+        .b_ml
+        .ml_flags
+        .set(curbuf_mut().b_ml.ml_flags.get() | (ML_LOCKED_DIRTY));
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
@@ -3144,7 +3175,7 @@ pub fn ml_firstmarked() -> Linenr {
         return 0;
     }
 
-    while lnum <= curbuf_mut().b_ml.ml_line_count {
+    while lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         let Some(hp) = ml_find_line(curbuf_mut(), lnum, ML_FIND) else {
             return 0;
         };
@@ -3157,7 +3188,10 @@ pub fn ml_firstmarked() -> Linenr {
                     .mfp_mut()
                     .bhdr_mut(hp)
                     .set_db_idx(i, idx_val & DB_INDEX_MASK);
-                curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+                curbuf_mut()
+                    .b_ml
+                    .ml_flags
+                    .set(curbuf_mut().b_ml.ml_flags.get() | (ML_LOCKED_DIRTY));
                 ml_st(|st| st.lowest_marked.set(lnum + 1));
                 return lnum;
             }
@@ -3176,7 +3210,7 @@ pub fn ml_clearmarked() {
         return;
     }
 
-    while lnum <= curbuf_mut().b_ml.ml_line_count {
+    while lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         let Some(hp) = ml_find_line(curbuf_mut(), lnum, ML_FIND) else {
             return;
         };
@@ -3189,7 +3223,10 @@ pub fn ml_clearmarked() {
                     .mfp_mut()
                     .bhdr_mut(hp)
                     .set_db_idx(i, idx_val & DB_INDEX_MASK);
-                curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+                curbuf_mut()
+                    .b_ml
+                    .ml_flags
+                    .set(curbuf_mut().b_ml.ml_flags.get() | (ML_LOCKED_DIRTY));
             }
             i += 1;
             lnum += 1;
@@ -3221,7 +3258,7 @@ fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
     if buf.b_ml.ml_line_lnum == 0 || buf.b_ml.ml_mfp.is_none() {
         return;
     }
-    if (buf.b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
+    if (buf.b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0 {
         if ml_st(|st| st.ml_flush_entered.replace(true)) {
             return;
         }
@@ -3241,7 +3278,9 @@ fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
             siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
             drop(owned_line);
             ml_st(|st| st.ml_flush_entered.set(false));
-            buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
+            buf.b_ml
+                .ml_flags
+                .set(buf.b_ml.ml_flags.get() & (!ML_LINE_DIRTY));
             buf.b_ml.ml_line_lnum = 0;
             buf.b_ml.ml_line_offset = 0;
             return;
@@ -3296,7 +3335,9 @@ fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
                         new_len as usize,
                     );
                 }
-                buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+                buf.b_ml
+                    .ml_flags
+                    .set(buf.b_ml.ml_flags.get() | (ML_LOCKED_DIRTY | ML_LOCKED_POS));
                 if extra != 0 {
                     ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
                 }
@@ -3311,7 +3352,9 @@ fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
         ml_st(|st| st.ml_flush_entered.set(false));
     }
 
-    buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
+    buf.b_ml
+        .ml_flags
+        .set(buf.b_ml.ml_flags.get() & (!ML_LINE_DIRTY));
     buf.b_ml.ml_line_lnum = 0;
     buf.b_ml.ml_line_offset = 0;
 }
@@ -3355,8 +3398,8 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> 
             return Some(locked_id);
         }
 
-        let dirty = (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0;
-        let pos = (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0;
+        let dirty = (buf.b_ml.ml_flags.get() & ML_LOCKED_DIRTY) != 0;
+        let pos = (buf.b_ml.ml_flags.get() & ML_LOCKED_POS) != 0;
         mf_put(buf.b_ml.mfp_mut(), locked_id, dirty, pos);
         buf.b_ml.ml_locked = None;
 
@@ -3372,7 +3415,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> 
     let mut bnum: Blocknr = 1;
     let mut page_count: i32 = 1;
     let mut low: Linenr = 1;
-    let mut high: Linenr = buf.b_ml.ml_line_count;
+    let mut high: Linenr = buf.b_ml.ml_line_count.get();
 
     if action == ML_FIND {
         let mut top = buf.b_ml.ml_stack_top - 1;
@@ -3410,7 +3453,9 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> 
             buf.b_ml.ml_locked_low = low;
             buf.b_ml.ml_locked_high = high;
             buf.b_ml.ml_locked_lineadd = 0;
-            buf.b_ml.ml_flags &= !(ML_LOCKED_DIRTY | ML_LOCKED_POS);
+            buf.b_ml
+                .ml_flags
+                .set(buf.b_ml.ml_flags.get() & (!(ML_LOCKED_DIRTY | ML_LOCKED_POS)));
             return Some(hp);
         }
 
@@ -3458,10 +3503,10 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<BhdrId> 
             idx += 1;
         }
         if idx >= i32::from(pb_count) {
-            if lnum > buf.b_ml.ml_line_count {
+            if lnum > buf.b_ml.ml_line_count.get() {
                 siemsg!(
                     tr(E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END),
-                    i64::from(lnum - buf.b_ml.ml_line_count),
+                    i64::from(lnum - buf.b_ml.ml_line_count.get()),
                 );
             } else {
                 siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
@@ -4042,7 +4087,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
         ml_st(|st| st.ml_upd_lastbuf.set(crate::globals::BufPtr::NULL));
     }
 
-    if updtype == ML_CHNK_UPDLINE && buf.b_ml.ml_line_count == 1 {
+    if updtype == ML_CHNK_UPDLINE && buf.b_ml.ml_line_count.get() == 1 {
         buf.b_ml.ml_usedchunks = 1;
         buf.b_ml.ml_chunksize[0].mlcs_numlines = 1;
         buf.b_ml.ml_chunksize[0].mlcs_totalsize = buf.b_ml.ml_line_textlen;
@@ -4079,7 +4124,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
             buf.b_ml.ml_chunksize.copy_within(cix..used, cix + 1);
             let mut size: i32 = 0;
             let mut linecnt: i32 = 0;
-            while curline < buf.b_ml.ml_line_count && linecnt < MLCS_MINL {
+            while curline < buf.b_ml.ml_line_count.get() && linecnt < MLCS_MINL {
                 let Some(hp) = ml_find_line(buf, curline, ML_FIND) else {
                     buf.b_ml.ml_usedchunks = -1;
                     return;
@@ -4113,15 +4158,15 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
             return;
         } else if buf.b_ml.ml_chunksize[curix as usize].mlcs_numlines >= MLCS_MINL
             && curix == buf.b_ml.ml_usedchunks - 1
-            && buf.b_ml.ml_line_count - line <= 1
+            && buf.b_ml.ml_line_count.get() - line <= 1
         {
             let next_ix = (curix + 1) as usize;
             buf.b_ml.ml_usedchunks += 1;
-            if line == buf.b_ml.ml_line_count {
+            if line == buf.b_ml.ml_line_count.get() {
                 buf.b_ml.ml_chunksize[next_ix].mlcs_numlines = 0;
                 buf.b_ml.ml_chunksize[next_ix].mlcs_totalsize = 0;
             } else {
-                let Some(hp) = ml_find_line(buf, buf.b_ml.ml_line_count, ML_FIND) else {
+                let Some(hp) = ml_find_line(buf, buf.b_ml.ml_line_count.get(), ML_FIND) else {
                     buf.b_ml.ml_usedchunks = -1;
                     return;
                 };
@@ -4240,7 +4285,7 @@ pub fn ml_find_line_or_offset(
     }
 
     while (lnum != 0 && curline < lnum) || (offset != 0 && size < offset) {
-        if curline > buf.b_ml.ml_line_count {
+        if curline > buf.b_ml.ml_line_count.get() {
             return -1;
         }
         let Some(hp) = ml_find_line(buf, curline, ML_FIND) else {
@@ -4293,7 +4338,7 @@ pub fn ml_find_line_or_offset(
                     - (text_end - ((hp_ref.db_idx((idx - 1) as usize) & DB_INDEX_MASK) as i32));
             }
             curline += idx - start_idx + extra;
-            if curline > buf.b_ml.ml_line_count {
+            if curline > buf.b_ml.ml_line_count.get() {
                 return -1;
             }
             return curline;
@@ -4307,7 +4352,7 @@ pub fn ml_find_line_or_offset(
         }
         if (!buf.b_p_fixeol.get() || buf.b_p_bin.get())
             && !buf.b_p_eol.get()
-            && lnum > buf.b_ml.ml_line_count
+            && lnum > buf.b_ml.ml_line_count.get()
         {
             size -= ffdos + 1;
         }
@@ -4330,7 +4375,7 @@ pub fn goto_byte(cnt: i32) {
     }
     let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as Linenr;
     if lnum < 1 {
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         curwin_mut().w_curswant.set(MAXCOL);
         coladvance(curwin_mut(), MAXCOL);
     } else {
@@ -4353,7 +4398,7 @@ pub fn inc(lp: &mut CursorPos) -> i32 {
             return if p.len() > l as usize { 0 } else { 2 };
         }
     }
-    if lp.lnum != curbuf_mut().b_ml.ml_line_count {
+    if lp.lnum != curbuf_mut().b_ml.ml_line_count.get() {
         lp.col = 0;
         lp.lnum += 1;
         lp.coladd = 0;

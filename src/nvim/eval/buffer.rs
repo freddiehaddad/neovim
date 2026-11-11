@@ -162,7 +162,7 @@ fn set_buffer_lines(
     let append_lnum = if append {
         lnum - 1
     } else {
-        curbuf_mut().b_ml.ml_line_count
+        curbuf_mut().b_ml.ml_line_count.get()
     };
 
     let mut l = crate::eval::typval::ListId::NULL;
@@ -198,7 +198,7 @@ fn set_buffer_lines(
         let Some(ref line_cstr) = line else {
             break;
         };
-        if lnum > curbuf_mut().b_ml.ml_line_count + 1 {
+        if lnum > curbuf_mut().b_ml.ml_line_count.get() + 1 {
             break;
         }
 
@@ -207,7 +207,7 @@ fn set_buffer_lines(
             u_sync(true);
         }
 
-        if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
+        if !append && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
             let old_len = crate::memline::ml_get_len(lnum);
             if u_savesub(lnum) && ml_replace(lnum, line_cstr.to_bytes(), true) {
                 let new_len = line_cstr.to_bytes().len() as i32;
@@ -322,8 +322,8 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
                 } else {
                     wp.w_cursor.lnum - to_delete
                 };
-                if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count {
-                    wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count;
+                if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
+                    wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count.get();
                 }
             }
         }
@@ -333,7 +333,7 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
 
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
 pub fn prompt_invoke_callback() {
-    let lnum = curbuf_mut().b_ml.ml_line_count;
+    let lnum = curbuf_mut().b_ml.ml_line_count.get();
     let Some(user_input) = prompt_get_input(curbuf_mut()) else {
         return;
     };
@@ -371,7 +371,7 @@ pub fn prompt_invoke_callback() {
 
     u_clearallandblockfree(curbuf_mut());
 
-    curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
+    curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count.get();
     curbuf_mut().b_prompt_append_new_line.set(true);
 
     prompt_trim_scrollback(curbuf_mut());
@@ -630,7 +630,11 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         first
     };
 
-    if buf.b_ml.ml_mfp.is_none() || first < 1 || first > buf.b_ml.ml_line_count || last < first {
+    if buf.b_ml.ml_mfp.is_none()
+        || first < 1
+        || first > buf.b_ml.ml_line_count.get()
+        || last < first
+    {
         return;
     }
 
@@ -641,8 +645,8 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         change_other_buffer_prepare(&mut cob, buf);
     }
 
-    if last > curbuf_mut().b_ml.ml_line_count {
-        last = curbuf_mut().b_ml.ml_line_count;
+    if last > curbuf_mut().b_ml.ml_line_count.get() {
+        last = curbuf_mut().b_ml.ml_line_count.get();
     }
     let count: i32 = last - first + 1;
 
@@ -664,8 +668,8 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     } else if wp.w_cursor.lnum > first {
                         wp.w_cursor.lnum = first;
                     }
-                    if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count {
-                        wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count;
+                    if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
+                        wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count.get();
                     }
                 }
             }
@@ -692,7 +696,11 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
         buflist_findlnum(buf)
     };
     tv_dict_add_nr(&dict, c"lnum", lnum as Varnumber);
-    tv_dict_add_nr(&dict, c"linecount", buf.b_ml.ml_line_count as Varnumber);
+    tv_dict_add_nr(
+        &dict,
+        c"linecount",
+        buf.b_ml.ml_line_count.get() as Varnumber,
+    );
     tv_dict_add_nr(&dict, c"loaded", Varnumber::from(buf.b_ml.ml_mfp.is_some()));
     tv_dict_add_nr(&dict, c"listed", buf.b_p_bl.get() as Varnumber);
     tv_dict_add_nr(&dict, c"changed", Varnumber::from(buf_is_changed_fn(buf)));
@@ -799,8 +807,8 @@ fn get_buffer_lines(
         if start < 1 {
             start = 1;
         }
-        if end > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
-            end = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
+        if end > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
+            end = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
         }
         tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
         while start <= end {
@@ -810,7 +818,7 @@ fn get_buffer_lines(
             );
             start += 1;
         }
-    } else if start >= 1 && start <= buf.as_deref_mut().unwrap().b_ml.ml_line_count {
+    } else if start >= 1 && start <= buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
         crate::eval::typval::tv_set_string_len(
             &mut *rettv,
             Some(crate::memline::ml_get_buf_slice(buf.unwrap(), start)),
@@ -969,13 +977,13 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
 
     if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
         if buf.b_prompt_start.mark.lnum < 1
-            || buf.b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
+            || buf.b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
         {
             buf.b_prompt_start.mark.lnum = buf
                 .b_prompt_start
                 .mark
                 .lnum
-                .min(buf.b_ml.ml_line_count)
+                .min(buf.b_ml.ml_line_count.get())
                 .max(1);
             curbuf_mut().b_prompt_append_new_line.set(true);
         }

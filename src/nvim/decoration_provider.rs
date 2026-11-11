@@ -293,7 +293,10 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
     if providers_len() > 0 {
         validate_botline_win(&mut *wp);
     }
-    let botline: Linenr = wp.w_botline.get().min(wp.buf_mut().b_ml.ml_line_count);
+    let botline: Linenr = wp
+        .w_botline
+        .get()
+        .min(wp.buf_mut().b_ml.ml_line_count.get());
 
     let mut i = 0usize;
     while i < providers_len() {

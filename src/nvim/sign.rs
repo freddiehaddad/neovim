@@ -210,7 +210,7 @@ fn buf_set_sign(
         buf,
         ns,
         Some(&mut *id),
-        buf.b_ml.ml_line_count.min(lnum) - 1,
+        buf.b_ml.ml_line_count.get().min(lnum) - 1,
         0,
         -1,
         -1,

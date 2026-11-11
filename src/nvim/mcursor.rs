@@ -366,7 +366,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         if topline_valid {
             set_topline(
                 curwin_mut(),
-                topline.lnum.min(curbuf_mut().b_ml.ml_line_count),
+                topline.lnum.min(curbuf_mut().b_ml.ml_line_count.get()),
             );
             update_topline(curwin_mut());
         }

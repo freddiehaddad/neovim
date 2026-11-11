@@ -1533,7 +1533,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     let mut contents: Vec<u8> = Vec::new();
     if may_read_buffer {
-        let line_count = b.b_ml.ml_line_count;
+        let line_count = b.b_ml.ml_line_count.get();
         read_buffer_into(Some(b), 1, line_count, &mut contents);
     }
 
@@ -2724,7 +2724,7 @@ pub fn nvim_eval_statusline(
     {
         statuscol_lnum = opts.use_statuscol_lnum as i32;
         if !validate_range(
-            statuscol_lnum > 0 && statuscol_lnum <= wp.buf_mut().b_ml.ml_line_count,
+            statuscol_lnum > 0 && statuscol_lnum <= wp.buf_mut().b_ml.ml_line_count.get(),
             c"use_statuscol_lnum",
             err,
         ) {
@@ -3082,7 +3082,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         } else {
             g_st().curbuf.get()
         };
-        let line_count = i64::from(rbuf.b_ml.ml_line_count);
+        let line_count = i64::from(rbuf.b_ml.ml_line_count.get());
         let begin = begin_raw.min(line_count) as i32;
         let end = if end_raw == -1 {
             line_count as i32

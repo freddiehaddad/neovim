@@ -2847,8 +2847,8 @@ pub(super) fn reg_match_visual() -> bool {
         } else {
             (curbuf_mut().b_visual.vi_end, curbuf_mut().b_visual.vi_start)
         };
-        if b.lnum > curbuf_mut().b_ml.ml_line_count {
-            b.lnum = curbuf_mut().b_ml.ml_line_count;
+        if b.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+            b.lnum = curbuf_mut().b_ml.ml_line_count.get();
         }
         (
             t,
@@ -3350,7 +3350,7 @@ pub fn vim_regsub_multi(
     RE_STATE.with(|s| {
         s.rex
             .reg_maxline
-            .set(curbuf_mut().b_ml.ml_line_count - lnum)
+            .set(curbuf_mut().b_ml.ml_line_count.get() - lnum)
     });
     RE_STATE.with(|s| s.rex.reg_line_lbr.set(false));
     let result = vim_regsub_both(Some(source), None, dest, flags);
@@ -3885,7 +3885,7 @@ pub(super) fn init_regexec_multi(
     buf: &mut FileBuf,
     lnum: Linenr,
 ) {
-    let maxline = buf.b_ml.ml_line_count - lnum;
+    let maxline = buf.b_ml.ml_line_count.get() - lnum;
     let rmm_ic = rmp.rmm_ic;
     let nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     let maxcol = rmp.rmm_maxcol;

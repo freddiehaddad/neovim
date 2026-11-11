@@ -1556,8 +1556,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
 
                 let ve_allows =
                     cur_ve_flags == K_OPT_VE_FLAG_ALL || cur_ve_flags == K_OPT_VE_FLAG_ONEMORE;
-                let eof =
-                    curbuf_mut().b_ml.ml_line_count == curwin_mut().w_cursor.lnum && one_past_line;
+                let eof = curbuf_mut().b_ml.ml_line_count.get() == curwin_mut().w_cursor.lnum
+                    && one_past_line;
                 if ve_allows || !(eol || eof) {
                     stuffchar_readbuff(i32::from(b'l'));
                 }
@@ -1726,7 +1726,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
 
         if y_type == MotionType::MtBlockWise {
             lnum = curwin_mut().w_cursor.lnum + (y_size as Linenr) + 1;
-            lnum = lnum.min(curbuf_mut().b_ml.ml_line_count + 1);
+            lnum = lnum.min(curbuf_mut().b_ml.ml_line_count.get() + 1);
             if !u_save(curwin_mut().w_cursor.lnum - 1, lnum) {
                 break 'end;
             }
@@ -1847,8 +1847,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 bd.endspaces = 0;
                 let mut delcount: i32 = 0;
 
-                if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
-                    if !ml_append(curbuf_mut().b_ml.ml_line_count, b"", 1, false) {
+                if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+                    if !ml_append(curbuf_mut().b_ml.ml_line_count.get(), b"", 1, false) {
                         break;
                     }
                     nr_lines += 1;
@@ -2312,8 +2312,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     beginline(BL_WHITE | BL_FIX);
                 } else if (flags & PUT_CURSEND) != 0 {
                     if y_type == MotionType::MtLineWise {
-                        if lnum >= curbuf_mut().b_ml.ml_line_count {
-                            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+                        if lnum >= curbuf_mut().b_ml.ml_line_count.get() {
+                            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
                         } else {
                             curwin_mut().w_cursor.lnum = lnum + 1;
                         }

@@ -789,7 +789,10 @@ pub fn searchit(
         loop {
             if pos.col == MAXCOL {
                 start_char_len = 0;
-            } else if pos.lnum >= 1 && pos.lnum <= buf.b_ml.ml_line_count && pos.col < MAXCOL - 2 {
+            } else if pos.lnum >= 1
+                && pos.lnum <= buf.b_ml.ml_line_count.get()
+                && pos.col < MAXCOL - 2
+            {
                 let line_slice = crate::memline::ml_get_buf_slice(buf, pos.lnum);
                 if (line_slice.len() as Colnr) <= pos.col {
                     start_char_len = 1;
@@ -831,7 +834,7 @@ pub fn searchit(
             }
 
             for loop_idx in 0..=1 {
-                while lnum > 0 && lnum <= buf.b_ml.ml_line_count {
+                while lnum > 0 && lnum <= buf.b_ml.ml_line_count.get() {
                     if stop_lnum != 0
                         && (if dir == FORWARD {
                             lnum > stop_lnum
@@ -872,7 +875,7 @@ pub fn searchit(
                         endpos = regmatch.endpos[0];
                         submatch = first_submatch(&regmatch);
                         let mut ptr_line_cstr: &CStr =
-                            if lnum + matchpos.lnum > buf.b_ml.ml_line_count {
+                            if lnum + matchpos.lnum > buf.b_ml.ml_line_count.get() {
                                 c""
                             } else {
                                 ml_get_buf(buf, lnum + matchpos.lnum)
@@ -1043,7 +1046,7 @@ pub fn searchit(
                                 }
                             } else {
                                 pos.col -= 1;
-                                if pos.lnum <= buf.b_ml.ml_line_count {
+                                if pos.lnum <= buf.b_ml.ml_line_count.get() {
                                     let line_bytes = ml_get_buf(buf, pos.lnum).to_bytes();
                                     pos.col -= crate::mbyte::utf_head_off_slice(
                                         line_bytes,
@@ -1116,7 +1119,7 @@ pub fn searchit(
                 }
 
                 lnum = if dir == BACKWARD {
-                    buf.b_ml.ml_line_count
+                    buf.b_ml.ml_line_count.get()
                 } else {
                     1
                 };
@@ -1171,8 +1174,8 @@ pub fn searchit(
             return 0;
         }
 
-        if pos.lnum > buf.b_ml.ml_line_count {
-            pos.lnum = buf.b_ml.ml_line_count;
+        if pos.lnum > buf.b_ml.ml_line_count.get() {
+            pos.lnum = buf.b_ml.ml_line_count.get();
             pos.col = ml_get_buf_len(buf, pos.lnum);
             if pos.col > 0 {
                 pos.col -= 1;
@@ -1573,7 +1576,7 @@ pub fn do_search(
                     c += 1;
                 }
                 if c != 0 {
-                    pos.lnum = curbuf_mut().b_ml.ml_line_count + 1;
+                    pos.lnum = curbuf_mut().b_ml.ml_line_count.get() + 1;
                     pos.col = 0;
                 }
             }
@@ -1637,8 +1640,8 @@ pub fn do_search(
                 c = i64::from(pos.lnum) + off0.off;
                 if c < 1 {
                     pos.lnum = 1;
-                } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
-                    pos.lnum = curbuf_mut().b_ml.ml_line_count;
+                } else if c > i64::from(curbuf_mut().b_ml.ml_line_count.get()) {
+                    pos.lnum = curbuf_mut().b_ml.ml_line_count.get();
                 } else {
                     pos.lnum = c as Linenr;
                 }
@@ -1728,14 +1731,14 @@ pub fn search_for_exact_line(
         let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
 
-        if buf.b_ml.ml_line_count == 0 {
+        if buf.b_ml.ml_line_count.get() == 0 {
             return false;
         }
         loop {
             pos.lnum += dir;
             if pos.lnum < 1 {
                 if opt_vars().p_ws.get() {
-                    pos.lnum = buf.b_ml.ml_line_count;
+                    pos.lnum = buf.b_ml.ml_line_count.get();
                     if !shortmess(K_SHM_SEARCH) {
                         give_warning(tr(TOP_BOT_MSG), true, false);
                     }
@@ -1743,7 +1746,7 @@ pub fn search_for_exact_line(
                     pos.lnum = 1;
                     break;
                 }
-            } else if pos.lnum > buf.b_ml.ml_line_count {
+            } else if pos.lnum > buf.b_ml.ml_line_count.get() {
                 if opt_vars().p_ws.get() {
                     pos.lnum = 1;
                     if !shortmess(K_SHM_SEARCH) {
@@ -2117,7 +2120,7 @@ pub fn findmatchlimit(
             pos.col = 0;
             while !g_st().got_int.get() {
                 if hash_dir > 0 {
-                    if pos.lnum == curbuf_mut().b_ml.ml_line_count {
+                    if pos.lnum == curbuf_mut().b_ml.ml_line_count.get() {
                         break;
                     }
                 } else if pos.lnum == 1 {
@@ -2227,7 +2230,7 @@ pub fn findmatchlimit(
         } else if (pos.col as usize) >= line.len()
             || (lisp && comment_col != MAXCOL && pos.col == comment_col)
         {
-            if pos.lnum == curbuf_mut().b_ml.ml_line_count || lispcomm {
+            if pos.lnum == curbuf_mut().b_ml.ml_line_count.get() || lispcomm {
                 break;
             }
             pos.lnum += 1;
@@ -2698,8 +2701,8 @@ pub fn current_search(count: i32, forward: bool) -> bool {
             if forward {
                 clearpos(&mut pos);
             } else {
-                pos.lnum = curwin_mut().buf_mut().b_ml.ml_line_count;
-                pos.col = ml_get_len(curwin_mut().buf_mut().b_ml.ml_line_count);
+                pos.lnum = curwin_mut().buf_mut().b_ml.ml_line_count.get();
+                pos.col = ml_get_len(curwin_mut().buf_mut().b_ml.ml_line_count.get());
             }
         }
     }
@@ -3315,7 +3318,7 @@ pub fn find_pattern_in_path(
         let mut depth: i32 = -1;
         let mut depth_displayed: i32 = -1;
 
-        end_lnum = end_lnum.min(curbuf_mut().b_ml.ml_line_count);
+        end_lnum = end_lnum.min(curbuf_mut().b_ml.ml_line_count.get());
         let mut lnum = start_lnum.min(end_lnum);
         get_line_and_copy(lnum, &mut file_line_vec);
 
@@ -4047,7 +4050,7 @@ fn show_pat_in_path(
             *lnum += 1;
         } else {
             *lnum += 1;
-            if *lnum > curbuf_mut().b_ml.ml_line_count {
+            if *lnum > curbuf_mut().b_ml.ml_line_count.get() {
                 break;
             }
             use_line_buf = false;

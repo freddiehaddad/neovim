@@ -198,7 +198,7 @@ pub fn nvim_buf_add_highlight(
 
     let ns = src2ns(&mut ns_id);
 
-    if line >= i64::from(buf.b_ml.ml_line_count) {
+    if line >= i64::from(buf.b_ml.ml_line_count.get()) {
         return ns_id;
     }
 

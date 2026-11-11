@@ -243,7 +243,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     }
 
     if getlines {
-        for lnum in 1..=buf.b_ml.ml_line_count {
+        for lnum in 1..=buf.b_ml.ml_line_count.get() {
             let _ = ml_get_buf(buf, lnum);
         }
     }

@@ -671,7 +671,7 @@ fn diff_check_unchanged(tp: &TabPageInfo, dp_idx: usize) {
 fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
     for i in 0..DB_COUNT {
         if let Some(buf) = tp.diffbuf_opt(i)
-            && dp.df_lnum[i] + dp.df_count[i] - 1 > buf.b_ml.ml_line_count
+            && dp.df_lnum[i] + dp.df_count[i] - 1 > buf.b_ml.ml_line_count.get()
         {
             return false;
         }
@@ -740,9 +740,9 @@ fn diff_write_buffer(
     mut end: Linenr,
 ) -> bool {
     if end < 0 {
-        end = buf.b_ml.ml_line_count;
+        end = buf.b_ml.ml_line_count.get();
     }
-    if (buf.b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
+    if (buf.b_ml.ml_flags.get() & ML_EMPTY) != 0 || end < start {
         *backing = Vec::new();
         return true;
     }
@@ -804,9 +804,9 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         return false;
     }
     if end < 0 {
-        end = buf.b_ml.ml_line_count;
+        end = buf.b_ml.ml_line_count.get();
     }
-    let save_ml_flags = buf.b_ml.ml_flags;
+    let save_ml_flags = buf.b_ml.ml_flags.get();
     let save_ff = buf
         .b_p_ff
         .replace(crate::option_vars::OptString::from_cstr(c"unix"));
@@ -814,7 +814,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
     if end < start {
         end = start;
-        buf.b_ml.ml_flags |= ML_EMPTY;
+        buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() | (ML_EMPTY));
     }
     let r = buf_write(
         buf,
@@ -830,7 +830,9 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
     );
     g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
     buf.b_p_ff.set(save_ff);
-    buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
+    buf.b_ml
+        .ml_flags
+        .set((buf.b_ml.ml_flags.get() & !ML_EMPTY) | (save_ml_flags & ML_EMPTY));
     r
 }
 fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
@@ -1214,7 +1216,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             Some(tmp_orig_cstr.as_c_str()),
             None,
             1,
-            curbuf_mut().b_ml.ml_line_count,
+            curbuf_mut().b_ml.ml_line_count.get(),
             None,
             false,
             false,
@@ -1963,7 +1965,7 @@ pub fn diff_check_with_linestatus(
     if curtab_mut().tp_diffs.borrow().is_empty() || !wp.w_onebuf_opt.wo_diff.get() {
         return 0;
     }
-    if lnum < 1 || lnum > wp.buf_mut().b_ml.ml_line_count + 1 {
+    if lnum < 1 || lnum > wp.buf_mut().b_ml.ml_line_count.get() + 1 {
         return 0;
     }
     let idx = diff_buf_idx(wp.buf_mut(), &curtab_mut());
@@ -2202,12 +2204,15 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
         }
     } else {
         towin.w_topline.set(
-            towin.buf_mut().b_ml.ml_line_count - (fromwin.buf_mut().b_ml.ml_line_count - lnum),
+            towin.buf_mut().b_ml.ml_line_count.get()
+                - (fromwin.buf_mut().b_ml.ml_line_count.get() - lnum),
         );
     }
     towin.w_botfill.set(false);
-    if towin.w_topline.get() > towin.buf_mut().b_ml.ml_line_count {
-        towin.w_topline.set(towin.buf_mut().b_ml.ml_line_count);
+    if towin.w_topline.get() > towin.buf_mut().b_ml.ml_line_count.get() {
+        towin
+            .w_topline
+            .set(towin.buf_mut().b_ml.ml_line_count.get());
         towin.w_botfill.set(true);
     }
     if towin.w_topline.get() < 1 {
@@ -2282,7 +2287,8 @@ fn parse_diffanchors(
         if dia.to_bytes().first() != Some(&b',') && !dia.is_empty() {
             return false;
         }
-        if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > buf.b_ml.ml_line_count + 1) {
+        if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > buf.b_ml.ml_line_count.get() + 1)
+        {
             emsg(gettext(E_INVRANGE));
             return false;
         }
@@ -3210,7 +3216,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     diff_st(|st| st.diff_busy.set(true));
     if eap.addr_count == 0 {
         let mut linestatus: i32 = 0;
-        if eap.line1 == curbuf_mut().b_ml.ml_line_count
+        if eap.line1 == curbuf_mut().b_ml.ml_line_count.get()
             && diff_check_with_linestatus(curwin_mut(), eap.line1, Some(&mut linestatus)) == 0
             && linestatus == 0
             && (eap.line1 == 1
@@ -3362,7 +3368,7 @@ fn diffgetput(
             let mut buf_empty = buf_is_empty(curbuf_mut());
             let mut added: i32 = 0;
             for _ in 0..count {
-                buf_empty = curbuf_mut().b_ml.ml_line_count == 1;
+                buf_empty = curbuf_mut().b_ml.ml_line_count.get() == 1;
                 if ml_delete(lnum) {
                     added -= 1;
                 }
@@ -3372,14 +3378,14 @@ fn diffgetput(
             for i in 0..copy_count {
                 let nr = from_lnum + start_skip + i;
                 let from_buf = curtab_mut().diffbuf_mut(idx_from);
-                if nr > from_buf.b_ml.ml_line_count {
+                if nr > from_buf.b_ml.ml_line_count.get() {
                     break;
                 }
                 let p =
                     crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(from_buf, nr));
                 let _ = ml_append(lnum + i - 1, p.to_bytes(), 0, false);
                 added += 1;
-                if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {
+                if buf_empty && curbuf_mut().b_ml.ml_line_count.get() == 2 {
                     buf_empty = false;
                     let _ = ml_delete(2);
                 }
@@ -3420,7 +3426,7 @@ fn diffgetput(
                         curwin_mut().w_cursor.lnum = curwin_mut()
                             .w_cursor
                             .lnum
-                            .min(curbuf_mut().b_ml.ml_line_count);
+                            .min(curbuf_mut().b_ml.ml_line_count.get());
                     } else if added < 0 {
                         curwin_mut().w_cursor.lnum = lnum;
                     }
@@ -3506,7 +3512,7 @@ pub fn diff_move_to(dir: i32, mut count: i32) -> bool {
             }
         }
     }
-    lnum = lnum.min(curbuf_mut().b_ml.ml_line_count);
+    lnum = lnum.min(curbuf_mut().b_ml.ml_line_count.get());
     if lnum == curwin_mut().w_cursor.lnum {
         return false;
     }
@@ -3556,7 +3562,7 @@ fn diff_get_corresponding_line_int(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
 }
 pub fn diff_get_corresponding_line(buf1: &FileBuf, lnum1: Linenr) -> Linenr {
     let lnum = diff_get_corresponding_line_int(buf1, lnum1);
-    lnum.min(curbuf_mut().b_ml.ml_line_count)
+    lnum.min(curbuf_mut().b_ml.ml_line_count.get())
 }
 pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
     let idx = diff_buf_idx(curbuf_mut(), &curtab_mut());
@@ -3574,7 +3580,8 @@ pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
         .find(|dp| lnum <= dp.df_lnum[u_idx] + dp.df_count[u_idx])
         .map(|dp| (dp.df_lnum, dp.df_count))
     else {
-        return wp.buf_mut().b_ml.ml_line_count - (curbuf_mut().b_ml.ml_line_count - lnum);
+        return wp.buf_mut().b_ml.ml_line_count.get()
+            - (curbuf_mut().b_ml.ml_line_count.get() - lnum);
     };
     let i = diff_buf_idx(wp.buf_mut(), &curtab_mut());
     if i == DB_COUNT as i32 {

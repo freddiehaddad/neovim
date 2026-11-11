@@ -4103,7 +4103,7 @@ fn process_next_cpt_value(
         st.ins_buf = g_st().curbuf.get();
         st.first_match_pos = *start_match_pos;
         if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut st.first_match_pos) < 0 {
-            st.first_match_pos.lnum = st.ins_buf.b_ml.ml_line_count;
+            st.first_match_pos.lnum = st.ins_buf.b_ml.ml_line_count.get();
 
             st.first_match_pos.col = ml_get_len(st.first_match_pos.lnum);
         }
@@ -4127,7 +4127,7 @@ fn process_next_cpt_value(
             st.first_match_pos.col = 0;
             st.last_match_pos.col = 0;
 
-            st.first_match_pos.lnum = ins_buf.b_ml.ml_line_count + 1;
+            st.first_match_pos.lnum = ins_buf.b_ml.ml_line_count.get() + 1;
 
             st.last_match_pos.lnum = 0;
             compl_type = 0;
@@ -4638,7 +4638,7 @@ fn ins_compl_get_next_word_or_line<'a>(
     cont_s_ipos: &mut bool,
 ) -> Option<&'a [u8]> {
     *match_len = 0;
-    let line_count = ins_buf.b_ml.ml_line_count;
+    let line_count = ins_buf.b_ml.ml_line_count.get();
     if ctrl_x_mode_line_or_eval() && compl_status_adding() {
         if cur_match_pos.lnum >= line_count {
             return None;

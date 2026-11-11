@@ -1674,7 +1674,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         && fnum == bp.b_fnum.get()
     {
         if fp_ref.col == MAXCOL {
-            if fp_ref.lnum <= bp.b_ml.ml_line_count {
+            if fp_ref.lnum <= bp.b_ml.ml_line_count.get() {
                 col = ml_get_buf_len(&mut *bp, fp_ref.lnum) + 1;
             } else {
                 col = MAXCOL;
@@ -3078,7 +3078,7 @@ fn getregionpos(
         return false;
     }
 
-    if p1.lnum < 1 || p1.lnum > findbuf_ref.b_ml.ml_line_count {
+    if p1.lnum < 1 || p1.lnum > findbuf_ref.b_ml.ml_line_count.get() {
         semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p1.lnum);
         return false;
     }
@@ -3089,7 +3089,7 @@ fn getregionpos(
         return false;
     }
 
-    if p2.lnum < 1 || p2.lnum > findbuf_ref.b_ml.ml_line_count {
+    if p2.lnum < 1 || p2.lnum > findbuf_ref.b_ml.ml_line_count.get() {
         semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p2.lnum);
         return false;
     }
@@ -4921,7 +4921,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 /// "line2byte(lnum)" function
 pub fn f_line2byte(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count + 1 {
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count.get() + 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(
@@ -5288,8 +5288,8 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    if elnum > buf.b_ml.ml_line_count {
-        elnum = buf.b_ml.ml_line_count;
+    if elnum > buf.b_ml.ml_line_count.get() {
+        elnum = buf.b_ml.ml_line_count.get();
     }
 
     let mut submatches = false;
@@ -5677,7 +5677,7 @@ pub fn f_msgpackparse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 pub fn f_nextnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut lnum = tv_get_lnum(&argvars[0]);
     loop {
-        if lnum < 0 || lnum > curbuf_mut().b_ml.ml_line_count {
+        if lnum < 0 || lnum > curbuf_mut().b_ml.ml_line_count.get() {
             lnum = 0;
             break;
         }
@@ -5741,7 +5741,7 @@ pub fn f_pow(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 /// "prevnonblank()" function
 pub fn f_prevnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut lnum = tv_get_lnum(&argvars[0]);
-    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count.get() {
         lnum = 0;
     } else {
         while lnum >= 1
@@ -8018,7 +8018,7 @@ pub fn f_syn_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut id: i32 = 0;
     if !transerr
         && lnum >= 1
-        && lnum <= curbuf_mut().b_ml.ml_line_count
+        && lnum <= curbuf_mut().b_ml.ml_line_count.get()
         && col >= 0
         && col < ml_get_len(lnum)
     {
@@ -8142,7 +8142,7 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let col = (tv_get_number(&argvars[1]) as Colnr) - 1;
 
     if lnum >= 1
-        && lnum <= curbuf_mut().b_ml.ml_line_count
+        && lnum <= curbuf_mut().b_ml.ml_line_count.get()
         && col >= 0
         && col <= ml_get_len(lnum)
         && curwin_mut().w_onebuf_opt.wo_cole.get() > 0
@@ -8185,7 +8185,11 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let lnum = tv_get_lnum(&argvars[0]);
     let col = (tv_get_number(&argvars[1]) as Colnr) - 1;
 
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count && col >= 0 && col <= ml_get_len(lnum) {
+    if lnum >= 1
+        && lnum <= curbuf_mut().b_ml.ml_line_count.get()
+        && col >= 0
+        && col <= ml_get_len(lnum)
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         syn_get_id(curwin_mut(), lnum, col, 0, None, 1);
 
@@ -8385,7 +8389,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let mut fnum = bp.b_fnum.get();
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, wp_ref);
         if let Some(mut fp_val) = fp
-            && fp_val.lnum <= bp.b_ml.ml_line_count
+            && fp_val.lnum <= bp.b_ml.ml_line_count.get()
             && fnum == bp.b_fnum.get()
         {
             if fp_val.col < 0 {

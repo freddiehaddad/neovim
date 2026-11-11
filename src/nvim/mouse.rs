@@ -1677,7 +1677,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         } else if row >= curwin_mut().w_view_height.get() {
             let mut count = 0;
             let mut first = true;
-            while curwin_mut().w_topline.get() < curbuf_mut().b_ml.ml_line_count {
+            while curwin_mut().w_topline.get() < curbuf_mut().b_ml.ml_line_count.get() {
                 if curwin_mut().w_topfill.get() > 0 {
                     count += 1;
                 } else {
@@ -1697,7 +1697,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                     let mut topline = curwin_mut().w_topline.get();
                     let folded = has_folding(curwin_mut(), topline, None, Some(&mut topline));
                     curwin_mut().w_topline.set(topline);
-                    if folded && curwin_mut().w_topline.get() == curbuf_mut().b_ml.ml_line_count {
+                    if folded
+                        && curwin_mut().w_topline.get() == curbuf_mut().b_ml.ml_line_count.get()
+                    {
                         break;
                     }
                     curwin_mut()
@@ -1718,7 +1720,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             row = curwin_mut().w_view_height.get() - 1;
         } else if row == 0
             && g_st().mouse_dragging.get() > 0
-            && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count
+            && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count.get()
             && curwin_mut().w_cursor.lnum == curwin_mut().w_topline.get()
         {
             curwin_mut()
@@ -1727,7 +1729,10 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
     }
 
-    if resolved.is_null() || resolved != curwin_ptr() || lnum > curbuf_mut().b_ml.ml_line_count {
+    if resolved.is_null()
+        || resolved != curwin_ptr()
+        || lnum > curbuf_mut().b_ml.ml_line_count.get()
+    {
         mouse_fold_flags = 0;
         let past_bottom = mouse_resolve(
             curwin_mut(),
@@ -1876,7 +1881,7 @@ pub fn mouse_comp_pos(
 
         has_folding(&mut *win, lnum, None, Some(&mut lnum));
 
-        if lnum == win.buf_mut().b_ml.ml_line_count {
+        if lnum == win.buf_mut().b_ml.ml_line_count.get() {
             retval = true;
             break;
         }
@@ -1915,7 +1920,8 @@ pub fn mouse_comp_pos(
 
     row -= virt_lines + diff_fill - skip_fill;
 
-    while lnum < win.buf_mut().b_ml.ml_line_count && decor_conceal_line(&mut *win, lnum - 1, false)
+    while lnum < win.buf_mut().b_ml.ml_line_count.get()
+        && decor_conceal_line(&mut *win, lnum - 1, false)
     {
         lnum += 1;
         has_folding(&mut *win, lnum, None, Some(&mut lnum));
@@ -2135,7 +2141,7 @@ fn find_longest_lnum() -> Linenr {
 
     if curwin_mut().w_topline.get() <= curwin_mut().w_cursor.lnum
         && curwin_mut().w_botline.get() > curwin_mut().w_cursor.lnum
-        && curwin_mut().w_botline.get() <= curbuf_mut().b_ml.ml_line_count + 1
+        && curwin_mut().w_botline.get() <= curbuf_mut().b_ml.ml_line_count.get() + 1
     {
         let mut max: Colnr = 0;
 

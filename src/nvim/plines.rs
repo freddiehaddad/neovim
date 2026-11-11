@@ -1449,7 +1449,7 @@ pub fn plines_m_win(wp: &mut WinInfoInfo, mut first: Linenr, last: Linenr, max: 
         count += plines_win_full(&mut *wp, first, Some(&mut next), None, false, false);
         first = next + 1;
     }
-    if first == wp.buf_mut().b_ml.ml_line_count + 1 {
+    if first == wp.buf_mut().b_ml.ml_line_count.get() + 1 {
         count += win_get_fill(wp, first);
     }
     max.min(count)

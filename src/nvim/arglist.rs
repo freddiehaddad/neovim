@@ -728,7 +728,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
     maketitle();
 
     if curwin_mut().w_arg_idx.get() == 0
-        && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0
+        && (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0
         && (curbuf_mut().b_ffname.is_none() || curbuf_is_reusable)
     {
         i = 0;

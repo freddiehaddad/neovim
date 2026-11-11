@@ -277,7 +277,7 @@ pub fn u_save(top: Linenr, bot: Linenr) -> bool {
 }
 
 pub fn u_save_buf(buf: &mut FileBuf, top: Linenr, bot: Linenr) -> bool {
-    if top >= bot || bot > buf.b_ml.ml_line_count + 1 {
+    if top >= bot || bot > buf.b_ml.ml_line_count.get() + 1 {
         return false;
     }
 
@@ -304,7 +304,7 @@ pub fn u_savedel(lnum: Linenr, nlines: Linenr) -> bool {
         curbuf_mut(),
         lnum - 1,
         lnum + nlines,
-        if nlines == curbuf_mut().b_ml.ml_line_count {
+        if nlines == curbuf_mut().b_ml.ml_line_count.get() {
             2
         } else {
             lnum
@@ -365,7 +365,7 @@ pub fn u_savecommon(
             change_warning(buf, 0);
         }
 
-        if bot > buf.b_ml.ml_line_count + 1 {
+        if bot > buf.b_ml.ml_line_count.get() + 1 {
             emsg(gettext(c"E881: Line count changed unexpectedly"));
             return false;
         }
@@ -457,7 +457,7 @@ pub fn u_savecommon(
             UH_CHANGED
         } else {
             0
-        }) + (if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
+        }) + (if (buf.b_ml.ml_flags.get() & ML_EMPTY) != 0 {
             UH_EMPTYBUF
         } else {
             0
@@ -500,7 +500,7 @@ pub fn u_savecommon(
                         uhp_mut(buf, newhead).uh_entries.insert(0, entry);
                     }
 
-                    let line_count = buf.b_ml.ml_line_count;
+                    let line_count = buf.b_ml.ml_line_count.get();
                     let first_uep = &mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0];
                     if newbot != 0 {
                         first_uep.ue_bot = newbot;
@@ -528,10 +528,10 @@ pub fn u_savecommon(
     let newhead = buf.b_u_newhead.get().unwrap();
     if newbot != 0 {
         uep.ue_bot = newbot;
-    } else if bot > buf.b_ml.ml_line_count {
+    } else if bot > buf.b_ml.ml_line_count.get() {
         uep.ue_bot = 0;
     } else {
-        uep.ue_lcount = buf.b_ml.ml_line_count;
+        uep.ue_lcount = buf.b_ml.ml_line_count.get();
         uhp_mut(buf, newhead).uh_getbot_entry = true;
     }
 
@@ -562,19 +562,19 @@ fn u_entry_resized(buf: &FileBuf, uep: &UEntry) -> bool {
     if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
         uep.ue_top + uep.ue_size() + 1
             != if uep.ue_bot == 0 {
-                buf.b_ml.ml_line_count + 1
+                buf.b_ml.ml_line_count.get() + 1
             } else {
                 uep.ue_bot
             }
     } else {
-        uep.ue_lcount != buf.b_ml.ml_line_count
+        uep.ue_lcount != buf.b_ml.ml_line_count.get()
     }
 }
 
 /// Compute the hash for a buffer text into `hash[UNDO_HASH_SIZE]`.
 pub fn u_compute_hash(buf: &mut FileBuf, hash: &mut [u8; UNDO_HASH_SIZE]) {
     let mut ctx = ContextSha256::new();
-    for lnum in 1..=buf.b_ml.ml_line_count {
+    for lnum in 1..=buf.b_ml.ml_line_count.get() {
         let slice = crate::memline::ml_get_buf_slice(buf, lnum);
         ctx.update(slice);
         ctx.update(&[0]);
@@ -693,7 +693,7 @@ fn serialize_header(bi: &mut Bufinfo, hash: &[u8; UNDO_HASH_SIZE]) -> bool {
         return false;
     }
 
-    undo_write_bytes(bi, buf.b_ml.ml_line_count as u64, 4);
+    undo_write_bytes(bi, buf.b_ml.ml_line_count.get() as u64, 4);
     let len = buf.b_u_line_ptr.as_ref().map_or(0, |s| s.as_bytes().len());
     undo_write_bytes(bi, len as u64, 4);
     if len > 0 && !undo_write(bi, &buf.b_u_line_ptr.as_ref().unwrap().as_bytes()[..len]) {
@@ -1289,7 +1289,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 break 'error;
             }
             let line_count = undo_read_4c(&mut bi) as Linenr;
-            if *hash != read_hash || line_count != curbuf_mut().b_ml.ml_line_count {
+            if *hash != read_hash || line_count != curbuf_mut().b_ml.ml_line_count.get() {
                 if opt_vars().p_verbose.get() > 0 || name.is_some() {
                     if name.is_none() {
                         verbose_enter();
@@ -1590,7 +1590,7 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
     }
     atom_did_global_op();
 
-    let empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    let empty = (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
     undo_st(|st| {
         st.u_newcount.set(0);
         st.u_oldcount.set(if empty { -1 } else { 0 });
@@ -1664,7 +1664,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         u_sync(true);
     }
 
-    let empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    let empty = (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
     undo_st(|st| {
         st.u_newcount.set(0);
         st.u_oldcount.set(if empty { -1 } else { 0 });
@@ -1966,7 +1966,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         UH_CHANGED
     } else {
         0
-    }) | (if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    }) | (if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         UH_EMPTYBUF
     } else {
         0
@@ -1976,7 +1976,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     zero_fmark_additional_data(&mut curbuf_mut().b_namedm);
     let namedm = curbuf_mut().b_namedm.clone();
     let visualinfo = curbuf_mut().b_visual;
-    curbuf_mut().b_op_start.lnum = curbuf_mut().b_ml.ml_line_count;
+    curbuf_mut().b_op_start.lnum = curbuf_mut().b_ml.ml_line_count.get();
     curbuf_mut().b_op_start.col = 0;
     curbuf_mut().b_op_end.lnum = 0;
     curbuf_mut().b_op_end.col = 0;
@@ -1988,11 +1988,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         let top = uep.ue_top;
         let mut bot = uep.ue_bot;
         if bot == 0 {
-            bot = curbuf_mut().b_ml.ml_line_count + 1;
+            bot = curbuf_mut().b_ml.ml_line_count.get() + 1;
         }
-        if top > curbuf_mut().b_ml.ml_line_count
+        if top > curbuf_mut().b_ml.ml_line_count.get()
             || top >= bot
-            || bot > curbuf_mut().b_ml.ml_line_count + 1
+            || bot > curbuf_mut().b_ml.ml_line_count.get() + 1
         {
             unblock_autocmds();
             iemsg(gettext(c"E438: u_undo: line numbers wrong"));
@@ -2040,7 +2040,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 i >= 0
             } {
                 newarray[i as usize] = u_save_line(lnum);
-                if curbuf_mut().b_ml.ml_line_count == 1 {
+                if curbuf_mut().b_ml.ml_line_count.get() == 1 {
                     empty_buffer = true;
                 }
                 ml_delete(lnum);
@@ -2086,7 +2086,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 newsize - oldsize,
                 do_buf_event,
             );
-            if spell_check_window(curwin_mut()) && bot <= curbuf_mut().b_ml.ml_line_count {
+            if spell_check_window(curwin_mut()) && bot <= curbuf_mut().b_ml.ml_line_count.get() {
                 redraw_winline(crate::globals::curwin_mut(), bot);
             }
         }
@@ -2109,11 +2109,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     curbuf_mut().b_op_start.lnum = curbuf_mut()
         .b_op_start
         .lnum
-        .min(curbuf_mut().b_ml.ml_line_count);
+        .min(curbuf_mut().b_ml.ml_line_count.get());
     curbuf_mut().b_op_end.lnum = curbuf_mut()
         .b_op_end
         .lnum
-        .min(curbuf_mut().b_ml.ml_line_count);
+        .min(curbuf_mut().b_ml.ml_line_count.get());
 
     if undo {
         for &item in curhead.uh_extmark.iter().rev() {
@@ -2134,7 +2134,10 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     curhead.uh_entries.reverse();
     curhead.uh_flags = new_flags;
     if (old_flags & UH_EMPTYBUF) != 0 && buf_is_empty(curbuf_mut()) {
-        curbuf_mut().b_ml.ml_flags |= ML_EMPTY;
+        curbuf_mut()
+            .b_ml
+            .ml_flags
+            .set(curbuf_mut().b_ml.ml_flags.get() | (ML_EMPTY));
     }
     if (old_flags & UH_CHANGED) != 0 {
         changed(crate::globals::curbuf_mut());
@@ -2163,7 +2166,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 
     if undo
         && curhead.uh_cursor.lnum >= 1
-        && curhead.uh_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
+        && curhead.uh_cursor.lnum <= curbuf_mut().b_ml.ml_line_count.get()
     {
         curwin_mut().w_cursor = curhead.uh_cursor;
         if virtual_active(curwin_mut()) && curhead.uh_cursor_vcol >= 0 {
@@ -2175,7 +2178,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         {
             curwin_mut().w_cursor.lnum -= 1;
         }
-        if curwin_mut().w_cursor.lnum <= curbuf_mut().b_ml.ml_line_count {
+        if curwin_mut().w_cursor.lnum <= curbuf_mut().b_ml.ml_line_count.get() {
             if curhead.uh_cursor.lnum == curwin_mut().w_cursor.lnum {
                 curwin_mut().w_cursor.col = curhead.uh_cursor.col;
                 if virtual_active(curwin_mut()) && curhead.uh_cursor_vcol >= 0 {
@@ -2231,7 +2234,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         return;
     }
 
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         undo_st(|st| st.u_newcount.set(st.u_newcount.get() - 1));
     }
 
@@ -2483,7 +2486,7 @@ pub fn u_find_first_changed() {
     }
 
     let mut lnum: Linenr = 1;
-    while lnum < curbuf_mut().b_ml.ml_line_count && lnum <= uep.ue_size() {
+    while lnum < curbuf_mut().b_ml.ml_line_count.get() && lnum <= uep.ue_size() {
         if crate::memline::ml_get_buf_slice(crate::globals::curbuf_mut(), lnum)
             != uep.ue_array.as_slice()[(lnum - 1) as usize].as_bytes()
         {
@@ -2493,7 +2496,7 @@ pub fn u_find_first_changed() {
         }
         lnum += 1;
     }
-    if curbuf_mut().b_ml.ml_line_count != uep.ue_size() {
+    if curbuf_mut().b_ml.ml_line_count.get() != uep.ue_size() {
         clearpos(&mut uhp_mut(curbuf_mut(), nh).uh_cursor);
         uhp_mut(curbuf_mut(), nh).uh_cursor.lnum = lnum;
     }
@@ -2546,7 +2549,7 @@ fn u_getbot(buf: &mut FileBuf) {
     let newhead = buf.b_u_newhead.get().unwrap();
 
     if uhp_ref(buf, newhead).uh_getbot_entry {
-        let line_count = buf.b_ml.ml_line_count;
+        let line_count = buf.b_ml.ml_line_count.get();
         let uep = &mut uhp_mut(buf, newhead).uh_entries[0];
         let extra = line_count - uep.ue_lcount;
         uep.ue_bot = uep.ue_top + uep.ue_size() + 1 + extra;
@@ -2725,7 +2728,7 @@ fn u_saveline(buf: &mut FileBuf, lnum: Linenr) {
     if lnum == buf.b_u_line_lnum.get() {
         return;
     }
-    if lnum < 1 || lnum > buf.b_ml.ml_line_count {
+    if lnum < 1 || lnum > buf.b_ml.ml_line_count.get() {
         return;
     }
     u_clearline(buf);
@@ -2751,7 +2754,7 @@ pub fn u_clearline(buf: &mut FileBuf) {
 /// Implementation of the `"U"` command.
 pub fn u_undoline() {
     if curbuf_mut().b_u_line_ptr.is_none()
-        || curbuf_mut().b_u_line_lnum.get() > curbuf_mut().b_ml.ml_line_count
+        || curbuf_mut().b_u_line_lnum.get() > curbuf_mut().b_ml.ml_line_count.get()
     {
         beep_flush();
         return;

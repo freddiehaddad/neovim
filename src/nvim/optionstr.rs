@@ -1570,7 +1570,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             SID_NONE,
         );
         let next_prompt = CursorPos {
-            lnum: buf.b_ml.ml_line_count,
+            lnum: buf.b_ml.ml_line_count.get(),
             col: buf.b_prompt_start.mark.col,
             coladd: 0,
         };

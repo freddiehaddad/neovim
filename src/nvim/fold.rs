@@ -252,7 +252,7 @@ pub fn has_folding_win(
         return false;
     }
 
-    last = last.min(win.buf_mut().b_ml.ml_line_count);
+    last = last.min(win.buf_mut().b_ml.ml_line_count.get());
     if let Some(ref mut p) = lastp {
         **p = last;
     }
@@ -1406,7 +1406,7 @@ fn delete_fold_markers(
 
 fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
     let markerlen = marker_slice.len();
-    if lnum > buf.b_ml.ml_line_count {
+    if lnum > buf.b_ml.ml_line_count.get() {
         return;
     }
 
@@ -1677,7 +1677,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
     if wp.w_foldinvalid.get() {
         top = 1;
-        bot = wp.buf_mut().b_ml.ml_line_count;
+        bot = wp.buf_mut().b_ml.ml_line_count.get();
         wp.w_foldinvalid.set(false);
 
         set_small_maybe(&mut wp.w_folds);
@@ -1692,7 +1692,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         bot += g_st().diff_context.get();
     }
 
-    top = top.min(wp.buf_mut().b_ml.ml_line_count);
+    top = top.min(wp.buf_mut().b_ml.ml_line_count.get());
 
     FOLD_STATE.with(|st| st.fold_changed.set(false));
     let mut fline = Fline {
@@ -1793,12 +1793,12 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
     let mut start = fline.lnum;
     let mut end = bot;
-    if start > end && end < wp.buf_mut().b_ml.ml_line_count {
+    if start > end && end < wp.buf_mut().b_ml.ml_line_count.get() {
         end = start;
     }
 
     while !g_st().got_int.get() {
-        if fline.lnum > wp.buf_mut().b_ml.ml_line_count {
+        if fline.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
             break;
         }
         if fline.lnum > end {
@@ -1844,7 +1844,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
             );
             start = fline.lnum;
         } else {
-            if fline.lnum == wp.buf_mut().b_ml.ml_line_count {
+            if fline.lnum == wp.buf_mut().b_ml.ml_line_count.get() {
                 break;
             }
             fline.lnum += 1;
@@ -1888,7 +1888,7 @@ fn fold_update_iemsrecurse(
     let mut startlnum2 = startlnum;
     let firstlnum = flp.lnum;
     let mut finish = false;
-    let linecount = flp.wp_mut().buf_mut().b_ml.ml_line_count - flp.off;
+    let linecount = flp.wp_mut().buf_mut().b_ml.ml_line_count.get() - flp.off;
 
     flp.lnum_save = flp.lnum;
     while !g_st().got_int.get() {
@@ -2422,7 +2422,7 @@ fn foldlevel_indent(flp: &mut Fline) {
             i32::from(s_rem[0]),
         )
     {
-        flp.lvl = if lnum == 1 || lnum == buf.b_ml.ml_line_count {
+        flp.lvl = if lnum == 1 || lnum == buf.b_ml.ml_line_count.get() {
             0
         } else {
             -1
@@ -2504,7 +2504,7 @@ fn foldlevel_expr(flp: &mut Fline) {
             flp.lvl = 0;
             flp.lvl_next = 0;
         }
-        if lnum == curbuf_mut().b_ml.ml_line_count {
+        if lnum == curbuf_mut().b_ml.ml_line_count.get() {
             flp.lvl_next = 0;
         }
     }
@@ -2581,7 +2581,7 @@ fn foldlevel_syntax(flp: &mut Fline) {
 
     flp.lvl = syn_get_foldlevel(flp.wp_mut(), lnum);
     flp.start = 0;
-    if lnum < flp.wp_mut().buf_mut().b_ml.ml_line_count {
+    if lnum < flp.wp_mut().buf_mut().b_ml.ml_line_count.get() {
         let n = syn_get_foldlevel(flp.wp_mut(), lnum + 1);
         if n > flp.lvl {
             flp.start = n - flp.lvl;
@@ -2678,7 +2678,7 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
 
 fn foldclosed_both(argvars: &mut [TypVal], rettv: &mut TypVal, end: bool) {
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
+    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         let mut first: Linenr = 0;
         let mut last: Linenr = 0;
         if has_folding_win(
@@ -2713,7 +2713,7 @@ pub fn f_foldclosedend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 /// "foldlevel()" function
 pub fn f_foldlevel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
+    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(fold_level(lnum)));
     }
 }
@@ -2726,7 +2726,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let foldstart = get_vim_var_nr(VV_FOLDSTART) as Linenr;
     let foldend = get_vim_var_nr(VV_FOLDEND) as Linenr;
     let dashes = get_vim_var_str(VV_FOLDDASHES);
-    if foldstart > 0 && foldend <= curbuf_mut().b_ml.ml_line_count {
+    if foldstart > 0 && foldend <= curbuf_mut().b_ml.ml_line_count.get() {
         let mut lnum = foldstart;
         while lnum < foldend {
             if !linewhite(lnum) {

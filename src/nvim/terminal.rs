@@ -876,10 +876,10 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> TermId {
     }
     VTERMS.with(|vts| vts.borrow_mut()[idx] = Some(vt));
 
-    if (buf.b_ml.ml_flags & ML_EMPTY) == 0 {
-        let line_count = buf.b_ml.ml_line_count;
+    if (buf.b_ml.ml_flags.get() & ML_EMPTY) == 0 {
+        let line_count = buf.b_ml.ml_line_count.get();
         loop {
-            if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
+            if (buf.b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                 break;
             }
             ml_delete_buf(buf, 1, false);
@@ -999,7 +999,8 @@ pub fn terminal_close(term_id: TermId, status: i32) {
         with_term_mut(term_id, |t| t.closed = true);
     }
 
-    let mut pos = handle_get_buffer_opt(buf_handle).map_or(0, |buf| buf.b_ml.ml_line_count - 1);
+    let mut pos =
+        handle_get_buffer_opt(buf_handle).map_or(0, |buf| buf.b_ml.ml_line_count.get() - 1);
     if status == -1 || g_st().exiting.get() {
         with_term_mut(term_id, |t| t.buf_handle = 0);
         if let Some(buf) = handle_get_buffer_opt(buf_handle) {
@@ -1072,7 +1073,7 @@ pub fn terminal_state_change_event(buf_handle: ObjHandle) {
     if let Some(buf) = handle_get_buffer_opt(buf_handle)
         && !buf.terminal.get().is_null()
     {
-        redraw_buf_line_later(buf, buf.b_ml.ml_line_count, false);
+        redraw_buf_line_later(buf, buf.b_ml.ml_line_count.get(), false);
     }
 }
 
@@ -1323,14 +1324,15 @@ fn terminal_check_cursor() {
             term.cursor.col,
         )
     });
-    curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.min(lnum_target);
-    let topline = (curbuf_mut().b_ml.ml_line_count - curwin_mut().w_view_height.get() + 1).max(1);
+    curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get().min(lnum_target);
+    let topline =
+        (curbuf_mut().b_ml.ml_line_count.get() - curwin_mut().w_view_height.get() + 1).max(1);
     if topline != curwin_mut().w_topline.get() {
         set_topline(curwin_mut(), topline);
     }
     if suspended && (g_st().state_global.get() & MODE_TERMINAL) != 0 {
         curwin_mut().w_cursor = CursorPos {
-            lnum: curbuf_mut().b_ml.ml_line_count,
+            lnum: curbuf_mut().b_ml.ml_line_count.get(),
             col: 0,
             coladd: 0,
         };
@@ -2443,13 +2445,13 @@ fn refresh_terminal(term_id: TermId) {
     let Some(buf) = handle_get_buffer_opt(buf_handle) else {
         return;
     };
-    let ml_before = buf.b_ml.ml_line_count;
+    let ml_before = buf.b_ml.ml_line_count.get();
 
     let resized = refresh_size(term_id);
     refresh_scrollback(term_id, &mut *buf);
     refresh_screen(term_id, &mut *buf);
 
-    let ml_added = buf.b_ml.ml_line_count - ml_before;
+    let ml_added = buf.b_ml.ml_line_count.get() - ml_before;
     adjust_topline_cursor(term_id, &mut *buf, ml_added);
 
     if resized {
@@ -2604,7 +2606,7 @@ fn refresh_scrollback(term_id: TermId, buf: &mut FileBuf) {
 
     with_term_mut(term_id, |term| {
         let mut deleted = (term.sb_deleted - term.old_sb_deleted) as Linenr;
-        deleted = deleted.min(buf.b_ml.ml_line_count);
+        deleted = deleted.min(buf.b_ml.ml_line_count.get());
         mark_adjust_buf(
             &mut *buf,
             1,
@@ -2619,16 +2621,16 @@ fn refresh_scrollback(term_id: TermId, buf: &mut FileBuf) {
 
         let mut old_height = term.old_height;
 
-        while deleted > 0 && buf.b_ml.ml_line_count > old_height {
+        while deleted > 0 && buf.b_ml.ml_line_count.get() > old_height {
             ml_delete_buf(buf, 1, false);
             deleted_lines_buf(buf, 1, 1);
             deleted -= 1;
         }
 
-        old_height = old_height.min(buf.b_ml.ml_line_count);
+        old_height = old_height.min(buf.b_ml.ml_line_count.get());
         while term.sb_pending > 0 {
             fetch_row(term_id, term, -term.sb_pending, width);
-            let buf_index = buf.b_ml.ml_line_count - old_height;
+            let buf_index = buf.b_ml.ml_line_count.get() - old_height;
             let line_bytes = crate::memory::bytes_until_nul(&term.textbuf);
             ml_append_buf(buf, buf_index, line_bytes, 0, false);
             appended_lines_buf(buf, buf_index, 1);
@@ -2637,11 +2639,11 @@ fn refresh_scrollback(term_id: TermId, buf: &mut FileBuf) {
 
         let max_line_count = term.sb_buffer.len() as i32 + height;
         loop {
-            if buf.b_ml.ml_line_count <= max_line_count {
+            if buf.b_ml.ml_line_count.get() <= max_line_count {
                 break;
             }
-            ml_delete_buf(buf, buf.b_ml.ml_line_count, false);
-            deleted_lines_buf(buf, buf.b_ml.ml_line_count, 1);
+            ml_delete_buf(buf, buf.b_ml.ml_line_count.get(), false);
+            deleted_lines_buf(buf, buf.b_ml.ml_line_count.get(), 1);
         }
 
         adjust_scrollback(term, buf);
@@ -2673,7 +2675,7 @@ fn refresh_screen(term_id: TermId, buf: &mut FileBuf) {
             fetch_row(term_id, term, r, width);
             let line_bytes = crate::memory::bytes_until_nul(&term.textbuf);
 
-            if linenr <= buf.b_ml.ml_line_count {
+            if linenr <= buf.b_ml.ml_line_count.get() {
                 ml_replace_buf(buf, linenr, line_bytes, true, false);
                 changed += 1;
             } else {
@@ -2697,7 +2699,7 @@ fn refresh_screen(term_id: TermId, buf: &mut FileBuf) {
 }
 
 fn adjust_topline_cursor(term_id: TermId, buf: &mut FileBuf, added: i32) {
-    let ml_end = buf.b_ml.ml_line_count;
+    let ml_end = buf.b_ml.ml_line_count.get();
 
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {

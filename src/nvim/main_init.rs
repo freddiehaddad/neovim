@@ -693,7 +693,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
     if params.exmode {
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
     }
 
     apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());

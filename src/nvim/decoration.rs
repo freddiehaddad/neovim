@@ -678,9 +678,9 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
 }
 
 pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: i32) {
-    if decor.is_ext() && row < buf.b_ml.ml_line_count {
+    if decor.is_ext() && row < buf.b_ml.ml_line_count.get() {
         let mut idx = decor.data.ext().sh_idx;
-        row2 = row2.min(buf.b_ml.ml_line_count - 1);
+        row2 = row2.min(buf.b_ml.ml_line_count.get() - 1);
         while idx != DECOR_ID_INVALID {
             let (mut sh, next) = DECOR_ITEMS.with(|cell| {
                 let items = cell.borrow();
@@ -733,9 +733,9 @@ pub fn buf_decor_remove(
     free: bool,
 ) {
     decor_redraw(&mut *buf, row1, row2, col1, decor);
-    if decor.is_ext() && row1 < buf.b_ml.ml_line_count {
+    if decor.is_ext() && row1 < buf.b_ml.ml_line_count.get() {
         let mut idx = decor.data.ext().sh_idx;
-        row2 = row2.min(buf.b_ml.ml_line_count - 1);
+        row2 = row2.min(buf.b_ml.ml_line_count.get() - 1);
         while idx != DECOR_ID_INVALID {
             let sh = DECOR_ITEMS.with(|cell| cell.borrow()[idx as usize].clone());
             let next = sh.next;
@@ -1491,7 +1491,7 @@ pub fn decor_row_has_conceal(wp: &mut WinInfoInfo, row: i32) -> bool {
 
 pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     if row < 0
-        || row >= wp.buf_mut().b_ml.ml_line_count
+        || row >= wp.buf_mut().b_ml.ml_line_count.get()
         || wp.w_onebuf_opt.wo_cole.get() < 2
         || (!check_cursor
             && wp == curwin_ptr()

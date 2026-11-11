@@ -5193,7 +5193,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
             return None;
         };
         let mut total_len: usize = 0;
-        for lnum in 1..=buf.b_ml.ml_line_count {
+        for lnum in 1..=buf.b_ml.ml_line_count.get() {
             total_len += crate::memline::ml_get_buf_len(buf, lnum) as usize + 1;
         }
 
@@ -5202,7 +5202,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         }
 
         let mut ret = Vec::with_capacity(total_len);
-        for lnum in 1..=buf.b_ml.ml_line_count {
+        for lnum in 1..=buf.b_ml.ml_line_count.get() {
             for &p_byte in crate::memline::ml_get_buf_slice(buf, lnum) {
                 ret.push(if p_byte == b'\n' { 0 } else { p_byte });
             }
@@ -5255,8 +5255,8 @@ pub fn buf_byteidx_to_charidx(
         return -1;
     }
 
-    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
-        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
+    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
+        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
     }
 
     let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
@@ -5290,8 +5290,8 @@ pub fn buf_charidx_to_byteidx(
         return -1;
     }
 
-    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
-        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
+    if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count.get() {
+        lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count.get();
     }
 
     let str_bytes = crate::memline::ml_get_buf_slice(buf.unwrap(), lnum);
@@ -5333,7 +5333,7 @@ pub fn var2fpos(
 
         pos.lnum = tv_list_find_nr(l.opt(), 0, Some(&mut error)) as Linenr;
 
-        if error || pos.lnum <= 0 || pos.lnum > bp.b_ml.ml_line_count {
+        if error || pos.lnum <= 0 || pos.lnum > bp.b_ml.ml_line_count.get() {
             return None;
         }
 
@@ -5439,7 +5439,7 @@ pub fn var2fpos(
         }
     } else if name_bytes.first() == Some(&b'$') {
         if dollar_lnum {
-            pos.lnum = bp.b_ml.ml_line_count;
+            pos.lnum = bp.b_ml.ml_line_count.get();
             pos.col = 0;
         } else {
             pos.lnum = wp.w_cursor.lnum;
@@ -6743,7 +6743,7 @@ pub fn prompt_get_input(buf: &mut FileBuf) -> Option<std::ffi::CString> {
     }
     let lnum_start = buf.b_prompt_start.mark.lnum;
     let mark_col = buf.b_prompt_start.mark.col;
-    let lnum_last = buf.b_ml.ml_line_count;
+    let lnum_last = buf.b_ml.ml_line_count.get();
 
     let mut text = crate::memline::ml_get_buf_slice(buf, lnum_start);
     if mark_col >= 0 && (text.len() as i32) >= mark_col {

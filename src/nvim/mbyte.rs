@@ -2778,7 +2778,7 @@ pub fn utf_find_illegal() {
             }
             idx += len;
         }
-        if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
+        if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count.get() {
             curwin_mut().w_cursor = pos;
             beep_flush();
             break;

@@ -779,7 +779,7 @@ pub fn nvim_buf_set_extmark(
 
         if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) || did_end_line {
             let val = opts.end_row;
-            if val < 0 || (val > i64::from(b.b_ml.ml_line_count) && strict) {
+            if val < 0 || (val > i64::from(b.b_ml.ml_line_count.get()) && strict) {
                 api_err_range(err, c"end_row");
                 break 'error;
             }
@@ -1087,13 +1087,13 @@ pub fn nvim_buf_set_extmark(
             break 'error;
         }
 
-        if line > i64::from(b.b_ml.ml_line_count) {
+        if line > i64::from(b.b_ml.ml_line_count.get()) {
             if strict {
                 api_err_range(err, c"line");
                 break 'error;
             }
-            line = i64::from(b.b_ml.ml_line_count);
-        } else if line < i64::from(b.b_ml.ml_line_count) {
+            line = i64::from(b.b_ml.ml_line_count.get());
+        } else if line < i64::from(b.b_ml.ml_line_count.get()) {
             len = if opts.ephemeral {
                 MAXCOL as Colnr
             } else {
@@ -1115,13 +1115,13 @@ pub fn nvim_buf_set_extmark(
         }
 
         if col2 >= 0 {
-            if line2 >= 0 && line2 < b.b_ml.ml_line_count {
+            if line2 >= 0 && line2 < b.b_ml.ml_line_count.get() {
                 len = if opts.ephemeral {
                     MAXCOL as Colnr
                 } else {
                     ml_get_buf_len(&mut *b, line2 + 1)
                 };
-            } else if line2 == b.b_ml.ml_line_count {
+            } else if line2 == b.b_ml.ml_line_count.get() {
                 len = 0;
             } else {
                 line2 = line as i32;

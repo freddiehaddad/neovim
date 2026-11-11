@@ -920,8 +920,10 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
     if curwin_mut().w_topline.get() <= 0 {
         curwin_mut().w_topline.set(1);
     }
-    if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count {
-        curwin_mut().w_topline.set(curbuf_mut().b_ml.ml_line_count);
+    if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count.get() {
+        curwin_mut()
+            .w_topline
+            .set(curbuf_mut().b_ml.ml_line_count.get());
     }
     check_topfill(curwin_mut(), true);
 }

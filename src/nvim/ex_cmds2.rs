@@ -427,7 +427,7 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
     let old_curbuf = g_st().curbuf.get();
     let ffname = buf.ffname_opt().map(CStr::to_owned);
     let fname = buf.fname_opt().map(CStr::to_owned);
-    let line_count = buf.b_ml.ml_line_count;
+    let line_count = buf.b_ml.ml_line_count.get();
     let retval = buf_write(
         buf,
         ffname.as_deref(),
@@ -853,7 +853,7 @@ pub fn ex_drop(eap: &mut Exarg) {
                     buf_check_timestamp(curbuf_mut());
                     curbuf_mut().b_p_ar.set(save_ar);
                 }
-                if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+                if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                     ex_rewind(eap);
                 }
 

@@ -386,7 +386,7 @@ fn insert_enter(s: &mut InsertState) {
 
         if !equalpos(curwin_mut().w_cursor, save_cursor)
             && get_vim_var_str(VV_CHAR).is_empty()
-            && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
+            && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count.get()
         {
             let save_state = g_st().state_global.get();
             curwin_mut().w_cursor = save_cursor;
@@ -454,7 +454,9 @@ fn insert_enter(s: &mut InsertState) {
     } else if s.cmdchar == b'V' as i32 || s.cmdchar == b'v' as i32 {
         g_st().state_global.set(MODE_VREPLACE);
         s.replace_state = MODE_VREPLACE;
-        g_st().orig_line_count.set(curbuf_mut().b_ml.ml_line_count);
+        g_st()
+            .orig_line_count
+            .set(curbuf_mut().b_ml.ml_line_count.get());
         g_st().vr_lines_changed.set(1);
     } else {
         g_st().state_global.set(MODE_INSERT);
@@ -1557,13 +1559,13 @@ fn init_prompt(cmdchar_todo: i32) {
     let prompt_len = prompt_bytes.len() as Colnr;
 
     if curbuf_mut().b_prompt_start.mark.lnum < 1
-        || curbuf_mut().b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
+        || curbuf_mut().b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
     {
         curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut()
             .b_prompt_start
             .mark
             .lnum
-            .min(curbuf_mut().b_ml.ml_line_count)
+            .min(curbuf_mut().b_ml.ml_line_count.get())
             .max(1);
         curbuf_mut().b_prompt_append_new_line.set(true);
     }
@@ -1590,15 +1592,15 @@ fn init_prompt(cmdchar_todo: i32) {
             );
             inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
         } else {
-            let lnum = curbuf_mut().b_ml.ml_line_count;
+            let lnum = curbuf_mut().b_ml.ml_line_count.get();
             ml_append(lnum, prompt.to_bytes(), 0, false);
             appended_lines_mark(lnum, 1);
-            curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
+            curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count.get();
             curbuf_mut().b_prompt_append_new_line.set(true);
             u_clearallandblockfree(curbuf_mut());
         }
         curbuf_mut().b_prompt_start.mark.col = prompt_len;
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         coladvance(curwin_mut(), MAXCOL);
     }
 
@@ -2074,7 +2076,9 @@ pub fn stop_arrow() -> bool {
         }
         g_st().ins_global.ai_col = 0;
         if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-            g_st().orig_line_count.set(curbuf_mut().b_ml.ml_line_count);
+            g_st()
+                .orig_line_count
+                .set(curbuf_mut().b_ml.ml_line_count.get());
             g_st().vr_lines_changed.set(1);
         }
         if jumped {
@@ -2167,7 +2171,7 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
             && (esc != 0
                 || (!crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INDENT)
                     && curwin_mut().w_cursor.lnum != end_pos.lnum))
-            && end_pos.lnum <= curbuf_mut().b_ml.ml_line_count
+            && end_pos.lnum <= curbuf_mut().b_ml.ml_line_count.get()
         {
             let mut tpos = curwin_mut().w_cursor;
             let prev_col = end_pos.col;
@@ -2393,7 +2397,7 @@ pub fn cursor_up(n: Linenr, upd_topline: bool) -> bool {
 /// Move the cursor down `n` lines in window `wp`.
 pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: i32, skip_conceal: bool) {
     let mut lnum = wp.w_cursor.lnum;
-    let line_count = wp.buf_mut().b_ml.ml_line_count;
+    let line_count = wp.buf_mut().b_ml.ml_line_count.get();
 
     if lnum + n >= line_count {
         lnum = line_count;
@@ -2424,7 +2428,7 @@ pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: i32, skip_conceal: bool) {
 pub fn cursor_down(n: i32, upd_topline: bool) -> bool {
     let mut lnum = curwin_mut().w_cursor.lnum;
     has_folding_win(curwin_mut(), lnum, None, Some(&mut lnum), true, None);
-    if n > 0 && lnum >= curwin_mut().buf_mut().b_ml.ml_line_count {
+    if n > 0 && lnum >= curwin_mut().buf_mut().b_ml.ml_line_count.get() {
         return false;
     }
     cursor_down_inner(curwin_mut(), n, false);
@@ -3019,9 +3023,11 @@ fn ins_del() {
             mc_ins_join();
             curwin_mut().w_cursor.col = temp;
             if (g_st().state_global.get() & VREPLACE_FLAG) != 0
-                && g_st().orig_line_count.get() > curbuf_mut().b_ml.ml_line_count
+                && g_st().orig_line_count.get() > curbuf_mut().b_ml.ml_line_count.get()
             {
-                g_st().orig_line_count.set(curbuf_mut().b_ml.ml_line_count);
+                g_st()
+                    .orig_line_count
+                    .set(curbuf_mut().b_ml.ml_line_count.get());
             }
         }
     } else if !del_char(false) {
@@ -3394,7 +3400,7 @@ fn ins_end(c: i32) {
     undisplay_dollar();
     let tpos = curwin_mut().w_cursor;
     if c == K_C_END {
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
     }
     coladvance(curwin_mut(), MAXCOL);
     curwin_mut().w_curswant.set(MAXCOL);
@@ -3442,7 +3448,7 @@ fn ins_right() {
             g_st().ins_global.revins_chars -= 1;
         }
     } else if crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b']' as i32)
-        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
     {
         start_arrow(Some(curwin_mut().w_cursor), true, K_RIGHT);
         curwin_mut().w_set_curswant.set(true);
@@ -3460,7 +3466,8 @@ fn ins_s_right() {
         fold_open_cursor();
     }
     undisplay_dollar();
-    if curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count || gchar_cursor() != NUL as i32
+    if curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
+        || gchar_cursor() != NUL as i32
     {
         start_arrow_with_change(curwin_mut().w_cursor, end_change, K_S_RIGHT);
         fwd_word(1, false, false);
@@ -3889,7 +3896,7 @@ fn ins_digraph() -> i32 {
 
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.
 pub fn ins_copychar(lnum: Linenr) -> i32 {
-    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count.get() {
         vim_beep(K_OPT_BO_FLAG_COPY);
         return NUL as i32;
     }
@@ -3954,7 +3961,7 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
 pub fn get_nolist_virtcol() -> Colnr {
     if curwin_mut().w_buffer.is_null()
         || curwin_mut().buf_mut().b_ml.ml_mfp.is_none()
-        || curwin_mut().w_cursor.lnum > curwin_mut().buf_mut().b_ml.ml_line_count
+        || curwin_mut().w_cursor.lnum > curwin_mut().buf_mut().b_ml.ml_line_count.get()
     {
         return 0;
     }

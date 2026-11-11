@@ -372,7 +372,7 @@ fn buf_write_do_autocmds(
     orig_end: CursorPos,
 ) -> Option<bool> {
     let mut buf = bufref.br_buf;
-    let old_line_count = buf.b_ml.ml_line_count;
+    let old_line_count = buf.b_ml.ml_line_count.get();
     let msg_save = g_st().msg_scroll.get();
 
     let mut aco: CtxSwitch = CtxSwitch::new();
@@ -530,13 +530,13 @@ fn buf_write_do_autocmds(
     }
 
     let b = buf.borrow_mut();
-    if b.b_ml.ml_line_count != old_line_count {
+    if b.b_ml.ml_line_count.get() != old_line_count {
         if whole {
-            *endp = b.b_ml.ml_line_count;
-        } else if b.b_ml.ml_line_count > old_line_count {
-            *endp += b.b_ml.ml_line_count - old_line_count;
+            *endp = b.b_ml.ml_line_count.get();
+        } else if b.b_ml.ml_line_count.get() > old_line_count {
+            *endp += b.b_ml.ml_line_count.get() - old_line_count;
         } else {
-            *endp -= old_line_count - b.b_ml.ml_line_count;
+            *endp -= old_line_count - b.b_ml.ml_line_count.get();
             if *endp < start {
                 g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
                 g_st().msg_scroll.set(msg_save);
@@ -1095,7 +1095,7 @@ pub fn buf_write(
     let mut retval = true;
     let msg_save = g_st().msg_scroll.get();
     let mut prev_got_int = g_st().got_int.get();
-    let whole = start == 1 && end == buf.b_ml.ml_line_count;
+    let whole = start == 1 && end == buf.b_ml.ml_line_count.get();
     let mut write_undo_file = false;
     let mut sha_ctx = ContextSha256::new();
     let bkc = get_bkc_flags(buf.borrow_mut());
@@ -1338,8 +1338,8 @@ pub fn buf_write(
                 status_redraw_all();
             }
 
-            end = end.min(buf.b_ml.ml_line_count);
-            if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
+            end = end.min(buf.b_ml.ml_line_count.get());
+            if (buf.b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                 start = end + 1;
             }
 
@@ -1590,7 +1590,8 @@ pub fn buf_write(
                             || (lnum == end
                                 && (write_bin || !buf.b_p_fixeol.get())
                                 && ((write_bin && lnum == buf.b_no_eol_lnum.get())
-                                    || (lnum == buf.b_ml.ml_line_count && !buf.b_p_eol.get())))
+                                    || (lnum == buf.b_ml.ml_line_count.get()
+                                        && !buf.b_p_eol.get())))
                         {
                             lnum += 1;
                             no_eol = true;

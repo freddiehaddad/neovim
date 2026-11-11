@@ -138,7 +138,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
         return luaL_error_cstr(lstate, c"invalid buffer");
     }
 
-    if rownr >= buf_ref.b_ml.ml_line_count {
+    if rownr >= buf_ref.b_ml.ml_line_count.get() {
         return luaL_error_cstr(lstate, c"invalid row");
     }
 

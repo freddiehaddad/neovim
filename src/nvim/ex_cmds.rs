@@ -1211,7 +1211,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         }
     }
 
-    let mut last_line = curbuf_mut().b_ml.ml_line_count;
+    let mut last_line = curbuf_mut().b_ml.ml_line_count.get();
     mark_adjust_nofold(line1, line2, last_line - line2, 0, K_EXTMARK_NOOP);
 
     g_st()
@@ -1326,7 +1326,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
     if line1 < dest {
         dest += num_lines + 1;
-        last_line = curbuf_mut().b_ml.ml_line_count;
+        last_line = curbuf_mut().b_ml.ml_line_count.get();
         dest = dest.min(last_line + 1);
         changed_lines(curbuf_mut(), line1, 0, dest, 0, false);
     } else {
@@ -1610,7 +1610,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                 }
                 redraw_curbuf_later(UPD_VALID);
             }
-            let mut read_linecount = curbuf_mut().b_ml.ml_line_count;
+            let mut read_linecount = curbuf_mut().b_ml.ml_line_count.get();
 
             call_shell(
                 Some(cmd_buf.as_c_str()),
@@ -1649,7 +1649,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                     }
                 }
 
-                read_linecount = curbuf_mut().b_ml.ml_line_count - read_linecount;
+                read_linecount = curbuf_mut().b_ml.ml_line_count.get() - read_linecount;
 
                 if (shell_flags & K_SHELL_OPT_READ) != 0 {
                     curbuf_mut().b_op_start.lnum = line2 + 1;
@@ -1678,7 +1678,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                     curwin_mut().w_cursor.lnum = line1;
                     del_lines(linecount, true);
                     if read_linecount == 0 {
-                        let l = line1.min(curbuf_mut().b_ml.ml_line_count);
+                        let l = line1.min(curbuf_mut().b_ml.ml_line_count.get());
                         curbuf_mut().b_op_start.lnum = l;
                         curbuf_mut().b_op_end.lnum = l;
                         curbuf_mut().b_op_start.col = 0;
@@ -2051,7 +2051,7 @@ pub fn ex_update(eap: &mut Exarg) {
 pub fn ex_write(eap: &mut Exarg) {
     if eap.cmdidx == Cmdidx::CmdSaveas {
         eap.line1 = 1;
-        eap.line2 = curbuf_mut().b_ml.ml_line_count;
+        eap.line2 = curbuf_mut().b_ml.ml_line_count.get();
     }
 
     if eap.usefilter {
@@ -2143,7 +2143,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         if !other {
             ffname = curbuf_mut().ffname_opt();
             fname = curbuf_mut().fname_opt();
-            if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
+            if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count.get())
                 && !eap.forceit
                 && !eap.append
                 && !opt_vars().p_wa.get()
@@ -2322,7 +2322,7 @@ pub fn ex_wnext(eap: &mut Exarg) {
         curwin_mut().w_arg_idx.get() - eap.line2
     };
     eap.line1 = 1;
-    eap.line2 = curbuf_mut().b_ml.ml_line_count;
+    eap.line2 = curbuf_mut().b_ml.ml_line_count.get();
     if do_write(eap) {
         do_argfile(eap, i);
     }
@@ -2895,13 +2895,13 @@ pub fn do_ecmd(
 
             if (curbuf_mut().b_flags.get() & BF_NEVERLOADED) == 0
                 && (opt_vars().p_ur.get() < 0
-                    || (curbuf_mut().b_ml.ml_line_count as OptInt) <= opt_vars().p_ur.get())
+                    || (curbuf_mut().b_ml.ml_line_count.get() as OptInt) <= opt_vars().p_ur.get())
             {
                 u_sync(false);
                 if !u_savecommon(
                     curbuf_mut(),
                     0,
-                    curbuf_mut().b_ml.ml_line_count + 1,
+                    curbuf_mut().b_ml.ml_line_count.get() + 1,
                     0,
                     true,
                 ) {
@@ -3205,7 +3205,7 @@ pub fn ex_append(eap: &mut Exarg) {
     let mut did_undo = false;
     let mut lnum = eap.line2;
     let mut indent: i32 = 0;
-    let mut empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    let mut empty = (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
 
     if eap.skip {
         while let Some(theline) = get_append_line(eap, 0) {
@@ -3303,10 +3303,10 @@ pub fn ex_append(eap: &mut Exarg) {
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_start.lnum = if eap.line2 < curbuf_mut().b_ml.ml_line_count {
+        curbuf_mut().b_op_start.lnum = if eap.line2 < curbuf_mut().b_ml.ml_line_count.get() {
             eap.line2 + 1
         } else {
-            curbuf_mut().b_ml.ml_line_count
+            curbuf_mut().b_ml.ml_line_count.get()
         };
         if eap.cmdidx != Cmdidx::CmdAppend {
             curbuf_mut().b_op_start.lnum -= 1;
@@ -3347,7 +3347,7 @@ pub fn ex_change(eap: &mut Exarg) {
 
     let mut lnum = eap.line2;
     while lnum >= eap.line1 {
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+        if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
             break;
         }
         ml_delete(eap.line1);
@@ -3395,8 +3395,8 @@ pub fn ex_z(eap: &mut Exarg) {
         }
         bigness = crate::charset::parse_i64_prefix(rem);
 
-        if bigness > 2 * (curbuf_mut().b_ml.ml_line_count as i64) || bigness < 0 {
-            bigness = 2 * (curbuf_mut().b_ml.ml_line_count as i64);
+        if bigness > 2 * (curbuf_mut().b_ml.ml_line_count.get() as i64) || bigness < 0 {
+            bigness = 2 * (curbuf_mut().b_ml.ml_line_count.get() as i64);
         }
 
         opt_vars().p_window.set(bigness as i32 as OptInt);
@@ -3450,8 +3450,8 @@ pub fn ex_z(eap: &mut Exarg) {
     }
 
     start = start.max(1);
-    end = end.min(curbuf_mut().b_ml.ml_line_count);
-    curs = curs.max(1).min(curbuf_mut().b_ml.ml_line_count);
+    end = end.min(curbuf_mut().b_ml.ml_line_count.get());
+    curs = curs.max(1).min(curbuf_mut().b_ml.ml_line_count.get());
 
     for i in start..=end {
         if minus != 0 && i == lnum {
@@ -3535,8 +3535,9 @@ fn sub_joining_lines(
             _ => {}
         }
 
-        let joined_lines_count =
-            eap.line2 - eap.line1 + 1 + i32::from(eap.line2 < curbuf_mut().b_ml.ml_line_count);
+        let joined_lines_count = eap.line2 - eap.line1
+            + 1
+            + i32::from(eap.line2 < curbuf_mut().b_ml.ml_line_count.get());
         if joined_lines_count > 1 {
             do_join(joined_lines_count as usize, false, true, false, true);
             g_st().sub_nsubs.set(joined_lines_count - 1);
@@ -3747,7 +3748,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         .cast::<std::ffi::c_char>();
     let mut first_line: Linenr = 0;
     let mut last_line: Linenr = 0;
-    let old_line_count = curbuf_mut().b_ml.ml_line_count;
+    let old_line_count = curbuf_mut().b_ml.ml_line_count.get();
     let mut sub_firstline: SubBuf;
     let mut endcolumn = false;
     let keeppatterns = (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0;
@@ -3912,7 +3913,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
         eap.line1 = eap.line2;
         eap.line2 += i - 1;
-        eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
+        eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count.get());
     }
 
     cmd = cmd.wrapping_add(crate::charset::skipwhite_len(
@@ -4046,7 +4047,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                 current_match.start.lnum = sub_firstlnum;
 
-                if lnum > curbuf_mut().b_ml.ml_line_count {
+                if lnum > curbuf_mut().b_ml.ml_line_count.get() {
                     break;
                 }
                 if sub_firstline.is_null() {
@@ -4249,8 +4250,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                     curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
-                    if nmatch > curbuf_mut().b_ml.ml_line_count - sub_firstlnum + 1 {
-                        nmatch = curbuf_mut().b_ml.ml_line_count - sub_firstlnum + 1;
+                    if nmatch > curbuf_mut().b_ml.ml_line_count.get() - sub_firstlnum + 1 {
+                        nmatch = curbuf_mut().b_ml.ml_line_count.get() - sub_firstlnum + 1;
                         current_match.end.lnum = sub_firstlnum + nmatch;
                         skip_match = true;
                         if nmatch < 0 {
@@ -4641,7 +4642,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     curbuf_mut().deleted_bytes2.set(0);
 
     if first_line != 0 {
-        i = curbuf_mut().b_ml.ml_line_count - old_line_count;
+        i = curbuf_mut().b_ml.ml_line_count.get() - old_line_count;
         changed_lines(curbuf_mut(), first_line, 0, last_line - i, i, false);
 
         let num_added = (last_line - first_line) as i64;
@@ -4824,7 +4825,7 @@ pub fn ex_global(eap: &mut Exarg) {
     let mut regmatch: Regmmatch = Regmmatch::new();
 
     if g_st().global_busy.get() != 0
-        && (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
+        && (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count.get())
     {
         emsg(gettext(c"E147: Cannot do :global recursive with a range"));
         return;
@@ -4973,7 +4974,7 @@ pub fn global_exe(cmd: &CStr) {
     EXCMDS_STATE.with(|s| s.global_need_msg_kind.set(true));
     EXCMDS_STATE.with(|s| s.global_need_beginline.set(false));
     g_st().global_busy.set(1);
-    let old_lcount = curbuf_mut().b_ml.ml_line_count;
+    let old_lcount = curbuf_mut().b_ml.ml_line_count.get();
 
     while !g_st().got_int.get() && g_st().global_busy.get() == 1 {
         let lnum = ml_firstmarked();
@@ -4998,7 +4999,7 @@ pub fn global_exe(cmd: &CStr) {
     }
 
     if !do_sub_msg(false) && g_st().curbuf.get() == old_buf {
-        msgmore(curbuf_mut().b_ml.ml_line_count - old_lcount);
+        msgmore(curbuf_mut().b_ml.ml_line_count.get() - old_lcount);
     }
 }
 
@@ -5138,7 +5139,7 @@ fn show_sub(
                 if next_linenr == m.end.lnum {
                     p_end.lnum = linenr_preview + 1;
                 }
-                let line_cstr = if next_linenr == curbuf_mut().b_ml.ml_line_count + 1 {
+                let line_cstr = if next_linenr == curbuf_mut().b_ml.ml_line_count.get() + 1 {
                     c""
                 } else {
                     line_size = ml_get_buf_len(curbuf_mut(), next_linenr) + col_width + 1;

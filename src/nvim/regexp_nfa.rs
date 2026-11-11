@@ -4416,7 +4416,8 @@ fn nfa_regmatch(
                                         1
                                     };
                                     if !re_s.rex.has_match.get()
-                                        && (lnum <= 0 || lnum > wp_mut.buf_mut().b_ml.ml_line_count)
+                                        && (lnum <= 0
+                                            || lnum > wp_mut.buf_mut().b_ml.ml_line_count.get())
                                     {
                                         lnum = 1;
                                     }

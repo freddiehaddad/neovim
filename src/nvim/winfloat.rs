@@ -292,7 +292,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             let _ = crate::grid::grid_adjust_opt(&mut parent.w_grid, &mut row, &mut col);
             if wp.w_config.bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
-                    lnum: (wp.w_config.bufpos.lnum + 1).min((*parent).buf_mut().b_ml.ml_line_count),
+                    lnum: (wp.w_config.bufpos.lnum + 1)
+                        .min((*parent).buf_mut().b_ml.ml_line_count.get()),
                     col: wp.w_config.bufpos.col,
                     coladd: 0,
                 };
@@ -574,7 +575,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     };
 
     // If a dimension is not given in 'previewpopup', autosize to the content.
-    let last: Linenr = wp.buf_mut().b_ml.ml_line_count;
+    let last: Linenr = wp.buf_mut().b_ml.ml_line_count.get();
     if want_w == 0 {
         want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().columns_global.get()).max(1);
     }

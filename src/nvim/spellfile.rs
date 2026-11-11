@@ -4482,7 +4482,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
         smsg!(
             0,
             gettext(c"Number of words after soundfolding: %lld"),
-            spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
+            spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count.get() as i64,
         );
 
         spell_message(&*spin, gettext(MSG_COMPRESSING));
@@ -4722,7 +4722,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     put_node(Some(&fd), &mut spin.si_nodes, tree, 0, 0, false);
 
     let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
-    let wcount = spellbuf.b_ml.ml_line_count;
+    let wcount = spellbuf.b_ml.ml_line_count.get();
     put_bytes(&fd, wcount as u64, 4);
 
     let mut write_err = false;

@@ -6233,7 +6233,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
             return false;
         }
 
-        if end_match_pos.lnum > curbuf_mut().b_ml.ml_line_count {
+        if end_match_pos.lnum > curbuf_mut().b_ml.ml_line_count.get() {
             cur_match_pos.lnum = 1;
             cur_match_pos.col = 0;
             cur_match_pos.coladd = 0;

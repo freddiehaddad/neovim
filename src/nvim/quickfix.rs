@@ -3057,7 +3057,7 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: 
     } else {
         let mut i = qf_lnum;
         if i > 0 {
-            i = i.min(curbuf_mut().b_ml.ml_line_count);
+            i = i.min(curbuf_mut().b_ml.ml_line_count.get());
             curwin_mut().w_cursor.lnum = i;
         }
         if qf_col > 0 {
@@ -3962,7 +3962,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
     let qi = &*qi_rc;
 
     if let Some(win_ref) = qf_find_win(qi) {
-        let last_lnum = win_ref.buf_mut().b_ml.ml_line_count;
+        let last_lnum = win_ref.buf_mut().b_ml.ml_line_count.get();
         if win_ref.w_cursor.lnum != last_lnum {
             qf_win_goto(win_ref, last_lnum);
         }
@@ -3985,7 +3985,7 @@ fn qf_win_pos_update(qi: &QfInfo, old_qf_index: i32) -> bool {
     let win = qf_find_win(qi);
     let found = win.is_some();
     if let Some(win_ref) = win
-        && qf_index <= win_ref.buf_mut().b_ml.ml_line_count
+        && qf_index <= win_ref.buf_mut().b_ml.ml_line_count.get()
         && old_qf_index != qf_index
     {
         win_ref.w_redraw_top.set(old_qf_index.min(qf_index));
@@ -4055,7 +4055,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
         return;
     };
 
-    let old_line_count = buf.b_ml.ml_line_count;
+    let old_line_count = buf.b_ml.ml_line_count.get();
     let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
     let old_bytecount = get_region_bytecount(&mut *buf, 1, old_line_count, 0, old_endcol);
     let mut qf_winid: i32 = 0;
@@ -4083,7 +4083,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
 
     qf_fill_buffer(Some(qf_get_curlist(qi)), &mut *buf, old_count, qf_winid);
 
-    let new_line_count = buf.b_ml.ml_line_count;
+    let new_line_count = buf.b_ml.ml_line_count.get();
     let new_endcol = ml_get_buf_len(&mut *buf, new_line_count);
     let delta = new_line_count - old_line_count;
 
@@ -4293,7 +4293,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
             return;
         }
 
-        while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
+        while (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) == 0 {
             if !ml_delete(1) {
                 internal_error(c"qf_fill_buffer()");
                 return;
@@ -4318,7 +4318,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
         let mut lnum: Linenr = if old_count == 0 {
             0
         } else {
-            buf.b_ml.ml_line_count
+            buf.b_ml.ml_line_count.get()
         };
 
         let qfl_cnt = qfl_rc.borrow().count();
@@ -5275,7 +5275,7 @@ fn vgr_match_buflines(
     let pat_len = spat_bytes.len().min(FUZZY_MATCH_MAX_LEN);
 
     let mut lnum: Linenr = 1;
-    while lnum <= buf.b_ml.ml_line_count && *tomatch > 0 {
+    while lnum <= buf.b_ml.ml_line_count.get() && *tomatch > 0 {
         let mut col: Colnr = 0;
         if (flags & VGR_FUZZY) == 0 {
             while vim_regexec_multi(
@@ -6950,13 +6950,13 @@ fn cbuffer_process_args(
 
     if eap.addr_count == 0 {
         eap.line1 = 1;
-        eap.line2 = buf_ref.b_ml.ml_line_count;
+        eap.line2 = buf_ref.b_ml.ml_line_count.get();
     }
 
     if eap.line1 < 1
-        || eap.line1 > buf_ref.b_ml.ml_line_count
+        || eap.line1 > buf_ref.b_ml.ml_line_count.get()
         || eap.line2 < 1
-        || eap.line2 > buf_ref.b_ml.ml_line_count
+        || eap.line2 > buf_ref.b_ml.ml_line_count.get()
     {
         emsg(gettext(E_INVRANGE));
         return None;

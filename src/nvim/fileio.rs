@@ -921,7 +921,7 @@ pub fn readfile(
                 }
             }
 
-            let wasempty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+            let wasempty = (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
 
             let show_msg = !g_st().recoverymode.get()
                 && !filtering
@@ -946,7 +946,7 @@ pub fn readfile(
 
             g_st().msg_scroll.set(0);
 
-            let mut linecnt = curbuf_mut().b_ml.ml_line_count;
+            let mut linecnt = curbuf_mut().b_ml.ml_line_count.get();
 
             if let Some(eap) = eap
                 && eap.bad_char != 0
@@ -1214,11 +1214,11 @@ pub fn readfile(
                                         }
                                         if conv_error == 0 {
                                             conv_error =
-                                                curbuf_mut().b_ml.ml_line_count - linecnt + 1;
+                                                curbuf_mut().b_ml.ml_line_count.get() - linecnt + 1;
                                         }
                                     } else if illegal_byte == 0 {
                                         illegal_byte =
-                                            curbuf_mut().b_ml.ml_line_count - linecnt + 1;
+                                            curbuf_mut().b_ml.ml_line_count.get() - linecnt + 1;
                                     }
                                     if bad_char_behavior == BAD_DROP {
                                         buffer_vec[ptr_idx - (conv_restlen as usize)] = 0;
@@ -2000,15 +2000,15 @@ pub fn readfile(
             g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 
             if !g_st().recoverymode.get() {
-                if newfile && wasempty && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
-                    ml_delete(curbuf_mut().b_ml.ml_line_count);
+                if newfile && wasempty && (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) == 0 {
+                    ml_delete(curbuf_mut().b_ml.ml_line_count.get());
                     linecnt -= 1;
                 }
                 curbuf_mut().deleted_bytes.set(0);
                 curbuf_mut().deleted_bytes2.set(0);
                 curbuf_mut().deleted_codepoints.set(0);
                 curbuf_mut().deleted_codeunits.set(0);
-                linecnt = curbuf_mut().b_ml.ml_line_count - linecnt;
+                linecnt = curbuf_mut().b_ml.ml_line_count.get() - linecnt;
                 if filesize == 0 {
                     linecnt = 0;
                 }
@@ -2344,7 +2344,7 @@ pub fn is_dev_fd_file(bytes: &[u8]) -> bool {
 /// Estimate the line number where we are now.
 fn readfile_linenr(linecnt: Linenr, slice: &[u8]) -> Linenr {
     let newlines = slice.iter().filter(|&&b| b == b'\n').count() as Linenr;
-    curbuf_mut().b_ml.ml_line_count - linecnt + 1 + newlines
+    curbuf_mut().b_ml.ml_line_count.get() - linecnt + 1 + newlines
 }
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
@@ -3128,7 +3128,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
     let mut retval = true;
 
     g_st().curbuf.set((ptr::from_mut(tobuf)).into());
-    for lnum in 1..=frombuf.b_ml.ml_line_count {
+    for lnum in 1..=frombuf.b_ml.ml_line_count.get() {
         let p = ml_get_buf(frombuf, lnum).to_owned();
         if !ml_append(lnum - 1, p.to_bytes(), 0, false) {
             retval = false;
@@ -3138,7 +3138,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
 
     if retval {
         g_st().curbuf.set((ptr::from_mut(frombuf)).into());
-        let mut lnum = curbuf_mut().b_ml.ml_line_count;
+        let mut lnum = curbuf_mut().b_ml.ml_line_count.get();
         while lnum > 0 {
             if !ml_delete(lnum) {
                 retval = false;
@@ -3407,13 +3407,13 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let old_topline = curwin_mut().w_topline.get();
 
     if opt_vars().p_ur.get() < 0
-        || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur.get()
+        || i64::from(curbuf_mut().b_ml.ml_line_count.get()) <= opt_vars().p_ur.get()
     {
         u_sync(false);
         saved = u_savecommon(
             curbuf_mut(),
             0,
-            curbuf_mut().b_ml.ml_line_count + 1,
+            curbuf_mut().b_ml.ml_line_count.get() + 1,
             0,
             true,
         );
@@ -3469,7 +3469,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
                 && g_st().curbuf.get() == buf
             {
                 while !buf_is_empty(curbuf_mut()) {
-                    if !ml_delete(buf.b_ml.ml_line_count) {
+                    if !ml_delete(buf.b_ml.ml_line_count.get()) {
                         break;
                     }
                 }
@@ -3496,7 +3496,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
 
     curwin_mut()
         .w_topline
-        .set(old_topline.min(curbuf_mut().b_ml.ml_line_count));
+        .set(old_topline.min(curbuf_mut().b_ml.ml_line_count.get()));
     curwin_mut().w_cursor = old_cursor;
     check_cursor(curwin_mut());
     update_topline(curwin_mut());

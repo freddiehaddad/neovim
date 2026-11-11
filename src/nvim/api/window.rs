@@ -141,7 +141,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     let row = pos[0].data.integer();
     let col = pos[1].data.integer();
 
-    if row <= 0 || row > i64::from(w.buf_mut().b_ml.ml_line_count) {
+    if row <= 0 || row > i64::from(w.buf_mut().b_ml.ml_line_count.get()) {
         api_err_range(err, c"cursor line");
         return;
     }
@@ -489,7 +489,7 @@ pub fn nvim_win_text_height(
         return rv;
     };
     let buf = w.buf_mut();
-    let line_count = buf.b_ml.ml_line_count;
+    let line_count = buf.b_ml.ml_line_count.get();
 
     let mut start_lnum: Linenr = 1;
     let mut end_lnum: Linenr = line_count;

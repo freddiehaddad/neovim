@@ -739,8 +739,8 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     curwin_mut().w_cursor = g_st().saved_cursor;
     g_st().saved_cursor.lnum = 0;
 
-    if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+    if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         coladvance(curwin_mut(), MAXCOL);
     } else {
         check_cursor_col(curwin_mut());
@@ -811,7 +811,7 @@ pub fn comp_textwidth(ff: bool) -> i32 {
 
 /// Implementation of the format operator `gq` (`op_format`).
 pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
-    let mut old_line_count = curbuf_mut().b_ml.ml_line_count;
+    let mut old_line_count = curbuf_mut().b_ml.ml_line_count.get();
 
     curwin_mut().w_cursor = oap.cursor_start;
 
@@ -834,11 +834,11 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
 
     format_lines(oap.line_count, keep_cursor);
 
-    if oap.end_adjusted && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count {
+    if oap.end_adjusted && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get() {
         curwin_mut().w_cursor.lnum += 1;
     }
     beginline(BL_WHITE | BL_FIX);
-    old_line_count = curbuf_mut().b_ml.ml_line_count - old_line_count;
+    old_line_count = curbuf_mut().b_ml.ml_line_count.get() - old_line_count;
     msgmore(old_line_count);
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -961,7 +961,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
             prev_is_end_par = is_end_par;
         }
 
-        if count == 1 || curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
+        if count == 1 || curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count.get() {
             next_is_not_par = true;
             next_leader_len = 0;
             next_leader_flags = None;
@@ -990,7 +990,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
             if first_par_line
                 && (do_second_indent || do_number_indent)
                 && prev_is_end_par
-                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
             {
                 if do_second_indent
                     && !crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum + 1).is_empty()
@@ -1011,7 +1011,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 }
             }
 
-            if (curwin_mut().w_cursor.lnum >= curbuf_mut().b_ml.ml_line_count
+            if (curwin_mut().w_cursor.lnum >= curbuf_mut().b_ml.ml_line_count.get()
                 || !same_leader(
                     curwin_mut().w_cursor.lnum,
                     leader_len,

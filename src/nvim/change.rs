@@ -444,7 +444,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     changed_lines_redraw_buf(curbuf_mut(), lnum, lnum + 1, 0);
     changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
     if spell_check_window(curwin_mut())
-        && lnum < curbuf_mut().b_ml.ml_line_count
+        && lnum < curbuf_mut().b_ml.ml_line_count.get()
         && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
     {
         redraw_winline(crate::globals::curwin_mut(), lnum + 1);
@@ -508,7 +508,7 @@ pub fn deleted_lines(lnum: Linenr, count: Linenr) {
 
 /// Like `deleted_lines()`, but adjust marks first.
 pub fn deleted_lines_mark(lnum: Linenr, count: i32) {
-    let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0;
 
     mark_adjust(lnum, lnum + count - 1, MAXLNUM, -count, K_EXTMARK_NOOP);
     extmark_adjust(
@@ -626,7 +626,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     }
     if ignore_empty
         && (buf.b_flags.get() & BF_NEW) != 0
-        && buf.b_ml.ml_line_count == 1
+        && buf.b_ml.ml_line_count.get() == 1
         && crate::memline::ml_get_buf_slice(buf, 1).is_empty()
     {
         return false;
@@ -1068,7 +1068,7 @@ pub fn open_line(
                     let mut was_backslashed = false;
 
                     while (ptr_bytes.first() == Some(&b'#') || was_backslashed)
-                        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+                        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count.get()
                     {
                         was_backslashed = ptr_bytes.last() == Some(&b'\\');
                         curwin_mut().w_cursor.lnum += 1;
@@ -1885,14 +1885,14 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
 
     let mut n: i32 = 0;
     while n < nlines {
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+        if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
             break;
         }
 
         ml_delete_flags(first, ML_DEL_MESSAGE);
         n += 1;
 
-        if first > curbuf_mut().b_ml.ml_line_count {
+        if first > curbuf_mut().b_ml.ml_line_count.get() {
             break;
         }
     }

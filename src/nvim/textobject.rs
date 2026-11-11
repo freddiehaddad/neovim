@@ -66,7 +66,7 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
         } else if dir == FORWARD && pos.col == 0 && start_ps(pos.lnum, i32::from(NUL), false) {
             // if on the start of a paragraph or a section and searching forward,
             // go to the next line
-            if pos.lnum == curbuf_mut().b_ml.ml_line_count {
+            if pos.lnum == curbuf_mut().b_ml.ml_line_count.get() {
                 return false;
             }
             pos.lnum += 1;
@@ -228,7 +228,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
                 curr -= dir;
             }
             curr += dir;
-            if curr < 1 || curr > curbuf_mut().b_ml.ml_line_count {
+            if curr < 1 || curr > curbuf_mut().b_ml.ml_line_count.get() {
                 if count != 0 {
                     return false;
                 }
@@ -243,7 +243,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
         curr += 1;
     }
     curwin_mut().w_cursor.lnum = curr;
-    if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as i32 && dir == FORWARD {
+    if curr == curbuf_mut().b_ml.ml_line_count.get() && what != b'}' as i32 && dir == FORWARD {
         let line_slice = crate::memline::ml_get_slice(curr);
 
         // Put the cursor on the last character in the last line and make the
@@ -328,7 +328,7 @@ pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
         }
         let sclass = cls();
 
-        let last_line = curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count;
+        let last_line = curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count.get();
         let mut i = inc_cursor();
         if i == -1 || (i >= 1 && last_line) {
             return false;
@@ -695,7 +695,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
             oap.start.coladd = 0;
             oap.motion_type = MT_LINE_WISE;
         }
-        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count.get();
         curwin_mut().w_cursor.col = 0;
         curwin_mut().w_cursor.coladd = 0;
         return true;
@@ -1301,7 +1301,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
         }
 
         let mut end_lnum = start_lnum;
-        while end_lnum <= curbuf_mut().b_ml.ml_line_count && linewhite(end_lnum) {
+        while end_lnum <= curbuf_mut().b_ml.ml_line_count.get() && linewhite(end_lnum) {
             end_lnum += 1;
         }
 
@@ -1315,7 +1315,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
             i -= 1;
             old != 0
         } {
-            if end_lnum == curbuf_mut().b_ml.ml_line_count {
+            if end_lnum == curbuf_mut().b_ml.ml_line_count.get() {
                 return false;
             }
 
@@ -1325,7 +1325,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
 
             if include || !do_white {
                 end_lnum += 1;
-                while end_lnum < curbuf_mut().b_ml.ml_line_count
+                while end_lnum < curbuf_mut().b_ml.ml_line_count.get()
                     && !linewhite(end_lnum + 1)
                     && !start_ps(end_lnum + 1, 0, false)
                 {
@@ -1338,7 +1338,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
             }
 
             if include || do_white {
-                while end_lnum < curbuf_mut().b_ml.ml_line_count && linewhite(end_lnum + 1) {
+                while end_lnum < curbuf_mut().b_ml.ml_line_count.get() && linewhite(end_lnum + 1) {
                     end_lnum += 1;
                 }
             }
@@ -1390,7 +1390,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
             == (if dir == BACKWARD {
                 1
             } else {
-                curbuf_mut().b_ml.ml_line_count
+                curbuf_mut().b_ml.ml_line_count.get()
             })
         {
             retval = false;
@@ -1410,7 +1410,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
                     == (if dir == BACKWARD {
                         1
                     } else {
-                        curbuf_mut().b_ml.ml_line_count
+                        curbuf_mut().b_ml.ml_line_count.get()
                     })
                 {
                     break;
@@ -1430,7 +1430,7 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
                 == (if dir == BACKWARD {
                     1
                 } else {
-                    curbuf_mut().b_ml.ml_line_count
+                    curbuf_mut().b_ml.ml_line_count.get()
                 })
             {
                 break;

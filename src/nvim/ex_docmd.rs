@@ -5709,7 +5709,7 @@ pub fn get_cmd_default_range(eap: &mut Exarg) -> Linenr {
         ADDR_LINES | ADDR_OTHER => curwin_mut()
             .w_cursor
             .lnum
-            .min(curbuf_mut().b_ml.ml_line_count),
+            .min(curbuf_mut().b_ml.ml_line_count.get()),
         ADDR_WINDOWS => current_win_nr(Some(curwin_mut()), None),
         ADDR_ARGUMENTS => (curwin_mut().w_arg_idx.get() + 1).min(argcount()),
         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => curbuf_mut().b_fnum.get(),
@@ -5725,7 +5725,7 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
     eap.line1 = 1;
     match eap.addr_type {
         ADDR_LINES | ADDR_OTHER => {
-            eap.line2 = curbuf_mut().b_ml.ml_line_count;
+            eap.line2 = curbuf_mut().b_ml.ml_line_count.get();
         }
         ADDR_LOADED_BUFFERS => {
             let mut buf = g_st().firstbuf.get();
@@ -5819,8 +5819,8 @@ pub fn set_cmd_count(eap: &mut Exarg, count: Linenr, validate: bool) {
             eap.line2 += count - 1;
         }
         eap.addr_count += 1;
-        if validate && eap.line2 > curbuf_mut().b_ml.ml_line_count {
-            eap.line2 = curbuf_mut().b_ml.ml_line_count;
+        if validate && eap.line2 > curbuf_mut().b_ml.ml_line_count.get() {
+            eap.line2 = curbuf_mut().b_ml.ml_line_count.get();
         }
     }
 }
@@ -6787,7 +6787,7 @@ fn ex_range_without_command(eap: &mut Exarg) -> Option<std::borrow::Cow<'static,
             ex_print(&mut *eap);
         }
     } else if eap.addr_count != 0 {
-        eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
+        eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count.get());
 
         if eap.line2 < 0 {
             errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
@@ -7281,7 +7281,7 @@ pub fn parse_cmd_address(
                     match eap.addr_type {
                         ADDR_LINES | ADDR_OTHER => {
                             eap.line1 = 1;
-                            eap.line2 = curbuf_mut().b_ml.ml_line_count;
+                            eap.line2 = curbuf_mut().b_ml.ml_line_count.get();
                         }
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().firstbuf.get();
@@ -7820,7 +7820,7 @@ pub fn get_address(
                 b'$' => {
                     cmd_cur = cmd_cur.map(|c| crate::memory::CStrSubslice::advance(c, 1));
                     match addr_type {
-                        ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
+                        ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count.get(),
                         ADDR_WINDOWS => lnum = current_win_nr(None, eap.as_deref()),
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
@@ -7918,7 +7918,8 @@ pub fn get_address(
                     } else {
                         let pos = curwin_mut().w_cursor;
                         if lnum > 0 && lnum != MAXLNUM {
-                            curwin_mut().w_cursor.lnum = lnum.min(curbuf_mut().b_ml.ml_line_count);
+                            curwin_mut().w_cursor.lnum =
+                                lnum.min(curbuf_mut().b_ml.ml_line_count.get());
                         }
                         curwin_mut().w_cursor.col =
                             if c == b'/' as i32 && curwin_mut().w_cursor.lnum > 0 {
@@ -8172,7 +8173,7 @@ pub fn invalid_range(eap: &mut Exarg) -> Option<std::borrow::Cow<'static, std::f
                 let extra = Linenr::from(
                     eap.cmdidx == Cmdidx::CmdDiffget || eap.cmdidx == Cmdidx::CmdDiffput,
                 );
-                if eap.line2 > curbuf_mut().b_ml.ml_line_count + extra {
+                if eap.line2 > curbuf_mut().b_ml.ml_line_count.get() + extra {
                     return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
@@ -9911,7 +9912,7 @@ fn ex_exit(eap: &mut Exarg) {
 }
 
 fn ex_print(eap: &mut Exarg) {
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
         let _ = emsg(gettext(E_EMPTY_BUFFER));
     } else {
         let mut line = eap.line1;
@@ -10305,7 +10306,7 @@ fn ex_detach(eap: &mut Exarg) {
     }
 
     if eap.addr_count > 0 {
-        if eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count {
+        if eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count.get() {
             let _ = emsg(gettext(E_INVRANGE));
             return;
         }
@@ -10683,7 +10684,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
         let mut vt = get_vtopline(curwin_mut());
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_scb.get() && !wp.w_buffer.is_null() {
-                let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count)
+                let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count.get())
                     - (get_scrolloff_value(curwin_mut()) as i32);
                 vt = vt.min(y);
             }
@@ -11200,7 +11201,7 @@ fn ex_copymove(eap: &mut Exarg) {
     }
     get_flags(eap);
 
-    if n == MAXLNUM || n < 0 || n > curbuf_mut().b_ml.ml_line_count {
+    if n == MAXLNUM || n < 0 || n > curbuf_mut().b_ml.ml_line_count.get() {
         let _ = emsg(gettext(E_INVRANGE));
         return;
     }
@@ -11234,7 +11235,7 @@ fn ex_join(eap: &mut Exarg) {
         if eap.addr_count >= 2 {
             return;
         }
-        if eap.line2 == curbuf_mut().b_ml.ml_line_count {
+        if eap.line2 == curbuf_mut().b_ml.ml_line_count.get() {
             beep_flush();
             return;
         }

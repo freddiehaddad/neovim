@@ -5542,7 +5542,7 @@ pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
         && tv.vval.v_string_bytes() == b"$"
         && let Some(buf) = buf
     {
-        return buf.b_ml.ml_line_count;
+        return buf.b_ml.ml_line_count.get();
     }
     tv_get_number_chk(tv, None) as Linenr
 }

@@ -1143,7 +1143,7 @@ pub fn spell_move_to(
             let empty_line =
                 crate::charset::skipwhite_slice(&line_bytes[..line_bytes.len() - 1]).is_empty();
             buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
-            if lnum < wp.buf_mut().b_ml.ml_line_count {
+            if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
                 let cur_len = line_bytes.len() - 1;
                 let next_line = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum + 1);
                 spell_cat_line(&mut buf_vec[cur_len..cur_len + MAXWLEN], next_line);
@@ -1234,7 +1234,7 @@ pub fn spell_move_to(
                 } else if !opt_vars().p_ws.get() {
                     break;
                 } else {
-                    lnum = wp.buf_mut().b_ml.ml_line_count;
+                    lnum = wp.buf_mut().b_ml.ml_line_count.get();
                     wrapped = true;
                     if !shortmess(K_SHM_SEARCH) {
                         give_warning(gettext(TOP_BOT_MSG), true, false);
@@ -1242,7 +1242,7 @@ pub fn spell_move_to(
                 }
                 capcol = -1;
             } else {
-                if lnum < wp.buf_mut().b_ml.ml_line_count {
+                if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
                     lnum += 1;
                 } else if !opt_vars().p_ws.get() {
                     break;
@@ -2697,8 +2697,8 @@ pub fn ex_spelldump(eap: &mut Exarg) {
         return;
     }
     spell_dump_compl(None, 0, None, if eap.forceit { DUMPFLAG_COUNT } else { 0 });
-    if curbuf_mut().b_ml.ml_line_count > 1 {
-        let _ = ml_delete(curbuf_mut().b_ml.ml_line_count);
+    if curbuf_mut().b_ml.ml_line_count.get() > 1 {
+        let _ = ml_delete(curbuf_mut().b_ml.ml_line_count.get());
     }
     redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
 }

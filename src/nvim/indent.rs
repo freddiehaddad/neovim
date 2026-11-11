@@ -725,7 +725,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
 /// Return the indent of the current line after a number (`get_number_indent`).
 pub fn get_number_indent(lnum: Linenr) -> i32 {
-    if lnum > curbuf_mut().b_ml.ml_line_count {
+    if lnum > curbuf_mut().b_ml.ml_line_count.get() {
         return -1;
     }
 
@@ -1877,7 +1877,7 @@ pub fn fix_indent() {
 /// `indent()` function (`f_indent`).
 pub fn f_indent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
+    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_indent_lnum(lnum)));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1888,7 +1888,7 @@ pub fn f_indent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 pub fn f_lispindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let pos = curwin_mut().w_cursor;
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
+    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
         curwin_mut().w_cursor.lnum = lnum;
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));
         curwin_mut().w_cursor = pos;
