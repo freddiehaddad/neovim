@@ -1643,15 +1643,19 @@ pub fn win_line(
     if col_rows == 0 && draw_text {
         extra_check = wp.w_onebuf_opt.wo_lbr.get();
         let w_s = wp.w_s_ptr();
-        if syntax_present(&mut *wp) && !w_s.b_syn_error && !w_s.b_syn_slow && !has_foldtext {
+        if syntax_present(&mut *wp)
+            && !w_s.b_syn_error.get()
+            && !w_s.b_syn_slow.get()
+            && !has_foldtext
+        {
             let save_did_emsg = g_st().did_emsg.get();
             g_st().did_emsg.set(0);
             syntax_start(wp, lnum);
             if g_st().did_emsg.get() != 0 {
-                w_s.b_syn_error = true;
+                w_s.b_syn_error.set(true);
             } else {
                 g_st().did_emsg.set(save_did_emsg);
-                if !w_s.b_syn_slow {
+                if !w_s.b_syn_slow.get() {
                     has_syntax = true;
                     extra_check = true;
                 }
@@ -2726,7 +2730,8 @@ pub fn win_line(
                 syntax_attr = 0;
                 if extra_check {
                     let w_s = wp.w_s_ptr();
-                    let no_plain_buffer = (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
+                    let no_plain_buffer =
+                        (w_s.b_p_spo_flags.get() & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                     let mut can_spell = !no_plain_buffer;
 
                     let v = ((ptr as isize) - (line as isize)) as i32;
@@ -2742,13 +2747,13 @@ pub fn win_line(
                         );
 
                         if g_st().did_emsg.get() != 0 {
-                            w_s.b_syn_error = true;
+                            w_s.b_syn_error.set(true);
                             has_syntax = false;
                         } else {
                             g_st().did_emsg.set(save_did_emsg);
                         }
 
-                        if w_s.b_syn_slow {
+                        if w_s.b_syn_slow.get() {
                             has_syntax = false;
                         }
 

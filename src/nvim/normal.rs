@@ -4150,9 +4150,9 @@ fn nv_clear(cap: &mut Cmdarg) {
         return;
     }
 
-    syn_stack_free_all(&mut *curwin_mut().w_s_ptr());
+    syn_stack_free_all(&curwin_mut().w_s_ptr());
     for wp in for_all_windows_mut() {
-        wp.w_s_ptr().b_syn_slow = false;
+        wp.w_s_ptr().b_syn_slow.set(false);
     }
     redraw_later(Some(crate::globals::curwin_mut()), UPD_CLEAR);
 }

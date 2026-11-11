@@ -440,7 +440,7 @@ pub struct FileBuf {
     pub b_prompt_append_new_line: std::cell::Cell<bool>,
     pub b_prompt_insert: std::cell::Cell<i32>,
     pub b_prompt_start: Fmark,
-    pub b_s: Synblock,
+    pub b_s: std::rc::Rc<Synblock>,
     pub b_signcols: BufSigncols,
     pub terminal: std::cell::Cell<TermId>,
     pub additional_data: Option<crate::search::AdditionalData>,
@@ -472,7 +472,7 @@ impl FileBuf {
         self.terminal.get().opt()
     }
 
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         const ZERO_POS: CursorPos = CursorPos {
             lnum: 0,
             col: 0,
@@ -733,7 +733,7 @@ impl FileBuf {
             b_prompt_append_new_line: std::cell::Cell::new(false),
             b_prompt_insert: std::cell::Cell::new(0),
             b_prompt_start: Fmark::ZERO,
-            b_s: Synblock::new(),
+            b_s: std::rc::Rc::new(Synblock::new()),
             b_signcols: BufSigncols {
                 max: 0,
                 last_max: 0,
@@ -1733,7 +1733,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     if (flags & BFA_KEEP_UNDO) == 0 {
         u_clearallandblockfree(buf);
     }
-    syntax_clear(&mut buf.b_s);
+    syntax_clear(&buf.b_s);
     buf.b_flags.set(buf.b_flags.get() & (!BF_READERR));
     true
 }
@@ -1922,7 +1922,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     if (free_flags & K_BFF_CLEAR_WIN_INFO) != 0 {
         clear_wininfo(buf);
         free_buf_options(buf, true);
-        buf.b_s.b_langp = Vec::new();
+        buf.b_s.b_langp.borrow_mut().clear();
     }
     {
         let changedtick_idx = hash_find_idx(&buf.b_vars().dv_hashtab, c"changedtick");
@@ -2735,7 +2735,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         diff_buf_add(curbuf_mut());
     }
 
-    curwin_mut().w_s_owned = None;
+    curwin_mut().w_s_owned.set(None);
 
     curwin_mut().w_cursor.lnum = 1;
     curwin_mut().w_cursor.col = 0;
@@ -3063,10 +3063,10 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_cms.clear_option_str();
     buf.b_p_nf.clear_option_str();
     buf.b_p_syn.clear_option_str();
-    buf.b_s.b_syn_isk = None;
+    buf.b_s.b_syn_isk.set(None);
     buf.b_s.b_p_spc.clear_option_str();
     buf.b_s.b_p_spf.clear_option_str();
-    buf.b_s.b_cap_prog = None;
+    *buf.b_s.b_cap_prog.borrow_mut() = None;
     buf.b_s.b_p_spl.clear_option_str();
     buf.b_s.b_p_spo.clear_option_str();
     buf.b_p_sua.clear_option_str();

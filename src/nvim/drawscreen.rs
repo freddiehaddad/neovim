@@ -1601,7 +1601,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             if mod_top == 0 || mod_top > buf.b_mod_top.get() {
                 mod_top = buf.b_mod_top.get();
                 if syntax_present(&mut *wp) {
-                    mod_top -= buf.b_s.b_syn_sync_linebreaks;
+                    mod_top -= buf.b_s.b_syn_sync_linebreaks.get();
                     mod_top = mod_top.max(1);
                 }
             }

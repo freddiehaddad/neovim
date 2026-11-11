@@ -157,6 +157,7 @@ impl OptSetPrep {
 pub enum OptRef<T: 'static> {
     Global(fn(&OptionVars) -> &T),
     Win(crate::globals::WinPtr, fn(&WinInfoInfo) -> &T),
+    WinSyn(crate::globals::WinPtr, fn(&Synblock) -> &T),
     Buf(crate::globals::BufPtr, fn(&FileBuf) -> &T),
 }
 
@@ -171,17 +172,21 @@ impl<T: 'static> Copy for OptRef<T> {}
 
 impl<T: 'static> OptRef<T> {
     #[inline]
-    pub fn get(self) -> &'static T {
+    pub fn with<R>(self, cb: impl FnOnce(&T) -> R) -> R {
         match self {
-            Self::Global(f) => f(opt_vars()),
-            Self::Win(w, f) => f(w.borrow()),
-            Self::Buf(b, f) => f(b.borrow()),
+            Self::Global(f) => cb(f(opt_vars())),
+            Self::Win(w, f) => cb(f(w.borrow())),
+            Self::WinSyn(w, f) => {
+                let s = w.borrow().w_s_ptr();
+                cb(f(&s))
+            }
+            Self::Buf(b, f) => cb(f(b.borrow())),
         }
     }
 
     #[inline]
     pub fn as_ptr(self) -> *const () {
-        std::ptr::from_ref(self.get()).cast::<()>()
+        self.with(|r| std::ptr::from_ref(r).cast::<()>())
     }
 }
 
@@ -236,7 +241,7 @@ impl OptVar {
     #[inline]
     pub fn as_cstr(self) -> &'static CStr {
         match self {
-            Self::Str(s) => s.get().as_cstr(),
+            Self::Str(s) => s.with(|v| v.as_cstr()),
             _ => c"",
         }
     }
@@ -244,7 +249,7 @@ impl OptVar {
     #[inline]
     pub fn opt_cstr(self) -> Option<&'static CStr> {
         match self {
-            Self::Str(s) => Some(s.get().as_cstr()),
+            Self::Str(s) => Some(s.with(|v| v.as_cstr())),
             _ => None,
         }
     }
@@ -252,35 +257,35 @@ impl OptVar {
     #[inline]
     pub fn set_cstr(self, val: &CStr) {
         if let Self::Str(s) = self {
-            s.get().set_option_cstr(val);
+            s.with(|v| v.set_option_cstr(val));
         }
     }
 
     #[inline]
     pub fn set_bytes(self, bytes: &[u8]) {
         if let Self::Str(s) = self {
-            s.get().set_option_bytes(bytes);
+            s.with(|v| v.set_option_bytes(bytes));
         }
     }
 
     #[inline]
     pub fn clear_str(self) {
         if let Self::Str(s) = self {
-            s.get().clear_option_str();
+            s.with(|v| v.clear_option_str());
         }
     }
 
     #[inline]
     pub fn check_str(self) {
         if let Self::Str(s) = self {
-            s.get().check_option_str();
+            s.with(|v| v.check_option_str());
         }
     }
 
     #[inline]
     pub fn int_val(self) -> crate::option::OptInt {
         match self {
-            Self::Int(p) => p.get().get(),
+            Self::Int(p) => p.with(|v| v.get()),
             _ => 0,
         }
     }
@@ -288,16 +293,16 @@ impl OptVar {
     #[inline]
     pub fn set_int(self, val: crate::option::OptInt) {
         if let Self::Int(p) = self {
-            p.get().set(val);
+            p.with(|v| v.set(val));
         }
     }
 
     #[inline]
     pub fn bool_tristate(self) -> i32 {
         match self {
-            Self::Bool(p) => i32::from(p.get().get()),
-            Self::I32Bool(p) => i32::from(p.get().get() != 0),
-            Self::OptBool(p) => match p.get().get() {
+            Self::Bool(p) => i32::from(p.with(|v| v.get())),
+            Self::I32Bool(p) => i32::from(p.with(|v| v.get()) != 0),
+            Self::OptBool(p) => match p.with(|v| v.get()) {
                 Some(b) => i32::from(b),
                 None => crate::extmark::K_NONE,
             },
@@ -308,17 +313,17 @@ impl OptVar {
     #[inline]
     pub fn set_bool(self, val: Option<bool>) {
         match self {
-            Self::Bool(p) => p.get().set(val.unwrap()),
-            Self::I32Bool(p) => p.get().set(i32::from(val.unwrap())),
-            Self::OptBool(p) => p.get().set(val),
+            Self::Bool(p) => p.with(|v| v.set(val.unwrap())),
+            Self::I32Bool(p) => p.with(|v| v.set(i32::from(val.unwrap()))),
+            Self::OptBool(p) => p.with(|v| v.set(val)),
             _ => {}
         }
     }
 
     #[inline]
-    pub fn callback_mut(self) -> &'static crate::eval::typval::Callback {
+    pub fn with_callback<R>(self, f: impl FnOnce(&crate::eval::typval::Callback) -> R) -> R {
         match self {
-            Self::Callback(p) => p.get(),
+            Self::Callback(p) => p.with(f),
             _ => unreachable!(),
         }
     }
@@ -940,7 +945,7 @@ pub fn check_buf_options(buf: &mut FileBuf) {
     buf.b_p_nf.check_option_str();
     buf.b_p_qe.check_option_str();
     buf.b_p_syn.check_option_str();
-    buf.b_s.b_syn_isk = None;
+    buf.b_s.b_syn_isk.set(None);
     buf.b_s.b_p_spc.check_option_str();
     buf.b_s.b_p_spf.check_option_str();
     buf.b_s.b_p_spl.check_option_str();
@@ -2684,7 +2689,7 @@ pub fn did_set_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         return None;
     }
     let ws = args.win_mut().w_s_ptr();
-    ws.b_cap_prog = args.os_prep.take_spellcap_prog();
+    *ws.b_cap_prog.borrow_mut() = args.os_prep.take_spellcap_prog();
     None
 }
 
@@ -2733,7 +2738,7 @@ pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         let errmsg = opt_strings_flags(
             val,
             &OPT_SPO_VALUES,
-            Some(&mut ws.b_p_spo_flags),
+            Some(&mut ws.b_p_spo_flags.get()),
             true,
             args.os_errbuf.take(),
         );

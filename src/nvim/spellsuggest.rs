@@ -878,7 +878,7 @@ fn spell_find_suggest(
     if need_cap {
         su.su_badflags |= WF_ONECAP;
     }
-    for lp in &curbuf_mut().b_s.b_langp {
+    for lp in &*curbuf_mut().b_s.b_langp.borrow() {
         if !lp.lp_sallang.is_null() {
             su.su_sallang = lp.lp_sallang;
             break;
@@ -1097,7 +1097,8 @@ fn suggest_try_change(su: &mut Suginfo) {
         fword[n as usize] = 0;
     }
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    let langps = w_s.b_langp.borrow().clone();
+    for lp in &langps {
         if lp.slang().sl_fbyts.is_empty() {
             continue;
         }
@@ -2234,7 +2235,8 @@ fn score_comp_sal(su: &mut Suginfo) {
     let sga = &mut su.su_sga;
     sga.reserve(su.su_ga.len());
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    let langps = w_s.b_langp.borrow().clone();
+    for lp in &langps {
         let slang = lp.slang();
         if slang.has_sal() {
             spell_soundfold(&slang, &su.su_fbadword, true, &mut badsound);
@@ -2262,7 +2264,8 @@ fn score_combine(su: &mut Suginfo) {
     let mut badsound: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut slang_opt: Option<std::rc::Rc<Slang>> = None;
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    let langps = w_s.b_langp.borrow().clone();
+    for lp in &langps {
         let s = lp.slang();
         if s.has_sal() {
             spell_soundfold(&s, &su.su_fbadword, true, &mut badsound);
@@ -2375,7 +2378,7 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &Slang, badsound: &[u8]) ->
 }
 fn suggest_try_soundalike_prep() {
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    for lp in &*w_s.b_langp.borrow() {
         let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
             slang.sl_sounddone.borrow_mut().clear();
@@ -2385,7 +2388,8 @@ fn suggest_try_soundalike_prep() {
 fn suggest_try_soundalike(su: &mut Suginfo) {
     let mut salword: [u8; MAXWLEN] = [0; MAXWLEN];
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    let langps = w_s.b_langp.borrow().clone();
+    for lp in &langps {
         let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
             spell_soundfold(&slang, &su.su_fbadword, true, &mut salword);
@@ -2395,7 +2399,7 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
 }
 fn suggest_try_soundalike_finish() {
     let w_s = curwin_mut().w_s_ptr();
-    for lp in &w_s.b_langp {
+    for lp in &*w_s.b_langp.borrow() {
         let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
             slang.sl_sounddone.borrow_mut().clear();

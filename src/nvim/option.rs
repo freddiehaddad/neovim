@@ -1071,7 +1071,7 @@ pub fn free_all_options() {
             && opt.var().is_some()
         {
             if is_callback_option(opt_idx) {
-                callback_free(opt.var().callback_mut());
+                opt.var().with_callback(callback_free);
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                 opt.var().clear_str();
             }
@@ -2215,7 +2215,7 @@ fn didset_options() {
         spell_apply_sps(sps_flags, sps_limit);
     }
     let ws = curwin_mut().w_s_ptr();
-    compile_cap_prog(ws.b_p_spc.as_cstr(), &mut ws.b_cap_prog);
+    compile_cap_prog(ws.b_p_spc.as_cstr(), &mut ws.b_cap_prog.borrow_mut());
     did_set_spell_option();
     let mut dummy = Optset::new();
     did_set_cedit(&mut dummy);
@@ -5070,7 +5070,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     }
 
     if is_callback_option(opt_idx) {
-        return opt_from_callback(varp.callback_mut());
+        return varp.with_callback(opt_from_callback);
     }
 
     match opt.opt_type {
@@ -5091,13 +5091,14 @@ fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
     }
 
     if is_callback_option(opt_idx) {
-        let cb = varp.callback_mut();
-        callback_free(cb);
-        cb.data.set(
-            opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0)
-                .data
-                .get(),
-        );
+        varp.with_callback(|cb| {
+            callback_free(cb);
+            cb.data.set(
+                opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0)
+                    .data
+                    .get(),
+            );
+        });
         return;
     }
 
@@ -6881,9 +6882,9 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         K_OPT_SYNTAX => buf_var!(buf, b_p_syn),
         K_OPT_SPELLCAPCHECK => {
             if let Some(ref mut w) = win {
-                OptVar::from(crate::optionstr::OptRef::Win(
+                OptVar::from(crate::optionstr::OptRef::WinSyn(
                     crate::globals::WinPtr::from(&**w),
-                    |w| &w.w_s_ptr().b_p_spc,
+                    |s| &s.b_p_spc,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6894,9 +6895,9 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SPELLFILE => {
             if let Some(ref mut w) = win {
-                OptVar::from(crate::optionstr::OptRef::Win(
+                OptVar::from(crate::optionstr::OptRef::WinSyn(
                     crate::globals::WinPtr::from(&**w),
-                    |w| &w.w_s_ptr().b_p_spf,
+                    |s| &s.b_p_spf,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6907,9 +6908,9 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SPELLLANG => {
             if let Some(ref mut w) = win {
-                OptVar::from(crate::optionstr::OptRef::Win(
+                OptVar::from(crate::optionstr::OptRef::WinSyn(
                     crate::globals::WinPtr::from(&**w),
-                    |w| &w.w_s_ptr().b_p_spl,
+                    |s| &s.b_p_spl,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6920,9 +6921,9 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SPELLOPTIONS => {
             if let Some(ref mut w) = win {
-                OptVar::from(crate::optionstr::OptRef::Win(
+                OptVar::from(crate::optionstr::OptRef::WinSyn(
                     crate::globals::WinPtr::from(&**w),
-                    |w| &w.w_s_ptr().b_p_spo,
+                    |s| &s.b_p_spo,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -7297,17 +7298,20 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_syn.set(empty_opt.clone());
             buf.b_p_smc.set(opt_vars().p_smc.get());
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
-            buf.b_s.b_syn_isk = None;
+            buf.b_s.b_syn_isk.set(None);
             buf.b_s.b_p_spc.set_option_cstr(opt_vars().p_spc.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
-            compile_cap_prog(buf.b_s.b_p_spc.as_cstr(), &mut buf.b_s.b_cap_prog);
+            compile_cap_prog(
+                buf.b_s.b_p_spc.as_cstr(),
+                &mut buf.b_s.b_cap_prog.borrow_mut(),
+            );
             buf.b_s.b_p_spf.set_option_cstr(opt_vars().p_spf.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
             buf.b_s.b_p_spl.set_option_cstr(opt_vars().p_spl.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
             buf.b_s.b_p_spo.set_option_cstr(opt_vars().p_spo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
-            buf.b_s.b_p_spo_flags = opt_vars().spo_flags.get();
+            buf.b_s.b_p_spo_flags.set(opt_vars().spo_flags.get());
             callback_copy(&buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
             buf.b_p_inde_flags

@@ -762,8 +762,8 @@ pub fn suggest_load_files() {
     let mut ga: Vec<u8> = Vec::new();
 
     let mut lpi: usize = 0;
-    while lpi < win_s(curwin_mut()).b_langp.len() {
-        let lp_slang_id = (&win_s(curwin_mut()).b_langp)[lpi].lp_slang;
+    while lpi < win_s(curwin_mut()).b_langp.borrow().len() {
+        let lp_slang_id = win_s(curwin_mut()).b_langp.borrow()[lpi].lp_slang;
         let idx = (lp_slang_id.0.unwrap().get() - 1) as usize;
         let need_load = lp_slang_id.rc().sl_sugtime != 0 && !lp_slang_id.rc().sl_sugloaded;
         if need_load {
@@ -5149,7 +5149,7 @@ fn init_spellfile() {
     let mut aspath = false;
     let mut lstart = curbuf_mut().b_s.b_p_spl.as_cstr();
 
-    if win_s(curwin_mut()).b_p_spl.is_empty() || win_s(curwin_mut()).b_langp.is_empty() {
+    if win_s(curwin_mut()).b_p_spl.is_empty() || win_s(curwin_mut()).b_langp.borrow().is_empty() {
         return;
     }
 
@@ -5198,7 +5198,7 @@ fn init_spellfile() {
         ((spl_cstr.as_ptr().wrapping_add(lend_off) as isize) - (lstart.as_ptr() as isize)) as i32;
     format_to_buf!(&mut buf_arr[cur_len..], c"/%.*s", lstart_len, lstart);
 
-    let slang0 = (&win_s(curwin_mut()).b_langp)[0].slang();
+    let slang0 = win_s(curwin_mut()).b_langp.borrow()[0].slang();
     let fname_opt = slang0.sl_fname.as_deref();
     let sp_enc = spell_enc();
     let enc_suffix =

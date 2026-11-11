@@ -312,7 +312,7 @@ impl Frame {
 pub struct WinInfoInfo {
     pub handle: ObjHandle,
     pub w_buffer: crate::globals::CloneCell<crate::globals::BufPtr>,
-    pub w_s_owned: Option<Box<crate::syntax::Synblock>>,
+    pub w_s_owned: crate::globals::CloneCell<Option<std::rc::Rc<crate::syntax::Synblock>>>,
     pub w_ns_hl: std::cell::Cell<i32>,
     pub w_ns_hl_winhl: std::cell::Cell<i32>,
     pub w_ns_hl_active: std::cell::Cell<i32>,
@@ -510,7 +510,7 @@ impl WinInfoInfo {
         Self {
             handle: 0,
             w_buffer: crate::globals::CloneCell::new(crate::globals::BufPtr::NULL),
-            w_s_owned: None,
+            w_s_owned: crate::globals::CloneCell::new(None),
             w_ns_hl: std::cell::Cell::new(0),
             w_ns_hl_winhl: std::cell::Cell::new(0),
             w_ns_hl_active: std::cell::Cell::new(0),
@@ -705,13 +705,10 @@ impl WinInfoInfo {
     }
 
     #[inline]
-    pub fn w_s_ptr(&self) -> &'static mut crate::syntax::Synblock {
-        let this = crate::globals::WinPtr::from(self).borrow_mut();
-        if let Some(ref mut owned) = this.w_s_owned {
-            owned
-        } else {
-            &mut this.buf_mut().b_s
-        }
+    pub fn w_s_ptr(&self) -> std::rc::Rc<crate::syntax::Synblock> {
+        self.w_s_owned
+            .get()
+            .unwrap_or_else(|| self.buf_mut().b_s.clone())
     }
 
     #[inline]
@@ -2464,7 +2461,7 @@ pub fn win_split_ins(
 }
 pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_buffer.set(oldp.w_buffer.get());
-    newp.w_s_owned = None;
+    newp.w_s_owned.set(None);
     oldp.buf_mut()
         .b_nwindows
         .set(oldp.buf_mut().b_nwindows.get() + (1));
@@ -3290,7 +3287,7 @@ pub fn win_init_empty(wp: &mut WinInfoInfo) {
     wp.w_topfill.set(0);
     wp.w_botline.set(2);
     wp.w_valid.set(0);
-    wp.w_s_owned = None;
+    wp.w_s_owned.set(None);
 }
 
 pub fn curwin_init() {
@@ -4987,7 +4984,7 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
             return false;
         }
         curwin_mut().w_buffer.set(g_st().curbuf.get());
-        curwin_mut().w_s_owned = None;
+        curwin_mut().w_s_owned.set(None);
         curbuf_mut().b_nwindows.set(1);
         curwin_mut().w_alist.set(None);
         curwin_init();
