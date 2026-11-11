@@ -295,26 +295,27 @@ impl Drop for TvPartial {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum CallbackData {
+    #[default]
     None,
-    Funcref(std::ffi::CString),
+    Funcref(&'static std::ffi::CStr),
     Partial(PartialId),
     Lua(LuaRef),
-    Expr(std::ffi::CString),
+    Expr(&'static std::ffi::CStr),
 }
 
 impl CallbackData {
     pub const NONE: Self = Self::None;
 
     #[inline]
-    pub const fn funcref(funcref: std::ffi::CString) -> Self {
-        Self::Funcref(funcref)
+    pub fn funcref(funcref: impl AsRef<std::ffi::CStr>) -> Self {
+        Self::Funcref(crate::option_vars::intern_opt_cstr(funcref.as_ref()))
     }
 
     #[inline]
-    pub const fn expr(expr: std::ffi::CString) -> Self {
-        Self::Expr(expr)
+    pub fn expr(expr: impl AsRef<std::ffi::CStr>) -> Self {
+        Self::Expr(crate::option_vars::intern_opt_cstr(expr.as_ref()))
     }
 
     #[inline]
@@ -328,9 +329,9 @@ impl CallbackData {
     }
 
     #[inline]
-    pub fn as_funcref(&self) -> Option<&std::ffi::CStr> {
+    pub const fn as_funcref(&self) -> Option<&'static std::ffi::CStr> {
         match self {
-            Self::Funcref(s) | Self::Expr(s) => Some(s.as_c_str()),
+            Self::Funcref(s) | Self::Expr(s) => Some(*s),
             _ => None,
         }
     }
@@ -352,25 +353,45 @@ impl CallbackData {
     }
 }
 
+impl crate::globals::CloneCell<CallbackData> {
+    #[inline]
+    pub fn as_funcref(&self) -> Option<&'static std::ffi::CStr> {
+        self.get().as_funcref()
+    }
+
+    #[inline]
+    pub fn as_partial(&self) -> PartialId {
+        self.get().as_partial()
+    }
+
+    #[inline]
+    pub fn as_luaref(&self) -> LuaRef {
+        self.get().as_luaref()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone)]
 pub struct Callback {
-    pub data: CallbackData,
+    pub data: crate::globals::CloneCell<CallbackData>,
 }
 
 impl Callback {
+    #[allow(clippy::declare_interior_mutable_const)]
     pub const NONE: Self = Self {
-        data: CallbackData::NONE,
+        data: crate::globals::CloneCell::new(CallbackData::NONE),
     };
 
     #[inline]
     pub const fn new() -> Self {
-        Self::NONE
+        Self {
+            data: crate::globals::CloneCell::new(CallbackData::NONE),
+        }
     }
 
     #[inline]
-    pub const fn cb_type(&self) -> i32 {
-        match self.data {
+    pub fn cb_type(&self) -> i32 {
+        match self.data.get() {
             CallbackData::None => K_CALLBACK_NONE_CONST,
             CallbackData::Funcref(_) => K_CALLBACK_FUNCREF,
             CallbackData::Partial(_) => K_CALLBACK_PARTIAL,
@@ -1641,7 +1662,7 @@ pub struct DictWatcher {
 
 impl Drop for DictWatcher {
     fn drop(&mut self) {
-        callback_free(&mut self.callback);
+        callback_free(&self.callback);
     }
 }
 
@@ -3511,7 +3532,7 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
 }
 
 /// Unref/free callback.
-pub fn callback_free(callback: &mut Callback) {
+pub fn callback_free(callback: &Callback) {
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
             func_unref(callback.data.as_funcref());
@@ -3525,7 +3546,7 @@ pub fn callback_free(callback: &mut Callback) {
         }
         _ => {}
     }
-    *callback = Callback::NONE;
+    callback.data.set(CallbackData::NONE);
 }
 
 /// Copy a callback into a TypVal.
@@ -3551,27 +3572,28 @@ pub fn callback_put(cb: &Callback, tv: &mut TypVal) {
 }
 
 /// Copy callback from "src" to "dest", incrementing the refcounts.
-pub fn callback_copy(dest: &mut Callback, src: &Callback) {
+pub fn callback_copy(dest: &Callback, src: &Callback) {
     match src.cb_type() {
         K_CALLBACK_PARTIAL => {
             let pt = src.data.as_partial();
             pt.pt_refcount.set(pt.pt_refcount.get() + 1);
-            dest.data = CallbackData::partial(pt);
+            dest.data.set(CallbackData::partial(pt));
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
-            dest.data = CallbackData::funcref(funcref.unwrap_or(c"").to_owned());
+            dest.data.set(CallbackData::funcref(funcref.unwrap_or(c"")));
             func_ref(funcref);
         }
         K_CALLBACK_LUA => {
             let new_ref = api_new_luaref(src.data.as_luaref());
-            dest.data = CallbackData::lua(new_ref);
+            dest.data.set(CallbackData::lua(new_ref));
         }
         K_CALLBACK_EXPR => {
-            dest.data = CallbackData::expr(src.data.as_funcref().unwrap_or(c"").to_owned());
+            dest.data
+                .set(CallbackData::expr(src.data.as_funcref().unwrap_or(c"")));
         }
         _ => {
-            dest.data = CallbackData::NONE;
+            dest.data.set(CallbackData::NONE);
         }
     }
 }

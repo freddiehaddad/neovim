@@ -89,7 +89,7 @@ impl CallbackReader {
 
 impl Drop for CallbackReader {
     fn drop(&mut self) {
-        callback_free(&mut self.cb);
+        callback_free(&self.cb);
     }
 }
 
@@ -192,7 +192,7 @@ pub fn channel_teardown() {
 pub fn channel_free_all_mem() {
     g_st().channels.clear();
 
-    callback_free(&mut g_st().on_print);
+    callback_free(&g_st().on_print);
 }
 
 /// Closes a channel.
@@ -1279,10 +1279,13 @@ mod tests {
 
     #[test]
     fn callback_reader_set_checks_callback_type_or_self_dict() {
-        let mut reader = CallbackReader::none();
+        let reader = CallbackReader::none();
         assert!(!callback_reader_set(&reader));
-        reader.cb.data = crate::eval::typval::CallbackData::lua(1);
+        reader
+            .cb
+            .data
+            .set(crate::eval::typval::CallbackData::lua(1));
         assert!(callback_reader_set(&reader));
-        reader.cb.data = crate::eval::typval::CallbackData::None;
+        reader.cb.data.set(crate::eval::typval::CallbackData::None);
     }
 }

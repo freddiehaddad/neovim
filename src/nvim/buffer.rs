@@ -88,7 +88,7 @@ use crate::option::{
     shortmess,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, OptIndex};
+use crate::optionstr::OptIndex;
 use crate::os::env::{home_replace, home_replace_save};
 #[cfg(unix)]
 use crate::os::fs::os_getperm;
@@ -1814,8 +1814,8 @@ impl Drop for FileBuf {
         self.b_prevdir = None;
         self.additional_data = None;
         self.b_prompt_text = None;
-        callback_free(&mut self.b_prompt_callback);
-        callback_free(&mut self.b_prompt_interrupt);
+        callback_free(&self.b_prompt_callback);
+        callback_free(&self.b_prompt_interrupt);
         clear_fmark(&mut self.b_last_cursor, 0);
         clear_fmark(&mut self.b_last_insert, 0);
         clear_fmark(&mut self.b_last_change, 0);
@@ -1850,8 +1850,8 @@ fn free_buffer(buf: &mut FileBuf) {
     if g_st().autocmd_busy {
         buf_ref.additional_data = None;
         buf_ref.b_prompt_text = None;
-        callback_free(&mut buf_ref.b_prompt_callback);
-        callback_free(&mut buf_ref.b_prompt_interrupt);
+        callback_free(&buf_ref.b_prompt_callback);
+        callback_free(&buf_ref.b_prompt_interrupt);
         clear_fmark(&mut buf_ref.b_last_cursor, 0);
         clear_fmark(&mut buf_ref.b_last_insert, 0);
         clear_fmark(&mut buf_ref.b_last_change, 0);
@@ -2967,11 +2967,11 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     }
     buf.b_p_def.clear_option_str();
     buf.b_p_inc.clear_option_str();
-    callback_free(&mut buf.b_p_inex);
-    callback_free(&mut buf.b_p_inde);
+    callback_free(&buf.b_p_inex);
+    callback_free(&buf.b_p_inde);
     buf.b_p_indk.clear_option_str();
     buf.b_p_fp.clear_option_str();
-    callback_free(&mut buf.b_p_fex);
+    callback_free(&buf.b_p_fex);
     buf.b_p_kp.clear_option_str();
     buf.b_p_mps.clear_option_str();
     buf.b_p_fo.clear_option_str();
@@ -3005,9 +3005,9 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_cpt.clear_option_str();
     #[cfg(windows)]
     buf.b_p_csl.clear_option_str();
-    callback_free(&mut buf.b_p_cfu);
-    callback_free(&mut buf.b_p_ofu);
-    callback_free(&mut buf.b_p_tsrfu);
+    callback_free(&buf.b_p_cfu);
+    callback_free(&buf.b_p_ofu);
+    callback_free(&buf.b_p_tsrfu);
     clear_cpt_callbacks(&mut buf.b_p_cpt_cb);
     buf.b_p_gefm.clear_option_str();
     buf.b_p_gp.clear_option_str();
@@ -3017,8 +3017,8 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_path.clear_option_str();
     buf.b_p_tags.clear_option_str();
     buf.b_p_tc.clear_option_str();
-    callback_free(&mut buf.b_p_tfu);
-    callback_free(&mut buf.b_p_ffu);
+    callback_free(&buf.b_p_tfu);
+    callback_free(&buf.b_p_ffu);
     buf.b_p_dict.clear_option_str();
     buf.b_p_dia.clear_option_str();
     buf.b_p_tsr.clear_option_str();

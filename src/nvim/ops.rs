@@ -3346,7 +3346,7 @@ fn op_colon(oap: &mut Oparg) {
 }
 
 pub fn free_operatorfunc_option() {
-    callback_free(&mut opt_vars().p_opfunc);
+    callback_free(&opt_vars().p_opfunc);
 }
 
 pub fn set_ref_in_opfunc(copy_id: i32) -> bool {

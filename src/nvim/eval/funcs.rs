@@ -1904,8 +1904,8 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
     };
     let key_pattern_len = key_pattern.to_bytes().len();
 
-    let mut callback = Callback::NONE;
-    if !callback_from_typval(&mut callback, &argvars[2]) {
+    let callback = Callback::NONE;
+    if !callback_from_typval(&callback, &argvars[2]) {
         semsg!(gettext(E_INVARG2), c"funcref");
         return;
     }
@@ -1935,8 +1935,8 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         return;
     };
 
-    let mut callback = Callback::NONE;
-    if !callback_from_typval(&mut callback, &argvars[2]) {
+    let callback = Callback::NONE;
+    if !callback_from_typval(&callback, &argvars[2]) {
         return;
     }
 
@@ -1948,7 +1948,7 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         emsg(c"Couldn't find a watcher matching key and callback");
     }
 
-    callback_free(&mut callback);
+    callback_free(&callback);
 }
 
 /// "did_filetype()" function
@@ -8301,8 +8301,8 @@ pub fn f_timer_start(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
     }
 
-    let mut callback = Callback::NONE;
-    if !callback_from_typval(&mut callback, &argvars[1]) {
+    let callback = Callback::NONE;
+    if !callback_from_typval(&callback, &argvars[1]) {
         return;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(timer_start(

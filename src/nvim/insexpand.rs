@@ -7016,9 +7016,9 @@ fn quote_meta(mut dest: Option<&mut [u8]>, src: &[u8]) -> usize {
 pub fn free_insexpand_stuff() {
     clear_compl_orig_text();
     COMPL_ORIG_EXTMARKS.with(|c| c.borrow_mut().clear());
-    callback_free(&mut opt_vars().p_cfu);
-    callback_free(&mut opt_vars().p_ofu);
-    callback_free(&mut opt_vars().p_tsrfu);
+    callback_free(&opt_vars().p_cfu);
+    callback_free(&opt_vars().p_ofu);
+    callback_free(&opt_vars().p_tsrfu);
     CPT_CB.with(|c| {
         clear_cpt_callbacks(&mut c.borrow_mut());
     });

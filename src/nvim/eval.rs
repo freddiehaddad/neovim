@@ -331,7 +331,7 @@ impl Drop for VimTimer {
         if let Some(events) = self.watcher.get_mut().events.opt_mut() {
             multiqueue_free(events);
         }
-        callback_free(&mut self.callback);
+        callback_free(&self.callback);
     }
 }
 
@@ -893,8 +893,8 @@ pub fn call_func_retlist(
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
 pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
-    let mut copy = Callback::NONE;
-    callback_copy(&mut copy, cb);
+    let copy = Callback::NONE;
+    callback_copy(&copy, cb);
     if use_sandbox {
         g_st().sandbox += 1;
     }
@@ -910,7 +910,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
     if use_sandbox {
         g_st().sandbox -= 1;
     }
-    callback_free(&mut copy);
+    callback_free(&copy);
     retval
 }
 
@@ -4821,7 +4821,7 @@ pub fn f_systemlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
+pub fn callback_from_typval(callback: &Callback, arg: &TypVal) -> bool {
     let mut r = true;
 
     let is_lua_tbl = nlua_is_table_from_lua(arg);
@@ -4830,7 +4830,9 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         && let Some(pt) = arg.vval.v_partial().rc()
     {
         pt.pt_refcount.set(pt.pt_refcount.get() + (1));
-        callback.data = crate::eval::typval::CallbackData::partial(pt);
+        callback
+            .data
+            .set(crate::eval::typval::CallbackData::partial(pt));
     } else if arg.v_type == VarType::VarString
         && !arg.vval.v_string_is_null()
         && ascii_isdigit(arg.vval.v_string_first_byte())
@@ -4839,7 +4841,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
     } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
         if let Some(name) = arg.vval.v_string_cstr() {
             if name.is_empty() {
-                *callback = Callback::NONE;
+                callback.data.set(crate::eval::typval::CallbackData::NONE);
             } else {
                 let funcref = if arg.v_type == VarType::VarString
                     && let Some(sl) = get_scriptlocal_funcname(Some(name))
@@ -4849,21 +4851,25 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
                     name.to_owned()
                 };
                 func_ref(Some(funcref.as_c_str()));
-                callback.data = crate::eval::typval::CallbackData::funcref(funcref);
+                callback
+                    .data
+                    .set(crate::eval::typval::CallbackData::funcref(funcref));
             }
         } else {
             r = false;
         }
     } else if is_lua_tbl {
         if let Some(name) = nlua_register_table_as_callable(arg) {
-            callback.data = crate::eval::typval::CallbackData::funcref(name);
+            callback
+                .data
+                .set(crate::eval::typval::CallbackData::funcref(name));
         } else {
             r = false;
         }
     } else if arg.v_type == VarType::VarSpecial
         || (arg.v_type == VarType::VarNumber && arg.vval.v_number() == 0)
     {
-        *callback = Callback::NONE;
+        callback.data.set(crate::eval::typval::CallbackData::NONE);
     } else {
         r = false;
     }

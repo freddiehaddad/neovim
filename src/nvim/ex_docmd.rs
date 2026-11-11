@@ -10022,7 +10022,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
 }
 
 pub fn free_findfunc_option() {
-    callback_free(&mut opt_vars().p_ffu);
+    callback_free(&opt_vars().p_ffu);
 }
 
 pub fn set_ref_in_findfunc(copy_id: i32) -> bool {
@@ -12313,14 +12313,14 @@ pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {
 fn ex_shada(eap: &mut Exarg) {
     let save_shada = opt_vars().p_shada.clone();
     if opt_vars().p_shada.is_empty() {
-        opt_vars().p_shada = OptString::from_cstr(c"'100");
+        opt_vars().p_shada.set_option_cstr(c"'100");
     }
     if eap.cmdidx == Cmdidx::CmdRviminfo || eap.cmdidx == Cmdidx::CmdRshada {
         shada_read_everything(eap.arg.as_opt_cstr(), eap.forceit, false);
     } else {
         shada_write_file(eap.arg.as_opt_cstr(), eap.forceit);
     }
-    opt_vars().p_shada = save_shada;
+    opt_vars().p_shada.set(save_shada);
 }
 
 fn ex_filetype(eap: &mut Exarg) {

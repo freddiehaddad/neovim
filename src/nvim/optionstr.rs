@@ -269,28 +269,28 @@ impl OptVar {
     #[inline]
     pub fn set_cstr(self, val: &CStr) {
         if let Self::Str(s) = self {
-            s.get_mut().set_option_cstr(val);
+            s.get().set_option_cstr(val);
         }
     }
 
     #[inline]
     pub fn set_bytes(self, bytes: &[u8]) {
         if let Self::Str(s) = self {
-            s.get_mut().set_option_bytes(bytes);
+            s.get().set_option_bytes(bytes);
         }
     }
 
     #[inline]
     pub fn clear_str(self) {
         if let Self::Str(s) = self {
-            s.get_mut().clear_option_str();
+            s.get().clear_option_str();
         }
     }
 
     #[inline]
     pub fn check_str(self) {
         if let Self::Str(s) = self {
-            s.get_mut().check_option_str();
+            s.get().check_option_str();
         }
     }
 
@@ -333,9 +333,9 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn callback_mut(self) -> &'static mut crate::eval::typval::Callback {
+    pub fn callback_mut(self) -> &'static crate::eval::typval::Callback {
         match self {
-            Self::Callback(p) => p.get_mut(),
+            Self::Callback(p) => p.get(),
             _ => unreachable!(),
         }
     }
@@ -989,39 +989,6 @@ pub fn check_buf_options(buf: &mut FileBuf) {
     buf.b_p_menc.check_option_str();
     buf.b_p_vsts.check_option_str();
     buf.b_p_vts.check_option_str();
-}
-
-pub trait CStrOptionSlot: Sized {
-    fn from_option_cstr(s: &CStr) -> Self;
-    fn set_option_cstr(&mut self, s: &CStr);
-    fn set_option_bytes(&mut self, bytes: &[u8]);
-    fn clear_option_str(&mut self);
-    fn check_option_str(&mut self);
-}
-
-impl CStrOptionSlot for OptString {
-    #[inline]
-    fn from_option_cstr(s: &CStr) -> Self {
-        Self::from_cstr(s)
-    }
-
-    #[inline]
-    fn set_option_cstr(&mut self, s: &CStr) {
-        *self = Self::from_cstr(s);
-    }
-
-    #[inline]
-    fn set_option_bytes(&mut self, bytes: &[u8]) {
-        *self = Self::from_bytes(bytes);
-    }
-
-    #[inline]
-    fn clear_option_str(&mut self) {
-        *self = Self::new();
-    }
-
-    #[inline]
-    fn check_option_str(&mut self) {}
 }
 
 /// Return true if "val" is a valid 'filetype' name.

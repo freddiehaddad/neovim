@@ -105,9 +105,9 @@ use crate::normal::{K_OPT_FOLDENABLE, K_OPT_FOLDLEVEL, do_check_scrollbind, get_
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 use crate::optionstr::{
-    CStrOptionSlot, CharsOption, OptIndex, OptScopeFlags, OptVar, Optexpand, Optset, Vimoption,
-    check_buf_options, check_illegal_path_names, check_signcolumn, did_set_breakat,
-    didset_string_options, opt_dict_schema, opt_strings_check, set_chars_option,
+    CharsOption, OptIndex, OptScopeFlags, OptVar, Optexpand, Optset, Vimoption, check_buf_options,
+    check_illegal_path_names, check_signcolumn, did_set_breakat, didset_string_options,
+    opt_dict_schema, opt_strings_check, set_chars_option,
 };
 use crate::os::env::{
     ExpandCtx, expand_env_esc, home_replace, os_env_exists, os_getenv_cstr, os_setenv, vim_getenv,
@@ -4945,7 +4945,7 @@ fn optval_snapshot_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     snapshot
 }
 
-fn opt_from_callback(cb: &mut Callback) -> Object {
+fn opt_from_callback(cb: &Callback) -> Object {
     match cb.cb_type() {
         K_CALLBACK_LUA => {
             let luaref = cb.data.as_luaref();
@@ -4971,7 +4971,10 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
     let mut cb = Callback::NONE;
     match value.obj_type {
         ObjectType::ObjectTypeLuaRef => {
-            cb.data = crate::eval::typval::CallbackData::lua(api_new_luaref(value.data.luaref()));
+            cb.data
+                .set(crate::eval::typval::CallbackData::lua(api_new_luaref(
+                    value.data.luaref(),
+                )));
         }
         ObjectType::ObjectTypeString => {
             if !is_expr {
@@ -4983,7 +4986,8 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 } else {
                     s_val.to_cstring()
                 };
-                cb.data = crate::eval::typval::CallbackData::expr(funcref);
+                cb.data
+                    .set(crate::eval::typval::CallbackData::expr(funcref));
             }
         }
         _ => {}
@@ -5031,7 +5035,11 @@ fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
     if is_callback_option(opt_idx) {
         let cb = varp.callback_mut();
         callback_free(cb);
-        *cb = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
+        cb.data.set(
+            opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0)
+                .data
+                .get(),
+        );
         return;
     }
 
@@ -5582,7 +5590,7 @@ fn set_option<'a>(
             if !option_set_callback_func(value.data.as_bytes(), &mut cb) {
                 errmsg = Some(E_INVARG);
             }
-            callback_free(&mut cb);
+            callback_free(&cb);
         }
     } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
         errmsg = opt_strings_check(
@@ -6968,8 +6976,8 @@ pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
         OptString::new()
     };
     to.wo_fdn = from.wo_fdn;
-    callback_copy(&mut to.wo_fde, &from.wo_fde);
-    callback_copy(&mut to.wo_fdt, &from.wo_fdt);
+    callback_copy(&to.wo_fde, &from.wo_fde);
+    callback_copy(&to.wo_fdt, &from.wo_fdt);
     to.wo_fmr = from.wo_fmr.clone();
     to.wo_scl = from.wo_scl.clone();
     to.wo_lhi = from.wo_lhi;
@@ -7023,8 +7031,8 @@ pub fn clear_winopt(wop: &mut Winopt) {
     wop.wo_fdi.clear_option_str();
     wop.wo_fdm.clear_option_str();
     wop.wo_fdm_save.clear_option_str();
-    callback_free(&mut wop.wo_fde);
-    callback_free(&mut wop.wo_fdt);
+    callback_free(&wop.wo_fde);
+    callback_free(&wop.wo_fdt);
     wop.wo_fmr.clear_option_str();
     wop.wo_eiw.clear_option_str();
     wop.wo_scl.clear_option_str();
@@ -7107,15 +7115,15 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             if !buf.b_p_initialized {
                 free_buf_options(buf, true);
                 buf.b_p_ro = false;
-                buf.b_p_fenc = opt_vars().p_fenc.clone();
-                buf.b_p_ff = match opt_vars().p_ffs.first_byte() {
-                    b'm' => CStrOptionSlot::from_option_cstr(c"mac"),
-                    b'd' => CStrOptionSlot::from_option_cstr(c"dos"),
-                    b'u' => CStrOptionSlot::from_option_cstr(c"unix"),
-                    _ => opt_vars().p_ff.clone(),
-                };
-                buf.b_p_bh = empty_opt.clone();
-                buf.b_p_bt = empty_opt.clone();
+                buf.b_p_fenc.set(opt_vars().p_fenc.clone());
+                match opt_vars().p_ffs.first_byte() {
+                    b'm' => buf.b_p_ff.set_option_cstr(c"mac"),
+                    b'd' => buf.b_p_ff.set_option_cstr(c"dos"),
+                    b'u' => buf.b_p_ff.set_option_cstr(c"unix"),
+                    _ => buf.b_p_ff.set(opt_vars().p_ff.clone()),
+                }
+                buf.b_p_bh.set(empty_opt.clone());
+                buf.b_p_bt.set(empty_opt.clone());
             } else {
                 free_buf_options(buf, false);
             }
@@ -7158,25 +7166,25 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_swf = opt_vars().p_swf;
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
             }
-            buf.b_p_cpt = CStrOptionSlot::from_option_cstr(opt_vars().p_cpt.as_cstr());
+            buf.b_p_cpt.set_option_cstr(opt_vars().p_cpt.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
             buf.b_p_cpt_flags = copy_opt_insecure(K_BUF_OPT_COMPLETE);
             set_buflocal_cpt_callbacks(Some(&mut *buf));
             #[cfg(windows)]
             {
-                buf.b_p_csl = opt_vars().p_csl.clone();
+                buf.b_p_csl.set(opt_vars().p_csl.clone());
                 copy_opt_sctx(buf, K_BUF_OPT_COMPLETESLASH);
             }
-            callback_copy(&mut buf.b_p_cfu, &opt_vars().p_cfu);
+            callback_copy(&buf.b_p_cfu, &opt_vars().p_cfu);
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETEFUNC);
-            callback_copy(&mut buf.b_p_ofu, &opt_vars().p_ofu);
+            callback_copy(&buf.b_p_ofu, &opt_vars().p_ofu);
             copy_opt_sctx(buf, K_BUF_OPT_OMNIFUNC);
-            callback_copy(&mut buf.b_p_tfu, &opt_vars().p_tfu);
+            callback_copy(&buf.b_p_tfu, &opt_vars().p_tfu);
             copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
             buf.b_p_sts = opt_vars().p_sts;
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
             buf.b_p_sts_nopaste = OPT_STATE.with(|s| s.p_sts_nopaste.get());
-            buf.b_p_vsts = CStrOptionSlot::from_option_cstr(opt_vars().p_vsts.as_cstr());
+            buf.b_p_vsts.set_option_cstr(opt_vars().p_vsts.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_empty() {
                 tabstop_set(opt_vars().p_vsts.as_bytes(), &mut buf.b_p_vsts_array, None);
@@ -7184,17 +7192,17 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_vsts_array.clear();
             }
             buf.b_p_vsts_nopaste = P_VSTS_NOPASTE.with(|cell| cell.borrow().clone());
-            buf.b_p_com = CStrOptionSlot::from_option_cstr(opt_vars().p_com.as_cstr());
+            buf.b_p_com.set_option_cstr(opt_vars().p_com.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
-            buf.b_p_cms = CStrOptionSlot::from_option_cstr(opt_vars().p_cms.as_cstr());
+            buf.b_p_cms.set_option_cstr(opt_vars().p_cms.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTSTRING);
-            buf.b_p_fo = CStrOptionSlot::from_option_cstr(opt_vars().p_fo.as_cstr());
+            buf.b_p_fo.set_option_cstr(opt_vars().p_fo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_FORMATOPTIONS);
-            buf.b_p_flp = CStrOptionSlot::from_option_cstr(opt_vars().p_flp.as_cstr());
+            buf.b_p_flp.set_option_cstr(opt_vars().p_flp.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_FORMATLISTPAT);
-            buf.b_p_nf = CStrOptionSlot::from_option_cstr(opt_vars().p_nf.as_cstr());
+            buf.b_p_nf.set_option_cstr(opt_vars().p_nf.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
-            buf.b_p_mps = CStrOptionSlot::from_option_cstr(opt_vars().p_mps.as_cstr());
+            buf.b_p_mps.set_option_cstr(opt_vars().p_mps.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
             buf.b_p_si = opt_vars().p_si;
             copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
@@ -7203,48 +7211,49 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
             buf.b_p_cin = opt_vars().p_cin;
             copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
-            buf.b_p_cink = CStrOptionSlot::from_option_cstr(opt_vars().p_cink.as_cstr());
+            buf.b_p_cink.set_option_cstr(opt_vars().p_cink.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
-            buf.b_p_cino = CStrOptionSlot::from_option_cstr(opt_vars().p_cino.as_cstr());
+            buf.b_p_cino.set_option_cstr(opt_vars().p_cino.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINOPTIONS);
-            buf.b_p_cinsd = CStrOptionSlot::from_option_cstr(opt_vars().p_cinsd.as_cstr());
+            buf.b_p_cinsd.set_option_cstr(opt_vars().p_cinsd.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINSCOPEDECLS);
-            buf.b_p_lop = CStrOptionSlot::from_option_cstr(opt_vars().p_lop.as_cstr());
+            buf.b_p_lop.set_option_cstr(opt_vars().p_lop.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
-            buf.b_p_ft = empty_opt.clone();
+            buf.b_p_ft.set(empty_opt.clone());
             buf.b_p_pi = opt_vars().p_pi;
             copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
-            buf.b_p_cinw = CStrOptionSlot::from_option_cstr(opt_vars().p_cinw.as_cstr());
+            buf.b_p_cinw.set_option_cstr(opt_vars().p_cinw.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
             buf.b_p_lisp = opt_vars().p_lisp;
             copy_opt_sctx(buf, K_BUF_OPT_LISP);
-            buf.b_p_syn = empty_opt.clone();
+            buf.b_p_syn.set(empty_opt.clone());
             buf.b_p_smc = opt_vars().p_smc;
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
             buf.b_s.b_syn_isk = None;
-            buf.b_s.b_p_spc = CStrOptionSlot::from_option_cstr(opt_vars().p_spc.as_cstr());
+            buf.b_s.b_p_spc.set_option_cstr(opt_vars().p_spc.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
             compile_cap_prog(buf.b_s.b_p_spc.as_cstr(), &mut buf.b_s.b_cap_prog);
-            buf.b_s.b_p_spf = CStrOptionSlot::from_option_cstr(opt_vars().p_spf.as_cstr());
+            buf.b_s.b_p_spf.set_option_cstr(opt_vars().p_spf.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
-            buf.b_s.b_p_spl = CStrOptionSlot::from_option_cstr(opt_vars().p_spl.as_cstr());
+            buf.b_s.b_p_spl.set_option_cstr(opt_vars().p_spl.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
-            buf.b_s.b_p_spo = CStrOptionSlot::from_option_cstr(opt_vars().p_spo.as_cstr());
+            buf.b_s.b_p_spo.set_option_cstr(opt_vars().p_spo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
             buf.b_s.b_p_spo_flags = opt_vars().spo_flags;
-            callback_copy(&mut buf.b_p_inde, &opt_vars().p_inde);
+            callback_copy(&buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
             buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
-            buf.b_p_indk = CStrOptionSlot::from_option_cstr(opt_vars().p_indk.as_cstr());
+            buf.b_p_indk.set_option_cstr(opt_vars().p_indk.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
-            buf.b_p_fp = empty_opt.clone();
-            callback_copy(&mut buf.b_p_fex, &opt_vars().p_fex);
+            buf.b_p_fp.set(empty_opt.clone());
+            callback_copy(&buf.b_p_fex, &opt_vars().p_fex);
             copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
             buf.b_p_fex_flags = copy_opt_insecure(K_BUF_OPT_FORMATEXPR);
-            buf.b_p_sua = CStrOptionSlot::from_option_cstr(opt_vars().p_sua.as_cstr());
+            buf.b_p_sua.set_option_cstr(opt_vars().p_sua.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
-            buf.b_p_keymap = CStrOptionSlot::from_option_cstr(opt_vars().p_keymap.as_cstr());
+            buf.b_p_keymap
+                .set_option_cstr(opt_vars().p_keymap.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
             buf.b_kmap_state |= KEYMAP_INIT;
             buf.b_p_iminsert = opt_vars().p_iminsert;
@@ -7256,35 +7265,39 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_ar = None;
             buf.b_p_fs = None;
             buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
-            buf.b_p_bkc = empty_opt.clone();
+            buf.b_p_bkc.set(empty_opt.clone());
             buf.b_bkc_flags = 0;
-            buf.b_p_gefm = empty_opt.clone();
-            buf.b_p_gp = empty_opt.clone();
-            buf.b_p_mp = empty_opt.clone();
-            buf.b_p_efm = empty_opt.clone();
-            buf.b_p_ep = empty_opt.clone();
-            buf.b_p_ffu = Callback::NONE;
-            buf.b_p_kp = empty_opt.clone();
-            buf.b_p_path = empty_opt.clone();
-            buf.b_p_tags = empty_opt.clone();
-            buf.b_p_tc = empty_opt.clone();
+            buf.b_p_gefm.set(empty_opt.clone());
+            buf.b_p_gp.set(empty_opt.clone());
+            buf.b_p_mp.set(empty_opt.clone());
+            buf.b_p_efm.set(empty_opt.clone());
+            buf.b_p_ep.set(empty_opt.clone());
+            buf.b_p_ffu
+                .data
+                .set(crate::eval::typval::CallbackData::NONE);
+            buf.b_p_kp.set(empty_opt.clone());
+            buf.b_p_path.set(empty_opt.clone());
+            buf.b_p_tags.set(empty_opt.clone());
+            buf.b_p_tc.set(empty_opt.clone());
             buf.b_tc_flags = 0;
-            buf.b_p_def = empty_opt.clone();
-            buf.b_p_inc = empty_opt.clone();
-            callback_copy(&mut buf.b_p_inex, &opt_vars().p_inex);
+            buf.b_p_def.set(empty_opt.clone());
+            buf.b_p_inc.set(empty_opt.clone());
+            callback_copy(&buf.b_p_inex, &opt_vars().p_inex);
             copy_opt_sctx(buf, K_BUF_OPT_INCLUDEEXPR);
             buf.b_p_inex_flags = copy_opt_insecure(K_BUF_OPT_INCLUDEEXPR);
-            buf.b_p_cot = empty_opt.clone();
+            buf.b_p_cot.set(empty_opt.clone());
             buf.b_cot_flags = 0;
-            buf.b_p_dict = empty_opt.clone();
-            buf.b_p_dia = empty_opt.clone();
-            buf.b_p_tsr = empty_opt.clone();
-            buf.b_p_tsrfu = Callback::NONE;
-            buf.b_p_qe = CStrOptionSlot::from_option_cstr(opt_vars().p_qe.as_cstr());
+            buf.b_p_dict.set(empty_opt.clone());
+            buf.b_p_dia.set(empty_opt.clone());
+            buf.b_p_tsr.set(empty_opt.clone());
+            buf.b_p_tsrfu
+                .data
+                .set(crate::eval::typval::CallbackData::NONE);
+            buf.b_p_qe.set_option_cstr(opt_vars().p_qe.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
             buf.b_p_udf = opt_vars().p_udf;
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
-            buf.b_p_lw = empty_opt.clone();
+            buf.b_p_lw.set(empty_opt.clone());
             buf.b_p_menc = empty_opt;
 
             if dont_do_help {
@@ -7999,8 +8012,8 @@ pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
             allocated
         };
 
-    let mut cb = Callback::NONE;
-    if !callback_from_typval(&mut cb, &tv) || cb.cb_type() == K_CALLBACK_NONE_CONST {
+    let cb = Callback::NONE;
+    if !callback_from_typval(&cb, &tv) || cb.cb_type() == K_CALLBACK_NONE_CONST {
         tv_clear(&mut tv);
         return false;
     }

@@ -26,7 +26,7 @@ use crate::option::{
     K_OPT_BUFHIDDEN, OPT_LOCAL, OptTarget, parse_winhl_opt, set_option_direct_for,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, K_OPT_PREVIEWPOPUP, OptKeyDict_pvp, opt_keyset};
+use crate::optionstr::{K_OPT_PREVIEWPOPUP, OptKeyDict_pvp, opt_keyset};
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext};

@@ -44,7 +44,7 @@ use crate::r#move::{
 use crate::normal::check_scrollbind;
 use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, OptIndex, OptKeyDict_dip, opt_keyset};
+use crate::optionstr::{OptIndex, OptKeyDict_dip, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{CFile, FileInfo, os_fileinfo, os_fileinfo_size, os_remove};
 use crate::os::shell::call_shell;
@@ -807,7 +807,9 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         end = buf.b_ml.ml_line_count;
     }
     let save_ml_flags = buf.b_ml.ml_flags;
-    let save_ff = std::mem::replace(&mut buf.b_p_ff, CStrOptionSlot::from_option_cstr(c"unix"));
+    let save_ff = buf
+        .b_p_ff
+        .replace(crate::option_vars::OptString::from_cstr(c"unix"));
     let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
     if end < start {
@@ -827,8 +829,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         true,
     );
     g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
-    buf.b_p_ff.clear_option_str();
-    buf.b_p_ff = save_ff;
+    buf.b_p_ff.set(save_ff);
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
     r
 }

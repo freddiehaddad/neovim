@@ -1433,9 +1433,9 @@ fn mc_zq_first(
     let bof = dec(&mut before) == -1;
     step.lnum = 0;
     if !bof {
-        let save_ww = std::mem::replace(&mut opt_vars().p_ww, OptString::from_cstr(c"s,l,>"));
+        let save_ww = opt_vars().p_ww.replace(OptString::from_cstr(c"s,l,>"));
         let s = mc_zq_step(keys, before);
-        opt_vars().p_ww = save_ww;
+        opt_vars().p_ww.set(save_ww);
         curwin_mut().w_curswant = curswant;
         if ltoreq(start, s) && ltoreq(s, end_bound) {
             *step = s;

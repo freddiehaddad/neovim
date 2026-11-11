@@ -294,7 +294,7 @@ fn do_ft_buf(
 
     ftbuf.b_p_swf = false;
     ftbuf.b_p_ml = false;
-    ftbuf.b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(filetype);
+    ftbuf.b_p_ft.set_option_cstr(filetype);
 
     if !has_event(EVENT_FILETYPE) {
         return ftbuf.opt_mut();

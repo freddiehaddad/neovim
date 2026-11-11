@@ -8,36 +8,84 @@ use crate::regexp::Regprog;
 use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
+thread_local! {
+    static INTERNED_OPT_CSTRS: std::cell::RefCell<
+        std::collections::HashSet<&'static std::ffi::CStr>,
+    > = std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+#[inline]
+pub(crate) fn intern_opt_cstr(s: &std::ffi::CStr) -> &'static std::ffi::CStr {
+    if s.is_empty() {
+        return c"";
+    }
+    INTERNED_OPT_CSTRS.with(|set| {
+        let mut set = set.borrow_mut();
+        if let Some(&existing) = set.get(s) {
+            return existing;
+        }
+        let leaked: &'static std::ffi::CStr = Box::leak(s.to_owned().into_boxed_c_str());
+        set.insert(leaked);
+        leaked
+    })
+}
+
 #[repr(C)]
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
-pub struct OptString(Option<std::ffi::CString>);
+pub struct OptString(std::cell::Cell<Option<&'static std::ffi::CStr>>);
 
 impl OptString {
     pub const fn new() -> Self {
-        Self(None)
+        Self(std::cell::Cell::new(None))
     }
 
     #[inline(always)]
     pub fn from_cstr(s: &std::ffi::CStr) -> Self {
-        Self(Some(s.to_owned()))
+        Self(std::cell::Cell::new(Some(intern_opt_cstr(s))))
     }
 
     #[inline(always)]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let bytes = crate::memory::bytes_until_nul(bytes);
-        Self(Some(crate::memory::bytes_to_cstring(bytes)))
+        Self::from_cstr(&crate::memory::bytes_to_cstring(bytes))
     }
 
     #[inline(always)]
-    pub fn as_cstr(&self) -> &std::ffi::CStr {
-        match self.0 {
-            Some(ref s) => s.as_c_str(),
-            None => c"",
-        }
+    pub fn set(&self, other: Self) {
+        self.0.set(other.0.get());
     }
 
     #[inline(always)]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn replace(&self, other: Self) -> Self {
+        Self(std::cell::Cell::new(self.0.replace(other.0.get())))
+    }
+
+    #[inline(always)]
+    pub fn set_option_cstr(&self, s: &std::ffi::CStr) {
+        self.0.set(Some(intern_opt_cstr(s)));
+    }
+
+    #[inline(always)]
+    pub fn set_option_bytes(&self, bytes: &[u8]) {
+        let bytes = crate::memory::bytes_until_nul(bytes);
+        self.set_option_cstr(&crate::memory::bytes_to_cstring(bytes));
+    }
+
+    #[inline(always)]
+    pub fn clear_option_str(&self) {
+        self.0.set(None);
+    }
+
+    #[inline(always)]
+    pub const fn check_option_str(&self) {}
+
+    #[inline(always)]
+    pub fn as_cstr(&self) -> &'static std::ffi::CStr {
+        self.0.get().unwrap_or(c"")
+    }
+
+    #[inline(always)]
+    pub fn as_bytes(&self) -> &'static [u8] {
         self.as_cstr().to_bytes()
     }
 
@@ -47,8 +95,8 @@ impl OptString {
     }
 
     #[inline(always)]
-    pub const fn is_null(&self) -> bool {
-        self.0.is_none()
+    pub fn is_null(&self) -> bool {
+        self.0.get().is_none()
     }
 
     #[inline(always)]
@@ -63,7 +111,7 @@ impl OptString {
 
     #[inline(always)]
     pub fn to_owned(&self) -> std::ffi::CString {
-        self.0.clone().unwrap_or_default()
+        self.as_cstr().to_owned()
     }
 }
 
@@ -249,6 +297,7 @@ pub struct Winopt {
 }
 
 impl Winopt {
+    #[allow(clippy::declare_interior_mutable_const)]
     pub const ZERO: Self = Self {
         wo_arab: false,
         wo_bri: false,

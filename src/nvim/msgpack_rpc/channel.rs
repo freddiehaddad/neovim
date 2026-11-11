@@ -192,7 +192,7 @@ impl Channel {
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        crate::eval::typval::callback_free(&mut self.on_exit);
+        crate::eval::typval::callback_free(&self.on_exit);
         if let Some(events) = self.events.opt_mut() {
             multiqueue_free(events);
         }

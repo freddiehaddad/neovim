@@ -2371,7 +2371,7 @@ fn copy_loclist(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
     } else {
         to_qfl.qf_ctx = None;
     }
-    callback_copy(&mut to_qfl.qf_qftf_cb, &from_qfl.qf_qftf_cb);
+    callback_copy(&to_qfl.qf_qftf_cb, &from_qfl.qf_qftf_cb);
 
     if !from_qfl.qf_items.is_empty() && !copy_loclist_entries(from_qfl, to_qfl) {
         return false;
@@ -2773,7 +2773,7 @@ fn qf_open_new_file_win(ll_ref: Option<&QfInfo>) -> bool {
     if !win_split(0, flags) {
         return false;
     }
-    opt_vars().p_swb = OptString::new();
+    opt_vars().p_swb.clear_option_str();
     opt_vars().swb_flags = 0;
     reset_binding(curwin_mut());
     if let Some(ll_ref) = ll_ref {
@@ -3617,7 +3617,7 @@ fn qf_free(qfl: &mut QfList) {
         tv_clear(ctx);
     }
     qfl.qf_ctx = None;
-    callback_free(&mut qfl.qf_qftf_cb);
+    callback_free(&qfl.qf_qftf_cb);
     qfl.qf_id = 0;
     qfl.qf_changedtick = 0;
 }
@@ -4218,8 +4218,8 @@ fn call_qftf_func(
         )
     };
     let mut qfl_cb = if has_qfl_cb {
-        let mut cb = Callback::new();
-        callback_copy(&mut cb, &qfl_rc.borrow().qf_qftf_cb);
+        let cb = Callback::new();
+        callback_copy(&cb, &qfl_rc.borrow().qf_qftf_cb);
         Some(cb)
     } else {
         None
@@ -6244,9 +6244,9 @@ fn qf_setprop_qftf(qfl: &mut QfList, di: &Dictitem) -> bool {
         return false;
     }
 
-    let mut cb: Callback = Callback::new();
-    callback_free(&mut qfl.qf_qftf_cb);
-    if callback_from_typval(&mut cb, &di.tv()) {
+    let cb: Callback = Callback::new();
+    callback_free(&qfl.qf_qftf_cb);
+    if callback_from_typval(&cb, &di.tv()) {
         qfl.qf_qftf_cb = cb;
     }
     true
@@ -7329,7 +7329,7 @@ pub fn free_quickfix() {
         }
     }
 
-    callback_free(&mut opt_vars().p_qftf);
+    callback_free(&opt_vars().p_qftf);
 }
 
 fn get_qf_loc_list(

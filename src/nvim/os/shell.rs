@@ -1205,10 +1205,10 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let save_sh = std::mem::replace(&mut opt_vars().p_sh, OptString::from_cstr(c"/bin/sh"));
-        let save_shcf = std::mem::replace(&mut opt_vars().p_shcf, OptString::from_cstr(c"-c"));
-        let save_sxq = std::mem::take(&mut opt_vars().p_sxq);
-        let save_sxe = std::mem::take(&mut opt_vars().p_sxe);
+        let save_sh = opt_vars().p_sh.replace(OptString::from_cstr(c"/bin/sh"));
+        let save_shcf = opt_vars().p_shcf.replace(OptString::from_cstr(c"-c"));
+        let save_sxq = opt_vars().p_sxq.replace(OptString::new());
+        let save_sxe = opt_vars().p_sxe.replace(OptString::new());
 
         let collect_argv = |cmd: Option<&CStr>, extra: Option<&CStr>| -> Vec<String> {
             shell_build_argv(cmd, extra)
@@ -1231,8 +1231,12 @@ mod tests {
             vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
         );
 
-        opt_vars().p_sh = OptString::from_cstr(c"/Program\" \"Files/zsh -f");
-        opt_vars().p_shcf = OptString::from_cstr(c"-x -o \"sh word split\" \"-\"c");
+        opt_vars()
+            .p_sh
+            .set_option_cstr(c"/Program\" \"Files/zsh -f");
+        opt_vars()
+            .p_shcf
+            .set_option_cstr(c"-x -o \"sh word split\" \"-\"c");
         assert_eq!(
             collect_argv(Some(c"abc  def"), Some(c"ghi  jkl")),
             vec![
@@ -1247,23 +1251,23 @@ mod tests {
             ]
         );
 
-        opt_vars().p_sh = OptString::from_cstr(c"/bin/sh");
-        opt_vars().p_shcf = OptString::from_cstr(c"-c");
-        opt_vars().p_sxq = OptString::from_cstr(c"(");
-        opt_vars().p_sxe = OptString::from_cstr(c"\"&|<>()@^");
+        opt_vars().p_sh.set_option_cstr(c"/bin/sh");
+        opt_vars().p_shcf.set_option_cstr(c"-c");
+        opt_vars().p_sxq.set_option_cstr(c"(");
+        opt_vars().p_sxe.set_option_cstr(c"\"&|<>()@^");
         assert_eq!(
             collect_argv(Some(c"echo &|<>()@^"), None),
             vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
         );
 
-        opt_vars().p_sxq = OptString::from_cstr(c"\"(");
+        opt_vars().p_sxq.set_option_cstr(c"\"(");
         assert_eq!(
             collect_argv(Some(c"echo -n some text"), None),
             vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
         );
 
-        opt_vars().p_sxq = OptString::from_cstr(c"\"");
-        opt_vars().p_sxe = OptString::new();
+        opt_vars().p_sxq.set_option_cstr(c"\"");
+        opt_vars().p_sxe.clear_option_str();
         assert_eq!(
             collect_argv(Some(c"echo -n some text"), None),
             vec!["/bin/sh", "-c", "\"echo -n some text\""]
@@ -1273,9 +1277,9 @@ mod tests {
         let s = shell_argv_to_str(&argv_arr);
         assert_eq!(s.to_str().unwrap(), "'foo' '' 'bar'");
 
-        opt_vars().p_sh = save_sh;
-        opt_vars().p_shcf = save_shcf;
-        opt_vars().p_sxq = save_sxq;
-        opt_vars().p_sxe = save_sxe;
+        opt_vars().p_sh.set(save_sh);
+        opt_vars().p_shcf.set(save_shcf);
+        opt_vars().p_sxq.set(save_sxq);
+        opt_vars().p_sxe.set(save_sxe);
     }
 }

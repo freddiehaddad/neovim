@@ -88,7 +88,7 @@ use crate::mouse::{
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
-use crate::optionstr::CStrOptionSlot;
+
 use crate::state::{
     EditorState, MODE_TERMINAL, SaveVEvent, may_trigger_modechanged, state_enter,
     state_handle_k_event,

@@ -2371,8 +2371,8 @@ pub fn autocmd_register(
     if let Some(cmd_cstr) = handler_cmd {
         ac.handler = AutoCmdHandler::Cmd(cmd_cstr.to_owned());
     } else {
-        let mut cb = Callback::new();
-        callback_copy(&mut cb, handler_fn);
+        let cb = Callback::new();
+        callback_copy(&cb, handler_fn);
         ac.handler = AutoCmdHandler::Fn(cb);
     }
     ac.script_ctx = g_st().current_sctx;

@@ -614,7 +614,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 
         if let Some(di_limit) = tv_dict_find_opt(Some(d), c"limit", -1) {
             if di_limit.tv().v_type != VarType::VarNumber {
-                callback_free(&mut cb);
+                callback_free(&cb);
                 semsg!(E_INVARGVAL, c"limit");
                 return;
             }
@@ -646,7 +646,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         max_matches,
     );
 
-    callback_free(&mut cb);
+    callback_free(&cb);
 }
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).

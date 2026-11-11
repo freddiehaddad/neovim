@@ -875,7 +875,7 @@ pub fn f_setline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `prompt_setcallback({buffer}, {callback})` function (`f_prompt_setcallback`).
 pub fn f_prompt_setcallback(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut prompt_callback = Callback::NONE;
+    let prompt_callback = Callback::NONE;
 
     if check_secure() {
         return;
@@ -884,17 +884,17 @@ pub fn f_prompt_setcallback(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: 
         return;
     };
 
-    if !callback_from_typval(&mut prompt_callback, &argvars[1]) {
+    if !callback_from_typval(&prompt_callback, &argvars[1]) {
         return;
     }
 
-    callback_free(&mut buf.b_prompt_callback);
+    callback_free(&buf.b_prompt_callback);
     buf.b_prompt_callback = prompt_callback;
 }
 
 /// `prompt_setinterrupt({buffer}, {callback})` function (`f_prompt_setinterrupt`).
 pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut interrupt_callback = Callback::NONE;
+    let interrupt_callback = Callback::NONE;
 
     if check_secure() {
         return;
@@ -903,11 +903,11 @@ pub fn f_prompt_setinterrupt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr:
         return;
     };
 
-    if !callback_from_typval(&mut interrupt_callback, &argvars[1]) {
+    if !callback_from_typval(&interrupt_callback, &argvars[1]) {
         return;
     }
 
-    callback_free(&mut buf.b_prompt_interrupt);
+    callback_free(&buf.b_prompt_interrupt);
     buf.b_prompt_interrupt = interrupt_callback;
 }
 

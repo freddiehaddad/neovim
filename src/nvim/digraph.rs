@@ -2108,7 +2108,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     curbuf_mut().b_kmap_state = 0;
     curbuf_mut().b_kmap_ga.clear();
 
-    let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
+    let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
     while let Some(line_cstr) = fgetline.call(0, 0, true) {
         let mut p = crate::charset::skipwhite_slice(line_cstr.to_bytes());
@@ -2144,7 +2144,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
         );
     }
 
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 
     curbuf_mut().b_kmap_state |= KEYMAP_LOADED;
     status_redraw_curbuf();
@@ -2158,7 +2158,7 @@ fn keymap_unload() {
         return;
     }
 
-    let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
+    let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
     for entry in &curbuf_mut().b_kmap_ga {
         format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
@@ -2171,7 +2171,7 @@ fn keymap_unload() {
     }
     curbuf_mut().b_kmap_ga.clear();
 
-    opt_vars().p_cpo = save_cpo;
+    opt_vars().p_cpo.set(save_cpo);
 
     curbuf_mut().b_kmap_state &= !KEYMAP_LOADED;
     status_redraw_curbuf();

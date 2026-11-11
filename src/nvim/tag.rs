@@ -370,7 +370,7 @@ fn tag_st<R>(f: impl FnOnce(&TagModuleState) -> R) -> R {
 use crate::charset::toupper_asc;
 
 pub fn free_tagfunc_option() {
-    callback_free(&mut opt_vars().p_tfu);
+    callback_free(&opt_vars().p_tfu);
 }
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage

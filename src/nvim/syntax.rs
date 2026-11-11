@@ -31,7 +31,6 @@ use crate::message::{
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
-use crate::optionstr::CStrOptionSlot;
 use crate::os::env::ExpandCtx;
 use crate::os::input::line_breakcheck;
 use crate::path::path_is_absolute;

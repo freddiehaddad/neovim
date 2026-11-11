@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CloneCell<T>(std::cell::RefCell<T>);
 
 impl<T> CloneCell<T> {

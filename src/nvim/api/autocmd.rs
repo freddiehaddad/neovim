@@ -780,13 +780,16 @@ pub fn nvim_create_autocmd(
                         api_err_inv(err, c"callback", c"<not a function>");
                         break 'body;
                     }
-                    handler_fn.data =
-                        crate::eval::typval::CallbackData::lua(callback.data.luaref());
+                    handler_fn.data.set(crate::eval::typval::CallbackData::lua(
+                        callback.data.luaref(),
+                    ));
                     callback.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
                 }
                 ObjectType::ObjectTypeString => {
                     let s = bytes_to_cstring(callback.data.string().as_bytes());
-                    handler_fn.data = crate::eval::typval::CallbackData::funcref(s);
+                    handler_fn
+                        .data
+                        .set(crate::eval::typval::CallbackData::funcref(s));
                 }
                 _ => {
                     api_err_exp(
@@ -882,7 +885,7 @@ pub fn nvim_create_autocmd(
     }
 
     if handler_fn.cb_type() == K_CALLBACK_LUA {
-        callback_free(&mut handler_fn);
+        callback_free(&handler_fn);
     }
 
     autocmd_id

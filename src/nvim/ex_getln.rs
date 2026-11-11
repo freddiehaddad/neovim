@@ -3929,7 +3929,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
     // color_cmdline_end:
     debug_assert!(!error_set(&err));
     if can_free_cb {
-        callback_free(&mut color_cb);
+        callback_free(&color_cb);
     }
     ccline_colors.prompt_id = colored_ccline.prompt_id.get();
     ccline_colors.cmdbuff = arg_owned.or_else(|| {
@@ -5255,7 +5255,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     );
     atom_payload_end();
     g_st().ex_normal_busy = save_ex_normal_busy;
-    callback_free(&mut input_callback);
+    callback_free(&input_callback);
 
     if let Some(res_cstr) = res {
         crate::eval::typval::tv_set_string_len(&mut *rettv, Some(res_cstr.as_bytes()));

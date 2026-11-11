@@ -3022,8 +3022,7 @@ mod tests {
             std::fs::create_dir_all(&base).unwrap();
 
             let base_c = CString::new(base.clone()).unwrap();
-            let save_udir =
-                std::mem::replace(&mut opt_vars().p_udir, OptString::from_cstr(&base_c));
+            let save_udir = opt_vars().p_udir.replace(OptString::from_cstr(&base_c));
 
             let fpath = format!("{base}/Xtest-unit-undo");
             std::fs::write(&fpath, b"hello\n").unwrap();
@@ -3067,7 +3066,7 @@ mod tests {
             assert!(!std::path::Path::new(&ufile).exists());
 
             close_buffer(None, Some(buf), DOBUF_WIPE, false, false, false);
-            opt_vars().p_udir = save_udir;
+            opt_vars().p_udir.set(save_udir);
             let _ = std::fs::remove_dir_all(&base);
             g_st().emsg_skip -= 1;
         }
