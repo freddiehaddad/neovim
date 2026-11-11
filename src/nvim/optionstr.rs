@@ -156,11 +156,7 @@ impl OptSetPrep {
 
 pub enum OptRef<T: 'static> {
     Global(fn(&OptionVars) -> &T),
-    Win(
-        crate::globals::WinPtr,
-        fn(&WinInfoInfo) -> &T,
-        fn(&mut WinInfoInfo) -> &mut T,
-    ),
+    Win(crate::globals::WinPtr, fn(&WinInfoInfo) -> &T),
     Buf(
         crate::globals::BufPtr,
         fn(&FileBuf) -> &T,
@@ -182,7 +178,7 @@ impl<T: 'static> OptRef<T> {
     pub fn get(self) -> &'static T {
         match self {
             Self::Global(f) => f(opt_vars()),
-            Self::Win(w, f, _) => f(w.borrow()),
+            Self::Win(w, f) => f(w.borrow()),
             Self::Buf(b, f, _) => f(b.borrow()),
         }
     }
@@ -190,8 +186,7 @@ impl<T: 'static> OptRef<T> {
     #[inline]
     pub fn get_mut(self) -> &'static mut T {
         match self {
-            Self::Global(_) => unreachable!(),
-            Self::Win(w, _, f) => f(w.borrow_mut()),
+            Self::Global(_) | Self::Win(_, _) => unreachable!(),
             Self::Buf(b, _, f) => f(b.borrow_mut()),
         }
     }
@@ -1042,7 +1037,8 @@ pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&mut WinInfoInfo>) -> boo
         if val_bytes.starts_with(b"no") {
             wp.w_minscwidth = SCL_NO;
             wp.w_maxscwidth = SCL_NO;
-        } else if val_bytes.starts_with(b"nu") && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
+        } else if val_bytes.starts_with(b"nu")
+            && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
         {
             wp.w_minscwidth = SCL_NUM;
             wp.w_maxscwidth = SCL_NUM;
@@ -2995,7 +2991,7 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
 
     if is_local && ve.to_bytes().is_empty() {
-        win.w_onebuf_opt.wo_ve_flags = 0;
+        win.w_onebuf_opt.wo_ve_flags.set(0);
     } else {
         let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
@@ -3009,7 +3005,7 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             return errmsg;
         }
         if is_local {
-            win.w_onebuf_opt.wo_ve_flags = new_flags;
+            win.w_onebuf_opt.wo_ve_flags.set(new_flags);
         } else {
             opt_vars().ve_flags.set(new_flags);
         }

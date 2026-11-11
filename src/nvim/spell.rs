@@ -1054,14 +1054,14 @@ pub fn spell_valid_case(wordflags: i32, treeflags: i32) -> bool {
 }
 pub fn spell_check_window(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
-    wp.w_onebuf_opt.wo_spell
+    wp.w_onebuf_opt.wo_spell.get()
         && !w_s.b_p_spl.is_empty()
         && !w_s.b_langp.is_empty()
         && !(&w_s.b_langp)[0].lp_slang.is_null()
 }
 pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
-    if !wp.w_onebuf_opt.wo_spell || w_s.b_p_spl.is_empty() || w_s.b_langp.is_empty() {
+    if !wp.w_onebuf_opt.wo_spell.get() || w_s.b_p_spl.is_empty() || w_s.b_langp.is_empty() {
         emsg(gettext(E_NO_SPELL));
         return true;
     }
@@ -1998,7 +1998,7 @@ pub fn spell_reload() {
     spell_free_all();
     for wp in for_all_windows_ptr() {
         let w_s = (*wp).w_s_ptr();
-        if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell {
+        if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell.get() {
             let _ = parse_spelllang(&mut *wp);
             break;
         }
@@ -2365,7 +2365,7 @@ pub fn make_case_word(fword: &[u8], cword: &mut [u8], flags: i32) {
 }
 pub fn eval_soundfold(word: &std::ffi::CStr) -> std::ffi::CString {
     let w_s = curwin_mut().w_s_ptr();
-    if curwin_mut().w_onebuf_opt.wo_spell && !w_s.b_p_spl.is_empty() {
+    if curwin_mut().w_onebuf_opt.wo_spell.get() && !w_s.b_p_spl.is_empty() {
         for lp in &w_s.b_langp {
             let slang = lp.slang();
             if slang.has_sal() {
@@ -3139,7 +3139,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
 pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell {
+        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell.get() {
             errmsg = parse_spelllang(&mut *wp);
             break;
         }

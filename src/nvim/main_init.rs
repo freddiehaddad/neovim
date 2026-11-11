@@ -736,7 +736,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     set_reg_var(get_default_register_name());
 
-    if curwin_mut().w_onebuf_opt.wo_diff && curwin_mut().w_onebuf_opt.wo_scb {
+    if curwin_mut().w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_scb.get() {
         update_topline(curwin_mut());
         check_scrollbind(0, 0);
         time_msg_if_enabled(c"diff scrollbinding");
@@ -1951,7 +1951,10 @@ fn create_windows(parmp: &mut Mparm) {
             g_st().curbuf = curwin_mut().w_buffer;
             if curbuf_mut().b_ml.ml_mfp.is_none() {
                 if opt_vars().p_fdls.get() >= 0 {
-                    curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls.get();
+                    curwin_mut()
+                        .w_onebuf_opt
+                        .wo_fdl
+                        .set(opt_vars().p_fdls.get());
                 }
                 g_st().swap_exists_action = SEA_DIALOG;
                 set_buflisted(1);
@@ -2088,7 +2091,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     } else {
         curwin_ptr()
     };
-    while win.w_onebuf_opt.wo_pvw {
+    while win.w_onebuf_opt.wo_pvw.get() {
         win = win.w_next;
         if win.is_null() {
             win = g_st().firstwin;

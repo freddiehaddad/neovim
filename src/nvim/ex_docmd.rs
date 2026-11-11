@@ -9614,7 +9614,7 @@ fn ex_close(eap: &mut Exarg) {
 
 fn ex_pclose(eap: &mut Exarg) {
     for win in for_all_windows_mut() {
-        if win.w_onebuf_opt.wo_pvw {
+        if win.w_onebuf_opt.wo_pvw.get() {
             ex_win_close(eap.forceit, win, None);
             break;
         }
@@ -10118,8 +10118,8 @@ pub fn ex_splitview(eap: &mut Exarg) {
             },
         ) {
             if !eap.arg.is_empty() {
-                curwin_mut().w_onebuf_opt.wo_scb = false;
-                curwin_mut().w_onebuf_opt.wo_crb = false;
+                curwin_mut().w_onebuf_opt.wo_scb.set(false);
+                curwin_mut().w_onebuf_opt.wo_crb.set(false);
             } else {
                 do_check_scrollbind(false);
             }
@@ -10645,10 +10645,10 @@ fn ex_syncbind(_eap: &mut Exarg) {
     let old_linenr = curwin_mut().w_cursor.lnum;
     setpcmark();
 
-    let vtopline = if curwin_mut().w_onebuf_opt.wo_scb {
+    let vtopline = if curwin_mut().w_onebuf_opt.wo_scb.get() {
         let mut vt = get_vtopline(curwin_mut());
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_scb && !wp.w_buffer.is_null() {
+            if wp.w_onebuf_opt.wo_scb.get() && !wp.w_buffer.is_null() {
                 let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count)
                     - (get_scrolloff_value(curwin_mut()) as i32);
                 vt = vt.min(y);
@@ -10660,7 +10660,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
     };
 
     for wp in for_all_windows_ptr() {
-        if wp.w_onebuf_opt.wo_scb {
+        if wp.w_onebuf_opt.wo_scb.get() {
             let y = vtopline - get_vtopline(&mut *wp);
             if y > 0 {
                 scrollup(&mut *wp, y, true);
@@ -10674,7 +10674,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
         }
     }
 
-    if curwin_mut().w_onebuf_opt.wo_scb {
+    if curwin_mut().w_onebuf_opt.wo_scb.get() {
         g_st().did_syncbind = true;
         checkpcmark();
         if old_linenr != curwin_mut().w_cursor.lnum {
@@ -11098,7 +11098,7 @@ fn ex_operators(eap: &mut Exarg) {
         oa.op_type = OP_YANK;
         op_yank(&mut oa, true);
     } else {
-        if (eap.cmdidx == Cmdidx::CmdRshift) ^ (curwin_mut().w_onebuf_opt.wo_rl) {
+        if (eap.cmdidx == Cmdidx::CmdRshift) ^ (curwin_mut().w_onebuf_opt.wo_rl.get()) {
             oa.op_type = OP_RSHIFT;
         } else {
             oa.op_type = OP_LSHIFT;
@@ -11561,7 +11561,7 @@ fn ex_mark(eap: &mut Exarg) {
 pub fn update_topline_cursor() {
     check_cursor(curwin_mut());
     update_topline(curwin_mut());
-    if !curwin_mut().w_onebuf_opt.wo_wrap {
+    if !curwin_mut().w_onebuf_opt.wo_wrap.get() {
         validate_cursor(curwin_mut());
     }
     update_curswant();

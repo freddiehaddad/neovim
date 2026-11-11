@@ -1065,7 +1065,7 @@ fn command_line_enter(
         expand_init(&mut xpc);
         clear_cmdline_orig();
 
-        g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl
+        g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl.get()
             && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
             && (s.firstc == b'/' as i32 || s.firstc == b'?' as i32);
 
@@ -3033,10 +3033,10 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
         return None;
     }
 
-    curwin_mut().w_onebuf_opt.wo_cul = false;
-    curwin_mut().w_onebuf_opt.wo_cuc = false;
-    curwin_mut().w_onebuf_opt.wo_spell = false;
-    curwin_mut().w_onebuf_opt.wo_fen = false;
+    curwin_mut().w_onebuf_opt.wo_cul.set(false);
+    curwin_mut().w_onebuf_opt.wo_cuc.set(false);
+    curwin_mut().w_onebuf_opt.wo_spell.set(false);
+    curwin_mut().w_onebuf_opt.wo_fen.set(false);
 
     win_enter(save_curwin.borrow_mut(), false);
     preview_win.opt_mut()
@@ -3082,13 +3082,13 @@ fn cmdpreview_prepare() -> CpInfo {
             cp_wininfo.win = crate::globals::WinPtr::new(win);
             cp_wininfo.save_w_cursor = win.w_cursor;
             save_viewstate(&mut *win, &mut cp_wininfo.save_viewstate);
-            cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul;
-            cp_wininfo.save_w_p_cuc = win.w_onebuf_opt.wo_cuc;
+            cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul.get();
+            cp_wininfo.save_w_p_cuc = win.w_onebuf_opt.wo_cuc.get();
 
             cpinfo.win_info.push(cp_wininfo);
 
-            win.w_onebuf_opt.wo_cul = false;
-            win.w_onebuf_opt.wo_cuc = false;
+            win.w_onebuf_opt.wo_cul.set(false);
+            win.w_onebuf_opt.wo_cuc.set(false);
         }
     }
 
@@ -3135,8 +3135,8 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
         win.w_cursor = cp_wininfo.save_w_cursor;
         restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);
 
-        win.w_onebuf_opt.wo_cul = cp_wininfo.save_w_p_cul;
-        win.w_onebuf_opt.wo_cuc = cp_wininfo.save_w_p_cuc;
+        win.w_onebuf_opt.wo_cul.set(cp_wininfo.save_w_p_cul);
+        win.w_onebuf_opt.wo_cuc.set(cp_wininfo.save_w_p_cuc);
 
         update_topline(&mut *win);
     }

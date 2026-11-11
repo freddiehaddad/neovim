@@ -674,9 +674,9 @@ fn win_redr_stl_expr(
     }
 
     if maxwidth > 0 {
-        let mut ewp = if wp.is_null() { curwin_ptr() } else { wp };
-        let p_crb_save = ewp.w_onebuf_opt.wo_crb;
-        ewp.w_onebuf_opt.wo_crb = false;
+        let ewp = if wp.is_null() { curwin_ptr() } else { wp };
+        let p_crb_save = ewp.w_onebuf_opt.wo_crb.get();
+        ewp.w_onebuf_opt.wo_crb.set(false);
 
         build_stl_str_hl_slice(
             ewp,
@@ -712,7 +712,7 @@ fn win_redr_stl_expr(
         });
 
         drop(stl_cstr);
-        ewp.w_onebuf_opt.wo_crb = p_crb_save;
+        ewp.w_onebuf_opt.wo_crb.set(p_crb_save);
 
         let len = crate::memory::bytes_until_nul(&buf).len();
         let start_col = col;
@@ -2109,20 +2109,23 @@ pub fn build_stl_str_hl_slice(
             }
             STL_LINE => {
                 if let Some(ref stcp_ref) = stcp
-                    && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
+                    && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
                     && get_vim_var_nr(VV_VIRTNUM) == 0
                 {
                     if wp.w_maxscwidth == SCL_NUM && stcp_ref.sattrs[0].text[0] != 0 {
                         handle_stcsign = true;
                     } else {
                         let relnum = get_vim_var_nr(VV_RELNUM) as i32;
-                        num = if !wp.w_onebuf_opt.wo_rnu || (wp.w_onebuf_opt.wo_nu && relnum == 0) {
+                        num = if !wp.w_onebuf_opt.wo_rnu.get()
+                            || (wp.w_onebuf_opt.wo_nu.get() && relnum == 0)
+                        {
                             get_vim_var_nr(VV_LNUM) as i32
                         } else {
                             relnum
                         };
-                        left_align_num =
-                            wp.w_onebuf_opt.wo_rnu && wp.w_onebuf_opt.wo_nu && relnum == 0;
+                        left_align_num = wp.w_onebuf_opt.wo_rnu.get()
+                            && wp.w_onebuf_opt.wo_nu.get()
+                            && relnum == 0;
                         if !left_align_num {
                             stl_items!()[curitem as usize].type_ = StlItemType::Separate;
                             stl_items!()[curitem as usize].start_off = out_idx;
@@ -2269,7 +2272,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_PREVIEWFLAG | STL_PREVIEWFLAG_ALT => {
                 itemisflag = true;
-                if wp.w_onebuf_opt.wo_pvw {
+                if wp.w_onebuf_opt.wo_pvw.get() {
                     str_slice = Some(if opt == STL_PREVIEWFLAG_ALT {
                         c",PRV".to_bytes_with_nul()
                     } else {

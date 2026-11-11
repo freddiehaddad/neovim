@@ -29,17 +29,17 @@ pub extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
 
     let mut str_cstr = lua_tolstring_cstr(lstate, 1);
 
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
+    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
 
-    if !curwin_mut().w_onebuf_opt.wo_spell {
+    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = true;
+        curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
 
     let w_s = curwin_mut().w_s_ptr();
     if w_s.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
-        curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+        curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
         return 0;
     }
 
@@ -84,7 +84,7 @@ pub extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
         capcol -= len as i32;
     }
 
-    curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
     1
 }
 

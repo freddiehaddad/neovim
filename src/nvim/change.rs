@@ -232,7 +232,9 @@ pub fn changed_lines_invalidate_win(
         }
     }
 
-    if (xtra < 0 && wp.w_onebuf_opt.wo_wrap && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
+    if (xtra < 0
+        && wp.w_onebuf_opt.wo_wrap.get()
+        && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
         || (xtra != 0 && buf_meta_total(wp.buf_mut(), K_MTMETA_LINES) != 0)
     {
         lnume += 1;
@@ -287,7 +289,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     for win in for_all_windows_mut() {
         if win.w_buffer == (&raw mut *buf) {
-            if win.w_onebuf_opt.wo_diff && diff_internal() != 0 {
+            if win.w_onebuf_opt.wo_diff.get() && diff_internal() != 0 {
                 curtab_mut().tp_diff_update.set(1);
                 diff_update_line(lnum);
             }
@@ -398,11 +400,11 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                 set_topline(wp, wp.w_topline);
             }
 
-            if wp.w_onebuf_opt.wo_rnu && xtra != 0 {
+            if wp.w_onebuf_opt.wo_rnu.get() && xtra != 0 {
                 wp.w_last_cursor_lnum_rnu = 0;
             }
 
-            if wp.w_onebuf_opt.wo_cul && wp.w_last_cursorline >= lnum {
+            if wp.w_onebuf_opt.wo_cul.get() && wp.w_last_cursorline >= lnum {
                 if wp.w_last_cursorline < lnume {
                     wp.w_last_cursorline = 0;
                 } else {
@@ -439,9 +441,9 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     }
     buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
 
-    if curwin_mut().w_onebuf_opt.wo_diff {
+    if curwin_mut().w_onebuf_opt.wo_diff.get() {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff && wp != curwin_ptr() {
+            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {
@@ -544,12 +546,12 @@ pub fn changed_lines(
     changed_lines_redraw_buf(buf, lnum, lnume, xtra);
 
     if xtra == 0
-        && curwin_mut().w_onebuf_opt.wo_diff
+        && curwin_mut().w_onebuf_opt.wo_diff.get()
         && curwin_mut().w_buffer == (&raw mut *buf)
         && diff_internal() == 0
     {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff && wp != curwin_ptr() {
+            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {
@@ -686,10 +688,10 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
 
         if (g_st().state_global & REPLACE_FLAG) != 0 {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                let old_list = curwin_mut().w_onebuf_opt.wo_list;
+                let old_list = curwin_mut().w_onebuf_opt.wo_list.get();
                 if old_list && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
                 {
-                    curwin_mut().w_onebuf_opt.wo_list = false;
+                    curwin_mut().w_onebuf_opt.wo_list.set(false);
                 }
                 let mut vcol: Colnr = 0;
                 let mut cursor = curwin_mut().w_cursor;
@@ -707,7 +709,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                         newlen += (vcol - new_vcol) as usize;
                     }
                 }
-                curwin_mut().w_onebuf_opt.wo_list = old_list;
+                curwin_mut().w_onebuf_opt.wo_list.set(old_list);
             } else if col < oldp_bytes.len() {
                 oldlen = utfc_ptr2len(&oldp_bytes[col..]) as usize;
             }

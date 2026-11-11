@@ -405,7 +405,7 @@ fn get_fpos_of_mouse(
 
     if !below_buffer
         && !wp.w_onebuf_opt.wo_stc.is_empty()
-        && (if wp.w_onebuf_opt.wo_rl {
+        && (if wp.w_onebuf_opt.wo_rl.get() {
             wincol >= wp.w_view_width - win_col_off(wp)
         } else {
             wincol < win_col_off(wp)
@@ -861,7 +861,7 @@ pub fn do_mouse(
         } else {
             None
         };
-        if in_statuscol && wp.w_onebuf_opt.wo_rl {
+        if in_statuscol && wp.w_onebuf_opt.wo_rl.get() {
             click_col = wp.w_view_width - click_col - 1;
         }
 
@@ -1468,7 +1468,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         && !on_sep_line
         && !on_winbar
         && !wp.w_onebuf_opt.wo_stc.is_empty()
-        && (if wp.w_onebuf_opt.wo_rl {
+        && (if wp.w_onebuf_opt.wo_rl.get() {
             col >= wp.w_view_width - win_col_off(wp)
         } else {
             col < win_col_off(wp)
@@ -1542,7 +1542,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 && (wp.w_buffer != curwin_mut().w_buffer
                     || (status_line_offset == 0
                         && sep_line_offset == 0
-                        && (if wp.w_onebuf_opt.wo_rl {
+                        && (if wp.w_onebuf_opt.wo_rl.get() {
                             col < wp.w_view_width - fdc
                         } else {
                             col >= fdc
@@ -1750,7 +1750,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 /// Make a horizontal scroll to "leftcol".
 /// Return true if the cursor moved, false otherwise.
 fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
-    if curwin_mut().w_onebuf_opt.wo_wrap {
+    if curwin_mut().w_onebuf_opt.wo_wrap.get() {
         return false;
     }
     if curwin_mut().w_leftcol == leftcol {
@@ -1806,7 +1806,7 @@ pub fn mouse_comp_pos(
     let mut row = *rowp;
     let mut retval = false;
 
-    if win.w_onebuf_opt.wo_rl {
+    if win.w_onebuf_opt.wo_rl.get() {
         col = win.w_view_width - 1 - col;
     }
 
@@ -1897,7 +1897,7 @@ pub fn mouse_comp_pos(
         }
     }
 
-    if !win.w_onebuf_opt.wo_wrap {
+    if !win.w_onebuf_opt.wo_wrap.get() {
         col += win.w_leftcol;
     }
 

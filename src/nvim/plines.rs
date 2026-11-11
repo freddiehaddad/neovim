@@ -161,7 +161,7 @@ pub fn win_chartabsize(
 ) -> i32 {
     p.with_cluster_bytes(|p| {
         if p.first().copied() == Some(TAB as u8)
-            && (!wp.w_onebuf_opt.wo_list || wp.w_p_lcs_chars.tab1 != 0)
+            && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0)
         {
             let buf = wp.buf_mut();
             return tabstop_padding(col, buf.b_p_ts, &buf.b_p_vts_array);
@@ -186,7 +186,7 @@ pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
             1
         } else {
             0
@@ -202,8 +202,8 @@ pub fn line_has_extconceal(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
 /// Whether extmark-conceal (see CharsizeArg.extconceal_off), including marks an `_on_conceal`
 /// provider adds on demand, may change the layout of `wp`.
 pub fn has_extconceal(wp: &mut WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_wrap
-        && wp.w_onebuf_opt.wo_cole > 0
+    wp.w_onebuf_opt.wo_wrap.get()
+        && wp.w_onebuf_opt.wo_cole.get() > 0
         && (buf_meta_total(wp.buf_mut(), K_MTMETA_CONCEAL) > 0
             || wp.buf_mut().b_conceal_providers > 0)
 }
@@ -223,7 +223,7 @@ pub fn init_charsize_arg<'a>(
     csarg.virt_row = -1;
     csarg.skip_cur_text = false;
     csarg.indent_width = i32::MIN;
-    csarg.use_tabstop = !wp.w_onebuf_opt.wo_list || wp.w_p_lcs_chars.tab1 != 0;
+    csarg.use_tabstop = !wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0;
     csarg.extconceal = None;
 
     if lnum > 0
@@ -241,9 +241,9 @@ pub fn init_charsize_arg<'a>(
     }
 
     if csarg.virt_row >= 0
-        || (wp.w_onebuf_opt.wo_wrap
-            && (wp.w_onebuf_opt.wo_lbr
-                || wp.w_onebuf_opt.wo_bri
+        || (wp.w_onebuf_opt.wo_wrap.get()
+            && (wp.w_onebuf_opt.wo_lbr.get()
+                || wp.w_onebuf_opt.wo_bri.get()
                 || !get_showbreak_value(wp).is_empty()))
     {
         K_CHARSIZE_REGULAR
@@ -452,7 +452,7 @@ pub fn charsize_regular(
 
         let disp_vcol = vcol - csarg.extconceal_off;
 
-        let has_lcs_eol = wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0;
+        let has_lcs_eol = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0;
 
         let mut size: i32;
         let mut is_doublewidth = false;
@@ -536,7 +536,7 @@ pub fn charsize_regular(
         size -= hidden;
 
         if is_doublewidth
-            && wp.w_onebuf_opt.wo_wrap
+            && wp.w_onebuf_opt.wo_wrap.get()
             && in_win_border(&mut *wp, disp_vcol + size - 2)
         {
             size += 1;
@@ -547,8 +547,8 @@ pub fn charsize_regular(
 
         let mut head = mb_added;
         if size > 0
-            && wp.w_onebuf_opt.wo_wrap
-            && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri)
+            && wp.w_onebuf_opt.wo_wrap.get()
+            && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri.get())
         {
             let mut col_off_prev = win_col_off(wp);
             let width2 = wp.w_view_width - col_off_prev + win_col_off2(&mut *wp);
@@ -569,7 +569,7 @@ pub fn charsize_regular(
                     if !sbr.to_bytes().is_empty() {
                         head_prev += vim_strsize(&sbr);
                     }
-                    if wp.w_onebuf_opt.wo_bri {
+                    if wp.w_onebuf_opt.wo_bri.get() {
                         head_prev += get_breakindent_win(&mut *wp, line_bytes);
                     }
                     csarg.indent_width = head_prev;
@@ -594,7 +594,7 @@ pub fn charsize_regular(
                     if !sbr.to_bytes().is_empty() {
                         head_mid += vim_strsize(&sbr);
                     }
-                    if wp.w_onebuf_opt.wo_bri {
+                    if wp.w_onebuf_opt.wo_bri.get() {
                         head_mid += get_breakindent_win(&mut *wp, line_bytes);
                     }
                     csarg.indent_width = head_mid;
@@ -632,8 +632,8 @@ pub fn charsize_regular(
 
         let size_before_lbr = size;
         let mut need_lbr = false;
-        if wp.w_onebuf_opt.wo_lbr
-            && wp.w_onebuf_opt.wo_wrap
+        if wp.w_onebuf_opt.wo_lbr.get()
+            && wp.w_onebuf_opt.wo_wrap.get()
             && wp.w_view_width != 0
             && lbr_char > 0
             && lbr_char < 256
@@ -789,7 +789,11 @@ fn charsize_fast_impl(
             mb_width
         };
 
-        if width == 2 && cur_char >= 0x80 && wp.w_onebuf_opt.wo_wrap && in_win_border(wp, vcol) {
+        if width == 2
+            && cur_char >= 0x80
+            && wp.w_onebuf_opt.wo_wrap.get()
+            && in_win_border(wp, vcol)
+        {
             CharSize {
                 width: 3,
                 body: 2,
@@ -890,7 +894,7 @@ pub fn linetabsize_disp(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 /// Like linetabsize_disp(), but counts the size of 'listchars' "eol".
 pub fn linetabsize_disp_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize_disp(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
             1
         } else {
             0
@@ -1177,7 +1181,7 @@ pub fn getvcol(
         if ci.chr.value == TAB
             && !concealed
             && (g_st().state_global & MODE_NORMAL) != 0
-            && !wp.w_onebuf_opt.wo_list
+            && !wp.w_onebuf_opt.wo_list.get()
             && !virtual_active(&mut *wp)
             && !(g_st().visual_global.active
                 && (opt_vars().p_sel.first_byte() == b'e'
@@ -1192,18 +1196,18 @@ pub fn getvcol(
 }
 
 pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
-    let list_save = curwin_mut().w_onebuf_opt.wo_list;
+    let list_save = curwin_mut().w_onebuf_opt.wo_list.get();
     let mut vcol: Colnr = 0;
     let mut pos = *posp;
 
-    curwin_mut().w_onebuf_opt.wo_list = false;
+    curwin_mut().w_onebuf_opt.wo_list.set(false);
     if pos.coladd != 0 {
         getvvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     } else {
         getvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     }
     *posp = pos;
-    curwin_mut().w_onebuf_opt.wo_list = list_save;
+    curwin_mut().w_onebuf_opt.wo_list.set(list_save);
     vcol
 }
 
@@ -1293,7 +1297,7 @@ pub fn getvcols(
 }
 
 pub fn win_may_fill(wp: &mut WinInfoInfo) -> bool {
-    (wp.w_onebuf_opt.wo_diff && diffopt_filler())
+    (wp.w_onebuf_opt.wo_diff.get() && diffopt_filler())
         || wp.buf_mut().b_marktree.meta_root[K_MTMETA_LINES] != 0
 }
 
@@ -1309,7 +1313,7 @@ pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bo
     if decor_conceal_line(wp, lnum - 1, false) {
         return 0;
     }
-    if !wp.w_onebuf_opt.wo_wrap || wp.w_view_width == 0 || line_folded(&mut *wp, lnum) {
+    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width == 0 || line_folded(&mut *wp, lnum) {
         return 1;
     }
     let lines = plines_win_nofold(&mut *wp, lnum);
@@ -1334,7 +1338,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
         i64::from(linesize_regular(&mut csarg, 0, MAXCOL))
     };
 
-    if wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 {
+    if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol != 0 {
         col += 1;
     }
 
@@ -1357,7 +1361,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut lines = win_get_fill(wp, lnum);
-    if !wp.w_onebuf_opt.wo_wrap || wp.w_view_width == 0 {
+    if !wp.w_onebuf_opt.wo_wrap.get() || wp.w_view_width == 0 {
         return lines + 1;
     }
 

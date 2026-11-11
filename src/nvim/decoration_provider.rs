@@ -211,9 +211,10 @@ pub fn decor_providers_invoke_spell(
 pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: bool) {
     if !lines
         && (row < 0
-            || wp.w_onebuf_opt.wo_cole < 1
+            || wp.w_onebuf_opt.wo_cole.get() < 1
             || wp.buf_mut().b_conceal_providers == 0
-            || (!wp.w_onebuf_opt.wo_wrap && !crate::decoration::decor_row_has_conceal(wp, row)))
+            || (!wp.w_onebuf_opt.wo_wrap.get()
+                && !crate::decoration::decor_row_has_conceal(wp, row)))
     {
         return;
     }

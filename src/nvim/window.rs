@@ -951,8 +951,8 @@ fn one_window_macro() -> bool {
 
 #[inline]
 pub fn reset_binding(wp: &mut WinInfoInfo) {
-    wp.w_onebuf_opt.wo_scb = false;
-    wp.w_onebuf_opt.wo_crb = false;
+    wp.w_onebuf_opt.wo_scb.set(false);
+    wp.w_onebuf_opt.wo_crb.set(false);
 }
 
 /// Disallow changing the window layout (split window, close window, move
@@ -1009,7 +1009,7 @@ pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
 
 /// Check if the current window is allowed to move to a different buffer.
 pub fn check_can_set_curbuf_disabled() -> bool {
-    if curwin_mut().w_onebuf_opt.wo_wfb {
+    if curwin_mut().w_onebuf_opt.wo_wfb.get() {
         emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
         return false;
     }
@@ -1018,7 +1018,7 @@ pub fn check_can_set_curbuf_disabled() -> bool {
 
 /// Check if the current window is allowed to move to a different buffer.
 pub fn check_can_set_curbuf_forceit(forceit: bool) -> bool {
-    if !forceit && curwin_mut().w_onebuf_opt.wo_wfb {
+    if !forceit && curwin_mut().w_onebuf_opt.wo_wfb.get() {
         emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
         return false;
     }
@@ -1196,7 +1196,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
         c if c == b'P' as i32 => {
             let mut wp = crate::globals::WinPtr::NULL;
             for wp2 in for_all_windows_ptr() {
-                if wp2.w_onebuf_opt.wo_pvw {
+                if wp2.w_onebuf_opt.wo_pvw.get() {
                     wp = crate::globals::WinPtr::from(&*wp2);
                     break;
                 }
@@ -1993,7 +1993,7 @@ pub fn win_split_ins(
             do_equal = true;
         }
 
-        if oldwin.w_onebuf_opt.wo_wfw {
+        if oldwin.w_onebuf_opt.wo_wfw.get() {
             win_setwidth_win(oldwin.w_width + new_size + 1, &mut *oldwin, true);
         }
 
@@ -2075,7 +2075,7 @@ pub fn win_split_ins(
             do_equal = true;
         }
 
-        if oldwin.w_onebuf_opt.wo_wfh {
+        if oldwin.w_onebuf_opt.wo_wfh.get() {
             set_fraction(&mut *oldwin);
             did_set_fraction = true;
 
@@ -2235,7 +2235,9 @@ pub fn win_split_ins(
     wp.w_fraction = oldwin.w_fraction;
 
     if vertical {
-        wp.w_onebuf_opt.wo_scr = curwin_mut().w_onebuf_opt.wo_scr;
+        wp.w_onebuf_opt
+            .wo_scr
+            .set(curwin_mut().w_onebuf_opt.wo_scr.get());
 
         if need_status != 0 {
             win_new_height(oldwin, oldwin.w_height - 1);
@@ -3468,7 +3470,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     } else {
         win.borrow_mut().frame_mut().fr_parent.get()
     };
-    let had_diffmode = win.borrow_mut().w_onebuf_opt.wo_diff;
+    let had_diffmode = win.borrow_mut().w_onebuf_opt.wo_diff.get();
 
     if last_window(win.borrow_mut()) {
         emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
@@ -3681,7 +3683,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     if win == curwin_ptr() {
         set_curwin(wp);
-        if (wp.borrow_mut()).w_onebuf_opt.wo_pvw || bt_quickfix(wp.w_buffer.opt()) {
+        if (wp.borrow_mut()).w_onebuf_opt.wo_pvw.get() || bt_quickfix(wp.w_buffer.opt()) {
             loop {
                 if (wp.borrow_mut()).w_next.is_null() {
                     wp = g_st().firstwin;
@@ -3691,7 +3693,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
                 if wp == curwin_ptr() {
                     break;
                 }
-                if !(wp.borrow_mut()).w_onebuf_opt.wo_pvw
+                if !(wp.borrow_mut()).w_onebuf_opt.wo_pvw.get()
                     && !bt_quickfix(wp.w_buffer.opt())
                     && !((wp.borrow_mut()).w_floating && !win_is_focusable(wp.borrow()))
                 {
@@ -3765,7 +3767,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     if diffopt_closeoff() && had_diffmode && g_st().curtab == prev_curtab {
         let mut diffcount: i32 = 0;
         for dwin in for_all_windows_mut() {
-            if dwin.w_onebuf_opt.wo_diff {
+            if dwin.w_onebuf_opt.wo_diff.get() {
                 diffcount += 1;
             }
         }
@@ -4151,7 +4153,7 @@ pub fn winframe_find_altwin(
     let mut wp = crate::globals::WinPtr::from(frame2win(frp2.borrow()));
 
     if frp_close.fr_parent.get().fr_layout.get() == FR_COL {
-        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfh {
+        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfh.get() {
             let mut frp = frp_close.fr_prev.get();
             let mut frp3 = frp_close.fr_next.get();
             while !frp.is_null() || !frp3.is_null() {
@@ -4165,7 +4167,8 @@ pub fn winframe_find_altwin(
                     frp = frp.fr_prev.get();
                 }
                 if !frp3.is_null() {
-                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfh {
+                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfh.get()
+                    {
                         frp2 = frp3;
                         wp = frp2.fr_win.get();
                         break;
@@ -4177,7 +4180,7 @@ pub fn winframe_find_altwin(
         }
         *dirp = b'v' as i32;
     } else {
-        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfw {
+        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfw.get() {
             let mut frp = frp_close.fr_prev.get();
             let mut frp3 = frp_close.fr_next.get();
             while !frp.is_null() || !frp3.is_null() {
@@ -4191,7 +4194,8 @@ pub fn winframe_find_altwin(
                     frp = frp.fr_prev.get();
                 }
                 if !frp3.is_null() {
-                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfw {
+                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfw.get()
+                    {
                         frp2 = frp3;
                         wp = frp2.fr_win.get();
                         break;
@@ -4522,7 +4526,7 @@ pub fn frame_new_height(topfrp: &Frame, mut height: i32, topfirst: bool, wfh: bo
 
 fn frame_fixed_height(fr: &Frame) -> bool {
     if let Some(win) = fr.win_opt() {
-        return win.w_onebuf_opt.wo_wfh;
+        return win.w_onebuf_opt.wo_wfh.get();
     }
     if fr.fr_layout.get() == FR_ROW {
         return frame_iter_mut(fr.fr_child.get()).any(|child| frame_fixed_height(&child));
@@ -4532,7 +4536,7 @@ fn frame_fixed_height(fr: &Frame) -> bool {
 
 fn frame_fixed_width(fr: &Frame) -> bool {
     if let Some(win) = fr.win_opt() {
-        return win.w_onebuf_opt.wo_wfw;
+        return win.w_onebuf_opt.wo_wfw.get();
     }
     if fr.fr_layout.get() == FR_COL {
         return frame_iter_mut(fr.fr_child.get()).any(|child| frame_fixed_width(&child));
@@ -4794,7 +4798,7 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
             g_st().curbuf = curwin_mut().w_buffer;
         }
 
-        if wp == curwin_handle() || (wp.borrow().w_onebuf_opt.wo_wp && !ignore_pinned) {
+        if wp == curwin_handle() || (wp.borrow().w_onebuf_opt.wo_wp.get() && !ignore_pinned) {
             wp = nextwp;
             continue;
         }
@@ -4836,7 +4840,7 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
     if message != 0 && !one_window_macro() {
         let mut has_non_pinned = false;
         for wp2 in for_all_windows_ptr() {
-            if wp2 != curwin_ptr() && !wp2.w_onebuf_opt.wo_wp {
+            if wp2 != curwin_ptr() && !wp2.w_onebuf_opt.wo_wp.get() {
                 has_non_pinned = true;
                 break;
             }
@@ -5799,7 +5803,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
     }
 
     if OptInt::from(curwin_mut().w_height) < opt_vars().p_wh.get()
-        && !curwin_mut().w_onebuf_opt.wo_wfh
+        && !curwin_mut().w_onebuf_opt.wo_wfh.get()
         && !curwin_mut().w_floating
     {
         win_setheight(opt_vars().p_wh.get() as i32);
@@ -5808,7 +5812,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
     }
 
     if OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw.get()
-        && !curwin_mut().w_onebuf_opt.wo_wfw
+        && !curwin_mut().w_onebuf_opt.wo_wfw.get()
         && !curwin_mut().w_floating
     {
         win_setwidth(opt_vars().p_wiw.get() as i32);
@@ -5816,12 +5820,12 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
 
     if !curwin_invalid
         && win_valid(g_st().prevwin.opt())
-        && crate::globals::prevwin_mut().w_onebuf_opt.wo_cole > 0
+        && crate::globals::prevwin_mut().w_onebuf_opt.wo_cole.get() > 0
         && !conceal_cursor_line(crate::globals::prevwin_mut())
     {
         conceal_redraw_cursor_line(crate::globals::prevwin_mut());
     }
-    if curwin_mut().w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(curwin_mut()) {
+    if curwin_mut().w_onebuf_opt.wo_cole.get() > 0 && !conceal_cursor_line(curwin_mut()) {
         conceal_redraw_cursor_line(curwin_mut());
     }
 
@@ -5958,12 +5962,12 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
 
     new_wp.w_ns_hl = -1;
 
-    new_wp.w_onebuf_opt.wo_so = -1;
-    new_wp.w_allbuf_opt.wo_so = -1;
-    new_wp.w_onebuf_opt.wo_sop = -1;
-    new_wp.w_allbuf_opt.wo_sop = -1;
-    new_wp.w_onebuf_opt.wo_siso = -1;
-    new_wp.w_allbuf_opt.wo_siso = -1;
+    new_wp.w_onebuf_opt.wo_so.set(-1);
+    new_wp.w_allbuf_opt.wo_so.set(-1);
+    new_wp.w_onebuf_opt.wo_sop.set(-1);
+    new_wp.w_allbuf_opt.wo_sop.set(-1);
+    new_wp.w_onebuf_opt.wo_siso.set(-1);
+    new_wp.w_allbuf_opt.wo_siso.set(-1);
 
     new_wp.w_fraction = 0;
     new_wp.w_prev_fraction_row = -1;
@@ -5987,8 +5991,8 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
 
         wp.w_ns_set.clear();
 
-        clear_winopt(&mut wp.w_onebuf_opt);
-        clear_winopt(&mut wp.w_allbuf_opt);
+        clear_winopt(&wp.w_onebuf_opt);
+        clear_winopt(&wp.w_allbuf_opt);
 
         wp.w_p_lcs_chars.multispace = Vec::new();
         wp.w_p_lcs_chars.leadmultispace = Vec::new();
@@ -6039,7 +6043,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&TabPageInfo>) {
                 let wip_wp = &mut (&mut buf.b_wininfo)[pw];
                 wip_wp.wi_win = crate::globals::WinPtr::NULL;
                 if wp.w_config.style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
-                    clear_winopt(&mut wip_wp.wi_opt);
+                    clear_winopt(&wip_wp.wi_opt);
                     wip_wp.wi_folds.clear();
                     wip_wp.wi_optset = false;
                 }
@@ -6674,7 +6678,7 @@ fn frame_setheight(curfrp: &Frame, mut height: i32, from_top: bool) {
             for frp in frame_iter_ptr(curfrp.fr_parent.get().fr_child.get()) {
                 if !ptr::eq(frp.borrow(), curfrp)
                     && !frp.fr_win.get().is_null()
-                    && frp.win_mut().w_onebuf_opt.wo_wfh
+                    && frp.win_mut().w_onebuf_opt.wo_wfh.get()
                 {
                     room_reserved += frp.fr_height.get();
                 }
@@ -6741,7 +6745,7 @@ fn frame_setheight(curfrp: &Frame, mut height: i32, from_top: bool) {
                 let h = frame_minheight(frp.borrow(), crate::globals::WinPtr::NULL);
                 if room_reserved > 0
                     && !frp.fr_win.get().is_null()
-                    && frp.fr_win.get().w_onebuf_opt.wo_wfh
+                    && frp.fr_win.get().w_onebuf_opt.wo_wfh.get()
                 {
                     if room_reserved >= frp.fr_height.get() {
                         room_reserved -= frp.fr_height.get();
@@ -6823,7 +6827,7 @@ fn frame_setwidth(curfrp: &Frame, mut width: i32, from_left: bool) {
             for frp in frame_iter_ptr(curfrp.fr_parent.get().fr_child.get()) {
                 if !ptr::eq(frp.borrow(), curfrp)
                     && !frp.fr_win.get().is_null()
-                    && frp.win_mut().w_onebuf_opt.wo_wfw
+                    && frp.win_mut().w_onebuf_opt.wo_wfw.get()
                 {
                     room_reserved += frp.fr_width.get();
                 }
@@ -6873,7 +6877,7 @@ fn frame_setwidth(curfrp: &Frame, mut width: i32, from_left: bool) {
                 let w = frame_minwidth(frp.borrow(), crate::globals::WinPtr::NULL);
                 if room_reserved > 0
                     && !frp.fr_win.get().is_null()
-                    && frp.fr_win.get().w_onebuf_opt.wo_wfw
+                    && frp.fr_win.get().w_onebuf_opt.wo_wfw.get()
                 {
                     if room_reserved >= frp.fr_width.get() {
                         room_reserved -= frp.fr_width.get();
@@ -7253,7 +7257,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
     let height = wp.w_view_height;
 
     if height > 0
-        && (!wp.w_onebuf_opt.wo_scb || wp == curwin_ptr())
+        && (!wp.w_onebuf_opt.wo_scb.get() || wp == curwin_ptr())
         && (height < wp.buf_mut().b_ml.ml_line_count || wp.w_topline > 1)
     {
         let mut lnum = wp.w_cursor.lnum.max(1);
@@ -7351,7 +7355,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
             && !g_st().exiting
             && (opt_vars().p_spk.first_byte() == b'c' || wp.w_floating)
         {
-            if !wp.w_onebuf_opt.wo_sms {
+            if !wp.w_onebuf_opt.wo_sms.get() {
                 wp.w_skipcol = 0;
             }
             scroll_to_fraction(wp, prev_height);
@@ -7416,12 +7420,15 @@ pub fn win_default_scroll(wp: &mut WinInfoInfo) -> OptInt {
 }
 
 pub fn win_comp_scroll(wp: &mut WinInfoInfo) {
-    let old_w_p_scr = wp.w_onebuf_opt.wo_scr;
-    wp.w_onebuf_opt.wo_scr = win_default_scroll(wp);
+    let old_w_p_scr = wp.w_onebuf_opt.wo_scr.get();
+    let new_scr = win_default_scroll(wp);
+    wp.w_onebuf_opt.wo_scr.set(new_scr);
 
-    if wp.w_onebuf_opt.wo_scr != old_w_p_scr {
-        wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].sc_sid = SID_WINLAYOUT;
-        wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].sc_lnum = 0;
+    if wp.w_onebuf_opt.wo_scr.get() != old_w_p_scr {
+        let mut sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].get();
+        sctx.sc_sid = SID_WINLAYOUT;
+        sctx.sc_lnum = 0;
+        wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].set(sctx);
     }
 }
 
@@ -7435,7 +7442,7 @@ pub fn command_height() {
 
     while !frp.fr_prev.get().is_null()
         && frp.fr_layout.get() == FR_LEAF
-        && frp.fr_win.get().w_onebuf_opt.wo_wfh
+        && frp.fr_win.get().w_onebuf_opt.wo_wfh.get()
     {
         frp = frp.fr_prev.get();
     }
@@ -7756,7 +7763,7 @@ pub fn only_one_window() -> bool {
         if !wp.w_buffer.is_null()
             && (!((bt_help(wp.buf_opt()) && !bt_help(Some(crate::globals::curbuf_mut())))
                 || wp.w_floating
-                || wp.w_onebuf_opt.wo_pvw)
+                || wp.w_onebuf_opt.wo_pvw.get())
                 || wp == curwin_ptr())
             && !is_ctx_win(&*wp)
         {

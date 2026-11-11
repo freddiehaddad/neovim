@@ -857,7 +857,7 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
     let empty = if dict_opt {
         curbuf_mut().b_p_dict.is_empty()
             && opt_vars().p_dict.is_empty()
-            && !curwin_mut().w_onebuf_opt.wo_spell
+            && !curwin_mut().w_onebuf_opt.wo_spell.get()
     } else {
         curbuf_mut().b_p_tsr.is_empty()
             && opt_vars().p_tsr.is_empty()
@@ -2153,7 +2153,7 @@ pub fn ins_compl_show_pum() {
     pum_display(arr, cur, array_changed, 0);
     curwin_mut().w_cursor.col = col;
 
-    if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
+    if curwin_mut().w_onebuf_opt.wo_cole.get() > 0 && conceal_cursor_line(curwin_mut()) {
         redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
     }
 
@@ -2207,7 +2207,7 @@ fn ins_compl_dictionaries(
     let mut dir = INSEXPAND.with(|s| s.compl_direction.get());
 
     if dict.to_bytes().is_empty() {
-        if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell {
+        if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell.get() {
             dict = c"spell";
         } else {
             return;

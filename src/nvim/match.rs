@@ -842,7 +842,7 @@ pub fn update_search_hl(
             idx += 1;
         }
     }
-    if (col as usize) >= line_bytes.len() && (wp.w_onebuf_opt.wo_list && !lcs_eol_todo) {
+    if (col as usize) >= line_bytes.len() && (wp.w_onebuf_opt.wo_list.get() && !lcs_eol_todo) {
         search_attr = 0;
     }
     search_attr
@@ -850,7 +850,7 @@ pub fn update_search_hl(
 
 pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
     let mut prevcol = curcol;
-    let skip_or_left = if wp.w_onebuf_opt.wo_wrap {
+    let skip_or_left = if wp.w_onebuf_opt.wo_wrap.get() {
         wp.w_skipcol
     } else {
         wp.w_leftcol

@@ -1480,7 +1480,7 @@ pub fn close_buffer(
     }
 
     if bt_quickfix(Some(buf.borrow())) && win_valid && win.borrow().w_buffer == buf.as_ptr() {
-        win.borrow_mut().w_onebuf_opt.wo_wfh = false;
+        win.borrow_mut().w_onebuf_opt.wo_wfh.set(false);
     }
 
     let hiding_buf = buf.borrow().b_nwindows <= 0
@@ -2663,7 +2663,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
     }
     fold_update_all(curwin_mut());
 
-    if curwin_mut().w_onebuf_opt.wo_diff {
+    if curwin_mut().w_onebuf_opt.wo_diff.get() {
         diff_buf_add(curbuf_mut());
     }
 
@@ -2711,7 +2711,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         keymap_init();
     }
     if !curbuf_mut().b_help
-        && curwin_mut().w_onebuf_opt.wo_spell
+        && curwin_mut().w_onebuf_opt.wo_spell.get()
         && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
     {
         parse_spelllang(curwin_mut());
@@ -3290,7 +3290,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
         file.clear();
 
-        if (options & BUF_DIFF_FILTER) != 0 && !curwin_mut().w_onebuf_opt.wo_diff {
+        if (options & BUF_DIFF_FILTER) != 0 && !curwin_mut().w_onebuf_opt.wo_diff.get() {
             return false;
         }
 
@@ -3484,7 +3484,7 @@ pub fn buflist_setfpos(
     let mut wip = if let Some(i) = buf.b_wininfo.iter().position(|w| w.wi_win == win) {
         let mut wip = buf.b_wininfo.remove(i);
         if copy_options && wip.wi_optset {
-            clear_winopt(&mut wip.wi_opt);
+            clear_winopt(&wip.wi_opt);
             wip.wi_folds.clear();
             wip.wi_optset = false;
         }
@@ -3507,7 +3507,7 @@ pub fn buflist_setfpos(
     if let Some(w) = win_opt {
         wip.wi_changelistidx = w.w_changelistidx;
         if copy_options {
-            copy_winopt(&mut w.w_onebuf_opt, &mut wip.wi_opt);
+            copy_winopt(&w.w_onebuf_opt, &wip.wi_opt);
             wip.wi_fold_manual = w.w_fold_manual;
             wip.wi_folds.clone_from(&w.w_folds);
             wip.wi_optset = true;
@@ -3518,7 +3518,7 @@ pub fn buflist_setfpos(
 }
 
 fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
-    if !wip.wi_opt.wo_diff {
+    if !wip.wi_opt.wo_diff.get() {
         return false;
     }
 
@@ -3562,7 +3562,7 @@ fn find_wininfo(
 /// Reset the local window options to the values last used in this window.
 pub fn get_winopts(buf: &mut FileBuf) {
     let buf_ptr = crate::globals::BufPtr::from(&*buf);
-    clear_winopt(&mut curwin_mut().w_onebuf_opt);
+    clear_winopt(&curwin_mut().w_onebuf_opt);
     clear_folding(curwin_mut());
 
     let mut wip = find_wininfo(buf, true, true);
@@ -3572,7 +3572,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
         && wp.w_buffer == buf_ptr
         && wp.w_config.style != K_WIN_STYLE_MINIMAL
     {
-        copy_winopt(&mut wp.w_onebuf_opt, &mut curwin_mut().w_onebuf_opt);
+        copy_winopt(&wp.w_onebuf_opt, &curwin_mut().w_onebuf_opt);
         curwin_mut().w_fold_manual = wp.w_fold_manual;
         curwin_mut().w_foldinvalid = true;
         curwin_mut().w_folds.clone_from(&wp.w_folds);
@@ -3584,15 +3584,12 @@ pub fn get_winopts(buf: &mut FileBuf) {
                 .win_opt()
                 .is_some_and(|w| w.w_config.style != K_WIN_STYLE_MINIMAL))
     {
-        copy_winopt(&mut wip.wi_opt, &mut curwin_mut().w_onebuf_opt);
+        copy_winopt(&wip.wi_opt, &curwin_mut().w_onebuf_opt);
         curwin_mut().w_fold_manual = wip.wi_fold_manual;
         curwin_mut().w_foldinvalid = true;
         curwin_mut().w_folds.clone_from(&wip.wi_folds);
     } else {
-        copy_winopt(
-            &mut curwin_mut().w_allbuf_opt,
-            &mut curwin_mut().w_onebuf_opt,
-        );
+        copy_winopt(&curwin_mut().w_allbuf_opt, &curwin_mut().w_onebuf_opt);
     }
     if let Some(wip) = wip {
         curwin_mut().w_changelistidx = wip.wi_changelistidx;
@@ -3604,7 +3601,10 @@ pub fn get_winopts(buf: &mut FileBuf) {
     }
 
     if opt_vars().p_fdls.get() >= 0 {
-        curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls.get();
+        curwin_mut()
+            .w_onebuf_opt
+            .wo_fdl
+            .set(opt_vars().p_fdls.get());
     }
     didset_window_options(curwin_mut(), false);
 }

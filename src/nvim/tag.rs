@@ -2668,7 +2668,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             g_st().postponed_split = 0;
             curwin_save = curwin_ptr();
 
-            if !curwin_mut().w_onebuf_opt.wo_pvw {
+            if !curwin_mut().w_onebuf_opt.wo_pvw.get() {
                 full_fname = FullName_save(fname_opt_ref, false);
                 fname_opt_ref = full_fname.as_deref();
 
@@ -2705,8 +2705,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 g_st().redrawing_disabled -= 1;
                 break 'erret;
             }
-            curwin_mut().w_onebuf_opt.wo_scb = false;
-            curwin_mut().w_onebuf_opt.wo_crb = false;
+            curwin_mut().w_onebuf_opt.wo_scb.set(false);
+            curwin_mut().w_onebuf_opt.wo_crb.set(false);
         }
 
         if keep_help {

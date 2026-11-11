@@ -192,9 +192,9 @@ pub fn internal_format(
     let mut leader_len: Colnr;
     let mut no_leader = false;
     let mut do_comments = (flags & INSCHAR_DO_COM) != 0;
-    let has_lbr = curwin_mut().w_onebuf_opt.wo_lbr;
+    let has_lbr = curwin_mut().w_onebuf_opt.wo_lbr.get();
 
-    curwin_mut().w_onebuf_opt.wo_lbr = false;
+    curwin_mut().w_onebuf_opt.wo_lbr.set(false);
 
     if !curbuf_mut().b_p_ai && (g_st().state_global & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
@@ -520,7 +520,7 @@ pub fn internal_format(
         pchar_cursor(save_char);
     }
 
-    curwin_mut().w_onebuf_opt.wo_lbr = has_lbr;
+    curwin_mut().w_onebuf_opt.wo_lbr.set(has_lbr);
 
     if !format_only && haveto_redraw {
         update_topline(curwin_mut());
@@ -798,7 +798,7 @@ pub fn comp_textwidth(ff: bool) -> i32 {
         textwidth -= win_fdccol_count(curwin_mut());
         textwidth -= curwin_mut().w_scwidth;
 
-        if curwin_mut().w_onebuf_opt.wo_nu || curwin_mut().w_onebuf_opt.wo_rnu {
+        if curwin_mut().w_onebuf_opt.wo_nu.get() || curwin_mut().w_onebuf_opt.wo_rnu.get() {
             textwidth -= 8;
         }
     }

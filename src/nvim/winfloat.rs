@@ -144,12 +144,12 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
-    wp.w_onebuf_opt.wo_nu = false;
-    wp.w_onebuf_opt.wo_rnu = false;
-    wp.w_onebuf_opt.wo_cul = false;
-    wp.w_onebuf_opt.wo_cuc = false;
-    wp.w_onebuf_opt.wo_spell = false;
-    wp.w_onebuf_opt.wo_list = false;
+    wp.w_onebuf_opt.wo_nu.set(false);
+    wp.w_onebuf_opt.wo_rnu.set(false);
+    wp.w_onebuf_opt.wo_cul.set(false);
+    wp.w_onebuf_opt.wo_cuc.set(false);
+    wp.w_onebuf_opt.wo_spell.set(false);
+    wp.w_onebuf_opt.wo_list.set(false);
 
     // Hide EOB region: use " " fillchar and cleared highlighting
     if wp.w_p_fcs_chars.eob != b' ' as u32 {
@@ -328,7 +328,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 pub fn win_float_remove(bang: bool, mut count: i32) {
     let mut float_win_arr: Vec<crate::globals::WinPtr> = Vec::new();
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
-        if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp {
+        if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp.get() {
             float_win_arr.push(crate::globals::WinPtr::from(&*wp));
         }
     }
@@ -498,14 +498,14 @@ pub fn win_float_special(
         }
     }
     unblock_autocmds();
-    wp.w_onebuf_opt.wo_diff = false;
-    wp.w_onebuf_opt.wo_wrap = true; // 'wrap' is default on
-    wp.w_onebuf_opt.wo_so = 0; // 'scrolloff' zero
+    wp.w_onebuf_opt.wo_diff.set(false);
+    wp.w_onebuf_opt.wo_wrap.set(true); // 'wrap' is default on
+    wp.w_onebuf_opt.wo_so.set(0); // 'scrolloff' zero
 
     if preview {
-        wp.w_onebuf_opt.wo_pvw = true;
-        wp.w_onebuf_opt.wo_scb = false;
-        wp.w_onebuf_opt.wo_crb = false;
+        wp.w_onebuf_opt.wo_pvw.set(true);
+        wp.w_onebuf_opt.wo_scb.set(false);
+        wp.w_onebuf_opt.wo_crb.set(false);
         win_float_anchor_preview(&mut *wp);
     }
     wp.w_kind = kind;

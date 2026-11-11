@@ -399,7 +399,7 @@ pub fn search_regcomp(
             *used_pat = pat_ref.to_owned();
         }
 
-        let mr = if curwin_mut().w_onebuf_opt.wo_rl
+        let mr = if curwin_mut().w_onebuf_opt.wo_rl.get()
             && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
         {
             Some(reverse_text(pat_ref.to_bytes()))
@@ -1512,7 +1512,7 @@ pub fn do_search(
                     msgbuf_vec = trunc.into_bytes_with_nul();
                 }
 
-                if curwin_mut().w_onebuf_opt.wo_rl
+                if curwin_mut().w_onebuf_opt.wo_rl.get()
                     && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
                 {
                     let rev = reverse_text(crate::memory::bytes_until_nul(&msgbuf_vec));
@@ -2153,7 +2153,7 @@ pub fn findmatchlimit(
         }
     }
 
-    if curwin_mut().w_onebuf_opt.wo_rl && crate::strings::vim_haschr(c"()[]{}<>", initc) {
+    if curwin_mut().w_onebuf_opt.wo_rl.get() && crate::strings::vim_haschr(c"()[]{}<>", initc) {
         backwards = !backwards;
     }
 
@@ -2490,16 +2490,20 @@ pub fn findmatchlimit(
 
 pub fn showmatch(c: i32) {
     let mut vcol: Colnr = 0;
-    let use_win_so = curwin_mut().w_onebuf_opt.wo_so >= 0;
-    let use_win_siso = curwin_mut().w_onebuf_opt.wo_siso >= 0;
+    let use_win_so = curwin_mut().w_onebuf_opt.wo_so.get() >= 0;
+    let use_win_siso = curwin_mut().w_onebuf_opt.wo_siso.get() >= 0;
 
     let mut p = curbuf_mut().b_p_mps.as_bytes();
     while !p.is_empty() {
-        if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl) ^ (opt_vars().p_ri.get())) {
+        if utf_ptr2char(p) == c
+            && ((curwin_mut().w_onebuf_opt.wo_rl.get()) ^ (opt_vars().p_ri.get()))
+        {
             break;
         }
         p = p.get(utfc_ptr2len(p) as usize + 1..).unwrap_or(&[]);
-        if utf_ptr2char(p) == c && !((curwin_mut().w_onebuf_opt.wo_rl) ^ (opt_vars().p_ri.get())) {
+        if utf_ptr2char(p) == c
+            && !((curwin_mut().w_onebuf_opt.wo_rl.get()) ^ (opt_vars().p_ri.get()))
+        {
             break;
         }
         p = p.get(utfc_ptr2len(p) as usize..).unwrap_or(&[]);
@@ -2521,11 +2525,11 @@ pub fn showmatch(c: i32) {
         return;
     }
 
-    if !curwin_mut().w_onebuf_opt.wo_wrap {
+    if !curwin_mut().w_onebuf_opt.wo_wrap.get() {
         getvcol(curwin_mut(), &mut lpos, None, Some(&mut vcol), None, 0);
     }
 
-    let col_visible = curwin_mut().w_onebuf_opt.wo_wrap
+    let col_visible = curwin_mut().w_onebuf_opt.wo_wrap.get()
         || (vcol >= curwin_mut().w_leftcol
             && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
     if !col_visible {
@@ -2535,12 +2539,12 @@ pub fn showmatch(c: i32) {
     let mpos = lpos;
     let save_cursor = curwin_mut().w_cursor;
     let save_so = if use_win_so {
-        curwin_mut().w_onebuf_opt.wo_so
+        curwin_mut().w_onebuf_opt.wo_so.get()
     } else {
         opt_vars().p_so.get()
     };
     let save_siso = if use_win_siso {
-        curwin_mut().w_onebuf_opt.wo_siso
+        curwin_mut().w_onebuf_opt.wo_siso.get()
     } else {
         opt_vars().p_siso.get()
     };
@@ -2555,12 +2559,12 @@ pub fn showmatch(c: i32) {
     ui_cursor_shape();
     curwin_mut().w_cursor = mpos;
     if use_win_so {
-        curwin_mut().w_onebuf_opt.wo_so = 0;
+        curwin_mut().w_onebuf_opt.wo_so.set(0);
     } else {
         opt_vars().p_so.set(0);
     }
     if use_win_siso {
-        curwin_mut().w_onebuf_opt.wo_siso = 0;
+        curwin_mut().w_onebuf_opt.wo_siso.set(0);
     } else {
         opt_vars().p_siso.set(0);
     }
@@ -2580,12 +2584,12 @@ pub fn showmatch(c: i32) {
     }
     curwin_mut().w_cursor = save_cursor;
     if use_win_so {
-        curwin_mut().w_onebuf_opt.wo_so = save_so;
+        curwin_mut().w_onebuf_opt.wo_so.set(save_so);
     } else {
         opt_vars().p_so.set(save_so);
     }
     if use_win_siso {
-        curwin_mut().w_onebuf_opt.wo_siso = save_siso;
+        curwin_mut().w_onebuf_opt.wo_siso.set(save_siso);
     } else {
         opt_vars().p_siso.set(save_siso);
     }
@@ -2861,7 +2865,9 @@ fn cmdline_search_stat(
     let mut t = [0u8; SEARCH_STAT_BUF_LEN];
     let mut len: usize;
 
-    if curwin_mut().w_onebuf_opt.wo_rl && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's' {
+    if curwin_mut().w_onebuf_opt.wo_rl.get()
+        && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
+    {
         if stat.incomplete == 1 {
             len = format_to_buf!(&mut t[..], c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {

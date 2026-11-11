@@ -5070,7 +5070,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
         new_s.b_p_spo.clear_option_str();
         new_s.b_syn_isk = None;
         curwin_mut().w_s_owned = Some(new_s);
-        curwin_mut().w_onebuf_opt.wo_spell = false;
+        curwin_mut().w_onebuf_opt.wo_spell.set(false);
     }
 
     let old_value = get_var_value(c"b:current_syntax").map(std::borrow::Cow::into_owned);
@@ -5293,8 +5293,8 @@ pub fn syn_get_foldlevel(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
             }
         }
     }
-    if (level as i64) > wp.w_onebuf_opt.wo_fdn {
-        level = wp.w_onebuf_opt.wo_fdn as i32;
+    if (level as i64) > wp.w_onebuf_opt.wo_fdn.get() {
+        level = wp.w_onebuf_opt.wo_fdn.get() as i32;
         if level < 0 {
             level = 0;
         }

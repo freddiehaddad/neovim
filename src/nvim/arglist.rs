@@ -604,8 +604,8 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         if !win_split(0, 0) {
             return;
         }
-        curwin_mut().w_onebuf_opt.wo_scb = false;
-        curwin_mut().w_onebuf_opt.wo_crb = false;
+        curwin_mut().w_onebuf_opt.wo_scb.set(false);
+        curwin_mut().w_onebuf_opt.wo_crb.set(false);
     } else {
         let mut other = true;
         if buf_hide(curbuf_mut()) {

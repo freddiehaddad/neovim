@@ -765,7 +765,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
     let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
     let ccol = curwin_mut().w_wincol
         + curwin_mut().w_wincol_off
-        + if curwin_mut().w_onebuf_opt.wo_rl {
+        + if curwin_mut().w_onebuf_opt.wo_rl.get() {
             curwin_mut().w_view_width - curwin_mut().w_wcol - 1
         } else {
             curwin_mut().w_wcol

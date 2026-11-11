@@ -2663,7 +2663,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 curwin_mut().w_wcol -= 1;
                                 col = curwin_mut().w_cursor.col - 1;
                             }
-                        } else if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_wrow != 0 {
+                        } else if curwin_mut().w_onebuf_opt.wo_wrap.get()
+                            && curwin_mut().w_wrow != 0
+                        {
                             curwin_mut().w_wrow -= 1;
                             curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
                             col = curwin_mut().w_cursor.col - 1;

@@ -157,7 +157,7 @@ pub fn copy_folding_state(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
 pub fn has_any_folding(win: &mut WinInfoInfo) -> i32 {
     i32::from(
         win.buf_mut().terminal.is_null()
-            && win.w_onebuf_opt.wo_fen
+            && win.w_onebuf_opt.wo_fen.get()
             && !mc_replaying()
             && (!foldmethod_is_manual(win) || !win.w_folds.is_empty()),
     )
@@ -420,10 +420,12 @@ pub fn fold_open_cursor() {
 pub fn new_fold_level() {
     new_fold_level_win(curwin_mut());
 
-    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
+    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb.get() {
         for wp in for_all_windows_ptr() {
-            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
-                wp.w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
+            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb.get() {
+                wp.w_onebuf_opt
+                    .wo_fdl
+                    .set(curwin_mut().w_onebuf_opt.wo_fdl.get());
                 new_fold_level_win(&mut *wp);
             }
         }
@@ -451,7 +453,7 @@ pub fn fold_check_close() {
     if check_close_rec(
         &mut curwin_mut().w_folds,
         curwin_mut().w_cursor.lnum,
-        curwin_mut().w_onebuf_opt.wo_fdl as i32,
+        curwin_mut().w_onebuf_opt.wo_fdl.get() as i32,
     ) {
         changed_window_setting(curwin_mut());
     }
@@ -526,7 +528,7 @@ pub fn fold_create(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPo
                 end_rel.lnum -= fp.fd_top;
                 if use_level || fp.fd_flags == FD_LEVEL {
                     use_level = true;
-                    if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
+                    if i64::from(level) >= wp.w_onebuf_opt.wo_fdl.get() {
                         closed = true;
                     }
                 } else if fp.fd_flags == FD_CLOSED {
@@ -571,7 +573,7 @@ pub fn fold_create(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPo
             },
         );
 
-        if use_level && !closed && i64::from(level) < wp.w_onebuf_opt.wo_fdl {
+        if use_level && !closed && i64::from(level) < wp.w_onebuf_opt.wo_fdl.get() {
             close_fold(start, 1);
         }
         if !use_level {
@@ -987,9 +989,9 @@ fn set_manual_fold(
     recurse: bool,
     donep: Option<&mut i32>,
 ) -> Linenr {
-    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
+    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb.get() {
         for wp in for_all_windows_ptr() {
-            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
+            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb.get() {
                 let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
                 if dlnum != 0 {
                     set_manual_fold_win(&mut *wp, dlnum, opening, recurse, None);
@@ -1017,7 +1019,7 @@ fn set_manual_fold_win(
 
     checkupdate(wp);
 
-    let wo_fdl = wp.w_onebuf_opt.wo_fdl;
+    let wo_fdl = wp.w_onebuf_opt.wo_fdl.get();
     let mut gap: &mut [FoldEntry] = &mut wp.w_folds;
     loop {
         let (found_in_gap, idx) = fold_find(gap, lnum);
@@ -1256,7 +1258,7 @@ fn check_closed(
 
     if *use_levelp || fp.fd_flags == FD_LEVEL {
         *use_levelp = true;
-        if i64::from(level) >= wp.w_onebuf_opt.wo_fdl {
+        if i64::from(level) >= wp.w_onebuf_opt.wo_fdl.get() {
             closed = true;
         }
     } else if fp.fd_flags == FD_CLOSED {
@@ -1285,13 +1287,13 @@ fn check_small(wp: &mut WinInfoInfo, fp: &mut FoldEntry, lnum_off: Linenr) {
 
     set_small_maybe(&mut fp.fd_nested);
 
-    if i64::from(fp.fd_len) > wp.w_onebuf_opt.wo_fml {
+    if i64::from(fp.fd_len) > wp.w_onebuf_opt.wo_fml.get() {
         fp.fd_small = K_FALSE;
     } else {
         let mut count: i32 = 0;
         for n in 0..fp.fd_len {
             count += plines_win_nofold(wp, fp.fd_top + lnum_off + n);
-            if i64::from(count) > wp.w_onebuf_opt.wo_fml {
+            if i64::from(count) > wp.w_onebuf_opt.wo_fml.get() {
                 fp.fd_small = K_FALSE;
                 return;
             }
@@ -1497,7 +1499,7 @@ pub fn get_foldtext(
 
             set_curwin(&raw mut *wp);
             g_st().curbuf = wp.w_buffer;
-            g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT];
+            g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get();
 
             g_st().emsg_off += 1;
 
@@ -1853,7 +1855,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
     fold_remove(&mut wp.w_folds, start, end);
 
-    if FOLD_STATE.with(|st| st.fold_changed.get()) && wp.w_onebuf_opt.wo_fen {
+    if FOLD_STATE.with(|st| st.fold_changed.get()) && wp.w_onebuf_opt.wo_fen.get() {
         changed_window_setting(wp);
     }
 
@@ -2428,7 +2430,9 @@ fn foldlevel_indent(flp: &mut Fline) {
     } else {
         flp.lvl = get_indent_buf(buf, lnum) / get_sw_value(buf);
     }
-    flp.lvl = flp.lvl.min(flp.wp_mut().w_onebuf_opt.wo_fdn.max(0) as i32);
+    flp.lvl = flp
+        .lvl
+        .min(flp.wp_mut().w_onebuf_opt.wo_fdn.get().max(0) as i32);
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
@@ -2642,8 +2646,8 @@ fn put_foldopen_recurse(fd: &CFile, wp: &WinInfoInfo, gap: &[FoldEntry], off: Li
                 }
             } else {
                 let level = i64::from(fold_level_win(wp, off + fp.fd_top));
-                if ((fp.fd_flags == FD_CLOSED && wp.w_onebuf_opt.wo_fdl >= level)
-                    || (fp.fd_flags != FD_CLOSED && wp.w_onebuf_opt.wo_fdl < level))
+                if ((fp.fd_flags == FD_CLOSED && wp.w_onebuf_opt.wo_fdl.get() >= level)
+                    || (fp.fd_flags != FD_CLOSED && wp.w_onebuf_opt.wo_fdl.get() < level))
                     && !put_fold_open_close(fd, fp, off)
                 {
                     return false;

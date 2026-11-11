@@ -450,7 +450,7 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
 
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
 pub fn ex_listdo(eap: &mut Exarg) {
-    if curwin_mut().w_onebuf_opt.wo_wfb
+    if curwin_mut().w_onebuf_opt.wo_wfb.get()
         && eap.cmdidx != Cmdidx::CmdWindo
         && eap.cmdidx != Cmdidx::CmdTabdo
     {
@@ -459,12 +459,14 @@ pub fn ex_listdo(eap: &mut Exarg) {
             return;
         }
 
-        if win_valid(g_st().prevwin.opt()) && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb {
+        if win_valid(g_st().prevwin.opt())
+            && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb.get()
+        {
             win_goto(crate::globals::prevwin_mut());
         }
-        if curwin_mut().w_onebuf_opt.wo_wfb {
+        if curwin_mut().w_onebuf_opt.wo_wfb.get() {
             win_split(0, 0);
-            if curwin_mut().w_onebuf_opt.wo_wfb {
+            if curwin_mut().w_onebuf_opt.wo_wfb.get() {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                 return;
             }
@@ -656,7 +658,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
             if eap.cmdidx == Cmdidx::CmdWindo && execute {
                 validate_cursor(curwin_mut());
-                if curwin_mut().w_onebuf_opt.wo_scb {
+                if curwin_mut().w_onebuf_opt.wo_scb.get() {
                     do_check_scrollbind(true);
                 }
             }

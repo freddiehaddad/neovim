@@ -4886,7 +4886,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             && tp.is_some()
         {
             if opt_vars().p_spk.first_byte() != b'c'
-                || (wp_ref.w_onebuf_opt.wo_diff && curwin_mut().w_onebuf_opt.wo_diff)
+                || (wp_ref.w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_diff.get())
             {
                 g_st().skip_update_topline = true;
             }
@@ -7541,17 +7541,17 @@ pub fn f_soundfold(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "spellbadword()" function
 pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
+    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
 
-    if !curwin_mut().w_onebuf_opt.wo_spell {
+    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = true;
+        curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
 
     let ws = curwin_mut().w_s_ptr();
     if ws.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
-        curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+        curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
         return;
     }
 
@@ -7582,7 +7582,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             }
         }
     }
-    curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
 
     debug_assert!(len <= i32::MAX as usize);
     tv_list_alloc_ret(rettv, 2);
@@ -7599,17 +7599,17 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// "spellsuggest()" function
 pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut ga: Vec<std::ffi::CString> = Vec::new();
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
+    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
 
-    if !curwin_mut().w_onebuf_opt.wo_spell {
+    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = true;
+        curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
 
     let ws = curwin_mut().w_s_ptr();
     if ws.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
-        curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+        curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
         return;
     }
 
@@ -7644,7 +7644,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             s.as_bytes().len() as isize,
         );
     }
-    curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
 }
 
 pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -8129,14 +8129,14 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         && lnum <= curbuf_mut().b_ml.ml_line_count
         && col >= 0
         && col <= ml_get_len(lnum)
-        && curwin_mut().w_onebuf_opt.wo_cole > 0
+        && curwin_mut().w_onebuf_opt.wo_cole.get() > 0
     {
         syn_get_id(curwin_mut(), lnum, col, 0, None, 0);
         syntax_flags = get_syntax_info(&mut matchid);
 
-        if (syntax_flags & HL_CONCEAL) != 0 && curwin_mut().w_onebuf_opt.wo_cole < 3 {
+        if (syntax_flags & HL_CONCEAL) != 0 && curwin_mut().w_onebuf_opt.wo_cole.get() < 3 {
             let mut cchar = schar_from_char(syn_get_sub_char());
-            if cchar == 0 && curwin_mut().w_onebuf_opt.wo_cole == 1 {
+            if cchar == 0 && curwin_mut().w_onebuf_opt.wo_cole.get() == 1 {
                 cchar = if curwin_mut().w_p_lcs_chars.conceal == 0 {
                     b' ' as Schar
                 } else {

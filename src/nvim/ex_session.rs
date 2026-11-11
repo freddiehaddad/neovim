@@ -441,7 +441,7 @@ fn put_view(
             if !put_line(fd, c"normal! 0") {
                 return false;
             }
-        } else if !wp.w_onebuf_opt.wo_wrap && wp.w_leftcol > 0 && wp.w_width > 0 {
+        } else if !wp.w_onebuf_opt.wo_wrap.get() && wp.w_leftcol > 0 && wp.w_width > 0 {
             let vcol1 = i64::from(wp.w_virtcol) + 1;
             if !write_fmt(
                 fd,

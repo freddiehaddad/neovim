@@ -464,7 +464,7 @@ pub fn ex_align(eap: &mut Exarg) {
     let mut indent: i32 = 0;
     let mut new_indent: i32;
 
-    if curwin_mut().w_onebuf_opt.wo_rl {
+    if curwin_mut().w_onebuf_opt.wo_rl.get() {
         if eap.cmdidx == Cmdidx::CmdRight {
             eap.cmdidx = Cmdidx::CmdLeft;
         } else if eap.cmdidx == Cmdidx::CmdLeft {
@@ -1932,7 +1932,7 @@ pub fn append_redir(buf: &mut [u8], opt: &CStr, fname: &CStr) {
 pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
     let mut numbuf: [u8; 30] = [0; 30];
 
-    if curwin_mut().w_onebuf_opt.wo_nu || use_number {
+    if curwin_mut().w_onebuf_opt.wo_nu.get() || use_number {
         format_to_buf!(&mut numbuf, c"%*d ", number_width(curwin_mut()), lnum);
         msg_puts_hl(crate::memory::bytes_as_cstr(&numbuf), HLF_N + 1, false);
     }
@@ -2584,7 +2584,7 @@ pub fn do_ecmd(
     let mut did_get_winopts = false;
     let mut readfile_flags: i32 = 0;
     let mut did_inc_redrawing_disabled = false;
-    let use_win_so = curwin_mut().w_onebuf_opt.wo_so >= 0;
+    let use_win_so = curwin_mut().w_onebuf_opt.wo_so.get() >= 0;
 
     set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
 
@@ -2998,13 +2998,13 @@ pub fn do_ecmd(
             }
         }
 
-        if curwin_mut().w_onebuf_opt.wo_diff {
+        if curwin_mut().w_onebuf_opt.wo_diff.get() {
             diff_buf_add(curbuf_mut());
             diff_invalidate(curbuf_mut());
         }
 
         if did_get_winopts
-            && curwin_mut().w_onebuf_opt.wo_spell
+            && curwin_mut().w_onebuf_opt.wo_spell.get()
             && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
         {
             parse_spelllang(curwin_mut());
@@ -3075,13 +3075,13 @@ pub fn do_ecmd(
         did_inc_redrawing_disabled = false;
         if !g_st().skip_redraw {
             let n = if use_win_so {
-                curwin_mut().w_onebuf_opt.wo_so
+                curwin_mut().w_onebuf_opt.wo_so.get()
             } else {
                 opt_vars().p_so.get()
             };
             if topline == 0 && command.is_none() {
                 if use_win_so {
-                    curwin_mut().w_onebuf_opt.wo_so = 999;
+                    curwin_mut().w_onebuf_opt.wo_so.set(999);
                 } else {
                     opt_vars().p_so.set(999);
                 }
@@ -3090,7 +3090,7 @@ pub fn do_ecmd(
             curwin_mut().w_scbind_pos =
                 plines_m_win_fill(crate::globals::curwin_mut(), 1, curwin_mut().w_topline);
             if use_win_so {
-                curwin_mut().w_onebuf_opt.wo_so = n;
+                curwin_mut().w_onebuf_opt.wo_so.set(n);
             } else {
                 opt_vars().p_so.set(n);
             }
@@ -3340,7 +3340,7 @@ pub fn ex_z(eap: &mut Exarg) {
     if eap.forceit {
         bigness = (g_st().rows_global - 1) as i64;
     } else if g_st().firstwin == g_st().lastwin {
-        bigness = curwin_mut().w_onebuf_opt.wo_scr * 2;
+        bigness = curwin_mut().w_onebuf_opt.wo_scr.get() * 2;
     } else {
         bigness = (curwin_mut().w_view_height - 3) as i64;
     }
@@ -4068,7 +4068,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let save_state = g_st().state_global;
                         curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
-                        if curwin_mut().w_onebuf_opt.wo_crb {
+                        if curwin_mut().w_onebuf_opt.wo_crb.get() {
                             do_check_cursorbind();
                         }
 
@@ -4080,9 +4080,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             let mut orig_line = SubBuf::new();
                             let mut len_change: i32 = 0;
                             let save_p_lz = opt_vars().p_lz.get();
-                            let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen;
+                            let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen.get();
 
-                            curwin_mut().w_onebuf_opt.wo_fen = false;
+                            curwin_mut().w_onebuf_opt.wo_fen.set(false);
                             let temp = g_st().redrawing_disabled;
                             g_st().redrawing_disabled = 0;
 
@@ -4129,7 +4129,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             update_screen();
                             redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
 
-                            curwin_mut().w_onebuf_opt.wo_fen = save_p_fen;
+                            curwin_mut().w_onebuf_opt.wo_fen.set(save_p_fen);
 
                             let p_fmt = gettext(
                                 c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
@@ -4971,12 +4971,12 @@ pub fn free_old_sub() {
 
 /// Set up for a tagpreview.
 pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
-    if curwin_mut().w_onebuf_opt.wo_pvw {
+    if curwin_mut().w_onebuf_opt.wo_pvw.get() {
         return false;
     }
 
     for wp in for_all_windows_ptr() {
-        if wp.w_onebuf_opt.wo_pvw {
+        if wp.w_onebuf_opt.wo_pvw.get() {
             if use_previewpopup {
                 if wp.w_kind != K_WIN_PREVIEW {
                     continue;
@@ -5010,11 +5010,11 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         return false;
     }
 
-    curwin_mut().w_onebuf_opt.wo_pvw = true;
-    curwin_mut().w_onebuf_opt.wo_wfh = true;
-    curwin_mut().w_onebuf_opt.wo_scb = false;
-    curwin_mut().w_onebuf_opt.wo_crb = false;
-    curwin_mut().w_onebuf_opt.wo_diff = false;
+    curwin_mut().w_onebuf_opt.wo_pvw.set(true);
+    curwin_mut().w_onebuf_opt.wo_wfh.set(true);
+    curwin_mut().w_onebuf_opt.wo_scb.set(false);
+    curwin_mut().w_onebuf_opt.wo_crb.set(false);
+    curwin_mut().w_onebuf_opt.wo_diff.set(false);
 
     set_option_direct(K_OPT_FOLDCOLUMN, cstr_as_obj(Some(c"0")), 0, SID_NONE);
     true

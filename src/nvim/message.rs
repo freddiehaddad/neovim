@@ -2455,7 +2455,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
     let mut multispace_pos = 0usize;
     let mut trail_idx: Option<usize> = None;
 
-    if curwin_mut().w_onebuf_opt.wo_list {
+    if curwin_mut().w_onebuf_opt.wo_list.get() {
         list = true;
     }
 

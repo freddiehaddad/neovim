@@ -671,10 +671,10 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
 pub fn spell_suggest(count: i32) {
     let mut badlen: i32 = 0;
     let msg_scroll_save = g_st().msg_scroll;
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
-    if !curwin_mut().w_onebuf_opt.wo_spell {
+    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
+    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = true;
+        curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
     check_cursor(curwin_mut());
     let prev_cursor = curwin_mut().w_cursor;
@@ -753,7 +753,7 @@ pub fn spell_suggest(count: i32) {
                 smsg!(0, gettext(c"Only %lld suggestions"), sug_len as i64,);
             }
         } else {
-            curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+            curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
             select_spell_suggestion(&mut sug);
             g_st().lines_left = g_st().rows_global;
             g_st().msg_scroll = msg_scroll_save;
@@ -817,7 +817,7 @@ pub fn spell_suggest(count: i32) {
             curwin_mut().w_cursor = prev_cursor;
         }
     }
-    curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
+    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
 }
 /// Find spell suggestions for "word".
 pub fn spell_suggest_list(

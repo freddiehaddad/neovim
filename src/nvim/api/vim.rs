@@ -2706,7 +2706,7 @@ pub fn nvim_eval_statusline(
 
     let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
 
-    let mut wp = if opts.use_tabline {
+    let wp = if opts.use_tabline {
         curwin_ptr()
     } else {
         find_window_by_handle(window, err)
@@ -2769,7 +2769,7 @@ pub fn nvim_eval_statusline(
             stc_hl_id = num_id;
         } else if use_cul {
             stc_hl_id = HLF_CLN;
-        } else if wp.w_onebuf_opt.wo_rnu {
+        } else if wp.w_onebuf_opt.wo_rnu.get() {
             stc_hl_id = if lnum < wp.w_cursor.lnum {
                 HLF_LNA
             } else {
@@ -2807,8 +2807,8 @@ pub fn nvim_eval_statusline(
     let mut buf_vec = [0u8; MAXPATHL];
     let mut hltab_len: usize = 0;
 
-    let p_crb_save = wp.w_onebuf_opt.wo_crb;
-    wp.w_onebuf_opt.wo_crb = false;
+    let p_crb_save = wp.w_onebuf_opt.wo_crb.get();
+    wp.w_onebuf_opt.wo_crb.set(false);
 
     let width = build_stl_str_hl_slice(
         wp,
@@ -2826,7 +2826,7 @@ pub fn nvim_eval_statusline(
 
     put_c(&mut result, c"width", integer_obj(Integer::from(width)));
 
-    wp.w_onebuf_opt.wo_crb = p_crb_save;
+    wp.w_onebuf_opt.wo_crb.set(p_crb_save);
 
     if opts.highlights {
         let mut hl_values = arena_array(arena, hltab_len + 1);

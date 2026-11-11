@@ -704,7 +704,7 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
         }) {
             if wp.w_buffer == buf
                 && wp.w_minscwidth == SCL_NUM
-                && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
+                && (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
                 && (unplace || wp.w_nrwidth_width < 2)
             {
                 wp.w_nrwidth_line_count = 0;
@@ -818,7 +818,10 @@ pub fn decor_state_invalidate(buf: &mut FileBuf) {
 }
 
 pub fn conceal_replacement(wp: &WinInfoInfo, is_start: bool, cchar: Schar) -> Schar {
-    if !is_start || wp.w_onebuf_opt.wo_cole == 3 || (cchar == 0 && wp.w_onebuf_opt.wo_cole != 1) {
+    if !is_start
+        || wp.w_onebuf_opt.wo_cole.get() == 3
+        || (cchar == 0 && wp.w_onebuf_opt.wo_cole.get() != 1)
+    {
         return 0;
     }
     if cchar != 0 {
@@ -1489,7 +1492,7 @@ pub fn decor_row_has_conceal(wp: &mut WinInfoInfo, row: i32) -> bool {
 pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     if row < 0
         || row >= wp.buf_mut().b_ml.ml_line_count
-        || wp.w_onebuf_opt.wo_cole < 2
+        || wp.w_onebuf_opt.wo_cole.get() < 2
         || (!check_cursor
             && wp == curwin_ptr()
             && row + 1 == wp.w_cursor.lnum
@@ -1503,7 +1506,7 @@ pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) ->
 }
 
 pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {
-    has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
+    has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole.get() >= 2
 }
 
 pub fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {
@@ -1737,7 +1740,8 @@ pub fn decor_redraw_eol(
 
 #[inline]
 fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> bool {
-    overflow == K_VLOVERFLOW_WRAP || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap)
+    overflow == K_VLOVERFLOW_WRAP
+        || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap.get())
 }
 
 pub fn decor_virt_line_rows(

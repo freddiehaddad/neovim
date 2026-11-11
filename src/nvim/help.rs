@@ -427,19 +427,19 @@ pub fn prepare_help_buffer() {
     set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);
 
     curbuf_mut().b_p_ts = 8;
-    curwin_mut().w_onebuf_opt.wo_list = false;
+    curwin_mut().w_onebuf_opt.wo_list.set(false);
 
     curbuf_mut().b_p_ma = false;
     curbuf_mut().b_p_bin = false;
-    curwin_mut().w_onebuf_opt.wo_nu = false;
-    curwin_mut().w_onebuf_opt.wo_rnu = false;
-    curwin_mut().w_onebuf_opt.wo_scb = false;
-    curwin_mut().w_onebuf_opt.wo_crb = false;
-    curwin_mut().w_onebuf_opt.wo_arab = false;
-    curwin_mut().w_onebuf_opt.wo_rl = false;
-    curwin_mut().w_onebuf_opt.wo_fen = false;
-    curwin_mut().w_onebuf_opt.wo_diff = false;
-    curwin_mut().w_onebuf_opt.wo_spell = false;
+    curwin_mut().w_onebuf_opt.wo_nu.set(false);
+    curwin_mut().w_onebuf_opt.wo_rnu.set(false);
+    curwin_mut().w_onebuf_opt.wo_scb.set(false);
+    curwin_mut().w_onebuf_opt.wo_crb.set(false);
+    curwin_mut().w_onebuf_opt.wo_arab.set(false);
+    curwin_mut().w_onebuf_opt.wo_rl.set(false);
+    curwin_mut().w_onebuf_opt.wo_fen.set(false);
+    curwin_mut().w_onebuf_opt.wo_diff.set(false);
+    curwin_mut().w_onebuf_opt.wo_spell.set(false);
 
     set_buflisted(0);
 }

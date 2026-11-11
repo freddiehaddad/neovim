@@ -178,7 +178,11 @@ fn coladvance2(
         let width = wp.w_view_width - win_col_off(wp);
         let mut csize: i32 = 0;
 
-        if finetune && wp.w_onebuf_opt.wo_wrap && wp.w_view_width != 0 && wcol >= width && width > 0
+        if finetune
+            && wp.w_onebuf_opt.wo_wrap.get()
+            && wp.w_view_width != 0
+            && wcol >= width
+            && width > 0
         {
             csize = linetabsize_disp_eol(&mut *wp, pos.lnum);
             if csize > 0 {

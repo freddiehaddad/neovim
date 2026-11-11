@@ -778,7 +778,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     let eff_wwidth = wp.w_view_width - win_col_off(wp) + win_col_off2(wp);
-    let no_ts = wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.tab1 == 0;
+    let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.tab1 == 0;
 
     let buf_fnum = wp.buf_mut().b_fnum;
     let buf_p_ts = wp.buf_mut().b_p_ts;
@@ -1096,8 +1096,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         orig_col = curwin_mut().w_cursor.col;
     }
 
-    let save_p_list = curwin_mut().w_onebuf_opt.wo_list;
-    curwin_mut().w_onebuf_opt.wo_list = false;
+    let save_p_list = curwin_mut().w_onebuf_opt.wo_list.get();
+    curwin_mut().w_onebuf_opt.wo_list.set(false);
     let vc = getvcol_nolist(&mut curwin_mut().w_cursor);
     let mut vcol: i32 = vc;
 
@@ -1182,7 +1182,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         insstart_less = MAXCOL;
     }
 
-    curwin_mut().w_onebuf_opt.wo_list = save_p_list;
+    curwin_mut().w_onebuf_opt.wo_list.set(save_p_list);
     curwin_mut().w_cursor.col = new_cursor_col.max(0);
     curwin_mut().w_set_curswant = true;
     changed_cline_bef_curs(curwin_mut());
@@ -1356,8 +1356,8 @@ pub fn ex_retab(eap: &mut Exarg) {
         Some(std::ffi::CString::new(&ts_start[..ts_len]).unwrap_or_default())
     };
 
-    let save_list = curwin_mut().w_onebuf_opt.wo_list;
-    curwin_mut().w_onebuf_opt.wo_list = false;
+    let save_list = curwin_mut().w_onebuf_opt.wo_list.get();
+    curwin_mut().w_onebuf_opt.wo_list.set(false);
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
@@ -1479,7 +1479,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         changed_lines(curbuf_mut(), first_line, 0, last_line + 1, 0, true);
     }
 
-    curwin_mut().w_onebuf_opt.wo_list = save_list;
+    curwin_mut().w_onebuf_opt.wo_list.set(save_list);
     u_clearline(curbuf_mut());
 
     if let Some(ref ts_cstr) = new_ts_str {

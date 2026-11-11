@@ -767,7 +767,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
     if is_ctx_win(wp) {
         tv_set_string(rettv, Some(c"autocmd"));
-    } else if wp.w_onebuf_opt.wo_pvw {
+    } else if wp.w_onebuf_opt.wo_pvw.get() {
         tv_set_string(rettv, Some(c"preview"));
     } else if wp.w_floating {
         tv_set_string(rettv, Some(c"popup"));

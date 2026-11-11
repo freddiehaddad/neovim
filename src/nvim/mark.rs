@@ -166,7 +166,7 @@ impl WinInfo {
 impl Drop for WinInfo {
     fn drop(&mut self) {
         if self.wi_optset {
-            crate::option::clear_winopt(&mut self.wi_opt);
+            crate::option::clear_winopt(&self.wi_opt);
         }
     }
 }

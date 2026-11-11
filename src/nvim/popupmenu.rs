@@ -483,7 +483,7 @@ pub fn pum_display(
     }
 
     PUM.with(|s| {
-        s.rl.set((g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl)
+        s.rl.set((g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl.get())
     });
 
     let border_width = pum_border_width();
@@ -530,7 +530,7 @@ pub fn pum_display(
         } else {
             pum_win_row = curwin_mut().w_wrow;
             let mut wcol = curwin_mut().w_wcol;
-            if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
+            if curwin_mut().w_onebuf_opt.wo_cole.get() > 0 && conceal_cursor_line(curwin_mut()) {
                 wcol -= curwin_mut().w_wcol_conceal_off;
                 if wcol < 0 {
                     wcol = 0;
@@ -593,7 +593,7 @@ pub fn pum_display(
 
         let mut pvwin: Option<&mut WinInfoInfo> = None;
         for wp in win_iter_ptr(first_win_in_tab(&curtab_mut())) {
-            if wp.w_onebuf_opt.wo_pvw {
+            if wp.w_onebuf_opt.wo_pvw.get() {
                 pvwin = Some(wp);
                 break;
             }
@@ -1264,10 +1264,10 @@ fn pum_preview_set_text(
                 break;
             }
             let curr_cstr = std::ffi::CString::new(curr_slice).unwrap_or_default();
-            let save_wrap = win.w_onebuf_opt.wo_wrap;
-            win.w_onebuf_opt.wo_wrap = false;
+            let save_wrap = win.w_onebuf_opt.wo_wrap.get();
+            win.w_onebuf_opt.wo_wrap.set(false);
             let line_width = win_linetabsize(win, 0, &curr_cstr, MAXCOL);
-            win.w_onebuf_opt.wo_wrap = save_wrap;
+            win.w_onebuf_opt.wo_wrap.set(save_wrap);
             *max_width = (*max_width).max(line_width);
             replacement.push(string_obj(cstr_to_string(Some(&*curr_cstr))));
             *lnum += 1;
@@ -1352,7 +1352,7 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
     } else {
         let wp_ref = win_float_special(false, true, K_WIN_INFO)?;
         wp_ref.w_topline = 1;
-        wp_ref.w_onebuf_opt.wo_wfb = true;
+        wp_ref.w_onebuf_opt.wo_wfb.set(true);
         wp_ref
     };
     let mut lnum: Linenr = 0;
@@ -1477,7 +1477,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             g_st().redrawing_disabled -= 1;
             g_st().g_do_tagpreview = 0;
 
-            if curwin_mut().w_onebuf_opt.wo_pvw || curwin_mut().w_kind == K_WIN_INFO {
+            if curwin_mut().w_onebuf_opt.wo_pvw.get() || curwin_mut().w_kind == K_WIN_INFO {
                 let mut res = true;
                 if !resized
                     && curbuf_mut().b_nwindows == 1
@@ -1902,7 +1902,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     pum_compute_size();
     PUM.with(|s| s.scrollbar.set(0));
     PUM.with(|s| s.height.set(PUM.with(|s| s.size.get())));
-    PUM.with(|s| s.rl.set(curwin_mut().w_onebuf_opt.wo_rl));
+    PUM.with(|s| s.rl.set(curwin_mut().w_onebuf_opt.wo_rl.get()));
     pum_position_at_mouse(20);
 
     PUM.with(|s| s.selected.set(-1));
@@ -1974,7 +1974,7 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
     if !use_mouse_pos {
         g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
         g_st().mouse_col = curwin_mut().w_grid.col_offset
-            + if curwin_mut().w_onebuf_opt.wo_rl {
+            + if curwin_mut().w_onebuf_opt.wo_rl.get() {
                 curwin_mut().w_view_width - curwin_mut().w_wcol - 1
             } else {
                 curwin_mut().w_wcol

@@ -231,7 +231,7 @@ pub fn conceal_check_cursor_line() {
     conceal_check_visual();
 
     let should_conceal = conceal_cursor_line(curwin_mut());
-    if curwin_mut().w_onebuf_opt.wo_cole <= 0
+    if curwin_mut().w_onebuf_opt.wo_cole.get() <= 0
         || ds_st(|st| st.conceal_cursor_used.get()) == should_conceal
     {
         return;
@@ -475,7 +475,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             ui_comp_set_screen_valid(true);
             repeat_message();
         } else {
-            if curwin_mut().w_onebuf_opt.wo_scb {
+            if curwin_mut().w_onebuf_opt.wo_scb.get() {
                 do_check_scrollbind(true);
             }
             if (g_st().state_global & MODE_CMDLINE) != 0 {
@@ -668,8 +668,8 @@ pub fn update_screen() -> bool {
     }
 
     if curwin_mut().w_redr_type < UPD_NOT_VALID {
-        let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu
-            || curwin_mut().w_onebuf_opt.wo_rnu
+        let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu.get()
+            || curwin_mut().w_onebuf_opt.wo_rnu.get()
             || !curwin_mut().w_onebuf_opt.wo_stc.is_empty()
         {
             number_width(curwin_mut())
@@ -738,7 +738,7 @@ pub fn update_screen() -> bool {
                 &mut wp.w_grid_alloc,
                 &mut wp.w_config,
                 Some(&wp.w_border_adj),
-                wp.w_onebuf_opt.wo_winbl as i32,
+                wp.w_onebuf_opt.wo_winbl.get() as i32,
                 wp.w_ns_hl_attr.as_deref(),
                 wp.w_hl_attr_normal,
             );
@@ -832,7 +832,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 
         let mut row = wp.w_wrow;
         let mut col = wp.w_wcol;
-        if wp.w_onebuf_opt.wo_rl {
+        if wp.w_onebuf_opt.wo_rl.get() {
             let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
                 [wp.w_cursor.col as usize..];
             let wide = crate::mbyte::utf_slice2cells(cur_slice) == 2
@@ -1013,7 +1013,7 @@ pub fn showmode() -> i32 {
                     msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                 }
                 if (g_st().state_global & MODE_LANGMAP) != 0 {
-                    if curwin_mut().w_onebuf_opt.wo_arab {
+                    if curwin_mut().w_onebuf_opt.wo_arab.get() {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                     } else if get_keymap_str(curwin_mut(), c" (%s)", g_st().name_buff_bytes_mut())
                         > 0
@@ -1524,12 +1524,14 @@ fn win_update(wp: &mut WinInfoInfo) {
     }
 
     let nrwidth_before = wp.w_nrwidth;
-    let nrwidth_new =
-        if wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu || !wp.w_onebuf_opt.wo_stc.is_empty() {
-            number_width(&mut *wp)
-        } else {
-            0
-        };
+    let nrwidth_new = if wp.w_onebuf_opt.wo_nu.get()
+        || wp.w_onebuf_opt.wo_rnu.get()
+        || !wp.w_onebuf_opt.wo_stc.is_empty()
+    {
+        number_width(&mut *wp)
+    } else {
+        0
+    };
 
     if wp.w_nrwidth != nrwidth_new {
         type_ = UPD_NOT_VALID;
@@ -1988,7 +1990,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     top_to_mod = false;
                 }
 
-                let foldinfo = if wp.w_onebuf_opt.wo_cul && lnum == wp.w_cursor.lnum {
+                let foldinfo = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.lnum {
                     cursorline_fi
                 } else {
                     fold_info(wp, lnum)
@@ -2227,14 +2229,15 @@ fn win_update(wp: &mut WinInfoInfo) {
                 lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
                 idx += 1;
             } else {
-                if (wp.w_onebuf_opt.wo_nu
+                if (wp.w_onebuf_opt.wo_nu.get()
                     && mod_top != 0
                     && lnum >= mod_bot
                     && buf.b_mod_set
                     && buf.b_mod_xlines != 0)
-                    || (wp.w_onebuf_opt.wo_rnu && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
+                    || (wp.w_onebuf_opt.wo_rnu.get()
+                        && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
                 {
-                    let info = if wp.w_onebuf_opt.wo_cul && lnum == wp.w_cursor.lnum {
+                    let info = if wp.w_onebuf_opt.wo_cul.get() && lnum == wp.w_cursor.lnum {
                         cursorline_fi
                     } else {
                         fold_info(wp, lnum)
@@ -2273,7 +2276,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
 
         wp.w_last_cursorline = wp.w_cursorline;
-        wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu {
+        wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu.get() {
             wp.w_cursor.lnum
         } else {
             0
@@ -2519,7 +2522,7 @@ pub fn win_draw_end(
                 );
             }
 
-            if (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
+            if (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
             {
                 let width = number_width(&mut *wp) + 1;
@@ -2541,7 +2544,7 @@ pub fn win_draw_end(
 
         grid_line_clear_end(n, view_width, win_bg_attr(wp), attr);
 
-        if wp.w_onebuf_opt.wo_rl {
+        if wp.w_onebuf_opt.wo_rl.get() {
             grid_line_mirror(view_width);
         }
         grid_line_flush();
@@ -2560,7 +2563,7 @@ pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: i32) -> i32 {
 }
 
 pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
-    let mut lnum = if wp.w_onebuf_opt.wo_rnu && !wp.w_onebuf_opt.wo_nu {
+    let mut lnum = if wp.w_onebuf_opt.wo_rnu.get() && !wp.w_onebuf_opt.wo_nu.get() {
         wp.w_view_height
     } else {
         wp.buf_mut().b_ml.ml_line_count
@@ -2573,8 +2576,8 @@ pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
 
     if !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_statuscol_line_count = 0;
-        wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
-            * (wp.w_onebuf_opt.wo_nuw as i32);
+        wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
+            * (wp.w_onebuf_opt.wo_nuw.get() as i32);
         return wp.w_nrwidth_width;
     }
 
@@ -2587,7 +2590,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
         }
     }
 
-    n = n.max((wp.w_onebuf_opt.wo_nuw as i32) - 1);
+    n = n.max((wp.w_onebuf_opt.wo_nuw.get() as i32) - 1);
 
     if n < 2 && buf_meta_total(wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0 && wp.w_minscwidth == SCL_NUM
     {
@@ -2827,8 +2830,8 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_cul
-        || (wp == curwin_ptr() && wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
+    wp.w_onebuf_opt.wo_cul.get()
+        || (wp == curwin_ptr() && wp.w_onebuf_opt.wo_cole.get() > 0 && !conceal_cursor_line(wp))
 }
 
 pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {
@@ -2837,7 +2840,7 @@ pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {
     } else {
         0
     };
-    if wp.w_onebuf_opt.wo_cul {
+    if wp.w_onebuf_opt.wo_cul.get() {
         *foldinfo = fold_info(wp, wp.w_cursor.lnum);
         if foldinfo.fi_level != 0 && foldinfo.fi_lines > 0 {
             wp.w_cursorline = foldinfo.fi_lnum;

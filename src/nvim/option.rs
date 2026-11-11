@@ -1628,7 +1628,8 @@ fn validate_opt_idx(
             *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF);
             return false;
         }
-        if win.w_onebuf_opt.wo_diff && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP) {
+        if win.w_onebuf_opt.wo_diff.get() && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP)
+        {
             return false;
         }
     }
@@ -1917,7 +1918,8 @@ fn do_one_set_option<'a>(
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
                 last_set_msg(
                     curwin_mut().w_onebuf_opt.wo_script_ctx
-                        [option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize],
+                        [option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize]
+                        .get(),
                 );
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
                 last_set_msg(
@@ -2276,11 +2278,11 @@ pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_f
     let flags = if (opt_flags & OPT_LOCAL) != 0 {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => Some(wp.w_onebuf_opt.wo_wrap_flags),
-            K_OPT_STATUSLINE => Some(wp.w_onebuf_opt.wo_stl_flags),
-            K_OPT_WINBAR => Some(wp.w_onebuf_opt.wo_wbr_flags),
-            K_OPT_FOLDEXPR => Some(wp.w_onebuf_opt.wo_fde_flags),
-            K_OPT_FOLDTEXT => Some(wp.w_onebuf_opt.wo_fdt_flags),
+            K_OPT_WRAP => Some(wp.w_onebuf_opt.wo_wrap_flags.get()),
+            K_OPT_STATUSLINE => Some(wp.w_onebuf_opt.wo_stl_flags.get()),
+            K_OPT_WINBAR => Some(wp.w_onebuf_opt.wo_wbr_flags.get()),
+            K_OPT_FOLDEXPR => Some(wp.w_onebuf_opt.wo_fde_flags.get()),
+            K_OPT_FOLDTEXT => Some(wp.w_onebuf_opt.wo_fdt_flags.get()),
             K_OPT_INDENTEXPR => Some(wp.buf_mut().b_p_inde_flags),
             K_OPT_FORMATEXPR => Some(wp.buf_mut().b_p_fex_flags),
             K_OPT_INCLUDEEXPR => Some(wp.buf_mut().b_p_inex_flags),
@@ -2290,9 +2292,9 @@ pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_f
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => Some(wp.w_allbuf_opt.wo_wrap_flags),
-            K_OPT_FOLDEXPR => Some(wp.w_allbuf_opt.wo_fde_flags),
-            K_OPT_FOLDTEXT => Some(wp.w_allbuf_opt.wo_fdt_flags),
+            K_OPT_WRAP => Some(wp.w_allbuf_opt.wo_wrap_flags.get()),
+            K_OPT_FOLDEXPR => Some(wp.w_allbuf_opt.wo_fde_flags.get()),
+            K_OPT_FOLDTEXT => Some(wp.w_allbuf_opt.wo_fdt_flags.get()),
             _ => None,
         }
     } else {
@@ -2318,11 +2320,11 @@ fn set_insecure_flag(
     if (opt_flags & OPT_LOCAL) != 0 {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return update(&mut wp.w_onebuf_opt.wo_wrap_flags),
-            K_OPT_STATUSLINE => return update(&mut wp.w_onebuf_opt.wo_stl_flags),
-            K_OPT_WINBAR => return update(&mut wp.w_onebuf_opt.wo_wbr_flags),
-            K_OPT_FOLDEXPR => return update(&mut wp.w_onebuf_opt.wo_fde_flags),
-            K_OPT_FOLDTEXT => return update(&mut wp.w_onebuf_opt.wo_fdt_flags),
+            K_OPT_WRAP => return update(&mut wp.w_onebuf_opt.wo_wrap_flags.get()),
+            K_OPT_STATUSLINE => return update(&mut wp.w_onebuf_opt.wo_stl_flags.get()),
+            K_OPT_WINBAR => return update(&mut wp.w_onebuf_opt.wo_wbr_flags.get()),
+            K_OPT_FOLDEXPR => return update(&mut wp.w_onebuf_opt.wo_fde_flags.get()),
+            K_OPT_FOLDTEXT => return update(&mut wp.w_onebuf_opt.wo_fdt_flags.get()),
             K_OPT_INDENTEXPR => return update(&mut wp.buf_mut().b_p_inde_flags),
             K_OPT_FORMATEXPR => return update(&mut wp.buf_mut().b_p_fex_flags),
             K_OPT_INCLUDEEXPR => return update(&mut wp.buf_mut().b_p_inex_flags),
@@ -2332,9 +2334,9 @@ fn set_insecure_flag(
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
         let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return update(&mut wp.w_allbuf_opt.wo_wrap_flags),
-            K_OPT_FOLDEXPR => return update(&mut wp.w_allbuf_opt.wo_fde_flags),
-            K_OPT_FOLDTEXT => return update(&mut wp.w_allbuf_opt.wo_fdt_flags),
+            K_OPT_WRAP => return update(&mut wp.w_allbuf_opt.wo_wrap_flags.get()),
+            K_OPT_FOLDEXPR => return update(&mut wp.w_allbuf_opt.wo_fde_flags.get()),
+            K_OPT_FOLDTEXT => return update(&mut wp.w_allbuf_opt.wo_fdt_flags.get()),
             _ => {}
         }
     }
@@ -2359,7 +2361,7 @@ pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
 
 pub fn check_blending(wp: &mut WinInfoInfo) {
     wp.w_grid_alloc.blending =
-        wp.w_onebuf_opt.wo_winbl > 0 || (wp.w_floating && wp.w_config.shadow);
+        wp.w_onebuf_opt.wo_winbl.get() > 0 || (wp.w_floating && wp.w_config.shadow);
 }
 
 /// Handle setting 'winhighlight' in window "wp".
@@ -2466,9 +2468,9 @@ pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: i32, mut script_ctx: Sctx) 
                 script_ctx;
         } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
             let win_idx = option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize;
-            curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
+            curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx].set(script_ctx);
             if both {
-                curwin_mut().w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                curwin_mut().w_allbuf_opt.wo_script_ctx[win_idx].set(script_ctx);
             }
         }
     }
@@ -2577,10 +2579,10 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let mut errmsg: Option<&CStr> = None;
 
-    if win.w_onebuf_opt.wo_arab {
+    if win.w_onebuf_opt.wo_arab.get() {
         if !opt_vars().p_tbidi.get() {
-            if !win.w_onebuf_opt.wo_rl {
-                win.w_onebuf_opt.wo_rl = true;
+            if !win.w_onebuf_opt.wo_rl.get() {
+                win.w_onebuf_opt.wo_rl.set(true);
                 changed_window_setting(&mut *win);
             }
 
@@ -2606,8 +2608,8 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             args.os_errbuf.take(),
         );
     } else {
-        if !opt_vars().p_tbidi.get() && win.w_onebuf_opt.wo_rl {
-            win.w_onebuf_opt.wo_rl = false;
+        if !opt_vars().p_tbidi.get() && win.w_onebuf_opt.wo_rl.get() {
+            win.w_onebuf_opt.wo_rl.set(false);
             changed_window_setting(&mut *win);
         }
 
@@ -2704,14 +2706,17 @@ pub fn did_set_equalalways<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'foldenable' option value.
 pub fn did_set_foldenable<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen)
-        && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen
+    if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen.get())
+        && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen.get()
         && foldmethod_is_diff(&mut *win)
-        && win.w_onebuf_opt.wo_scb
+        && win.w_onebuf_opt.wo_scb.get()
     {
         for wp in for_all_windows_ptr() {
-            if !std::ptr::eq(wp, win) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
-                wp.w_onebuf_opt.wo_fen = win.w_onebuf_opt.wo_fen;
+            if !std::ptr::eq(wp, win)
+                && foldmethod_is_diff(&mut *wp)
+                && wp.w_onebuf_opt.wo_scb.get()
+            {
+                wp.w_onebuf_opt.wo_fen.set(win.w_onebuf_opt.wo_fen.get());
                 changed_window_setting(&mut *wp);
             }
         }
@@ -3012,7 +3017,7 @@ pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         crate::globals::TabpagePtr::from(win_find_tabpage(win.borrow()))
     };
     for wp in for_all_windows_in_tab_ptr(tab.borrow()) {
-        if wp != win && wp.w_onebuf_opt.wo_pvw {
+        if wp != win && wp.w_onebuf_opt.wo_pvw.get() {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
     }
@@ -3062,7 +3067,7 @@ pub fn did_set_scrollback<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_scrollbind<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
 
-    if !win.w_onebuf_opt.wo_scb {
+    if !win.w_onebuf_opt.wo_scb.get() {
         return None;
     }
     do_check_scrollbind(false);
@@ -3093,7 +3098,7 @@ pub fn did_set_showtabline<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'smoothscroll' option value.
 pub fn did_set_smoothscroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if !win.w_onebuf_opt.wo_sms {
+    if !win.w_onebuf_opt.wo_sms.get() {
         win.w_skipcol = 0;
     }
     None
@@ -3102,7 +3107,7 @@ pub fn did_set_smoothscroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'spell' option value.
 pub fn did_set_spell<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if win.w_onebuf_opt.wo_spell {
+    if win.w_onebuf_opt.wo_spell.get() {
         return parse_spelllang(win);
     }
     None
@@ -3233,7 +3238,9 @@ pub fn did_set_winblend<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let value = args.os_newval.data.integer();
 
     if value != old_value {
-        win.w_onebuf_opt.wo_winbl = win.w_onebuf_opt.wo_winbl.clamp(0, 100);
+        win.w_onebuf_opt
+            .wo_winbl
+            .set(win.w_onebuf_opt.wo_winbl.get().clamp(0, 100));
         win.w_hl_needs_update = 1;
         check_blending(&mut *win);
     }
@@ -3275,7 +3282,7 @@ pub fn did_set_winwidth<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'wrap' option value.
 pub fn did_set_wrap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if win.w_onebuf_opt.wo_wrap {
+    if win.w_onebuf_opt.wo_wrap.get() {
         win.w_leftcol = 0;
     } else {
         win.w_skipcol = 0;
@@ -3662,7 +3669,6 @@ macro_rules! win_onebuf_var {
         OptVar::from(crate::optionstr::OptRef::Win(
             crate::globals::WinPtr::from(&*$win),
             |w| &w.w_onebuf_opt.$field,
-            |w| &mut w.w_onebuf_opt.$field,
         ))
     };
 }
@@ -3673,7 +3679,6 @@ macro_rules! winopt_var {
             OptVar::from(crate::optionstr::OptRef::Win(
                 crate::globals::WinPtr::from(&*$win),
                 |w| &w.w_allbuf_opt.$field,
-                |w| &mut w.w_allbuf_opt.$field,
             ))
         } else {
             win_onebuf_var!($win, $field)
@@ -6591,7 +6596,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SIDESCROLLOFF => {
             let w = win.as_deref().unwrap();
-            if w.w_onebuf_opt.wo_siso >= 0 {
+            if w.w_onebuf_opt.wo_siso.get() >= 0 {
                 win_onebuf_var!(w, wo_siso)
             } else {
                 p.var()
@@ -6599,7 +6604,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SCROLLOFF => {
             let w = win.as_deref().unwrap();
-            if w.w_onebuf_opt.wo_so >= 0 {
+            if w.w_onebuf_opt.wo_so.get() >= 0 {
                 win_onebuf_var!(w, wo_so)
             } else {
                 p.var()
@@ -6607,7 +6612,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
         }
         K_OPT_SCROLLOFFPAD => {
             let w = win.as_deref().unwrap();
-            if w.w_onebuf_opt.wo_sop >= 0 {
+            if w.w_onebuf_opt.wo_sop.get() >= 0 {
                 win_onebuf_var!(w, wo_sop)
             } else {
                 p.var()
@@ -6849,7 +6854,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Win(
                     crate::globals::WinPtr::from(&**w),
                     |w| &w.w_s_ptr().b_p_spc,
-                    |w| &mut w.w_s_ptr().b_p_spc,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6864,7 +6868,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Win(
                     crate::globals::WinPtr::from(&**w),
                     |w| &w.w_s_ptr().b_p_spf,
-                    |w| &mut w.w_s_ptr().b_p_spf,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6879,7 +6882,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Win(
                     crate::globals::WinPtr::from(&**w),
                     |w| &w.w_s_ptr().b_p_spl,
-                    |w| &mut w.w_s_ptr().b_p_spl,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6894,7 +6896,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Win(
                     crate::globals::WinPtr::from(&**w),
                     |w| &w.w_s_ptr().b_p_spo,
-                    |w| &mut w.w_s_ptr().b_p_spo,
                 ))
             } else {
                 OptVar::from(crate::optionstr::OptRef::Buf(
@@ -6940,94 +6941,96 @@ pub fn get_findfunc() -> &'static Callback {
 
 /// Copy options from one window to another.
 pub fn win_copy_options(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
-    copy_winopt(&mut wp_from.w_onebuf_opt, &mut wp_to.w_onebuf_opt);
-    copy_winopt(&mut wp_from.w_allbuf_opt, &mut wp_to.w_allbuf_opt);
+    copy_winopt(&wp_from.w_onebuf_opt, &wp_to.w_onebuf_opt);
+    copy_winopt(&wp_from.w_allbuf_opt, &wp_to.w_allbuf_opt);
     didset_window_options(&mut *wp_to, true);
 }
 
 /// Copy the options from one Winopt to another.
-pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
-    to.wo_arab = from.wo_arab;
-    to.wo_list = from.wo_list;
-    to.wo_lcs = from.wo_lcs.clone();
-    to.wo_fcs = from.wo_fcs.clone();
-    to.wo_nu = from.wo_nu;
-    to.wo_rnu = from.wo_rnu;
-    to.wo_ve = from.wo_ve.clone();
-    to.wo_ve_flags = from.wo_ve_flags;
-    to.wo_nuw = from.wo_nuw;
-    to.wo_rl = from.wo_rl;
-    to.wo_rlc = from.wo_rlc.clone();
-    to.wo_sbr = from.wo_sbr.clone();
-    to.wo_stl = from.wo_stl.clone();
-    to.wo_wbr = from.wo_wbr.clone();
-    to.wo_wrap = from.wo_wrap;
-    to.wo_wrap_save = from.wo_wrap_save;
-    to.wo_lbr = from.wo_lbr;
-    to.wo_bri = from.wo_bri;
-    to.wo_briopt = from.wo_briopt.clone();
-    to.wo_scb = from.wo_scb;
-    to.wo_scb_save = from.wo_scb_save;
-    to.wo_sms = from.wo_sms;
-    to.wo_crb = from.wo_crb;
-    to.wo_crb_save = from.wo_crb_save;
-    to.wo_siso = from.wo_siso;
-    to.wo_so = from.wo_so;
-    to.wo_sop = from.wo_sop;
-    to.wo_spell = from.wo_spell;
-    to.wo_cuc = from.wo_cuc;
-    to.wo_cul = from.wo_cul;
-    to.wo_culopt = from.wo_culopt.clone();
-    to.wo_cc = from.wo_cc.clone();
-    to.wo_diff = from.wo_diff;
-    to.wo_diff_saved = from.wo_diff_saved;
-    to.wo_eiw = from.wo_eiw.clone();
-    to.wo_cocu = from.wo_cocu.clone();
-    to.wo_cole = from.wo_cole;
-    to.wo_fdc = from.wo_fdc.clone();
-    to.wo_fdc_save = if from.wo_diff_saved {
+pub fn copy_winopt(from: &Winopt, to: &Winopt) {
+    to.wo_arab.set(from.wo_arab.get());
+    to.wo_list.set(from.wo_list.get());
+    to.wo_lcs.set(from.wo_lcs.clone());
+    to.wo_fcs.set(from.wo_fcs.clone());
+    to.wo_nu.set(from.wo_nu.get());
+    to.wo_rnu.set(from.wo_rnu.get());
+    to.wo_ve.set(from.wo_ve.clone());
+    to.wo_ve_flags.set(from.wo_ve_flags.get());
+    to.wo_nuw.set(from.wo_nuw.get());
+    to.wo_rl.set(from.wo_rl.get());
+    to.wo_rlc.set(from.wo_rlc.clone());
+    to.wo_sbr.set(from.wo_sbr.clone());
+    to.wo_stl.set(from.wo_stl.clone());
+    to.wo_wbr.set(from.wo_wbr.clone());
+    to.wo_wrap.set(from.wo_wrap.get());
+    to.wo_wrap_save.set(from.wo_wrap_save.get());
+    to.wo_lbr.set(from.wo_lbr.get());
+    to.wo_bri.set(from.wo_bri.get());
+    to.wo_briopt.set(from.wo_briopt.clone());
+    to.wo_scb.set(from.wo_scb.get());
+    to.wo_scb_save.set(from.wo_scb_save.get());
+    to.wo_sms.set(from.wo_sms.get());
+    to.wo_crb.set(from.wo_crb.get());
+    to.wo_crb_save.set(from.wo_crb_save.get());
+    to.wo_siso.set(from.wo_siso.get());
+    to.wo_so.set(from.wo_so.get());
+    to.wo_sop.set(from.wo_sop.get());
+    to.wo_spell.set(from.wo_spell.get());
+    to.wo_cuc.set(from.wo_cuc.get());
+    to.wo_cul.set(from.wo_cul.get());
+    to.wo_culopt.set(from.wo_culopt.clone());
+    to.wo_cc.set(from.wo_cc.clone());
+    to.wo_diff.set(from.wo_diff.get());
+    to.wo_diff_saved.set(from.wo_diff_saved.get());
+    to.wo_eiw.set(from.wo_eiw.clone());
+    to.wo_cocu.set(from.wo_cocu.clone());
+    to.wo_cole.set(from.wo_cole.get());
+    to.wo_fdc.set(from.wo_fdc.clone());
+    to.wo_fdc_save.set(if from.wo_diff_saved.get() {
         from.wo_fdc_save.clone()
     } else {
         OptString::new()
-    };
-    to.wo_fen = from.wo_fen;
-    to.wo_fen_save = from.wo_fen_save;
-    to.wo_fdi = from.wo_fdi.clone();
-    to.wo_fml = from.wo_fml;
-    to.wo_fdl = from.wo_fdl;
-    to.wo_fdl_save = from.wo_fdl_save;
-    to.wo_fdm = from.wo_fdm.clone();
-    to.wo_fdm_save = if from.wo_diff_saved {
+    });
+    to.wo_fen.set(from.wo_fen.get());
+    to.wo_fen_save.set(from.wo_fen_save.get());
+    to.wo_fdi.set(from.wo_fdi.clone());
+    to.wo_fml.set(from.wo_fml.get());
+    to.wo_fdl.set(from.wo_fdl.get());
+    to.wo_fdl_save.set(from.wo_fdl_save.get());
+    to.wo_fdm.set(from.wo_fdm.clone());
+    to.wo_fdm_save.set(if from.wo_diff_saved.get() {
         from.wo_fdm_save.clone()
     } else {
         OptString::new()
-    };
-    to.wo_fdn = from.wo_fdn;
+    });
+    to.wo_fdn.set(from.wo_fdn.get());
     callback_copy(&to.wo_fde, &from.wo_fde);
     callback_copy(&to.wo_fdt, &from.wo_fdt);
-    to.wo_fmr = from.wo_fmr.clone();
-    to.wo_scl = from.wo_scl.clone();
-    to.wo_lhi = from.wo_lhi;
-    to.wo_winhl = from.wo_winhl.clone();
-    to.wo_winbl = from.wo_winbl;
-    to.wo_stc = from.wo_stc.clone();
+    to.wo_fmr.set(from.wo_fmr.clone());
+    to.wo_scl.set(from.wo_scl.clone());
+    to.wo_lhi.set(from.wo_lhi.get());
+    to.wo_winhl.set(from.wo_winhl.clone());
+    to.wo_winbl.set(from.wo_winbl.get());
+    to.wo_stc.set(from.wo_stc.clone());
 
-    to.wo_wrap_flags = from.wo_wrap_flags;
-    to.wo_stl_flags = from.wo_stl_flags;
-    to.wo_wbr_flags = from.wo_wbr_flags;
-    to.wo_fde_flags = from.wo_fde_flags;
-    to.wo_fdt_flags = from.wo_fdt_flags;
+    to.wo_wrap_flags.set(from.wo_wrap_flags.get());
+    to.wo_stl_flags.set(from.wo_stl_flags.get());
+    to.wo_wbr_flags.set(from.wo_wbr_flags.get());
+    to.wo_fde_flags.set(from.wo_fde_flags.get());
+    to.wo_fdt_flags.set(from.wo_fdt_flags.get());
 
-    to.wo_script_ctx = from.wo_script_ctx;
+    for (dst, src) in to.wo_script_ctx.iter().zip(from.wo_script_ctx.iter()) {
+        dst.set(src.get());
+    }
     check_winopt(to);
 }
 
-fn check_win_options(win: &mut WinInfoInfo) {
-    check_winopt(&mut win.w_onebuf_opt);
-    check_winopt(&mut win.w_allbuf_opt);
+fn check_win_options(win: &WinInfoInfo) {
+    check_winopt(&win.w_onebuf_opt);
+    check_winopt(&win.w_allbuf_opt);
 }
 
-fn check_winopt(wop: &mut Winopt) {
+fn check_winopt(wop: &Winopt) {
     wop.wo_fdc.check_option_str();
     wop.wo_fdc_save.check_option_str();
     wop.wo_fdi.check_option_str();
@@ -7052,7 +7055,7 @@ fn check_winopt(wop: &mut Winopt) {
 }
 
 /// Free the allocated memory inside a Winopt.
-pub fn clear_winopt(wop: &mut Winopt) {
+pub fn clear_winopt(wop: &Winopt) {
     wop.wo_fdc.clear_option_str();
     wop.wo_fdc_save.clear_option_str();
     wop.wo_fdi.clear_option_str();
@@ -7079,7 +7082,7 @@ pub fn clear_winopt(wop: &mut Winopt) {
 }
 
 pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
-    if wp.w_onebuf_opt.wo_wrap {
+    if wp.w_onebuf_opt.wo_wrap.get() {
         wp.w_leftcol = 0;
     } else {
         wp.w_skipcol = 0;
@@ -7098,7 +7101,7 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
     check_signcolumn(None, Some(&mut *wp));
-    wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
+    wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl.get() > 0;
 }
 
 #[inline]
@@ -8094,8 +8097,8 @@ pub fn get_flp_value(buf: &FileBuf) -> std::ffi::CString {
 
 /// Get the local or global value of 'virtualedit' flags.
 pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
-    let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
-        wp.w_onebuf_opt.wo_ve_flags
+    let f = if wp.w_onebuf_opt.wo_ve_flags.get() != 0 {
+        wp.w_onebuf_opt.wo_ve_flags.get()
     } else {
         opt_vars().ve_flags.get()
     };
@@ -8313,28 +8316,28 @@ pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
     if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
         return 0;
     }
-    if wp.w_onebuf_opt.wo_so < 0 {
+    if wp.w_onebuf_opt.wo_so.get() < 0 {
         opt_vars().p_so.get()
     } else {
-        wp.w_onebuf_opt.wo_so
+        wp.w_onebuf_opt.wo_so.get()
     }
 }
 
 /// Return the effective 'scrolloffpad' value for the current window.
 pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
-    if wp.w_onebuf_opt.wo_sop == -1 {
+    if wp.w_onebuf_opt.wo_sop.get() == -1 {
         opt_vars().p_sop.get()
     } else {
-        wp.w_onebuf_opt.wo_sop
+        wp.w_onebuf_opt.wo_sop.get()
     }
 }
 
 /// Return the effective 'sidescrolloff' value for the current window.
 pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
-    if wp.w_onebuf_opt.wo_siso < 0 {
+    if wp.w_onebuf_opt.wo_siso.get() < 0 {
         opt_vars().p_siso.get()
     } else {
-        wp.w_onebuf_opt.wo_siso
+        wp.w_onebuf_opt.wo_siso.get()
     }
 }
 
@@ -8433,8 +8436,9 @@ fn option_info_dict(
             script_ctx = buf.b_p_script_ctx[opt.scope_idx[K_OPT_SCOPE_BUF as usize] as usize];
         }
         if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
-            script_ctx =
-                win.w_onebuf_opt.wo_script_ctx[opt.scope_idx[K_OPT_SCOPE_WIN as usize] as usize];
+            script_ctx = win.w_onebuf_opt.wo_script_ctx
+                [opt.scope_idx[K_OPT_SCOPE_WIN as usize] as usize]
+                .get();
         }
         if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {
             script_ctx = opt.script_ctx;

@@ -1546,12 +1546,12 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
 
     if oap.motion_type == MT_BLOCK_WISE {
         if curwin_mut().w_cursor.coladd > 0 {
-            let old_ve_flags = curwin_mut().w_onebuf_opt.wo_ve_flags;
+            let old_ve_flags = curwin_mut().w_onebuf_opt.wo_ve_flags.get();
 
             if !u_save_cursor() {
                 return;
             }
-            curwin_mut().w_onebuf_opt.wo_ve_flags = K_OPT_VE_FLAG_ALL;
+            curwin_mut().w_onebuf_opt.wo_ve_flags.set(K_OPT_VE_FLAG_ALL);
             coladvance_force(if oap.op_type == OP_APPEND {
                 oap.end_vcol + 1
             } else {
@@ -1560,7 +1560,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             if oap.op_type == OP_APPEND {
                 curwin_mut().w_cursor.col -= 1;
             }
-            curwin_mut().w_onebuf_opt.wo_ve_flags = old_ve_flags;
+            curwin_mut().w_onebuf_opt.wo_ve_flags.set(old_ve_flags);
         }
         block_prep(oap, &mut bd, oap.start.lnum, true);
         ind_pre_col = getwhitecols_curline() as Colnr;
@@ -2119,21 +2119,21 @@ pub fn do_join(
 
 /// Reset 'linebreak' and take care of side effects.
 pub fn reset_lbr() -> bool {
-    if !curwin_mut().w_onebuf_opt.wo_lbr {
+    if !curwin_mut().w_onebuf_opt.wo_lbr.get() {
         return false;
     }
-    curwin_mut().w_onebuf_opt.wo_lbr = false;
+    curwin_mut().w_onebuf_opt.wo_lbr.set(false);
     curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
     true
 }
 
 /// Restore 'linebreak' and take care of side effects.
 pub fn restore_lbr(lbr_saved: bool) {
-    if curwin_mut().w_onebuf_opt.wo_lbr || !lbr_saved {
+    if curwin_mut().w_onebuf_opt.wo_lbr.get() || !lbr_saved {
         return;
     }
 
-    curwin_mut().w_onebuf_opt.wo_lbr = true;
+    curwin_mut().w_onebuf_opt.wo_lbr.set(true);
     curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
 }
 
@@ -3499,7 +3499,7 @@ fn op_ins_visual(cap: &Cmdarg) -> VisualIns {
 }
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
-    let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr;
+    let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr.get();
 
     let old_cursor = curwin_mut().w_cursor;
     let op_origin = cap.oap.start;

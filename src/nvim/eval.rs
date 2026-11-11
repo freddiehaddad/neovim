@@ -942,7 +942,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
     let saved_sctx = g_st().current_sctx;
     let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
 
-    g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR];
+    g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR].get();
 
     g_st().emsg_off += 1;
     if use_sandbox {

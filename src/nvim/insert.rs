@@ -615,8 +615,8 @@ fn insert_check(s: &mut InsertState) -> i32 {
     }
 
     if curbuf_mut().b_mod_set
-        && curwin_mut().w_onebuf_opt.wo_wrap
-        && !curwin_mut().w_onebuf_opt.wo_sms
+        && curwin_mut().w_onebuf_opt.wo_wrap.get()
+        && !curwin_mut().w_onebuf_opt.wo_sms.get()
         && !s.did_backspace
         && curwin_mut().w_topline == s.old_topline
         && curwin_mut().w_topfill == s.old_topfill
@@ -662,11 +662,11 @@ fn insert_check(s: &mut InsertState) -> i32 {
 
     ins_redraw(true);
 
-    if curwin_mut().w_onebuf_opt.wo_scb {
+    if curwin_mut().w_onebuf_opt.wo_scb.get() {
         do_check_scrollbind(true);
     }
 
-    if curwin_mut().w_onebuf_opt.wo_crb {
+    if curwin_mut().w_onebuf_opt.wo_crb.get() {
         do_check_cursorbind();
     }
 
@@ -841,7 +841,7 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
         }
     }
 
-    if curwin_mut().w_onebuf_opt.wo_rl {
+    if curwin_mut().w_onebuf_opt.wo_rl.get() {
         s.c = match s.c {
             K_LEFT => K_RIGHT,
             K_S_LEFT => K_S_RIGHT,
@@ -1484,7 +1484,7 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     let pc_row = curwin_mut().w_wrow;
     let mut pc_status = PC_STATUS_UNSET;
     grid_line_start(&mut curwin_mut().w_grid, pc_row);
-    let pc_col = if curwin_mut().w_onebuf_opt.wo_rl {
+    let pc_col = if curwin_mut().w_onebuf_opt.wo_rl.get() {
         let col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
         if grid_line_getchar(col, None) == 0 {
             grid_line_put_schar(col - 1, schar_from_ascii(b' '), attr);
@@ -3134,7 +3134,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
         {
             *inserted_space_p = 0;
 
-            let use_ts = !curwin_mut().w_onebuf_opt.wo_list || curwin_mut().w_p_lcs_chars.tab1 != 0;
+            let use_ts =
+                !curwin_mut().w_onebuf_opt.wo_list.get() || curwin_mut().w_p_lcs_chars.tab1 != 0;
             let line_cstr = get_cursor_line_ptr();
             let cursor_col = curwin_mut().w_cursor.col as usize;
 
@@ -3597,7 +3598,7 @@ fn ins_tab() -> bool {
         let mut vcol: Colnr = 0;
         let mut want_vcol: Colnr = 0;
         let mut change_col: i32 = -1;
-        let save_list = curwin_mut().w_onebuf_opt.wo_list;
+        let save_list = curwin_mut().w_onebuf_opt.wo_list.get();
         let is_vreplace = (g_st().state_global & VREPLACE_FLAG) != 0;
 
         if is_vreplace {
@@ -3606,7 +3607,7 @@ fn ins_tab() -> bool {
         }
 
         if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM) {
-            curwin_mut().w_onebuf_opt.wo_list = false;
+            curwin_mut().w_onebuf_opt.wo_list.set(false);
         }
 
         let mut fpos = curwin_mut().w_cursor;
@@ -3742,7 +3743,7 @@ fn ins_tab() -> bool {
             }
         }
 
-        curwin_mut().w_onebuf_opt.wo_list = save_list;
+        curwin_mut().w_onebuf_opt.wo_list.set(save_list);
     }
 
     false
@@ -3913,7 +3914,7 @@ pub fn get_nolist_virtcol() -> Colnr {
     {
         return 0;
     }
-    if curwin_mut().w_onebuf_opt.wo_list
+    if curwin_mut().w_onebuf_opt.wo_list.get()
         && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
     {
         return getvcol_nolist(&mut curwin_mut().w_cursor);
