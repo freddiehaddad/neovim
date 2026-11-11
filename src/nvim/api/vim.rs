@@ -1710,11 +1710,7 @@ pub fn nvim_paste(
 
     let lines = string_to_array(data, crlf, arena);
     let mut args_items = [array_obj(lines), integer_obj(phase)];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let args = Array::from_slice(&mut args_items[..2]);
     let rv = nlua_exec(
         static_cstr_as_string(c"return vim.paste(...)"),
         None,
@@ -2109,11 +2105,7 @@ pub fn nvim_set_client_info(
     _err: &mut Error,
 ) {
     let mut info_items = [KeyValuePair::default(); 5];
-    let mut info = Dict {
-        items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),
-        size: 0,
-        capacity: 5,
-    };
+    let mut info = Dict::from_slice(&mut info_items[..0]);
     put_c(&mut info, c"name", string_obj(name));
 
     let mut has_major = false;
@@ -2381,11 +2373,7 @@ pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) 
     match os_proc_children(pid as i32) {
         Err(rv) => {
             let mut a_items = [integer_obj(pid)];
-            let a = Array {
-                items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
-                size: 1,
-                capacity: 1,
-            };
+            let a = Array::from_slice(&mut a_items[..1]);
             let o = nlua_exec(
                 static_cstr_as_string(c"return vim._os_proc_children(...)"),
                 None,
@@ -2439,11 +2427,7 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
     {
         let mut rvobj = nil_obj();
         let mut a_items = [integer_obj(pid)];
-        let a = Array {
-            items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let a = Array::from_slice(&mut a_items[..1]);
         let o = nlua_exec(
             static_cstr_as_string(c"return vim._os_proc_info(...)"),
             None,

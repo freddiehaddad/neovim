@@ -3124,11 +3124,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
             value: integer_obj(channel_id as Integer),
         },
     ];
-    let data = Dict {
-        items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let data = Dict::from_slice(&mut data_items[..2]);
     let data_obj = dict_obj(data);
     apply_autocmds_group(
         EVENT_TERMRESPONSE,
@@ -3301,17 +3297,9 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
             }
         }
 
-        let data = Dict {
-            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-            size,
-            capacity: 8,
-        };
+        let data = Dict::from_slice(&mut data_items[..size]);
         let mut args_items = [dict_obj(data)];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let args = Array::from_slice(&mut args_items[..1]);
 
         let luaref = callback.data.as_luaref();
         let result = nlua_call_ref(luaref, None, args, K_RET_NIL_BOOL, None, None);

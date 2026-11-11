@@ -453,12 +453,8 @@ pub fn buffer_set_line(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    let mut l = string_obj(line);
-    let array = Array {
-        items: crate::globals::GraphPtr::from(&mut l),
-        size: 1,
-        capacity: 0,
-    };
+    let mut l = [string_obj(line)];
+    let array = Array::from_slice(&mut l);
     index = convert_index(index);
     nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
 }
@@ -1234,11 +1230,7 @@ pub fn nvim_notify(
     err: &mut Error,
 ) -> Object {
     let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
-    let args = Array {
-        size: 3,
-        capacity: 3,
-        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-    };
+    let args = Array::from_slice(&mut items[..3]);
     nlua_exec(
         static_cstr_as_string(c"return vim.notify(...)"),
         None,

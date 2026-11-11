@@ -3158,11 +3158,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
     }
 
     let mut err = Error::new();
-    let args = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let args = Array::new();
     nlua_call_ref(ref_, None, args, K_RET_NIL_BOOL, None, Some(&mut err));
     if err.err_type != ErrorType::ErrorTypeNone {
         semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());

@@ -273,22 +273,14 @@ fn tinput_flush(input: &mut TermInput) {
             boolean_obj(true),
             integer_obj(i64::from(input.paste)),
         ];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            size: 3,
-            capacity: 3,
-        };
+        let args = Array::from_slice(&mut items[..3]);
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste", args);
         if input.paste == 1 {
             input.paste = 2;
         }
     } else if input.key_buffer_len > 0 {
         let mut items = [string_obj(keys)];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let args = Array::from_slice(&mut items[..1]);
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_input", args);
     }
     input.key_buffer_len = 0;
@@ -546,11 +538,7 @@ fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
         tinput_flush(input);
         let focus_gained = bytes[2] == b'I';
         let mut items = [boolean_obj(focus_gained)];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let args = Array::from_slice(&mut items[..1]);
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus", args);
         return 3;
     }
@@ -590,11 +578,7 @@ fn send_termresponse(response: &[u8]) {
         string_obj(NvimString::from_bytes(b"termresponse")),
         string_obj(NvimString::from_bytes(response)),
     ];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let args = Array::from_slice(&mut items[..2]);
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event", args);
 }
 

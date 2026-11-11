@@ -1004,11 +1004,7 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             )),
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-            size: 3,
-            capacity: 3,
-        };
+        let args = Array::from_slice(&mut args_items[..3]);
         g_st().textlock += 1;
         crate::lua::executor::nlua_call_ref(
             cb,
@@ -1127,11 +1123,7 @@ pub fn channel_job_running(id: u64) -> bool {
 
 pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
     let Some(chan) = find_channel(id) else {
-        return Dict {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        };
+        return Dict::new();
     };
 
     let mut info = arena_dict(arena, 10);
@@ -1164,11 +1156,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             }
 
             let args = ph.argv.as_slice();
-            let mut argv = Array {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            };
+            let mut argv = Array::new();
             if !args.is_empty() {
                 let n = args.len();
                 argv = arena_array(arena, n);

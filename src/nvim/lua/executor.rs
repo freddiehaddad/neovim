@@ -2505,11 +2505,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
         obj_type: ObjectType::ObjectTypeString,
         data: ObjectData::String(NvimString::from_cstr(&str_cstr)),
     }];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        size: 1,
-        capacity: 1,
-    };
+    let args = Array::from_slice(&mut args_items[..1]);
     let mut err = Error::new();
     let code = NvimString::from_cstr(c"return type(loadstring(...)()) == 'function'");
     let result = nlua_exec(code, None, args, K_RET_NIL_BOOL, None, &mut err);

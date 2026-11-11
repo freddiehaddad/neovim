@@ -1716,11 +1716,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     let save_msg_row = g_st().msg_row;
     if luaref != LUA_NOREF {
         let mut err = Error::new();
-        let args = Array {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        };
+        let args = Array::new();
         let ret = nlua_call_ref(luaref, None, args, K_RET_OBJECT, None, Some(&mut err));
         if ret.obj_type == ObjectType::ObjectTypeString {
             p = Some(string_to_cstr(ret.data.string()));

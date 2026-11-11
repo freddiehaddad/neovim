@@ -256,6 +256,20 @@ impl Array {
     }
 
     #[inline(always)]
+    pub fn from_slice(slice: &mut [Object]) -> Self {
+        let len = slice.len();
+        Self {
+            size: len,
+            capacity: len,
+            items: if len == 0 {
+                crate::globals::GraphPtr::NULL
+            } else {
+                crate::globals::GraphPtr::new(slice.as_mut_ptr())
+            },
+        }
+    }
+
+    #[inline(always)]
     pub fn as_slice(&self) -> &[Object] {
         if self.size == 0 || self.items.is_null() {
             &[]
@@ -336,6 +350,20 @@ impl Dict {
             size: 0,
             capacity: 0,
             items: crate::globals::GraphPtr::NULL,
+        }
+    }
+
+    #[inline(always)]
+    pub fn from_slice(slice: &mut [KeyValuePair]) -> Self {
+        let len = slice.len();
+        Self {
+            size: len,
+            capacity: len,
+            items: if len == 0 {
+                crate::globals::GraphPtr::NULL
+            } else {
+                crate::globals::GraphPtr::new(slice.as_mut_ptr())
+            },
         }
     }
 

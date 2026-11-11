@@ -2598,11 +2598,7 @@ fn shada_write(
                 entry_type: ShadaEntryType::SDItemHeader,
                 can_free_entry: false,
                 timestamp: os_time(),
-                data: ShadaEntryData::Header(Dict {
-                    items: crate::globals::GraphPtr::new(header_items.as_mut_ptr()),
-                    size: 5,
-                    capacity: 5,
-                }),
+                data: ShadaEntryData::Header(Dict::from_slice(&mut header_items[..5])),
                 additional_data: None,
             },
             0,

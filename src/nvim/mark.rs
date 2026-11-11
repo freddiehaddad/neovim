@@ -302,11 +302,7 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
             },
         },
     ];
-    let data = Dict {
-        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-        size: 3,
-        capacity: 3,
-    };
+    let data = Dict::from_slice(&mut items[..3]);
     let mut dict_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(data),

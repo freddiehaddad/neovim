@@ -488,11 +488,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Integer(0),
         }; 3];
-        let mut args = Array {
-            size: 0,
-            capacity: 3,
-            items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        };
+        let mut args = Array::from_slice(&mut args_storage[..0]);
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
         let hl_name = syn_id2name(hl_id);
         add_c(&mut args, cstr_as_obj(Some(&hl_name)));

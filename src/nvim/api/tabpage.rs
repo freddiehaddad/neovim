@@ -38,11 +38,7 @@ pub struct KeyDict_tabpage_config {
 // DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
 //                                                  Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Error) -> Array {
-    let mut rv = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let mut rv = Array::new();
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return rv;
     };

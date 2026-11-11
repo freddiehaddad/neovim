@@ -4622,11 +4622,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
                 data: ObjectData::String(cstr_as_string(xp.xp_line.as_opt_cstr())),
             },
         ];
-        let args = Array {
-            size: 2,
-            capacity: 2,
-            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        };
+        let args = Array::from_slice(&mut args_items[..2]);
         let mut err = Error::new();
         let res = nlua_exec(
             cstr_as_string(Some(lua)),

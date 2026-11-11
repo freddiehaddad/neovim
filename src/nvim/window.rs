@@ -5504,11 +5504,7 @@ pub fn tabpage_move(nr: i32) {
                 value: integer_obj(Integer::from(tabpage_index(g_st().curtab.opt()))),
             },
         ];
-        let data = Dict {
-            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-            size: 2,
-            capacity: 2,
-        };
+        let data = Dict::from_slice(&mut data_items[..2]);
         let mut obj = dict_obj(data);
         aucmd_defer(
             EVENT_TABMOVED,

@@ -55,11 +55,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
+    let mut args = Array::from_slice(&mut args_storage[..0]);
     let mut arena = Arena::new();
 
     for tv in argvars[2..]
@@ -107,11 +103,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
+    let mut args = Array::from_slice(&mut args_storage[..0]);
     let mut arena = Arena::new();
 
     for tv in argvars[2..]

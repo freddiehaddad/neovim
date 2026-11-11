@@ -674,11 +674,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     }
     let cmd = bytes_to_cstring(&cmd_bytes);
 
-    let mut d = Dict {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let mut d = Dict::new();
     let cmdarg = atom_key_name(spec.cmdarg);
     if !cmdarg.as_bytes().is_empty() {
         dict_put(&mut d, c"cmdarg", cstr_to_obj(Some(cmdarg.as_c_str())));
@@ -692,11 +688,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     }
     if atom.origin.pos.lnum > 0 {
         dict_put(&mut d, c"moved", boolean_obj(atom.moved));
-        let mut pos = Array {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        };
+        let mut pos = Array::new();
         array_add(&mut pos, integer_obj(i64::from(atom.origin.pos.lnum)));
         array_add(&mut pos, integer_obj(i64::from(atom.origin.pos.col)));
         dict_put(&mut d, c"pos", array_obj(pos));
@@ -743,11 +735,7 @@ fn atom_emit(atom: &CmdAtom) {
     }
     let mut data = atom_dict(atom);
     if !atom.atoms.is_empty() {
-        let mut atoms = Array {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        };
+        let mut atoms = Array::new();
         for sub in &atom.atoms {
             array_add(&mut atoms, dict_obj(atom_dict(sub)));
         }

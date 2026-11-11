@@ -1441,11 +1441,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
             data: ObjectData::String(chunk.text),
         })
         .collect();
-    let messages = Array {
-        items: crate::globals::GraphPtr::new(messages_vec.as_mut_ptr()),
-        size: messages_vec.len(),
-        capacity: messages_vec.len(),
-    };
+    let messages = Array::from_slice(&mut messages_vec);
 
     let empty_pair = KeyValuePair {
         key: NvimString::new(),
@@ -1511,11 +1507,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
 
     let dict_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(Dict {
-            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-            size: data_size,
-            capacity: 7,
-        }),
+        data: ObjectData::Dict(Dict::from_slice(&mut data_items[..data_size])),
     };
     let fname = if let Some(ref d) = msg_data
         && d.source.size > 0

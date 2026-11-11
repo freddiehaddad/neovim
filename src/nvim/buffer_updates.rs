@@ -87,11 +87,7 @@ pub fn buf_updates_register(
             array_obj(linedata),
             boolean_obj(false),
         ];
-        let args = Array {
-            size: 6,
-            capacity: 6,
-            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-        };
+        let args = Array::from_slice(&mut items[..6]);
 
         rpc_send_event(channel_id, c"nvim_buf_lines_event", args);
         arena_mem_free(arena_finish(&mut arena));
@@ -108,11 +104,7 @@ pub fn buf_updates_active(buf: &mut FileBuf) -> bool {
 
 pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
     let mut items = [buffer_obj(buf.b_fnum)];
-    let args = Array {
-        size: 1,
-        capacity: 1,
-        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-    };
+    let args = Array::from_slice(&mut items[..1]);
     rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
 
@@ -157,11 +149,7 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
 
         if thecb != LUA_NOREF {
             let mut items = [buffer_obj(buf.b_fnum)];
-            let args = Array {
-                size: 1,
-                capacity: 1,
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            };
+            let args = Array::from_slice(&mut items[..1]);
 
             textlock_wrap(|| {
                 nlua_call_ref(
@@ -233,11 +221,7 @@ pub fn buf_updates_send_changes(
             array_obj(linedata),
             boolean_obj(false),
         ];
-        let args = Array {
-            size: 6,
-            capacity: 6,
-            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-        };
+        let args = Array::from_slice(&mut items[..6]);
         if !rpc_send_event(channelid, c"nvim_buf_lines_event", args) {
             badchannelid = channelid;
         }
@@ -279,11 +263,7 @@ pub fn buf_updates_send_changes(
                 integer_obj(deleted_codepoints as Integer),
                 integer_obj(deleted_codeunits as Integer),
             ];
-            let args = Array {
-                size: if utf_sizes { 8 } else { 6 },
-                capacity: 8,
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            };
+            let args = Array::from_slice(&mut items[..if utf_sizes { 8 } else { 6 }]);
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
@@ -337,11 +317,7 @@ pub fn buf_updates_send_splice(
                 integer_obj(i64::from(new_col)),
                 integer_obj(new_byte as Integer),
             ];
-            let args = Array {
-                size: 11,
-                capacity: 11,
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            };
+            let args = Array::from_slice(&mut items[..11]);
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
@@ -375,11 +351,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
                 buffer_obj(buf.b_fnum),
                 integer_obj(buf_get_changedtick(&*buf)),
             ];
-            let args = Array {
-                size: 2,
-                capacity: 2,
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-            };
+            let args = Array::from_slice(&mut items[..2]);
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
@@ -410,11 +382,7 @@ pub fn buf_updates_changedtick_single(buf: &mut FileBuf, channel_id: u64) {
         buffer_obj(buf.b_fnum),
         integer_obj(buf_get_changedtick(&*buf)),
     ];
-    let args = Array {
-        size: 2,
-        capacity: 2,
-        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-    };
+    let args = Array::from_slice(&mut items[..2]);
     rpc_send_event(channel_id, c"nvim_buf_changedtick_event", args);
 }
 

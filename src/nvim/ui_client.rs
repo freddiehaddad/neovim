@@ -137,11 +137,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
     let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
-    let mut opts = Dict {
-        items: crate::globals::GraphPtr::new(opts_items.as_mut_ptr()),
-        size: 0,
-        capacity: 9,
-    };
+    let mut opts = Dict::from_slice(&mut opts_items[..0]);
     let mut put_opt = |k: &std::ffi::CStr, v: Object| {
         *opts.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(k)),
@@ -171,11 +167,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
             data: ObjectData::Dict(opts),
         },
     ];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        size: 3,
-        capacity: 3,
-    };
+    let args = Array::from_slice(&mut args_items[..3]);
 
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach", args);
     g_st().ui_client_attached = true;
@@ -185,11 +177,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     }
 
     let m = api_metadata();
-    let mut version = Dict {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let mut version = Dict::new();
     debug_assert!(m.data.dict().size > 0);
     for i in 0..m.data.dict().size {
         let item = m.data.dict()[i];
@@ -215,11 +203,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
             value: integer_obj(os_get_pid()),
         },
     ];
-    let info = Dict {
-        items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),
-        size: 3,
-        capacity: 3,
-    };
+    let info = Dict::from_slice(&mut info_items[..3]);
 
     let mut args2_items: [Object; 5] = [
         cstr_as_obj(Some(c"nvim-tui")),
@@ -237,11 +221,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
             data: ObjectData::Dict(info),
         },
     ];
-    let args2 = Array {
-        items: crate::globals::GraphPtr::new(args2_items.as_mut_ptr()),
-        size: 5,
-        capacity: 5,
-    };
+    let args2 = Array::from_slice(&mut args2_items[..5]);
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_set_client_info", args2);
 
     if has_time_fd() {
@@ -262,11 +242,7 @@ fn set_chan_addr(addr: &CStr) {
         key: cstr_as_string(Some(c"addr")),
         value: cstr_as_obj(Some(addr)),
     }];
-    let config = Dict {
-        items: crate::globals::GraphPtr::new(cfg_items.as_mut_ptr()),
-        size: 1,
-        capacity: 1,
-    };
+    let config = Dict::from_slice(&mut cfg_items[..1]);
     let mut args_items: [Object; 2] = [
         integer_obj(0),
         Object {
@@ -274,11 +250,7 @@ fn set_chan_addr(addr: &CStr) {
             data: ObjectData::Dict(config),
         },
     ];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let args = Array::from_slice(&mut args_items[..2]);
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_chan_set", args);
 }
 
@@ -347,11 +319,7 @@ pub fn ui_client_set_size(width: i32, height: i32) {
             integer_obj(Integer::from(width)),
             integer_obj(Integer::from(height)),
         ];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-            size: 2,
-            capacity: 2,
-        };
+        let args = Array::from_slice(&mut args_items[..2]);
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
     }
     UIC_STATE.with(|s| s.tui_width.set(width));
@@ -615,11 +583,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         }
         if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
             let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
-            let chan_args = Array {
-                items: crate::globals::GraphPtr::new(chan_args_items.as_mut_ptr()),
-                size: 2,
-                capacity: 2,
-            };
+            let chan_args = Array::from_slice(&mut chan_args_items[..2]);
             rpc_send_event(id, c"nvim_chan_set", chan_args);
         }
         id

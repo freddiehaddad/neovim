@@ -164,22 +164,14 @@ fn unpack_string_or_array(
         arr
     } else if v.obj_type == ObjectType::ObjectTypeArray {
         if !check_string_array(v.data.array(), k, true, err) {
-            return Array {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            };
+            return Array::new();
         }
         v.data.array()
     } else {
         if !(!required && v.obj_type == ObjectType::ObjectTypeNil) {
             api_err_exp(err, k, c"Array or String", Some(api_typename(v.obj_type)));
         }
-        Array {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        }
+        Array::new()
     }
 }
 
@@ -240,11 +232,7 @@ fn get_patterns_from_pattern_or_buf(
             }
         } else if pattern.obj_type == ObjectType::ObjectTypeArray {
             if !check_string_array(pattern.data.array(), c"pattern", true, err) {
-                return Array {
-                    items: crate::globals::GraphPtr::NULL,
-                    size: 0,
-                    capacity: 0,
-                };
+                return Array::new();
             }
             let array = pattern.data.array();
             for i in 0..array.size {
@@ -262,19 +250,11 @@ fn get_patterns_from_pattern_or_buf(
                 c"String or Table",
                 Some(api_typename(pattern.obj_type)),
             );
-            return Array {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            };
+            return Array::new();
         }
     } else if has_buf {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-            return Array {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            };
+            return Array::new();
         };
         patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum)));
     } else {
@@ -346,11 +326,7 @@ pub fn nvim_get_autocmds(
 ) -> Array {
     let mut autocmd_list = ArrayBuilder::new();
     let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
-    let mut buffers = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let mut buffers = Array::new();
     let mut event_set = [false; NUM_EVENTS];
     let mut check_event = false;
     let mut group: i32 = 0;

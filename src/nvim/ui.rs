@@ -1014,11 +1014,7 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
     }
 }
 
-const NOARGS_ARRAY: Array = Array {
-    items: crate::globals::GraphPtr::NULL,
-    size: 0,
-    capacity: 0,
-};
+const NOARGS_ARRAY: Array = Array::new();
 
 #[inline]
 const fn buf_obj(b: ObjHandle) -> Object {
@@ -1064,11 +1060,7 @@ macro_rules! ui_call_event_guarded {
         if !ENTERED.swap(true, std::sync::atomic::Ordering::Relaxed) {
             let mut items = [$($item),+];
             let len = items.len();
-            let args = Array {
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-                size: len,
-                capacity: len,
-            };
+            let args = Array::from_slice(&mut items[..len]);
             ui_call_event($event, args);
             ENTERED.store(false, std::sync::atomic::Ordering::Relaxed);
         }

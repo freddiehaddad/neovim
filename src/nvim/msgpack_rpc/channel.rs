@@ -132,11 +132,7 @@ impl RpcState {
             has_ui: false,
             next_request_id: 0,
             call_stack: Vec::new(),
-            info: Dict {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            },
+            info: Dict::new(),
             client_type: 0,
         }
     }
@@ -264,11 +260,7 @@ pub fn rpc_start(channel: &mut Channel) {
     unpacker_init(&mut unpacker);
     rpc.unpacker = Some(unpacker);
     rpc.next_request_id = 1;
-    rpc.info = Dict {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    rpc.info = Dict::new();
     rpc.call_stack.clear();
 
     if channel.streamtype != K_CHANNEL_STREAM_INTERNAL {
@@ -877,11 +869,7 @@ pub fn serialize_response(
                     data: ObjectData::String(cstr_as_string(err.msg_cstr())),
                 },
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
-                size: 2,
-                capacity: 2,
-            };
+            let args = Array::from_slice(&mut items[..2]);
             serialize_request(channel.id, 0, c"nvim_error_event", args);
         }
         return;
@@ -1029,11 +1017,7 @@ mod tests {
             has_ui: false,
             next_request_id: 1,
             call_stack: Vec::new(),
-            info: Dict {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            },
+            info: Dict::new(),
             client_type: K_CLIENT_TYPE_MSGPACK_RPC,
         };
         let f1 = std::rc::Rc::new(ChannelCallFrame {

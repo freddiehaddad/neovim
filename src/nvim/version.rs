@@ -4092,11 +4092,7 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
 pub fn list_lua_version() {
     const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
     let mut err = Error::new();
-    let args = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let args = Array::new();
     let ret = nlua_exec(
         NvimString::from_bytes_len(CODE, CODE.len() - 1),
         None,

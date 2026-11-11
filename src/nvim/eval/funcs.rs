@@ -1283,11 +1283,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
+    let mut args = Array::from_slice(&mut args_storage[..0]);
     let mut arena = Arena::new();
 
     for tv in argvars
@@ -1321,11 +1317,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         obj_type: ObjectType::ObjectTypeNil,
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
+    let mut args = Array::from_slice(&mut args_storage[..0]);
     let mut arena = Arena::new();
 
     for tv in argvars
@@ -3761,11 +3753,7 @@ fn has_wsl() -> bool {
         let o = nlua_exec(
             NvimString::from_cstr(cmd),
             None,
-            Array {
-                items: crate::globals::GraphPtr::NULL,
-                size: 0,
-                capacity: 0,
-            },
+            Array::new(),
             K_RET_NIL_BOOL,
             None,
             &mut err,

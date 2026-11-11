@@ -610,24 +610,20 @@ pub fn nvim_set_option_value(
     let count = if per_item { nitems } else { 1 };
 
     for i in 0..count {
+        let mut single_arr_item;
+        let mut single_dict_item;
         let mut item = value;
         if per_item && is_array {
+            single_arr_item = [value.data.array()[i]];
             item = Object {
                 obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(Array {
-                    items: value.data.array().items.wrapping_add(i),
-                    size: 1,
-                    capacity: 0,
-                }),
+                data: ObjectData::Array(Array::from_slice(&mut single_arr_item)),
             };
         } else if per_item {
+            single_dict_item = [value.data.dict()[i]];
             item = Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(Dict {
-                    items: value.data.dict().items.wrapping_add(i),
-                    size: 1,
-                    capacity: 0,
-                }),
+                data: ObjectData::Dict(Dict::from_slice(&mut single_dict_item)),
             };
         }
 

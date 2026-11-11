@@ -464,11 +464,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         integer_obj(i64::from(row) - (term.sb_deleted.wrapping_sub(sb_deleted) as i64)),
         integer_obj(i64::from(col)),
     ];
-    let cursor = Array {
-        items: crate::globals::GraphPtr::new(cursor_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let cursor = Array::from_slice(&mut cursor_items[..2]);
 
     let termrequest = NvimString::from_bytes(&req.sequence);
     let term_obj = if terminator == VTERM_TERMINATOR_BEL {
@@ -495,11 +491,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
     ];
     let data_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(Dict {
-            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-            size: 3,
-            capacity: 3,
-        }),
+        data: ObjectData::Dict(Dict::from_slice(&mut data_items[..3])),
     };
 
     term.refcount += 1;
@@ -965,11 +957,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
         }];
         let data_obj = Object {
             obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(Dict {
-                items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
-                size: 1,
-                capacity: 1,
-            }),
+            data: ObjectData::Dict(Dict::from_slice(&mut data_items[..1])),
         };
 
         apply_autocmds_group(

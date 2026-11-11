@@ -199,11 +199,7 @@ pub fn decor_providers_invoke_spell(
                 integer_obj(end_row as Integer),
                 integer_obj(end_col as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 6,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..6]);
             decor_provider_invoke(i as i32, c"spell", spell_nav, args, true, None);
         }
         i += 1;
@@ -239,11 +235,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
                 integer_obj(wp.buf_mut().b_fnum as Integer),
                 integer_obj(row as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 3,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..3]);
             decor_provider_invoke(
                 i as i32,
                 if lines { c"conceal_line" } else { c"conceal" },
@@ -275,11 +267,7 @@ pub fn decor_providers_start() {
         });
         if let Some(redraw_start) = redraw_start {
             let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 1,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..1]);
             let active = decor_provider_invoke(i as i32, c"start", redraw_start, args, true, None);
             with_providers_mut(|providers| {
                 providers[i].state = if active {
@@ -327,11 +315,7 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
                 integer_obj((wp.w_topline - 1) as Integer),
                 integer_obj((botline - 1) as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 4,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..4]);
             if !decor_provider_invoke(i as i32, c"win", redraw_win, args, true, None) {
                 with_providers_mut(|providers| {
                     providers[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
@@ -361,11 +345,7 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
                 buffer_obj(wp.buf_mut().b_fnum),
                 integer_obj(row as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 3,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..3]);
             if !decor_provider_invoke(i as i32, c"line", redraw_line, args, true, None) {
                 with_providers_mut(|providers| {
                     providers[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
@@ -412,11 +392,7 @@ pub fn decor_providers_invoke_range(
                 integer_obj(end_row as Integer),
                 integer_obj(end_col as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 6,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..6]);
             let mut res = Array::new();
             let status =
                 decor_provider_invoke(i as i32, c"range", redraw_range, args, true, Some(&mut res));
@@ -471,11 +447,7 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
                 buffer_obj(buf.b_fnum),
                 integer_obj(display_tick_val() as Integer),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 2,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..2]);
             decor_provider_invoke(i as i32, c"buf", redraw_buf, args, true, None);
         }
         i += 1;
@@ -496,11 +468,7 @@ pub fn decor_providers_invoke_end() {
         });
         if let Some(redraw_end) = redraw_end {
             let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
-                size: 1,
-                capacity: 0,
-            };
+            let args = Array::from_slice(&mut args_buf[..1]);
             decor_provider_invoke(i as i32, c"end", redraw_end, args, true, None);
         }
         i += 1;

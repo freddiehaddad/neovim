@@ -9370,11 +9370,7 @@ fn ex_restart(eap: &mut Exarg) {
                     c"return require('vim._core.server').restart_canonical_addr",
                 )),
                 None,
-                Array {
-                    items: crate::globals::GraphPtr::NULL,
-                    size: 0,
-                    capacity: 0,
-                },
+                Array::new(),
                 K_RET_OBJECT,
                 None,
                 &mut lua_err,
@@ -9450,11 +9446,7 @@ fn ex_restart(eap: &mut Exarg) {
             key: cstr_as_string(Some(c"detach")),
             value: boolean_obj(true),
         }];
-        let detach_opts = Dict {
-            items: crate::globals::GraphPtr::new(detach_kv.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let detach_opts = Dict::from_slice(&mut detach_kv[..1]);
         let mut detach_items = [
             integer_obj(0),
             Object {
@@ -9462,11 +9454,7 @@ fn ex_restart(eap: &mut Exarg) {
                 data: ObjectData::Dict(detach_opts),
             },
         ];
-        let detach_args = Array {
-            items: crate::globals::GraphPtr::new(detach_items.as_mut_ptr()),
-            size: 2,
-            capacity: 2,
-        };
+        let detach_args = Array::from_slice(&mut detach_items[..2]);
         rpc_send_call(
             chan_id,
             c"nvim_chan_set",
@@ -9496,11 +9484,7 @@ fn ex_restart(eap: &mut Exarg) {
                     value: cstr_as_obj(Some(after_cmd)),
                 },
             ];
-            let autocmd_opts = Dict {
-                items: crate::globals::GraphPtr::new(autocmd_kv.as_mut_ptr()),
-                size: 3,
-                capacity: 3,
-            };
+            let autocmd_opts = Dict::from_slice(&mut autocmd_kv[..3]);
             let mut autocmd_items = [
                 cstr_as_obj(Some(c"UIEnter")),
                 Object {
@@ -9508,11 +9492,7 @@ fn ex_restart(eap: &mut Exarg) {
                     data: ObjectData::Dict(autocmd_opts),
                 },
             ];
-            let autocmd_args = Array {
-                items: crate::globals::GraphPtr::new(autocmd_items.as_mut_ptr()),
-                size: 2,
-                capacity: 2,
-            };
+            let autocmd_args = Array::from_slice(&mut autocmd_items[..2]);
             rpc_send_call(
                 chan_id,
                 c"nvim_create_autocmd",
@@ -9529,11 +9509,7 @@ fn ex_restart(eap: &mut Exarg) {
         }
 
         let mut servername_items = [cstr_as_obj(Some(c"servername"))];
-        let servername_args = Array {
-            items: crate::globals::GraphPtr::new(servername_items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let servername_args = Array::from_slice(&mut servername_items[..1]);
         let result = rpc_send_call(
             chan_id,
             c"nvim_get_vvar",
@@ -9556,11 +9532,7 @@ fn ex_restart(eap: &mut Exarg) {
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
             let mut handoff_items = [cstr_as_obj(Some(la)), integer_obj(ui_active() as Integer)];
-            let handoff_params = Array {
-                items: crate::globals::GraphPtr::new(handoff_items.as_mut_ptr()),
-                size: 2,
-                capacity: 3,
-            };
+            let handoff_params = Array::from_slice(&mut handoff_items[..2]);
             let mut lua_items = [
                 cstr_as_obj(Some(
                     c"return require('vim._core.server').rebind_after_restart(...)",
@@ -9570,11 +9542,7 @@ fn ex_restart(eap: &mut Exarg) {
                     data: ObjectData::Array(handoff_params),
                 },
             ];
-            let lua_args = Array {
-                items: crate::globals::GraphPtr::new(lua_items.as_mut_ptr()),
-                size: 2,
-                capacity: 2,
-            };
+            let lua_args = Array::from_slice(&mut lua_items[..2]);
             rpc_send_call(
                 chan_id,
                 c"nvim_exec_lua",
@@ -9629,11 +9597,7 @@ fn ex_restart(eap: &mut Exarg) {
     {
         result_mem = ArenaMem::NULL;
         let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
-        let chanclose_args = Array {
-            items: crate::globals::GraphPtr::new(chanclose_items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
+        let chanclose_args = Array::from_slice(&mut chanclose_items[..1]);
         rpc_send_call(
             chan_id,
             c"nvim_eval",

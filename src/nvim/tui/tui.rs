@@ -641,11 +641,7 @@ fn apply_termdefs(tui: &mut TUIData) {
     }
 
     let mut lua_err = Error::new();
-    let empty_args = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let empty_args = Array::new();
     let rv = nlua_exec(
         static_cstr_as_string(c"return require('vim.tty')._get_termdefs()"),
         None,
@@ -754,22 +750,10 @@ fn apply_termdefs(tui: &mut TUIData) {
             key: static_cstr_as_string(c"err"),
             value: boolean_obj(true),
         }];
-        let opts = Dict {
-            items: crate::globals::GraphPtr::new(opts_items.as_mut_ptr()),
-            size: 1,
-            capacity: 1,
-        };
-        let chunks_arr = Array {
-            items: crate::globals::GraphPtr::new(chunks.as_mut_ptr()),
-            size: chunks.len(),
-            capacity: chunks.len(),
-        };
+        let opts = Dict::from_slice(&mut opts_items[..1]);
+        let chunks_arr = Array::from_slice(&mut chunks);
         let mut args_items = [array_obj(chunks_arr), boolean_obj(true), dict_obj(opts)];
-        let args = Array {
-            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-            size: 3,
-            capacity: 3,
-        };
+        let args = Array::from_slice(&mut args_items[..3]);
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo", args);
     }
 
@@ -2030,46 +2014,22 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
         cstr_as_obj(Some(c"\n\n--- Terminal info --- {{{\n")),
         cstr_as_obj(Some(c"Title")),
     ];
-    let title = Array {
-        items: crate::globals::GraphPtr::new(title_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let title = Array::from_slice(&mut title_items[..2]);
     let str_bytes = terminfo_info_msg(&tui.ti, tui.term.as_deref(), tui.terminfo_found_in_db);
     let str_val = NvimString::from_bytes(&str_bytes);
     let mut info_items = [string_obj(str_val)];
-    let info = Array {
-        items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),
-        size: 1,
-        capacity: 1,
-    };
+    let info = Array::from_slice(&mut info_items[..1]);
     let mut end_fold_items = [cstr_as_obj(Some(c"}}}\n")), cstr_as_obj(Some(c"Title"))];
-    let end_fold = Array {
-        items: crate::globals::GraphPtr::new(end_fold_items.as_mut_ptr()),
-        size: 2,
-        capacity: 2,
-    };
+    let end_fold = Array::from_slice(&mut end_fold_items[..2]);
     let mut chunks_items = [array_obj(title), array_obj(info), array_obj(end_fold)];
-    let chunks = Array {
-        items: crate::globals::GraphPtr::new(chunks_items.as_mut_ptr()),
-        size: 3,
-        capacity: 3,
-    };
+    let chunks = Array::from_slice(&mut chunks_items[..3]);
     let mut opts_items = [KeyValuePair {
         key: static_cstr_as_string(c"verbose"),
         value: boolean_obj(true),
     }];
-    let opts = Dict {
-        items: crate::globals::GraphPtr::new(opts_items.as_mut_ptr()),
-        size: 1,
-        capacity: 1,
-    };
+    let opts = Dict::from_slice(&mut opts_items[..1]);
     let mut args_items = [array_obj(chunks), boolean_obj(true), dict_obj(opts)];
-    let args = Array {
-        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-        size: 3,
-        capacity: 3,
-    };
+    let args = Array::from_slice(&mut args_items[..3]);
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo", args);
     drop(str_bytes);
 }
@@ -2186,11 +2146,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 
         if g_st().ui_client_channel_id != 0 {
             let mut args_items = [cstr_as_obj(Some(c"rgb")), boolean_obj(value.data.boolean())];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-                size: 2,
-                capacity: 2,
-            };
+            let args = Array::from_slice(&mut args_items[..2]);
             rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option", args);
         }
     } else if name.opt_bytes() == Some(b"ttimeout") {

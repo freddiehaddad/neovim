@@ -1131,15 +1131,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     let mut args_vec: Vec<Object> = (remote_args..argc)
         .map(|t_argc| cstr_as_obj(Some(params.argv[t_argc as usize].as_c_str())))
         .collect();
-    let args = Array {
-        items: if count > 0 {
-            crate::globals::GraphPtr::new(args_vec.as_mut_ptr())
-        } else {
-            crate::globals::GraphPtr::NULL
-        },
-        size: count,
-        capacity: count,
-    };
+    let args = Array::from_slice(&mut args_vec[..count]);
 
     let mut err = Error::new();
     let mut a_items: [Object; 4] = [
@@ -1151,11 +1143,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             data: ObjectData::Array(args),
         },
     ];
-    let a = Array {
-        items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
-        size: 4,
-        capacity: 4,
-    };
+    let a = Array::from_slice(&mut a_items[..4]);
     let s = NvimString::from_cstr(c"return vim._cs_remote(...)");
     let o = nlua_exec(s, None, a, K_RET_OBJECT, None, &mut err);
     drop(args_vec);

@@ -1245,11 +1245,7 @@ fn pum_preview_set_text(
 ) {
     let mut err = Error::new();
     let mut arena = Arena::new();
-    let mut replacement = Array {
-        items: crate::globals::GraphPtr::NULL,
-        size: 0,
-        capacity: 0,
-    };
+    let mut replacement = Array::new();
     let mut buf = win.w_buffer;
     buf.b_p_ma = true;
 

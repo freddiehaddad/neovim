@@ -2812,11 +2812,7 @@ fn do_source_ext(
                 integer_obj(Integer::from(eap.line1)),
                 integer_obj(Integer::from(eap.line2)),
             ];
-            let args = Array {
-                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
-                size: 3,
-                capacity: 3,
-            };
+            let args = Array::from_slice(&mut args_items[..3]);
             let mut err = Error::new();
             let result = nlua_exec(
                 static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),

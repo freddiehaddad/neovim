@@ -3017,19 +3017,11 @@ pub fn display_showcmd() {
             chunk_items[0] = integer_obj(0);
             chunk_items[1] = cstr_as_obj(Some(crate::memory::bytes_as_cstr(&ext_buf)));
             chunk_items[2] = integer_obj(0);
-            let chunk = Array {
-                items: crate::globals::GraphPtr::new(chunk_items.as_mut_ptr()),
-                size: 3,
-                capacity: 3,
-            };
+            let chunk = Array::from_slice(&mut chunk_items[..3]);
             content_items[0] = array_obj(chunk);
             size = 1;
         }
-        let content = Array {
-            items: crate::globals::GraphPtr::new(content_items.as_mut_ptr()),
-            size,
-            capacity: 1,
-        };
+        let content = Array::from_slice(&mut content_items[..size]);
         ui_call_msg_showcmd(content);
         return;
     }

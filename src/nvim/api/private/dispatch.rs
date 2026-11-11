@@ -235,11 +235,7 @@ fn extract_dict(
         *out = item.data.dict();
         true
     } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
-        *out = Dict {
-            items: crate::globals::GraphPtr::NULL,
-            size: 0,
-            capacity: 0,
-        };
+        *out = Dict::new();
         true
     } else {
         api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
