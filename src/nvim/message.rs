@@ -3395,7 +3395,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
-            callback_call(&mut g_st().on_print, 1, &mut argv, &mut rettv);
+            callback_call(&g_st().on_print, 1, &mut argv, &mut rettv);
             tv_clear(&mut rettv);
             return;
         }

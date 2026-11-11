@@ -3734,8 +3734,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             err_errmsg = c"E5407: Callback has thrown an exception: %s";
             let saved_msg_col = g_st().msg_col;
             g_st().msg_silent += 1;
-            let cbcall_ret =
-                callback_call(&mut color_cb, 1, std::slice::from_mut(&mut arg), &mut tv);
+            let cbcall_ret = callback_call(&color_cb, 1, std::slice::from_mut(&mut arg), &mut tv);
             g_st().msg_silent -= 1;
             g_st().msg_col = saved_msg_col;
             if g_st().got_int {

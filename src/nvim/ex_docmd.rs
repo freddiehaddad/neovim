@@ -9999,7 +9999,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();
-    let retval = callback_call(&mut *cb, 2, &mut args, &mut rettv);
+    let retval = callback_call(&*cb, 2, &mut args, &mut rettv);
 
     g_st().current_sctx = saved_sctx;
     g_st().textlock -= 1;
@@ -10074,7 +10074,7 @@ pub fn free_findfunc_option() {
 }
 
 pub fn set_ref_in_findfunc(copy_id: i32) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_ffu, copy_id, None, None)
+    set_ref_in_callback(&opt_vars().p_ffu, copy_id, None, None)
 }
 
 fn set_browse_edit_arg(eap: &mut Exarg) {

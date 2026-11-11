@@ -3241,7 +3241,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
     apc.auidx = usize::MAX;
 }
 
-fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
+fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
     if callback.cb_type() == K_CALLBACK_LUA {
         let mut data_items = [KeyValuePair {
             key: NvimString::new(),
@@ -3318,7 +3318,7 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
     } else {
         let mut argsin: [TypVal; 1] = [TypVal::new()];
         let mut rettv: TypVal = TypVal::new();
-        callback_call(&mut callback, 0, &mut argsin, &mut rettv);
+        callback_call(&callback, 0, &mut argsin, &mut rettv);
         false
     }
 }

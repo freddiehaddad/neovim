@@ -8307,9 +8307,9 @@ pub fn f_timer_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
     if argvars[0].v_type != VarType::VarUnknown {
         if let Some(timer) = find_timer_by_nr(tv_get_number(&argvars[0]))
-            && (!timer.stopped || timer.refcount > 1)
+            && (!timer.stopped.get() || timer.active_calls.get() > 0)
         {
-            add_timer_info(rettv, timer);
+            add_timer_info(rettv, &timer);
         }
     } else {
         add_timer_info_all(&mut *rettv);
@@ -8324,16 +8324,16 @@ pub fn f_timer_pause(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFu
     }
     let paused = tv_get_bool(&argvars[1]) != 0;
     if let Some(timer) = find_timer_by_nr(tv_get_number(&argvars[0])) {
-        if !timer.paused && paused {
-            time_watcher_stop(&mut timer.watcher);
-        } else if timer.paused && !paused {
+        if !timer.paused.get() && paused {
+            time_watcher_stop(&mut timer.watcher.borrow_mut());
+        } else if timer.paused.get() && !paused {
             time_watcher_start(
-                &mut timer.watcher,
+                &mut timer.watcher.borrow_mut(),
                 timer.timeout as u64,
                 timer.timeout as u64,
             );
         }
-        timer.paused = paused;
+        timer.paused.set(paused);
     }
 }
 
@@ -8375,7 +8375,7 @@ pub fn f_timer_stop(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
     if let Some(timer) = find_timer_by_nr(tv_get_number(&argvars[0])) {
-        timer_stop(timer);
+        timer_stop(&timer);
     }
 }
 

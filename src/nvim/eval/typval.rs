@@ -3410,7 +3410,7 @@ pub fn callback_free(callback: &mut Callback) {
 }
 
 /// Copy a callback into a TypVal.
-pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
+pub fn callback_put(cb: &Callback, tv: &mut TypVal) {
     match cb.cb_type() {
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
@@ -3458,7 +3458,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
 }
 
 /// Generate a string description of a callback.
-pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
+pub fn callback_to_string(cb: &Callback) -> std::ffi::CString {
     if cb.cb_type() == K_CALLBACK_LUA {
         return nlua_funcref_str(cb.data.as_luaref(), true);
     }
@@ -3593,8 +3593,8 @@ pub fn tv_dict_watcher_notify(
         if matches {
             let mut rettv = tv_initial_value();
             dict.watchers[i].busy = true;
-            let mut cb = dict.watchers[i].callback.clone();
-            callback_call(&mut cb, 3, &mut argv, &mut rettv);
+            let cb = dict.watchers[i].callback.clone();
+            callback_call(&cb, 3, &mut argv, &mut rettv);
             let w = &mut dict.watchers[i];
             w.callback = cb;
             w.busy = false;

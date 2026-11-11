@@ -354,12 +354,7 @@ pub fn prompt_invoke_callback() {
         ];
         tv_set_string(&mut argv[0], Some(user_input.as_c_str()));
 
-        callback_call(
-            &mut curbuf_mut().b_prompt_callback,
-            1,
-            &mut argv,
-            &mut rettv,
-        );
+        callback_call(&curbuf_mut().b_prompt_callback, 1, &mut argv, &mut rettv);
         tv_clear(&mut argv[0]);
         tv_clear(&mut rettv);
     }
@@ -389,12 +384,7 @@ pub fn invoke_prompt_interrupt() -> bool {
     }];
 
     g_st().got_int = false;
-    let ret = callback_call(
-        &mut curbuf_mut().b_prompt_interrupt,
-        0,
-        &mut argv,
-        &mut rettv,
-    );
+    let ret = callback_call(&curbuf_mut().b_prompt_interrupt, 0, &mut argv, &mut rettv);
     tv_clear(&mut rettv);
     ret
 }

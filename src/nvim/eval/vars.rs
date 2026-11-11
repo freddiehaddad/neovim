@@ -794,7 +794,7 @@ pub fn eval_charconvert(
     let mut err = false;
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
-    if !callback_call(&mut opt_vars().p_ccv, 0, &mut argv, &mut tv) {
+    if !callback_call(&opt_vars().p_ccv, 0, &mut argv, &mut tv) {
         err = true;
     } else {
         if tv_get_number_chk(&tv, None) != 0 {
@@ -823,7 +823,7 @@ pub fn eval_diff(origfile: &CStr, newfile: &CStr, outfile: &CStr) {
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
-    if callback_call(&mut opt_vars().p_dex, 0, &mut argv, &mut tv) {
+    if callback_call(&opt_vars().p_dex, 0, &mut argv, &mut tv) {
         tv_clear(&mut tv);
     }
 
@@ -844,7 +844,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
-    if callback_call(&mut opt_vars().p_pex, 0, &mut argv, &mut tv) {
+    if callback_call(&opt_vars().p_pex, 0, &mut argv, &mut tv) {
         tv_clear(&mut tv);
     }
 

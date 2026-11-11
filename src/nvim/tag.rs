@@ -376,7 +376,7 @@ pub fn free_tagfunc_option() {
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
 pub fn set_ref_in_tagfunc(copy_id: i32) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_tfu, copy_id, None, None)
+    set_ref_in_callback(&opt_vars().p_tfu, copy_id, None, None)
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
@@ -1309,7 +1309,7 @@ fn find_tagfunc_tags(
     args[3].v_type = VarType::VarUnknown;
 
     let save_pos = curwin_mut().w_cursor;
-    let mut result = callback_call(&mut curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);
+    let mut result = callback_call(&curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);
     curwin_mut().w_cursor = save_pos;
     check_cursor(curwin_mut());
     d.dv_refcount -= 1;

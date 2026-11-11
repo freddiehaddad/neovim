@@ -266,20 +266,20 @@ pub(crate) fn set_eval_lavars_used(val: Option<bool>) {
 
 thread_local! {
     static EVAL_STATE: EvalModuleState = const { EvalModuleState::new() };
-    static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>> =
+    static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, std::rc::Rc<VimTimer>>> =
         const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
 }
 
 #[inline]
 fn with_timers<R>(
-    f: impl FnOnce(&std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>) -> R,
+    f: impl FnOnce(&std::collections::BTreeMap<u64, std::rc::Rc<VimTimer>>) -> R,
 ) -> R {
     EVAL_TIMERS.with(|t| f(&t.borrow()))
 }
 
 #[inline]
 fn with_timers_mut<R>(
-    f: impl FnOnce(&mut std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>) -> R,
+    f: impl FnOnce(&mut std::collections::BTreeMap<u64, std::rc::Rc<VimTimer>>) -> R,
 ) -> R {
     EVAL_TIMERS.with(|t| f(&mut t.borrow_mut()))
 }
@@ -312,20 +312,23 @@ pub type ListStack = Vec<crate::eval::typval::ListId>;
 
 #[repr(C)]
 pub struct VimTimer {
-    pub watcher: TimeWatcher,
+    pub watcher: std::cell::RefCell<TimeWatcher>,
     pub timer_id: i32,
-    pub repeat_count: i32,
-    pub refcount: i32,
-    pub emsg_count: i32,
+    pub repeat_count: std::cell::Cell<i32>,
+    pub active_calls: std::cell::Cell<i32>,
+    pub emsg_count: std::cell::Cell<i32>,
     pub timeout: i64,
-    pub stopped: bool,
-    pub paused: bool,
+    pub stopped: std::cell::Cell<bool>,
+    pub paused: std::cell::Cell<bool>,
     pub callback: Callback,
 }
 
 impl Drop for VimTimer {
     fn drop(&mut self) {
-        if let Some(events) = self.watcher.events.opt_mut() {
+        if crate::globals::g_st().exiting {
+            return;
+        }
+        if let Some(events) = self.watcher.get_mut().events.opt_mut() {
             multiqueue_free(events);
         }
         callback_free(&mut self.callback);
@@ -900,7 +903,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
     let mut tv = tv_initial_value();
     let mut argv = [tv_initial_value()];
     let mut retval = -1;
-    if callback_call(&mut copy, 0, &mut argv, &mut tv) {
+    if callback_call(&copy, 0, &mut argv, &mut tv) {
         retval = tv_get_number_chk(&tv, None) as i32;
         tv_clear(&mut tv);
     }
@@ -4122,13 +4125,13 @@ pub fn garbage_collect(testing: bool) -> bool {
     {
         for buf in for_all_buffers_mut() {
             abort = abort || set_ref_in_item(&mut buf.b_bufvar.di_tv, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_prompt_callback, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_prompt_interrupt, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_p_cfu, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_p_ofu, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_p_tsrfu, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_p_tfu, copy_id, None, None);
-            abort = abort || set_ref_in_callback(&mut buf.b_p_ffu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_prompt_callback, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_prompt_interrupt, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_p_cfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_p_ofu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_p_tsrfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_p_tfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&buf.b_p_ffu, copy_id, None, None);
             if !abort && !buf.b_p_cpt_cb.is_empty() {
                 abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copy_id);
             }
@@ -4171,14 +4174,13 @@ pub fn garbage_collect(testing: bool) -> bool {
             let ct = data.borrow_mut();
             set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
             set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
-            set_ref_in_callback(&mut ct.on_exit, copy_id, None, None);
+            set_ref_in_callback(&ct.on_exit, copy_id, None, None);
         }
     }
 
-    let timers: Vec<crate::globals::GraphPtr<VimTimer>> =
-        with_timers(|t| t.values().copied().collect());
+    let timers: Vec<std::rc::Rc<VimTimer>> = with_timers(|t| t.values().cloned().collect());
     for timer in timers {
-        set_ref_in_callback(&mut timer.borrow_mut().callback, copy_id, None, None);
+        set_ref_in_callback(&timer.callback, copy_id, None, None);
     }
 
     abort = abort || set_ref_in_func_args(copy_id);
@@ -4336,7 +4338,7 @@ fn set_ref_in_item_dict(
 
     for watcher in &mut dd.unwrap().watchers {
         set_ref_in_callback(
-            &mut watcher.callback,
+            &watcher.callback,
             copy_id,
             Some(&mut **ht_stack_ref),
             list_stack.as_deref_mut(),
@@ -4886,7 +4888,7 @@ pub fn get_callback_depth() -> i32 {
 
 /// @return  whether the callback could be called.
 pub fn callback_call(
-    callback: &mut Callback,
+    callback: &Callback,
     argcount_in: i32,
     argvars_in: &mut [TypVal],
     rettv: &mut TypVal,
@@ -4981,7 +4983,7 @@ pub fn callback_call(
 }
 
 pub fn set_ref_in_callback(
-    callback: &mut Callback,
+    callback: &Callback,
     copy_id: i32,
     ht_stack: Option<&mut HtStack>,
     list_stack: Option<&mut ListStack>,
@@ -5004,7 +5006,7 @@ fn set_ref_in_callback_reader(
     mut list_stack: Option<&mut ListStack>,
 ) -> bool {
     if set_ref_in_callback(
-        &mut reader.cb,
+        &reader.cb,
         copy_id,
         ht_stack.as_deref_mut(),
         list_stack.as_deref_mut(),
@@ -5023,25 +5025,25 @@ fn set_ref_in_callback_reader(
     false
 }
 
-pub fn find_timer_by_nr(xx: Varnumber) -> Option<&'static mut VimTimer> {
-    with_timers(|t| t.get(&(xx as u64)).copied()).and_then(|p| p.opt_mut())
+pub fn find_timer_by_nr(xx: Varnumber) -> Option<std::rc::Rc<VimTimer>> {
+    with_timers(|t| t.get(&(xx as u64)).cloned())
 }
 
-pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
+pub fn add_timer_info(rettv: &mut TypVal, timer: &VimTimer) {
     let list = rettv.vval.v_list_ref();
     let dict = tv_dict_alloc();
 
     tv_list_append_dict(list, Some(dict));
     tv_dict_add_nr(&mut *dict, c"id", Varnumber::from(timer.timer_id));
     tv_dict_add_nr(&mut *dict, c"time", timer.timeout);
-    tv_dict_add_nr(&mut *dict, c"paused", Varnumber::from(timer.paused));
+    tv_dict_add_nr(&mut *dict, c"paused", Varnumber::from(timer.paused.get()));
     tv_dict_add_nr(
         &mut *dict,
         c"repeat",
-        if timer.repeat_count < 0 {
+        if timer.repeat_count.get() < 0 {
             -1
         } else {
-            Varnumber::from(timer.repeat_count)
+            Varnumber::from(timer.repeat_count.get())
         },
     );
 
@@ -5049,39 +5051,39 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
     if !tv_dict_add(&mut *dict, di) {
         tv_dict_item_free(di);
     } else {
-        callback_put(&mut timer.callback, &mut di.di_tv);
+        callback_put(&timer.callback, &mut di.di_tv);
     }
 }
 
 pub fn add_timer_info_all(rettv: &mut TypVal) {
-    let all_timers: Vec<crate::globals::GraphPtr<VimTimer>> =
-        with_timers(|t| t.values().copied().collect());
+    let all_timers: Vec<std::rc::Rc<VimTimer>> = with_timers(|t| t.values().cloned().collect());
     tv_list_alloc_ret(rettv, all_timers.len() as isize);
     for timer in all_timers {
-        let timer = timer.borrow_mut();
-        if !timer.stopped || timer.refcount > 1 {
-            add_timer_info(rettv, timer);
+        if !timer.stopped.get() || timer.active_calls.get() > 0 {
+            add_timer_info(rettv, &timer);
         }
     }
 }
 
 /// Invoked on the main loop.
-pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
-    let mut timer = crate::globals::GraphPtr::from(timer_in);
+pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
+    let Some(timer) = with_timers(|t| t.get(&timer_id).cloned()) else {
+        return;
+    };
     let save_did_emsg = g_st().did_emsg;
     let called_emsg_before = g_st().called_emsg;
 
-    if timer.stopped || timer.paused {
+    if timer.stopped.get() || timer.paused.get() {
         return;
     }
 
-    timer.refcount += 1;
+    timer.active_calls.set(timer.active_calls.get() + 1);
 
-    if timer.repeat_count >= 0 {
-        timer.repeat_count -= 1;
+    if timer.repeat_count.get() >= 0 {
+        timer.repeat_count.set(timer.repeat_count.get() - 1);
 
-        if timer.repeat_count == 0 {
-            timer_stop(timer.borrow_mut());
+        if timer.repeat_count.get() == 0 {
+            timer_stop(&timer);
         }
     }
 
@@ -5092,10 +5094,10 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
 
     let mut rettv = tv_initial_value();
 
-    callback_call(&mut timer.borrow_mut().callback, 1, &mut argv, &mut rettv);
+    callback_call(&timer.callback, 1, &mut argv, &mut rettv);
 
     if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
-        timer.emsg_count += 1;
+        timer.emsg_count.set(timer.emsg_count.get() + 1);
 
         if g_st().did_throw {
             discard_current_exception();
@@ -5103,84 +5105,73 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
     }
     g_st().did_emsg = save_did_emsg;
 
-    if timer.emsg_count >= 3 {
-        timer_stop(timer.borrow_mut());
+    if timer.emsg_count.get() >= 3 {
+        timer_stop(&timer);
     }
 
     tv_clear(&mut rettv);
 
-    if !timer.stopped && timer.timeout == 0 {
-        time_watcher_start(&mut timer.borrow_mut().watcher, 0, 0);
+    if !timer.stopped.get() && timer.timeout == 0 {
+        time_watcher_start(&mut timer.watcher.borrow_mut(), 0, 0);
     }
-    timer_decref(timer.borrow_mut());
+    timer.active_calls.set(timer.active_calls.get() - 1);
 }
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     let id = EVAL_STATE.with(|s| s.last_timer_id.get());
     EVAL_STATE.with(|s| s.last_timer_id.set(s.last_timer_id.get() + (1)));
-    let timer = Box::leak(Box::new(VimTimer {
-        watcher: TimeWatcher::new(),
+    let timer = std::rc::Rc::new(VimTimer {
+        watcher: std::cell::RefCell::new(TimeWatcher::new()),
         timer_id: id as i32,
-        repeat_count,
-        refcount: 1,
-        emsg_count: 0,
+        repeat_count: std::cell::Cell::new(repeat_count),
+        active_calls: std::cell::Cell::new(0),
+        emsg_count: std::cell::Cell::new(0),
         timeout,
-        stopped: false,
-        paused: false,
+        stopped: std::cell::Cell::new(false),
+        paused: std::cell::Cell::new(false),
         callback,
-    }));
-
-    {
-        let timer_ptr = crate::globals::GraphPtr::<VimTimer>::from_ref(timer);
-        time_watcher_init(
-            &mut g_st().main_loop,
-            &mut timer.watcher,
-            TimeWatcherData::EvalTimer(timer_ptr),
-        );
-        timer.watcher.events = crate::globals::GraphPtr::from(multiqueue_new_child(
-            loop_queues(&mut g_st().main_loop).events.borrow_mut(),
-        ));
-        timer.watcher.blockable = true;
-        time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
-    }
+    });
 
     let timer_id = timer.timer_id as u64;
-    let timer_gp = timer.into();
+    {
+        let mut watcher = timer.watcher.borrow_mut();
+        time_watcher_init(
+            &mut g_st().main_loop,
+            &mut watcher,
+            TimeWatcherData::EvalTimer(timer_id),
+        );
+        watcher.events = crate::globals::GraphPtr::from(multiqueue_new_child(
+            loop_queues(&mut g_st().main_loop).events.borrow_mut(),
+        ));
+        watcher.blockable = true;
+        time_watcher_start(&mut watcher, timeout as u64, timeout as u64);
+    }
+
     with_timers_mut(|t| {
-        t.insert(timer_id, timer_gp);
+        t.insert(timer_id, timer);
     });
     timer_id
 }
 
-pub fn timer_stop(timer: &mut VimTimer) {
-    if timer.stopped {
+pub fn timer_stop(timer: &VimTimer) {
+    if timer.stopped.get() {
         return;
     }
-    timer.stopped = true;
+    timer.stopped.set(true);
     {
-        time_watcher_stop(&mut timer.watcher);
-        time_watcher_close(&mut timer.watcher);
+        let mut watcher = timer.watcher.borrow_mut();
+        time_watcher_stop(&mut watcher);
+        time_watcher_close(&mut watcher);
     }
 }
 
-pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
-    let _ = with_timers_mut(|t| t.remove(&(timer.timer_id as u64)));
-    timer_decref(timer);
-}
-
-fn timer_decref(timer_in: &mut VimTimer) {
-    let mut timer = crate::globals::GraphPtr::from(timer_in);
-    timer.refcount -= 1;
-
-    if timer.refcount == 0 {
-        timer.drop_box();
-    }
+pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer_id: u64) {
+    let _ = with_timers_mut(|t| t.remove(&timer_id));
 }
 
 pub fn timer_stop_all() {
-    let all_timers: Vec<crate::globals::GraphPtr<VimTimer>> =
-        with_timers(|t| t.values().copied().collect());
+    let all_timers: Vec<std::rc::Rc<VimTimer>> = with_timers(|t| t.values().cloned().collect());
     for timer in all_timers {
-        timer_stop(timer.borrow_mut());
+        timer_stop(&timer);
     }
 }
 

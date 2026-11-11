@@ -6141,7 +6141,7 @@ fn qf_getprop_idx(qfl: &mut QfList, mut eidx: i32, retdict: &mut TvDict) -> bool
 fn qf_getprop_qftf(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     if qfl.qf_qftf_cb.cb_type() != K_CALLBACK_NONE_CONST {
         let mut tv: TypVal = TypVal::new();
-        callback_put(&mut qfl.qf_qftf_cb, &mut tv);
+        callback_put(&qfl.qf_qftf_cb, &mut tv);
         let status = tv_dict_add_tv(retdict, b"quickfixtextfunc", &mut tv);
         tv_clear(&mut tv);
         status
@@ -6828,7 +6828,7 @@ fn mark_quickfix_ctx(qi: &QfInfo, copy_id: i32) -> bool {
 pub fn set_ref_in_quickfix(copy_id: i32) -> bool {
     if mark_quickfix_ctx(&ql_info(), copy_id)
         || mark_quickfix_user_data(&ql_info(), copy_id)
-        || set_ref_in_callback(&mut opt_vars().p_qftf, copy_id, None, None)
+        || set_ref_in_callback(&opt_vars().p_qftf, copy_id, None, None)
     {
         return true;
     }
