@@ -4,8 +4,8 @@ pub use crate::event::libuv_proc::LibuvProc;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
     Loop, loop_children_kill_timer, loop_exit_delay_timer, loop_poll_events, loop_queues,
-    main_loop_ptr, uv_close, uv_handle_get_loop, uv_handle_t, uv_pipe_init, uv_timer_start,
-    uv_timer_stop, uv_timer_t,
+    main_loop_ptr, uv_close, uv_handle_get_loop, uv_handle_t, uv_loop_t, uv_pipe_init,
+    uv_timer_start, uv_timer_stop, uv_timer_t,
 };
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
@@ -30,8 +30,7 @@ use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 #[repr(C)]
 pub struct Proc {
     pub r#type: i32,
-    pub loop_: crate::globals::GraphPtr<Loop>,
-    pub data: crate::globals::GraphPtr<crate::channel::Channel>,
+    pub chan_id: u64,
     pub pid: i32,
     pub status: i32,
     pub refcount: i32,
@@ -68,8 +67,7 @@ impl Proc {
     pub const fn new() -> Self {
         Self {
             r#type: 0,
-            loop_: crate::globals::GraphPtr::NULL,
-            data: crate::globals::GraphPtr::NULL,
+            chan_id: 0,
             pid: 0,
             status: 0,
             refcount: 0,
@@ -145,15 +143,12 @@ pub fn libuv_proc_uv(proc_: &mut Proc) -> &mut uv_handle_t {
 
 #[inline]
 fn loop_process_events(loop_in: &mut Loop, multiqueue: Option<MultiQueue>, timeout: i64) {
-    let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
-    unsafe {
-        if let Some(multiqueue) = multiqueue
-            && !multiqueue_empty(multiqueue)
-        {
-            multiqueue_process_events(multiqueue);
-        } else {
-            loop_poll_events(&mut *loop_, timeout);
-        }
+    if let Some(multiqueue) = multiqueue
+        && !multiqueue_empty(multiqueue)
+    {
+        multiqueue_process_events(multiqueue);
+    } else {
+        loop_poll_events(loop_in, timeout);
     }
 }
 
@@ -164,7 +159,7 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     timeout: i64,
     mut cond: F,
 ) {
-    let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
+    let loop_ = &raw mut *loop_in;
     let timeout_ms = timeout;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -183,6 +178,8 @@ fn loop_process_events_until<F: FnMut() -> bool>(
 /// @returns zero on success, or negative error code
 pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
     unsafe {
+        let proc_ptr = &raw mut *proc_;
+        let uv_loop: *mut uv_loop_t = (&raw mut main_loop_ptr().uv).cast();
         let s_in = &raw mut proc_.r#in;
         let s_out = &raw mut proc_.out.s;
         let s_err = &raw mut proc_.err.s;
@@ -190,34 +187,26 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
         debug_assert!(!(err && proc_.fwd_err));
 
         if in_ {
-            uv_pipe_init(proc_.loop_.as_ptr().cast(), (&raw mut (*s_in).uv).cast(), 0);
+            uv_pipe_init(uv_loop, (&raw mut (*s_in).uv).cast(), 0);
         } else {
             (*s_in).closed = true;
         }
 
         if out {
-            uv_pipe_init(
-                proc_.loop_.as_ptr().cast(),
-                (&raw mut (*s_out).uv).cast(),
-                0,
-            );
+            uv_pipe_init(uv_loop, (&raw mut (*s_out).uv).cast(), 0);
         } else {
             (*s_out).closed = true;
         }
 
         if err {
-            uv_pipe_init(
-                proc_.loop_.as_ptr().cast(),
-                (&raw mut (*s_err).uv).cast(),
-                0,
-            );
+            uv_pipe_init(uv_loop, (&raw mut (*s_err).uv).cast(), 0);
         } else {
             (*s_err).closed = true;
         }
 
         let status = match proc_.r#type {
-            K_PROC_TYPE_UV => libuv_proc_spawn(&mut *(&raw mut *proc_).cast()),
-            K_PROC_TYPE_PTY => pty_proc_spawn(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_UV => libuv_proc_spawn(&mut *proc_ptr.cast()),
+            K_PROC_TYPE_PTY => pty_proc_spawn(&mut *proc_ptr.cast()),
             _ => unreachable!(),
         };
 
@@ -243,47 +232,46 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
 
         if in_ {
             stream_init(None, &mut *s_in, -1, true);
-            (*s_in).internal_data = StreamInternalData::Proc(proc_.into());
+            (*s_in).internal_data = StreamInternalData::Proc(proc_ptr);
             proc_.refcount += 1;
         }
 
         if out {
             stream_init(None, &mut *s_out, -1, true);
-            (*s_out).internal_data = StreamInternalData::Proc(proc_.into());
+            (*s_out).internal_data = StreamInternalData::Proc(proc_ptr);
             proc_.refcount += 1;
         }
 
         if err {
             stream_init(None, &mut *s_err, -1, true);
-            (*s_err).internal_data = StreamInternalData::Proc(proc_.into());
+            (*s_err).internal_data = StreamInternalData::Proc(proc_ptr);
             proc_.refcount += 1;
         }
 
         proc_.refcount += 1;
 
-        let qc = loop_queues(proc_.loop_.borrow_mut());
-        qc.children
-            .push(crate::globals::GraphPtr::from(&mut *proc_));
+        let qc = loop_queues(main_loop_ptr());
+        qc.children.push(proc_ptr);
 
         0
     }
 }
 
 pub fn proc_teardown(loop_in: &mut Loop) {
-    let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
+    let loop_ = &raw mut *loop_in;
     unsafe {
         proc_st(|st| st.proc_is_tearing_down.set(true));
         let qc = &raw mut *loop_queues(&mut *loop_);
         let children = (*qc).children.clone();
-        for mut proc_ in children {
-            if proc_.detach || proc_.r#type == K_PROC_TYPE_PTY {
+        for proc_ in children {
+            if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
                 if !(*qc).events.is_null() {
                     multiqueue_put_event((*qc).events.borrow_mut(), Event::ProcCloseHandles(proc_));
                 } else {
-                    proc_close_handles(&mut proc_);
+                    proc_close_handles(&mut *proc_);
                 }
             } else {
-                proc_stop(&mut proc_);
+                proc_stop(&mut *proc_);
             }
         }
 
@@ -303,12 +291,12 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 
 /// Synchronously wait for a process to finish
 pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> i32 {
-    let proc_ = crate::globals::GraphPtr::<Proc>::of(proc_in).as_ptr();
+    let proc_ = &raw mut *proc_in;
     let mut events = events_in.unwrap_or(MultiQueue::NULL);
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
-            loop_process_events((*proc_).loop_.borrow_mut(), (*proc_).events.opt_mut(), 0);
+            loop_process_events(main_loop_ptr(), (*proc_).events.opt_mut(), 0);
             return status;
         }
 
@@ -317,28 +305,20 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
         }
 
         (*proc_).refcount += 1;
-        loop_process_events_until(
-            (*proc_).loop_.borrow_mut(),
-            events.opt_mut(),
-            i64::from(ms),
-            || {
-                ptr::read_volatile(&raw const g_st().got_int)
-                    || ptr::read_volatile(&raw const (*proc_).refcount) == 1
-            },
-        );
+        loop_process_events_until(main_loop_ptr(), events.opt_mut(), i64::from(ms), || {
+            ptr::read_volatile(&raw const g_st().got_int)
+                || ptr::read_volatile(&raw const (*proc_).refcount) == 1
+        });
 
         if g_st().got_int {
             g_st().got_int = false;
             proc_stop(&mut *proc_);
             if ms == -1 {
-                loop_process_events_until(
-                    (*proc_).loop_.borrow_mut(),
-                    events.opt_mut(),
-                    -1,
-                    || ptr::read_volatile(&raw const (*proc_).refcount) == 1,
-                );
+                loop_process_events_until(main_loop_ptr(), events.opt_mut(), -1, || {
+                    ptr::read_volatile(&raw const (*proc_).refcount) == 1
+                });
             } else {
-                loop_process_events((*proc_).loop_.borrow_mut(), events.opt_mut(), 0);
+                loop_process_events(main_loop_ptr(), events.opt_mut(), 0);
             }
 
             (*proc_).status = -2;
@@ -359,7 +339,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
 pub fn proc_stop(proc_in: &mut Proc) {
-    let proc_ = crate::globals::GraphPtr::<Proc>::of(proc_in).as_ptr();
+    let proc_ = &raw mut *proc_in;
     unsafe {
         let exited = (*proc_).status >= 0;
         if exited || (*proc_).stopped_time != 0 {
@@ -380,9 +360,9 @@ pub fn proc_stop(proc_in: &mut Proc) {
             _ => unreachable!(),
         }
 
-        crate::event::r#loop::uv_update_time((&raw mut (*(*proc_).loop_.as_ptr()).uv).cast());
+        crate::event::r#loop::uv_update_time((&raw mut main_loop_ptr().uv).cast());
         uv_timer_start(
-            loop_children_kill_timer((*proc_).loop_.borrow_mut()),
+            loop_children_kill_timer(main_loop_ptr()),
             Some(children_kill_cb),
             KILL_TIMEOUT_MS,
             0,
@@ -397,7 +377,6 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
         let qc = loop_queues(&mut *loop_);
 
         for &proc_ in &qc.children {
-            let proc_ = proc_.as_ptr();
             let exited = (*proc_).status >= 0;
             if exited || (*proc_).stopped_time == 0 {
                 continue;
@@ -411,7 +390,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
                 os_proc_tree_kill((*proc_).pid, SIGTERM);
                 (*proc_).stopped_time = u64::MAX;
                 uv_timer_start(
-                    loop_children_kill_timer((*proc_).loop_.borrow_mut()),
+                    loop_children_kill_timer(main_loop_ptr()),
                     Some(children_kill_cb),
                     KILL_TIMEOUT_MS,
                     0,
@@ -422,12 +401,10 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
 }
 
 pub fn proc_close_event(proc_in: &mut Proc) {
-    let proc_ = crate::globals::GraphPtr::<Proc>::of(proc_in).as_ptr();
-    unsafe {
-        if !(*proc_).data.is_null() {
-            let status = (*proc_).status;
-            let data = (*proc_).data;
-            crate::channel::channel_proc_exit_cb(status, data.borrow_mut());
+    if proc_in.chan_id != 0 {
+        let status = proc_in.status;
+        if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(proc_in.chan_id) {
+            crate::channel::channel_proc_exit_cb(status, chan);
         }
     }
 }
@@ -438,12 +415,12 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
         return;
     }
 
-    let loop_ = proc_.loop_;
-    let qc = loop_queues(loop_.borrow_mut());
-    let idx = qc.children.iter().position(|&p| p == proc_).unwrap();
+    let proc_ptr = &raw mut *proc_;
+    let qc = loop_queues(main_loop_ptr());
+    let idx = qc.children.iter().position(|&p| p == proc_ptr).unwrap();
     qc.children.remove(idx);
     if !proc_.events.is_null() {
-        multiqueue_put_event(proc_.events.borrow_mut(), Event::ProcClose(proc_.into()));
+        multiqueue_put_event(proc_.events.borrow_mut(), Event::ProcClose(proc_ptr));
     } else {
         proc_close_event(proc_);
     }
@@ -471,14 +448,13 @@ fn proc_close(proc_: &mut Proc) {
 }
 
 fn flush_stream(proc_in: &mut Proc, is_err: bool) {
-    let proc_ = crate::globals::GraphPtr::<Proc>::of(proc_in).as_ptr();
+    let proc_ = &raw mut *proc_in;
     unsafe {
-        let stream = crate::globals::GraphPtr::<RStream>::of(if is_err {
+        let stream = if is_err {
             &raw mut (*proc_).err
         } else {
             &raw mut (*proc_).out
-        })
-        .as_ptr();
+        };
         if (*stream).s.closed {
             return;
         }
@@ -509,7 +485,7 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
             {
                 pty_proc_flush_master(&mut *proc_.cast());
             }
-            loop_poll_events((*proc_).loop_.borrow_mut(), 0);
+            loop_poll_events(main_loop_ptr(), 0);
             if !(*stream).s.events.is_null() {
                 multiqueue_process_events((*stream).s.events.borrow_mut());
             }
@@ -572,14 +548,14 @@ pub fn exit_on_closed_chan(status: i32) {
 }
 
 pub(crate) fn on_proc_exit(proc_: &mut Proc) {
-    let qc = loop_queues(proc_.loop_.borrow_mut());
+    let qc = loop_queues(main_loop_ptr());
     let queue = if !proc_.events.is_null() {
         proc_.events
     } else {
         qc.events
     };
     if !queue.is_null() {
-        multiqueue_put_event(queue, Event::ProcCloseHandles(proc_.into()));
+        multiqueue_put_event(queue, Event::ProcCloseHandles(&raw mut *proc_));
     } else {
         proc_close_handles(proc_);
     }

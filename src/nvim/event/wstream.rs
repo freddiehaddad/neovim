@@ -72,7 +72,7 @@ struct UvWriteReq([u8; 256]);
 
 #[repr(C)]
 struct WRequest {
-    stream: crate::globals::GraphPtr<Stream>,
+    stream: *mut Stream,
     buffer: std::rc::Rc<WBuffer>,
     uv: UvWriteReq,
 }
@@ -124,7 +124,7 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
         stream.curmem += buffer.size();
 
         let data = Box::into_raw(Box::new(WRequest {
-            stream: crate::globals::GraphPtr::from(&mut *stream),
+            stream: &raw mut *stream,
             buffer,
             uv: UvWriteReq([0; 256]),
         }));
@@ -157,7 +157,7 @@ pub fn wstream_new_vec_buffer(buf: Vec<u8>) -> std::rc::Rc<WBuffer> {
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: i32) {
     unsafe {
         let data = Box::from_raw(*req.cast::<*mut WRequest>());
-        let stream = data.stream.borrow_mut();
+        let stream = &mut *data.stream;
 
         stream.curmem -= data.buffer.size();
         drop(data);

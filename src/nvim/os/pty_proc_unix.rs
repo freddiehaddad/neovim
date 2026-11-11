@@ -291,7 +291,7 @@ mod unix_impl {
             let r_err = &mut (*proc_).err;
             debug_assert!(r_err.s.closed);
             uv_signal_start(
-                loop_children_watcher((*hdr).loop_.borrow_mut()),
+                loop_children_watcher(crate::event::r#loop::main_loop_ptr()),
                 Some(chld_handler),
                 SIGCHLD,
             );

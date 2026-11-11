@@ -1543,11 +1543,10 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     };
 
     let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-    let chan_ptr = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(chan);
     chan.internal.cb = cb;
     chan.internal.closed = false;
     let topts = TerminalOptions {
-        data: chan_ptr,
+        chan_id: chan.id,
         width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height as u16,
         force_crlf,

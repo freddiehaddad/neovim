@@ -323,7 +323,7 @@ pub struct EditorState {
     pub autocmd_match: Option<std::ffi::CString>,
     pub did_cursorhold: bool,
     pub deferred_events: MultiQueue,
-    pub channels: std::collections::BTreeMap<u64, GraphPtr<Channel>>,
+    pub channels: std::collections::BTreeMap<u64, Box<Channel>>,
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,

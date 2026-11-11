@@ -2,7 +2,9 @@
 
 use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
-use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_t, uv_pipe_open, uv_uid_t};
+use crate::event::r#loop::{
+    main_loop_ptr, uv_close, uv_gid_t, uv_handle_t, uv_pipe_open, uv_uid_t,
+};
 use crate::event::proc::Proc;
 use crate::event::stream::{uv_pipe_t, uv_stream_t};
 use crate::globals::*;
@@ -279,14 +281,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     }
 
     if !uvproc.proc_.out.s.closed {
-        libuv_proc_stdio(
-            &mut *uvproc,
-            1,
-            false,
-            overlapped,
-            true,
-            &mut to_close,
-        );
+        libuv_proc_stdio(&mut *uvproc, 1, false, overlapped, true, &mut to_close);
     }
 
     if !uvproc.proc_.err.s.closed {
@@ -305,7 +300,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
 
     let status = unsafe {
         uv_spawn(
-            uvproc.proc_.loop_.as_ptr().cast(),
+            (&raw mut main_loop_ptr().uv).cast(),
             uv.cast(),
             &raw const uvproc.uvopts,
         )

@@ -135,7 +135,6 @@ enum FlushBufFinish {
 
 #[repr(C)]
 pub struct TUIData {
-    pub loop_: crate::globals::GraphPtr<Loop>,
     pub buf: [u8; OUTBUF_SIZE],
     pub bufpos: usize,
     pub input: TermInput,
@@ -144,7 +143,7 @@ pub struct TUIData {
     pub term: Option<std::ffi::CString>,
     pub out_isatty: bool,
     pub winch_handle: SignalWatcher,
-    pub startup_delay_timer: UvRawTimer<TUIData>,
+    pub startup_delay_timer: UvRawTimer,
     pub grid: UGrid,
     pub invalid_regions: Vec<Rect>,
     pub row: i32,
@@ -201,7 +200,6 @@ pub struct TUIData {
 impl TUIData {
     pub fn new() -> Self {
         Self {
-            loop_: crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast::<Loop>()),
             buf: [0; OUTBUF_SIZE],
             bufpos: 0,
             input: TermInput::new(),
@@ -323,20 +321,8 @@ use crate::os::signal::SIGWINCH;
 use crate::os::signal::os_suspend_process;
 
 #[inline]
-fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
-    let ptr = crate::globals::GraphPtr::<TermInput>::from_ref(&tui.input);
-    ptr.borrow_mut()
-}
-
-#[inline]
-fn tui_loop(tui: &mut TUIData) -> &'static mut Loop {
-    tui.loop_.borrow_mut()
-}
-
-#[inline]
-fn tui_winch_handle(tui: &mut TUIData) -> &'static mut SignalWatcher {
-    let ptr = crate::globals::GraphPtr::<SignalWatcher>::from_ref(&tui.winch_handle);
-    ptr.borrow_mut()
+fn tui_loop(_tui: &mut TUIData) -> &'static mut Loop {
+    crate::event::r#loop::main_loop_ptr()
 }
 
 #[inline]
@@ -345,29 +331,32 @@ fn slice_contains(haystack: Option<&[u8]>, needle: &[u8]) -> bool {
 }
 
 pub fn tui_start(
-    tui: &mut TUIData,
     width: &mut i32,
     height: &mut i32,
     term: &mut Option<std::ffi::CString>,
     rgb: &mut bool,
 ) {
-    signal_watcher_init(tui.loop_.borrow_mut(), tui_winch_handle(tui));
-    tui.winch_handle.data = crate::globals::GraphPtr::from(&mut *tui);
-    signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
+    crate::ui_client::with_tui_mut(|tui| {
+        let loop_ = tui_loop(tui);
+        signal_watcher_init(loop_, &mut tui.winch_handle);
+        tui.winch_handle.is_tui = true;
+        signal_watcher_start(&mut tui.winch_handle, SIGWINCH);
 
-    tui.grid.cells.clear();
-    tui_terminal_start(tui);
+        tui.grid.cells.clear();
+        tui_terminal_start(tui);
 
-    let tui_ptr = crate::globals::GraphPtr::<TUIData>::from_ref(&*tui);
-    tui.startup_delay_timer
-        .init(tui.loop_.borrow_mut(), tui_ptr.borrow_mut());
-    tui.startup_delay_timer.start(after_startup_cb, 100, 0);
+        let loop_ = tui_loop(tui);
+        tui.startup_delay_timer.init(loop_);
+        tui.startup_delay_timer.start(after_startup_cb, 100, 0);
+    });
 
     loop_poll_events(&mut g_st().main_loop, 1);
-    *width = tui_ptr.width;
-    *height = tui_ptr.height;
-    *term = tui_ptr.term.clone();
-    *rgb = tui_ptr.rgb;
+    crate::ui_client::with_tui(|tui| {
+        *width = tui.width;
+        *height = tui.height;
+        *term = tui.term.clone();
+        *rgb = tui.rgb;
+    });
 }
 
 fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
@@ -781,7 +770,6 @@ fn terminfo_start(tui: &mut TUIData) {
 
     tui.out_fd = STDOUT_FILENO;
     tui.out_isatty = os_isatty(tui.out_fd);
-    tui.input.tui_data = crate::globals::GraphPtr::from(&mut *tui);
 
     assert!(tui.term.is_none());
 
@@ -1012,16 +1000,15 @@ fn terminfo_stop(tui: &mut TUIData) {
 fn tui_terminal_start(tui: &mut TUIData) {
     tui.print_attr_id = -1;
     terminfo_start(tui);
-    let input = tui_input(tui);
-    if input.loop_.is_null() {
-        tinput_init(&mut *input, &mut g_st().main_loop, &tui.ti);
+    if !tui.input.has_loop {
+        tinput_init(&mut tui.input, &mut g_st().main_loop, &tui.ti);
     }
     tui_guess_size(tui);
-    tinput_start(&mut *input);
+    tinput_start(&mut tui.input);
 }
 
-fn after_startup_cb(tui: &mut TUIData) {
-    tui_terminal_after_startup(tui);
+fn after_startup_cb() {
+    crate::ui_client::with_tui_mut(tui_terminal_after_startup);
 }
 
 fn tui_terminal_after_startup(tui: &mut TUIData) {
@@ -1029,65 +1016,73 @@ fn tui_terminal_after_startup(tui: &mut TUIData) {
     flush_buf(tui, FlushBufFinish::FlushBufFinal);
 }
 
-pub fn tui_stop(tui: &mut TUIData) {
-    if tui.sync_out.is_closing() {
-        if min_log_level() <= LOGLVL_ERR {
-            logmsg!(
-                LOGLVL_ERR,
-                None,
-                Some(c"tui_stop"),
-                760,
-                true,
-                c"TUI already stopped (race?)",
-            );
+pub fn tui_stop() {
+    let bail = crate::ui_client::with_tui_mut(|tui| {
+        if tui.sync_out.is_closing() {
+            if min_log_level() <= LOGLVL_ERR {
+                logmsg!(
+                    LOGLVL_ERR,
+                    None,
+                    Some(c"tui_stop"),
+                    760,
+                    true,
+                    c"TUI already stopped (race?)",
+                );
+            }
+            tui.stopped.set(true);
+            return true;
         }
-        tui.stopped.set(true);
+        tui.input.primary_device_attr = Some(PrimaryDeviceAttrAction::Stop);
+        terminfo_disable(tui);
+        false
+    });
+    if bail {
         return;
     }
 
-    let input = tui_input(tui);
-    input.primary_device_attr = Some(PrimaryDeviceAttrAction::Stop);
-    terminfo_disable(tui);
-
     let wait_start = os_hrtime();
-    let events = loop_queues(tui_loop(tui)).events;
-    let rs = &mut input.read_stream;
+    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
     let timeout_ms: i64 = EXIT_TIMEOUT_MS;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining: i64 = timeout_ms;
     let mut expired = false;
-    while !(tui.stopped.get() || rs.did_eof_volatile()) && !expired {
+    while !crate::ui_client::with_tui(|tui| {
+        tui.stopped.get() || tui.input.read_stream.did_eof_volatile()
+    }) && !expired
+    {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
-            loop_poll_events(tui_loop(tui), remaining);
+            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             expired = remaining <= 0;
         }
     }
-    if !tui.stopped.get()
-        && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS
-        && min_log_level() <= LOGLVL_WRN
-    {
-        logmsg!(
-            LOGLVL_WRN,
-            None,
-            Some(c"tui_stop"),
-            773,
-            true,
-            c"TUI: timed out waiting for DA1 response",
-        );
-    }
-    tui.stopped.set(true);
+    crate::ui_client::with_tui_mut(|tui| {
+        if !tui.stopped.get()
+            && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS
+            && min_log_level() <= LOGLVL_WRN
+        {
+            logmsg!(
+                LOGLVL_WRN,
+                None,
+                Some(c"tui_stop"),
+                773,
+                true,
+                c"TUI: timed out waiting for DA1 response",
+            );
+        }
+        tui.stopped.set(true);
 
-    tui_terminal_stop(tui);
-    stream_set_blocking(input.in_fd, true);
-    tinput_destroy(&mut *input);
-    signal_watcher_stop(&mut *tui_winch_handle(tui));
-    signal_watcher_close(&mut *tui_winch_handle(tui));
-    tui.startup_delay_timer.close();
+        tui_terminal_stop(tui);
+        stream_set_blocking(tui.input.in_fd, true);
+        tinput_destroy(&mut tui.input);
+        signal_watcher_stop(&mut tui.winch_handle);
+        signal_watcher_close(&mut tui.winch_handle);
+        tui.startup_delay_timer.close();
+    });
 }
 
 fn tui_stop_cb(tui: &mut TUIData) {
@@ -1095,7 +1090,7 @@ fn tui_stop_cb(tui: &mut TUIData) {
 }
 
 fn tui_terminal_stop(tui: &mut TUIData) {
-    tinput_stop(&mut *tui_input(tui));
+    tinput_stop(&mut tui.input);
     terminfo_stop(tui);
 }
 
@@ -2048,9 +2043,9 @@ pub fn tui_suspend(tui: &mut TUIData) {
 
 #[cfg(unix)]
 fn tui_suspend_cb(tui: &mut TUIData) {
-    let input = tui_input(tui);
+    let in_fd = tui.input.in_fd;
     tui_terminal_stop(tui);
-    stream_set_blocking(input.in_fd, true);
+    stream_set_blocking(in_fd, true);
 
     os_suspend_process();
 
@@ -2059,7 +2054,7 @@ fn tui_suspend_cb(tui: &mut TUIData) {
     if tui.mouse_enabled_save {
         tui_mouse_on(tui);
     }
-    stream_set_blocking(input.in_fd, false);
+    stream_set_blocking(in_fd, false);
     ui_client_attach(tui.width, tui.height, tui.term.as_deref(), tui.rgb);
 }
 

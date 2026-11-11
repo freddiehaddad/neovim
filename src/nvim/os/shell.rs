@@ -97,6 +97,7 @@ struct ShellModuleState {
     throttle_pulse_msg: [u8; 4],
     last_skipped: [u8; MAX_CHUNK_SIZE],
     last_skipped_len: usize,
+    system_buf: Vec<u8>,
 }
 
 impl ShellModuleState {
@@ -110,6 +111,7 @@ impl ShellModuleState {
             throttle_pulse_msg: [b' ', b' ', b' ', 0],
             last_skipped: [0; MAX_CHUNK_SIZE],
             last_skipped_len: 0,
+            system_buf: Vec::new(),
         }
     }
 }
@@ -782,13 +784,13 @@ fn do_os_system(
     out_data_ring(Some(&[]));
     let has_input = !input.is_empty();
 
-    let mut buf: Vec<u8> = Vec::new();
+    let saved_buf = SH_STATE.with_borrow_mut(|st| std::mem::take(&mut st.system_buf));
     let cb_data = if forward_output {
         StreamCbData::ShellOut
     } else if output.is_none() {
         StreamCbData::None
     } else {
-        StreamCbData::ShellBuf((&mut buf).into())
+        StreamCbData::ShellBuf
     };
 
     let mut prog = [0u8; MAXPATHL];
@@ -798,7 +800,6 @@ fn do_os_system(
     let mut uvproc = LibuvProc::new();
     let proc_ = &mut uvproc.proc_;
     proc_.r#type = K_PROC_TYPE_UV;
-    proc_.loop_ = crate::globals::GraphPtr::from(&mut *mloop);
     proc_.status = -1;
     proc_.out.s.fd = STDOUT_FILENO;
     proc_.err.s.fd = STDERR_FILENO;
@@ -863,11 +864,12 @@ fn do_os_system(
 
         ui_busy_stop();
 
-        if let Some(out) = output {
-            *out = buf;
-        }
-
         debug_assert!(multiqueue_empty(events));
+    }
+
+    let buf = SH_STATE.with_borrow_mut(|st| std::mem::replace(&mut st.system_buf, saved_buf));
+    if let Some(out) = output {
+        *out = buf;
     }
 
     multiqueue_free(events);
@@ -882,8 +884,8 @@ fn do_os_system(
     exitcode
 }
 
-pub(crate) fn system_data_cb(buf: &[u8], dbuf: &mut Vec<u8>, _eof: bool) -> usize {
-    dbuf.extend_from_slice(buf);
+pub(crate) fn system_data_cb(buf: &[u8], _eof: bool) -> usize {
+    SH_STATE.with_borrow_mut(|st| st.system_buf.extend_from_slice(buf));
     buf.len()
 }
 

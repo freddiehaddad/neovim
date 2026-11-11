@@ -130,20 +130,17 @@ mod win_impl {
     }
 
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
-        unsafe {
-            let proc_ = context.cast::<Proc>();
-            loop_schedule_fast(
-                (*proc_).loop_.borrow_mut(),
-                Event::PtyProcFinish(proc_.into()),
-            );
-        }
+        let proc_ = context.cast::<Proc>();
+        loop_schedule_fast(
+            crate::event::r#loop::main_loop_ptr(),
+            Event::PtyProcFinish(proc_),
+        );
     }
 
     pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
         unsafe {
             let ptyproc = stream.internal_data.as_proc();
             let proc_ = &raw mut *ptyproc;
-            let hdr = proc_;
             let r_out = &raw mut (*proc_).out;
             let r_fields = r_out;
             let ptail = ptyproc;
@@ -162,7 +159,10 @@ mod win_impl {
             while !ptr::read_volatile(&raw const (*r_fields).did_eof)
                 && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT
             {
-                uv_run((*hdr).loop_.as_ptr().cast(), UV_RUN_ONCE);
+                uv_run(
+                    (&raw mut crate::event::r#loop::main_loop_ptr().uv).cast(),
+                    UV_RUN_ONCE,
+                );
             }
             uv_thread_detach(&raw mut tid);
         }
@@ -296,7 +296,10 @@ mod win_impl {
                 while in_req_buf.as_deref().is_some_and(connect_req_has_handle)
                     || out_req_buf.as_deref().is_some_and(connect_req_has_handle)
                 {
-                    uv_run(hdr.loop_.as_ptr().cast(), UV_RUN_ONCE);
+                    uv_run(
+                        (&raw mut crate::event::r#loop::main_loop_ptr().uv).cast(),
+                        UV_RUN_ONCE,
+                    );
                 }
 
                 r_out.s.close_console = true;

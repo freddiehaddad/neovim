@@ -2,12 +2,12 @@
 
 pub use crate::event::ffi::*;
 use crate::event::multiqueue::{
-    Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
-    multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events, multiqueue_put_event,
-    multiqueue_size,
+    Event, MultiQueue, multiqueue_free, multiqueue_new, multiqueue_new_child,
+    multiqueue_process_events, multiqueue_purge_events, multiqueue_put_event,
 };
 use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
 use crate::os::time::os_hrtime;
+use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::ptr;
 
@@ -15,9 +15,9 @@ use std::ptr;
 pub struct Loop {
     pub uv: [u64; 192],
     pub events: MultiQueue,
-    pub thread_events: MultiQueue,
+    pub thread_events: VecDeque<Event>,
     pub fast_events: MultiQueue,
-    pub children: Vec<crate::globals::GraphPtr<crate::event::proc::Proc>>,
+    pub children: Vec<*mut crate::event::proc::Proc>,
     pub children_watcher: [u64; 40],
     pub children_kill_timer: [u64; 32],
     pub poll_timer: [u64; 32],
@@ -34,7 +34,7 @@ impl Loop {
         Self {
             uv: [0; 192],
             events: MultiQueue::NULL,
-            thread_events: MultiQueue::NULL,
+            thread_events: VecDeque::new(),
             fast_events: MultiQueue::NULL,
             children: Vec::new(),
             children_watcher: [0; 40],
@@ -51,9 +51,8 @@ impl Loop {
 }
 
 #[inline]
-pub fn loop_queues(loop_: &mut Loop) -> &'static mut Loop {
-    let p = crate::globals::GraphPtr::<Loop>::from_ref(loop_);
-    p.borrow_mut()
+pub fn loop_queues(_loop: &mut Loop) -> &'static mut Loop {
+    main_loop_ptr()
 }
 
 #[inline]
@@ -108,7 +107,7 @@ pub fn loop_init(loop_: &mut Loop) {
         loop_.children.clear();
         loop_.events = multiqueue_new(Some(&mut *loop_));
         loop_.fast_events = multiqueue_new_child(loop_.events);
-        loop_.thread_events = multiqueue_new(None);
+        loop_.thread_events.clear();
 
         uv_mutex_init(loop_mutex(loop_));
         uv_async_init(uv_ptr, loop_async(loop_), Some(async_cb));
@@ -124,16 +123,16 @@ pub fn loop_init(loop_: &mut Loop) {
 
 /// Process `Loop.uv` events with a timeout.
 fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
-    let mut loop_ = crate::globals::GraphPtr::<Loop>::from_ref(loop_in);
+    let loop_ = &raw mut *loop_in;
     unsafe {
-        let old_rec = loop_.recursive;
-        loop_.recursive = old_rec + 1;
+        let old_rec = (*loop_).recursive;
+        (*loop_).recursive = old_rec + 1;
         if old_rec != 0 {
             std::process::abort(); // Should not re-enter uv_run
         }
 
         let mut mode: i32 = UV_RUN_ONCE;
-        let poll_timer = ptr::from_mut(loop_poll_timer(loop_.borrow_mut()));
+        let poll_timer = ptr::from_mut(loop_poll_timer(&mut *loop_));
         let timeout_expired = *poll_timer.cast::<*mut bool>();
         *timeout_expired = false;
 
@@ -143,13 +142,13 @@ fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
             mode = UV_RUN_NOWAIT;
         }
 
-        uv_run((&raw mut loop_.uv).cast(), mode);
+        uv_run((&raw mut (*loop_).uv).cast(), mode);
 
         if ms > 0 {
             uv_timer_stop(poll_timer);
         }
 
-        loop_.recursive -= 1; // Can re-enter uv_run now
+        (*loop_).recursive -= 1; // Can re-enter uv_run now
         ptr::read_volatile(timeout_expired)
     }
 }
@@ -158,19 +157,21 @@ fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
 pub fn loop_poll_events(loop_in: &mut Loop, ms: i64) -> bool {
-    let loop_ = crate::globals::GraphPtr::<Loop>::from_ref(loop_in);
-    let timeout_expired = loop_uv_run(loop_.borrow_mut(), ms);
-    multiqueue_process_events(loop_.fast_events.borrow_mut());
+    let fast_events = loop_in.fast_events;
+    let timeout_expired = loop_uv_run(loop_in, ms);
+    multiqueue_process_events(fast_events);
     timeout_expired
 }
 
 /// Schedules a fast event from another thread.
 pub fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
+    let loop_ptr = &raw mut *loop_;
     unsafe {
-        let mutex = ptr::from_mut(loop_mutex(loop_));
+        let mutex: *mut uv_mutex_t = (&raw mut (*loop_ptr).mutex).cast();
+        let async_h: *mut uv_async_t = (&raw mut (*loop_ptr).async_).cast();
         uv_mutex_lock(mutex);
-        multiqueue_put_event(loop_.thread_events.borrow_mut(), event);
-        uv_async_send(loop_async(loop_));
+        (*loop_ptr).thread_events.push_back(event);
+        uv_async_send(async_h);
         uv_mutex_unlock(mutex);
     }
 }
@@ -178,14 +179,7 @@ pub fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
 /// Schedules an event from another thread. Unlike loop_schedule_fast(), the
 /// event is forwarded to `Loop.events`, instead of being processed immediately.
 pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
-    let loop_ptr = &raw mut *loop_;
-    loop_schedule_fast(
-        loop_,
-        Event::LoopDeferred {
-            loop_: loop_ptr.into(),
-            event: Box::new(event),
-        },
-    );
+    loop_schedule_fast(loop_, Event::LoopDeferred(Box::new(event)));
 }
 
 pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
@@ -260,8 +254,10 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
     }
     let qc = loop_queues(loop_);
     multiqueue_free(qc.fast_events.borrow_mut());
-    multiqueue_free(qc.thread_events.borrow_mut());
+    qc.fast_events = MultiQueue::NULL;
+    qc.thread_events = VecDeque::new();
     multiqueue_free(qc.events.borrow_mut());
+    qc.events = MultiQueue::NULL;
     qc.children = Vec::new();
     rv
 }
@@ -271,7 +267,7 @@ pub fn loop_purge(loop_: &mut Loop) {
         let mutex = ptr::from_mut(loop_mutex(loop_));
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_purge_events(qc.thread_events.borrow_mut());
+        qc.thread_events.clear();
         multiqueue_purge_events(qc.fast_events.borrow_mut());
         uv_mutex_unlock(mutex);
     }
@@ -282,7 +278,7 @@ pub fn loop_size(loop_: &mut Loop) -> usize {
         let mutex = ptr::from_mut(loop_mutex(loop_));
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        let rv = multiqueue_size(qc.thread_events.borrow());
+        let rv = qc.thread_events.len();
         uv_mutex_unlock(mutex);
         rv
     }
@@ -292,10 +288,11 @@ unsafe extern "C" fn async_cb(handle: *mut uv_async_t) {
     unsafe {
         let uv_loop = uv_handle_get_loop(handle.cast());
         let l = *uv_loop.cast::<*mut Loop>();
-        let mutex = ptr::from_mut(loop_mutex(&mut *l));
-        let qc = loop_queues(&mut *l);
+        let mutex: *mut uv_mutex_t = (&raw mut (*l).mutex).cast();
         uv_mutex_lock(mutex);
-        multiqueue_move_events(qc.fast_events.borrow_mut(), qc.thread_events.borrow_mut());
+        while let Some(ev) = (*l).thread_events.pop_front() {
+            multiqueue_put_event((*l).fast_events, ev);
+        }
         uv_mutex_unlock(mutex);
     }
 }

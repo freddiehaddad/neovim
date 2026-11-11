@@ -97,7 +97,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
             return;
         }
         if let Some(events) = (*watcher).events.opt_mut() {
-            multiqueue_put_event(events, Event::TimeWatcher(watcher.into()));
+            multiqueue_put_event(events, Event::TimeWatcher(watcher));
         } else {
             time_event(&mut *watcher);
         }
@@ -122,7 +122,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
         ) {
             if let Some(events) = (*watcher).events.opt_mut() {
-                multiqueue_put_event(events, Event::TimeWatcherClose(watcher.into()));
+                multiqueue_put_event(events, Event::TimeWatcherClose(watcher));
             } else {
                 close_event(&mut *watcher);
             }
@@ -131,23 +131,21 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
 }
 
 #[repr(C)]
-pub struct UvRawTimer<T> {
+#[derive(Default)]
+pub struct UvRawTimer {
     handle: [u64; 32],
-    data: *mut T,
-    cb: Option<fn(&mut T)>,
+    cb: Option<fn()>,
 }
 
-impl<T> UvRawTimer<T> {
+impl UvRawTimer {
     pub const fn new() -> Self {
         Self {
             handle: [0; 32],
-            data: std::ptr::null_mut(),
             cb: None,
         }
     }
 
-    pub fn init(&mut self, loop_: &mut Loop, data: &mut T) {
-        self.data = std::ptr::from_mut(data);
+    pub fn init(&mut self, loop_: &mut Loop) {
         let th: *mut uv_timer_t = (&raw mut self.handle).cast();
         let self_ptr: *mut Self = self;
         unsafe {
@@ -156,11 +154,11 @@ impl<T> UvRawTimer<T> {
         }
     }
 
-    pub fn start(&mut self, cb: fn(&mut T), timeout: u64, repeat: u64) {
+    pub fn start(&mut self, cb: fn(), timeout: u64, repeat: u64) {
         self.cb = Some(cb);
         let th: *mut uv_timer_t = (&raw mut self.handle).cast();
         unsafe {
-            uv_timer_start(th, Some(uv_raw_timer_cb::<T>), timeout, repeat);
+            uv_timer_start(th, Some(uv_raw_timer_cb), timeout, repeat);
         }
     }
 
@@ -184,17 +182,11 @@ impl<T> UvRawTimer<T> {
     }
 }
 
-impl<T> Default for UvRawTimer<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-unsafe extern "C" fn uv_raw_timer_cb<T>(handle: *mut uv_timer_t) {
+unsafe extern "C" fn uv_raw_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
-        let timer = &mut **handle.cast::<*mut UvRawTimer<T>>();
+        let timer = &mut **handle.cast::<*mut UvRawTimer>();
         if let Some(cb) = timer.cb {
-            cb(&mut *timer.data);
+            cb();
         }
     }
 }

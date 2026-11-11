@@ -4156,8 +4156,7 @@ pub fn garbage_collect(testing: bool) -> bool {
     abort = abort || set_ref_in_functions(copy_id);
 
     {
-        for &data in g_st().channels.values() {
-            let ct = data.borrow_mut();
+        for ct in g_st().channels.values_mut() {
             set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
             set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
             set_ref_in_callback(&ct.on_exit, copy_id, None, None);

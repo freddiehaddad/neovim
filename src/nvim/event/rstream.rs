@@ -273,7 +273,7 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
     stream.pending_read = true;
     let events = stream.s.events;
     if !events.is_null() {
-        multiqueue_put_event(events.borrow_mut(), Event::RStreamRead(stream.into()));
+        multiqueue_put_event(events.borrow_mut(), Event::RStreamRead(&raw mut *stream));
     } else {
         read_event(stream);
     }

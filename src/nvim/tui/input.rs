@@ -76,11 +76,10 @@ pub struct TermInput {
     pub key_encoding: KeyEncoding,
     pub ttimeoutlen: OptInt,
     pub tk: Option<TermKey>,
-    pub timer_handle: UvRawTimer<TermInput>,
-    pub bg_query_timer: UvRawTimer<TermInput>,
-    pub loop_: crate::globals::GraphPtr<Loop>,
+    pub timer_handle: UvRawTimer,
+    pub bg_query_timer: UvRawTimer,
+    pub has_loop: bool,
     pub read_stream: RStream,
-    pub tui_data: crate::globals::GraphPtr<TUIData>,
     pub key_buffer: [u8; KEY_BUFFER_SIZE],
     pub key_buffer_len: usize,
 }
@@ -97,9 +96,8 @@ impl TermInput {
             tk: None,
             timer_handle: UvRawTimer::new(),
             bg_query_timer: UvRawTimer::new(),
-            loop_: crate::globals::GraphPtr::NULL,
+            has_loop: false,
             read_stream: RStream::new(),
-            tui_data: crate::globals::GraphPtr::NULL,
             key_buffer: [0; KEY_BUFFER_SIZE],
             key_buffer_len: 0,
         }
@@ -113,11 +111,6 @@ impl TermInput {
     #[inline]
     fn tk_mut(&mut self) -> &mut TermKey {
         self.tk.as_mut().unwrap()
-    }
-
-    #[inline]
-    fn tui_mut(&self) -> &'static mut TUIData {
-        self.tui_data.borrow_mut()
     }
 }
 
@@ -210,8 +203,8 @@ const fn kitty_key_name(key: i32) -> Option<&'static str> {
 }
 
 pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) {
-    assert!(input.loop_.is_null());
-    input.loop_ = crate::globals::GraphPtr::from(&mut *loop_);
+    assert!(!input.has_loop);
+    input.has_loop = true;
 
     input.paste = 0;
     input.in_fd = STDIN_FILENO;
@@ -227,15 +220,15 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
         TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
     );
     termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE);
-    let tk_ptr = crate::globals::GraphPtr::<TermKey>::of(input.tk_mut());
-    termkey_start(tk_ptr.borrow_mut(), Some(ti), Some(&mut *input));
+    let mut tk = input.tk.take().unwrap();
+    termkey_start(&mut tk, Some(ti), Some(&mut *input));
+    input.tk = Some(tk);
 
     let curflags = termkey_get_canonflags(input.tk_mut());
     termkey_set_canonflags(input.tk_mut(), curflags | TERMKEY_CANON_DELBS);
 
-    let input_ptr = crate::globals::GraphPtr::<TermInput>::from_ref(&*input);
-    input.timer_handle.init(loop_, input_ptr.borrow_mut());
-    input.bg_query_timer.init(loop_, input_ptr.borrow_mut());
+    input.timer_handle.init(loop_);
+    input.bg_query_timer.init(loop_);
 }
 
 pub fn tinput_destroy(input: &mut TermInput) {
@@ -243,15 +236,11 @@ pub fn tinput_destroy(input: &mut TermInput) {
     input.bg_query_timer.close();
     rstream_may_close(&mut input.read_stream);
     input.tk = None;
-    input.loop_ = crate::globals::GraphPtr::NULL;
+    input.has_loop = false;
 }
 
 pub fn tinput_start(input: &mut TermInput) {
-    let input_ptr = &raw mut *input;
-    rstream_start(
-        &mut input.read_stream,
-        StreamCbData::Input(input_ptr.into()),
-    );
+    rstream_start(&mut input.read_stream, StreamCbData::Input);
 }
 
 pub fn tinput_stop(input: &mut TermInput) {
@@ -468,12 +457,12 @@ fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResu
     }
 }
 
-fn tk_getkeys(input: &mut TermInput, force: bool) {
+fn tk_getkeys(tui: &mut TUIData, force: bool) {
     let mut key = TermKeyKey::new();
     let mut result: TermKeyResult;
 
     loop {
-        result = tk_getkey(input.tk_mut(), &mut key, force);
+        result = tk_getkey(tui.input.tk_mut(), &mut key, force);
         if result != TERMKEY_RES_KEY {
             break;
         }
@@ -483,23 +472,23 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
         }
 
         if key.r#type == TERMKEY_TYPE_UNICODE && (key.modifiers & KEYMOD_RECOGNIZED) == 0 {
-            forward_simple_utf8(input, &key);
+            forward_simple_utf8(&mut tui.input, &key);
         } else if key.r#type == TERMKEY_TYPE_UNICODE
             || key.r#type == TERMKEY_TYPE_FUNCTION
             || key.r#type == TERMKEY_TYPE_KEYSYM
         {
-            forward_modified_utf8(input, &mut key);
+            forward_modified_utf8(&mut tui.input, &mut key);
         } else if key.r#type == TERMKEY_TYPE_MOUSE {
-            forward_mouse_event(input, &key);
+            forward_mouse_event(&mut tui.input, &key);
         } else if key.r#type == TERMKEY_TYPE_MODEREPORT {
-            handle_modereport(input, &key);
+            handle_modereport(tui, &key);
         } else if key.r#type == TERMKEY_TYPE_UNKNOWN_CSI {
-            handle_unknown_csi(input, &key);
+            handle_unknown_csi(tui, &key);
         } else if key.r#type == TERMKEY_TYPE_OSC
             || key.r#type == TERMKEY_TYPE_DCS
             || key.r#type == TERMKEY_TYPE_APC
         {
-            handle_term_response(input, &key);
+            handle_term_response(tui, &key);
         }
     }
 
@@ -507,30 +496,30 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
         return;
     }
 
-    if input.ttimeout && input.ttimeoutlen >= 0 {
-        input.timer_handle.stop();
-        input
-            .timer_handle
-            .start(tinput_timer_cb, input.ttimeoutlen as u64, 0);
+    if tui.input.ttimeout && tui.input.ttimeoutlen >= 0 {
+        tui.input.timer_handle.stop();
+        let timeout = tui.input.ttimeoutlen as u64;
+        tui.input.timer_handle.start(tinput_timer_cb, timeout, 0);
     } else {
-        tk_getkeys(input, true);
+        tk_getkeys(tui, true);
     }
 }
 
-fn tinput_timer_cb(input: &mut TermInput) {
-    let rs = crate::globals::GraphPtr::<RStream>::from_ref(&input.read_stream);
-    let size = rstream_available(rs.borrow_mut());
-    if size != 0 {
-        let bytes = rs.read_slice();
-        let consumed = handle_raw_buffer(input, true, bytes);
-        rstream_consume(rs.borrow_mut(), consumed);
-    }
-    tk_getkeys(input, true);
-    tinput_flush(input);
+fn tinput_timer_cb() {
+    crate::ui_client::with_tui_mut(|tui| {
+        let size = rstream_available(&mut tui.input.read_stream);
+        if size != 0 {
+            let bytes = tui.input.read_stream.read_slice().to_vec();
+            let consumed = handle_raw_buffer(tui, true, &bytes);
+            rstream_consume(&mut tui.input.read_stream, consumed);
+        }
+        tk_getkeys(tui, true);
+        tinput_flush(&mut tui.input);
+    });
 }
 
-fn bg_query_timer_cb(input: &mut TermInput) {
-    tui_query_bg_color(input.tui_data.borrow_mut());
+fn bg_query_timer_cb() {
+    crate::ui_client::with_tui_mut(tui_query_bg_color);
 }
 
 fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
@@ -582,8 +571,8 @@ fn send_termresponse(response: &[u8]) {
     rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event", args);
 }
 
-fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
-    let Some(s_bytes) = termkey_interpret_string(input.tk(), key) else {
+fn handle_term_response(tui: &mut TUIData, key: &TermKeyKey) {
+    let Some(s_bytes) = termkey_interpret_string(tui.input.tk(), key) else {
         return;
     };
     let enable_undercurl = key.r#type == TERMKEY_TYPE_DCS
@@ -601,15 +590,15 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
     response.extend_from_slice(s_bytes);
 
     if enable_undercurl {
-        tui_enable_extended_underline(input.tui_mut());
+        tui_enable_extended_underline(tui);
     }
 
     send_termresponse(&response);
 }
 
-fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam], nparams: usize) {
-    if let Some(action) = input.primary_device_attr.take() {
-        tui_handle_primary_device_attr(input.tui_mut(), action);
+fn handle_primary_device_attr(tui: &mut TUIData, params: &[TermKeyCsiParam], nparams: usize) {
+    if let Some(action) = tui.input.primary_device_attr.take() {
+        tui_handle_primary_device_attr(tui, action);
     }
 
     if nparams == 0 || g_st().exiting {
@@ -635,22 +624,22 @@ fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam],
     send_termresponse(&bytes[..bytes.len() - 1]);
 }
 
-fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_modereport(tui: &mut TUIData, key: &TermKeyKey) {
     let mut initial: i32 = 0;
     let mut mode: i32 = 0;
     let mut value: i32 = 0;
-    if termkey_interpret_modereport(input.tk(), key, &mut initial, &mut mode, &mut value)
+    if termkey_interpret_modereport(tui.input.tk(), key, &mut initial, &mut mode, &mut value)
         == TERMKEY_RES_KEY
     {
-        tui_handle_term_mode(input.tui_mut(), mode, value);
+        tui_handle_term_mode(tui, mode, value);
     }
 }
 
-fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
+fn handle_unknown_csi(tui: &mut TUIData, key: &TermKeyKey) {
     let mut params = [TermKeyCsiParam::new(); 16];
     let mut nparams: usize = 16;
     let mut cmd: u32 = 0;
-    if termkey_interpret_csi(input.tk(), key, &mut params, &mut nparams, &mut cmd)
+    if termkey_interpret_csi(tui.input.tk(), key, &mut params, &mut nparams, &mut cmd)
         != TERMKEY_RES_KEY
     {
         return;
@@ -684,12 +673,12 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
         }
         b'u' => {
             if initial == b'?' {
-                input.key_encoding = K_KEY_ENCODING_KITTY;
+                tui.input.key_encoding = K_KEY_ENCODING_KITTY;
             }
         }
         b'c' => {
             if initial == b'?' {
-                handle_primary_device_attr(input, &params, nparams);
+                handle_primary_device_attr(tui, &params, nparams);
             }
         }
         b't' => {
@@ -705,7 +694,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                 if args[0] == 48 {
                     let height_chars = args[1];
                     let width_chars = args[2];
-                    tui_set_size(input.tui_mut(), width_chars, height_chars);
+                    tui_set_size(tui, width_chars, height_chars);
                 }
             }
         }
@@ -728,10 +717,10 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     }
                 }
                 if args[0] == 997 {
-                    if input.bg_query_timer.due_in() > 0 {
+                    if tui.input.bg_query_timer.due_in() > 0 {
                         return;
                     }
-                    input.bg_query_timer.start(bg_query_timer_cb, 100, 0);
+                    tui.input.bg_query_timer.start(bg_query_timer_cb, 100, 0);
                 }
             }
         }
@@ -739,19 +728,19 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usize {
+fn handle_raw_buffer(tui: &mut TUIData, force: bool, mut rest: &[u8]) -> usize {
     let total_len = rest.len();
 
     while !rest.is_empty() {
         if !force {
-            let consumed = handle_focus_event(input, rest);
+            let consumed = handle_focus_event(&mut tui.input, rest);
             if consumed != 0 {
                 rest = &rest[consumed..];
                 continue;
             }
 
             let mut incomplete = false;
-            let consumed = handle_bracketed_paste(input, rest, &mut incomplete);
+            let consumed = handle_bracketed_paste(&mut tui.input, rest, &mut incomplete);
             if incomplete {
                 assert_eq!(consumed, 0);
                 return total_len - rest.len();
@@ -770,35 +759,36 @@ fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usi
             }
         }
 
-        if input.paste != 0 {
-            tinput_enqueue(input, &rest[..count]);
+        if tui.input.paste != 0 {
+            tinput_enqueue(&mut tui.input, &rest[..count]);
             rest = &rest[count..];
             continue;
         }
 
         let to_use = count.min(rest.len());
-        let remaining = termkey_get_buffer_remaining(input.tk());
+        let remaining = termkey_get_buffer_remaining(tui.input.tk());
         if to_use > remaining {
             let delta = to_use - remaining;
-            let bufsize = termkey_get_buffer_size(input.tk());
-            if termkey_set_buffer_size(input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0 {
+            let bufsize = termkey_get_buffer_size(tui.input.tk());
+            if termkey_set_buffer_size(tui.input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0
+            {
                 std::process::abort();
             }
         }
 
-        let consumed = termkey_push_bytes(input.tk_mut(), &rest[..to_use]);
+        let consumed = termkey_push_bytes(tui.input.tk_mut(), &rest[..to_use]);
         assert!(consumed <= to_use);
         rest = &rest[consumed..];
 
-        tk_getkeys(input, false);
+        tk_getkeys(tui, false);
     }
 
-    let tk_size = termkey_get_buffer_size(input.tk());
-    let tk_remaining = termkey_get_buffer_remaining(input.tk());
+    let tk_size = termkey_get_buffer_size(tui.input.tk());
+    let tk_remaining = termkey_get_buffer_remaining(tui.input.tk());
     let tk_count = tk_size - tk_remaining;
     if tk_count < INPUT_BUFFER_SIZE
         && tk_size > INPUT_BUFFER_SIZE
-        && termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE) == 0
+        && termkey_set_buffer_size(tui.input.tk_mut(), INPUT_BUFFER_SIZE) == 0
     {
         std::process::abort();
     }
@@ -806,10 +796,10 @@ fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usi
     total_len - rest.len()
 }
 
-pub(crate) fn tinput_read_cb(bytes: &[u8], input: &mut TermInput, eof: bool) -> usize {
+pub(crate) fn tinput_read_cb(bytes: &[u8], tui: &mut TUIData, eof: bool) -> usize {
     let count_ = bytes.len();
-    let consumed = handle_raw_buffer(input, false, bytes);
-    tinput_flush(input);
+    let consumed = handle_raw_buffer(tui, false, bytes);
+    tinput_flush(&mut tui.input);
 
     if eof {
         loop_schedule_fast(&mut g_st().main_loop, Event::TInputDone);
@@ -817,13 +807,13 @@ pub(crate) fn tinput_read_cb(bytes: &[u8], input: &mut TermInput, eof: bool) -> 
     }
 
     if consumed < count_ {
-        let ms = if input.ttimeout {
-            input.ttimeoutlen.max(0)
+        let ms = if tui.input.ttimeout {
+            tui.input.ttimeoutlen.max(0)
         } else {
             0
         };
-        input.timer_handle.stop();
-        input
+        tui.input.timer_handle.stop();
+        tui.input
             .timer_handle
             .start(tinput_timer_cb, u64::from(ms as u32), 0);
     }

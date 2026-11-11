@@ -150,7 +150,7 @@ pub struct InternalState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TerminalOptions {
-    pub data: crate::globals::GraphPtr<Channel>,
+    pub chan_id: u64,
     pub width: u16,
     pub height: u16,
     pub force_crlf: bool,
@@ -184,17 +184,14 @@ use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 pub fn channel_teardown() {
-    let all_chans: Vec<crate::globals::GraphPtr<Channel>> =
-        g_st().channels.values().copied().collect();
-    for chan in all_chans {
-        channel_close(chan.id, K_CHANNEL_PART_ALL, None);
+    let all_chans: Vec<u64> = g_st().channels.keys().copied().collect();
+    for id in all_chans {
+        channel_close(id, K_CHANNEL_PART_ALL, None);
     }
 }
 
 pub fn channel_free_all_mem() {
-    for (_, chan) in std::mem::take(&mut g_st().channels) {
-        crate::globals::GraphPtr::of(chan.as_ptr()).drop_box();
-    }
+    g_st().channels.clear();
 
     callback_free(&mut g_st().on_print);
 }
@@ -333,7 +330,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     assert!(id <= (i64::MAX as u64));
 
     let qc = loop_queues(&mut g_st().main_loop);
-    let chan = Box::into_raw(Box::new(Channel {
+    let chan = Box::new(Channel {
         id,
         refcount: 1,
         events: multiqueue_new_child(qc.events),
@@ -360,11 +357,11 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         callback_busy: false,
         callback_scheduled: false,
         did_close_event: false,
-    }));
+    });
 
-    g_st().channels.insert(id, chan.into());
+    g_st().channels.insert(id, chan);
 
-    crate::globals::GraphPtr::of(chan).borrow_mut()
+    find_channel_opt(id).unwrap()
 }
 
 pub fn channel_create_event(chan: &mut Channel) {
@@ -384,7 +381,7 @@ pub fn channel_decref(chan: &mut Channel) {
     chan.refcount -= 1;
     if chan.refcount == 0 {
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.into()));
+        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.id));
     }
 }
 
@@ -392,11 +389,8 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
     reader.reader_type = Some(r#type);
 }
 
-pub fn free_channel_event(chan: Option<&mut Channel>) {
-    let chan = chan.unwrap();
-    let _ = g_st().channels.remove(&chan.id);
-
-    crate::globals::GraphPtr::of(chan).drop_box();
+pub fn free_channel_event(chan_id: u64) {
+    let _ = g_st().channels.remove(&chan_id);
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
@@ -408,16 +402,17 @@ fn channel_destroy_early(chan: &mut Channel) {
     if chan.id != next_id {
         std::process::abort();
     }
-    let _ = g_st().channels.remove(&chan.id);
-    chan.id = 0;
+    let chan_id = chan.id;
+    let mut boxed = g_st().channels.remove(&chan_id).unwrap();
+    boxed.id = 0;
 
-    chan.refcount -= 1;
-    if chan.refcount != 0 {
+    boxed.refcount -= 1;
+    if boxed.refcount != 0 {
         std::process::abort();
     }
 
     let qc = loop_queues(&mut g_st().main_loop);
-    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.into()));
+    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFreeBox(boxed));
 }
 
 /// Starts a job and returns the associated channel.
@@ -440,12 +435,11 @@ pub fn channel_job_start(
 ) -> Option<&'static mut Channel> {
     let env_ptr = crate::eval::typval::DictId::from(env);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-    let chan_ptr = crate::globals::GraphPtr::<Channel>::from_ref(chan);
+    let chan_id = chan.id;
     chan.on_data = on_stdout;
     chan.on_stderr = on_stderr;
     chan.on_exit = on_exit;
 
-    let proc_ptr = &raw mut chan.uv.proc_;
     if pty {
         if detach {
             semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
@@ -460,8 +454,7 @@ pub fn channel_job_start(
             return None;
         }
         chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
-        chan.uv.proc_.data = chan_ptr;
-        chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
+        chan.uv.proc_.chan_id = chan_id;
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
@@ -473,34 +466,33 @@ pub fn channel_job_start(
         }
     } else {
         chan.uv.proc_.r#type = K_PROC_TYPE_UV;
-        chan.uv.proc_.data = chan_ptr;
-        chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
+        chan.uv.proc_.chan_id = chan_id;
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
     }
 
-    let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
-
-    ph.argv = argv;
-    ph.exepath = exepath.map(CStr::to_owned);
-    ph.events = chan.events;
-    ph.detach = detach;
-    ph.cwd = cwd.map(CStr::to_owned);
-    ph.env = env_ptr;
-    ph.overlapped = overlapped;
+    chan.uv.proc_.argv = argv;
+    chan.uv.proc_.exepath = exepath.map(CStr::to_owned);
+    chan.uv.proc_.events = chan.events;
+    chan.uv.proc_.detach = detach;
+    chan.uv.proc_.cwd = cwd.map(CStr::to_owned);
+    chan.uv.proc_.env = env_ptr;
+    chan.uv.proc_.overlapped = overlapped;
 
     #[cfg(windows)]
     {
-        ph.stdio_noinherit = true;
+        chan.uv.proc_.stdio_noinherit = true;
     }
 
-    let cmd = ph
+    let cmd = chan
+        .uv
+        .proc_
         .exepath
         .clone()
-        .unwrap_or_else(|| ph.argv.as_slice()[0].clone());
+        .unwrap_or_else(|| chan.uv.proc_.argv.as_slice()[0].clone());
 
-    let (has_out, has_err) = if ph.r#type == K_PROC_TYPE_PTY {
+    let (has_out, has_err) = if chan.uv.proc_.r#type == K_PROC_TYPE_PTY {
         (true, false)
     } else {
         let out = rpc || callback_reader_set(&chan.on_data);
@@ -509,32 +501,26 @@ pub fn channel_job_start(
         #[cfg(not(windows))]
         let err = callback_reader_set(&chan.on_stderr);
 
-        ph.fwd_err = chan.on_stderr.fwd_err;
+        chan.uv.proc_.fwd_err = chan.on_stderr.fwd_err;
 
         #[cfg(windows)]
-        if !err && ph.fwd_err && ph.detach {
+        if !err && chan.uv.proc_.fwd_err && chan.uv.proc_.detach {
             err = true;
-            ph.fwd_err = false;
+            chan.uv.proc_.fwd_err = false;
         }
         (out, err)
     };
 
     let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
 
-    let status = proc_spawn(
-        crate::globals::GraphPtr::of(proc_ptr).borrow_mut(),
-        has_in,
-        has_out,
-        has_err,
-    );
+    let status = proc_spawn(&mut chan.uv.proc_, has_in, has_out, has_err);
     if status != 0 {
         semsg!(gettext(E_JOBSPAWN), uv_strerror(status), &cmd,);
 
-        let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
-        if let Some(env_ref) = ph.env.opt_mut() {
+        if let Some(env_ref) = chan.uv.proc_.env.opt_mut() {
             tv_dict_free(env_ref);
         }
-        let proc_status = ph.status;
+        let proc_status = chan.uv.proc_.status;
         channel_destroy_early(&mut *chan);
 
         *status_out = Varnumber::from(proc_status);
@@ -543,8 +529,7 @@ pub fn channel_job_start(
     }
 
     drop(cmd);
-    let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
-    if let Some(env_ref) = ph.env.opt_mut() {
+    if let Some(env_ref) = chan.uv.proc_.env.opt_mut() {
         tv_dict_free(env_ref);
     }
 
@@ -560,20 +545,14 @@ pub fn channel_job_start(
     } else if has_out {
         callback_reader_start(&mut chan.on_data, c"stdout");
 
-        rstream_start(
-            &mut crate::globals::GraphPtr::of(proc_ptr).borrow_mut().out,
-            StreamCbData::ChannelData(chan_ptr),
-        );
+        rstream_start(&mut chan.uv.proc_.out, StreamCbData::ChannelData(chan_id));
     }
 
     if has_err {
         callback_reader_start(&mut chan.on_stderr, c"stderr");
         rstream_init(&mut chan.uv.proc_.err);
 
-        rstream_start(
-            &mut crate::globals::GraphPtr::of(proc_ptr).borrow_mut().err,
-            StreamCbData::ChannelStderr(chan_ptr),
-        );
+        rstream_start(&mut chan.uv.proc_.err, StreamCbData::ChannelStderr(chan_id));
     }
 
     *status_out = chan.id as Varnumber;
@@ -600,7 +579,7 @@ pub fn channel_connect(
     }
 
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
+    let chan_id = channel.id;
     let connected = socket_connect(
         &mut g_st().main_loop,
         &mut channel.socket,
@@ -615,7 +594,7 @@ pub fn channel_connect(
         return 0;
     }
 
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    channel.socket.s.internal_data = StreamInternalData::Channel(chan_id);
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
 
@@ -624,7 +603,7 @@ pub fn channel_connect(
     } else {
         channel.on_data = on_output;
         callback_reader_start(&mut channel.on_data, c"data");
-        rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
+        rstream_start(&mut channel.socket, StreamCbData::ChannelData(chan_id));
     }
 
     channel.trust = trust;
@@ -635,13 +614,13 @@ pub fn channel_connect(
 /// Creates an RPC channel from a tcp/pipe socket connection.
 pub fn channel_from_connection(watcher: &mut SocketWatcher) {
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
+    let chan_id = channel.id;
     let result = socket_watcher_accept(watcher, &mut channel.socket);
     if result != 0 {
         channel_destroy_early(&mut *channel);
         return;
     }
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    channel.socket.s.internal_data = StreamInternalData::Channel(chan_id);
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
     rpc_start(&mut *channel);
@@ -665,7 +644,7 @@ pub fn channel_from_stdio(
     }
 
     let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
-    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
+    let chan_id = channel.id;
     let mut stdin_dup_fd = STDIN_FILENO;
     let mut stdout_dup_fd = STDOUT_FILENO;
 
@@ -697,10 +676,7 @@ pub fn channel_from_stdio(
     } else {
         channel.on_data = on_output;
         callback_reader_start(&mut channel.on_data, c"stdin");
-        rstream_start(
-            &mut channel.stdio_in,
-            StreamCbData::ChannelData(channel_ptr),
-        );
+        rstream_start(&mut channel.stdio_in, StreamCbData::ChannelData(chan_id));
     }
 
     channel.id
@@ -735,13 +711,14 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
         return len;
     }
 
+    let is_rpc = chan.is_rpc;
     let in_stream = channel_instream_mut(&mut *chan);
     if in_stream.closed {
         *error = Some(gettext(c"Can't send data to closed stream"));
         return 0;
     }
 
-    if chan.is_rpc {
+    if is_rpc {
         *error = Some(gettext(c"Can't send raw data to rpc channel"));
         return 0;
     }
@@ -807,7 +784,7 @@ fn on_channel_output(chan: &mut Channel, buf: &[u8], eof: bool, is_stderr: bool)
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(chan.into()));
+            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(chan.id));
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
@@ -828,10 +805,7 @@ pub fn on_channel_event(chan: &mut Channel) {
 
     chan.callback_busy = false;
     if chan.callback_scheduled {
-        multiqueue_put_event(
-            chan.events.borrow_mut(),
-            Event::ChannelCallback(chan.into()),
-        );
+        multiqueue_put_event(chan.events.borrow_mut(), Event::ChannelCallback(chan.id));
         channel_incref(chan);
     }
 
@@ -920,7 +894,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[0].v_lock = VAR_UNLOCKED;
     argv[0].vval = TypvalVval::Number(chan.id as Varnumber);
 
-    let cb = crate::globals::GraphPtr::<Callback>::of(if let Some(is_stderr) = is_stderr {
+    let cb = if let Some(is_stderr) = is_stderr {
         let reader = if is_stderr {
             &mut chan.on_stderr
         } else {
@@ -932,27 +906,22 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         argv[1].vval = TypvalVval::List(l.lv_id);
         tv_list_ref(Some(&mut *l));
         reader.buffer = Vec::new();
+        argv[2].v_type = VarType::VarString;
+        argv[2].v_lock = VAR_UNLOCKED;
         argv[2].vval = TypvalVval::from_opt_cstr(reader.reader_type);
-        &raw mut reader.cb
+        reader.cb.clone()
     } else {
         argv[1].v_type = VarType::VarNumber;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status));
+        argv[2].v_type = VarType::VarString;
+        argv[2].v_lock = VAR_UNLOCKED;
         argv[2].vval = TypvalVval::from_cstr(c"exit");
-        &raw mut chan.on_exit
-    })
-    .as_ptr();
-
-    argv[2].v_type = VarType::VarString;
-    argv[2].v_lock = VAR_UNLOCKED;
+        chan.on_exit.clone()
+    };
 
     let mut rettv: TypVal = TypVal::new();
-    let _ = callback_call(
-        crate::globals::GraphPtr::of(cb).borrow_mut(),
-        3,
-        &mut argv,
-        &mut rettv,
-    );
+    let _ = callback_call(&cb, 3, &mut argv, &mut rettv);
     tv_clear(&mut rettv);
 
     if is_stderr.is_some() {
@@ -963,7 +932,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 /// Allocate terminal for channel.
 pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
     let topts = TerminalOptions {
-        data: crate::globals::GraphPtr::from(&mut *chan),
+        chan_id: chan.id,
         width: chan.uv.proc_.width,
         height: chan.uv.proc_.height,
         force_crlf: false,
@@ -1044,7 +1013,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
     if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
         multiqueue_put_event(
             chan.events.borrow_mut(),
-            Event::ChannelTermDelayedFree(chan.into()),
+            Event::ChannelTermDelayedFree(chan.id),
         );
         return;
     }
@@ -1067,7 +1036,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     proc_stop(&mut chan.uv.proc_);
     multiqueue_put_event(
         chan.events.borrow_mut(),
-        Event::ChannelTermDelayedFree(chan.into()),
+        Event::ChannelTermDelayedFree(chan.id),
     );
 }
 
@@ -1078,7 +1047,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         multiqueue_put_event(
             qc.events.borrow_mut(),
             Event::ChannelSetInfo {
-                chan: chan.into(),
+                chan_id: chan.id,
                 event,
             },
         );

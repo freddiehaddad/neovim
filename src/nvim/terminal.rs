@@ -338,7 +338,7 @@ pub struct Terminal {
 impl Terminal {
     #[inline]
     fn channel_mut(&self) -> &'static mut crate::channel::Channel {
-        self.opts.data.borrow_mut()
+        crate::msgpack_rpc::channel::find_channel_opt(self.opts.chan_id).unwrap()
     }
 
     #[inline]
@@ -922,7 +922,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
         }
         if term.refcount == 0 {
             term.destroy = true;
-            let chan = term.opts.data.borrow_mut();
+            let chan = term.channel_mut();
             channel_term_close(chan);
         }
     } else if !only_destroy {
@@ -1186,7 +1186,7 @@ pub fn terminal_enter() -> bool {
         let buf_handle = s.term_mut().buf_handle;
         s.term_mut().destroy = true;
 
-        channel_term_close(s.term_mut().opts.data.borrow_mut());
+        channel_term_close(s.term_mut().channel_mut());
 
         if buf_handle != 0 {
             do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
