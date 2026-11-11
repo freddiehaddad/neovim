@@ -366,7 +366,7 @@ fn put_view(
         && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && !alt.fname_bytes().is_empty()
-        && alt.b_p_bl
+        && alt.b_p_bl.get()
         && !(bt_terminal(Some(alt))
             && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
         && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, flagp, true))
@@ -600,7 +600,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 && !(bt_terminal(Some(&*buf))
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
-                && buf.b_p_bl
+                && buf.b_p_bl.get()
             {
                 let lnum = buf
                     .b_wininfo
@@ -629,7 +629,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             for b in for_all_buffers_ptr() {
                 if b.b_localdir.is_none()
                     || b.fname_opt().is_none()
-                    || !b.b_p_bl
+                    || !b.b_p_bl.get()
                     || (only_save_windows && b.b_nwindows == 0)
                     || (b.b_help && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
                     || (bt_terminal(Some(&*b))

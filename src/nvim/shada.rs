@@ -2294,7 +2294,7 @@ fn ignore_buf(buf: Option<&FileBuf>, removable_bufs: &std::collections::HashSet<
         return true;
     };
     buf.b_ffname.is_none()
-        || (!buf.b_p_bl && buf.b_p_initialized)
+        || (!buf.b_p_bl.get() && buf.b_p_initialized.get())
         || bt_quickfix(Some(buf))
         || bt_terminal(Some(buf))
         || removable_bufs.contains(&(ptr::from_ref(buf) as usize))
@@ -2305,7 +2305,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<usize>) -> Shada
     let max_bufs = get_shada_parameter(b'%' as i32);
     let mut buffers = Vec::new();
     for buf in for_all_buffers_ptr() {
-        if !ignore_buf(Some(&*buf), removable_bufs) && buf.b_p_bl {
+        if !ignore_buf(Some(&*buf), removable_bufs) && buf.b_p_bl.get() {
             if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
                 break;
             }

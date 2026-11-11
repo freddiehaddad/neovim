@@ -1343,8 +1343,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     set_option_value_give_err(K_OPT_ARABIC, boolean_obj(true), 0);
                 }
                 b'b' => {
-                    set_options_bin(i32::from(curbuf_mut().b_p_bin), 1, 0);
-                    curbuf_mut().b_p_bin = true;
+                    set_options_bin(i32::from(curbuf_mut().b_p_bin.get()), 1, 0);
+                    curbuf_mut().b_p_bin.set(true);
                 }
                 b'D' => {
                     parmp.use_debug_break_level = 9999;
@@ -1405,7 +1405,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b'R' => {
                     g_st().readonlymode = true;
-                    curbuf_mut().b_p_ro = true;
+                    curbuf_mut().b_p_ro.set(true);
                     opt_vars().p_uc.set(10000);
                 }
                 b'r' | b'L' => {

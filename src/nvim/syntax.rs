@@ -1474,8 +1474,8 @@ pub fn get_syntax_attr(col: Colnr, mut can_spell: Option<&mut bool>, keep_state:
         return 0;
     }
 
-    if SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc > 0
-        && col >= SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc as Colnr
+    if SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc.get() > 0
+        && col >= SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc.get() as Colnr
     {
         clear_current_state();
         SYN_STATE.with(|s| s.current_id.set(0));
@@ -2643,7 +2643,7 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
         return false;
     }
 
-    rmp.rmm_maxcol = SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc as Colnr;
+    rmp.rmm_maxcol = SYN_STATE.with(SyntaxState::syn_buf_mut).b_p_smc.get() as Colnr;
     let syn_win = SYN_STATE.with(|s| s.syn_win.get()).opt_mut();
     let syn_buf = SYN_STATE.with(SyntaxState::syn_buf_mut);
     let r = vim_regexec_multi(

@@ -584,7 +584,7 @@ pub fn ignorecase_opt(pat: &CStr, ic_in: bool, scs: bool) -> bool {
     if ic
         && !g_st().search_global.no_smartcase
         && scs
-        && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf)
+        && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf.get())
     {
         ic = !pat_has_uppercase(pat);
     }
@@ -1984,7 +1984,7 @@ pub fn findmatchlimit(
     let mut match_escaped: i32 = 0;
     let mut comment_col: i32 = MAXCOL;
     let mut lispcomm = false;
-    let lisp = curbuf_mut().b_p_lisp;
+    let lisp = curbuf_mut().b_p_lisp.get();
     let skip_comments = (flags & FM_SKIPCOMM) != 0;
     let mut in_block_comment = false;
 
@@ -2443,7 +2443,7 @@ pub fn findmatchlimit(
             }
 
             if !skipped_single_quote {
-                if curbuf_mut().b_p_lisp
+                if curbuf_mut().b_p_lisp.get()
                     && matches!(c as u8, b'(' | b')' | b'{' | b'}' | b'[' | b']')
                     && pos.col > 1
                     && check_prevcol(line, pos.col, b'\\' as i32, None)

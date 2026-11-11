@@ -467,7 +467,7 @@ fn insert_enter(s: &mut InsertState) {
         curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
     }
 
-    if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
+    if curbuf_mut().b_p_iminsert.get() == B_IMODE_LMAP {
         g_st().state_global |= MODE_LANGMAP;
     }
 
@@ -629,7 +629,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
             < s.mincol
                 - tabstop_at(
                     get_nolist_virtcol(),
-                    curbuf_mut().b_p_ts,
+                    curbuf_mut().b_p_ts.get(),
                     &curbuf_mut().b_p_vts_array,
                     false,
                 )
@@ -2731,10 +2731,10 @@ fn ins_ctrl_g() {
 fn ins_ctrl_hat() {
     if map_to_exists_mode(c"", MODE_LANGMAP, false) {
         if (g_st().state_global & MODE_LANGMAP) != 0 {
-            curbuf_mut().b_p_iminsert = B_IMODE_NONE;
+            curbuf_mut().b_p_iminsert.set(B_IMODE_NONE);
             g_st().state_global &= !MODE_LANGMAP;
         } else {
-            curbuf_mut().b_p_iminsert = B_IMODE_LMAP;
+            curbuf_mut().b_p_iminsert.set(B_IMODE_LMAP);
             g_st().state_global |= MODE_LANGMAP;
         }
     }
@@ -3105,7 +3105,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
         }
         let mut mincol: Colnr = 0;
         if mode == BACKSPACE_LINE
-            && (curbuf_mut().b_p_ai || cindent_on())
+            && (curbuf_mut().b_p_ai.get() || cindent_on())
             && !g_st().ins_global.revins_on
         {
             let save_col = curwin_mut().w_cursor.col;
@@ -3532,14 +3532,14 @@ fn ins_tab() -> bool {
         g_st().ins_global.can_cindent = false;
     }
 
-    if !curbuf_mut().b_p_et
+    if !curbuf_mut().b_p_et.get()
         && !(opt_vars().p_sta.get()
             && ind
             && ((tabstop_count(&curbuf_mut().b_p_vts_array) > 1)
                 || (tabstop_count(&curbuf_mut().b_p_vts_array) == 1
                     && tabstop_first(&curbuf_mut().b_p_vts_array) != get_sw_value(curbuf_mut()))
                 || (tabstop_count(&curbuf_mut().b_p_vts_array) == 0
-                    && curbuf_mut().b_p_ts != i64::from(get_sw_value(curbuf_mut())))))
+                    && curbuf_mut().b_p_ts.get() != i64::from(get_sw_value(curbuf_mut())))))
         && tabstop_count(&curbuf_mut().b_p_vsts_array) == 0
         && get_sts_value() == 0
     {
@@ -3559,7 +3559,7 @@ fn ins_tab() -> bool {
     let mut temp: i32 = if opt_vars().p_sta.get() && ind {
         let sw = get_sw_value(curbuf_mut());
         sw - (get_nolist_virtcol() % sw)
-    } else if tabstop_count(&curbuf_mut().b_p_vsts_array) > 0 || curbuf_mut().b_p_sts != 0 {
+    } else if tabstop_count(&curbuf_mut().b_p_vsts_array) > 0 || curbuf_mut().b_p_sts.get() != 0 {
         tabstop_padding(
             get_nolist_virtcol(),
             i64::from(get_sts_value()),
@@ -3568,7 +3568,7 @@ fn ins_tab() -> bool {
     } else {
         tabstop_padding(
             get_nolist_virtcol(),
-            curbuf_mut().b_p_ts,
+            curbuf_mut().b_p_ts.get(),
             &curbuf_mut().b_p_vts_array,
         )
     };
@@ -3588,7 +3588,7 @@ fn ins_tab() -> bool {
         }
     }
 
-    if !curbuf_mut().b_p_et
+    if !curbuf_mut().b_p_et.get()
         && (tabstop_count(&curbuf_mut().b_p_vsts_array) > 0
             || get_sts_value() > 0
             || (opt_vars().p_sta.get() && ind))
@@ -3893,10 +3893,10 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
             if c < 256 && !(c as u8).is_ascii_alphanumeric() {
                 redo_append_str(b"\x16");
             }
-            let tw_save = curbuf_mut().b_p_tw;
-            curbuf_mut().b_p_tw = -1;
+            let tw_save = curbuf_mut().b_p_tw.get();
+            curbuf_mut().b_p_tw.set(-1);
             insert_special(c, 1, 0);
-            curbuf_mut().b_p_tw = tw_save;
+            curbuf_mut().b_p_tw.set(tw_save);
             g_st().ins_global.revins_chars += 1;
             g_st().ins_global.revins_legal += 1;
             c = CTRL_V_CONST;

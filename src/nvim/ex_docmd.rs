@@ -6155,7 +6155,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     apply_cmdmod(&mut g_st().cmdmod);
 
     'end: {
-        if !curbuf_mut().b_p_ma
+        if !curbuf_mut().b_p_ma.get()
             && (eap.argt & EX_MODIFY) != 0
             && !(!curbuf_mut().terminal.is_null()
                 && (eap.cmdidx == Cmdidx::CmdPut || eap.cmdidx == Cmdidx::CmdIput))
@@ -6498,7 +6498,7 @@ fn do_one_cmd(
                 errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_SANDBOX)));
                 break 'doend;
             }
-            if !curbuf_mut().b_p_ma
+            if !curbuf_mut().b_p_ma.get()
                 && (ea.argt & EX_MODIFY) != 0
                 && !(!curbuf_mut().terminal.is_null()
                     && (ea.cmdidx == Cmdidx::CmdPut || ea.cmdidx == Cmdidx::CmdIput))
@@ -10592,7 +10592,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
                 }
             }
         } else if g_st().readonlymode && curbuf_mut().b_nwindows == 1 {
-            curbuf_mut().b_p_ro = true;
+            curbuf_mut().b_p_ro.set(true);
         }
         g_st().readonlymode = n;
     } else {
@@ -11694,7 +11694,7 @@ fn ex_normal(eap: &mut Exarg) {
 }
 
 fn ex_startinsert(eap: &mut Exarg) {
-    if !curbuf_mut().b_p_ma && curbuf_mut().terminal.is_null() {
+    if !curbuf_mut().b_p_ma.get() && curbuf_mut().terminal.is_null() {
         let _ = emsg(gettext(E_MODIFIABLE));
         return;
     }

@@ -457,7 +457,7 @@ pub fn nvim_buf_set_lines(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if !b.b_p_ma {
+        if !b.b_p_ma.get() {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -774,7 +774,7 @@ pub fn nvim_buf_set_text(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if !b.b_p_ma {
+        if !b.b_p_ma.get() {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,

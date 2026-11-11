@@ -231,7 +231,7 @@ use crate::keycodes::k_second;
 pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     let save_chartab = buf.b_chartab;
     buf.b_chartab = [0; 4];
-    if buf.b_p_lisp {
+    if buf.b_p_lisp.get() {
         set_chartab(&mut buf.b_chartab, b'-' as i32);
     }
     if !parse_isopt(buf.b_p_isk.as_bytes(), Some(&mut buf.b_chartab)) {

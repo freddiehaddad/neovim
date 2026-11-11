@@ -935,7 +935,7 @@ pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
         height: chan.uv.proc_.height,
         force_crlf: false,
     };
-    buf.b_p_channel = chan.id as OptInt;
+    buf.b_p_channel.set(chan.id as OptInt);
     channel_incref(&mut *chan);
     {
         chan.term = terminal_alloc(buf, topts);

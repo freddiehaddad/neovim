@@ -1096,10 +1096,10 @@ fn command_line_enter(
         g_st().state_global = MODE_CMDLINE;
 
         if s.firstc == b'/' as i32 || s.firstc == b'?' as i32 || s.firstc == b'@' as i32 {
-            let (use_insert, im_val) = if curbuf_mut().b_p_imsearch == B_IMODE_USE_INSERT {
-                (true, curbuf_mut().b_p_iminsert)
+            let (use_insert, im_val) = if curbuf_mut().b_p_imsearch.get() == B_IMODE_USE_INSERT {
+                (true, curbuf_mut().b_p_iminsert.get())
             } else {
-                (false, curbuf_mut().b_p_imsearch)
+                (false, curbuf_mut().b_p_imsearch.get())
             };
             s.b_im_use_insert = Some(use_insert);
             s.b_im_ptr_buf = g_st().curbuf;
@@ -2187,9 +2187,9 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
             };
             let buf = s.b_im_ptr_buf.borrow_mut();
             if use_insert {
-                buf.b_p_iminsert = val;
+                buf.b_p_iminsert.set(val);
             } else {
-                buf.b_p_imsearch = val;
+                buf.b_p_imsearch.set(val);
             }
         }
     }
@@ -3003,9 +3003,9 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         K_CTX_KEEP_DIRS,
     );
     buf_clear();
-    curbuf_mut().b_p_ma = true;
-    curbuf_mut().b_p_ul = -1;
-    curbuf_mut().b_p_tw = 0;
+    curbuf_mut().b_p_ma.set(true);
+    curbuf_mut().b_p_ul.set(-1);
+    curbuf_mut().b_p_tw.set(0);
     ctx_restore(&mut aco);
     let buf_ref = cmdpreview_buf.opt_mut()?;
     GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(buf_ref.b_fnum));
@@ -3070,8 +3070,8 @@ fn cmdpreview_prepare() -> CpInfo {
             if saved_bufs.insert(buf) {
                 let mut cp_bufinfo = CpBufInfo::new();
                 cp_bufinfo.buf = crate::globals::BufPtr::new(buf);
-                cp_bufinfo.save_b_p_ma = buf.b_p_ma;
-                cp_bufinfo.save_b_changed = buf.b_changed;
+                cp_bufinfo.save_b_p_ma = buf.b_p_ma.get();
+                cp_bufinfo.save_b_changed = buf.b_changed.get();
                 cp_bufinfo.save_b_op_start = buf.b_op_start;
                 cp_bufinfo.save_b_op_end = buf.b_op_end;
                 u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &mut *buf);
@@ -3111,7 +3111,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
         let buf = cp_bufinfo.buf.borrow_mut();
 
-        buf.b_changed = cp_bufinfo.save_b_changed;
+        buf.b_changed.set(cp_bufinfo.save_b_changed);
 
         extmark_clear(
             &mut *buf,
@@ -3126,7 +3126,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
         buf.b_op_start = cp_bufinfo.save_b_op_start;
         buf.b_op_end = cp_bufinfo.save_b_op_end;
-        buf.b_p_ma = cp_bufinfo.save_b_p_ma;
+        buf.b_p_ma.set(cp_bufinfo.save_b_p_ma);
     }
 
     for cp_wininfo in cpinfo.win_info.drain(..) {

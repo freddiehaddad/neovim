@@ -3420,7 +3420,7 @@ fn win_close_buffer(win_in: &mut WinInfoInfo, action: i32, abort_if_last: bool) 
         && bt_quickfix(win.w_buffer.opt())
         && win.borrow_mut().buf_mut().b_nwindows == 1
     {
-        win.borrow_mut().buf_mut().b_p_bl = false;
+        win.borrow_mut().buf_mut().b_p_bl.set(false);
     }
 
     let mut retval = false;
@@ -7986,7 +7986,7 @@ pub fn check_colorcolumn(
     let mut rem: &[u8] = cc.or(cc_owned.as_deref()).map_or(&[], CStr::to_bytes);
 
     let tw: OptInt = if wp.is_some() {
-        wp.as_deref_mut().unwrap().buf_mut().b_p_tw
+        wp.as_deref_mut().unwrap().buf_mut().b_p_tw.get()
     } else {
         0
     };

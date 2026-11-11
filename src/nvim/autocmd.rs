@@ -2620,7 +2620,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     if !has_event(EVENT_OPTIONSET)
-        || (bt_nofile(Some(buf)) && !buf.b_p_bl)
+        || (bt_nofile(Some(buf)) && !buf.b_p_bl.get())
         || !get_vim_var_str(VV_OPTION_TYPE).is_empty()
     {
         return;
@@ -2949,7 +2949,7 @@ pub fn apply_autocmds_group(
                 ctx_switch(&mut aco, None, None, buf.opt_mut(), 0);
             }
 
-            let save_changed = curbuf_mut().b_changed;
+            let save_changed = curbuf_mut().b_changed.get();
             let old_curbuf = g_st().curbuf;
 
             g_st().autocmd_match = fname.map(CStr::to_owned);
@@ -3096,10 +3096,10 @@ pub fn apply_autocmds_group(
                     || event == EVENT_VIMLEAVE
                     || event == EVENT_VIMLEAVEPRE)
             {
-                if curbuf_mut().b_changed != save_changed {
+                if curbuf_mut().b_changed.get() != save_changed {
                     g_st().need_maketitle = true;
                 }
-                curbuf_mut().b_changed = save_changed;
+                curbuf_mut().b_changed.set(save_changed);
             }
 
             au_cleanup();

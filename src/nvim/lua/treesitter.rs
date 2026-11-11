@@ -435,8 +435,8 @@ fn input_cb(bp: &mut FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32
     let mut bytes_read = tocopy as u32;
     if tocopy < BUFSIZE
         && (lnum != bp.b_ml.ml_line_count
-            || (!bp.b_p_bin && bp.b_p_fixeol)
-            || (lnum != bp.b_no_eol_lnum && bp.b_p_eol))
+            || (!bp.b_p_bin.get() && bp.b_p_fixeol.get())
+            || (lnum != bp.b_no_eol_lnum && bp.b_p_eol.get()))
     {
         buf[tocopy] = b'\n';
         bytes_read += 1;

@@ -196,7 +196,7 @@ pub fn internal_format(
 
     curwin_mut().w_onebuf_opt.wo_lbr.set(false);
 
-    if !curbuf_mut().b_p_ai && (g_st().state_global & VREPLACE_FLAG) == 0 {
+    if !curbuf_mut().b_p_ai.get() && (g_st().state_global & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
             save_char = cc as u8;
@@ -227,7 +227,7 @@ pub fn internal_format(
         if do_comments {
             let line = crate::cursor::get_cursor_line_slice();
             leader_len = get_leader_len(line, None, false, true);
-            if leader_len == 0 && curbuf_mut().b_p_cin {
+            if leader_len == 0 && curbuf_mut().b_p_cin.get() {
                 let comment_start = check_linecomment(line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
@@ -792,9 +792,9 @@ pub fn check_auto_format(end_insert: bool) {
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
 pub fn comp_textwidth(ff: bool) -> i32 {
-    let mut textwidth = curbuf_mut().b_p_tw as i32;
-    if textwidth == 0 && curbuf_mut().b_p_wm != 0 {
-        textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm as i32;
+    let mut textwidth = curbuf_mut().b_p_tw.get() as i32;
+    if textwidth == 0 && curbuf_mut().b_p_wm.get() != 0 {
+        textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm.get() as i32;
         textwidth -= win_fdccol_count(curwin_mut());
         textwidth -= curwin_mut().w_scwidth;
 
@@ -888,7 +888,7 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
     set_vim_var_nr(VV_COUNT, count as _);
     set_vim_var_char(c);
 
-    g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR];
+    g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get();
 
     let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
 
@@ -1027,7 +1027,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 if need_set_indent {
                     let indent = if curwin_mut().w_cursor.lnum == first_line {
                         get_indent()
-                    } else if curbuf_mut().b_p_lisp {
+                    } else if curbuf_mut().b_p_lisp.get() {
                         get_lisp_indent()
                     } else if cindent_on() {
                         if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {

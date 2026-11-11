@@ -2007,7 +2007,7 @@ pub fn spell_reload() {
 pub fn open_spellbuf() -> Box<FileBuf> {
     let mut buf = Box::new(FileBuf::new());
     buf.b_spell = true;
-    buf.b_p_swf = true;
+    buf.b_p_swf.set(true);
     if !ml_open(&mut buf) {
         let _ = logmsg!(
             3,

@@ -315,7 +315,7 @@ pub fn u_savedel(lnum: Linenr, nlines: Linenr) -> bool {
 
 /// Return true when undo is allowed. Otherwise print an error message and return false.
 pub fn undo_allowed(buf: &mut FileBuf) -> bool {
-    if !buf.b_p_ma {
+    if !buf.b_p_ma.get() {
         emsg(gettext(E_MODIFIABLE));
         return false;
     }
@@ -334,10 +334,10 @@ pub fn undo_allowed(buf: &mut FileBuf) -> bool {
 }
 
 fn get_undolevel(buf: &mut FileBuf) -> OptInt {
-    if buf.b_p_ul == NO_LOCAL_UNDOLEVEL {
+    if buf.b_p_ul.get() == NO_LOCAL_UNDOLEVEL {
         opt_vars().p_ul.get()
     } else {
-        buf.b_p_ul
+        buf.b_p_ul.get()
     }
 }
 
@@ -453,12 +453,15 @@ pub fn u_savecommon(
         }
         clearpos(&mut uhp_mut(buf, uhp).uh_cursor_after);
 
-        uhp_mut(buf, uhp).uh_flags = (if buf.b_changed != 0 { UH_CHANGED } else { 0 })
-            + (if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
-                UH_EMPTYBUF
-            } else {
-                0
-            });
+        uhp_mut(buf, uhp).uh_flags = (if buf.b_changed.get() != 0 {
+            UH_CHANGED
+        } else {
+            0
+        }) + (if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
+            UH_EMPTYBUF
+        } else {
+            0
+        });
 
         zero_fmark_additional_data(&mut buf.b_namedm);
         uhp_mut(buf, uhp).uh_namedm = buf.b_namedm.clone();
@@ -1158,7 +1161,7 @@ pub fn u_write_undo(
                 write_ok = true;
             }
 
-            let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs.get());
+            let do_fsync = buf.b_p_fs.get().unwrap_or(opt_vars().p_fs.get());
             if do_fsync && bi.bi_fp.flush() == 0 && os_fsync(fd) != 0 {
                 write_ok = false;
             }
@@ -1954,7 +1957,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     block_autocmds();
 
     let old_flags = curhead.uh_flags;
-    let new_flags = (if curbuf_mut().b_changed != 0 {
+    let new_flags = (if curbuf_mut().b_changed.get() != 0 {
         UH_CHANGED
     } else {
         0
@@ -2795,7 +2798,7 @@ pub fn buf_is_changed_fn(buf: &mut FileBuf) -> bool {
     if bt_prompt(Some(&*buf)) {
         buf.b_modified_was_set
     } else {
-        !bt_dontwrite(Some(&*buf)) && (buf.b_changed != 0 || file_ff_differs(buf, true))
+        !bt_dontwrite(Some(&*buf)) && (buf.b_changed.get() != 0 || file_ff_differs(buf, true))
     }
 }
 
@@ -2922,11 +2925,11 @@ pub fn u_checkpoint(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     uc.uc_line_ptr = buf.b_u_line_ptr.take();
     uc.uc_line_lnum = buf.b_u_line_lnum;
     uc.uc_line_colnr = buf.b_u_line_colnr;
-    uc.uc_undolevels = buf.b_p_ul;
+    uc.uc_undolevels = buf.b_p_ul.get();
     uc.uc_changedtick = buf_get_changedtick(&*buf);
 
     u_clearall(&mut *buf);
-    buf.b_p_ul = OptInt::from(i32::MAX);
+    buf.b_p_ul.set(OptInt::from(i32::MAX));
 }
 
 /// Reverts `buf` from a checkpoint.
@@ -2970,7 +2973,7 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
     if uc.uc_changedtick != buf_get_changedtick(&*buf) {
         buf_set_changedtick(&mut *buf, uc.uc_changedtick);
     }
-    buf.b_p_ul = uc.uc_undolevels;
+    buf.b_p_ul.set(uc.uc_undolevels);
 }
 
 #[cfg(test)]

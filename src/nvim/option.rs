@@ -899,11 +899,11 @@ pub fn set_init_1(clean_arg: bool) {
 
     set_options_default(0);
 
-    curbuf_mut().b_p_initialized = true;
-    curbuf_mut().b_p_ac = None;
-    curbuf_mut().b_p_ar = None;
-    curbuf_mut().b_p_fs = None;
-    curbuf_mut().b_p_ul = NO_LOCAL_UNDOLEVEL;
+    curbuf_mut().b_p_initialized.set(true);
+    curbuf_mut().b_p_ac.set(None);
+    curbuf_mut().b_p_ar.set(None);
+    curbuf_mut().b_p_fs.set(None);
+    curbuf_mut().b_p_ul.set(NO_LOCAL_UNDOLEVEL);
     check_buf_options(curbuf_mut());
     check_win_options(curwin_mut());
     check_options();
@@ -1924,7 +1924,8 @@ fn do_one_set_option<'a>(
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
                 last_set_msg(
                     curbuf_mut().b_p_script_ctx
-                        [option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize],
+                        [option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize]
+                        .get(),
                 );
             }
         }
@@ -2123,10 +2124,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
     if newval != 0 {
         if oldval == 0 {
             if (opt_flags & OPT_GLOBAL) == 0 {
-                curbuf_mut().b_p_tw_nobin = curbuf_mut().b_p_tw;
-                curbuf_mut().b_p_wm_nobin = curbuf_mut().b_p_wm;
-                curbuf_mut().b_p_ml_nobin = curbuf_mut().b_p_ml;
-                curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
+                curbuf_mut().b_p_tw_nobin.set(curbuf_mut().b_p_tw.get());
+                curbuf_mut().b_p_wm_nobin.set(curbuf_mut().b_p_wm.get());
+                curbuf_mut().b_p_ml_nobin.set(curbuf_mut().b_p_ml.get());
+                curbuf_mut().b_p_et_nobin.set(curbuf_mut().b_p_et.get());
             }
             if (opt_flags & OPT_LOCAL) == 0 {
                 OPT_STATE.with(|s| s.p_tw_nobin.set(opt_vars().p_tw.get()));
@@ -2137,10 +2138,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
         }
 
         if (opt_flags & OPT_GLOBAL) == 0 {
-            curbuf_mut().b_p_tw = 0;
-            curbuf_mut().b_p_wm = 0;
-            curbuf_mut().b_p_ml = false;
-            curbuf_mut().b_p_et = false;
+            curbuf_mut().b_p_tw.set(0);
+            curbuf_mut().b_p_wm.set(0);
+            curbuf_mut().b_p_ml.set(false);
+            curbuf_mut().b_p_et.set(false);
         }
         if (opt_flags & OPT_LOCAL) == 0 {
             opt_vars().p_tw.set(0);
@@ -2151,10 +2152,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
         }
     } else if oldval != 0 {
         if (opt_flags & OPT_GLOBAL) == 0 {
-            curbuf_mut().b_p_tw = curbuf_mut().b_p_tw_nobin;
-            curbuf_mut().b_p_wm = curbuf_mut().b_p_wm_nobin;
-            curbuf_mut().b_p_ml = curbuf_mut().b_p_ml_nobin;
-            curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
+            curbuf_mut().b_p_tw.set(curbuf_mut().b_p_tw_nobin.get());
+            curbuf_mut().b_p_wm.set(curbuf_mut().b_p_wm_nobin.get());
+            curbuf_mut().b_p_ml.set(curbuf_mut().b_p_ml_nobin.get());
+            curbuf_mut().b_p_et.set(curbuf_mut().b_p_et_nobin.get());
         }
         if (opt_flags & OPT_LOCAL) == 0 {
             opt_vars().p_tw.set(OPT_STATE.with(|s| s.p_tw_nobin.get()));
@@ -2283,10 +2284,10 @@ pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_f
             K_OPT_WINBAR => Some(wp.w_onebuf_opt.wo_wbr_flags.get()),
             K_OPT_FOLDEXPR => Some(wp.w_onebuf_opt.wo_fde_flags.get()),
             K_OPT_FOLDTEXT => Some(wp.w_onebuf_opt.wo_fdt_flags.get()),
-            K_OPT_INDENTEXPR => Some(wp.buf_mut().b_p_inde_flags),
-            K_OPT_FORMATEXPR => Some(wp.buf_mut().b_p_fex_flags),
-            K_OPT_INCLUDEEXPR => Some(wp.buf_mut().b_p_inex_flags),
-            K_OPT_COMPLETE => Some(wp.buf_mut().b_p_cpt_flags),
+            K_OPT_INDENTEXPR => Some(wp.buf_mut().b_p_inde_flags.get()),
+            K_OPT_FORMATEXPR => Some(wp.buf_mut().b_p_fex_flags.get()),
+            K_OPT_INCLUDEEXPR => Some(wp.buf_mut().b_p_inex_flags.get()),
+            K_OPT_COMPLETE => Some(wp.buf_mut().b_p_cpt_flags.get()),
             _ => None,
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
@@ -2325,10 +2326,10 @@ fn set_insecure_flag(
             K_OPT_WINBAR => return update(&mut wp.w_onebuf_opt.wo_wbr_flags.get()),
             K_OPT_FOLDEXPR => return update(&mut wp.w_onebuf_opt.wo_fde_flags.get()),
             K_OPT_FOLDTEXT => return update(&mut wp.w_onebuf_opt.wo_fdt_flags.get()),
-            K_OPT_INDENTEXPR => return update(&mut wp.buf_mut().b_p_inde_flags),
-            K_OPT_FORMATEXPR => return update(&mut wp.buf_mut().b_p_fex_flags),
-            K_OPT_INCLUDEEXPR => return update(&mut wp.buf_mut().b_p_inex_flags),
-            K_OPT_COMPLETE => return update(&mut wp.buf_mut().b_p_cpt_flags),
+            K_OPT_INDENTEXPR => return update(&mut wp.buf_mut().b_p_inde_flags.get()),
+            K_OPT_FORMATEXPR => return update(&mut wp.buf_mut().b_p_fex_flags.get()),
+            K_OPT_INCLUDEEXPR => return update(&mut wp.buf_mut().b_p_inex_flags.get()),
+            K_OPT_COMPLETE => return update(&mut wp.buf_mut().b_p_cpt_flags.get()),
             _ => {}
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
@@ -2464,8 +2465,8 @@ pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: i32, mut script_ctx: Sctx) 
     }
     if both || (opt_flags & OPT_LOCAL) != 0 {
         if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
-            curbuf_mut().b_p_script_ctx[option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize] =
-                script_ctx;
+            curbuf_mut().b_p_script_ctx[option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize]
+                .set(script_ctx);
         } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
             let win_idx = option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize;
             curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx].set(script_ctx);
@@ -2613,8 +2614,8 @@ pub fn did_set_arabic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             changed_window_setting(&mut *win);
         }
 
-        win.buf_mut().b_p_iminsert = B_IMODE_NONE;
-        win.buf_mut().b_p_imsearch = B_IMODE_USE_INSERT;
+        win.buf_mut().b_p_iminsert.set(B_IMODE_NONE);
+        win.buf_mut().b_p_imsearch.set(B_IMODE_USE_INSERT);
     }
 
     errmsg
@@ -2630,7 +2631,7 @@ pub fn did_set_autochdir<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_binary<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     set_options_bin(
         i32::from(args.os_oldval.data.boolean()),
-        i32::from(args.buf_mut().b_p_bin),
+        i32::from(args.buf_mut().b_p_bin.get()),
         args.os_flags,
     );
     redraw_titles();
@@ -2641,9 +2642,9 @@ pub fn did_set_binary<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_buflisted<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
 
-    if args.os_oldval.data.boolean() != buf.b_p_bl {
+    if args.os_oldval.data.boolean() != buf.b_p_bl.get() {
         apply_autocmds(
-            if buf.b_p_bl {
+            if buf.b_p_bl.get() {
                 EVENT_BUFADD
             } else {
                 EVENT_BUFDELETE
@@ -2905,11 +2906,11 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if opt_vars().p_paste.get() {
         if !OPT_STATE.with(|s| s.old_p_paste.get()) {
             for buf in for_all_buffers_mut() {
-                buf.b_p_tw_nopaste = buf.b_p_tw;
-                buf.b_p_wm_nopaste = buf.b_p_wm;
-                buf.b_p_sts_nopaste = buf.b_p_sts;
-                buf.b_p_ai_nopaste = buf.b_p_ai;
-                buf.b_p_et_nopaste = buf.b_p_et;
+                buf.b_p_tw_nopaste.set(buf.b_p_tw.get());
+                buf.b_p_wm_nopaste.set(buf.b_p_wm.get());
+                buf.b_p_sts_nopaste.set(buf.b_p_sts.get());
+                buf.b_p_ai_nopaste.set(buf.b_p_ai.get());
+                buf.b_p_et_nopaste.set(buf.b_p_et.get());
                 buf.b_p_vsts_nopaste = (!buf.b_p_vsts.is_empty()).then(|| buf.b_p_vsts.to_owned());
             }
 
@@ -2929,11 +2930,11 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
         }
 
         for buf in for_all_buffers_mut() {
-            buf.b_p_tw = 0;
-            buf.b_p_wm = 0;
-            buf.b_p_sts = 0;
-            buf.b_p_ai = false;
-            buf.b_p_et = false;
+            buf.b_p_tw.set(0);
+            buf.b_p_wm.set(0);
+            buf.b_p_sts.set(0);
+            buf.b_p_ai.set(false);
+            buf.b_p_et.set(false);
             buf.b_p_vsts.clear_option_str();
             buf.b_p_vsts_array.clear();
         }
@@ -2953,11 +2954,11 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
         opt_vars().p_vsts.clear_option_str();
     } else if OPT_STATE.with(|s| s.old_p_paste.get()) {
         for buf in for_all_buffers_mut() {
-            buf.b_p_tw = buf.b_p_tw_nopaste;
-            buf.b_p_wm = buf.b_p_wm_nopaste;
-            buf.b_p_sts = buf.b_p_sts_nopaste;
-            buf.b_p_ai = buf.b_p_ai_nopaste;
-            buf.b_p_et = buf.b_p_et_nopaste;
+            buf.b_p_tw.set(buf.b_p_tw_nopaste.get());
+            buf.b_p_wm.set(buf.b_p_wm_nopaste.get());
+            buf.b_p_sts.set(buf.b_p_sts_nopaste.get());
+            buf.b_p_ai.set(buf.b_p_ai_nopaste.get());
+            buf.b_p_et.set(buf.b_p_et_nopaste.get());
             buf.b_p_vsts = buf
                 .b_p_vsts_nopaste
                 .as_deref()
@@ -3037,11 +3038,11 @@ pub fn did_set_pumblend<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_readonly<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
 
-    if !buf.b_p_ro && (args.os_flags & OPT_LOCAL) == 0 {
+    if !buf.b_p_ro.get() && (args.os_flags & OPT_LOCAL) == 0 {
         g_st().readonlymode = false;
     }
 
-    if buf.b_p_ro {
+    if buf.b_p_ro.get() {
         buf.b_did_warn = false;
     }
 
@@ -3083,7 +3084,7 @@ pub fn did_set_shiftwidth_tabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr>
     if foldmethod_is_indent(win) {
         fold_update_all(win);
     }
-    if args.os_varp.ptr_eq(&buf.b_p_sw) || buf.b_p_sw == 0 {
+    if args.os_varp.ptr_eq(&buf.b_p_sw.get()) || buf.b_p_sw.get() == 0 {
         parse_cino(buf);
     }
     None
@@ -3116,7 +3117,7 @@ pub fn did_set_spell<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'swapfile' option value.
 pub fn did_set_swapfile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
-    if buf.b_p_swf && opt_vars().p_uc.get() != 0 {
+    if buf.b_p_swf.get() && opt_vars().p_uc.get() != 0 {
         ml_open_file(buf);
     } else {
         mf_close_file(buf, true);
@@ -3153,7 +3154,7 @@ pub fn did_set_titlelen<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.os_buf.as_ptr();
 
-    if !args.buf_mut().b_p_udf && !opt_vars().p_udf.get() {
+    if !args.buf_mut().b_p_udf.get() && !opt_vars().p_udf.get() {
         return None;
     }
 
@@ -3186,9 +3187,9 @@ pub fn did_set_buflocal_undolevels(
     value: OptInt,
     old_value: OptInt,
 ) -> Option<&'static CStr> {
-    buf.b_p_ul = old_value;
+    buf.b_p_ul.set(old_value);
     u_sync(true);
-    buf.b_p_ul = value;
+    buf.b_p_ul.set(value);
     None
 }
 
@@ -3198,7 +3199,7 @@ pub fn did_set_undolevels<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     if args.os_varp.ptr_eq(&opt_vars().p_ul) {
         did_set_global_undolevels(args.os_newval.data.integer(), args.os_oldval.data.integer());
-    } else if args.os_varp.ptr_eq(&buf.b_p_ul) {
+    } else if args.os_varp.ptr_eq(&buf.b_p_ul.get()) {
         did_set_buflocal_undolevels(
             buf,
             args.os_newval.data.integer(),
@@ -3659,7 +3660,6 @@ macro_rules! buf_var {
         OptVar::from(crate::optionstr::OptRef::Buf(
             crate::globals::BufPtr::from(&*$buf),
             |b| &b.$field,
-            |b| &mut b.$field,
         ))
     };
 }
@@ -5039,7 +5039,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     }
 
     assert!(varp.is_some());
-    if varp.ptr_eq(&curbuf_mut().b_changed) {
+    if varp.ptr_eq(&curbuf_mut().b_changed.get()) {
         return boolean_obj(curbuf_is_changed_fn());
     }
 
@@ -6137,7 +6137,7 @@ fn showoneopt(opt: Vimoption, opt_flags: i32) {
     if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         let val_int = if opt.immutable {
             i32::from(opt.def_val.data.boolean())
-        } else if varp.ptr_eq(&curbuf_mut().b_changed) {
+        } else if varp.ptr_eq(&curbuf_mut().b_changed.get()) {
             i32::from(curbuf_is_changed_fn())
         } else {
             varp.bool_tristate()
@@ -6567,14 +6567,14 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_AUTOCOMPLETE => {
-            if buf.b_p_ac.is_some() {
+            if buf.b_p_ac.get().is_some() {
                 buf_var!(buf, b_p_ac)
             } else {
                 p.var()
             }
         }
         K_OPT_AUTOREAD => {
-            if buf.b_p_ar.is_some() {
+            if buf.b_p_ar.get().is_some() {
                 buf_var!(buf, b_p_ar)
             } else {
                 p.var()
@@ -6682,7 +6682,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_FSYNC => {
-            if buf.b_p_fs.is_some() {
+            if buf.b_p_fs.get().is_some() {
                 buf_var!(buf, b_p_fs)
             } else {
                 p.var()
@@ -6748,7 +6748,7 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
             }
         }
         K_OPT_UNDOLEVELS => {
-            if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
+            if buf.b_p_ul.get() != NO_LOCAL_UNDOLEVEL {
                 buf_var!(buf, b_p_ul)
             } else {
                 p.var()
@@ -6859,7 +6859,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Buf(
                     crate::globals::BufPtr::from(&*buf),
                     |b| &b.b_s.b_p_spc,
-                    |b| &mut b.b_s.b_p_spc,
                 ))
             }
         }
@@ -6873,7 +6872,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Buf(
                     crate::globals::BufPtr::from(&*buf),
                     |b| &b.b_s.b_p_spf,
-                    |b| &mut b.b_s.b_p_spf,
                 ))
             }
         }
@@ -6887,7 +6885,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Buf(
                     crate::globals::BufPtr::from(&*buf),
                     |b| &b.b_s.b_p_spl,
-                    |b| &mut b.b_s.b_p_spl,
                 ))
             }
         }
@@ -6901,7 +6898,6 @@ pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinIn
                 OptVar::from(crate::optionstr::OptRef::Buf(
                     crate::globals::BufPtr::from(&*buf),
                     |b| &b.b_s.b_p_spo,
-                    |b| &mut b.b_s.b_p_spo,
                 ))
             }
         }
@@ -7105,8 +7101,8 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
 }
 
 #[inline]
-fn copy_opt_sctx(buf: &mut FileBuf, bv: usize) {
-    buf.b_p_script_ctx[bv] = get_option(BUF_OPT_IDX[bv]).script_ctx;
+fn copy_opt_sctx(buf: &FileBuf, bv: usize) {
+    buf.b_p_script_ctx[bv].set(get_option(BUF_OPT_IDX[bv]).script_ctx);
 }
 
 #[inline]
@@ -7124,7 +7120,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
     if !opt_vars().p_cpo.is_null() {
         if (!crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPTGLOB)
             || (flags & BCO_ENTER) == 0)
-            && (buf.b_p_initialized
+            && (buf.b_p_initialized.get()
                 || ((flags & BCO_ENTER) == 0
                     && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPT)))
         {
@@ -7132,19 +7128,22 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
         }
 
         if should_copy || (flags & BCO_ALWAYS) != 0 {
-            buf.b_p_script_ctx = [Sctx {
-                sc_sid: 0,
-                sc_seq: 0,
-                sc_lnum: 0,
-                sc_chan: 0,
-            }; 93];
-            let dont_do_help = ((flags & BCO_NOHELP) != 0 && buf.b_help) || buf.b_p_initialized;
-            if dont_do_help {
-                save_p_isk = std::mem::take(&mut buf.b_p_isk);
+            for slot in &buf.b_p_script_ctx {
+                slot.set(Sctx {
+                    sc_sid: 0,
+                    sc_seq: 0,
+                    sc_lnum: 0,
+                    sc_chan: 0,
+                });
             }
-            if !buf.b_p_initialized {
+            let dont_do_help =
+                ((flags & BCO_NOHELP) != 0 && buf.b_help) || buf.b_p_initialized.get();
+            if dont_do_help {
+                save_p_isk = buf.b_p_isk.take();
+            }
+            if !buf.b_p_initialized.get() {
                 free_buf_options(buf, true);
-                buf.b_p_ro = false;
+                buf.b_p_ro.set(false);
                 buf.b_p_fenc.set(opt_vars().p_fenc.clone());
                 match opt_vars().p_ffs.first_byte() {
                     b'm' => buf.b_p_ff.set_option_cstr(c"mac"),
@@ -7158,47 +7157,51 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 free_buf_options(buf, false);
             }
 
-            buf.b_p_ai = opt_vars().p_ai.get();
+            buf.b_p_ai.set(opt_vars().p_ai.get());
             copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
-            buf.b_p_ai_nopaste = OPT_STATE.with(|s| s.p_ai_nopaste.get());
-            buf.b_p_sw = opt_vars().p_sw.get();
+            buf.b_p_ai_nopaste
+                .set(OPT_STATE.with(|s| s.p_ai_nopaste.get()));
+            buf.b_p_sw.set(opt_vars().p_sw.get());
             copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
-            buf.b_p_scbk = opt_vars().p_scbk.get();
+            buf.b_p_scbk.set(opt_vars().p_scbk.get());
             copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
-            buf.b_p_tw = opt_vars().p_tw.get();
+            buf.b_p_tw.set(opt_vars().p_tw.get());
             copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
-            buf.b_p_tw_nopaste = OPT_STATE.with(|s| s.p_tw_nopaste.get());
-            buf.b_p_tw_nobin = OPT_STATE.with(|s| s.p_tw_nobin.get());
-            buf.b_p_wm = opt_vars().p_wm.get();
+            buf.b_p_tw_nopaste
+                .set(OPT_STATE.with(|s| s.p_tw_nopaste.get()));
+            buf.b_p_tw_nobin.set(OPT_STATE.with(|s| s.p_tw_nobin.get()));
+            buf.b_p_wm.set(opt_vars().p_wm.get());
             copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
-            buf.b_p_wm_nopaste = OPT_STATE.with(|s| s.p_wm_nopaste.get());
-            buf.b_p_wm_nobin = OPT_STATE.with(|s| s.p_wm_nobin.get());
-            buf.b_p_bin = opt_vars().p_bin.get();
+            buf.b_p_wm_nopaste
+                .set(OPT_STATE.with(|s| s.p_wm_nopaste.get()));
+            buf.b_p_wm_nobin.set(OPT_STATE.with(|s| s.p_wm_nobin.get()));
+            buf.b_p_bin.set(opt_vars().p_bin.get());
             copy_opt_sctx(buf, K_BUF_OPT_BINARY);
-            buf.b_p_bomb = opt_vars().p_bomb.get();
+            buf.b_p_bomb.set(opt_vars().p_bomb.get());
             copy_opt_sctx(buf, K_BUF_OPT_BOMB);
-            buf.b_p_et = opt_vars().p_et.get();
+            buf.b_p_et.set(opt_vars().p_et.get());
             copy_opt_sctx(buf, K_BUF_OPT_EXPANDTAB);
-            buf.b_p_fixeol = opt_vars().p_fixeol.get();
+            buf.b_p_fixeol.set(opt_vars().p_fixeol.get());
             copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
-            buf.b_p_follow = opt_vars().p_follow.get();
+            buf.b_p_follow.set(opt_vars().p_follow.get());
             copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
-            buf.b_p_et_nobin = OPT_STATE.with(|s| s.p_et_nobin.get());
-            buf.b_p_et_nopaste = OPT_STATE.with(|s| s.p_et_nopaste.get());
-            buf.b_p_ml = opt_vars().p_ml.get();
+            buf.b_p_et_nobin.set(OPT_STATE.with(|s| s.p_et_nobin.get()));
+            buf.b_p_et_nopaste
+                .set(OPT_STATE.with(|s| s.p_et_nopaste.get()));
+            buf.b_p_ml.set(opt_vars().p_ml.get());
             copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
-            buf.b_p_ml_nobin = OPT_STATE.with(|s| s.p_ml_nobin.get());
-            buf.b_p_inf = opt_vars().p_inf.get();
+            buf.b_p_ml_nobin.set(OPT_STATE.with(|s| s.p_ml_nobin.get()));
+            buf.b_p_inf.set(opt_vars().p_inf.get());
             copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
             if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
-                buf.b_p_swf = false;
+                buf.b_p_swf.set(false);
             } else {
-                buf.b_p_swf = opt_vars().p_swf.get();
+                buf.b_p_swf.set(opt_vars().p_swf.get());
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
             }
             buf.b_p_cpt.set_option_cstr(opt_vars().p_cpt.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
-            buf.b_p_cpt_flags = copy_opt_insecure(K_BUF_OPT_COMPLETE);
+            buf.b_p_cpt_flags.set(copy_opt_insecure(K_BUF_OPT_COMPLETE));
             set_buflocal_cpt_callbacks(Some(&mut *buf));
             #[cfg(windows)]
             {
@@ -7211,9 +7214,10 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_OMNIFUNC);
             callback_copy(&buf.b_p_tfu, &opt_vars().p_tfu);
             copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
-            buf.b_p_sts = opt_vars().p_sts.get();
+            buf.b_p_sts.set(opt_vars().p_sts.get());
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
-            buf.b_p_sts_nopaste = OPT_STATE.with(|s| s.p_sts_nopaste.get());
+            buf.b_p_sts_nopaste
+                .set(OPT_STATE.with(|s| s.p_sts_nopaste.get()));
             buf.b_p_vsts.set_option_cstr(opt_vars().p_vsts.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_empty() {
@@ -7234,12 +7238,12 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
             buf.b_p_mps.set_option_cstr(opt_vars().p_mps.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
-            buf.b_p_si = opt_vars().p_si.get();
+            buf.b_p_si.set(opt_vars().p_si.get());
             copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
-            buf.b_p_channel = 0;
-            buf.b_p_ci = opt_vars().p_ci.get();
+            buf.b_p_channel.set(0);
+            buf.b_p_ci.set(opt_vars().p_ci.get());
             copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
-            buf.b_p_cin = opt_vars().p_cin.get();
+            buf.b_p_cin.set(opt_vars().p_cin.get());
             copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
             buf.b_p_cink.set_option_cstr(opt_vars().p_cink.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
@@ -7251,14 +7255,14 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
             buf.b_p_ft.set(empty_opt.clone());
-            buf.b_p_pi = opt_vars().p_pi.get();
+            buf.b_p_pi.set(opt_vars().p_pi.get());
             copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
             buf.b_p_cinw.set_option_cstr(opt_vars().p_cinw.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
-            buf.b_p_lisp = opt_vars().p_lisp.get();
+            buf.b_p_lisp.set(opt_vars().p_lisp.get());
             copy_opt_sctx(buf, K_BUF_OPT_LISP);
             buf.b_p_syn.set(empty_opt.clone());
-            buf.b_p_smc = opt_vars().p_smc.get();
+            buf.b_p_smc.set(opt_vars().p_smc.get());
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
             buf.b_s.b_syn_isk = None;
             buf.b_s.b_p_spc.set_option_cstr(opt_vars().p_spc.as_cstr());
@@ -7273,30 +7277,32 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_s.b_p_spo_flags = opt_vars().spo_flags.get();
             callback_copy(&buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
-            buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
+            buf.b_p_inde_flags
+                .set(copy_opt_insecure(K_BUF_OPT_INDENTEXPR));
             buf.b_p_indk.set_option_cstr(opt_vars().p_indk.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
             buf.b_p_fp.set(empty_opt.clone());
             callback_copy(&buf.b_p_fex, &opt_vars().p_fex);
             copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
-            buf.b_p_fex_flags = copy_opt_insecure(K_BUF_OPT_FORMATEXPR);
+            buf.b_p_fex_flags
+                .set(copy_opt_insecure(K_BUF_OPT_FORMATEXPR));
             buf.b_p_sua.set_option_cstr(opt_vars().p_sua.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
             buf.b_p_keymap
                 .set_option_cstr(opt_vars().p_keymap.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
             buf.b_kmap_state |= KEYMAP_INIT;
-            buf.b_p_iminsert = opt_vars().p_iminsert.get();
+            buf.b_p_iminsert.set(opt_vars().p_iminsert.get());
             copy_opt_sctx(buf, K_BUF_OPT_IMINSERT);
-            buf.b_p_imsearch = opt_vars().p_imsearch.get();
+            buf.b_p_imsearch.set(opt_vars().p_imsearch.get());
             copy_opt_sctx(buf, K_BUF_OPT_IMSEARCH);
 
-            buf.b_p_ac = None;
-            buf.b_p_ar = None;
-            buf.b_p_fs = None;
-            buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
+            buf.b_p_ac.set(None);
+            buf.b_p_ar.set(None);
+            buf.b_p_fs.set(None);
+            buf.b_p_ul.set(NO_LOCAL_UNDOLEVEL);
             buf.b_p_bkc.set(empty_opt.clone());
-            buf.b_bkc_flags = 0;
+            buf.b_bkc_flags.set(0);
             buf.b_p_gefm.set(empty_opt.clone());
             buf.b_p_gp.set(empty_opt.clone());
             buf.b_p_mp.set(empty_opt.clone());
@@ -7309,14 +7315,15 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_path.set(empty_opt.clone());
             buf.b_p_tags.set(empty_opt.clone());
             buf.b_p_tc.set(empty_opt.clone());
-            buf.b_tc_flags = 0;
+            buf.b_tc_flags.set(0);
             buf.b_p_def.set(empty_opt.clone());
             buf.b_p_inc.set(empty_opt.clone());
             callback_copy(&buf.b_p_inex, &opt_vars().p_inex);
             copy_opt_sctx(buf, K_BUF_OPT_INCLUDEEXPR);
-            buf.b_p_inex_flags = copy_opt_insecure(K_BUF_OPT_INCLUDEEXPR);
+            buf.b_p_inex_flags
+                .set(copy_opt_insecure(K_BUF_OPT_INCLUDEEXPR));
             buf.b_p_cot.set(empty_opt.clone());
-            buf.b_cot_flags = 0;
+            buf.b_cot_flags.set(0);
             buf.b_p_dict.set(empty_opt.clone());
             buf.b_p_dia.set(empty_opt.clone());
             buf.b_p_tsr.set(empty_opt.clone());
@@ -7325,7 +7332,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 .set(crate::eval::typval::CallbackData::NONE);
             buf.b_p_qe.set_option_cstr(opt_vars().p_qe.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
-            buf.b_p_udf = opt_vars().p_udf.get();
+            buf.b_p_udf.set(opt_vars().p_udf.get());
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
             buf.b_p_lw.set(empty_opt.clone());
             buf.b_p_menc = empty_opt;
@@ -7344,7 +7351,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_isk = opt_vars().p_isk.clone();
                 copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
                 did_isk = true;
-                buf.b_p_ts = opt_vars().p_ts.get();
+                buf.b_p_ts.set(opt_vars().p_ts.get());
                 copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
                 buf.b_p_vts = opt_vars().p_vts.clone();
                 copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
@@ -7360,13 +7367,13 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 if buf.b_p_bt.first_byte() == b'h' {
                     buf.b_p_bt.clear_option_str();
                 }
-                buf.b_p_ma = opt_vars().p_ma.get();
+                buf.b_p_ma.set(opt_vars().p_ma.get());
                 copy_opt_sctx(buf, K_BUF_OPT_MODIFIABLE);
             }
         }
 
         if should_copy {
-            buf.b_p_initialized = true;
+            buf.b_p_initialized.set(true);
         }
     }
 
@@ -7378,19 +7385,19 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
 
 /// Reset the 'modifiable' option and its default value.
 pub fn reset_modifiable() {
-    curbuf_mut().b_p_ma = false;
+    curbuf_mut().b_p_ma.set(false);
     opt_vars().p_ma.set(false);
     change_option_default(K_OPT_MODIFIABLE, boolean_obj(false));
 }
 
 /// Set the global value for 'iminsert' to the local value.
 pub fn set_iminsert_global(buf: &mut FileBuf) {
-    opt_vars().p_iminsert.set(buf.b_p_iminsert);
+    opt_vars().p_iminsert.set(buf.b_p_iminsert.get());
 }
 
 /// Set the global value for 'imsearch' to the local value.
 pub fn set_imsearch_global(buf: &mut FileBuf) {
-    opt_vars().p_imsearch.set(buf.b_p_imsearch);
+    opt_vars().p_imsearch.set(buf.b_p_imsearch.get());
 }
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
@@ -8079,8 +8086,8 @@ pub fn can_bs(what: i32) -> bool {
 
 /// Get the local or global value of 'backupcopy' flags.
 pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
-    if buf.b_bkc_flags != 0 {
-        buf.b_bkc_flags
+    if buf.b_bkc_flags.get() != 0 {
+        buf.b_bkc_flags.get()
     } else {
         opt_vars().bkc_flags.get()
     }
@@ -8120,7 +8127,7 @@ pub fn get_showbreak_value(win: &WinInfoInfo) -> std::ffi::CString {
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
 pub fn get_fileformat(buf: &FileBuf) -> i32 {
     let c = buf.b_p_ff.first_byte();
-    if buf.b_p_bin || c == b'u' {
+    if buf.b_p_bin.get() || c == b'u' {
         return EOL_UNIX;
     }
     if c == b'm' {
@@ -8141,7 +8148,7 @@ pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> i32 {
         {
             bin
         } else {
-            buf.b_p_bin
+            buf.b_p_bin.get()
         };
         if is_bin {
             return EOL_UNIX;
@@ -8433,7 +8440,7 @@ fn option_info_dict(
         script_ctx = opt.script_ctx;
     } else {
         if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
-            script_ctx = buf.b_p_script_ctx[opt.scope_idx[K_OPT_SCOPE_BUF as usize] as usize];
+            script_ctx = buf.b_p_script_ctx[opt.scope_idx[K_OPT_SCOPE_BUF as usize] as usize].get();
         }
         if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
             script_ctx = win.w_onebuf_opt.wo_script_ctx

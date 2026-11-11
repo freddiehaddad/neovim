@@ -164,7 +164,7 @@ pub fn win_chartabsize(
             && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1 != 0)
         {
             let buf = wp.buf_mut();
-            return tabstop_padding(col, buf.b_p_ts, &buf.b_p_vts_array);
+            return tabstop_padding(col, buf.b_p_ts.get(), &buf.b_p_vts_array);
         }
         crate::mbyte::ptr2cells(p)
     })
@@ -457,7 +457,7 @@ pub fn charsize_regular(
         let mut size: i32;
         let mut is_doublewidth = false;
         if use_tabstop {
-            size = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
+            size = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array);
         } else if cur_bytes.is_empty() {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
@@ -494,7 +494,7 @@ pub fn charsize_regular(
                                     size -= tab_size;
                                     tab_size = tabstop_padding(
                                         vcol + size,
-                                        buf.b_p_ts,
+                                        buf.b_p_ts.get(),
                                         &buf.b_p_vts_array,
                                     );
                                     size += tab_size;
@@ -702,7 +702,7 @@ pub fn charsize_regular(
                 let raw_w = if csarg.extconceal.is_none() {
                     0
                 } else if s_first == TAB && csarg.use_tabstop {
-                    tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts, &buf.b_p_vts_array)
+                    tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts.get(), &buf.b_p_vts_array)
                 } else {
                     win_chartabsize(&mut *wp, s_bytes, raw_vcol2)
                 };
@@ -773,7 +773,7 @@ fn charsize_fast_impl(
     mb_width: i32,
 ) -> CharSize {
     if cur_char == TAB && use_tabstop {
-        let width = tabstop_padding(vcol, wp.buf_mut().b_p_ts, &wp.buf_mut().b_p_vts_array);
+        let width = tabstop_padding(vcol, wp.buf_mut().b_p_ts.get(), &wp.buf_mut().b_p_vts_array);
         CharSize {
             width,
             body: width,
@@ -832,7 +832,7 @@ pub fn charsize_nowrap(
     mb_width: i32,
 ) -> i32 {
     if cur_char == TAB && use_tabstop {
-        tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
+        tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array)
     } else if cur_char < 0 {
         K_INVALID_BYTE_CELLS
     } else {

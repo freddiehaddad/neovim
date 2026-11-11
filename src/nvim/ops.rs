@@ -423,8 +423,8 @@ fn get_new_vts_indent(left: bool, round: bool, amount: i32, vts_array: &[i32]) -
 
 /// Shift the current line `amount` shiftwidth(s) left or right.
 pub fn shift_line(left: bool, round: bool, amount: i32, call_changed_bytes: i32) {
-    let sw_val = curbuf_mut().b_p_sw;
-    let ts_val = curbuf_mut().b_p_ts;
+    let sw_val = curbuf_mut().b_p_sw.get();
+    let ts_val = curbuf_mut().b_p_ts.get();
     let vts_array = &curbuf_mut().b_p_vts_array;
 
     let count = if sw_val != 0 {
@@ -454,7 +454,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let oldstate = g_st().state_global;
     let oldcol = curwin_mut().w_cursor.col;
     let sw_val = get_sw_value_indent(curbuf_mut(), left);
-    let ts_val = curbuf_mut().b_p_ts as i32;
+    let ts_val = curbuf_mut().b_p_ts.get() as i32;
     let mut bd = BlockDef::new();
     let old_p_ri = opt_vars().p_ri.get();
 
@@ -517,7 +517,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
 
         let mut tabs: i32 = 0;
         let mut spaces: i32 = 0;
-        if !curbuf_mut().b_p_et {
+        if !curbuf_mut().b_p_et.get() {
             tabstop_fromto(
                 ws_vcol,
                 ws_vcol + total,
@@ -949,7 +949,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 if !u_save_cursor() {
                     return false;
                 }
-                if curbuf_mut().b_p_ai {
+                if curbuf_mut().b_p_ai.get() {
                     beginline(BL_WHITE);
                     g_st().ins_global.did_ai = true;
                     g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
@@ -3097,8 +3097,8 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                         eol_size,
                     );
                     if lnum == curbuf_mut().b_ml.ml_line_count
-                        && !curbuf_mut().b_p_eol
-                        && (curbuf_mut().b_p_bin || !curbuf_mut().b_p_fixeol)
+                        && !curbuf_mut().b_p_eol.get()
+                        && (curbuf_mut().b_p_bin.get() || !curbuf_mut().b_p_fixeol.get())
                         && (s_bytes.len() as i32) < len
                     {
                         byte_count_cursor -= Varnumber::from(eol_size);
@@ -3125,7 +3125,9 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             );
         }
 
-        if !curbuf_mut().b_p_eol && (curbuf_mut().b_p_bin || !curbuf_mut().b_p_fixeol) {
+        if !curbuf_mut().b_p_eol.get()
+            && (curbuf_mut().b_p_bin.get() || !curbuf_mut().b_p_fixeol.get())
+        {
             byte_count -= Varnumber::from(eol_size);
         }
 
@@ -3833,7 +3835,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 }
 
                 if oap.op_type == OP_INDENT && get_equalprg().is_empty() {
-                    if curbuf_mut().b_p_lisp {
+                    if curbuf_mut().b_p_lisp.get() {
                         if use_indentexpr_for_lisp() {
                             op_reindent(oap, get_expr_indent);
                         } else {

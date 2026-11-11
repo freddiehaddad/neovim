@@ -613,10 +613,10 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_usedchunks = 0;
 
     if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
-        buf.b_p_swf = false;
+        buf.b_p_swf.set(false);
     }
 
-    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc.get() != 0 && buf.b_p_swf;
+    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc.get() != 0 && buf.b_p_swf.get();
 
     buf.b_ml.ml_mfp = mf_open(None, 0);
     if buf.b_ml.mfp_ref().is_none() {
@@ -644,7 +644,11 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     long_to_char(page_size as i64, &mut b0p.b0_page_size);
 
     if !buf.b_spell {
-        b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
+        b0p.set_dirty(if buf.b_changed.get() != 0 {
+            B0_DIRTY
+        } else {
+            0
+        });
         b0p.set_flags((get_fileformat(&*buf) + 1) as u8);
         set_b0_fname(&mut b0p, buf);
         os_get_username(&mut b0p.b0_uname);
@@ -768,7 +772,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
 pub fn ml_open_files() {
     for buf in for_all_buffers_mut() {
-        if !buf.b_p_ro || buf.b_changed != 0 {
+        if !buf.b_p_ro.get() || buf.b_changed.get() != 0 {
             ml_open_file(buf);
         }
     }
@@ -781,7 +785,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         return;
     };
     if mfp_fd >= 0
-        || !buf.b_p_swf
+        || !buf.b_p_swf.get()
         || (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0
         || !buf.terminal.is_null()
     {
@@ -847,7 +851,7 @@ pub fn check_need_swap(newfile: bool) {
     let old_msg_silent = g_st().msg_silent;
     g_st().msg_silent = 0;
 
-    if curbuf_mut().b_may_swap && (!curbuf_mut().b_p_ro || !newfile) {
+    if curbuf_mut().b_may_swap && (!curbuf_mut().b_p_ro.get() || !newfile) {
         ml_open_file(curbuf_mut());
     }
 
@@ -1631,7 +1635,7 @@ pub fn ml_recover(checkext: bool) {
         msg(c"\n>>>>>>>>>>>>>", 0);
     } else {
         msg_ext_set_kind(c"wmsg");
-        if curbuf_mut().b_changed != 0 {
+        if curbuf_mut().b_changed.get() != 0 {
             msg(
                 tr(c"Recovery completed. You should check if everything is OK."),
                 0,
@@ -3877,7 +3881,7 @@ fn findswapname(
 
                 match choice {
                     SEA_CHOICE_READONLY => {
-                        buf.b_p_ro = true;
+                        buf.b_p_ro.set(true);
                     }
                     SEA_CHOICE_EDIT => {}
                     SEA_CHOICE_RECOVER => {
@@ -3998,7 +4002,11 @@ pub fn ml_setflags(buf: &mut FileBuf) {
         return;
     };
     let mut b0p = ZeroBlock::from_bytes(&buf.b_ml.mfp_ref().unwrap().bhdr(hp).bh_data);
-    b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
+    b0p.set_dirty(if buf.b_changed.get() != 0 {
+        B0_DIRTY
+    } else {
+        0
+    });
     let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
     b0p.set_flags((b0p.flags() & !B0_FF_MASK) | ff_bits);
     add_b0_fenc(&mut b0p, buf);
@@ -4291,7 +4299,10 @@ pub fn ml_find_line_or_offset(
         if ffdos != 0 {
             size += lnum - 1;
         }
-        if (!buf.b_p_fixeol || buf.b_p_bin) && !buf.b_p_eol && lnum > buf.b_ml.ml_line_count {
+        if (!buf.b_p_fixeol.get() || buf.b_p_bin.get())
+            && !buf.b_p_eol.get()
+            && lnum > buf.b_ml.ml_line_count
+        {
             size -= ffdos + 1;
         }
     }

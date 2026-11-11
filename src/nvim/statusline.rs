@@ -943,7 +943,7 @@ fn ui_ext_tabline_update() {
     let mut n_buffers: usize = 0;
     let mut buf = g_st().firstbuf;
     while !buf.is_null() {
-        if buf.b_p_bl {
+        if buf.b_p_bl.get() {
             n_buffers += 1;
         }
         buf = buf.b_next;
@@ -953,7 +953,7 @@ fn ui_ext_tabline_update() {
     buf = g_st().firstbuf;
     while !buf.is_null() {
         let b = buf.borrow_mut();
-        if b.b_p_bl {
+        if b.b_p_bl.get() {
             let mut buffer_info = arena_dict(&mut arena, 2);
 
             put_c(
@@ -2228,7 +2228,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_ROFLAG | STL_ROFLAG_ALT => {
                 itemisflag = true;
-                if (*wp).buf_mut().b_p_ro {
+                if (*wp).buf_mut().b_p_ro.get() {
                     str_slice = Some(if opt == STL_ROFLAG_ALT {
                         c",RO".to_bytes_with_nul()
                     } else {
@@ -2293,7 +2293,7 @@ pub fn build_stl_str_hl_slice(
                 itemisflag = true;
                 let code = i32::from(opt == STL_MODIFIED_ALT)
                     + i32::from(buf_is_changed_fn((*wp).buf_mut())) * 2
-                    + i32::from(!(*wp).buf_mut().b_p_ma) * 4;
+                    + i32::from(!(*wp).buf_mut().b_p_ma.get()) * 4;
                 str_slice = match code {
                     2 => Some(c"[+]".to_bytes_with_nul()),
                     3 => Some(c",+".to_bytes_with_nul()),

@@ -968,7 +968,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
         && buf_is_empty(curbuf_mut())
         && curbuf_mut().b_nwindows == 1
         && curbuf_mut().b_ffname.is_none()
-        && curbuf_mut().b_changed == 0
+        && curbuf_mut().b_changed.get() == 0
     {
         aall.use_firstwin = true;
         tab_drop_empty_window = true;

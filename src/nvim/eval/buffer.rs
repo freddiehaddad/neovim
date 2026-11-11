@@ -279,17 +279,17 @@ pub fn f_appendbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
 fn prompt_trim_scrollback(buf: &mut FileBuf) {
-    if buf.b_p_scbk <= 0 {
+    if buf.b_p_scbk.get() <= 0 {
         return;
     }
 
     let prompt_line = buf.b_prompt_start.mark.lnum;
     let above_prompt = prompt_line - 1;
-    if above_prompt <= buf.b_p_scbk as Linenr {
+    if above_prompt <= buf.b_p_scbk.get() as Linenr {
         return;
     }
 
-    let to_delete = above_prompt - buf.b_p_scbk as Linenr;
+    let to_delete = above_prompt - buf.b_p_scbk.get() as Linenr;
     for _ in 0..to_delete {
         ml_delete_buf(buf, 1, false);
     }
@@ -498,8 +498,9 @@ pub fn f_bufexists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `buflisted(expr)` function (`f_buflisted`).
 pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let buf = find_buffer(&mut argvars[0]);
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(buf.is_some_and(|b| b.b_p_bl)));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
+        buf.is_some_and(|b| b.b_p_bl.get()),
+    ));
 }
 
 /// `bufload(expr)` function (`f_bufload`).
@@ -684,7 +685,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
     tv_dict_add_nr(&dict, c"lnum", lnum as Varnumber);
     tv_dict_add_nr(&dict, c"linecount", buf.b_ml.ml_line_count as Varnumber);
     tv_dict_add_nr(&dict, c"loaded", Varnumber::from(buf.b_ml.ml_mfp.is_some()));
-    tv_dict_add_nr(&dict, c"listed", buf.b_p_bl as Varnumber);
+    tv_dict_add_nr(&dict, c"listed", buf.b_p_bl.get() as Varnumber);
     tv_dict_add_nr(&dict, c"changed", Varnumber::from(buf_is_changed_fn(buf)));
     tv_dict_add_nr(&dict, c"changedtick", buf_get_changedtick(&*buf));
     tv_dict_add_nr(
@@ -745,8 +746,8 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         if filtered
             && ((sel_bufloaded && buf.b_ml.ml_mfp.is_none())
-                || (sel_buflisted && !buf.b_p_bl)
-                || (sel_bufmodified && buf.b_changed == 0))
+                || (sel_buflisted && !buf.b_p_bl.get())
+                || (sel_bufmodified && buf.b_changed.get() == 0))
         {
             continue;
         }

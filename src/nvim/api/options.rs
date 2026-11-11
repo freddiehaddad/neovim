@@ -267,7 +267,7 @@ fn do_ft_buf(
         return Some(ftbuf_ref);
     }
 
-    let mut ftbuf = crate::globals::BufPtr::from(&*ftbuf_ref);
+    let ftbuf = crate::globals::BufPtr::from(&*ftbuf_ref);
     let mut bufref = Bufref {
         br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
@@ -292,8 +292,8 @@ fn do_ft_buf(
 
     assert!(ftbuf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
 
-    ftbuf.b_p_swf = false;
-    ftbuf.b_p_ml = false;
+    ftbuf.b_p_swf.set(false);
+    ftbuf.b_p_ml.set(false);
     ftbuf.b_p_ft.set_option_cstr(filetype);
 
     if !has_event(EVENT_FILETYPE) {

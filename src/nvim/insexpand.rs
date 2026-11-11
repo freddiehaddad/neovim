@@ -1169,7 +1169,7 @@ pub fn ins_compl_add_infercase(
     let mut flags: i32 = 0;
     let mut tofree: Vec<u8> = Vec::new();
 
-    let final_slice = if opt_vars().p_ic.get() && curbuf_mut().b_p_inf && len > 0 {
+    let final_slice = if opt_vars().p_ic.get() && curbuf_mut().b_p_inf.get() && len > 0 {
         let mut char_len: i32 = 0;
         {
             let mut rem = str_slice;
@@ -1665,8 +1665,8 @@ pub fn ins_compl_long_shown_match() -> bool {
 }
 
 pub fn get_cot_flags() -> u32 {
-    if curbuf_mut().b_cot_flags != 0 {
-        curbuf_mut().b_cot_flags
+    if curbuf_mut().b_cot_flags.get() != 0 {
+        curbuf_mut().b_cot_flags.get()
     } else {
         opt_vars().cot_flags.get()
     }
@@ -2218,7 +2218,7 @@ fn ins_compl_dictionaries(
     regmatch.free_prog();
 
     let save_p_scs = opt_vars().p_scs.get();
-    if curbuf_mut().b_p_inf {
+    if curbuf_mut().b_p_inf.get() {
         opt_vars().p_scs.set(false);
     }
 
@@ -2700,7 +2700,7 @@ fn ins_compl_need_restart() -> bool {
 }
 
 pub fn ins_compl_has_autocomplete() -> bool {
-    curbuf_mut().b_p_ac.unwrap_or(opt_vars().p_ac.get())
+    curbuf_mut().b_p_ac.get().unwrap_or(opt_vars().p_ac.get())
 }
 
 fn ins_compl_fuzzy_sort() {
@@ -3292,9 +3292,9 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
 
             let skip_buffer = if flag == b'U' as i32 {
-                buf.b_p_bl
+                buf.b_p_bl.get()
             } else {
-                !buf.b_p_bl || buf.b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
+                !buf.b_p_bl.get() || buf.b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
             };
 
             if !skip_buffer && !buf.b_scanned {
@@ -4737,7 +4737,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 
     let save_p_scs = opt_vars().p_scs.get();
     debug_assert!(!st.ins_buf.is_null());
-    if st.ins_buf.b_p_inf {
+    if st.ins_buf.b_p_inf.get() {
         opt_vars().p_scs.set(false);
     }
 
@@ -5078,7 +5078,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
-        if b.b_p_bl && b.b_sfname.is_some() {
+        if b.b_p_bl.get() && b.b_sfname.is_some() {
             let tail = path_tail(b.sfname_cstr());
             let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
             let orig_bytes = orig_str.as_bytes();

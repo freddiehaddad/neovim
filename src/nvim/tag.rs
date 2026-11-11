@@ -2217,8 +2217,8 @@ pub fn find_tags(
         let verbose = (flags & TAG_VERBOSE) != 0;
         let save_p_ic = opt_vars().p_ic.get();
 
-        match if curbuf_mut().b_tc_flags != 0 {
-            curbuf_mut().b_tc_flags
+        match if curbuf_mut().b_tc_flags.get() != 0 {
+            curbuf_mut().b_tc_flags.get()
         } else {
             opt_vars().tc_flags.get()
         } {

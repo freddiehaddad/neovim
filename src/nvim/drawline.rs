@@ -526,7 +526,7 @@ fn draw_virt_text_item(
         let cli = utf_cluster_info(ci);
         let mut draw_cells = cli.cells;
         if ci.chr.value == i32::from(TAB) {
-            draw_cells = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
+            draw_cells = tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array);
         }
         if skip_cells > 0 {
             skip_cells -= draw_cells;
@@ -2859,7 +2859,7 @@ pub fn win_line(
                                 if mb_c == i32::from(TAB) && wlv.n_extra + wlv.col > view_width {
                                     wlv.n_extra = tabstop_padding(
                                         wlv.vcol + wlv.extconceal_off,
-                                        wp.buf_mut().b_p_ts,
+                                        wp.buf_mut().b_p_ts.get(),
                                         &wp.buf_mut().b_p_vts_array,
                                     ) - 1;
                                 }
@@ -2993,7 +2993,7 @@ pub fn win_line(
                         vcol_adjusted += wlv.extconceal_off;
                         tab_len = tabstop_padding(
                             vcol_adjusted,
-                            wp.buf_mut().b_p_ts,
+                            wp.buf_mut().b_p_ts.get(),
                             &wp.buf_mut().b_p_vts_array,
                         ) - 1;
 

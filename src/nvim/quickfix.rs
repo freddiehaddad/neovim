@@ -4114,7 +4114,7 @@ fn qf_update_buffer(qi: &QfInfo, old_count: usize) {
         );
         changed_lines(&mut *buf, start_lnum, 0, start_lnum, delta, true);
     }
-    buf.b_changed = 0;
+    buf.b_changed.set(0);
 
     if old_count == 0 {
         qf_win_pos_update(qi, 0);
@@ -4356,7 +4356,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
     if old_count == 0 {
         curbuf_mut().b_ro_locked += 1;
         set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj(Some(c"qf")), OPT_LOCAL);
-        curbuf_mut().b_p_ma = false;
+        curbuf_mut().b_p_ma.set(false);
 
         curbuf_mut().b_keep_filetype = true;
         apply_autocmds(

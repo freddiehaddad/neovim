@@ -1247,7 +1247,7 @@ pub fn enc_canon_props(bytes: &[u8]) -> i32 {
 
 pub fn bomb_size() -> i32 {
     let mut n = 0;
-    if curbuf_mut().b_p_bomb && !curbuf_mut().b_p_bin {
+    if curbuf_mut().b_p_bomb.get() && !curbuf_mut().b_p_bin.get() {
         let fenc = curbuf_mut().b_p_fenc.as_bytes();
         if fenc.is_empty() || fenc == b"utf-8" {
             n = 3;

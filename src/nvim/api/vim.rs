@@ -1411,8 +1411,8 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 OptTarget::Buf(buf.into()),
             );
             assert!(buf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
-            buf.b_p_swf = false;
-            buf.b_p_ml = false;
+            buf.b_p_swf.set(false);
+            buf.b_p_ml.set(false);
         }
 
         unblock_autocmds();

@@ -4416,7 +4416,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             text_locked_msg();
             return;
         }
-        if curbuf_mut().b_changed != 0 {
+        if curbuf_mut().b_changed.get() != 0 {
             emsg(gettext(
                 c"jobstart(...,{term=true}) requires unmodified buffer",
             ));
@@ -4492,7 +4492,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let pid = chan_ref.uv.proc_.pid;
         let buf = g_st().curbuf.borrow_mut();
 
-        buf.b_p_swf = false;
+        buf.b_p_swf.set(false);
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
             proc_stop(&mut chan_ref.uv.proc_);
 

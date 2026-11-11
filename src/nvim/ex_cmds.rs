@@ -480,10 +480,10 @@ pub fn ex_align(eap: &mut Exarg) {
         }
     } else {
         if width <= 0 {
-            width = curbuf_mut().b_p_tw as i32;
+            width = curbuf_mut().b_p_tw.get() as i32;
         }
-        if width == 0 && curbuf_mut().b_p_wm > 0 {
-            width = curwin_mut().w_view_width - curbuf_mut().b_p_wm as i32;
+        if width == 0 && curbuf_mut().b_p_wm.get() > 0 {
+            width = curwin_mut().w_view_width - curbuf_mut().b_p_wm.get() as i32;
         }
         if width <= 0 {
             width = 80;
@@ -2166,8 +2166,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 buf_name_changed(curbuf_mut());
                 apply_autocmds(EVENT_BUFFILEPOST, None, None, false, curbuf_opt_mut());
                 apply_autocmds(EVENT_BUFFILEPOST, None, None, false, alt_buf.opt_mut());
-                if !alt_buf.b_p_bl {
-                    alt_buf.b_p_bl = true;
+                if !alt_buf.b_p_bl.get() {
+                    alt_buf.b_p_bl.set(true);
 
                     apply_autocmds(EVENT_BUFADD, None, None, false, alt_buf.opt_mut());
                 }
@@ -2206,7 +2206,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             );
 
             if eap.cmdidx == Cmdidx::CmdSaveas && retval {
-                curbuf_mut().b_p_ro = false;
+                curbuf_mut().b_p_ro.set(false);
                 g_st().redraw_tabline = true;
             }
 
@@ -2335,7 +2335,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         if g_st().exiting
             && !eap.forceit
             && !b.terminal.is_null()
-            && channel_job_running(b.b_p_channel as u64)
+            && channel_job_running(b.b_p_channel.get() as u64)
         {
             no_write_message_buf(b);
             error += 1;
@@ -2402,7 +2402,7 @@ fn not_writing() -> bool {
 /// Check if a buffer is read-only.
 fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
     if !*forceit
-        && (buf.b_p_ro
+        && (buf.b_p_ro.get()
             || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
     {
         if (opt_vars().p_confirm.get() || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
@@ -2410,7 +2410,7 @@ fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
             let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
-            if buf.b_p_ro {
+            if buf.b_p_ro.get() {
                 format_to_buf!(
                     &mut buff,
                     gettext(c"'readonly' option is set for \"%s\".\nDo you wish to write anyway?"),
@@ -2433,7 +2433,7 @@ fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
                 return false;
             }
             return true;
-        } else if buf.b_p_ro {
+        } else if buf.b_p_ro.get() {
             emsg(gettext(E_READONLY));
         } else {
             semsg!(
@@ -3187,10 +3187,10 @@ pub fn ex_append(eap: &mut Exarg) {
     }
 
     if eap.forceit {
-        curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
+        curbuf_mut().b_p_ai.set(!curbuf_mut().b_p_ai.get());
     }
 
-    if eap.cmdidx != Cmdidx::CmdChange && curbuf_mut().b_p_ai && lnum > 0 {
+    if eap.cmdidx != Cmdidx::CmdChange && curbuf_mut().b_p_ai.get() && lnum > 0 {
         EXCMDS_STATE.with(|s| s.append_indent.set(get_indent_lnum(lnum)));
     }
 
@@ -3204,14 +3204,14 @@ pub fn ex_append(eap: &mut Exarg) {
 
     let save_state = g_st().state_global;
     g_st().state_global = MODE_INSERT;
-    if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
+    if curbuf_mut().b_p_iminsert.get() == B_IMODE_LMAP {
         g_st().state_global |= MODE_LANGMAP;
     }
 
     loop {
         g_st().msg_scroll = 1;
         g_st().need_wait_return = false;
-        if curbuf_mut().b_p_ai {
+        if curbuf_mut().b_p_ai.get() {
             if EXCMDS_STATE.with(|s| s.append_indent.get()) >= 0 {
                 indent = EXCMDS_STATE.with(|s| s.append_indent.get());
                 EXCMDS_STATE.with(|s| s.append_indent.set(-1));
@@ -3267,7 +3267,7 @@ pub fn ex_append(eap: &mut Exarg) {
     ui_cursor_shape();
 
     if eap.forceit {
-        curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
+        curbuf_mut().b_p_ai.set(!curbuf_mut().b_p_ai.get());
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -3306,9 +3306,9 @@ pub fn ex_change(eap: &mut Exarg) {
     }
 
     if if eap.forceit {
-        !curbuf_mut().b_p_ai
+        !curbuf_mut().b_p_ai.get()
     } else {
-        curbuf_mut().b_p_ai
+        curbuf_mut().b_p_ai.get()
     } {
         EXCMDS_STATE.with(|s| s.append_indent.set(get_indent_lnum(eap.line1)));
     }
@@ -4253,10 +4253,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                     if cmdpreview_ns <= 0 || has_second_delim {
                         lnum_start = lnum;
-                        let save_ma = curbuf_mut().b_p_ma;
+                        let save_ma = curbuf_mut().b_p_ma.get();
                         let save_sandbox = g_st().sandbox;
                         if EXCMDS_STATE.with(|s| s.subflags.get()).do_count {
-                            curbuf_mut().b_p_ma = false;
+                            curbuf_mut().b_p_ma.set(false);
                             g_st().sandbox += 1;
                         }
                         let subflags_save = EXCMDS_STATE.with(|s| s.subflags.get());
@@ -4284,7 +4284,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             || aborting()
                             || EXCMDS_STATE.with(|s| s.subflags.get()).do_count
                         {
-                            curbuf_mut().b_p_ma = save_ma;
+                            curbuf_mut().b_p_ma.set(save_ma);
                             g_st().sandbox = save_sandbox;
                             break 'skip;
                         }

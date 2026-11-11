@@ -157,11 +157,7 @@ impl OptSetPrep {
 pub enum OptRef<T: 'static> {
     Global(fn(&OptionVars) -> &T),
     Win(crate::globals::WinPtr, fn(&WinInfoInfo) -> &T),
-    Buf(
-        crate::globals::BufPtr,
-        fn(&FileBuf) -> &T,
-        fn(&mut FileBuf) -> &mut T,
-    ),
+    Buf(crate::globals::BufPtr, fn(&FileBuf) -> &T),
 }
 
 impl<T: 'static> Clone for OptRef<T> {
@@ -179,15 +175,7 @@ impl<T: 'static> OptRef<T> {
         match self {
             Self::Global(f) => f(opt_vars()),
             Self::Win(w, f) => f(w.borrow()),
-            Self::Buf(b, f, _) => f(b.borrow()),
-        }
-    }
-
-    #[inline]
-    pub fn get_mut(self) -> &'static mut T {
-        match self {
-            Self::Global(_) | Self::Win(_, _) => unreachable!(),
-            Self::Buf(b, _, f) => f(b.borrow_mut()),
+            Self::Buf(b, f) => f(b.borrow()),
         }
     }
 
@@ -210,12 +198,10 @@ impl<T: 'static> Eq for OptRef<T> {}
 pub enum OptVar {
     #[default]
     None,
-    GlobalBool(OptRef<std::cell::Cell<bool>>),
-    GlobalInt(OptRef<std::cell::Cell<crate::option::OptInt>>),
-    Bool(OptRef<bool>),
-    I32Bool(OptRef<i32>),
-    OptBool(OptRef<Option<bool>>),
-    Int(OptRef<crate::option::OptInt>),
+    Bool(OptRef<std::cell::Cell<bool>>),
+    I32Bool(OptRef<std::cell::Cell<i32>>),
+    OptBool(OptRef<std::cell::Cell<Option<bool>>>),
+    Int(OptRef<std::cell::Cell<crate::option::OptInt>>),
     Str(OptRef<OptString>),
     Callback(OptRef<crate::eval::typval::Callback>),
     DefVal(OptIndex),
@@ -237,8 +223,6 @@ impl OptVar {
         let p = std::ptr::from_ref(other).cast::<()>();
         match self {
             Self::None => false,
-            Self::GlobalBool(g) => std::ptr::eq(g.as_ptr(), p),
-            Self::GlobalInt(g) => std::ptr::eq(g.as_ptr(), p),
             Self::Bool(g) => std::ptr::eq(g.as_ptr(), p),
             Self::I32Bool(g) => std::ptr::eq(g.as_ptr(), p),
             Self::OptBool(g) => std::ptr::eq(g.as_ptr(), p),
@@ -296,28 +280,24 @@ impl OptVar {
     #[inline]
     pub fn int_val(self) -> crate::option::OptInt {
         match self {
-            Self::GlobalInt(p) => p.get().get(),
-            Self::Int(p) => *p.get(),
+            Self::Int(p) => p.get().get(),
             _ => 0,
         }
     }
 
     #[inline]
     pub fn set_int(self, val: crate::option::OptInt) {
-        match self {
-            Self::GlobalInt(p) => p.get().set(val),
-            Self::Int(p) => *p.get_mut() = val,
-            _ => {}
+        if let Self::Int(p) = self {
+            p.get().set(val);
         }
     }
 
     #[inline]
     pub fn bool_tristate(self) -> i32 {
         match self {
-            Self::GlobalBool(p) => i32::from(p.get().get()),
-            Self::Bool(p) => i32::from(*p.get()),
-            Self::I32Bool(p) => i32::from(*p.get() != 0),
-            Self::OptBool(p) => match *p.get() {
+            Self::Bool(p) => i32::from(p.get().get()),
+            Self::I32Bool(p) => i32::from(p.get().get() != 0),
+            Self::OptBool(p) => match p.get().get() {
                 Some(b) => i32::from(b),
                 None => crate::extmark::K_NONE,
             },
@@ -328,10 +308,9 @@ impl OptVar {
     #[inline]
     pub fn set_bool(self, val: Option<bool>) {
         match self {
-            Self::GlobalBool(p) => p.get().set(val.unwrap()),
-            Self::Bool(p) => *p.get_mut() = val.unwrap(),
-            Self::I32Bool(p) => *p.get_mut() = i32::from(val.unwrap()),
-            Self::OptBool(p) => *p.get_mut() = val,
+            Self::Bool(p) => p.get().set(val.unwrap()),
+            Self::I32Bool(p) => p.get().set(i32::from(val.unwrap())),
+            Self::OptBool(p) => p.get().set(val),
             _ => {}
         }
     }
@@ -348,41 +327,27 @@ impl OptVar {
 impl From<OptRef<std::cell::Cell<bool>>> for OptVar {
     #[inline]
     fn from(r: OptRef<std::cell::Cell<bool>>) -> Self {
-        Self::GlobalBool(r)
+        Self::Bool(r)
+    }
+}
+
+impl From<OptRef<std::cell::Cell<i32>>> for OptVar {
+    #[inline]
+    fn from(r: OptRef<std::cell::Cell<i32>>) -> Self {
+        Self::I32Bool(r)
+    }
+}
+
+impl From<OptRef<std::cell::Cell<Option<bool>>>> for OptVar {
+    #[inline]
+    fn from(r: OptRef<std::cell::Cell<Option<bool>>>) -> Self {
+        Self::OptBool(r)
     }
 }
 
 impl From<OptRef<std::cell::Cell<crate::option::OptInt>>> for OptVar {
     #[inline]
     fn from(r: OptRef<std::cell::Cell<crate::option::OptInt>>) -> Self {
-        Self::GlobalInt(r)
-    }
-}
-
-impl From<OptRef<bool>> for OptVar {
-    #[inline]
-    fn from(r: OptRef<bool>) -> Self {
-        Self::Bool(r)
-    }
-}
-
-impl From<OptRef<i32>> for OptVar {
-    #[inline]
-    fn from(r: OptRef<i32>) -> Self {
-        Self::I32Bool(r)
-    }
-}
-
-impl From<OptRef<Option<bool>>> for OptVar {
-    #[inline]
-    fn from(r: OptRef<Option<bool>>) -> Self {
-        Self::OptBool(r)
-    }
-}
-
-impl From<OptRef<crate::option::OptInt>> for OptVar {
-    #[inline]
-    fn from(r: OptRef<crate::option::OptInt>) -> Self {
         Self::Int(r)
     }
 }
@@ -1494,11 +1459,11 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if is_local {
         bkc = buf.b_p_bkc.as_cstr();
     } else if (opt_flags & OPT_GLOBAL) == 0 {
-        buf.b_bkc_flags = 0;
+        buf.b_bkc_flags.set(0);
     }
 
     if is_local && bkc.to_bytes().is_empty() {
-        buf.b_bkc_flags = 0;
+        buf.b_bkc_flags.set(0);
     } else {
         let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
@@ -1512,7 +1477,7 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             return errmsg;
         }
         if is_local {
-            buf.b_bkc_flags = new_flags;
+            buf.b_bkc_flags.set(new_flags);
         } else {
             opt_vars().bkc_flags.set(new_flags);
         }
@@ -1931,7 +1896,7 @@ pub fn did_set_completeopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if is_local {
         cot = buf.b_p_cot.as_cstr();
     } else if opt_flags_is_both(args.os_flags) {
-        buf.b_cot_flags = 0;
+        buf.b_cot_flags.set(0);
     }
 
     let mut new_flags = 0u32;
@@ -1944,7 +1909,7 @@ pub fn did_set_completeopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     );
     if err.is_none() {
         if is_local {
-            buf.b_cot_flags = new_flags;
+            buf.b_cot_flags.set(new_flags);
         } else {
             opt_vars().cot_flags.set(new_flags);
         }
@@ -2373,16 +2338,16 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     if errmsg.is_none() {
         if !buf.b_p_keymap.is_empty() {
-            buf.b_p_iminsert = B_IMODE_LMAP;
-            if buf.b_p_imsearch != B_IMODE_USE_INSERT {
-                buf.b_p_imsearch = B_IMODE_LMAP;
+            buf.b_p_iminsert.set(B_IMODE_LMAP);
+            if buf.b_p_imsearch.get() != B_IMODE_USE_INSERT {
+                buf.b_p_imsearch.set(B_IMODE_LMAP);
             }
         } else {
-            if buf.b_p_iminsert == B_IMODE_LMAP {
-                buf.b_p_iminsert = B_IMODE_NONE;
+            if buf.b_p_iminsert.get() == B_IMODE_LMAP {
+                buf.b_p_iminsert.set(B_IMODE_NONE);
             }
-            if buf.b_p_imsearch == B_IMODE_LMAP {
-                buf.b_p_imsearch = B_IMODE_USE_INSERT;
+            if buf.b_p_imsearch.get() == B_IMODE_LMAP {
+                buf.b_p_imsearch.set(B_IMODE_USE_INSERT);
             }
         }
         if (opt_flags & OPT_LOCAL) == 0 {
@@ -2884,7 +2849,7 @@ pub fn did_set_tagcase<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     };
 
     if is_local && p.to_bytes().is_empty() {
-        buf.b_tc_flags = 0;
+        buf.b_tc_flags.set(0);
     } else {
         let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
@@ -2898,7 +2863,7 @@ pub fn did_set_tagcase<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             return errmsg;
         }
         if is_local {
-            buf.b_tc_flags = new_flags;
+            buf.b_tc_flags.set(new_flags);
         } else {
             opt_vars().tc_flags.set(new_flags);
         }

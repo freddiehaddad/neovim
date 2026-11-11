@@ -2179,7 +2179,7 @@ fn keymap_unload() {
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
 pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
-    if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
+    if wp.buf_mut().b_p_iminsert.get() != crate::ex_cmds::B_IMODE_LMAP {
         return 0;
     }
 

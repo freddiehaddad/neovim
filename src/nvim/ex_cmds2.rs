@@ -113,7 +113,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
     if (!opt_vars().p_aw.get() && !opt_vars().p_awa.get())
         || !opt_vars().p_write.get()
         || bt_dontwrite(Some(&*buf))
-        || (!forceit && buf.b_p_ro)
+        || (!forceit && buf.b_p_ro.get())
         || buf.b_ffname.is_none()
     {
         return false;
@@ -136,7 +136,7 @@ pub fn autowrite_all() {
 
     let mut buf = g_st().firstbuf;
     while let Some(buf_ref) = buf.opt_mut() {
-        if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro && !bt_dontwrite(Some(&*buf_ref)) {
+        if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro.get() && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, Some(&mut *buf_ref));
 
@@ -230,7 +230,8 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_ALL {
         let mut buf2 = g_st().firstbuf;
         while let Some(buf2_ref) = buf2.opt_mut() {
-            if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro {
+            if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro.get()
+            {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf2_ref));
 
@@ -350,19 +351,20 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
             }
-            let shown =
-                if !buf_ref.terminal.is_null() && channel_job_running(buf_ref.b_p_channel as u64) {
-                    semsg!(
-                        gettext(c"E947: Job still running in buffer \"%s\""),
-                        buf_ref.fname_cstr(),
-                    )
-                } else {
-                    let sp = buf_spname(buf_ref);
-                    semsg!(
-                        gettext(c"E162: No write since last change for buffer \"%s\""),
-                        sp.unwrap_or_else(|| buf_ref.fname_cstr()),
-                    )
-                };
+            let shown = if !buf_ref.terminal.is_null()
+                && channel_job_running(buf_ref.b_p_channel.get() as u64)
+            {
+                semsg!(
+                    gettext(c"E947: Job still running in buffer \"%s\""),
+                    buf_ref.fname_cstr(),
+                )
+            } else {
+                let sp = buf_spname(buf_ref);
+                semsg!(
+                    gettext(c"E162: No write since last change for buffer \"%s\""),
+                    sp.unwrap_or_else(|| buf_ref.fname_cstr()),
+                )
+            };
             if shown && g_st().msg_didany {
                 let save = g_st().no_wait_return;
                 g_st().no_wait_return = 0;
@@ -524,7 +526,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
         if eap.cmdidx == Cmdidx::CmdBufdo {
             buf = g_st().firstbuf;
             while let Some(buf_ref) = buf.opt()
-                && (buf_ref.b_fnum < eap.line1 || !buf_ref.b_p_bl)
+                && (buf_ref.b_fnum < eap.line1 || !buf_ref.b_p_bl.get())
             {
                 if buf_ref.b_fnum > eap.line2 {
                     buf = crate::globals::BufPtr::NULL;
@@ -600,7 +602,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
                 for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {
-                    if bp.b_p_bl {
+                    if bp.b_p_bl.get() {
                         next_fnum = bp.b_fnum;
                         break;
                     }
@@ -842,10 +844,10 @@ pub fn ex_drop(eap: &mut Exarg) {
                 goto_tabpage_win(&tp, wp);
                 curwin_mut().w_arg_idx = 0;
                 if !buf_is_changed_fn(curbuf_mut()) {
-                    let save_ar = curbuf_mut().b_p_ar;
-                    curbuf_mut().b_p_ar = Some(true);
+                    let save_ar = curbuf_mut().b_p_ar.get();
+                    curbuf_mut().b_p_ar.set(Some(true));
                     buf_check_timestamp(curbuf_mut());
-                    curbuf_mut().b_p_ar = save_ar;
+                    curbuf_mut().b_p_ar.set(save_ar);
                 }
                 if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                     ex_rewind(eap);

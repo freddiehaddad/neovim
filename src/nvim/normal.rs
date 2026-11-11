@@ -1876,7 +1876,7 @@ fn normal_get_additional_char(s: &mut NormalState) {
             g_st().state_global = MODE_REPLACE;
             ui_cursor_shape_no_check_conceal();
         }
-        if lang && curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
+        if lang && curbuf_mut().b_p_iminsert.get() == B_IMODE_LMAP {
             g_st().no_mapping -= 1;
             g_st().allow_keys -= 1;
             if repl {
@@ -5512,7 +5512,7 @@ fn nv_replace(cap: &mut Cmdarg) {
 
     if had_ctrl_v != CTRL_V_CONST
         && cap.nchar == b'\t' as i32
-        && (curbuf_mut().b_p_et || opt_vars().p_sta.get())
+        && (curbuf_mut().b_p_et.get() || opt_vars().p_sta.get())
     {
         stuffnum_readbuff(cap.count1);
         stuffchar_readbuff(b'R' as i32);
@@ -6980,7 +6980,7 @@ fn nv_edit(cap: &mut Cmdarg) {
         && (cap.oap.op_type != OP_NOP || g_st().visual_global.active)
     {
         nv_object(cap);
-    } else if !curbuf_mut().b_p_ma && curbuf_mut().terminal.is_null() {
+    } else if !curbuf_mut().b_p_ma.get() && curbuf_mut().terminal.is_null() {
         emsg(tr(E_MODIFIABLE));
         clearop(&mut cap.oap);
     } else if !checkclearopq(&mut cap.oap) {

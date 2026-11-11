@@ -1779,7 +1779,7 @@ pub fn decor_virt_line_rows(
         while off < bytes.len() {
             let bytes_to_next_char = utfc_slice2len(&bytes[off..]);
             let cells = if bytes[off] == b'\t' {
-                tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
+                tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array)
             } else {
                 utf_ptr2cells(&bytes[off..])
             };

@@ -1756,7 +1756,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
         if cur_ve_flags == K_OPT_VE_FLAG_ALL && y_type == MotionType::MtCharWise {
             if gchar_cursor() == TAB {
                 let viscol = getviscol();
-                let ts = curbuf_mut().b_p_ts;
+                let ts = curbuf_mut().b_p_ts.get();
                 let cond = if dir == FORWARD {
                     tabstop_padding(viscol, ts, &curbuf_mut().b_p_vts_array) != 1
                 } else {

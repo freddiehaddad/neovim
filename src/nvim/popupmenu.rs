@@ -1248,8 +1248,8 @@ fn pum_preview_set_text(
     let mut err = Error::new();
     let mut arena = Arena::new();
     let mut replacement = Array::new();
-    let mut buf = win.w_buffer;
-    buf.b_p_ma = true;
+    let buf = win.w_buffer;
+    buf.b_p_ma.set(true);
 
     if let Some(info_bytes) = info.map(crate::memory::bytes_until_nul) {
         let mut rem_opt: Option<&[u8]> = Some(info_bytes);
@@ -1294,7 +1294,7 @@ fn pum_preview_set_text(
     }
     arena_mem_free(arena_finish(&mut arena));
     api_free_array(replacement);
-    buf.b_p_ma = false;
+    buf.b_p_ma.set(false);
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
@@ -1528,8 +1528,8 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         }
                     }
 
-                    curbuf_mut().b_changed = 0;
-                    curbuf_mut().b_p_ma = false;
+                    curbuf_mut().b_changed.set(0);
+                    curbuf_mut().b_p_ma.set(false);
                     if PUM.with(|s| s.selected.get()) != prev_selected {
                         curwin_mut().w_topline = 1;
                     } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {

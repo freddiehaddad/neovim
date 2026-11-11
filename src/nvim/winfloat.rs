@@ -484,7 +484,7 @@ pub fn win_float_special(
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
             return win_float_special_fail(Some(wp), &mut err);
         };
-        buf.b_p_bl = false; // unlist
+        buf.b_p_bl.set(false); // unlist
         set_option_direct_for(
             K_OPT_BUFHIDDEN,
             cstr_as_obj(Some(c"wipe")),

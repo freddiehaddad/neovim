@@ -1310,7 +1310,7 @@ fn set_small_maybe(gap: &mut [FoldEntry]) {
 
 fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     let buf = wp.buf_mut();
-    if !buf.b_p_ma {
+    if !buf.b_p_ma.get() {
         emsg(gettext(E_MODIFIABLE));
         return;
     }

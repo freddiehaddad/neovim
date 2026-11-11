@@ -2542,8 +2542,11 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     in_multispace = false;
                 }
                 if c == TAB && (!list || curwin_mut().w_p_lcs_chars.tab1 != 0) {
-                    n_extra =
-                        tabstop_padding(col, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array) - 1;
+                    n_extra = tabstop_padding(
+                        col,
+                        curbuf_mut().b_p_ts.get(),
+                        &curbuf_mut().b_p_vts_array,
+                    ) - 1;
                     if !list {
                         sc = schar_from_ascii(b' ');
                         sc_extra = schar_from_ascii(b' ');

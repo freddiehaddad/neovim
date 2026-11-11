@@ -426,11 +426,11 @@ pub fn prepare_help_buffer() {
 
     set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);
 
-    curbuf_mut().b_p_ts = 8;
+    curbuf_mut().b_p_ts.set(8);
     curwin_mut().w_onebuf_opt.wo_list.set(false);
 
-    curbuf_mut().b_p_ma = false;
-    curbuf_mut().b_p_bin = false;
+    curbuf_mut().b_p_ma.set(false);
+    curbuf_mut().b_p_bin.set(false);
     curwin_mut().w_onebuf_opt.wo_nu.set(false);
     curwin_mut().w_onebuf_opt.wo_rnu.set(false);
     curwin_mut().w_onebuf_opt.wo_scb.set(false);

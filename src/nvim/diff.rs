@@ -3225,7 +3225,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         idx_other
     };
     'theend: {
-        if curbuf_mut().b_changed == 0 {
+        if curbuf_mut().b_changed.get() == 0 {
             change_warning(curbuf_mut(), 0);
             if diff_buf_idx(curbuf_mut(), &curtab_mut()) != idx_to as i32 {
                 emsg(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY));

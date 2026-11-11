@@ -770,10 +770,10 @@ fn term_may_alloc_scrollback(term: &mut Terminal, buf: Option<&mut FileBuf>) -> 
         return false;
     };
 
-    if buf.b_p_scbk < 1 {
-        buf.b_p_scbk = SB_MAX;
+    if buf.b_p_scbk.get() < 1 {
+        buf.b_p_scbk.set(SB_MAX);
     }
-    term.sb_size = buf.b_p_scbk as usize;
+    term.sb_size = buf.b_p_scbk.get() as usize;
     term.sb_buffer.reserve(term.sb_size);
     term.sb_allocated = true;
     true
@@ -2546,10 +2546,10 @@ pub fn on_scrollback_option_changed(term_id: TermId) {
 }
 
 fn adjust_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
-    if buf.b_p_scbk < 1 {
-        buf.b_p_scbk = SB_MAX;
+    if buf.b_p_scbk.get() < 1 {
+        buf.b_p_scbk.set(SB_MAX);
     }
-    let scbk = buf.b_p_scbk as usize;
+    let scbk = buf.b_p_scbk.get() as usize;
     debug_assert!(term.sb_buffer.len() < usize::MAX);
     if term.sb_pending > 0 {
         std::process::abort();

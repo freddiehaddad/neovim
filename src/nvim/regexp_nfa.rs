@@ -4403,7 +4403,7 @@ fn nfa_regmatch(
                                     re_s.rex.reg_win.get()
                                 };
                                 if op == 1 && col - 1 > t_st.val && col > 100 {
-                                    let mut ts = wp_mut.buf_mut().b_p_ts;
+                                    let mut ts = wp_mut.buf_mut().b_p_ts.get();
                                     if ts < 4 {
                                         ts = 4;
                                     }

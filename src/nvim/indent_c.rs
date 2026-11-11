@@ -52,7 +52,7 @@ use crate::keycodes::ctrl_chr;
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
 pub fn check_linecomment(bytes: &[u8]) -> i32 {
-    if curbuf_mut().b_p_lisp {
+    if curbuf_mut().b_p_lisp.get() {
         if bytes.contains(&b';') {
             let mut in_str = false;
             let mut idx = 0usize;
@@ -235,7 +235,7 @@ pub fn cin_is_cinword(line: &[u8]) -> bool {
 }
 pub fn cindent_on() -> bool {
     !opt_vars().p_paste.get()
-        && (curbuf_mut().b_p_cin || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
+        && (curbuf_mut().b_p_cin.get() || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
 }
 fn cin_skipcomment_slice(mut s: &[u8]) -> &[u8] {
     while !s.is_empty() {

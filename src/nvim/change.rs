@@ -129,11 +129,15 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
     const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
     let mut buf_ptr = crate::globals::BufPtr::from(&mut *buf);
-    if !buf_ptr.b_did_warn && !curbuf_is_changed_fn() && !g_st().autocmd_busy && buf_ptr.b_p_ro {
+    if !buf_ptr.b_did_warn
+        && !curbuf_is_changed_fn()
+        && !g_st().autocmd_busy
+        && buf_ptr.b_p_ro.get()
+    {
         buf_ptr.b_ro_locked += 1;
         apply_autocmds(EVENT_FILECHANGEDRO, None, None, false, buf_ptr.opt_mut());
         buf_ptr.b_ro_locked -= 1;
-        if !buf_ptr.b_p_ro {
+        if !buf_ptr.b_p_ro.get() {
             return;
         }
         msg_start();
@@ -159,7 +163,7 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
 
 /// Call this function when something in a buffer is changed.
 pub fn changed(buf: &mut FileBuf) {
-    if buf.b_changed == 0 {
+    if buf.b_changed.get() == 0 {
         let save_msg_scroll = g_st().msg_scroll;
 
         change_warning(buf, 0);
@@ -193,8 +197,8 @@ pub fn changed(buf: &mut FileBuf) {
 
 /// Internal part of `changed()`, no user interaction.
 pub fn changed_internal(buf: &mut FileBuf) {
-    let was_changed = buf.b_changed != 0;
-    buf.b_changed = 1;
+    let was_changed = buf.b_changed.get() != 0;
+    buf.b_changed.set(1);
     ml_setflags(&mut *buf);
     redraw_buf_status_later(buf);
     g_st().redraw_tabline = true;
@@ -572,9 +576,9 @@ pub fn changed_lines(
 
 /// Called when the changed flag must be reset for buffer `buf`.
 pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
-    if buf.b_changed != 0 || (ff && file_ff_differs(buf, false)) {
-        let was_changed = buf.b_changed != 0;
-        buf.b_changed = 0;
+    if buf.b_changed.get() != 0 || (ff && file_ff_differs(buf, false)) {
+        let was_changed = buf.b_changed.get() != 0;
+        buf.b_changed.set(0);
         ml_setflags(buf);
         if ff {
             save_file_ff(buf);
@@ -594,9 +598,9 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
     buf.b_start_ffc = i32::from(buf.b_p_ff.first_byte());
-    buf.b_start_eof = buf.b_p_eof;
-    buf.b_start_eol = buf.b_p_eol;
-    buf.b_start_bomb = buf.b_p_bomb;
+    buf.b_start_eof = buf.b_p_eof.get();
+    buf.b_start_eol = buf.b_p_eol.get();
+    buf.b_start_bomb = buf.b_p_bomb.get();
 
     let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
@@ -624,12 +628,12 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     if buf.b_start_ffc != i32::from(buf.b_p_ff.first_byte()) {
         return true;
     }
-    if (buf.b_p_bin || !buf.b_p_fixeol)
-        && (buf.b_start_eof != buf.b_p_eof || buf.b_start_eol != buf.b_p_eol)
+    if (buf.b_p_bin.get() || !buf.b_p_fixeol.get())
+        && (buf.b_start_eof != buf.b_p_eof.get() || buf.b_start_eol != buf.b_p_eol.get())
     {
         return true;
     }
-    if !buf.b_p_bin && buf.b_start_bomb != buf.b_p_bomb {
+    if !buf.b_p_bin.get() && buf.b_start_bomb != buf.b_p_bomb.get() {
         return true;
     }
     let Some(ref start_fenc) = buf.b_start_fenc else {
@@ -913,7 +917,7 @@ pub fn open_line(
     let do_si = may_do_si();
     let mut no_si = false;
     let mut first_char: i32 = 0;
-    let saved_pi = curbuf_mut().b_p_pi;
+    let saved_pi = curbuf_mut().b_p_pi.get();
 
     let lnum = curwin_mut().w_cursor.lnum;
     let mincol = curwin_mut().w_cursor.col + 1;
@@ -962,11 +966,11 @@ pub fn open_line(
 
     if (flags & OPENLINE_FORCE_INDENT) != 0 {
         newindent = second_line_indent;
-    } else if curbuf_mut().b_p_ai || do_si {
+    } else if curbuf_mut().b_p_ai.get() || do_si {
         let saved_line_bytes = crate::memory::bytes_until_nul(&saved_line_vec);
         newindent = indent_size_ts(
             saved_line_bytes,
-            curbuf_mut().b_p_ts,
+            curbuf_mut().b_p_ts.get(),
             &curbuf_mut().b_p_vts_array,
         );
         if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
@@ -1083,7 +1087,7 @@ pub fn open_line(
     }
 
     let do_cindent = !opt_vars().p_paste.get()
-        && (curbuf_mut().b_p_cin || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
+        && (curbuf_mut().b_p_cin.get() || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
         && in_cinkeys(
             if dir == FORWARD {
                 KEY_OPEN_FORW
@@ -1105,7 +1109,7 @@ pub fn open_line(
             true,
         );
         if lead_len == 0
-            && curbuf_mut().b_p_cin
+            && curbuf_mut().b_p_cin.get()
             && do_cindent
             && dir == FORWARD
             && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
@@ -1428,10 +1432,10 @@ pub fn open_line(
                     allocated_vec[p_idx] = 0;
                 }
 
-                if curbuf_mut().b_p_ai || do_si {
+                if curbuf_mut().b_p_ai.get() || do_si {
                     newindent = indent_size_ts(
                         crate::memory::bytes_until_nul(&allocated_vec[leader_idx..]),
-                        curbuf_mut().b_p_ts,
+                        curbuf_mut().b_p_ts.get(),
                         &curbuf_mut().b_p_vts_array,
                     );
                 }
@@ -1483,7 +1487,7 @@ pub fn open_line(
             g_st().ins_global.can_si = false;
         } else if let Some(ce_idx) = comment_end_idx
             && saved_line_vec[ce_idx..].starts_with(b"*/")
-            && (curbuf_mut().b_p_ai || do_si)
+            && (curbuf_mut().b_p_ai.get() || do_si)
         {
             let old_cursor = curwin_mut().w_cursor;
             curwin_mut().w_cursor.col = ce_idx as Colnr;
@@ -1503,7 +1507,7 @@ pub fn open_line(
         if replace_normal(g_st().state_global) {
             replace_push_nul();
         }
-        if curbuf_mut().b_p_ai || (flags & OPENLINE_DELSPACES) != 0 {
+        if curbuf_mut().b_p_ai.get() || (flags & OPENLINE_DELSPACES) != 0 {
             while (saved_line_vec[pe_idx] == b' ' || saved_line_vec[pe_idx] == b'\t')
                 && !utf_iscomposing_first(utf_ptr2char(&saved_line_vec[pe_idx + 1..]))
             {
@@ -1645,9 +1649,9 @@ pub fn open_line(
                 }
                 newindent += sw;
             }
-            if curbuf_mut().b_p_ci {
+            if curbuf_mut().b_p_ci.get() {
                 copy_indent(newindent, crate::memory::bytes_until_nul(&saved_line_vec));
-                curbuf_mut().b_p_pi = true;
+                curbuf_mut().b_p_pi.set(true);
             } else {
                 set_indent(newindent, SIN_INSERT | SIN_NOMARK);
             }
@@ -1782,12 +1786,12 @@ pub fn open_line(
         if !opt_vars().p_paste.get() {
             if allocated_vec.is_empty()
                 && !use_indentexpr_for_lisp()
-                && curbuf_mut().b_p_lisp
-                && curbuf_mut().b_p_ai
+                && curbuf_mut().b_p_lisp.get()
+                && curbuf_mut().b_p_ai.get()
             {
                 fixthisline(get_lisp_indent);
                 g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
-            } else if do_cindent || (curbuf_mut().b_p_ai && use_indentexpr_for_lisp()) {
+            } else if do_cindent || (curbuf_mut().b_p_ai.get() && use_indentexpr_for_lisp()) {
                 do_c_expr_indent();
                 g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
             }
@@ -1812,7 +1816,7 @@ pub fn open_line(
         retval = true;
     }
 
-    curbuf_mut().b_p_pi = saved_pi;
+    curbuf_mut().b_p_pi.set(saved_pi);
     drop(saved_line_vec);
     drop(next_line_vec);
     drop(allocated_vec);

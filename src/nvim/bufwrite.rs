@@ -510,7 +510,7 @@ fn buf_write_do_autocmds(
                 }
             }
             if reset_changed
-                && b.b_changed != 0
+                && b.b_changed.get() != 0
                 && !append
                 && (overwriting
                     || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
@@ -1329,7 +1329,7 @@ pub fn buf_write(
                 && overwriting
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
             {
-                buf.b_p_ro = false;
+                buf.b_p_ro.set(false);
                 g_st().need_maketitle = true;
                 status_redraw_all();
             }
@@ -1345,7 +1345,7 @@ pub fn buf_write(
             'restore_backup: {
                 if reset_changed && !newfile && overwriting && !(g_st().exiting && backup.is_some())
                 {
-                    let fsync_opt = buf.b_p_fs.unwrap_or(opt_vars().p_fs.get());
+                    let fsync_opt = buf.b_p_fs.get().unwrap_or(opt_vars().p_fs.get());
                     ml_preserve(&mut *buf, false, fsync_opt);
                     if g_st().got_int {
                         err = set_err(Some(gettext(E_INTERR)));
@@ -1522,10 +1522,10 @@ pub fn buf_write(
                     {
                         bin
                     } else {
-                        buf.b_p_bin
+                        buf.b_p_bin.get()
                     };
 
-                    if buf.b_p_bomb && !write_bin && (!append || perm < 0) {
+                    if buf.b_p_bomb.get() && !write_bin && (!append || perm < 0) {
                         write_info.bw_len = make_bom(&mut write_info.bw_buf, fenc);
                         if write_info.bw_len > 0 {
                             write_info.bw_flags = FIO_NOCONVERT | wb_flags;
@@ -1538,7 +1538,7 @@ pub fn buf_write(
                     }
                     write_info.bw_start_lnum = start;
 
-                    write_undo_file = buf.b_p_udf
+                    write_undo_file = buf.b_p_udf.get()
                         && overwriting
                         && !append
                         && !filtering
@@ -1581,9 +1581,9 @@ pub fn buf_write(
                         }
                         if end == 0
                             || (lnum == end
-                                && (write_bin || !buf.b_p_fixeol)
+                                && (write_bin || !buf.b_p_fixeol.get())
                                 && ((write_bin && lnum == buf.b_no_eol_lnum)
-                                    || (lnum == buf.b_ml.ml_line_count && !buf.b_p_eol)))
+                                    || (lnum == buf.b_ml.ml_line_count && !buf.b_p_eol.get())))
                         {
                             lnum += 1;
                             no_eol = true;
@@ -1672,7 +1672,7 @@ pub fn buf_write(
                         end = 0;
                     }
 
-                    if !buf.b_p_fixeol && buf.b_p_eof {
+                    if !buf.b_p_fixeol.get() && buf.b_p_eof.get() {
                         let _ = write_eintr(write_info.bw_fd, b"\x1a");
                     }
 
@@ -1683,7 +1683,7 @@ pub fn buf_write(
                 }
 
                 if !checking_conversion {
-                    let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs.get());
+                    let do_fsync = buf.b_p_fs.get().unwrap_or(opt_vars().p_fs.get());
                     if do_fsync {
                         let error = os_fsync(fd);
                         if error != 0 && error != UV_ENOTSUP && !device {
