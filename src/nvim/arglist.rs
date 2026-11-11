@@ -983,7 +983,9 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                             aall.new_curtab = g_st().curtab;
                         } else if wp.w_floating {
                             break;
-                        } else if wp.frame_mut().fr_parent != curwin_mut().frame_mut().fr_parent {
+                        } else if wp.frame_mut().fr_parent.get()
+                            != curwin_mut().frame_mut().fr_parent.get()
+                        {
                             emsg(gettext(E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY));
                             i = count;
                             break;

@@ -1203,26 +1203,33 @@ fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
     };
     let mut fr = wp.frame_mut();
 
-    while !fr.fr_parent.is_null() {
-        if fr.parent_mut().fr_layout == FR_ROW
-            && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
+    while !fr.fr_parent.get().is_null() {
+        if fr.parent_mut().fr_layout.get() == FR_ROW
+            && !(if before {
+                fr.fr_prev.get()
+            } else {
+                fr.fr_next.get()
+            })
+            .is_null()
         {
             fr = if before { fr.prev_mut() } else { fr.next_mut() };
             break;
         }
         fr = fr.parent_mut();
     }
-    if fr.fr_parent.is_null() {
+    if fr.fr_parent.get().is_null() {
         return false;
     }
-    while fr.fr_layout != FR_LEAF {
+    while fr.fr_layout.get() != FR_LEAF {
         fr = fr.child_mut();
-        if fr.parent_mut().fr_layout == FR_ROW && before {
-            while !fr.fr_next.is_null() {
+        if fr.parent_mut().fr_layout.get() == FR_ROW && before {
+            while !fr.fr_next.get().is_null() {
                 fr = fr.next_mut();
             }
         } else {
-            while !fr.fr_next.is_null() && frame2win(fr).w_winrow + fr.fr_height < sep_row {
+            while !fr.fr_next.get().is_null()
+                && frame2win(&fr).w_winrow + fr.fr_height.get() < sep_row
+            {
                 fr = fr.next_mut();
             }
         }
@@ -1240,26 +1247,33 @@ fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
     };
     let mut fr = wp.frame_mut();
 
-    while !fr.fr_parent.is_null() {
-        if fr.parent_mut().fr_layout == FR_COL
-            && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
+    while !fr.fr_parent.get().is_null() {
+        if fr.parent_mut().fr_layout.get() == FR_COL
+            && !(if before {
+                fr.fr_prev.get()
+            } else {
+                fr.fr_next.get()
+            })
+            .is_null()
         {
             fr = if before { fr.prev_mut() } else { fr.next_mut() };
             break;
         }
         fr = fr.parent_mut();
     }
-    if fr.fr_parent.is_null() {
+    if fr.fr_parent.get().is_null() {
         return false;
     }
-    while fr.fr_layout != FR_LEAF {
+    while fr.fr_layout.get() != FR_LEAF {
         fr = fr.child_mut();
-        if fr.parent_mut().fr_layout == FR_COL && before {
-            while !fr.fr_next.is_null() {
+        if fr.parent_mut().fr_layout.get() == FR_COL && before {
+            while !fr.fr_next.get().is_null() {
                 fr = fr.next_mut();
             }
         } else {
-            while !fr.fr_next.is_null() && frame2win(fr).w_wincol + fr.fr_width < sep_col {
+            while !fr.fr_next.get().is_null()
+                && frame2win(&fr).w_wincol + fr.fr_width.get() < sep_col
+            {
                 fr = fr.next_mut();
             }
         }
@@ -1326,22 +1340,22 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
     let win_at_right = wp.w_vsep_width == 0;
 
     let mut frp = wp.frame_mut();
-    while !frp.fr_parent.is_null() {
-        if frp.parent_mut().fr_layout == FR_COL && !frp.fr_prev.is_null() {
+    while !frp.fr_parent.get().is_null() {
+        if frp.parent_mut().fr_layout.get() == FR_COL && !frp.fr_prev.get().is_null() {
             break;
         }
         frp = frp.parent_mut();
     }
-    let win_at_top = frp.fr_parent.is_null();
+    let win_at_top = frp.fr_parent.get().is_null();
 
     frp = wp.frame_mut();
-    while !frp.fr_parent.is_null() {
-        if frp.parent_mut().fr_layout == FR_ROW && !frp.fr_prev.is_null() {
+    while !frp.fr_parent.get().is_null() {
+        if frp.parent_mut().fr_layout.get() == FR_ROW && !frp.fr_prev.get().is_null() {
             break;
         }
         frp = frp.parent_mut();
     }
-    let win_at_left = frp.fr_parent.is_null();
+    let win_at_left = frp.fr_parent.get().is_null();
 
     let top_left = !(win_at_top || win_at_left);
     let top_right = !(win_at_top || win_at_right);
@@ -2738,22 +2752,22 @@ pub fn redraw_statuslines() {
     }
 }
 
-pub fn win_redraw_last_status(mut frp: &Frame) {
-    if frp.fr_layout == FR_LEAF {
-        frp.fr_win.borrow_mut().w_redr_status = true;
-    } else if frp.fr_layout == FR_ROW {
-        for child in frame_iter_ptr(frp.fr_child) {
-            win_redraw_last_status(child);
+pub fn win_redraw_last_status(frp: &Frame) {
+    if frp.fr_layout.get() == FR_LEAF {
+        frp.fr_win.get().borrow_mut().w_redr_status = true;
+    } else if frp.fr_layout.get() == FR_ROW {
+        for child in frame_iter_ptr(frp.fr_child.get()) {
+            win_redraw_last_status(&child);
         }
     } else {
-        assert!(frp.fr_layout == FR_COL);
+        assert!(frp.fr_layout.get() == FR_COL);
 
-        frp = frp.child_opt().unwrap();
+        let mut cur = frp.child_opt().unwrap();
 
-        while let Some(next) = frp.next_opt() {
-            frp = next;
+        while let Some(next) = cur.next_opt() {
+            cur = next;
         }
-        win_redraw_last_status(frp);
+        win_redraw_last_status(&cur);
     }
 }
 

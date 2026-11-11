@@ -4194,7 +4194,7 @@ pub fn intro_message(colon: bool) {
     let lines_size = lines.len() as i32;
     let mut blanklines = g_st().rows_global - (lines_size - 1);
     if opt_vars().p_ls > 1 {
-        blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height;
+        blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height.get();
     }
     if blanklines < 0 {
         blanklines = 0;

@@ -396,14 +396,14 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
 pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
-    let mut fr = wp.w_frame;
-    while !fr.fr_parent.is_null() {
-        let parent = fr.fr_parent;
-        if parent.fr_layout == FR_COL {
-            if !fr.fr_next.is_null() {
+    let mut fr = wp.w_frame.clone();
+    while !fr.fr_parent.get().is_null() {
+        let parent = fr.fr_parent.get();
+        if parent.fr_layout.get() == FR_COL {
+            if !fr.fr_next.get().is_null() {
                 break;
             }
-        } else if !fr.fr_next.is_null() {
+        } else if !fr.fr_next.get().is_null() {
             return true;
         }
 

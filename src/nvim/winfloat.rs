@@ -83,7 +83,7 @@ pub fn win_new_float(
         winframe_remove(wp, &mut dir, tp.opt_mut(), None);
 
         if !wp.w_frame.is_null() {
-            wp.w_frame.drop_box();
+            wp.w_frame.clear_links();
         }
 
         wp.w_frame = crate::globals::FramePtr::NULL;

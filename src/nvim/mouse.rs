@@ -1924,31 +1924,31 @@ pub fn mouse_find_win_inner(
     let mut fp = topframe_mut();
     *rowp -= firstwin_mut().w_winrow;
     loop {
-        if fp.fr_layout == FR_LEAF {
+        if fp.fr_layout.get() == FR_LEAF {
             break;
         }
-        if fp.fr_layout == FR_ROW {
+        if fp.fr_layout.get() == FR_ROW {
             fp = fp.child_opt().unwrap();
             while fp.next_opt().is_some() {
-                if *colp < fp.fr_width {
+                if *colp < fp.fr_width.get() {
                     break;
                 }
-                *colp -= fp.fr_width;
+                *colp -= fp.fr_width.get();
                 fp = fp.next_opt().unwrap();
             }
         } else {
             fp = fp.child_opt().unwrap();
             while fp.next_opt().is_some() {
-                if *rowp < fp.fr_height {
+                if *rowp < fp.fr_height.get() {
                     break;
                 }
-                *rowp -= fp.fr_height;
+                *rowp -= fp.fr_height.get();
                 fp = fp.next_opt().unwrap();
             }
         }
     }
 
-    let fr_win = fp.fr_win;
+    let fr_win = fp.fr_win.get();
     for wp in for_all_windows_mut() {
         if fr_win == wp {
             *rowp -= wp.w_winbar_height;

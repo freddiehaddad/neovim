@@ -276,13 +276,13 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
         sub
     };
 
-    if fr.fr_layout == FR_LEAF {
+    if fr.fr_layout.get() == FR_LEAF {
         if let Some(wp) = fr.win_opt() {
             tv_list_append_string(fr_list, Some(c"leaf"), 4);
             tv_list_append_number(fr_list, wp.handle as Varnumber);
         }
     } else {
-        if fr.fr_layout == FR_ROW {
+        if fr.fr_layout.get() == FR_ROW {
             tv_list_append_string(fr_list, Some(c"row"), 3);
         } else {
             tv_list_append_string(fr_list, Some(c"col"), 3);
@@ -290,8 +290,8 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
 
         let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
         tv_list_append_list(fr_list, Some(win_list));
-        for child in frame_iter_ptr(fr.fr_child) {
-            get_framelayout(Some(&*child), &mut *win_list, false);
+        for child in frame_iter_ptr(fr.fr_child.get()) {
+            get_framelayout(Some(&child), &mut *win_list, false);
         }
     }
 }

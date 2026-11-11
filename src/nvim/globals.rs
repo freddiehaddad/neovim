@@ -1055,7 +1055,7 @@ macro_rules! impl_sym_graph_eq {
     };
 }
 
-impl_sym_graph_eq!(WinInfoInfo, FileBuf, TabPageInfo, Frame);
+impl_sym_graph_eq!(WinInfoInfo, FileBuf, TabPageInfo);
 
 impl<T> Eq for GraphPtr<T> {}
 
@@ -1395,7 +1395,164 @@ impl<T> GraphPtr<T> {
 pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
 pub type TabpagePtr = GraphPtr<TabPageInfo>;
-pub type FramePtr = GraphPtr<Frame>;
+
+#[repr(transparent)]
+#[derive(Clone, Default)]
+pub struct FramePtr(Option<std::rc::Rc<Frame>>);
+
+impl PartialEq for FramePtr {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for FramePtr {}
+
+impl PartialEq<&Frame> for FramePtr {
+    #[inline(always)]
+    fn eq(&self, other: &&Frame) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+    }
+}
+
+impl PartialEq<&mut Frame> for FramePtr {
+    #[inline(always)]
+    fn eq(&self, other: &&mut Frame) -> bool {
+        self.0
+            .as_ref()
+            .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+    }
+}
+
+impl PartialEq<FramePtr> for &Frame {
+    #[inline(always)]
+    fn eq(&self, other: &FramePtr) -> bool {
+        other == self
+    }
+}
+
+impl PartialEq<FramePtr> for &mut Frame {
+    #[inline(always)]
+    fn eq(&self, other: &FramePtr) -> bool {
+        other == self
+    }
+}
+
+impl std::fmt::Debug for FramePtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FramePtr")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
+
+impl FramePtr {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn is_null(&self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(&self) -> Option<&Frame> {
+        self.0.as_deref()
+    }
+
+    #[inline(always)]
+    pub fn borrow(&self) -> &Frame {
+        self.opt().expect("null FramePtr")
+    }
+
+    #[inline(always)]
+    pub fn rc(&self) -> Option<std::rc::Rc<Frame>> {
+        self.0.clone()
+    }
+
+    #[inline(always)]
+    pub fn unwrap_rc(&self) -> std::rc::Rc<Frame> {
+        self.0.clone().expect("null FramePtr")
+    }
+}
+
+impl From<std::rc::Rc<Frame>> for FramePtr {
+    #[inline(always)]
+    fn from(rc: std::rc::Rc<Frame>) -> Self {
+        Self(Some(rc))
+    }
+}
+
+impl From<&std::rc::Rc<Frame>> for FramePtr {
+    #[inline(always)]
+    fn from(rc: &std::rc::Rc<Frame>) -> Self {
+        Self(Some(rc.clone()))
+    }
+}
+
+impl From<Option<std::rc::Rc<Frame>>> for FramePtr {
+    #[inline(always)]
+    fn from(opt: Option<std::rc::Rc<Frame>>) -> Self {
+        Self(opt)
+    }
+}
+
+impl From<&FramePtr> for FramePtr {
+    #[inline(always)]
+    fn from(p: &FramePtr) -> Self {
+        p.clone()
+    }
+}
+
+impl From<Option<FramePtr>> for FramePtr {
+    #[inline(always)]
+    fn from(opt: Option<FramePtr>) -> Self {
+        opt.unwrap_or(Self::NULL)
+    }
+}
+
+impl From<&Frame> for FramePtr {
+    #[inline(always)]
+    fn from(r: &Frame) -> Self {
+        Self(r.self_weak.upgrade())
+    }
+}
+
+impl From<&mut Frame> for FramePtr {
+    #[inline(always)]
+    fn from(r: &mut Frame) -> Self {
+        Self(r.self_weak.upgrade())
+    }
+}
+
+impl From<Option<&Frame>> for FramePtr {
+    #[inline(always)]
+    fn from(opt: Option<&Frame>) -> Self {
+        Self(opt.and_then(|r| r.self_weak.upgrade()))
+    }
+}
+
+impl From<Option<&mut Frame>> for FramePtr {
+    #[inline(always)]
+    fn from(opt: Option<&mut Frame>) -> Self {
+        Self(opt.and_then(|r| r.self_weak.upgrade()))
+    }
+}
+
+impl std::ops::Deref for FramePtr {
+    type Target = Frame;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
 
 #[inline(always)]
 pub fn curwin_handle() -> WinPtr {
@@ -1587,37 +1744,41 @@ pub fn for_all_tabpages_ptr() -> TabPtrIter {
 pub struct FrameMutIter(FramePtr);
 
 impl Iterator for FrameMutIter {
-    type Item = &'static mut Frame;
+    type Item = FramePtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.fr_next;
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.fr_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 pub struct FramePtrIter(FramePtr);
 
 impl Iterator for FramePtrIter {
-    type Item = &'static mut Frame;
+    type Item = FramePtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.fr_next;
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.fr_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 #[inline(always)]
-pub fn frame_iter_mut(start: FramePtr) -> FrameMutIter {
-    FrameMutIter(start)
+pub fn frame_iter_mut(start: impl Into<FramePtr>) -> FrameMutIter {
+    FrameMutIter(start.into())
 }
 
 #[inline(always)]
-pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
-    FramePtrIter(start)
+pub fn frame_iter_ptr(start: impl Into<FramePtr>) -> FramePtrIter {
+    FramePtrIter(start.into())
 }
 
 #[allow(non_upper_case_globals)]
@@ -1799,8 +1960,8 @@ pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[inline(always)]
-pub fn topframe_mut() -> &'static mut Frame {
-    g_st().topframe.borrow_mut()
+pub fn topframe_mut() -> FramePtr {
+    g_st().topframe.clone()
 }
 
 #[inline(always)]

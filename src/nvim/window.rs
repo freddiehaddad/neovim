@@ -248,34 +248,63 @@ pub struct WinConfig {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug)]
 pub struct Frame {
-    pub fr_layout: u8,
-    pub fr_width: i32,
-    pub fr_newwidth: i32,
-    pub fr_height: i32,
-    pub fr_newheight: i32,
-    pub fr_parent: crate::globals::FramePtr,
-    pub fr_next: crate::globals::FramePtr,
-    pub fr_prev: crate::globals::FramePtr,
-    pub fr_child: crate::globals::FramePtr,
-    pub fr_win: crate::globals::WinPtr,
+    pub self_weak: std::rc::Weak<Self>,
+    pub fr_layout: std::cell::Cell<u8>,
+    pub fr_width: std::cell::Cell<i32>,
+    pub fr_newwidth: std::cell::Cell<i32>,
+    pub fr_height: std::cell::Cell<i32>,
+    pub fr_newheight: std::cell::Cell<i32>,
+    pub fr_parent: crate::api::private::validate::CloneCell<crate::globals::FramePtr>,
+    pub fr_next: crate::api::private::validate::CloneCell<crate::globals::FramePtr>,
+    pub fr_prev: crate::api::private::validate::CloneCell<crate::globals::FramePtr>,
+    pub fr_child: crate::api::private::validate::CloneCell<crate::globals::FramePtr>,
+    pub fr_win: std::cell::Cell<crate::globals::WinPtr>,
 }
 
 impl Frame {
-    pub const fn new() -> Self {
-        Self {
-            fr_layout: 0,
-            fr_width: 0,
-            fr_newwidth: 0,
-            fr_height: 0,
-            fr_newheight: 0,
-            fr_parent: crate::globals::FramePtr::NULL,
-            fr_next: crate::globals::FramePtr::NULL,
-            fr_prev: crate::globals::FramePtr::NULL,
-            fr_child: crate::globals::FramePtr::NULL,
-            fr_win: crate::globals::WinPtr::NULL,
-        }
+    pub fn new_rc() -> std::rc::Rc<Self> {
+        std::rc::Rc::new_cyclic(|weak| Self {
+            self_weak: weak.clone(),
+            fr_layout: std::cell::Cell::new(0),
+            fr_width: std::cell::Cell::new(0),
+            fr_newwidth: std::cell::Cell::new(0),
+            fr_height: std::cell::Cell::new(0),
+            fr_newheight: std::cell::Cell::new(0),
+            fr_parent: crate::api::private::validate::CloneCell::new(
+                crate::globals::FramePtr::NULL,
+            ),
+            fr_next: crate::api::private::validate::CloneCell::new(crate::globals::FramePtr::NULL),
+            fr_prev: crate::api::private::validate::CloneCell::new(crate::globals::FramePtr::NULL),
+            fr_child: crate::api::private::validate::CloneCell::new(crate::globals::FramePtr::NULL),
+            fr_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+        })
+    }
+
+    pub fn new_rc_from(other: &Self) -> std::rc::Rc<Self> {
+        std::rc::Rc::new_cyclic(|weak| Self {
+            self_weak: weak.clone(),
+            fr_layout: std::cell::Cell::new(other.fr_layout.get()),
+            fr_width: std::cell::Cell::new(other.fr_width.get()),
+            fr_newwidth: std::cell::Cell::new(other.fr_newwidth.get()),
+            fr_height: std::cell::Cell::new(other.fr_height.get()),
+            fr_newheight: std::cell::Cell::new(other.fr_newheight.get()),
+            fr_parent: crate::api::private::validate::CloneCell::new(other.fr_parent.get()),
+            fr_next: crate::api::private::validate::CloneCell::new(other.fr_next.get()),
+            fr_prev: crate::api::private::validate::CloneCell::new(other.fr_prev.get()),
+            fr_child: crate::api::private::validate::CloneCell::new(other.fr_child.get()),
+            fr_win: std::cell::Cell::new(other.fr_win.get()),
+        })
+    }
+
+    #[inline]
+    pub fn clear_links(&self) {
+        self.fr_parent.set(crate::globals::FramePtr::NULL);
+        self.fr_next.set(crate::globals::FramePtr::NULL);
+        self.fr_prev.set(crate::globals::FramePtr::NULL);
+        self.fr_child.set(crate::globals::FramePtr::NULL);
+        self.fr_win.set(crate::globals::WinPtr::NULL);
     }
 }
 
@@ -443,8 +472,8 @@ pub struct WinInfoInfo {
 
 impl WinInfoInfo {
     #[inline]
-    pub fn frame_mut(&self) -> &'static mut Frame {
-        self.w_frame.borrow_mut()
+    pub fn frame_mut(&self) -> crate::globals::FramePtr {
+        self.w_frame.clone()
     }
 
     #[inline]
@@ -743,8 +772,8 @@ impl TabPageInfo {
     }
 
     #[inline]
-    pub fn topframe_mut(&self) -> &'static mut Frame {
-        self.tp_topframe.borrow_mut()
+    pub fn topframe_mut(&self) -> crate::globals::FramePtr {
+        self.tp_topframe.clone()
     }
 
     #[inline]
@@ -1850,7 +1879,7 @@ pub fn win_split_ins(
     flags: i32,
     new_wp_in: Option<&mut WinInfoInfo>,
     dir: i32,
-    to_flatten_in: Option<&mut Frame>,
+    to_flatten_in: Option<&Frame>,
 ) -> Option<&'static mut WinInfoInfo> {
     let new_wp = crate::globals::WinPtr::from(new_wp_in);
     let to_flatten = crate::globals::FramePtr::from(to_flatten_in);
@@ -1907,32 +1936,32 @@ pub fn win_split_ins(
         let mut minwidth: i32;
         let available: i32;
         if toplevel {
-            minwidth = frame_minwidth(topframe_mut(), nowin());
-            available = crate::globals::topframe_mut().fr_width;
+            minwidth = frame_minwidth(&topframe_mut(), nowin());
+            available = crate::globals::topframe_mut().fr_width.get();
             needed += minwidth;
         } else if opt_vars().p_ea {
-            minwidth = frame_minwidth(oldwin.w_frame.borrow_mut(), nowin());
+            minwidth = frame_minwidth(oldwin.w_frame.borrow(), nowin());
 
-            let mut prevfrp = oldwin.w_frame;
-            let mut frp = oldwin.frame_mut().fr_parent;
+            let mut prevfrp = oldwin.w_frame.clone();
+            let mut frp = oldwin.frame_mut().fr_parent.get();
             while !frp.is_null() {
-                if (frp.borrow_mut()).fr_layout == FR_ROW {
-                    for frp2 in frame_iter_ptr((frp.borrow_mut()).fr_child) {
+                if frp.fr_layout.get() == FR_ROW {
+                    for frp2 in frame_iter_ptr(frp.fr_child.get()) {
                         if prevfrp != frp2 {
-                            minwidth += frame_minwidth(&mut *frp2, nowin());
+                            minwidth += frame_minwidth(&frp2, nowin());
                         }
                     }
                 }
-                prevfrp = frp;
+                prevfrp = frp.clone();
 
-                frp = (frp.borrow_mut()).fr_parent;
+                frp = frp.fr_parent.get();
             }
-            available = crate::globals::topframe_mut().fr_width;
+            available = crate::globals::topframe_mut().fr_width.get();
             needed += minwidth;
         } else {
-            minwidth = frame_minwidth(oldwin.w_frame.borrow_mut(), nowin());
+            minwidth = frame_minwidth(oldwin.w_frame.borrow(), nowin());
 
-            available = oldwin.frame_mut().fr_width;
+            available = oldwin.frame_mut().fr_width.get();
             needed += minwidth;
         }
         if available < needed {
@@ -1956,11 +1985,11 @@ pub fn win_split_ins(
             && opt_vars().p_ea
             && size == 0
             && opt_vars().p_ead.first_byte() != b'v'
-            && !oldwin.frame_mut().fr_parent.is_null()
+            && !oldwin.frame_mut().fr_parent.get().is_null()
         {
-            for frp in frame_iter_mut(oldwin.frame_mut().fr_parent.fr_child) {
-                if frp.fr_win != oldwin
-                    && !frp.fr_win.is_null()
+            for frp in frame_iter_mut(oldwin.frame_mut().fr_parent.get().fr_child.get()) {
+                if frp.fr_win.get() != oldwin
+                    && !frp.fr_win.get().is_null()
                     && (frp.win_mut().w_width > new_size
                         || frp.win_mut().w_width > (oldwin.w_width - new_size - 1))
                 {
@@ -1981,32 +2010,32 @@ pub fn win_split_ins(
         let mut minheight: i32;
         let available: i32;
         if toplevel {
-            minheight = frame_minheight(topframe_mut(), nowin()) + need_status;
-            available = crate::globals::topframe_mut().fr_height;
+            minheight = frame_minheight(&topframe_mut(), nowin()) + need_status;
+            available = crate::globals::topframe_mut().fr_height.get();
             needed += minheight;
         } else if opt_vars().p_ea {
-            minheight = frame_minheight(oldwin.w_frame.borrow_mut(), nowin()) + need_status;
+            minheight = frame_minheight(oldwin.w_frame.borrow(), nowin()) + need_status;
 
-            let mut prevfrp = oldwin.w_frame;
-            let mut frp = oldwin.frame_mut().fr_parent;
+            let mut prevfrp = oldwin.w_frame.clone();
+            let mut frp = oldwin.frame_mut().fr_parent.get();
             while !frp.is_null() {
-                if (frp.borrow_mut()).fr_layout == FR_COL {
-                    for frp2 in frame_iter_ptr((frp.borrow_mut()).fr_child) {
+                if frp.fr_layout.get() == FR_COL {
+                    for frp2 in frame_iter_ptr(frp.fr_child.get()) {
                         if prevfrp != frp2 {
-                            minheight += frame_minheight(&mut *frp2, nowin());
+                            minheight += frame_minheight(&frp2, nowin());
                         }
                     }
                 }
-                prevfrp = frp;
+                prevfrp = frp.clone();
 
-                frp = (frp.borrow_mut()).fr_parent;
+                frp = frp.fr_parent.get();
             }
-            available = crate::globals::topframe_mut().fr_height;
+            available = crate::globals::topframe_mut().fr_height.get();
             needed += minheight;
         } else {
-            minheight = frame_minheight(oldwin.w_frame.borrow_mut(), nowin()) + need_status;
+            minheight = frame_minheight(oldwin.w_frame.borrow(), nowin()) + need_status;
 
-            available = oldwin.frame_mut().fr_height;
+            available = oldwin.frame_mut().fr_height.get();
             needed += minheight;
         }
         if available < needed {
@@ -2046,11 +2075,11 @@ pub fn win_split_ins(
             && opt_vars().p_ea
             && size == 0
             && opt_vars().p_ead.first_byte() != b'h'
-            && !oldwin.frame_mut().fr_parent.is_null()
+            && !oldwin.frame_mut().fr_parent.get().is_null()
         {
-            for frp in frame_iter_mut(oldwin.frame_mut().fr_parent.fr_child) {
-                if frp.fr_win != oldwin
-                    && !frp.fr_win.is_null()
+            for frp in frame_iter_mut(oldwin.frame_mut().fr_parent.get().fr_child.get()) {
+                if frp.fr_win.get() != oldwin
+                    && !frp.fr_win.get().is_null()
                     && (frp.win_mut().w_height > new_size
                         || frp.win_mut().w_height > oldwin_height - new_size - STATUS_HEIGHT)
                 {
@@ -2114,7 +2143,7 @@ pub fn win_split_ins(
         wp.w_border_adj = [0; 4];
     }
 
-    if let Some(tf) = to_flatten.opt_mut() {
+    if let Some(tf) = to_flatten.opt() {
         frame_flatten(tf);
     }
 
@@ -2122,21 +2151,21 @@ pub fn win_split_ins(
     let mut curfrp: crate::globals::FramePtr;
 
     if toplevel {
-        if (crate::globals::topframe_mut().fr_layout == FR_COL && !vertical)
-            || (crate::globals::topframe_mut().fr_layout == FR_ROW && vertical)
+        if (crate::globals::topframe_mut().fr_layout.get() == FR_COL && !vertical)
+            || (crate::globals::topframe_mut().fr_layout.get() == FR_ROW && vertical)
         {
-            curfrp = crate::globals::topframe_mut().fr_child;
+            curfrp = crate::globals::topframe_mut().fr_child.get();
             if (flags & WSP_BOT) != 0 {
-                while !curfrp.fr_next.is_null() {
-                    curfrp = curfrp.fr_next;
+                while !curfrp.fr_next.get().is_null() {
+                    curfrp = curfrp.fr_next.get();
                 }
             }
         } else {
-            curfrp = g_st().topframe;
+            curfrp = g_st().topframe.clone();
         }
         before = (flags & WSP_TOP) != 0;
     } else {
-        curfrp = oldwin.w_frame;
+        curfrp = oldwin.w_frame.clone();
         if (flags & WSP_BELOW) != 0 {
             before = false;
         } else if (flags & WSP_ABOVE) != 0 {
@@ -2147,44 +2176,41 @@ pub fn win_split_ins(
             before = !opt_vars().p_sb;
         }
     }
-    if curfrp.fr_parent.is_null() || curfrp.borrow_mut().parent_mut().fr_layout != layout {
-        let mut frp = crate::globals::FramePtr::from(Box::leak(Box::new(Frame {
-            fr_parent: curfrp,
-            fr_next: crate::globals::FramePtr::NULL,
-            fr_prev: crate::globals::FramePtr::NULL,
-            ..*curfrp.borrow()
-        })));
+    if curfrp.fr_parent.get().is_null() || curfrp.parent_mut().fr_layout.get() != layout {
+        let mut frp = crate::globals::FramePtr::from(Frame::new_rc_from(&curfrp));
+        frp.fr_parent.set(curfrp.clone());
+        frp.fr_next.set(crate::globals::FramePtr::NULL);
+        frp.fr_prev.set(crate::globals::FramePtr::NULL);
 
-        curfrp.fr_layout = layout;
-        curfrp.fr_child = frp;
-        curfrp.fr_win = crate::globals::WinPtr::NULL;
+        curfrp.fr_layout.set(layout);
+        curfrp.fr_child.set(frp.clone());
+        curfrp.fr_win.set(crate::globals::WinPtr::NULL);
 
-        curfrp = frp;
-        if !frp.fr_win.is_null() {
+        curfrp = frp.clone();
+        if !frp.fr_win.get().is_null() {
             oldwin.w_frame = frp;
         } else {
-            frp = frp.fr_child;
+            frp = frp.fr_child.get();
 
             while !frp.is_null() {
-                frp.fr_parent = curfrp;
-                frp = frp.fr_next;
+                frp.fr_parent.set(curfrp.clone());
+                frp = frp.fr_next.get();
             }
         }
     }
 
     let frp = if new_wp.is_null() {
-        wp.w_frame
+        wp.w_frame.clone()
     } else {
-        new_wp.borrow_mut().w_frame
+        new_wp.borrow_mut().w_frame.clone()
     };
-    let frp = frp.borrow_mut();
 
-    frp.fr_parent = curfrp.fr_parent;
+    frp.fr_parent.set(curfrp.fr_parent.get());
 
     if before {
-        frame_insert(curfrp.borrow_mut(), &mut *frp);
+        frame_insert(curfrp.borrow(), &frp);
     } else {
-        frame_append(curfrp.borrow_mut(), &mut *frp);
+        frame_append(curfrp.borrow(), &frp);
     }
 
     if !did_set_fraction {
@@ -2203,7 +2229,7 @@ pub fn win_split_ins(
             wp.w_winrow = tabline_height();
             let ls_h = i32::from(opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
 
-            win_new_height(&mut *wp, curfrp.fr_height - ls_h);
+            win_new_height(&mut *wp, curfrp.fr_height.get() - ls_h);
 
             wp.w_status_height = ls_h;
             wp.w_hsep_height = 0;
@@ -2214,7 +2240,7 @@ pub fn win_split_ins(
             wp.w_hsep_height = oldwin.w_hsep_height;
         }
 
-        frp.fr_height = curfrp.fr_height;
+        frp.fr_height.set(curfrp.fr_height.get());
 
         win_new_width(&mut *wp, new_size);
         if before {
@@ -2225,12 +2251,12 @@ pub fn win_split_ins(
         }
         if toplevel {
             if (flags & WSP_BOT) != 0 {
-                frame_set_vsep(curfrp.borrow_mut(), true);
+                frame_set_vsep(curfrp.borrow(), true);
             }
 
-            let cur_w = curfrp.fr_width;
+            let cur_w = curfrp.fr_width.get();
             frame_new_width(
-                curfrp.borrow_mut(),
+                curfrp.borrow(),
                 cur_w - (new_size + i32::from((flags & WSP_TOP) != 0)),
                 (flags & WSP_TOP) != 0,
                 false,
@@ -2258,7 +2284,7 @@ pub fn win_split_ins(
             wp.w_vsep_width = oldwin.w_vsep_width;
         }
 
-        frp.fr_width = curfrp.fr_width;
+        frp.fr_width.set(curfrp.fr_width.get());
 
         win_new_height(&mut *wp, new_size);
         let old_status_height = oldwin.w_status_height;
@@ -2269,10 +2295,10 @@ pub fn win_split_ins(
             oldwin.w_hsep_height = i32::from(is_stl_global);
         }
         if toplevel {
-            let mut new_fr_height = curfrp.fr_height - new_size;
+            let mut new_fr_height = curfrp.fr_height.get() - new_size;
             if is_stl_global {
                 if (flags & WSP_BOT) != 0 {
-                    frame_add_hsep(curfrp.borrow_mut());
+                    frame_add_hsep(curfrp.borrow());
                 } else {
                     new_fr_height -= 1;
                 }
@@ -2281,12 +2307,12 @@ pub fn win_split_ins(
                     new_fr_height -= STATUS_HEIGHT;
                 }
                 if (flags & WSP_BOT) != 0 {
-                    frame_add_statusline(curfrp.borrow_mut());
+                    frame_add_statusline(curfrp.borrow());
                 }
             }
 
             frame_new_height(
-                curfrp.borrow_mut(),
+                curfrp.borrow(),
                 new_fr_height,
                 (flags & WSP_TOP) != 0,
                 false,
@@ -2567,49 +2593,49 @@ fn win_exchange(mut prenum: i32) {
 
     let mut frp: crate::globals::FramePtr;
     if prenum != 0 {
-        frp = curwin_mut().frame_mut().fr_parent.fr_child;
+        frp = curwin_mut().frame_mut().fr_parent.get().fr_child.get();
 
         while !frp.is_null() && {
             prenum -= 1;
             prenum > 0
         } {
-            frp = frp.fr_next;
+            frp = frp.fr_next.get();
         }
-    } else if !curwin_mut().frame_mut().fr_next.is_null() {
-        frp = curwin_mut().frame_mut().fr_next;
+    } else if !curwin_mut().frame_mut().fr_next.get().is_null() {
+        frp = curwin_mut().frame_mut().fr_next.get();
     } else {
-        frp = curwin_mut().frame_mut().fr_prev;
+        frp = curwin_mut().frame_mut().fr_prev.get();
     }
 
-    if frp.is_null() || frp.fr_win.is_null() || frp.fr_win == curwin_ptr() {
+    if frp.is_null() || frp.fr_win.get().is_null() || frp.fr_win.get() == curwin_ptr() {
         return;
     }
-    let wp = frp.borrow_mut().win_mut();
+    let wp = frp.win_mut();
 
     let wp2 = curwin_mut().w_prev;
-    let frp2 = curwin_mut().frame_mut().fr_prev;
+    let frp2 = curwin_mut().frame_mut().fr_prev.get();
     if wp.w_prev != curwin_ptr() {
         win_remove(curwin_mut(), None);
 
-        frame_remove(curwin_mut().w_frame.borrow_mut());
+        frame_remove(curwin_mut().w_frame.borrow());
 
         win_append(wp.w_prev.opt_mut(), curwin_mut(), None);
 
-        frame_insert(frp.borrow_mut(), curwin_mut().w_frame.borrow_mut());
+        frame_insert(frp.borrow(), curwin_mut().w_frame.borrow());
     }
     if wp2 != wp {
         win_remove(&mut *wp, None);
 
-        frame_remove(wp.w_frame.borrow_mut());
+        frame_remove(wp.w_frame.borrow());
 
         win_append(wp2.opt_mut(), &mut *wp, None);
         if frp2.is_null() {
             frame_insert(
-                wp.frame_mut().fr_parent.fr_child.borrow_mut(),
-                wp.w_frame.borrow_mut(),
+                wp.frame_mut().fr_parent.get().fr_child.get().borrow(),
+                wp.w_frame.borrow(),
             );
         } else {
-            frame_append(frp2.borrow_mut(), wp.w_frame.borrow_mut());
+            frame_append(frp2.borrow(), wp.w_frame.borrow());
         }
     }
     std::mem::swap(&mut curwin_mut().w_status_height, &mut wp.w_status_height);
@@ -2644,14 +2670,14 @@ fn win_rotate(upwards: bool, mut count: i32) {
         return;
     }
 
-    let mut frp = curwin_mut().frame_mut().fr_parent.fr_child;
+    let mut frp = curwin_mut().frame_mut().fr_parent.get().fr_child.get();
     while !frp.is_null() {
-        if (frp.borrow_mut()).fr_win.is_null() {
+        if frp.fr_win.get().is_null() {
             emsg(gettext(c"E443: Cannot rotate when another window is split"));
             return;
         }
 
-        frp = frp.fr_next;
+        frp = frp.fr_next.get();
     }
 
     let mut wp1 = crate::globals::WinPtr::NULL;
@@ -2660,57 +2686,56 @@ fn win_rotate(upwards: bool, mut count: i32) {
     while count > 0 {
         count -= 1;
         if upwards {
-            frp = curwin_mut().frame_mut().fr_parent.fr_child;
+            frp = curwin_mut().frame_mut().fr_parent.get().fr_child.get();
 
             debug_assert!(!frp.is_null());
 
-            wp1 = frp.fr_win;
+            wp1 = frp.fr_win.get();
 
             win_remove(wp1.borrow_mut(), None);
 
-            frame_remove(frp.borrow_mut());
+            frame_remove(frp.borrow());
 
-            debug_assert!(!frp.fr_parent.fr_child.is_null());
+            debug_assert!(!frp.fr_parent.get().fr_child.get().is_null());
 
-            while !frp.fr_next.is_null() {
-                frp = frp.fr_next;
+            while !frp.fr_next.get().is_null() {
+                frp = frp.fr_next.get();
             }
 
-            win_append(frp.fr_win.opt_mut(), wp1.borrow_mut(), None);
+            win_append(frp.fr_win.get().opt_mut(), wp1.borrow_mut(), None);
 
-            frame_append(frp.borrow_mut(), wp1.w_frame.borrow_mut());
+            frame_append(frp.borrow(), wp1.w_frame.borrow());
 
-            wp2 = frp.fr_win;
+            wp2 = frp.fr_win.get();
         } else {
-            frp = curwin_mut().w_frame;
-            while !frp.fr_next.is_null() {
-                frp = frp.fr_next;
+            frp = curwin_mut().w_frame.clone();
+            while !frp.fr_next.get().is_null() {
+                frp = frp.fr_next.get();
             }
 
-            wp1 = frp.fr_win;
+            wp1 = frp.fr_win.get();
             wp2 = wp1.w_prev;
 
             win_remove(wp1.borrow_mut(), None);
 
-            frame_remove(frp.borrow_mut());
+            frame_remove(frp.borrow());
 
-            debug_assert!(!frp.fr_parent.fr_child.is_null());
+            debug_assert!(!frp.fr_parent.get().fr_child.get().is_null());
 
             win_append(
                 frp.fr_parent
-                    .borrow()
+                    .get()
                     .fr_child
+                    .get()
                     .fr_win
+                    .get()
                     .opt()
                     .and_then(|w| w.w_prev.opt_mut()),
                 wp1.borrow_mut(),
                 None,
             );
 
-            frame_insert(
-                frp.fr_parent.borrow_mut().fr_child.borrow_mut(),
-                frp.borrow_mut(),
-            );
+            frame_insert(frp.fr_parent.get().fr_child.get().borrow(), frp.borrow());
         }
 
         std::mem::swap(
@@ -2758,13 +2783,13 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
         return false;
     }
 
-    let mut unflat_altfr: Option<&'static mut Frame> = None;
+    let mut unflat_altfr = crate::globals::FramePtr::NULL;
     if wp.borrow_mut().w_floating {
         win_remove(wp.borrow_mut(), None);
     } else {
         winframe_remove(wp.borrow_mut(), &mut dir, None, Some(&mut unflat_altfr));
 
-        debug_assert!(unflat_altfr.is_some());
+        debug_assert!(!unflat_altfr.is_null());
 
         win_remove(wp.borrow_mut(), None);
 
@@ -2772,12 +2797,11 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
         win_comp_pos();
     }
 
-    let unflat_ptr = crate::globals::FramePtr::from(unflat_altfr);
-    if win_split_ins(size, flags, wp.opt_mut(), dir, unflat_ptr.opt_mut()).is_none() {
+    if win_split_ins(size, flags, wp.opt_mut(), dir, unflat_altfr.opt()).is_none() {
         if !wp.borrow_mut().w_floating {
-            debug_assert!(!unflat_ptr.is_null());
+            debug_assert!(!unflat_altfr.is_null());
 
-            winframe_restore(wp.borrow_mut(), dir, unflat_ptr.borrow_mut());
+            winframe_restore(wp.borrow_mut(), dir, unflat_altfr.borrow());
         }
 
         win_append(wp.w_prev.opt_mut(), wp.borrow_mut(), None);
@@ -2802,7 +2826,7 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
     }
 
     if win2.w_next != win1 {
-        if win1.frame_mut().fr_parent != win2.frame_mut().fr_parent {
+        if win1.frame_mut().fr_parent.get() != win2.frame_mut().fr_parent.get() {
             iemsg(c"INTERNAL: trying to move a window into another frame");
             return;
         }
@@ -2814,9 +2838,13 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
 
             if prev.w_vsep_width == 1 {
                 prev.w_vsep_width = 0;
-                prev.frame_mut().fr_width -= 1;
+                prev.frame_mut()
+                    .fr_width
+                    .set(prev.frame_mut().fr_width.get() - 1);
                 win1.w_vsep_width = 1;
-                win1.frame_mut().fr_width += 1;
+                win1.frame_mut()
+                    .fr_width
+                    .set(win1.frame_mut().fr_width.get() + 1);
             }
         } else if g_st().lastwin == win2 {
             std::mem::swap(&mut win1.w_status_height, &mut win2.w_status_height);
@@ -2824,15 +2852,19 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
 
             if win1.w_vsep_width == 1 {
                 win2.w_vsep_width = 1;
-                win2.frame_mut().fr_width += 1;
+                win2.frame_mut()
+                    .fr_width
+                    .set(win2.frame_mut().fr_width.get() + 1);
                 win1.w_vsep_width = 0;
-                win1.frame_mut().fr_width -= 1;
+                win1.frame_mut()
+                    .fr_width
+                    .set(win1.frame_mut().fr_width.get() - 1);
             }
         }
         win_remove(&mut *win1, None);
-        frame_remove(win1.frame_mut());
+        frame_remove(&win1.frame_mut());
         win_append(Some(&mut *win2), &mut *win1, None);
-        frame_append(win2.frame_mut(), win1.frame_mut());
+        frame_append(&win2.frame_mut(), &win1.frame_mut());
 
         win_comp_pos();
         redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
@@ -2843,16 +2875,16 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
     win_enter(&mut *win1, false);
 }
 
-fn get_maximum_wincount(fr: &mut Frame, mut height: i32) -> i32 {
-    if fr.fr_layout != FR_COL {
+fn get_maximum_wincount(fr: &Frame, mut height: i32) -> i32 {
+    if fr.fr_layout.get() != FR_COL {
         return height / (opt_vars().p_wmh as i32 + STATUS_HEIGHT + frame2win(fr).w_winbar_height);
     } else if global_winbar_height() != 0 {
         return height / (opt_vars().p_wmh as i32 + STATUS_HEIGHT + 1);
     }
 
     let mut total_wincount: i32 = 0;
-    for frp in frame_iter_ptr(fr.fr_child) {
-        let wp = frame2win(frp);
+    for frp in frame_iter_ptr(fr.fr_child.get()) {
+        let wp = frame2win(&frp);
         if OptInt::from(height)
             < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + wp.w_winbar_height))
         {
@@ -2878,12 +2910,12 @@ pub fn win_equal(next_curwin: Option<&WinInfoInfo>, current: bool, mut dir: i32)
             next_ptr
         }),
         current,
-        topframe_mut(),
+        &topframe_mut(),
         dir,
         0,
         tabline_height(),
         g_st().columns_global,
-        crate::globals::topframe_mut().fr_height,
+        crate::globals::topframe_mut().fr_height.get(),
     );
     if !next_curwin.is_some_and(is_ctx_win) {
         win_fix_scroll(true);
@@ -2893,7 +2925,7 @@ pub fn win_equal(next_curwin: Option<&WinInfoInfo>, current: bool, mut dir: i32)
 fn win_equal_rec(
     next_curwin: crate::globals::WinPtr,
     current: bool,
-    topfr: &mut Frame,
+    topfr: &Frame,
     dir: i32,
     mut col: i32,
     mut row: i32,
@@ -2906,21 +2938,21 @@ fn win_equal_rec(
     let mut room: i32 = 0;
     let mut has_next_curwin = false;
 
-    if topfr.fr_layout == FR_LEAF {
-        if topfr.fr_height != height
+    if topfr.fr_layout.get() == FR_LEAF {
+        if topfr.fr_height.get() != height
             || topfr.win_mut().w_winrow != row
-            || topfr.fr_width != width
+            || topfr.fr_width.get() != width
             || topfr.win_mut().w_wincol != col
         {
             topfr.win_mut().w_winrow = row;
-            frame_new_height(&mut *topfr, height, false, false, false);
+            frame_new_height(topfr, height, false, false, false);
             topfr.win_mut().w_wincol = col;
             frame_new_width(topfr, width, false, false);
             redraw_all_later(UPD_NOT_VALID);
         }
-    } else if topfr.fr_layout == FR_ROW {
-        topfr.fr_width = width;
-        topfr.fr_height = height;
+    } else if topfr.fr_layout.get() == FR_ROW {
+        topfr.fr_width.set(width);
+        topfr.fr_height.set(height);
 
         if dir != b'v' as i32 {
             let mut n = frame_minwidth(topfr, nowin());
@@ -2939,24 +2971,27 @@ fn win_equal_rec(
                 room = 0;
             } else {
                 next_curwin_size = -1;
-                for fr in frame_iter_ptr(topfr.fr_child) {
-                    if frame_fixed_width(fr) {
-                        n = frame_minwidth(&mut *fr, nowin());
-                        let mut new_size = fr.fr_width;
-                        if frame_has_win(&*fr, next_curwin.opt()) {
+                for fr in frame_iter_ptr(topfr.fr_child.get()) {
+                    if frame_fixed_width(&fr) {
+                        n = frame_minwidth(&fr, nowin());
+                        let mut new_size = fr.fr_width.get();
+                        if frame_has_win(&fr, next_curwin.opt()) {
                             room += opt_vars().p_wiw as i32 - opt_vars().p_wmw as i32;
                             next_curwin_size = 0;
                             new_size = new_size.max(opt_vars().p_wiw as i32);
                         } else {
-                            totwincount -= (n + if fr.fr_next.is_null() { extra_sep } else { 0 })
-                                / (opt_vars().p_wmw as i32 + 1);
+                            totwincount -= (n + if fr.fr_next.get().is_null() {
+                                extra_sep
+                            } else {
+                                0
+                            }) / (opt_vars().p_wmw as i32 + 1);
                         }
                         room -= new_size - n;
                         if room < 0 {
                             new_size += room;
                             room = 0;
                         }
-                        fr.fr_newwidth = new_size;
+                        fr.fr_newwidth.set(new_size);
                     }
                 }
                 if next_curwin_size == -1 {
@@ -2984,22 +3019,25 @@ fn win_equal_rec(
             }
         }
 
-        for fr in frame_iter_ptr(topfr.fr_child) {
+        for fr in frame_iter_ptr(topfr.fr_child.get()) {
             let mut wincount: i32 = 1;
             let new_size: i32;
-            if fr.fr_next.is_null() {
+            if fr.fr_next.get().is_null() {
                 new_size = width;
             } else if dir == b'v' as i32 {
-                new_size = fr.fr_width;
-            } else if frame_fixed_width(fr) {
-                new_size = fr.fr_newwidth;
+                new_size = fr.fr_width.get();
+            } else if frame_fixed_width(&fr) {
+                new_size = fr.fr_newwidth.get();
                 wincount = 0;
             } else {
-                let n = frame_minwidth(&mut *fr, nowin());
-                wincount = (n + if fr.fr_next.is_null() { extra_sep } else { 0 })
-                    / (opt_vars().p_wmw as i32 + 1);
-                let m = frame_minwidth(&mut *fr, next_curwin);
-                let hnc = has_next_curwin && frame_has_win(&*fr, next_curwin.opt());
+                let n = frame_minwidth(&fr, nowin());
+                wincount = (n + if fr.fr_next.get().is_null() {
+                    extra_sep
+                } else {
+                    0
+                }) / (opt_vars().p_wmw as i32 + 1);
+                let m = frame_minwidth(&fr, next_curwin);
+                let hnc = has_next_curwin && frame_has_win(&fr, next_curwin.opt());
                 if hnc {
                     wincount -= 1;
                 }
@@ -3021,28 +3059,19 @@ fn win_equal_rec(
 
             if !current
                 || dir != b'v' as i32
-                || !topfr.fr_parent.is_null()
-                || new_size != fr.fr_width
-                || frame_has_win(&*fr, next_curwin.opt())
+                || !topfr.fr_parent.get().is_null()
+                || new_size != fr.fr_width.get()
+                || frame_has_win(&fr, next_curwin.opt())
             {
-                win_equal_rec(
-                    next_curwin,
-                    current,
-                    &mut *fr,
-                    dir,
-                    col,
-                    row,
-                    new_size,
-                    height,
-                );
+                win_equal_rec(next_curwin, current, &fr, dir, col, row, new_size, height);
             }
             col += new_size;
             width -= new_size;
             totwincount -= wincount;
         }
     } else {
-        topfr.fr_width = width;
-        topfr.fr_height = height;
+        topfr.fr_width.set(width);
+        topfr.fr_height.set(height);
 
         if dir != b'h' as i32 {
             let mut n = frame_minheight(topfr, nowin());
@@ -3063,18 +3092,22 @@ fn win_equal_rec(
                 room = 0;
             } else {
                 next_curwin_size = -1;
-                for fr in frame_iter_ptr(topfr.fr_child) {
-                    if frame_fixed_height(fr) {
-                        n = frame_minheight(&mut *fr, nowin());
-                        let mut new_size = fr.fr_height;
-                        if frame_has_win(&*fr, next_curwin.opt()) {
+                for fr in frame_iter_ptr(topfr.fr_child.get()) {
+                    if frame_fixed_height(&fr) {
+                        n = frame_minheight(&fr, nowin());
+                        let mut new_size = fr.fr_height.get();
+                        if frame_has_win(&fr, next_curwin.opt()) {
                             room += opt_vars().p_wh as i32 - opt_vars().p_wmh as i32;
                             next_curwin_size = 0;
                             new_size = new_size.max(opt_vars().p_wh as i32);
                         } else {
                             totwincount -= get_maximum_wincount(
-                                fr,
-                                n + if fr.fr_next.is_null() { extra_sep } else { 0 },
+                                &fr,
+                                n + if fr.fr_next.get().is_null() {
+                                    extra_sep
+                                } else {
+                                    0
+                                },
                             );
                         }
                         room -= new_size - n;
@@ -3082,7 +3115,7 @@ fn win_equal_rec(
                             new_size += room;
                             room = 0;
                         }
-                        fr.fr_newheight = new_size;
+                        fr.fr_newheight.set(new_size);
                     }
                 }
                 if next_curwin_size == -1 {
@@ -3110,22 +3143,28 @@ fn win_equal_rec(
             }
         }
 
-        for fr in frame_iter_ptr(topfr.fr_child) {
+        for fr in frame_iter_ptr(topfr.fr_child.get()) {
             let mut wincount: i32 = 1;
             let new_size: i32;
-            if fr.fr_next.is_null() {
+            if fr.fr_next.get().is_null() {
                 new_size = height;
             } else if dir == b'h' as i32 {
-                new_size = fr.fr_height;
-            } else if frame_fixed_height(fr) {
-                new_size = fr.fr_newheight;
+                new_size = fr.fr_height.get();
+            } else if frame_fixed_height(&fr) {
+                new_size = fr.fr_newheight.get();
                 wincount = 0;
             } else {
-                let n = frame_minheight(&mut *fr, nowin());
-                wincount =
-                    get_maximum_wincount(fr, n + if fr.fr_next.is_null() { extra_sep } else { 0 });
-                let m = frame_minheight(&mut *fr, next_curwin);
-                let hnc = has_next_curwin && frame_has_win(&*fr, next_curwin.opt());
+                let n = frame_minheight(&fr, nowin());
+                wincount = get_maximum_wincount(
+                    &fr,
+                    n + if fr.fr_next.get().is_null() {
+                        extra_sep
+                    } else {
+                        0
+                    },
+                );
+                let m = frame_minheight(&fr, next_curwin);
+                let hnc = has_next_curwin && frame_has_win(&fr, next_curwin.opt());
                 if hnc {
                     wincount -= 1;
                 }
@@ -3145,20 +3184,11 @@ fn win_equal_rec(
             }
             if !current
                 || dir != b'h' as i32
-                || !topfr.fr_parent.is_null()
-                || new_size != fr.fr_height
-                || frame_has_win(&*fr, next_curwin.opt())
+                || !topfr.fr_parent.get().is_null()
+                || new_size != fr.fr_height.get()
+                || frame_has_win(&fr, next_curwin.opt())
             {
-                win_equal_rec(
-                    next_curwin,
-                    current,
-                    &mut *fr,
-                    dir,
-                    col,
-                    row,
-                    width,
-                    new_size,
-                );
+                win_equal_rec(next_curwin, current, &fr, dir, col, row, width, new_size);
             }
             row += new_size;
             height -= new_size;
@@ -3410,9 +3440,9 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     let win = crate::globals::WinPtr::from(win_in);
     let prev_curtab = g_st().curtab;
     let win_frame = if win.borrow_mut().w_floating {
-        ptr::null_mut()
+        crate::globals::FramePtr::NULL
     } else {
-        win.borrow_mut().frame_mut().fr_parent.as_ptr()
+        win.borrow_mut().frame_mut().fr_parent.get()
     };
     let had_diffmode = win.borrow_mut().w_onebuf_opt.wo_diff;
 
@@ -3487,7 +3517,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         let wp = if win.borrow_mut().w_floating {
             crate::globals::WinPtr::from(win_float_find_altwin(win.borrow(), None))
         } else {
-            crate::globals::WinPtr::from(frame2win(win_altframe(win.borrow_mut(), None)))
+            crate::globals::WinPtr::from(frame2win(&win_altframe(win.borrow_mut(), None)))
         };
 
         if wp.w_buffer != g_st().curbuf {
@@ -3662,7 +3692,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         {
             win_equal(
                 curwin_ptr().opt(),
-                curwin_mut().frame_mut().fr_parent == win_frame,
+                curwin_mut().frame_mut().fr_parent.get() == win_frame,
                 dir,
             );
         } else {
@@ -3953,7 +3983,7 @@ fn win_free_mem(
     let mut win_tp = if tp.is_null() { g_st().curtab } else { tp };
 
     if !win.borrow_mut().w_floating {
-        let frp = win.borrow_mut().w_frame;
+        let frp = win.borrow_mut().w_frame.clone();
 
         wp = crate::globals::WinPtr::from(winframe_remove(
             win.borrow_mut(),
@@ -3962,7 +3992,7 @@ fn win_free_mem(
             None,
         ));
 
-        frp.drop_box();
+        frp.clear_links();
     } else {
         *dirp = b'h' as i32;
 
@@ -4023,59 +4053,57 @@ pub fn winframe_remove(
     win: &mut WinInfoInfo,
     dirp: &mut i32,
     tp: Option<&mut TabPageInfo>,
-    unflat_altfr: Option<&mut Option<&'static mut Frame>>,
+    unflat_altfr: Option<&mut crate::globals::FramePtr>,
 ) -> Option<&'static mut WinInfoInfo> {
-    let mut altfr_opt: Option<&'static mut Frame> = None;
-    let wp =
-        crate::globals::WinPtr::from(winframe_find_altwin(win, dirp, tp, Some(&mut altfr_opt))?);
-    let altfr = crate::globals::FramePtr::from(altfr_opt);
+    let mut altfr = crate::globals::FramePtr::NULL;
+    let wp = crate::globals::WinPtr::from(winframe_find_altwin(win, dirp, tp, Some(&mut altfr))?);
 
     let frp_close = win.frame_mut();
-    let altfr_ref = altfr.borrow_mut();
+    let altfr_ref = altfr.borrow();
 
     WIN_STATE.with(|s| s.frame_locked.set(s.frame_locked.get() + (1)));
 
-    let topleft = frame2win(frp_close.parent_mut());
+    let topleft = frame2win(&frp_close.parent_mut());
     let mut row = topleft.w_winrow;
     let mut col = topleft.w_wincol;
 
     if win.w_vsep_width == 0
-        && frp_close.parent_mut().fr_layout == FR_ROW
-        && !frp_close.fr_prev.is_null()
+        && frp_close.parent_mut().fr_layout.get() == FR_ROW
+        && !frp_close.fr_prev.get().is_null()
     {
-        frame_set_vsep(frp_close.prev_mut(), false);
+        frame_set_vsep(&frp_close.prev_mut(), false);
     }
 
-    frame_remove(frp_close);
+    frame_remove(&frp_close);
 
     if *dirp == b'v' as i32 {
-        let new_h = altfr_ref.fr_height + frp_close.fr_height;
+        let new_h = altfr_ref.fr_height.get() + frp_close.fr_height.get();
         frame_new_height(
             altfr_ref,
             new_h,
-            frp_close.fr_next == altfr,
+            frp_close.fr_next.get() == altfr,
             !frame_fixed_height(altfr.borrow()),
             false,
         );
     } else {
         debug_assert!(*dirp == b'h' as i32);
-        let new_w = altfr_ref.fr_width + frp_close.fr_width;
+        let new_w = altfr_ref.fr_width.get() + frp_close.fr_width.get();
         frame_new_width(
             altfr_ref,
             new_w,
-            frp_close.fr_next == altfr,
+            frp_close.fr_next.get() == altfr,
             !frame_fixed_height(altfr.borrow()),
         );
     }
 
-    if frp_close.fr_prev != altfr {
-        frame_comp_pos(frp_close.parent_mut(), &mut row, &mut col);
+    if frp_close.fr_prev.get() != altfr {
+        frame_comp_pos(&frp_close.parent_mut(), &mut row, &mut col);
     }
 
     if let Some(out) = unflat_altfr {
-        *out = altfr.opt_mut();
+        *out = altfr;
     } else {
-        frame_flatten(altfr.borrow_mut());
+        frame_flatten(altfr.borrow());
     }
 
     WIN_STATE.with(|s| s.frame_locked.set(s.frame_locked.get() - (1)));
@@ -4087,7 +4115,7 @@ pub fn winframe_find_altwin(
     win: &mut WinInfoInfo,
     dirp: &mut i32,
     tp: Option<&mut TabPageInfo>,
-    altfr: Option<&mut Option<&'static mut Frame>>,
+    altfr: Option<&mut crate::globals::FramePtr>,
 ) -> Option<&'static mut WinInfoInfo> {
     debug_assert!(tp.as_deref().is_none_or(|t| g_st().curtab != t));
 
@@ -4095,15 +4123,14 @@ pub fn winframe_find_altwin(
         return None;
     }
 
-    let frp_close = win.w_frame;
-    let frp_close = frp_close.borrow_mut();
-    let mut frp2 = crate::globals::FramePtr::from(win_altframe(win, tp));
+    let frp_close = win.w_frame.clone();
+    let mut frp2 = win_altframe(win, tp);
     let mut wp = crate::globals::WinPtr::from(frame2win(frp2.borrow()));
 
-    if frp_close.fr_parent.fr_layout == FR_COL {
-        if !frp2.fr_win.is_null() && frp2.fr_win.w_onebuf_opt.wo_wfh {
-            let mut frp = frp_close.fr_prev;
-            let mut frp3 = frp_close.fr_next;
+    if frp_close.fr_parent.get().fr_layout.get() == FR_COL {
+        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfh {
+            let mut frp = frp_close.fr_prev.get();
+            let mut frp3 = frp_close.fr_next.get();
             while !frp.is_null() || !frp3.is_null() {
                 if !frp.is_null() {
                     if !frame_fixed_height(&frp) {
@@ -4112,24 +4139,24 @@ pub fn winframe_find_altwin(
                         break;
                     }
 
-                    frp = frp.fr_prev;
+                    frp = frp.fr_prev.get();
                 }
                 if !frp3.is_null() {
-                    if !frp3.fr_win.is_null() && !frp3.fr_win.w_onebuf_opt.wo_wfh {
+                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfh {
                         frp2 = frp3;
-                        wp = frp3.fr_win;
+                        wp = frp2.fr_win.get();
                         break;
                     }
 
-                    frp3 = frp3.fr_next;
+                    frp3 = frp3.fr_next.get();
                 }
             }
         }
         *dirp = b'v' as i32;
     } else {
-        if !frp2.fr_win.is_null() && frp2.fr_win.w_onebuf_opt.wo_wfw {
-            let mut frp = frp_close.fr_prev;
-            let mut frp3 = frp_close.fr_next;
+        if !frp2.fr_win.get().is_null() && frp2.fr_win.get().w_onebuf_opt.wo_wfw {
+            let mut frp = frp_close.fr_prev.get();
+            let mut frp3 = frp_close.fr_next.get();
             while !frp.is_null() || !frp3.is_null() {
                 if !frp.is_null() {
                     if !frame_fixed_width(&frp) {
@@ -4138,16 +4165,16 @@ pub fn winframe_find_altwin(
                         break;
                     }
 
-                    frp = frp.fr_prev;
+                    frp = frp.fr_prev.get();
                 }
                 if !frp3.is_null() {
-                    if !frp3.fr_win.is_null() && !frp3.fr_win.w_onebuf_opt.wo_wfw {
+                    if !frp3.fr_win.get().is_null() && !frp3.fr_win.get().w_onebuf_opt.wo_wfw {
                         frp2 = frp3;
-                        wp = frp3.fr_win;
+                        wp = frp2.fr_win.get();
                         break;
                     }
 
-                    frp3 = frp3.fr_next;
+                    frp3 = frp3.fr_next.get();
                 }
             }
         }
@@ -4156,124 +4183,127 @@ pub fn winframe_find_altwin(
 
     debug_assert!(wp != &*win && frp2 != frp_close);
     if let Some(out) = altfr {
-        *out = frp2.opt_mut();
+        *out = frp2;
     }
 
     wp.opt_mut()
 }
 
-fn frame_flatten(frp_in: &mut Frame) {
+fn frame_flatten(frp_in: &Frame) {
     let mut frp = crate::globals::FramePtr::from(frp_in);
-    if !frp.borrow_mut().fr_next.is_null() || !frp.borrow_mut().fr_prev.is_null() {
+    if !frp.fr_next.get().is_null() || !frp.fr_prev.get().is_null() {
         return;
     }
 
-    frp.fr_parent.borrow_mut().fr_layout = frp.borrow_mut().fr_layout;
+    frp.fr_parent.get().fr_layout.set(frp.fr_layout.get());
 
-    frp.fr_parent.borrow_mut().fr_child = frp.borrow_mut().fr_child;
+    frp.fr_parent.get().fr_child.set(frp.fr_child.get());
 
-    let mut frp2 = frp.borrow_mut().fr_child;
+    let mut frp2 = frp.fr_child.get();
     while !frp2.is_null() {
-        frp2.borrow_mut().fr_parent = frp.fr_parent;
+        frp2.fr_parent.set(frp.fr_parent.get());
 
-        frp2 = frp2.fr_next;
+        frp2 = frp2.fr_next.get();
     }
 
-    frp.fr_parent.borrow_mut().fr_win = frp.borrow_mut().fr_win;
+    frp.fr_parent.get().fr_win.set(frp.fr_win.get());
 
-    if !frp.borrow_mut().fr_win.is_null() {
-        frp.fr_win.borrow_mut().w_frame = frp.borrow_mut().fr_parent;
+    if !frp.fr_win.get().is_null() {
+        frp.fr_win.get().borrow_mut().w_frame = frp.fr_parent.get();
     }
 
-    frp2 = frp.borrow_mut().fr_parent;
+    frp2 = frp.fr_parent.get();
 
-    if crate::globals::topframe_mut().fr_child == frp {
-        crate::globals::topframe_mut().fr_child = frp2;
+    if crate::globals::topframe_mut().fr_child.get() == frp {
+        crate::globals::topframe_mut().fr_child.set(frp2.clone());
     }
 
-    frp.drop_box();
+    frp.clear_links();
 
-    frp = frp2.fr_parent;
+    frp = frp2.fr_parent.get();
 
-    if !frp.is_null() && frp.fr_layout == frp2.fr_layout {
-        if frp.fr_child == frp2 {
-            frp.fr_child = frp2.fr_child;
+    if !frp.is_null() && frp.fr_layout.get() == frp2.fr_layout.get() {
+        if frp.fr_child.get() == frp2 {
+            frp.fr_child.set(frp2.fr_child.get());
         }
 
-        debug_assert!(!frp2.fr_child.is_null());
+        debug_assert!(!frp2.fr_child.get().is_null());
 
-        frp2.fr_child.borrow_mut().fr_prev = frp2.fr_prev;
+        frp2.fr_child.get().fr_prev.set(frp2.fr_prev.get());
 
-        if !frp2.fr_prev.is_null() {
-            frp2.fr_prev.borrow_mut().fr_next = frp2.fr_child;
+        if !frp2.fr_prev.get().is_null() {
+            frp2.fr_prev.get().fr_next.set(frp2.fr_child.get());
         }
-        let mut frp3 = frp2.fr_child;
+        let mut frp3 = frp2.fr_child.get();
         loop {
-            frp3.fr_parent = frp;
+            frp3.fr_parent.set(frp.clone());
 
-            if frp3.fr_next.is_null() {
-                frp3.fr_next = frp2.fr_next;
+            if frp3.fr_next.get().is_null() {
+                frp3.fr_next.set(frp2.fr_next.get());
 
-                if !frp2.fr_next.is_null() {
-                    frp2.fr_next.borrow_mut().fr_prev = frp3;
+                if !frp2.fr_next.get().is_null() {
+                    frp2.fr_next.get().fr_prev.set(frp3);
                 }
                 break;
             }
 
-            frp3 = frp3.fr_next;
+            frp3 = frp3.fr_next.get();
         }
-        if crate::globals::topframe_mut().fr_child == frp2 {
-            crate::globals::topframe_mut().fr_child = frp;
+        if crate::globals::topframe_mut().fr_child.get() == frp2 {
+            crate::globals::topframe_mut().fr_child.set(frp);
         }
 
-        frp2.drop_box();
+        frp2.clear_links();
     }
 }
 
-pub fn winframe_restore(wp: &mut WinInfoInfo, dir: i32, unflat_altfr: &mut Frame) {
+pub fn winframe_restore(wp: &mut WinInfoInfo, dir: i32, unflat_altfr: &Frame) {
     let frp = wp.frame_mut();
 
     if let Some(prev) = frp.prev_opt() {
-        frame_append(prev, frp);
+        frame_append(&prev, &frp);
     } else {
-        frame_insert(frp.next_mut(), frp);
+        frame_insert(&frp.next_mut(), &frp);
     }
 
-    if wp.w_vsep_width == 0 && frp.parent_mut().fr_layout == FR_ROW && !frp.fr_prev.is_null() {
-        frame_set_vsep(frp.prev_mut(), true);
+    if wp.w_vsep_width == 0
+        && frp.parent_mut().fr_layout.get() == FR_ROW
+        && !frp.fr_prev.get().is_null()
+    {
+        frame_set_vsep(&frp.prev_mut(), true);
     }
 
-    if frp.parent_mut().fr_layout == FR_COL && !frp.fr_prev.is_null() {
+    if frp.parent_mut().fr_layout.get() == FR_COL && !frp.fr_prev.get().is_null() {
         if global_stl_height() == 0 && wp.w_status_height == 0 {
-            frame_add_statusline(frp.prev_mut());
+            frame_add_statusline(&frp.prev_mut());
         } else if global_stl_height() > 0 && wp.w_hsep_height == 0 {
-            frame_add_hsep(frp.prev_mut());
+            frame_add_hsep(&frp.prev_mut());
         }
     }
 
     if dir == b'v' as i32 {
-        let new_h = unflat_altfr.fr_height - frp.fr_height;
-        let is_next = frp.fr_next == unflat_altfr;
-        frame_new_height(&mut *unflat_altfr, new_h, is_next, false, false);
+        let new_h = unflat_altfr.fr_height.get() - frp.fr_height.get();
+        let is_next = frp.fr_next.get() == unflat_altfr;
+        frame_new_height(unflat_altfr, new_h, is_next, false, false);
     } else if dir == b'h' as i32 {
         frame_new_width(
             unflat_altfr,
-            unflat_altfr.fr_width - frp.fr_width,
-            frp.fr_next == unflat_altfr,
+            unflat_altfr.fr_width.get() - frp.fr_width.get(),
+            frp.fr_next.get() == unflat_altfr,
             false,
         );
     }
 
-    if frp.fr_prev != unflat_altfr {
-        let topleft = frame2win(frp.parent_mut());
+    if frp.fr_prev.get() != unflat_altfr {
+        let topleft = frame2win(&frp.parent_mut());
         let mut row = topleft.w_winrow;
         let mut col = topleft.w_wincol;
 
-        frame_comp_pos(frp.parent_mut(), &mut row, &mut col);
+        frame_comp_pos(&frp.parent_mut(), &mut row, &mut col);
     }
 }
 
-fn win_altframe(win: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) -> &'static mut Frame {
+fn win_altframe(win: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) -> crate::globals::FramePtr {
     debug_assert!(tp.as_deref().is_none_or(|t| g_st().curtab != t));
 
     if one_window(win, tp.as_deref()) {
@@ -4282,27 +4312,33 @@ fn win_altframe(win: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) -> &'static
 
     let frp = win.frame_mut();
 
-    if frp.fr_prev.is_null() {
+    if frp.fr_prev.get().is_null() {
         return frp.next_mut();
     }
-    if frp.fr_next.is_null() {
+    if frp.fr_next.get().is_null() {
         return frp.prev_mut();
     }
 
-    let mut target_fr = frp.fr_next;
-    let mut other_fr = frp.fr_prev;
+    let mut target_fr = frp.fr_next.get();
+    let mut other_fr = frp.fr_prev.get();
 
-    if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_COL && opt_vars().p_sb {
-        target_fr = frp.fr_prev;
-        other_fr = frp.fr_next;
+    if !frp.fr_parent.get().is_null()
+        && frp.parent_mut().fr_layout.get() == FR_COL
+        && opt_vars().p_sb
+    {
+        target_fr = frp.fr_prev.get();
+        other_fr = frp.fr_next.get();
     }
 
-    if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_ROW && opt_vars().p_spr {
-        target_fr = frp.fr_prev;
-        other_fr = frp.fr_next;
+    if !frp.fr_parent.get().is_null()
+        && frp.parent_mut().fr_layout.get() == FR_ROW
+        && opt_vars().p_spr
+    {
+        target_fr = frp.fr_prev.get();
+        other_fr = frp.fr_next.get();
     }
 
-    if !frp.fr_parent.is_null() && frp.parent_mut().fr_layout == FR_ROW {
+    if !frp.fr_parent.get().is_null() && frp.parent_mut().fr_layout.get() == FR_ROW {
         if frame_fixed_width(&target_fr) && !frame_fixed_width(&other_fr) {
             target_fr = other_fr;
         }
@@ -4310,7 +4346,7 @@ fn win_altframe(win: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) -> &'static
         target_fr = other_fr;
     }
 
-    target_fr.borrow_mut()
+    target_fr
 }
 
 fn alt_tabpage() -> Option<&'static mut TabPageInfo> {
@@ -4337,20 +4373,20 @@ fn alt_tabpage() -> Option<&'static mut TabPageInfo> {
 }
 
 pub fn frame2win(frp: &Frame) -> &'static mut WinInfoInfo {
-    let mut fr = frp;
-    while fr.fr_win.is_null() {
-        fr = fr.fr_child.borrow();
+    let mut fr = crate::globals::FramePtr::from(frp);
+    while fr.fr_win.get().is_null() {
+        fr = fr.fr_child.get();
     }
-    fr.fr_win.borrow_mut()
+    fr.fr_win.get().borrow_mut()
 }
 
 fn frame_has_win(frp: &Frame, wp: Option<&WinInfoInfo>) -> bool {
     let wp_ptr = crate::globals::WinPtr::from(wp);
-    if frp.fr_layout == FR_LEAF {
-        return frp.fr_win == wp_ptr;
+    if frp.fr_layout.get() == FR_LEAF {
+        return frp.fr_win.get() == wp_ptr;
     }
-    for p in frame_iter_mut(frp.fr_child) {
-        if frame_has_win(p, wp) {
+    for p in frame_iter_mut(frp.fr_child.get()) {
+        if frame_has_win(&p, wp) {
             return true;
         }
     }
@@ -4360,7 +4396,7 @@ fn frame_has_win(frp: &Frame, wp: Option<&WinInfoInfo>) -> bool {
 fn is_bottom_win(wp: &mut WinInfoInfo) -> bool {
     let mut fr = wp.frame_mut();
     while let Some(parent) = fr.parent_opt() {
-        if parent.fr_layout == FR_COL && !fr.fr_next.is_null() {
+        if parent.fr_layout.get() == FR_COL && !fr.fr_next.get().is_null() {
             return false;
         }
         fr = parent;
@@ -4368,17 +4404,11 @@ fn is_bottom_win(wp: &mut WinInfoInfo) -> bool {
     true
 }
 
-pub fn frame_new_height(
-    topfrp: &mut Frame,
-    mut height: i32,
-    topfirst: bool,
-    wfh: bool,
-    set_ch: bool,
-) {
-    if topfrp.fr_parent.is_null() && set_ch {
+pub fn frame_new_height(topfrp: &Frame, mut height: i32, topfirst: bool, wfh: bool, set_ch: bool) {
+    if topfrp.fr_parent.get().is_null() && set_ch {
         let new_ch = WIN_STATE
             .with(|s| s.min_set_ch.get())
-            .max(opt_vars().p_ch + OptInt::from(topfrp.fr_height - height));
+            .max(opt_vars().p_ch + OptInt::from(topfrp.fr_height.get() - height));
         if new_ch != opt_vars().p_ch {
             let save_ch = WIN_STATE.with(|s| s.min_set_ch.get());
             set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
@@ -4391,65 +4421,65 @@ pub fn frame_new_height(
             wp.w_hsep_height = 0;
         }
         win_new_height(wp, height - wp.w_hsep_height - wp.w_status_height);
-    } else if topfrp.fr_layout == FR_ROW {
+    } else if topfrp.fr_layout.get() == FR_ROW {
         let mut frp: crate::globals::FramePtr;
         loop {
-            frp = topfrp.fr_child;
+            frp = topfrp.fr_child.get();
             while !frp.is_null() {
-                frame_new_height(frp.borrow_mut(), height, topfirst, wfh, set_ch);
-                if frp.borrow().fr_height > height {
-                    height = frp.borrow().fr_height;
+                frame_new_height(frp.borrow(), height, topfirst, wfh, set_ch);
+                if frp.fr_height.get() > height {
+                    height = frp.fr_height.get();
                     break;
                 }
-                frp = frp.borrow().fr_next;
+                frp = frp.fr_next.get();
             }
             if frp.is_null() {
                 break;
             }
         }
     } else {
-        let mut frp = topfrp.fr_child;
+        let mut frp = topfrp.fr_child.get();
         if wfh {
             while frame_fixed_height(frp.borrow()) {
-                frp = frp.borrow().fr_next;
+                frp = frp.fr_next.get();
                 if frp.is_null() {
                     return;
                 }
             }
         }
         if !topfirst {
-            while !frp.borrow().fr_next.is_null() {
-                frp = frp.borrow().fr_next;
+            while !frp.fr_next.get().is_null() {
+                frp = frp.fr_next.get();
             }
             if wfh {
                 while frame_fixed_height(frp.borrow()) {
-                    frp = frp.borrow().fr_prev;
+                    frp = frp.fr_prev.get();
                 }
             }
         }
 
-        let mut extra_lines = height - topfrp.fr_height;
+        let mut extra_lines = height - topfrp.fr_height.get();
         if extra_lines < 0 {
             while !frp.is_null() {
-                let h = frame_minheight(frp.borrow_mut(), crate::globals::WinPtr::NULL);
-                if frp.borrow().fr_height + extra_lines < h {
-                    extra_lines += frp.borrow().fr_height - h;
-                    frame_new_height(frp.borrow_mut(), h, topfirst, wfh, set_ch);
+                let h = frame_minheight(frp.borrow(), crate::globals::WinPtr::NULL);
+                if frp.fr_height.get() + extra_lines < h {
+                    extra_lines += frp.fr_height.get() - h;
+                    frame_new_height(frp.borrow(), h, topfirst, wfh, set_ch);
                 } else {
-                    let new_h = frp.borrow().fr_height + extra_lines;
-                    frame_new_height(frp.borrow_mut(), new_h, topfirst, wfh, set_ch);
+                    let new_h = frp.fr_height.get() + extra_lines;
+                    frame_new_height(frp.borrow(), new_h, topfirst, wfh, set_ch);
                     break;
                 }
                 if topfirst {
                     loop {
-                        frp = frp.borrow().fr_next;
+                        frp = frp.fr_next.get();
                         if !(wfh && !frp.is_null() && frame_fixed_height(frp.borrow())) {
                             break;
                         }
                     }
                 } else {
                     loop {
-                        frp = frp.borrow().fr_prev;
+                        frp = frp.fr_prev.get();
                         if !(wfh && !frp.is_null() && frame_fixed_height(frp.borrow())) {
                             break;
                         }
@@ -4460,125 +4490,125 @@ pub fn frame_new_height(
                 }
             }
         } else if extra_lines > 0 {
-            let new_h = frp.borrow().fr_height + extra_lines;
-            frame_new_height(frp.borrow_mut(), new_h, topfirst, wfh, set_ch);
+            let new_h = frp.fr_height.get() + extra_lines;
+            frame_new_height(frp.borrow(), new_h, topfirst, wfh, set_ch);
         }
     }
-    topfrp.fr_height = height;
+    topfrp.fr_height.set(height);
 }
 
 fn frame_fixed_height(fr: &Frame) -> bool {
     if let Some(win) = fr.win_opt() {
         return win.w_onebuf_opt.wo_wfh;
     }
-    if fr.fr_layout == FR_ROW {
-        return frame_iter_mut(fr.fr_child).any(|child| frame_fixed_height(child));
+    if fr.fr_layout.get() == FR_ROW {
+        return frame_iter_mut(fr.fr_child.get()).any(|child| frame_fixed_height(&child));
     }
-    frame_iter_mut(fr.fr_child).all(|child| frame_fixed_height(child))
+    frame_iter_mut(fr.fr_child.get()).all(|child| frame_fixed_height(&child))
 }
 
 fn frame_fixed_width(fr: &Frame) -> bool {
     if let Some(win) = fr.win_opt() {
         return win.w_onebuf_opt.wo_wfw;
     }
-    if fr.fr_layout == FR_COL {
-        return frame_iter_mut(fr.fr_child).any(|child| frame_fixed_width(child));
+    if fr.fr_layout.get() == FR_COL {
+        return frame_iter_mut(fr.fr_child.get()).any(|child| frame_fixed_width(&child));
     }
-    frame_iter_mut(fr.fr_child).all(|child| frame_fixed_width(child))
+    frame_iter_mut(fr.fr_child.get()).all(|child| frame_fixed_width(&child))
 }
 
-fn frame_add_statusline(frp: &mut Frame) {
-    let mut fr = crate::globals::FramePtr::from(frp).borrow_mut();
-    if fr.fr_layout == FR_LEAF {
+fn frame_add_statusline(frp: &Frame) {
+    let mut fr = crate::globals::FramePtr::from(frp);
+    if fr.fr_layout.get() == FR_LEAF {
         fr.win_mut().w_status_height = STATUS_HEIGHT;
-    } else if fr.fr_layout == FR_ROW {
-        for child in frame_iter_ptr(fr.fr_child) {
-            frame_add_statusline(&mut *child);
+    } else if fr.fr_layout.get() == FR_ROW {
+        for child in frame_iter_ptr(fr.fr_child.get()) {
+            frame_add_statusline(&child);
         }
     } else {
-        debug_assert!(fr.fr_layout == FR_COL);
+        debug_assert!(fr.fr_layout.get() == FR_COL);
         fr = fr.child_mut();
-        while !fr.fr_next.is_null() {
+        while !fr.fr_next.get().is_null() {
             fr = fr.next_mut();
         }
-        frame_add_statusline(fr);
+        frame_add_statusline(&fr);
     }
 }
 
-fn frame_new_width(topfrp: &mut Frame, mut width: i32, leftfirst: bool, wfw: bool) {
-    if topfrp.fr_layout == FR_LEAF {
-        let wp = topfrp.fr_win;
-        let mut frp = crate::globals::FramePtr::from(&mut *topfrp);
-        while let Some(parent) = frp.borrow().parent_opt() {
-            if parent.fr_layout == FR_ROW && !frp.borrow().fr_next.is_null() {
+fn frame_new_width(topfrp: &Frame, mut width: i32, leftfirst: bool, wfw: bool) {
+    if topfrp.fr_layout.get() == FR_LEAF {
+        let wp = topfrp.fr_win.get();
+        let mut frp = crate::globals::FramePtr::from(topfrp);
+        while let Some(parent) = frp.parent_opt() {
+            if parent.fr_layout.get() == FR_ROW && !frp.fr_next.get().is_null() {
                 break;
             }
-            frp = crate::globals::FramePtr::from(parent);
+            frp = parent;
         }
-        if frp.borrow().fr_parent.is_null() {
+        if frp.fr_parent.get().is_null() {
             wp.borrow_mut().w_vsep_width = 0;
         }
         let new_w = width - wp.borrow().w_vsep_width;
         win_new_width(wp.borrow_mut(), new_w);
-    } else if topfrp.fr_layout == FR_COL {
+    } else if topfrp.fr_layout.get() == FR_COL {
         let mut frp: crate::globals::FramePtr;
         loop {
-            frp = topfrp.fr_child;
+            frp = topfrp.fr_child.get();
             while !frp.is_null() {
-                frame_new_width(frp.borrow_mut(), width, leftfirst, wfw);
-                if frp.borrow().fr_width > width {
-                    width = frp.borrow().fr_width;
+                frame_new_width(frp.borrow(), width, leftfirst, wfw);
+                if frp.fr_width.get() > width {
+                    width = frp.fr_width.get();
                     break;
                 }
-                frp = frp.borrow().fr_next;
+                frp = frp.fr_next.get();
             }
             if frp.is_null() {
                 break;
             }
         }
     } else {
-        let mut frp = topfrp.fr_child;
+        let mut frp = topfrp.fr_child.get();
         if wfw {
             while frame_fixed_width(frp.borrow()) {
-                frp = frp.borrow().fr_next;
+                frp = frp.fr_next.get();
                 if frp.is_null() {
                     return;
                 }
             }
         }
         if !leftfirst {
-            while !frp.borrow().fr_next.is_null() {
-                frp = frp.borrow().fr_next;
+            while !frp.fr_next.get().is_null() {
+                frp = frp.fr_next.get();
             }
             if wfw {
                 while frame_fixed_width(frp.borrow()) {
-                    frp = frp.borrow().fr_prev;
+                    frp = frp.fr_prev.get();
                 }
             }
         }
 
-        let mut extra_cols = width - topfrp.fr_width;
+        let mut extra_cols = width - topfrp.fr_width.get();
         if extra_cols < 0 {
             while !frp.is_null() {
-                let w = frame_minwidth(frp.borrow_mut(), crate::globals::WinPtr::NULL);
-                if frp.borrow().fr_width + extra_cols < w {
-                    extra_cols += frp.borrow().fr_width - w;
-                    frame_new_width(frp.borrow_mut(), w, leftfirst, wfw);
+                let w = frame_minwidth(frp.borrow(), crate::globals::WinPtr::NULL);
+                if frp.fr_width.get() + extra_cols < w {
+                    extra_cols += frp.fr_width.get() - w;
+                    frame_new_width(frp.borrow(), w, leftfirst, wfw);
                 } else {
-                    let new_w = frp.borrow().fr_width + extra_cols;
-                    frame_new_width(frp.borrow_mut(), new_w, leftfirst, wfw);
+                    let new_w = frp.fr_width.get() + extra_cols;
+                    frame_new_width(frp.borrow(), new_w, leftfirst, wfw);
                     break;
                 }
                 if leftfirst {
                     loop {
-                        frp = frp.borrow().fr_next;
+                        frp = frp.fr_next.get();
                         if !(wfw && !frp.is_null() && frame_fixed_width(frp.borrow())) {
                             break;
                         }
                     }
                 } else {
                     loop {
-                        frp = frp.borrow().fr_prev;
+                        frp = frp.fr_prev.get();
                         if !(wfw && !frp.is_null() && frame_fixed_width(frp.borrow())) {
                             break;
                         }
@@ -4589,16 +4619,16 @@ fn frame_new_width(topfrp: &mut Frame, mut width: i32, leftfirst: bool, wfw: boo
                 }
             }
         } else if extra_cols > 0 {
-            let new_w = frp.borrow().fr_width + extra_cols;
-            frame_new_width(frp.borrow_mut(), new_w, leftfirst, wfw);
+            let new_w = frp.fr_width.get() + extra_cols;
+            frame_new_width(frp.borrow(), new_w, leftfirst, wfw);
         }
     }
-    topfrp.fr_width = width;
+    topfrp.fr_width.set(width);
 }
 
-fn frame_set_vsep(frp: &mut Frame, add: bool) {
-    let mut fr = crate::globals::FramePtr::from(frp).borrow_mut();
-    if fr.fr_layout == FR_LEAF {
+fn frame_set_vsep(frp: &Frame, add: bool) {
+    let mut fr = crate::globals::FramePtr::from(frp);
+    if fr.fr_layout.get() == FR_LEAF {
         let wp = fr.win_mut();
         if add && wp.w_vsep_width == 0 {
             if wp.w_width > 0 {
@@ -4609,98 +4639,102 @@ fn frame_set_vsep(frp: &mut Frame, add: bool) {
             win_new_width(wp, wp.w_width + 1);
             wp.w_vsep_width = 0;
         }
-    } else if fr.fr_layout == FR_COL {
-        for child in frame_iter_ptr(fr.fr_child) {
-            frame_set_vsep(child, add);
+    } else if fr.fr_layout.get() == FR_COL {
+        for child in frame_iter_ptr(fr.fr_child.get()) {
+            frame_set_vsep(&child, add);
         }
     } else {
-        debug_assert!(fr.fr_layout == FR_ROW);
+        debug_assert!(fr.fr_layout.get() == FR_ROW);
         fr = fr.child_mut();
-        while !fr.fr_next.is_null() {
+        while !fr.fr_next.get().is_null() {
             fr = fr.next_mut();
         }
-        frame_set_vsep(fr, add);
+        frame_set_vsep(&fr, add);
     }
 }
 
-fn frame_add_hsep(frp: &mut Frame) {
-    let mut fr = crate::globals::FramePtr::from(frp).borrow_mut();
-    if fr.fr_layout == FR_LEAF {
+fn frame_add_hsep(frp: &Frame) {
+    let mut fr = crate::globals::FramePtr::from(frp);
+    if fr.fr_layout.get() == FR_LEAF {
         fr.win_mut().w_hsep_height = 1;
-    } else if fr.fr_layout == FR_ROW {
-        for child in frame_iter_ptr(fr.fr_child) {
-            frame_add_hsep(child);
+    } else if fr.fr_layout.get() == FR_ROW {
+        for child in frame_iter_ptr(fr.fr_child.get()) {
+            frame_add_hsep(&child);
         }
     } else {
-        debug_assert!(fr.fr_layout == FR_COL);
+        debug_assert!(fr.fr_layout.get() == FR_COL);
         fr = fr.child_mut();
-        while !fr.fr_next.is_null() {
+        while !fr.fr_next.get().is_null() {
             fr = fr.next_mut();
         }
-        frame_add_hsep(fr);
+        frame_add_hsep(&fr);
     }
 }
 
 #[inline]
 fn frame_fix_width(wp: &mut WinInfoInfo) {
-    wp.frame_mut().fr_width = wp.w_width + wp.w_vsep_width;
+    wp.frame_mut().fr_width.set(wp.w_width + wp.w_vsep_width);
 }
 
 #[inline]
 fn frame_fix_height(wp: &mut WinInfoInfo) {
-    wp.frame_mut().fr_height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
+    wp.frame_mut()
+        .fr_height
+        .set(wp.w_height + wp.w_hsep_height + wp.w_status_height);
 }
 
-fn frame_minheight(topfrp: &mut Frame, next_curwin: crate::globals::WinPtr) -> i32 {
+fn frame_minheight(topfrp: &Frame, next_curwin: crate::globals::WinPtr) -> i32 {
     let mut m: i32;
     if let Some(win) = topfrp.win_opt() {
         let extra_height = win.w_winbar_height + win.w_hsep_height + win.w_status_height;
-        if topfrp.fr_win == next_curwin.as_ptr() {
+        if topfrp.fr_win.get() == next_curwin.as_ptr() {
             m = opt_vars().p_wh as i32 + extra_height;
         } else {
             m = opt_vars().p_wmh as i32 + extra_height;
-            if topfrp.fr_win == curwin_ptr() && next_curwin.is_null() && opt_vars().p_wmh == 0 {
+            if topfrp.fr_win.get() == curwin_ptr() && next_curwin.is_null() && opt_vars().p_wmh == 0
+            {
                 m += 1;
             }
         }
-    } else if topfrp.fr_layout == FR_ROW {
+    } else if topfrp.fr_layout.get() == FR_ROW {
         m = 0;
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            let n = frame_minheight(frp, next_curwin);
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            let n = frame_minheight(&frp, next_curwin);
             if n > m {
                 m = n;
             }
         }
     } else {
         m = 0;
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            m += frame_minheight(frp, next_curwin);
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            m += frame_minheight(&frp, next_curwin);
         }
     }
     m
 }
 
-fn frame_minwidth(topfrp: &mut Frame, next_curwin: crate::globals::WinPtr) -> i32 {
+fn frame_minwidth(topfrp: &Frame, next_curwin: crate::globals::WinPtr) -> i32 {
     let mut m: i32;
     if let Some(win) = topfrp.win_opt() {
-        if topfrp.fr_win == next_curwin.as_ptr() {
+        if topfrp.fr_win.get() == next_curwin.as_ptr() {
             m = opt_vars().p_wiw as i32 + win.w_vsep_width;
         } else {
             m = opt_vars().p_wmw as i32 + win.w_vsep_width;
-            if opt_vars().p_wmw == 0 && topfrp.fr_win == curwin_ptr() && next_curwin.is_null() {
+            if opt_vars().p_wmw == 0 && topfrp.fr_win.get() == curwin_ptr() && next_curwin.is_null()
+            {
                 m += 1;
             }
         }
-    } else if topfrp.fr_layout == FR_COL {
+    } else if topfrp.fr_layout.get() == FR_COL {
         m = 0;
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            let n = frame_minwidth(frp, next_curwin);
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            let n = frame_minwidth(&frp, next_curwin);
             m = m.max(n);
         }
     } else {
         m = 0;
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            m += frame_minwidth(frp, next_curwin);
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            m += frame_minwidth(&frp, next_curwin);
         }
     }
     m
@@ -4787,7 +4821,7 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
 }
 
 pub fn unuse_tabpage(tp: &mut TabPageInfo) {
-    tp.tp_topframe = g_st().topframe;
+    tp.tp_topframe = g_st().topframe.clone();
     tp.tp_firstwin = g_st().firstwin;
     tp.tp_lastwin = g_st().lastwin;
     tp.tp_curwin = crate::globals::curwin_ptr();
@@ -4796,7 +4830,7 @@ pub fn unuse_tabpage(tp: &mut TabPageInfo) {
 
 pub fn use_tabpage(tp: &mut TabPageInfo) {
     g_st().curtab = (tp).into();
-    g_st().topframe = curtab_mut().tp_topframe;
+    g_st().topframe = curtab_mut().tp_topframe.clone();
     g_st().firstwin = (curtab_mut().tp_firstwin.as_ptr()).into();
     g_st().lastwin = (curtab_mut().tp_lastwin.as_ptr()).into();
     set_curwin(curtab_mut().tp_curwin.as_ptr());
@@ -4846,20 +4880,22 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
     }
 
     new_frame(curwin_mut());
-    g_st().topframe = curwin_mut().w_frame;
-    crate::globals::topframe_mut().fr_width = g_st().columns_global;
-    crate::globals::topframe_mut().fr_height =
-        g_st().rows_global - opt_vars().p_ch as i32 - global_stl_height();
+    g_st().topframe = curwin_mut().w_frame.clone();
+    crate::globals::topframe_mut()
+        .fr_width
+        .set(g_st().columns_global);
+    crate::globals::topframe_mut()
+        .fr_height
+        .set(g_st().rows_global - opt_vars().p_ch as i32 - global_stl_height());
 
     true
 }
 
 fn new_frame(wp: &mut WinInfoInfo) {
-    wp.w_frame = crate::globals::FramePtr::from(Box::leak(Box::new(Frame {
-        fr_layout: FR_LEAF,
-        fr_win: crate::globals::WinPtr::from(&mut *wp),
-        ..Frame::new()
-    })));
+    let fr = Frame::new_rc();
+    fr.fr_layout.set(FR_LEAF);
+    fr.fr_win.set(crate::globals::WinPtr::from(&mut *wp));
+    wp.w_frame = crate::globals::FramePtr::from(fr);
 }
 
 pub fn win_init_size() {
@@ -4869,11 +4905,13 @@ pub fn win_init_size() {
     firstwin_mut().w_view_height = firstwin_mut().w_height - firstwin_mut().w_winbar_height;
     firstwin_mut().w_height_outer = firstwin_mut().w_height;
     firstwin_mut().w_winrow_off = firstwin_mut().w_winbar_height;
-    crate::globals::topframe_mut().fr_height = avail;
+    crate::globals::topframe_mut().fr_height.set(avail);
     firstwin_mut().w_width = g_st().columns_global;
     firstwin_mut().w_view_width = firstwin_mut().w_width;
     firstwin_mut().w_width_outer = firstwin_mut().w_width;
-    crate::globals::topframe_mut().fr_width = g_st().columns_global;
+    crate::globals::topframe_mut()
+        .fr_width
+        .set(g_st().columns_global);
 }
 
 fn alloc_tabpage() -> &'static mut TabPageInfo {
@@ -4977,7 +5015,7 @@ pub fn win_new_tabpage(
         firstwin_mut().w_prev_winrow = firstwin_mut().w_winrow;
         win_comp_scroll(curwin_mut());
 
-        newtp.tp_topframe = g_st().topframe;
+        newtp.tp_topframe = g_st().topframe.clone();
         last_status(false);
 
         if !curbuf_mut().terminal.is_null() {
@@ -5505,18 +5543,18 @@ pub fn win_vert_neighbor(
         return res.opt_mut();
     }
 
-    let mut foundfr: &'static Frame = wp.frame_mut();
+    let mut foundfr = wp.frame_mut();
 
     'outer: while count > 0 {
         count -= 1;
-        let mut nfr: &'static Frame;
-        let mut fr: &'static Frame = foundfr;
+        let mut nfr: crate::globals::FramePtr;
+        let mut fr = foundfr.clone();
         loop {
             if tp.tp_topframe == fr {
                 break 'outer;
             }
             let cand = if up { fr.prev_opt() } else { fr.next_opt() };
-            if fr.parent_mut().fr_layout == FR_COL
+            if fr.parent_mut().fr_layout.get() == FR_COL
                 && let Some(c) = cand
             {
                 nfr = c;
@@ -5526,19 +5564,19 @@ pub fn win_vert_neighbor(
         }
 
         loop {
-            if nfr.fr_layout == FR_LEAF {
+            if nfr.fr_layout.get() == FR_LEAF {
                 foundfr = nfr;
                 break;
             }
             fr = nfr.child_mut();
-            if nfr.fr_layout == FR_ROW {
-                while frame2win(fr).w_wincol + fr.fr_width <= wp.w_wincol + wp.w_wcol
+            if nfr.fr_layout.get() == FR_ROW {
+                while frame2win(&fr).w_wincol + fr.fr_width.get() <= wp.w_wincol + wp.w_wcol
                     && let Some(next) = fr.next_opt()
                 {
                     fr = next;
                 }
             }
-            if nfr.fr_layout == FR_COL && up {
+            if nfr.fr_layout.get() == FR_COL && up {
                 while let Some(next) = fr.next_opt() {
                     fr = next;
                 }
@@ -5546,7 +5584,7 @@ pub fn win_vert_neighbor(
             nfr = fr;
         }
     }
-    foundfr.fr_win.opt_mut()
+    foundfr.fr_win.get().opt_mut()
 }
 
 fn win_goto_ver(up: bool, count: i32) {
@@ -5570,18 +5608,18 @@ pub fn win_horz_neighbor(
         return res.opt_mut();
     }
 
-    let mut foundfr: &'static Frame = wp.frame_mut();
+    let mut foundfr = wp.frame_mut();
 
     'outer: while count > 0 {
         count -= 1;
-        let mut nfr: &'static Frame;
-        let mut fr: &'static Frame = foundfr;
+        let mut nfr: crate::globals::FramePtr;
+        let mut fr = foundfr.clone();
         loop {
             if tp.tp_topframe == fr {
                 break 'outer;
             }
             let cand = if left { fr.prev_opt() } else { fr.next_opt() };
-            if fr.parent_mut().fr_layout == FR_ROW
+            if fr.parent_mut().fr_layout.get() == FR_ROW
                 && let Some(c) = cand
             {
                 nfr = c;
@@ -5591,19 +5629,19 @@ pub fn win_horz_neighbor(
         }
 
         loop {
-            if nfr.fr_layout == FR_LEAF {
+            if nfr.fr_layout.get() == FR_LEAF {
                 foundfr = nfr;
                 break;
             }
             fr = nfr.child_mut();
-            if nfr.fr_layout == FR_COL {
-                while frame2win(fr).w_winrow + fr.fr_height <= wp.w_winrow + wp.w_wrow
+            if nfr.fr_layout.get() == FR_COL {
+                while frame2win(&fr).w_winrow + fr.fr_height.get() <= wp.w_winrow + wp.w_wrow
                     && let Some(next) = fr.next_opt()
                 {
                     fr = next;
                 }
             }
-            if nfr.fr_layout == FR_ROW && left {
+            if nfr.fr_layout.get() == FR_ROW && left {
                 while let Some(next) = fr.next_opt() {
                     fr = next;
                 }
@@ -5611,7 +5649,7 @@ pub fn win_horz_neighbor(
             nfr = fr;
         }
     }
-    foundfr.fr_win.opt_mut()
+    foundfr.fr_win.get().opt_mut()
 }
 
 fn win_goto_hor(left: bool, count: i32) {
@@ -6084,36 +6122,36 @@ pub fn win_remove(wp: &mut WinInfoInfo, mut tp_opt: Option<&mut TabPageInfo>) {
     }
 }
 
-fn frame_append(after: &mut Frame, frp: &mut Frame) {
-    let frp_ptr = crate::globals::FramePtr::from(&mut *frp);
-    frp.fr_next = after.fr_next;
-    after.fr_next = frp_ptr;
+fn frame_append(after: &Frame, frp: &Frame) {
+    let frp_ptr = crate::globals::FramePtr::from(frp);
+    frp.fr_next.set(after.fr_next.get());
+    after.fr_next.set(frp_ptr.clone());
     if let Some(next) = frp.next_opt() {
-        next.fr_prev = frp_ptr;
+        next.fr_prev.set(frp_ptr);
     }
-    frp.fr_prev = crate::globals::FramePtr::from(&mut *after);
+    frp.fr_prev.set(crate::globals::FramePtr::from(after));
 }
 
-fn frame_insert(before: &mut Frame, frp: &mut Frame) {
-    let frp_ptr = crate::globals::FramePtr::from(&mut *frp);
-    frp.fr_next = crate::globals::FramePtr::from(&mut *before);
-    frp.fr_prev = before.fr_prev;
-    before.fr_prev = frp_ptr;
+fn frame_insert(before: &Frame, frp: &Frame) {
+    let frp_ptr = crate::globals::FramePtr::from(frp);
+    frp.fr_next.set(crate::globals::FramePtr::from(before));
+    frp.fr_prev.set(before.fr_prev.get());
+    before.fr_prev.set(frp_ptr.clone());
     if let Some(prev) = frp.prev_opt() {
-        prev.fr_next = frp_ptr;
+        prev.fr_next.set(frp_ptr);
     } else {
-        frp.parent_mut().fr_child = frp_ptr;
+        frp.parent_mut().fr_child.set(frp_ptr);
     }
 }
 
-fn frame_remove(frp: &mut Frame) {
+fn frame_remove(frp: &Frame) {
     if let Some(prev) = frp.prev_opt() {
-        prev.fr_next = frp.fr_next;
+        prev.fr_next.set(frp.fr_next.get());
     } else {
-        frp.parent_mut().fr_child = frp.fr_next;
+        frp.parent_mut().fr_child.set(frp.fr_next.get());
     }
     if let Some(next) = frp.next_opt() {
-        next.fr_prev = frp.fr_prev;
+        next.fr_prev.set(frp.fr_prev.get());
     }
 }
 
@@ -6138,13 +6176,13 @@ pub fn win_new_screen_rows() {
         return;
     }
     let h = (rows_avail() as i32).max(frame_minheight(
-        topframe_mut(),
+        &topframe_mut(),
         crate::globals::WinPtr::NULL,
     ));
 
-    frame_new_height(topframe_mut(), h, false, true, false);
-    if !frame_check_height(topframe_mut(), h) {
-        frame_new_height(topframe_mut(), h, false, false, false);
+    frame_new_height(&topframe_mut(), h, false, true, false);
+    if !frame_check_height(&topframe_mut(), h) {
+        frame_new_height(&topframe_mut(), h, false, false, false);
     }
 
     win_comp_pos();
@@ -6162,9 +6200,9 @@ pub fn win_new_screen_cols() {
         return;
     }
 
-    frame_new_width(topframe_mut(), g_st().columns_global, false, true);
-    if !frame_check_width(topframe_mut(), g_st().columns_global) {
-        frame_new_width(topframe_mut(), g_st().columns_global, false, false);
+    frame_new_width(&topframe_mut(), g_st().columns_global, false, true);
+    if !frame_check_width(&topframe_mut(), g_st().columns_global) {
+        frame_new_width(&topframe_mut(), g_st().columns_global, false, false);
     }
 
     win_comp_pos();
@@ -6498,7 +6536,7 @@ pub fn win_size_restore(gap: &[i32]) {
                 let height = gap[i + 1];
                 i += 2;
                 if !wp.w_floating {
-                    frame_setwidth(wp.frame_mut(), width, true);
+                    frame_setwidth(&wp.frame_mut(), width, true);
                     win_setheight_win(height, wp, true);
                 }
             }
@@ -6511,7 +6549,7 @@ pub fn win_comp_pos() -> i32 {
     let mut row = tabline_height();
     let mut col: i32 = 0;
 
-    frame_comp_pos(topframe_mut(), &mut row, &mut col);
+    frame_comp_pos(&topframe_mut(), &mut row, &mut col);
 
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
         if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW {
@@ -6522,7 +6560,7 @@ pub fn win_comp_pos() -> i32 {
     row + global_stl_height()
 }
 
-fn frame_comp_pos(topfrp: &mut Frame, row: &mut i32, col: &mut i32) {
+fn frame_comp_pos(topfrp: &Frame, row: &mut i32, col: &mut i32) {
     if let Some(wp) = topfrp.win_opt() {
         if wp.w_winrow != *row || wp.w_wincol != *col {
             wp.w_winrow = *row;
@@ -6532,8 +6570,8 @@ fn frame_comp_pos(topfrp: &mut Frame, row: &mut i32, col: &mut i32) {
             wp.w_pos_changed = true;
         }
         let h = wp.w_height + wp.w_hsep_height + wp.w_status_height;
-        *row += if h > topfrp.fr_height {
-            topfrp.fr_height
+        *row += if h > topfrp.fr_height.get() {
+            topfrp.fr_height.get()
         } else {
             h
         };
@@ -6541,13 +6579,13 @@ fn frame_comp_pos(topfrp: &mut Frame, row: &mut i32, col: &mut i32) {
     } else {
         let startrow = *row;
         let startcol = *col;
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            if topfrp.fr_layout == FR_ROW {
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            if topfrp.fr_layout.get() == FR_ROW {
                 *row = startrow;
             } else {
                 *col = startcol;
             }
-            frame_comp_pos(frp, row, col);
+            frame_comp_pos(&frp, row, col);
         }
     }
 }
@@ -6570,7 +6608,7 @@ pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool)
         redraw_later(Some(&mut *win), UPD_VALID);
     } else {
         frame_setheight(
-            win.frame_mut(),
+            &win.frame_mut(),
             height + win.w_hsep_height + win.w_status_height,
             from_top,
         );
@@ -6583,20 +6621,23 @@ pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool)
     }
 }
 
-fn frame_setheight(curfrp: &mut Frame, mut height: i32, from_top: bool) {
-    if curfrp.fr_height == height {
+fn frame_setheight(curfrp: &Frame, mut height: i32, from_top: bool) {
+    if curfrp.fr_height.get() == height {
         return;
     }
 
-    if curfrp.fr_parent.is_null() {
+    if curfrp.fr_parent.get().is_null() {
         if height > 0 {
-            frame_new_height(&mut *curfrp, height, false, false, true);
+            frame_new_height(curfrp, height, false, false, true);
         }
-    } else if (curfrp.fr_parent.borrow_mut()).fr_layout == FR_ROW {
-        let h = frame_minheight(curfrp.fr_parent.borrow_mut(), crate::globals::WinPtr::NULL);
+    } else if curfrp.fr_parent.get().fr_layout.get() == FR_ROW {
+        let h = frame_minheight(
+            curfrp.fr_parent.get().borrow(),
+            crate::globals::WinPtr::NULL,
+        );
         height = height.max(h);
 
-        frame_setheight(curfrp.fr_parent.borrow_mut(), height, from_top);
+        frame_setheight(curfrp.fr_parent.get().borrow(), height, from_top);
     } else {
         let mut room: i32 = 0;
         let mut room_cmdline: i32 = 0;
@@ -6605,19 +6646,19 @@ fn frame_setheight(curfrp: &mut Frame, mut height: i32, from_top: bool) {
         for run in 1..=2 {
             room = 0;
             room_reserved = 0;
-            for frp in frame_iter_ptr((curfrp.fr_parent.borrow_mut()).fr_child) {
-                if !ptr::eq(frp, curfrp)
-                    && !frp.fr_win.is_null()
+            for frp in frame_iter_ptr(curfrp.fr_parent.get().fr_child.get()) {
+                if !ptr::eq(frp.borrow(), curfrp)
+                    && !frp.fr_win.get().is_null()
                     && frp.win_mut().w_onebuf_opt.wo_wfh
                 {
-                    room_reserved += frp.fr_height;
+                    room_reserved += frp.fr_height.get();
                 }
-                room += frp.fr_height;
-                if !ptr::eq(frp, curfrp) {
-                    room -= frame_minheight(&mut *frp, crate::globals::WinPtr::NULL);
+                room += frp.fr_height.get();
+                if !ptr::eq(frp.borrow(), curfrp) {
+                    room -= frame_minheight(&frp, crate::globals::WinPtr::NULL);
                 }
             }
-            if !from_top || curfrp.fr_width != g_st().columns_global {
+            if !from_top || curfrp.fr_width.get() != g_st().columns_global {
                 room_cmdline = 0;
             } else {
                 let wp = lastwin_nofloating(None);
@@ -6631,83 +6672,78 @@ fn frame_setheight(curfrp: &mut Frame, mut height: i32, from_top: bool) {
             if height <= room + room_cmdline {
                 break;
             }
-            if run == 2 || curfrp.fr_width == g_st().columns_global {
+            if run == 2 || curfrp.fr_width.get() == g_st().columns_global {
                 height = room + room_cmdline;
                 break;
             }
 
             frame_setheight(
-                curfrp.fr_parent.borrow_mut(),
-                height + frame_minheight(curfrp.fr_parent.borrow_mut(), nowin())
+                curfrp.fr_parent.get().borrow(),
+                height + frame_minheight(curfrp.fr_parent.get().borrow(), nowin())
                     - opt_vars().p_wmh as i32
                     - 1,
                 from_top,
             );
         }
 
-        let mut take = height - curfrp.fr_height;
+        let mut take = height - curfrp.fr_height.get();
 
         if height > room + room_cmdline - room_reserved {
             room_reserved = room + room_cmdline - height;
         }
-        if take < 0 && room - curfrp.fr_height <= room_reserved {
+        if take < 0 && room - curfrp.fr_height.get() <= room_reserved {
             room_reserved = 0;
         }
 
         if take > 0 && room_cmdline > 0 {
             room_cmdline = room_cmdline.min(take);
             take -= room_cmdline;
-            crate::globals::topframe_mut().fr_height += room_cmdline;
+            let top = crate::globals::topframe_mut();
+            top.fr_height.set(top.fr_height.get() + room_cmdline);
         }
 
-        frame_new_height(&mut *curfrp, height, false, false, true);
+        frame_new_height(curfrp, height, false, false, true);
 
         for run in 0..2 {
             let forward = (run == 0) == from_top;
             let mut frp = if forward {
-                curfrp.fr_next
+                curfrp.fr_next.get()
             } else {
-                curfrp.fr_prev
+                curfrp.fr_prev.get()
             };
 
             while !frp.is_null() && take != 0 {
-                let h = frame_minheight(frp.borrow_mut(), crate::globals::WinPtr::NULL);
+                let h = frame_minheight(frp.borrow(), crate::globals::WinPtr::NULL);
                 if room_reserved > 0
-                    && !(frp.borrow_mut()).fr_win.is_null()
-                    && frp.fr_win.w_onebuf_opt.wo_wfh
+                    && !frp.fr_win.get().is_null()
+                    && frp.fr_win.get().w_onebuf_opt.wo_wfh
                 {
-                    if room_reserved >= (frp.borrow_mut()).fr_height {
-                        room_reserved -= (frp.borrow_mut()).fr_height;
+                    if room_reserved >= frp.fr_height.get() {
+                        room_reserved -= frp.fr_height.get();
                     } else {
-                        if (frp.borrow_mut()).fr_height - room_reserved > take {
-                            room_reserved = (frp.borrow_mut()).fr_height - take;
+                        if frp.fr_height.get() - room_reserved > take {
+                            room_reserved = frp.fr_height.get() - take;
                         }
 
-                        take -= (frp.borrow_mut()).fr_height - room_reserved;
+                        take -= frp.fr_height.get() - room_reserved;
 
-                        frame_new_height(frp.borrow_mut(), room_reserved, false, false, true);
+                        frame_new_height(frp.borrow(), room_reserved, false, false, true);
 
                         room_reserved = 0;
                     }
-                } else if (frp.borrow_mut()).fr_height - take < h {
-                    take -= (frp.borrow_mut()).fr_height - h;
+                } else if frp.fr_height.get() - take < h {
+                    take -= frp.fr_height.get() - h;
 
-                    frame_new_height(frp.borrow_mut(), h, false, false, true);
+                    frame_new_height(frp.borrow(), h, false, false, true);
                 } else {
-                    frame_new_height(
-                        frp.borrow_mut(),
-                        (frp.borrow_mut()).fr_height - take,
-                        false,
-                        false,
-                        true,
-                    );
+                    frame_new_height(frp.borrow(), frp.fr_height.get() - take, false, false, true);
 
                     take = 0;
                 }
                 frp = if forward {
-                    (frp.borrow_mut()).fr_next
+                    frp.fr_next.get()
                 } else {
-                    (frp.borrow_mut()).fr_prev
+                    frp.fr_prev.get()
                 };
             }
         }
@@ -6729,69 +6765,72 @@ pub fn win_setwidth_win(mut width: i32, wp: &mut WinInfoInfo, from_left: bool) {
         win_config_float(wp, wp.w_config.clone());
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     } else {
-        frame_setwidth(wp.frame_mut(), width + wp.w_vsep_width, from_left);
+        frame_setwidth(&wp.frame_mut(), width + wp.w_vsep_width, from_left);
 
         win_comp_pos();
         redraw_all_later(UPD_NOT_VALID);
     }
 }
 
-fn frame_setwidth(curfrp: &mut Frame, mut width: i32, from_left: bool) {
-    if curfrp.fr_width == width {
+fn frame_setwidth(curfrp: &Frame, mut width: i32, from_left: bool) {
+    if curfrp.fr_width.get() == width {
         return;
     }
 
-    if curfrp.fr_parent.is_null() {
+    if curfrp.fr_parent.get().is_null() {
         return;
     }
 
-    if (curfrp.fr_parent.borrow_mut()).fr_layout == FR_COL {
-        let w = frame_minwidth(curfrp.fr_parent.borrow_mut(), crate::globals::WinPtr::NULL);
+    if curfrp.fr_parent.get().fr_layout.get() == FR_COL {
+        let w = frame_minwidth(
+            curfrp.fr_parent.get().borrow(),
+            crate::globals::WinPtr::NULL,
+        );
         width = width.max(w);
 
-        frame_setwidth(curfrp.fr_parent.borrow_mut(), width, from_left);
+        frame_setwidth(curfrp.fr_parent.get().borrow(), width, from_left);
     } else {
         let mut room: i32 = 0;
         let mut room_reserved: i32 = 0;
         for run in 1..=2 {
             room = 0;
             room_reserved = 0;
-            for frp in frame_iter_ptr((curfrp.fr_parent.borrow_mut()).fr_child) {
-                if !ptr::eq(frp, curfrp)
-                    && !frp.fr_win.is_null()
+            for frp in frame_iter_ptr(curfrp.fr_parent.get().fr_child.get()) {
+                if !ptr::eq(frp.borrow(), curfrp)
+                    && !frp.fr_win.get().is_null()
                     && frp.win_mut().w_onebuf_opt.wo_wfw
                 {
-                    room_reserved += frp.fr_width;
+                    room_reserved += frp.fr_width.get();
                 }
-                room += frp.fr_width;
-                if !ptr::eq(frp, curfrp) {
-                    room -= frame_minwidth(&mut *frp, crate::globals::WinPtr::NULL);
+                room += frp.fr_width.get();
+                if !ptr::eq(frp.borrow(), curfrp) {
+                    room -= frame_minwidth(&frp, crate::globals::WinPtr::NULL);
                 }
             }
 
             if width <= room {
                 break;
             }
-            if run == 2 || OptInt::from(curfrp.fr_height) >= rows_avail() {
+            if run == 2 || OptInt::from(curfrp.fr_height.get()) >= rows_avail() {
                 width = room;
                 break;
             }
 
             frame_setwidth(
-                curfrp.fr_parent.borrow_mut(),
-                width + frame_minwidth(curfrp.fr_parent.borrow_mut(), nowin())
+                curfrp.fr_parent.get().borrow(),
+                width + frame_minwidth(curfrp.fr_parent.get().borrow(), nowin())
                     - opt_vars().p_wmw as i32
                     - 1,
                 from_left,
             );
         }
 
-        let mut take = width - curfrp.fr_width;
+        let mut take = width - curfrp.fr_width.get();
 
         if width > room - room_reserved {
             room_reserved = room - width;
         }
-        if take < 0 && room - curfrp.fr_width < room_reserved {
+        if take < 0 && room - curfrp.fr_width.get() < room_reserved {
             room_reserved = 0;
         }
 
@@ -6800,48 +6839,43 @@ fn frame_setwidth(curfrp: &mut Frame, mut width: i32, from_left: bool) {
         for run in 0..2 {
             let forward = (run == 0) == from_left;
             let mut frp = if forward {
-                curfrp.fr_next
+                curfrp.fr_next.get()
             } else {
-                curfrp.fr_prev
+                curfrp.fr_prev.get()
             };
 
             while !frp.is_null() && take != 0 {
-                let w = frame_minwidth(frp.borrow_mut(), crate::globals::WinPtr::NULL);
+                let w = frame_minwidth(frp.borrow(), crate::globals::WinPtr::NULL);
                 if room_reserved > 0
-                    && !(frp.borrow_mut()).fr_win.is_null()
-                    && frp.fr_win.w_onebuf_opt.wo_wfw
+                    && !frp.fr_win.get().is_null()
+                    && frp.fr_win.get().w_onebuf_opt.wo_wfw
                 {
-                    if room_reserved >= (frp.borrow_mut()).fr_width {
-                        room_reserved -= (frp.borrow_mut()).fr_width;
+                    if room_reserved >= frp.fr_width.get() {
+                        room_reserved -= frp.fr_width.get();
                     } else {
-                        if (frp.borrow_mut()).fr_width - room_reserved > take {
-                            room_reserved = (frp.borrow_mut()).fr_width - take;
+                        if frp.fr_width.get() - room_reserved > take {
+                            room_reserved = frp.fr_width.get() - take;
                         }
 
-                        take -= (frp.borrow_mut()).fr_width - room_reserved;
+                        take -= frp.fr_width.get() - room_reserved;
 
-                        frame_new_width(frp.borrow_mut(), room_reserved, false, false);
+                        frame_new_width(frp.borrow(), room_reserved, false, false);
 
                         room_reserved = 0;
                     }
-                } else if (frp.borrow_mut()).fr_width - take < w {
-                    take -= (frp.borrow_mut()).fr_width - w;
+                } else if frp.fr_width.get() - take < w {
+                    take -= frp.fr_width.get() - w;
 
-                    frame_new_width(frp.borrow_mut(), w, false, false);
+                    frame_new_width(frp.borrow(), w, false, false);
                 } else {
-                    frame_new_width(
-                        frp.borrow_mut(),
-                        (frp.borrow_mut()).fr_width - take,
-                        false,
-                        false,
-                    );
+                    frame_new_width(frp.borrow(), frp.fr_width.get() - take, false, false);
 
                     take = 0;
                 }
                 frp = if forward {
-                    (frp.borrow_mut()).fr_next
+                    frp.fr_next.get()
                 } else {
-                    (frp.borrow_mut()).fr_prev
+                    frp.fr_prev.get()
                 };
             }
         }
@@ -6869,7 +6903,7 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> Option<&'static CStr> {
     let mut first = true;
     while opt_vars().p_wmw > 0 {
         let room = g_st().columns_global;
-        let needed = frame_minwidth(topframe_mut(), crate::globals::WinPtr::NULL);
+        let needed = frame_minwidth(&topframe_mut(), crate::globals::WinPtr::NULL);
         if room >= needed {
             break;
         }
@@ -6883,26 +6917,26 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> Option<&'static CStr> {
 }
 
 pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
-    let mut fr = dragwin.w_frame;
-    let mut curfr = fr;
+    let mut fr = dragwin.w_frame.clone();
+    let mut curfr = fr.clone();
     if g_st().topframe != fr {
-        fr = (fr.borrow_mut()).fr_parent;
+        fr = fr.fr_parent.get();
 
-        if (fr.borrow_mut()).fr_layout != FR_COL {
-            curfr = fr;
+        if fr.fr_layout.get() != FR_COL {
+            curfr = fr.clone();
             if g_st().topframe != fr {
-                fr = (fr.borrow_mut()).fr_parent;
+                fr = fr.fr_parent.get();
             }
         }
     }
 
-    while g_st().topframe != curfr && curfr.fr_next.is_null() {
+    while g_st().topframe != curfr && curfr.fr_next.get().is_null() {
         if g_st().topframe != fr {
-            fr = (fr.borrow_mut()).fr_parent;
+            fr = fr.fr_parent.get();
         }
-        curfr = fr;
+        curfr = fr.clone();
         if g_st().topframe != fr {
-            fr = (fr.borrow_mut()).fr_parent;
+            fr = fr.fr_parent.get();
         }
     }
 
@@ -6912,44 +6946,42 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
     if up {
         offset = -offset;
         if curfr == fr {
-            room = (fr.borrow_mut()).fr_height
-                - frame_minheight(fr.borrow_mut(), crate::globals::WinPtr::NULL);
+            room = fr.fr_height.get() - frame_minheight(fr.borrow(), crate::globals::WinPtr::NULL);
         } else {
             room = 0;
 
-            fr = (fr.borrow_mut()).fr_child;
+            fr = fr.fr_child.get();
 
             loop {
-                room += (fr.borrow_mut()).fr_height
-                    - frame_minheight(fr.borrow_mut(), crate::globals::WinPtr::NULL);
+                room +=
+                    fr.fr_height.get() - frame_minheight(fr.borrow(), crate::globals::WinPtr::NULL);
 
                 if curfr == fr {
                     break;
                 }
 
-                fr = (fr.borrow_mut()).fr_next;
+                fr = fr.fr_next.get();
             }
         }
 
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
     } else {
         room = g_st().rows_global - g_st().cmdline_row;
-        if !curfr.fr_next.is_null() {
+        if !curfr.fr_next.get().is_null() {
             room -= opt_vars().p_ch as i32 + global_stl_height();
         } else if WIN_STATE.with(|s| s.min_set_ch.get()) > 0 {
             room -= 1;
         }
         room = room.max(0);
 
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
 
         while !fr.is_null() {
-            room += (fr.borrow_mut()).fr_height
-                - frame_minheight(fr.borrow_mut(), crate::globals::WinPtr::NULL);
+            room += fr.fr_height.get() - frame_minheight(fr.borrow(), crate::globals::WinPtr::NULL);
 
-            fr = (fr.borrow_mut()).fr_next;
+            fr = fr.fr_next.get();
         }
-        fr = curfr;
+        fr = curfr.clone();
     }
 
     offset = offset.min(room);
@@ -6958,41 +6990,29 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
     }
 
     if !fr.is_null() {
-        frame_new_height(
-            fr.borrow_mut(),
-            (fr.borrow_mut()).fr_height + offset,
-            up,
-            false,
-            true,
-        );
+        frame_new_height(fr.borrow(), fr.fr_height.get() + offset, up, false, true);
     }
 
     if up {
         fr = curfr;
     } else {
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
     }
     while !fr.is_null() && offset > 0 {
-        let n = frame_minheight(fr.borrow_mut(), crate::globals::WinPtr::NULL);
-        if (fr.borrow_mut()).fr_height - offset <= n {
-            offset -= (fr.borrow_mut()).fr_height - n;
+        let n = frame_minheight(fr.borrow(), crate::globals::WinPtr::NULL);
+        if fr.fr_height.get() - offset <= n {
+            offset -= fr.fr_height.get() - n;
 
-            frame_new_height(fr.borrow_mut(), n, !up, false, true);
+            frame_new_height(fr.borrow(), n, !up, false, true);
         } else {
-            frame_new_height(
-                fr.borrow_mut(),
-                (fr.borrow_mut()).fr_height - offset,
-                !up,
-                false,
-                true,
-            );
+            frame_new_height(fr.borrow(), fr.fr_height.get() - offset, !up, false, true);
 
             break;
         }
         if up {
-            fr = (fr.borrow_mut()).fr_prev;
+            fr = fr.fr_prev.get();
         } else {
-            fr = (fr.borrow_mut()).fr_next;
+            fr = fr.fr_next.get();
         }
     }
     win_comp_pos();
@@ -7003,35 +7023,35 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
 }
 
 pub fn win_drag_vsep_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
-    let mut fr = dragwin.w_frame;
+    let mut fr = dragwin.w_frame.clone();
     if g_st().topframe == fr {
         return;
     }
-    let mut curfr = fr;
+    let mut curfr = fr.clone();
 
-    fr = (fr.borrow_mut()).fr_parent;
+    fr = fr.fr_parent.get();
 
-    if (fr.borrow_mut()).fr_layout != FR_ROW {
+    if fr.fr_layout.get() != FR_ROW {
         if g_st().topframe == fr {
             return;
         }
-        curfr = fr;
+        curfr = fr.clone();
 
-        fr = (fr.borrow_mut()).fr_parent;
+        fr = fr.fr_parent.get();
     }
 
-    while curfr.fr_next.is_null() {
+    while curfr.fr_next.get().is_null() {
         if g_st().topframe == fr {
             break;
         }
-        curfr = fr;
+        curfr = fr.clone();
 
-        fr = (fr.borrow_mut()).fr_parent;
+        fr = fr.fr_parent.get();
 
         if g_st().topframe != fr {
-            curfr = fr;
+            curfr = fr.clone();
 
-            fr = (fr.borrow_mut()).fr_parent;
+            fr = fr.fr_parent.get();
         }
     }
 
@@ -7042,32 +7062,30 @@ pub fn win_drag_vsep_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
         offset = -offset;
         room = 0;
 
-        fr = (fr.borrow_mut()).fr_child;
+        fr = fr.fr_child.get();
 
         loop {
-            room += (fr.borrow_mut()).fr_width
-                - frame_minwidth(fr.borrow_mut(), crate::globals::WinPtr::NULL);
+            room += fr.fr_width.get() - frame_minwidth(fr.borrow(), crate::globals::WinPtr::NULL);
 
             if curfr == fr {
                 break;
             }
 
-            fr = (fr.borrow_mut()).fr_next;
+            fr = fr.fr_next.get();
         }
 
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
     } else {
         room = 0;
 
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
 
         while !fr.is_null() {
-            room += (fr.borrow_mut()).fr_width
-                - frame_minwidth(fr.borrow_mut(), crate::globals::WinPtr::NULL);
+            room += fr.fr_width.get() - frame_minwidth(fr.borrow(), crate::globals::WinPtr::NULL);
 
-            fr = (fr.borrow_mut()).fr_next;
+            fr = fr.fr_next.get();
         }
-        fr = curfr;
+        fr = curfr.clone();
     }
 
     offset = offset.min(room);
@@ -7075,38 +7093,28 @@ pub fn win_drag_vsep_line(dragwin: &mut WinInfoInfo, mut offset: i32) {
         return;
     }
 
-    frame_new_width(
-        fr.borrow_mut(),
-        (fr.borrow_mut()).fr_width + offset,
-        left,
-        false,
-    );
+    frame_new_width(fr.borrow(), fr.fr_width.get() + offset, left, false);
 
     if left {
         fr = curfr;
     } else {
-        fr = curfr.fr_next;
+        fr = curfr.fr_next.get();
     }
     while !fr.is_null() && offset > 0 {
-        let n = frame_minwidth(fr.borrow_mut(), crate::globals::WinPtr::NULL);
-        if (fr.borrow_mut()).fr_width - offset <= n {
-            offset -= (fr.borrow_mut()).fr_width - n;
+        let n = frame_minwidth(fr.borrow(), crate::globals::WinPtr::NULL);
+        if fr.fr_width.get() - offset <= n {
+            offset -= fr.fr_width.get() - n;
 
-            frame_new_width(fr.borrow_mut(), n, !left, false);
+            frame_new_width(fr.borrow(), n, !left, false);
         } else {
-            frame_new_width(
-                fr.borrow_mut(),
-                (fr.borrow_mut()).fr_width - offset,
-                !left,
-                false,
-            );
+            frame_new_width(fr.borrow(), fr.fr_width.get() - offset, !left, false);
 
             break;
         }
         if left {
-            fr = (fr.borrow_mut()).fr_prev;
+            fr = fr.fr_prev.get();
         } else {
-            fr = (fr.borrow_mut()).fr_next;
+            fr = fr.fr_next.get();
         }
     }
     win_comp_pos();
@@ -7395,18 +7403,16 @@ pub fn win_comp_scroll(wp: &mut WinInfoInfo) {
 pub fn command_height() {
     let mut old_p_ch = curtab_mut().tp_ch_used as i32;
 
-    let mut frp = lastwin_nofloating(None).w_frame;
-    while (frp.borrow_mut()).fr_width != g_st().columns_global
-        && !(frp.borrow_mut()).fr_parent.is_null()
-    {
-        frp = (frp.borrow_mut()).fr_parent;
+    let mut frp = lastwin_nofloating(None).w_frame.clone();
+    while frp.fr_width.get() != g_st().columns_global && !frp.fr_parent.get().is_null() {
+        frp = frp.fr_parent.get();
     }
 
-    while !(frp.borrow_mut()).fr_prev.is_null()
-        && (frp.borrow_mut()).fr_layout == FR_LEAF
-        && frp.fr_win.w_onebuf_opt.wo_wfh
+    while !frp.fr_prev.get().is_null()
+        && frp.fr_layout.get() == FR_LEAF
+        && frp.fr_win.get().w_onebuf_opt.wo_wfh
     {
-        frp = (frp.borrow_mut()).fr_prev;
+        frp = frp.fr_prev.get();
     }
 
     while opt_vars().p_ch > OptInt::from(old_p_ch)
@@ -7417,21 +7423,19 @@ pub fn command_height() {
             opt_vars().p_ch = OptInt::from(old_p_ch);
             break;
         }
-        let h = ((opt_vars().p_ch - OptInt::from(old_p_ch)) as i32).min(
-            (frp.borrow_mut()).fr_height
-                - frame_minheight(frp.borrow_mut(), crate::globals::WinPtr::NULL),
-        );
-        frame_add_height(frp.borrow_mut(), -h);
+        let h = ((opt_vars().p_ch - OptInt::from(old_p_ch)) as i32)
+            .min(frp.fr_height.get() - frame_minheight(frp.borrow(), crate::globals::WinPtr::NULL));
+        frame_add_height(frp.borrow(), -h);
         old_p_ch += h;
 
-        frp = (frp.borrow_mut()).fr_prev;
+        frp = frp.fr_prev.get();
     }
     if opt_vars().p_ch < OptInt::from(old_p_ch)
         && WIN_STATE.with(|s| s.command_frame_height.get())
         && !frp.is_null()
     {
         frame_add_height(
-            frp.borrow_mut(),
+            frp.borrow(),
             (OptInt::from(old_p_ch) - opt_vars().p_ch) as i32,
         );
     }
@@ -7463,19 +7467,19 @@ pub fn command_height() {
     WIN_STATE.with(|s| s.min_set_ch.set(opt_vars().p_ch));
 }
 
-fn frame_add_height(frp: &mut Frame, n: i32) {
-    let mut fr = crate::globals::FramePtr::from(frp).borrow_mut();
-    let new_h = fr.fr_height + n;
-    frame_new_height(fr, new_h, false, false, false);
+fn frame_add_height(frp: &Frame, n: i32) {
+    let mut fr = crate::globals::FramePtr::from(frp);
+    let new_h = fr.fr_height.get() + n;
+    frame_new_height(&fr, new_h, false, false, false);
     while let Some(parent) = fr.parent_opt() {
-        parent.fr_height += n;
+        parent.fr_height.set(parent.fr_height.get() + n);
         fr = parent;
     }
 }
 
 pub fn last_status(morewin: bool) {
     last_status_rec(
-        topframe_mut(),
+        &topframe_mut(),
         last_stl_height(morewin) > 0,
         global_stl_height() > 0,
     );
@@ -7500,13 +7504,13 @@ pub fn win_remove_status_line(wp: &mut WinInfoInfo, add_hsep: bool) {
     wp.w_status_click_defs = Vec::new();
 }
 
-fn find_horizontally_resizable_frame(fr: &mut Frame) -> Option<&'static mut Frame> {
-    let mut fp = crate::globals::FramePtr::from(fr).borrow_mut();
-    while fp.fr_height <= frame_minheight(fp, crate::globals::WinPtr::NULL) {
+fn find_horizontally_resizable_frame(fr: &Frame) -> Option<crate::globals::FramePtr> {
+    let mut fp = crate::globals::FramePtr::from(fr);
+    while fp.fr_height.get() <= frame_minheight(&fp, crate::globals::WinPtr::NULL) {
         if g_st().topframe == fp {
             return None;
         }
-        if fp.parent_mut().fr_layout == FR_COL
+        if fp.parent_mut().fr_layout.get() == FR_COL
             && let Some(prev) = fp.prev_opt()
         {
             fp = prev;
@@ -7517,7 +7521,7 @@ fn find_horizontally_resizable_frame(fr: &mut Frame) -> Option<&'static mut Fram
     Some(fp)
 }
 
-fn resize_frame_for_status(fr: &mut Frame) -> bool {
+fn resize_frame_for_status(fr: &Frame) -> bool {
     let wp = fr.win_mut();
     let fp = crate::globals::FramePtr::from(find_horizontally_resizable_frame(fr));
 
@@ -7525,9 +7529,9 @@ fn resize_frame_for_status(fr: &mut Frame) -> bool {
         emsg(gettext(E_NOROOM));
         false
     } else if fp != fr {
-        let old_height = fr.fr_height;
+        let old_height = fr.fr_height.get();
         frame_setheight(fr, old_height + 1, false);
-        if fr.fr_height == old_height {
+        if fr.fr_height.get() == old_height {
             emsg(gettext(E_NOROOM));
             return false;
         }
@@ -7539,10 +7543,10 @@ fn resize_frame_for_status(fr: &mut Frame) -> bool {
     }
 }
 
-fn resize_frame_for_winbar(fr: &mut Frame) -> bool {
-    let old_height = fr.fr_height;
+fn resize_frame_for_winbar(fr: &Frame) -> bool {
+    let old_height = fr.fr_height.get();
     frame_setheight(fr, old_height + 1, false);
-    if fr.fr_height == old_height {
+    if fr.fr_height.get() == old_height {
         emsg(gettext(E_NOROOM));
         return false;
     }
@@ -7550,8 +7554,8 @@ fn resize_frame_for_winbar(fr: &mut Frame) -> bool {
     true
 }
 
-fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
-    if fr.fr_layout == FR_LEAF {
+fn last_status_rec(fr: &Frame, statusline: bool, is_stl_global: bool) {
+    if fr.fr_layout.get() == FR_LEAF {
         let wp = fr.win_mut();
         let is_last = is_bottom_win(wp);
 
@@ -7576,8 +7580,8 @@ fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
             comp_col();
         }
     } else {
-        for fp in frame_iter_mut(fr.fr_child) {
-            last_status_rec(fp, statusline, is_stl_global);
+        for fp in frame_iter_mut(fr.fr_child.get()) {
+            last_status_rec(&fp, statusline, is_stl_global);
         }
     }
 }
@@ -7594,7 +7598,7 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
             if wp.w_floating {
                 emsg(gettext(E_NOROOM));
                 return None;
-            } else if !make_room || !resize_frame_for_winbar(wp.frame_mut()) {
+            } else if !make_room || !resize_frame_for_winbar(&wp.frame_mut()) {
                 return Some(false);
             }
         }
@@ -7682,7 +7686,7 @@ pub fn min_rows(tp: &mut TabPageInfo) -> i32 {
         return MIN_LINES;
     }
 
-    let mut total = frame_minheight(tp.topframe_mut(), crate::globals::WinPtr::NULL);
+    let mut total = frame_minheight(&tp.topframe_mut(), crate::globals::WinPtr::NULL);
     total += tabline_height() + global_stl_height();
     if (if g_st().curtab == tp {
         opt_vars().p_ch
@@ -7702,7 +7706,7 @@ pub fn min_rows_for_all_tabpages() -> i32 {
 
     let mut total: i32 = 0;
     for tp in for_all_tabpages_ptr() {
-        let mut n = frame_minheight(tp.topframe_mut(), crate::globals::WinPtr::NULL);
+        let mut n = frame_minheight(&tp.topframe_mut(), crate::globals::WinPtr::NULL);
         if (if g_st().curtab == tp {
             opt_vars().p_ch
         } else {
@@ -7805,17 +7809,17 @@ pub fn reset_lnums() {
 }
 
 pub fn make_snapshot(idx: i32) {
-    curtab_mut().tp_snapshot[idx as usize] = Some(make_snapshot_rec(topframe_mut()));
+    curtab_mut().tp_snapshot[idx as usize] = Some(make_snapshot_rec(&topframe_mut()));
 }
 
-fn make_snapshot_rec(fr: &mut Frame) -> Box<SnapshotFrame> {
+fn make_snapshot_rec(fr: &Frame) -> Box<SnapshotFrame> {
     Box::new(SnapshotFrame {
-        fr_layout: fr.fr_layout,
-        fr_width: fr.fr_width,
-        fr_height: fr.fr_height,
-        fr_next: fr.next_opt().map(make_snapshot_rec),
-        fr_child: fr.child_opt().map(make_snapshot_rec),
-        fr_win: if fr.fr_layout == FR_LEAF && fr.fr_win == curwin_ptr() {
+        fr_layout: fr.fr_layout.get(),
+        fr_width: fr.fr_width.get(),
+        fr_height: fr.fr_height.get(),
+        fr_next: fr.next_opt().map(|n| make_snapshot_rec(&n)),
+        fr_child: fr.child_opt().map(|c| make_snapshot_rec(&c)),
+        fr_win: if fr.fr_layout.get() == FR_LEAF && fr.fr_win.get() == curwin_ptr() {
             crate::globals::curwin_ptr()
         } else {
             crate::globals::WinPtr::NULL
@@ -7848,11 +7852,11 @@ fn get_snapshot_curwin(idx: i32) -> Option<&'static mut WinInfoInfo> {
 
 pub fn restore_snapshot(idx: i32, close_curwin: i32) {
     if let Some(sn) = curtab_mut().tp_snapshot[idx as usize].take()
-        && sn.fr_width == crate::globals::topframe_mut().fr_width
-        && sn.fr_height == crate::globals::topframe_mut().fr_height
-        && check_snapshot_rec(&sn, topframe_mut())
+        && sn.fr_width == crate::globals::topframe_mut().fr_width.get()
+        && sn.fr_height == crate::globals::topframe_mut().fr_height.get()
+        && check_snapshot_rec(&sn, &topframe_mut())
     {
-        let wp = restore_snapshot_rec(&sn, topframe_mut());
+        let wp = restore_snapshot_rec(&sn, &topframe_mut());
         win_comp_pos();
         if let Some(wp_ref) = wp
             && close_curwin != 0
@@ -7863,39 +7867,39 @@ pub fn restore_snapshot(idx: i32, close_curwin: i32) {
     }
 }
 
-fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> bool {
-    !(sn.fr_layout != fr.fr_layout
-        || sn.fr_next.is_none() != fr.fr_next.is_null()
-        || sn.fr_child.is_none() != fr.fr_child.is_null()
+fn check_snapshot_rec(sn: &SnapshotFrame, fr: &Frame) -> bool {
+    !(sn.fr_layout != fr.fr_layout.get()
+        || sn.fr_next.is_none() != fr.fr_next.get().is_null()
+        || sn.fr_child.is_none() != fr.fr_child.get().is_null()
         || (sn
             .fr_next
             .as_deref()
-            .is_some_and(|next| !check_snapshot_rec(next, fr.next_mut())))
+            .is_some_and(|next| !check_snapshot_rec(next, &fr.next_mut())))
         || (sn
             .fr_child
             .as_deref()
-            .is_some_and(|child| !check_snapshot_rec(child, fr.child_mut())))
+            .is_some_and(|child| !check_snapshot_rec(child, &fr.child_mut())))
         || (!sn.fr_win.is_null() && !win_valid(sn.fr_win.opt())))
 }
 
-fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static mut WinInfoInfo> {
+fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &Frame) -> Option<&'static mut WinInfoInfo> {
     let mut wp = crate::globals::WinPtr::NULL;
 
-    fr.fr_height = sn.fr_height;
-    fr.fr_width = sn.fr_width;
-    if fr.fr_layout == FR_LEAF {
-        let fr_h = fr.fr_height;
-        frame_new_height(&mut *fr, fr_h, false, false, false);
-        frame_new_width(fr, fr.fr_width, false, false);
+    fr.fr_height.set(sn.fr_height);
+    fr.fr_width.set(sn.fr_width);
+    if fr.fr_layout.get() == FR_LEAF {
+        let fr_h = fr.fr_height.get();
+        frame_new_height(fr, fr_h, false, false, false);
+        frame_new_width(fr, fr.fr_width.get(), false, false);
         wp = sn.fr_win;
     }
     if let Some(ref next) = sn.fr_next
-        && let Some(wp2) = restore_snapshot_rec(next, fr.next_mut())
+        && let Some(wp2) = restore_snapshot_rec(next, &fr.next_mut())
     {
         wp = crate::globals::WinPtr::from(&*wp2);
     }
     if let Some(ref child) = sn.fr_child
-        && let Some(wp2) = restore_snapshot_rec(child, fr.child_mut())
+        && let Some(wp2) = restore_snapshot_rec(child, &fr.child_mut())
     {
         wp = crate::globals::WinPtr::from(&*wp2);
     }
@@ -7903,12 +7907,12 @@ fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static m
 }
 
 fn frame_check_height(topfrp: &Frame, height: i32) -> bool {
-    if topfrp.fr_height != height {
+    if topfrp.fr_height.get() != height {
         return false;
     }
-    if topfrp.fr_layout == FR_ROW {
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            if frp.fr_height != height {
+    if topfrp.fr_layout.get() == FR_ROW {
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            if frp.fr_height.get() != height {
                 return false;
             }
         }
@@ -7917,12 +7921,12 @@ fn frame_check_height(topfrp: &Frame, height: i32) -> bool {
 }
 
 fn frame_check_width(topfrp: &Frame, width: i32) -> bool {
-    if topfrp.fr_width != width {
+    if topfrp.fr_width.get() != width {
         return false;
     }
-    if topfrp.fr_layout == FR_COL {
-        for frp in frame_iter_mut(topfrp.fr_child) {
-            if frp.fr_width != width {
+    if topfrp.fr_layout.get() == FR_COL {
+        for frp in frame_iter_mut(topfrp.fr_child.get()) {
+            if frp.fr_width.get() != width {
                 return false;
             }
         }
@@ -8076,53 +8080,57 @@ pub fn win_is_focusable(wp: &WinInfoInfo) -> bool {
 
 impl Frame {
     #[inline]
-    pub fn parent_mut(&self) -> &'static mut Frame {
-        self.fr_parent.borrow_mut()
+    pub fn parent_mut(&self) -> crate::globals::FramePtr {
+        self.fr_parent.get()
     }
 
     #[inline]
-    pub fn parent_opt(&self) -> Option<&'static mut Frame> {
-        self.fr_parent.opt_mut()
+    pub fn parent_opt(&self) -> Option<crate::globals::FramePtr> {
+        let p = self.fr_parent.get();
+        (!p.is_null()).then_some(p)
     }
 
     #[inline]
-    pub fn child_mut(&self) -> &'static mut Frame {
-        self.fr_child.borrow_mut()
+    pub fn child_mut(&self) -> crate::globals::FramePtr {
+        self.fr_child.get()
     }
 
     #[inline]
-    pub fn child_opt(&self) -> Option<&'static mut Frame> {
-        self.fr_child.opt_mut()
+    pub fn child_opt(&self) -> Option<crate::globals::FramePtr> {
+        let c = self.fr_child.get();
+        (!c.is_null()).then_some(c)
     }
 
     #[inline]
-    pub fn next_mut(&self) -> &'static mut Frame {
-        self.fr_next.borrow_mut()
+    pub fn next_mut(&self) -> crate::globals::FramePtr {
+        self.fr_next.get()
     }
 
     #[inline]
-    pub fn next_opt(&self) -> Option<&'static mut Frame> {
-        self.fr_next.opt_mut()
+    pub fn next_opt(&self) -> Option<crate::globals::FramePtr> {
+        let n = self.fr_next.get();
+        (!n.is_null()).then_some(n)
     }
 
     #[inline]
-    pub fn prev_mut(&self) -> &'static mut Frame {
-        self.fr_prev.borrow_mut()
+    pub fn prev_mut(&self) -> crate::globals::FramePtr {
+        self.fr_prev.get()
     }
 
     #[inline]
-    pub fn prev_opt(&self) -> Option<&'static mut Frame> {
-        self.fr_prev.opt_mut()
+    pub fn prev_opt(&self) -> Option<crate::globals::FramePtr> {
+        let p = self.fr_prev.get();
+        (!p.is_null()).then_some(p)
     }
 
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        self.fr_win.borrow_mut()
+        self.fr_win.get().borrow_mut()
     }
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        self.fr_win.opt_mut()
+        self.fr_win.get().opt_mut()
     }
 }
 #[cfg(test)]
@@ -8163,27 +8171,32 @@ mod tests {
 
     #[test]
     fn test_frame_list_helpers() {
-        let mut parent: Frame = Frame::new();
-        let mut f1: Frame = Frame::new();
-        let mut f2: Frame = Frame::new();
-        let mut f3: Frame = Frame::new();
-        let parent_ptr = crate::globals::FramePtr::from(&mut parent);
-        f1.fr_parent = parent_ptr;
-        f2.fr_parent = parent_ptr;
-        f3.fr_parent = parent_ptr;
-        parent.fr_child = crate::globals::FramePtr::from(&mut f1);
+        let parent = Frame::new_rc();
+        let f1 = Frame::new_rc();
+        let f2 = Frame::new_rc();
+        let f3 = Frame::new_rc();
+        let parent_ptr = crate::globals::FramePtr::from(&parent);
+        f1.fr_parent.set(parent_ptr.clone());
+        f2.fr_parent.set(parent_ptr.clone());
+        f3.fr_parent.set(parent_ptr);
+        parent.fr_child.set(crate::globals::FramePtr::from(&f1));
 
-        frame_append(&mut f1, &mut f2);
-        assert_eq!(f1.fr_next, &raw mut f2);
-        assert_eq!(f2.fr_prev, &raw mut f1);
+        frame_append(&f1, &f2);
+        assert_eq!(f1.fr_next.get(), &*f2);
+        assert_eq!(f2.fr_prev.get(), &*f1);
 
-        frame_insert(&mut f1, &mut f3);
-        assert_eq!(parent.fr_child, &raw mut f3);
-        assert_eq!(f3.fr_next, &raw mut f1);
-        assert_eq!(f1.fr_prev, &raw mut f3);
+        frame_insert(&f1, &f3);
+        assert_eq!(parent.fr_child.get(), &*f3);
+        assert_eq!(f3.fr_next.get(), &*f1);
+        assert_eq!(f1.fr_prev.get(), &*f3);
 
-        frame_remove(&mut f1);
-        assert_eq!(f3.fr_next, &raw mut f2);
-        assert_eq!(f2.fr_prev, &raw mut f3);
+        frame_remove(&f1);
+        assert_eq!(f3.fr_next.get(), &*f2);
+        assert_eq!(f2.fr_prev.get(), &*f3);
+
+        parent.clear_links();
+        f1.clear_links();
+        f2.clear_links();
+        f3.clear_links();
     }
 }

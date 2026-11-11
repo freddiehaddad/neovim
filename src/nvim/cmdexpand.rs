@@ -2512,7 +2512,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         grid_line_flush();
     }
 
-    win_redraw_last_status(topframe_mut());
+    win_redraw_last_status(&topframe_mut());
 }
 
 /// Get the next or prev cmdline completion match.
@@ -5813,7 +5813,7 @@ pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
         g_st().save_p_ls = -1;
         g_st().wild_menu_showing = 0;
     } else {
-        win_redraw_last_status(topframe_mut());
+        win_redraw_last_status(&topframe_mut());
         g_st().wild_menu_showing = 0;
         redraw_statuslines();
     }

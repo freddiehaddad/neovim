@@ -34,12 +34,12 @@ use crate::option_vars::*;
 use crate::ui::ui_has;
 use crate::ui_compositor::ui_comp_remove_grid;
 use crate::window::{
-    Frame, TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT,
-    WinConfig, WinInfoInfo, check_split_disallowed_err, clear_float_config, goto_tabpage_win,
-    last_status, lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos,
-    win_find_tabpage, win_goto, win_locked, win_remove, win_set_buf, win_setheight_win,
-    win_setwidth_win, win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err,
-    winframe_find_altwin, winframe_remove, winframe_restore,
+    TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT, WinConfig,
+    WinInfoInfo, check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
+    lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
+    win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
+    win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err, winframe_find_altwin,
+    winframe_remove, winframe_restore,
 };
 use crate::winfloat::{
     win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
@@ -526,18 +526,18 @@ pub fn nvim_open_win(
 }
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
-    if win.w_frame.is_null() || win.frame_mut().fr_parent.is_null() {
+    if win.w_frame.is_null() || win.frame_mut().fr_parent.get().is_null() {
         return K_WIN_SPLIT_LEFT;
     }
 
-    let layout = win.frame_mut().parent_opt().unwrap().fr_layout;
+    let layout = win.frame_mut().parent_opt().unwrap().fr_layout.get();
     if layout == FR_COL {
-        if !win.frame_mut().fr_next.is_null() {
+        if !win.frame_mut().fr_next.get().is_null() {
             K_WIN_SPLIT_ABOVE
         } else {
             K_WIN_SPLIT_BELOW
         }
-    } else if !win.frame_mut().fr_next.is_null() {
+    } else if !win.frame_mut().fr_next.get().is_null() {
         K_WIN_SPLIT_LEFT
     } else {
         K_WIN_SPLIT_RIGHT
@@ -726,11 +726,11 @@ fn win_config_split(
             }
 
             let mut dir: i32 = 0;
-            let mut unflat_altfr_opt: Option<&'static mut Frame> = None;
+            let mut unflat_altfr = crate::globals::FramePtr::NULL;
             let altwin: crate::globals::WinPtr;
 
             if was_split {
-                if win.frame_mut().fr_parent.is_null() {
+                if win.frame_mut().fr_parent.get().is_null() {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -739,15 +739,15 @@ fn win_config_split(
                     break 'restore_curwin;
                 } else if !parent.is_null() && parent.handle == win.handle {
                     let mut n_frames = 0;
-                    for _fr in frame_iter_mut(win.frame_mut().fr_parent.fr_child) {
+                    for _fr in frame_iter_mut(win.frame_mut().fr_parent.get().fr_child.get()) {
                         n_frames += 1;
                     }
 
                     let mut neighbor = crate::globals::WinPtr::NULL;
 
                     if n_frames > 2 {
-                        let frame = win.frame_mut().fr_parent;
-                        if !frame.fr_parent.is_null() {
+                        let frame = win.frame_mut().fr_parent.get();
+                        if !frame.fr_parent.get().is_null() {
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
                             {
@@ -764,7 +764,7 @@ fn win_config_split(
                             } else {
                                 win_tp.opt_mut()
                             },
-                            Some(&mut unflat_altfr_opt),
+                            Some(&mut unflat_altfr),
                         ));
                     } else if n_frames == 2 {
                         altwin = crate::globals::WinPtr::from(winframe_remove(
@@ -775,7 +775,7 @@ fn win_config_split(
                             } else {
                                 win_tp.opt_mut()
                             },
-                            Some(&mut unflat_altfr_opt),
+                            Some(&mut unflat_altfr),
                         ));
                         neighbor = altwin;
                     } else {
@@ -796,7 +796,7 @@ fn win_config_split(
                         } else {
                             win_tp.opt_mut()
                         },
-                        Some(&mut unflat_altfr_opt),
+                        Some(&mut unflat_altfr),
                     ));
                 }
             } else {
@@ -805,7 +805,6 @@ fn win_config_split(
                     (win_tp != g_st().curtab.as_ptr()).then(|| win_tp.borrow()),
                 ));
             }
-            let unflat_altfr = crate::globals::FramePtr::from(unflat_altfr_opt);
 
             win_remove(
                 win,
@@ -842,7 +841,7 @@ fn win_config_split(
                     assert!(result);
                 }
                 to_split_ok =
-                    win_split_ins(0, flags, win_ptr.opt_mut(), 0, unflat_altfr.opt_mut()).is_some();
+                    win_split_ins(0, flags, win_ptr.opt_mut(), 0, unflat_altfr.opt()).is_some();
                 if !to_split_ok {
                     win_append(
                         win_ptr.w_prev.opt_mut(),
@@ -860,7 +859,7 @@ fn win_config_split(
             });
             if !to_split_ok {
                 if was_split {
-                    winframe_restore(win, dir, unflat_altfr.borrow_mut());
+                    winframe_restore(win, dir, unflat_altfr.borrow());
                 }
                 if !error_set(err) {
                     api_set_error!(

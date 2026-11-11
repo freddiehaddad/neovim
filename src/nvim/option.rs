@@ -2661,7 +2661,7 @@ pub fn did_set_cmdheight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     if (opt_vars().p_ch != old_value
         || OptInt::from(
-            tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height,
+            tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height.get(),
         ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
         && g_st().full_screen
     {
@@ -2792,14 +2792,14 @@ pub fn did_set_laststatus<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let value = args.os_newval.data.integer();
 
     if value == 3 && old_value != 3 {
-        let new_h = crate::globals::topframe_mut().fr_height - STATUS_HEIGHT;
-        frame_new_height(crate::globals::topframe_mut(), new_h, false, false, false);
+        let new_h = crate::globals::topframe_mut().fr_height.get() - STATUS_HEIGHT;
+        frame_new_height(&crate::globals::topframe_mut(), new_h, false, false, false);
         win_comp_pos();
         g_st().clear_cmdline = true;
     }
     if old_value == 3 && value != 3 {
-        let new_h = crate::globals::topframe_mut().fr_height + STATUS_HEIGHT;
-        frame_new_height(crate::globals::topframe_mut(), new_h, false, false, false);
+        let new_h = crate::globals::topframe_mut().fr_height.get() + STATUS_HEIGHT;
+        frame_new_height(&crate::globals::topframe_mut(), new_h, false, false, false);
         win_comp_pos();
     }
 

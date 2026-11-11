@@ -90,7 +90,7 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInf
             n += 1;
 
             if wp.w_height + wp.w_hsep_height + wp.w_status_height
-                < crate::globals::topframe_mut().fr_height
+                < crate::globals::topframe_mut().fr_height.get()
                 && !write_fmt(
                     fd,
                     format!(
@@ -124,10 +124,10 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInf
     true
 }
 
-fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
+fn ses_win_rec(fd: &CFile, fr: &Frame) -> bool {
     let mut count: i32 = 0;
 
-    if fr.fr_layout == FR_LEAF {
+    if fr.fr_layout.get() == FR_LEAF {
         return true;
     }
 
@@ -135,7 +135,7 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
     if let Some(first_frc) = frc {
         frc = ses_skipframe(first_frc.next_opt());
         while let Some(cur_frc) = frc {
-            let split_cmd = if fr.fr_layout == FR_COL {
+            let split_cmd = if fr.fr_layout.get() == FR_COL {
                 b"wincmd _ | wincmd |\nsplit\n" as &[u8]
             } else {
                 b"wincmd _ | wincmd |\nvsplit\n" as &[u8]
@@ -149,7 +149,7 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
     }
 
     if count > 0 {
-        let back_cmd = if fr.fr_layout == FR_COL {
+        let back_cmd = if fr.fr_layout.get() == FR_COL {
             format!("{count}wincmd k\n")
         } else {
             format!("{count}wincmd h\n")
@@ -161,8 +161,8 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
 
     frc = ses_skipframe(fr.child_opt());
     while let Some(cur_frc) = frc {
-        let next_opt = cur_frc.fr_next.opt_mut();
-        ses_win_rec(fd, cur_frc);
+        let next_opt = cur_frc.next_opt();
+        ses_win_rec(fd, &cur_frc);
         frc = ses_skipframe(next_opt);
         if frc.is_some() && !put_line(fd, c"wincmd w") {
             return false;
@@ -172,16 +172,16 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
     true
 }
 
-fn ses_skipframe(fr: Option<&'static mut Frame>) -> Option<&'static mut Frame> {
+fn ses_skipframe(fr: Option<crate::globals::FramePtr>) -> Option<crate::globals::FramePtr> {
     frame_iter_mut(crate::globals::FramePtr::from(fr)).find(|frc| ses_do_frame(frc))
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
-    if fr.fr_layout == FR_LEAF {
+    if fr.fr_layout.get() == FR_LEAF {
         return ses_do_win(fr.win_mut()) != 0;
     }
-    for frc in frame_iter_mut(fr.fr_child) {
-        if ses_do_frame(frc) {
+    for frc in frame_iter_mut(fr.fr_child.get()) {
+        if ses_do_frame(&frc) {
             return true;
         }
     }
@@ -695,10 +695,10 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
                 if g_st().curtab == tp {
                     tab_firstwin = g_st().firstwin;
-                    tab_topframe = g_st().topframe;
+                    tab_topframe = g_st().topframe.clone();
                 } else {
                     tab_firstwin = tp.tp_firstwin;
-                    tab_topframe = tp.tp_topframe;
+                    tab_topframe = tp.tp_topframe.clone();
                 }
                 if g_st().first_tabpage != tp {
                     need_tabnext = true;
@@ -706,7 +706,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             } else {
                 tp = g_st().curtab;
                 tab_firstwin = g_st().firstwin;
-                tab_topframe = g_st().topframe;
+                tab_topframe = g_st().topframe.clone();
             }
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
@@ -754,11 +754,11 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
 
-            if tab_topframe.fr_layout != FR_LEAF
+            if tab_topframe.fr_layout.get() != FR_LEAF
                 && (!put_line(fd, c"let s:save_splitbelow = &splitbelow")
                     || !put_line(fd, c"let s:save_splitright = &splitright")
                     || !put_line(fd, c"set splitbelow splitright")
-                    || !ses_win_rec(fd, tab_topframe.borrow_mut())
+                    || !ses_win_rec(fd, tab_topframe.borrow())
                     || !put_line(fd, c"let &splitbelow = s:save_splitbelow")
                     || !put_line(fd, c"let &splitright = s:save_splitright"))
             {
