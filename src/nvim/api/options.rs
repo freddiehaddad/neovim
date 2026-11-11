@@ -338,7 +338,10 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
     set_bufref(&mut bufref, buf_ptr.opt_mut());
 
     close_windows(buf_ptr.opt_mut(), false);
-    if bufref_valid(Some(&bufref)) && g_st().curbuf != buf_ptr && buf_ptr.b_nwindows.get() == 0 {
+    if bufref_valid(Some(&bufref))
+        && g_st().curbuf.get() != buf_ptr
+        && buf_ptr.b_nwindows.get() == 0
+    {
         wipe_buffer(buf_ptr.borrow_mut(), false);
     }
     if bufref_valid(Some(&bufref)) {
@@ -590,7 +593,7 @@ pub fn nvim_set_option_value(
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &to) {
         *b
     } else {
-        g_st().curbuf
+        g_st().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &to) {
         *w
@@ -819,7 +822,7 @@ pub fn nvim_get_option_info2(
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &from) {
         *b
     } else {
-        g_st().curbuf
+        g_st().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &from) {
         *w

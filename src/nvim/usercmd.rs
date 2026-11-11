@@ -1200,7 +1200,7 @@ pub fn ex_command(eap: &mut Exarg) {
 /// `:comclear` (`ex_comclear`).
 pub fn ex_comclear(_eap: &mut Exarg) {
     with_ucmds_mut(Vec::clear);
-    if !g_st().curbuf.is_null() {
+    if !g_st().curbuf.get().is_null() {
         curbuf_mut().b_ucmds.clear();
     }
 }
@@ -1395,7 +1395,7 @@ pub fn add_win_cmd_modifiers(buf: &mut Vec<u8>, cmod: &Cmdmod, multi_mods: &mut 
 
     if cmod.cmod_tab > 0 {
         let tabnr = cmod.cmod_tab - 1;
-        if tabnr == tabpage_index(g_st().curtab.opt()) {
+        if tabnr == tabpage_index(g_st().curtab.get().opt()) {
             result += add_cmd_modifier(buf, b"tab", multi_mods);
         } else {
             let s = format!("{tabnr}tab");

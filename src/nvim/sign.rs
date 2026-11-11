@@ -340,7 +340,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
     let mut buf = if let Some(rbuf) = rbuf {
         crate::globals::BufPtr::from(rbuf)
     } else {
-        g_st().firstbuf
+        g_st().firstbuf.get()
     };
     let ns = group_get_ns(group);
 

@@ -881,7 +881,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
         }
         CTRL_C_CONST => {
-            if bt_cmdwin(g_st().curbuf.opt()) {
+            if bt_cmdwin(g_st().curbuf.get().opt()) {
                 g_st().got_int.set(false);
                 cmdwin_do_action(c"cancel");
                 return 0;
@@ -1033,7 +1033,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 br_buf_free_count: 0,
             };
             let tick = buf_get_changedtick(curbuf_mut());
-            set_bufref(&mut save_curbuf, g_st().curbuf.opt_mut());
+            set_bufref(&mut save_curbuf, g_st().curbuf.get().opt_mut());
 
             if s.c == K_PASTE_START {
                 paste_repeat(1);
@@ -1050,7 +1050,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
 
             if g_st().pum_want.active {
                 if pum_visible() {
-                    g_st().edit_submode_extra = None;
+                    g_st().edit_submode_extra.set(None);
                     insert_do_complete(&mut *s);
                     if g_st().pum_want.finish {
                         ins_compl_prep(CTRL_Y);
@@ -1060,7 +1060,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
 
             let changed = bufref_valid(Some(&save_curbuf))
-                && save_curbuf.br_buf == g_st().curbuf
+                && save_curbuf.br_buf == g_st().curbuf.get()
                 && tick != buf_get_changedtick(curbuf_mut());
             if curbuf_mut().b_u_synced.get() || changed {
                 g_st().ins_global.need_undo = true;
@@ -1167,7 +1167,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 } else {
                     do_cmdline_cmd(c".ll");
                 }
-            } else if s.c == CAR && bt_cmdwin(g_st().curbuf.opt()) {
+            } else if s.c == CAR && bt_cmdwin(g_st().curbuf.get().opt()) {
                 cmdwin_do_action(c"confirm");
                 return 0;
             } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) == 0
@@ -1393,7 +1393,7 @@ pub fn ins_redraw(ready: bool) {
 
     if ready
         && has_event(EVENT_CURSORMOVEDI)
-        && (g_st().last_cursormoved_win != curwin_ptr()
+        && (g_st().last_cursormoved_win.get() != curwin_ptr()
             || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
         && !pum_visible()
     {
@@ -1402,7 +1402,9 @@ pub fn ins_redraw(ready: bool) {
         }
         update_curswant();
         ins_apply_autocmds(EVENT_CURSORMOVEDI);
-        g_st().last_cursormoved_win = crate::globals::curwin_ptr();
+        g_st()
+            .last_cursormoved_win
+            .set(crate::globals::curwin_ptr());
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
 

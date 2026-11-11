@@ -417,7 +417,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 
 pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     if (flags & K_CTX_CURSOR) != 0 {
-        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b));
+        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf.get() == b));
         curwin_mut().w_cursor = ctx.pos;
         if ctx.curswant >= 0 {
             curwin_mut().w_curswant.set(ctx.curswant);
@@ -626,8 +626,8 @@ fn ctx_localdirs_restore(
         update_cwd(K_CD_CAUSE_WINDOW);
     }
 
-    if !(persist && cs.cs_globaldir.is_none() && g_st().globaldir.is_some()) {
-        g_st().globaldir = cs.cs_globaldir.take();
+    if !(persist && cs.cs_globaldir.is_none() && g_st().globaldir.get().is_some()) {
+        g_st().globaldir.set(cs.cs_globaldir.take());
     }
 }
 
@@ -641,7 +641,7 @@ fn ctx_dirs_save(
         return;
     }
 
-    cs.cs_globaldir = g_st().globaldir.clone();
+    cs.cs_globaldir = g_st().globaldir.get().clone();
 
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
         let target_buf = buf.unwrap_or_else(|| wp.buf_mut());
@@ -675,7 +675,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         let dirs_tab = for_all_tabpages_mut().find(|tp| tp.handle == cs.cs_dirs_tab);
         ctx_localdirs_restore(&mut *cs, None, dirs_tab.as_deref(), false);
     } else if cs.cs_cwd.is_some() && !CTX_STATE.with(|st| st.ctx_did_chdir.get()) {
-        g_st().globaldir = cs.cs_globaldir.take();
+        g_st().globaldir.set(cs.cs_globaldir.take());
     }
     cs.cs_globaldir = None;
 
@@ -730,7 +730,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     ctx_win_dirs_save(cs, &mut *cw_win, buf);
 
     if need_append {
-        win_append(g_st().lastwin.opt_mut(), &mut *cw_win, None);
+        win_append(g_st().lastwin.get().opt_mut(), &mut *cw_win, None);
         g_st().window_handles.insert(cw_win.handle, cw_win.into());
         let cfg = cw_win.w_config.clone();
         win_config_float(cw_win, cfg);
@@ -748,7 +748,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&tp) {
                     if wp == cwp {
-                        if g_st().curtab != tp {
+                        if g_st().curtab.get() != tp {
                             goto_tabpage_tp(Some(&tp), true, true);
                         }
                         win_goto(cwp.borrow_mut());
@@ -812,7 +812,7 @@ pub fn ctx_switch(
     }
 
     if !buf.is_null() {
-        if buf == g_st().curbuf.as_ptr() {
+        if buf == g_st().curbuf.get().as_ptr() {
             wp = curwin_ptr();
         } else {
             for wp2 in for_all_windows_ptr() {
@@ -835,7 +835,7 @@ pub fn ctx_switch(
 
     cs.cs_curwin = curwin_mut().handle;
     cs.cs_curwin_xtab = !win_valid(curwin_ptr().opt());
-    cs.cs_prevwin = if g_st().prevwin.is_null() {
+    cs.cs_prevwin = if g_st().prevwin.get().is_null() {
         0
     } else {
         crate::globals::prevwin_mut().handle
@@ -853,7 +853,7 @@ pub fn ctx_switch(
         block_autocmds();
     }
     if !tp.is_null() {
-        cs.cs_curtab = g_st().curtab.clone();
+        cs.cs_curtab = g_st().curtab.get().clone();
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(&curtab_mut());
             use_tabpage(tp.borrow());
@@ -867,16 +867,16 @@ pub fn ctx_switch(
             wp = ctx_win_prep(cs, &mut *buf_ref).into();
             leaving_window(curwin_mut());
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
-            g_st().prevwin = curwin_ptr();
+            g_st().prevwin.set(curwin_ptr());
         }
         assert!(wp == curwin_ptr() || win_valid(wp.opt()));
     } else if !win_valid(wp.opt()) {
         return false;
     }
     set_curwin(wp);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
     cs.cs_new_curwin = curwin_mut().handle;
-    set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.opt_mut());
+    set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.get().opt_mut());
 
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
         CTX_STATE.with(|st| {
@@ -904,10 +904,11 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
     }
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
-    g_st().prevwin =
-        (win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut)).into();
+    g_st()
+        .prevwin
+        .set((win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut)).into());
 }
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {
@@ -929,7 +930,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         ctx_restore_curwin(cs, None);
     } else if cs.cs_ctxwin_idx >= 0 {
         let cwp = ctx_win_rest(cs);
-        ctx_restore_curwin(cs, g_st().firstwin.opt_mut());
+        ctx_restore_curwin(cs, g_st().firstwin.get().opt_mut());
         entering_window(curwin_mut());
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
             curbuf_mut().b_prompt_insert.set(cs.cs_prompt_insert);
@@ -953,15 +954,15 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {
         let saved_buf = cs.cs_new_curbuf.br_buf;
         if curwin_mut().handle == cs.cs_new_curwin
-            && g_st().curbuf != saved_buf
+            && g_st().curbuf.get() != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))
             && saved_buf.b_ml.ml_mfp.is_some()
         {
             curbuf_mut()
                 .b_nwindows
                 .set(curbuf_mut().b_nwindows.get() - (1));
-            g_st().curbuf = saved_buf;
-            curwin_mut().w_buffer = g_st().curbuf;
+            g_st().curbuf.set(saved_buf);
+            curwin_mut().w_buffer = g_st().curbuf.get();
             curbuf_mut()
                 .b_nwindows
                 .set(curbuf_mut().b_nwindows.get() + (1));

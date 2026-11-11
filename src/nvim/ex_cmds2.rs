@@ -134,7 +134,7 @@ pub fn autowrite_all() {
         return;
     }
 
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.get();
     while let Some(buf_ref) = buf.opt_mut() {
         if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro.get() && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
@@ -143,7 +143,7 @@ pub fn autowrite_all() {
             buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf;
+                buf = g_st().firstbuf.get();
                 continue;
             }
         }
@@ -228,7 +228,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_NO {
         unchanged(buf, true, false);
     } else if ret == VIM_ALL {
-        let mut buf2 = g_st().firstbuf;
+        let mut buf2 = g_st().firstbuf.get();
         while let Some(buf2_ref) = buf2.opt_mut() {
             if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro.get()
             {
@@ -249,7 +249,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                     buf_write_all(buf2.borrow_mut(), false);
                 }
                 if !bufref_valid(Some(&bufref)) {
-                    buf2 = g_st().firstbuf;
+                    buf2 = g_st().firstbuf.get();
                     continue;
                 }
             }
@@ -302,13 +302,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     bufnrs.push(curbuf_mut().b_fnum.get());
 
     for wp in for_all_windows_mut() {
-        if wp.w_buffer != g_st().curbuf {
+        if wp.w_buffer != g_st().curbuf.get() {
             add_bufnum(&mut bufnrs, wp.buf_mut().b_fnum.get());
         }
     }
 
     for tp in for_all_tabpages_ptr() {
-        if g_st().curtab != tp {
+        if g_st().curtab.get() != tp {
             for wp2 in win_iter_mut(first_win_in_tab(&tp)) {
                 add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum.get());
             }
@@ -376,9 +376,9 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         }
 
         let mut wiped = false;
-        if buf != g_st().curbuf.as_ptr() {
+        if buf != g_st().curbuf.get().as_ptr() {
             let mut found = false;
-            let mut tp = g_st().first_tabpage.clone();
+            let mut tp = g_st().first_tabpage.get().clone();
             while let Some(tp_ref) = tp.opt()
                 && !found
             {
@@ -401,7 +401,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
             }
         }
 
-        if !wiped && buf != g_st().curbuf.as_ptr() {
+        if !wiped && buf != g_st().curbuf.get().as_ptr() {
             set_curbuf(
                 buf.borrow_mut(),
                 if unload { DOBUF_UNLOAD } else { DOBUF_GOTO },
@@ -424,7 +424,7 @@ pub fn check_fname() -> bool {
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.get();
     let ffname = buf.ffname_opt().map(CStr::to_owned);
     let fname = buf.fname_opt().map(CStr::to_owned);
     let line_count = buf.b_ml.ml_line_count;
@@ -440,7 +440,7 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
         true,
         false,
     );
-    if g_st().curbuf != old_curbuf {
+    if g_st().curbuf.get() != old_curbuf {
         msg_source(HLF_W);
         msg(
             gettext(c"Warning: Entered other buffer unexpectedly (check autocommands)"),
@@ -461,7 +461,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             return;
         }
 
-        if win_valid(g_st().prevwin.opt())
+        if win_valid(g_st().prevwin.get().opt())
             && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb.get()
         {
             win_goto(crate::globals::prevwin_mut());
@@ -499,8 +499,8 @@ pub fn ex_listdo(eap: &mut Exarg) {
     {
         let mut next_fnum: i32 = 0;
         let mut i: i32 = 0;
-        let mut wp = g_st().firstwin;
-        let mut tp = g_st().first_tabpage.clone();
+        let mut wp = g_st().firstwin.get();
+        let mut tp = g_st().first_tabpage.get().clone();
         match eap.cmdidx {
             Cmdidx::CmdWindo => {
                 while !wp.is_null() && i + 1 < eap.line1 {
@@ -522,11 +522,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
             _ => {}
         }
 
-        let mut buf = g_st().curbuf;
+        let mut buf = g_st().curbuf.get();
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
-            buf = g_st().firstbuf;
+            buf = g_st().firstbuf.get();
             while let Some(buf_ref) = buf.opt()
                 && (buf_ref.b_fnum.get() < eap.line1 || !buf_ref.b_p_bl.get())
             {
@@ -552,7 +552,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             } else {
                 ex_cc(eap);
 
-                buf = g_st().curbuf;
+                buf = g_st().curbuf.get();
                 i = eap.line1 - 1;
                 if eap.addr_count <= 0 {
                     debug_assert!(qf_size < MAXLNUM);
@@ -686,13 +686,13 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         au_event_restore(save_ei);
 
-        let mut buf = g_st().firstbuf;
+        let mut buf = g_st().firstbuf.get();
         while let Some(buf_ref) = buf.opt_mut() {
             let mut bnext = buf_ref.b_next;
             if buf_ref.b_nwindows.get() > 0 && (buf_ref.b_flags.get() & BF_SYN_SET) != 0 {
                 buf_ref.b_flags.set(buf_ref.b_flags.get() & (!BF_SYN_SET));
 
-                if buf == g_st().curbuf.as_ptr() {
+                if buf == g_st().curbuf.get().as_ptr() {
                     let b_p_syn = curbuf_mut().b_p_syn.to_owned();
                     let b_fname = curbuf_mut().fname_opt().map(CStr::to_owned);
                     apply_autocmds(
@@ -718,7 +718,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     ctx_restore(&mut aco);
                 }
 
-                bnext = g_st().firstbuf;
+                bnext = g_st().firstbuf.get();
             }
             buf = bnext;
         }

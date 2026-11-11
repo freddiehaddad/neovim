@@ -541,7 +541,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut expected_str: Option<std::ffi::CString> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
-        let actual_owned = g_st().emsg_assert_fails_msg.clone();
+        let actual_owned = g_st().emsg_assert_fails_msg.get().clone();
         let mut actual_cstr: &CStr = actual_owned.as_deref().unwrap_or(c"[unknown]");
 
         let arg1 = &argvars[1];
@@ -631,7 +631,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 } else if !arg4.vval.v_string_is_null()
                     && pattern_match(
                         arg4.vval.v_string_cstr_or_empty(),
-                        g_st().emsg_assert_fails_context.as_deref(),
+                        g_st().emsg_assert_fails_context.get().as_deref(),
                         false,
                     ) == 0
                 {
@@ -659,7 +659,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             } else if error_found_index == 4 {
                 actual_tv.v_type = VarType::VarString;
                 actual_tv.vval = crate::eval::typval::TypvalVval::from_opt_cstr(
-                    g_st().emsg_assert_fails_context.as_deref(),
+                    g_st().emsg_assert_fails_context.get().as_deref(),
                 );
             } else {
                 actual_tv.v_type = VarType::VarString;
@@ -708,7 +708,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().emsg_on_display.set(false);
     msg_reset_scroll();
     g_st().lines_left.set(g_st().rows_global.get());
-    g_st().emsg_assert_fails_msg = None;
+    g_st().emsg_assert_fails_msg.set(None);
     drop(tofree);
     set_vim_var_string(VV_ERRMSG, None, 0);
     if let Some(msg) = wrong_arg_msg {

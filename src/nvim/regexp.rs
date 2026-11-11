@@ -2827,7 +2827,7 @@ pub(super) fn reg_match_visual() -> bool {
         reg_win
     };
     let wp = &mut *wp;
-    if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf
+    if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf.get()
         || g_st().visual_global.start.lnum == 0
         || !reg_multi()
     {
@@ -3314,7 +3314,7 @@ pub fn vim_regsub(
         s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
     RE_STATE.with(|s| s.rex.reg_maxline.set(0));
-    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
+    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf.get()));
     RE_STATE.with(|s| s.rex.reg_line_lbr.set(true));
     let result = vim_regsub_both(Some(source), expr, dest, flags);
 
@@ -3345,7 +3345,7 @@ pub fn vim_regsub_multi(
         s.rex.load_mmatch(rmp);
         s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
-    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
+    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf.get()));
     RE_STATE.with(|s| s.rex.reg_firstlnum.set(lnum));
     RE_STATE.with(|s| {
         s.rex
@@ -4068,7 +4068,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    re_s.rex.reg_buf.set(g_st().curbuf);
+    re_s.rex.reg_buf.set(g_st().curbuf.get());
 
     let engine = re_s.regexp_engine.get();
     let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);

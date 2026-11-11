@@ -1509,8 +1509,8 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     }
     let b_ptr = crate::globals::BufPtr::from(&*b);
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(if g_st().curtab == tp {
-            g_st().firstwin.as_ptr()
+        for wp in win_iter_mut(if g_st().curtab.get() == tp {
+            g_st().firstwin.get().as_ptr()
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {

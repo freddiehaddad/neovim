@@ -2209,7 +2209,7 @@ fn cmdline_pum_create(
     };
     let endpos_addr = xp.xp_pattern.addr().wrapping_add(tail_off);
     let cmdbuff_addr = ccline.cmdbuff().addr();
-    if ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null() {
+    if ui_has(K_UICMDLINE) && g_st().cmdline_win.get().is_null() {
         CMDEXP_STATE.with(|s| {
             s.compl_startcol
                 .set(((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32)
@@ -2271,7 +2271,7 @@ pub fn cmdline_compl_is_fuzzy() -> bool {
 fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
     (need_wildmenu
         && (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_PUM) != 0
-        && !(ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null()))
+        && !(ui_has(K_UICMDLINE) && g_st().cmdline_win.get().is_null()))
         || ui_has(K_UIWILDMENU_CONST)
         || (ui_has(K_UICMDLINE) && ui_has(K_UIPOPUPMENU_CONST))
 }

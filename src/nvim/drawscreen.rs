@@ -267,7 +267,7 @@ pub fn conceal_check_visual() {
     }
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_mut(&tp) {
-            if g_st().curbuf != wp.w_buffer {
+            if g_st().curbuf.get() != wp.w_buffer {
                 continue;
             }
             if old[0] == 0 {
@@ -408,7 +408,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             curtab_mut().tp_ch_used.set(opt_vars().p_ch.get());
         }
         for tp in for_all_tabpages_ptr() {
-            if g_st().curtab != tp {
+            if g_st().curtab.get() != tp {
                 let max_tp_ch = OptInt::from(g_st().rows_global.get() - min_rows(&tp) + 1);
                 if tp.tp_ch_used.get() > 0 && tp.tp_ch_used.get() > max_tp_ch {
                     tp.tp_ch_used.set(max_tp_ch.max(1));
@@ -559,7 +559,7 @@ pub fn update_screen() -> bool {
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
 
     let mut type_ = g_st().must_redraw.get();
@@ -707,7 +707,7 @@ pub fn update_screen() -> bool {
     if g_st().redraw_tabline.get() || type_ >= UPD_NOT_VALID {
         update_window_hl(curwin_mut(), type_ >= UPD_NOT_VALID);
         for tp in for_all_tabpages_ptr() {
-            if g_st().curtab != tp {
+            if g_st().curtab.get() != tp {
                 update_window_hl(tp.curwin_mut(), type_ >= UPD_NOT_VALID);
             }
         }
@@ -824,7 +824,7 @@ pub fn update_screen() -> bool {
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
 
     true
@@ -989,7 +989,7 @@ pub fn showmode() -> i32 {
                     (g_st().rows_global.get() - g_st().msg_row.get()) * g_st().columns_global.get()
                         - 3
                 };
-                if let Some(ref extra) = g_st().edit_submode_extra {
+                if let Some(ref extra) = g_st().edit_submode_extra.get() {
                     length -= vim_strsize(extra);
                 }
                 if length > 0 {
@@ -1002,7 +1002,7 @@ pub fn showmode() -> i32 {
                         }
                         msg_puts_hl(submode, hl_id, false);
                     }
-                    if let Some(extra) = g_st().edit_submode_extra.clone() {
+                    if let Some(extra) = g_st().edit_submode_extra.get().clone() {
                         msg_puts_hl(c" ", hl_id, false);
                         let sub_id = if g_st().edit_submode_highl.get() < HLF_COUNT {
                             g_st().edit_submode_highl.get()

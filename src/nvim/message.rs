@@ -759,7 +759,11 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
         MSG_STATE.with(|s| s.msg_keep_entered.set(s.msg_keep_entered.get() + (1)));
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
-        let keep_msg_ptr = g_st().keep_msg.as_ref().map_or(ptr::null(), |k| k.as_ptr());
+        let keep_msg_ptr = g_st()
+            .keep_msg
+            .get()
+            .as_ref()
+            .map_or(ptr::null(), |k| k.as_ptr());
         if MSG_STATE.with(|s| s.is_multihl.get()) == 0
             && (s.as_ptr() != keep_msg_ptr
                 || (s.to_bytes().first().copied().unwrap_or(0) != b'<'
@@ -1122,11 +1126,13 @@ pub fn emsg_multiline(
                 return true;
             }
 
-            if g_st().in_assert_fails.get() && g_st().emsg_assert_fails_msg.is_none() {
-                g_st().emsg_assert_fails_msg = Some(s.to_owned());
+            if g_st().in_assert_fails.get() && g_st().emsg_assert_fails_msg.get().is_none() {
+                g_st().emsg_assert_fails_msg.set(Some(s.to_owned()));
                 g_st().emsg_assert_fails_lnum.set(sourcing_lnum() as i64);
                 let sname = sourcing_name();
-                g_st().emsg_assert_fails_context = Some(sname.unwrap_or_default().to_owned());
+                g_st()
+                    .emsg_assert_fails_context
+                    .set(Some(sname.unwrap_or_default().to_owned()));
             }
 
             // set "v:errmsg", also when using ":silent! cmd"
@@ -1962,13 +1968,13 @@ pub fn wait_return(redraw: i32) {
     g_st().emsg_on_display.set(false);
     g_st().lines_left.set(-1);
     reset_last_sourcing();
-    if g_st().keep_msg.as_ref().is_some_and(|km| {
+    if g_st().keep_msg.get().as_ref().is_some_and(|km| {
         vim_strsize(km)
             >= (g_st().rows_global.get() - g_st().cmdline_row.get() - 1)
                 * g_st().columns_global.get()
                 + g_st().sc_col.get()
     }) {
-        g_st().keep_msg = None;
+        g_st().keep_msg.set(None);
     }
 
     if tmp_state == MODE_SETWSIZE {
@@ -2015,9 +2021,9 @@ pub fn set_keep_msg(s: Option<&std::ffi::CStr>, hl_id: i32) {
     if let Some(s) = s
         && g_st().msg_silent.get() == 0
     {
-        g_st().keep_msg = Some(s.to_owned());
+        g_st().keep_msg.set(Some(s.to_owned()));
     } else {
-        g_st().keep_msg = None;
+        g_st().keep_msg.set(None);
     }
     MSG_STATE.with(|s| s.keep_msg_more.set(false));
     g_st().keep_msg_hl_id.set(hl_id);
@@ -2034,7 +2040,7 @@ pub fn msgmore(n: i32) {
         return;
     }
 
-    if g_st().keep_msg.is_some() && !MSG_STATE.with(|s| s.keep_msg_more.get()) {
+    if g_st().keep_msg.get().is_some() && !MSG_STATE.with(|s| s.keep_msg_more.get()) {
         return;
     }
 
@@ -2105,7 +2111,7 @@ pub fn msg_start() {
         .set(g_st().msg_row.get().max(g_st().cmdline_row.get()));
 
     if g_st().msg_silent.get() == 0 {
-        g_st().keep_msg = None;
+        g_st().keep_msg.set(None);
         g_st().need_fileinfo.set(false);
     }
 
@@ -3489,7 +3495,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
             used_typed_char = NUL as i32;
             ch
         } else {
-            get_keystroke(g_st().resize_events.opt())
+            get_keystroke(g_st().resize_events.get().opt())
         };
 
         let mut toscroll = 0;
@@ -3544,7 +3550,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left.set(g_st().rows_global.get() - 1);
                 }
                 K_EVENT => {
-                    multiqueue_process_events(g_st().resize_events.borrow_mut());
+                    multiqueue_process_events(g_st().resize_events.get().borrow_mut());
                     to_redraw = true;
                 }
                 _ => {
@@ -4124,7 +4130,7 @@ pub fn give_warning(message: &std::ffi::CStr, hl: bool, hist: bool) {
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
     set_vim_var_string(VV_WARNINGMSG, Some(message), -1);
-    g_st().keep_msg = None;
+    g_st().keep_msg.set(None);
     if hl {
         g_st().keep_msg_hl_id.set(HLF_W);
     } else {

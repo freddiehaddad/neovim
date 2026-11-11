@@ -257,6 +257,7 @@ pub fn cause_errthrow(
     if g_st().did_throw.get() {
         if g_st()
             .current_exception
+            .get()
             .as_ref()
             .is_some_and(|e| e.r#type == ET_INTERRUPT)
         {
@@ -337,6 +338,7 @@ pub fn do_intthrow(cstack: &mut Cstack) -> bool {
     if g_st().did_throw.get() {
         if g_st()
             .current_exception
+            .get()
             .as_ref()
             .is_some_and(|e| e.r#type == ET_INTERRUPT)
         {
@@ -410,7 +412,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
                 && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
             {
                 emsg(gettext(c"E608: Cannot :throw exceptions with 'Vim' prefix"));
-                g_st().current_exception = None;
+                g_st().current_exception.set(None);
                 return false;
             }
             (ET_USER, Vec::new(), val_str)
@@ -470,7 +472,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         }
     }
 
-    g_st().current_exception = Some(excp);
+    g_st().current_exception.set(Some(excp));
     true
 }
 
@@ -481,10 +483,11 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
     };
     if g_st()
         .current_exception
+        .get()
         .as_ref()
         .is_some_and(|cur| std::rc::Rc::ptr_eq(cur, &excp))
     {
-        g_st().current_exception = None;
+        g_st().current_exception.set(None);
     }
 
     if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level.get() > 0 {
@@ -619,7 +622,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
 }
 
 pub fn exception_state_save(estate: &mut ExceptionState) {
-    estate.estate_current_exception = g_st().current_exception.clone();
+    estate.estate_current_exception = g_st().current_exception.get().clone();
     estate.estate_did_throw = g_st().did_throw.get();
     estate.estate_need_rethrow = g_st().need_rethrow.get();
     estate.estate_trylevel = g_st().trylevel.get();
@@ -630,7 +633,9 @@ pub fn exception_state_restore(estate: &mut ExceptionState) {
     if g_st().did_throw.get() {
         handle_did_throw();
     }
-    g_st().current_exception = estate.estate_current_exception.take();
+    g_st()
+        .current_exception
+        .set(estate.estate_current_exception.take());
     g_st().did_throw.set(estate.estate_did_throw);
     g_st().need_rethrow.set(estate.estate_need_rethrow);
     g_st().trylevel.set(estate.estate_trylevel);
@@ -638,7 +643,7 @@ pub fn exception_state_restore(estate: &mut ExceptionState) {
 }
 
 pub fn exception_state_clear() {
-    g_st().current_exception = None;
+    g_st().current_exception.set(None);
     g_st().did_throw.set(false);
     g_st().need_rethrow.set(false);
     g_st().trylevel.set(0);
@@ -1053,7 +1058,7 @@ pub fn do_throw(cstack: &mut Cstack) {
             }
         }
         cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
-        (&mut cstack.cs_exception)[u_idx] = g_st().current_exception.clone();
+        (&mut cstack.cs_exception)[u_idx] = g_st().current_exception.get().clone();
     }
 
     g_st().did_throw.set(true);
@@ -1178,13 +1183,8 @@ pub fn ex_catch(eap: &mut Exarg) {
                 } else {
                     let prev_got_int = g_st().got_int.get();
                     g_st().got_int.set(false);
-                    let val_cstr = g_st()
-                        .borrow_mut()
-                        .current_exception
-                        .as_ref()
-                        .unwrap()
-                        .value
-                        .as_c_str();
+                    let cur_excp = g_st().current_exception.get().unwrap();
+                    let val_cstr = cur_excp.value.as_c_str();
                     caught = vim_regexec_nl(&mut regmatch, Some(val_cstr), 0);
                     g_st().got_int.set(g_st().got_int.get() | (prev_got_int));
                     regmatch.free_prog();
@@ -1205,7 +1205,7 @@ pub fn ex_catch(eap: &mut Exarg) {
             }
             if !match (
                 cstack.cs_exception[cstack.cs_idx as usize].as_ref(),
-                g_st().current_exception.as_ref(),
+                g_st().current_exception.get().as_ref(),
             ) {
                 (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                 (None, None) => true,
@@ -1292,7 +1292,7 @@ pub fn ex_finally(eap: &mut Exarg) {
             if g_st().did_throw.get()
                 && !match (
                     cstack.cs_exception[cur_idx].as_ref(),
-                    g_st().current_exception.as_ref(),
+                    g_st().current_exception.get().as_ref(),
                 ) {
                     (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                     (None, None) => true,
@@ -1377,7 +1377,9 @@ pub fn ex_endtry(eap: &mut Exarg) {
             if pending == CSTP_RETURN {
                 rettv = (&mut cstack.cs_rettv)[u_idx].take();
             } else if (pending & CSTP_THROW) != 0 {
-                g_st().current_exception = (&mut cstack.cs_exception)[u_idx].take();
+                g_st()
+                    .current_exception
+                    .set((&mut cstack.cs_exception)[u_idx].take());
             }
         }
 
@@ -1393,7 +1395,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         let report_val = if pending == CSTP_RETURN {
             PendingVal::Return(rettv.clone())
         } else if (pending & CSTP_THROW) != 0 {
-            PendingVal::Throw(g_st().current_exception.clone())
+            PendingVal::Throw(g_st().current_exception.get().clone())
         } else {
             PendingVal::None
         };
@@ -1487,7 +1489,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
         }
     } else {
         if (pending & CSTP_THROW) != 0 {
-            g_st().current_exception = csp.exception.take();
+            g_st().current_exception.set(csp.exception.take());
         } else if (pending & CSTP_ERROR) != 0 {
             CAUSE_ABORT.set(g_st().force_abort.get());
             g_st().force_abort.set(false);
@@ -1506,7 +1508,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
         report_resume_pending(
             pending,
             if (pending & CSTP_THROW) != 0 {
-                PendingVal::Throw(g_st().current_exception.clone())
+                PendingVal::Throw(g_st().current_exception.get().clone())
             } else {
                 PendingVal::None
             },

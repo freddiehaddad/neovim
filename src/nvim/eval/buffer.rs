@@ -94,7 +94,10 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 fn find_win_for_curbuf() {
     for wip in &curbuf_mut().b_wininfo {
-        if wip.win_opt().is_some_and(|w| w.w_buffer == g_st().curbuf) {
+        if wip
+            .win_opt()
+            .is_some_and(|w| w.w_buffer == g_st().curbuf.get())
+        {
             set_curwin(wip.wi_win);
             break;
         }
@@ -109,11 +112,11 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
     cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
     cob.cob_curwin_save = crate::globals::curwin_ptr();
-    g_st().curbuf = buf_ptr;
+    g_st().curbuf.set(buf_ptr);
     find_win_for_curbuf();
 
     if curwin_mut().w_buffer != buf_ptr {
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
         ctx_switch(&mut cob.cob_aco, None, None, Some(buf), 0);
         cob.cob_using_aco = 1;
     }
@@ -124,7 +127,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
         ctx_restore(&mut cob.cob_aco);
     } else {
         set_curwin(cob.cob_curwin_save);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
     g_st().visual_global.active = cob.cob_save_visual_active;
 }
@@ -145,7 +148,7 @@ fn set_buffer_lines(
         return;
     };
     let buf_ptr = crate::globals::BufPtr::from(&*buf);
-    let is_curbuf = buf_ptr == g_st().curbuf.as_ptr();
+    let is_curbuf = buf_ptr == g_st().curbuf.get().as_ptr();
     if (!is_curbuf && buf.b_ml.ml_mfp.is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
@@ -234,7 +237,7 @@ fn set_buffer_lines(
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(first_win_in_tab(&tp)) {
                 if wp.w_buffer == buf_ptr
-                    && (wp.w_buffer != g_st().curbuf || wp == curwin_ptr())
+                    && (wp.w_buffer != g_st().curbuf.get() || wp == curwin_ptr())
                     && wp.w_cursor.lnum > append_lnum
                 {
                     wp.w_cursor.lnum += added as Linenr;
@@ -255,7 +258,13 @@ pub fn f_append(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let did_emsg_before = g_st().did_emsg.get();
     let lnum = tv_get_lnum(&argvars[0]);
     if g_st().did_emsg.get() == did_emsg_before {
-        set_buffer_lines(g_st().curbuf.opt_mut(), lnum, true, &mut argvars[1], rettv);
+        set_buffer_lines(
+            g_st().curbuf.get().opt_mut(),
+            lnum,
+            true,
+            &mut argvars[1],
+            rettv,
+        );
     }
 }
 
@@ -525,7 +534,7 @@ pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, None);
     let buf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.get()
     } else {
         crate::globals::BufPtr::from(tv_get_buf_from_arg(&mut argvars[0]))
     };
@@ -543,7 +552,7 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     let mut buf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.get()
     } else {
         if !tv_check_str_or_nr(&argvars[0]) {
             return;
@@ -626,7 +635,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     let buf_ptr = crate::globals::BufPtr::from(&*buf);
-    let is_curbuf = g_st().curbuf == buf_ptr;
+    let is_curbuf = g_st().curbuf.get() == buf_ptr;
     let mut cob = Cob::new();
     if !is_curbuf {
         change_other_buffer_prepare(&mut cob, buf);
@@ -677,7 +686,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
 
     tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum.get() as Varnumber);
     tv_dict_add_str(&dict, c"name", Some(buf.ffname_cstr()));
-    let lnum = if g_st().curbuf == buf {
+    let lnum = if g_st().curbuf.get() == buf {
         curwin_mut().w_cursor.lnum
     } else {
         buflist_findlnum(buf)
@@ -870,7 +879,13 @@ pub fn f_setline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let did_emsg_before = g_st().did_emsg.get();
     let lnum = tv_get_lnum(&argvars[0]);
     if g_st().did_emsg.get() == did_emsg_before {
-        set_buffer_lines(g_st().curbuf.opt_mut(), lnum, false, &mut argvars[1], rettv);
+        set_buffer_lines(
+            g_st().curbuf.get().opt_mut(),
+            lnum,
+            false,
+            &mut argvars[1],
+            rettv,
+        );
     }
 }
 

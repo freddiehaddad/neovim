@@ -129,7 +129,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     let buf = if bufnr != 0 {
         crate::globals::BufPtr::from(handle_get_buffer(bufnr))
     } else {
-        g_st().curbuf
+        g_st().curbuf.get()
     };
     let Some(buf_ref) = buf.opt_mut() else {
         return luaL_error_cstr(lstate, c"invalid buffer");

@@ -4907,7 +4907,7 @@ fn restore_dbg_stuff(dsp: &mut DbgStuff) {
     g_st().did_throw.set(dsp.did_throw);
     g_st().need_rethrow.set(dsp.need_rethrow != 0);
     g_st().check_cstack.set(dsp.check_cstack != 0);
-    g_st().current_exception = dsp.current_exception.take();
+    g_st().current_exception.set(dsp.current_exception.take());
 }
 
 /// Check if ffname differs from fnum.
@@ -5136,6 +5136,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                             0,
                             g_st()
                                 .last_cmdline
+                                .get()
                                 .as_ref()
                                 .map_or(&[][..], |s| s.to_bytes()),
                         );
@@ -5172,9 +5173,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
                 if (flags & DOCMD_KEEPLINE) != 0 {
                     if count == 0 {
-                        g_st().repeat_cmdline = Some(next_cstr);
+                        g_st().repeat_cmdline.set(Some(next_cstr));
                     } else {
-                        g_st().repeat_cmdline = None;
+                        g_st().repeat_cmdline.set(None);
                     }
                 }
             } else if !has_cmdline_copy {
@@ -5244,7 +5245,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if fgetline.is_exline()
                     && let Some(new_cmd) = g_st().new_last_cmdline.take()
                 {
-                    g_st().last_cmdline = Some(new_cmd);
+                    g_st().last_cmdline.set(Some(new_cmd));
                 }
             } else {
                 has_cmdline_copy = true;
@@ -5323,7 +5324,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     i32::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
                     if g_st().did_throw.get() {
-                        PendingVal::Throw(g_st().current_exception.clone())
+                        PendingVal::Throw(g_st().current_exception.get().clone())
                     } else {
                         PendingVal::None
                     },
@@ -5486,7 +5487,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
 /// Handle when "did_throw" is set after executing commands.
 pub fn handle_did_throw() {
-    let cur_excp = g_st().current_exception.clone();
+    let cur_excp = g_st().current_exception.get().clone();
     debug_assert!(cur_excp.is_some());
     let excp = cur_excp.as_ref().unwrap();
     let mut p: Option<std::ffi::CString> = None;
@@ -5583,7 +5584,7 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: &CStr) {
 
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
     let mut count = offset;
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.get();
     while !buf.b_next.is_null() && buf.b_fnum.get() < lnum {
         buf = buf.b_next;
     }
@@ -5727,14 +5728,14 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
         ADDR_LOADED_BUFFERS => {
-            let mut buf = g_st().firstbuf;
+            let mut buf = g_st().firstbuf.get();
             while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
                 buf = buf.b_next;
             }
 
             eap.line1 = buf.b_fnum.get();
 
-            buf = g_st().lastbuf;
+            buf = g_st().lastbuf.get();
             while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
                 buf = buf.b_prev;
             }
@@ -5742,8 +5743,8 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
             eap.line2 = buf.b_fnum.get();
         }
         ADDR_BUFFERS => {
-            eap.line1 = g_st().firstbuf.b_fnum.get();
-            eap.line2 = g_st().lastbuf.b_fnum.get();
+            eap.line1 = g_st().firstbuf.get().b_fnum.get();
+            eap.line2 = g_st().lastbuf.get().b_fnum.get();
         }
         ADDR_WINDOWS => {
             eap.line2 = current_win_nr(None, Some(&*eap));
@@ -7079,7 +7080,7 @@ pub fn parse_command_modifiers(
                             return false;
                         }
                         if tabnr == MAXLNUM {
-                            cmod.cmod_tab = tabpage_index(g_st().curtab.opt()) + 1;
+                            cmod.cmod_tab = tabpage_index(g_st().curtab.get().opt()) + 1;
                         } else {
                             if tabnr < 0 || tabnr > current_tab_nr(None) {
                                 *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
@@ -7283,14 +7284,14 @@ pub fn parse_cmd_address(
                             eap.line2 = curbuf_mut().b_ml.ml_line_count;
                         }
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().firstbuf;
+                            let mut buf = g_st().firstbuf.get();
                             while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
                                 buf = buf.b_next;
                             }
 
                             eap.line1 = buf.b_fnum.get();
 
-                            buf = g_st().lastbuf;
+                            buf = g_st().lastbuf.get();
                             while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
                                 buf = buf.b_prev;
                             }
@@ -7298,8 +7299,8 @@ pub fn parse_cmd_address(
                             eap.line2 = buf.b_fnum.get();
                         }
                         ADDR_BUFFERS => {
-                            eap.line1 = g_st().firstbuf.b_fnum.get();
-                            eap.line2 = g_st().lastbuf.b_fnum.get();
+                            eap.line1 = g_st().firstbuf.get().b_fnum.get();
+                            eap.line2 = g_st().lastbuf.get().b_fnum.get();
                         }
                         ADDR_WINDOWS | ADDR_TABS => {
                             if eap.cmdidx.is_user() {
@@ -7823,7 +7824,7 @@ pub fn get_address(
                         ADDR_WINDOWS => lnum = current_win_nr(None, eap.as_deref()),
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().lastbuf;
+                            let mut buf = g_st().lastbuf.get();
                             while buf.b_ml.ml_mfp.is_none() {
                                 if buf.b_prev.is_null() {
                                     break;
@@ -7834,7 +7835,7 @@ pub fn get_address(
 
                             lnum = buf.b_fnum.get();
                         }
-                        ADDR_BUFFERS => lnum = g_st().lastbuf.b_fnum.get(),
+                        ADDR_BUFFERS => lnum = g_st().lastbuf.get().b_fnum.get(),
                         ADDR_TABS => lnum = current_tab_nr(None),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
@@ -8842,8 +8843,8 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 if (p).as_bytes() == b"$" {
                     tab_number = last_tab;
                 } else if (p).as_bytes() == b"#" {
-                    if valid_tabpage(g_st().lastused_tabpage.opt()) {
-                        tab_number = tabpage_index(g_st().lastused_tabpage.opt());
+                    if valid_tabpage(g_st().lastused_tabpage.get().opt()) {
+                        tab_number = tabpage_index(g_st().lastused_tabpage.get().opt());
                     } else {
                         eap.errmsg = Some(ex_errmsg(E_INVARGVAL, eap.arg.as_cstr()));
                         tab_number = 0;
@@ -8868,7 +8869,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     eap.errmsg = Some(ex_errmsg(E_INVARG2, eap.arg.as_cstr()));
                     break 'theend;
                 }
-                tab_number = tab_number * relative + tabpage_index(g_st().curtab.opt());
+                tab_number = tab_number * relative + tabpage_index(g_st().curtab.get().opt());
                 if unaccept_arg0 == 0 && relative == -1 {
                     tab_number -= 1;
                 }
@@ -8899,14 +8900,14 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 }
             }
         } else if eap.cmdidx == Cmdidx::CmdTabnextVariant {
-            tab_number = tabpage_index(g_st().curtab.opt()) + 1;
+            tab_number = tabpage_index(g_st().curtab.get().opt()) + 1;
             if tab_number > last_tab {
                 tab_number = 1;
             }
         } else if eap.cmdidx == Cmdidx::CmdTabmove {
             tab_number = last_tab;
         } else {
-            tab_number = tabpage_index(g_st().curtab.opt());
+            tab_number = tabpage_index(g_st().curtab.get().opt());
         }
     }
 
@@ -9155,7 +9156,7 @@ fn ex_quit(eap: &mut Exarg) {
     let mut wp: crate::globals::WinPtr;
     if eap.addr_count > 0 {
         let mut wnr = eap.line2;
-        wp = g_st().firstwin;
+        wp = g_st().firstwin.get();
         while !wp.borrow().w_next.is_null() {
             wnr -= 1;
             if wnr <= 0 {
@@ -9191,7 +9192,9 @@ fn ex_quit(eap: &mut Exarg) {
     {
         not_exiting(save_exiting);
     } else {
-        if only_one_window() && (g_st().firstwin == g_st().lastwin || eap.addr_count == 0) {
+        if only_one_window()
+            && (g_st().firstwin.get() == g_st().lastwin.get() || eap.addr_count == 0)
+        {
             getout(0);
         }
         not_exiting(save_exiting);
@@ -9415,7 +9418,8 @@ fn ex_restart(eap: &mut Exarg) {
     let on_exit = Callback::NONE;
     let mut exit_status: Varnumber = 0;
 
-    let globaldir_opt = g_st().borrow_mut().globaldir.as_deref();
+    let globaldir_owned = g_st().globaldir.get();
+    let globaldir_opt = globaldir_owned.as_deref();
     let channel = channel_job_start(
         argv_vec,
         Some(&exepath),
@@ -9636,7 +9640,7 @@ fn ex_close(eap: &mut Exarg) {
             curwin_mut()
         } else {
             win_find_nr(eap.line2, Some(&curtab_mut()))
-                .unwrap_or_else(|| g_st().lastwin.borrow_mut())
+                .unwrap_or_else(|| g_st().lastwin.get().borrow_mut())
         };
         ex_win_close(eap.forceit, win, None);
     }
@@ -9654,7 +9658,7 @@ fn ex_pclose(eap: &mut Exarg) {
 
 pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&TabPageInfo>) {
     let tp = crate::globals::TabpagePtr::from(tp_in);
-    debug_assert!(tp.is_null() || tp != g_st().curtab);
+    debug_assert!(tp.is_null() || tp != g_st().curtab.get());
 
     if is_ctx_win(win) {
         let _ = emsg(gettext(E_AUTOCMD_CLOSE));
@@ -9712,7 +9716,7 @@ fn ex_tabclose(eap: &mut Exarg) {
         beep_flush();
         return;
     };
-    if g_st().curtab != tp {
+    if g_st().curtab.get() != tp {
         tabpage_close_other(&tp, eap.forceit);
     } else if !text_locked() && !curbuf_locked() {
         tabpage_close(eap.forceit);
@@ -9738,7 +9742,7 @@ fn ex_tabonly(eap: &mut Exarg) {
     let mut done: i32 = 0;
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
-            if tp.tp_topframe.get() != g_st().topframe {
+            if tp.tp_topframe.get() != g_st().topframe.get() {
                 tabpage_close_other(tp.borrow(), eap.forceit);
                 if valid_tabpage(tp.opt()) {
                     done = 1000;
@@ -9762,7 +9766,7 @@ pub fn tabpage_close(forceit: bool) {
 
     trigger_tabclosedpre(&curtab_mut());
     curtab_mut().tp_did_tabclosedpre.set(true);
-    let save_curtab = g_st().curtab.clone();
+    let save_curtab = g_st().curtab.get().clone();
 
     while curwin_mut().w_floating.get() && {
         done += 1;
@@ -9774,13 +9778,13 @@ pub fn tabpage_close(forceit: bool) {
         return;
     }
 
-    if g_st().firstwin != g_st().lastwin {
+    if g_st().firstwin.get() != g_st().lastwin.get() {
         close_others(1, forceit, true);
     }
-    if g_st().firstwin == g_st().lastwin {
+    if g_st().firstwin.get() == g_st().lastwin.get() {
         ex_win_close(forceit, curwin_mut(), None);
     }
-    if g_st().curtab == save_curtab {
+    if g_st().curtab.get() == save_curtab {
         curtab_mut().tp_did_tabclosedpre.set(false);
     }
 }
@@ -9790,7 +9794,7 @@ pub fn tabpage_close_other(tp_in: &TabPageInfo, forceit: bool) {
     let mut done: i32 = 0;
     let mut prev_idx = [0u8; NUMBUFLEN];
 
-    debug_assert!(g_st().curtab != tp);
+    debug_assert!(g_st().curtab.get() != tp);
 
     if window_layout_locked(Cmdidx::CmdSize) {
         return;
@@ -9807,7 +9811,7 @@ pub fn tabpage_close_other(tp_in: &TabPageInfo, forceit: bool) {
         let _ = format_to_buf!(&mut prev_idx, c"%i", tabpage_index(tp.opt()));
         let wp = tp.tp_lastwin.get();
 
-        if g_st().curtab == tp {
+        if g_st().curtab.get() == tp {
             done = 1000;
             break;
         }
@@ -9861,7 +9865,7 @@ fn ex_hide(eap: &mut Exarg) {
         curwin_ptr()
     } else {
         win_find_nr(eap.line2, Some(&curtab_mut()))
-            .map_or(g_st().lastwin, crate::globals::WinPtr::from)
+            .map_or(g_st().lastwin.get(), crate::globals::WinPtr::from)
     };
 
     if !win.w_floating.get() && window_layout_locked(Cmdidx::CmdHide) {
@@ -10131,7 +10135,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
 
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin.opt())
-                    && old_curwin.w_buffer != g_st().curbuf
+                    && old_curwin.w_buffer != g_st().curbuf.get()
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
                     {
@@ -10217,8 +10221,8 @@ fn ex_tabs(_eap: &mut Exarg) {
     msg_start();
     g_st().msg_scroll.set(i32::from(true));
 
-    let lastused_win = if valid_tabpage(g_st().lastused_tabpage.opt()) {
-        g_st().lastused_tabpage.tp_curwin.get().as_ptr()
+    let lastused_win = if valid_tabpage(g_st().lastused_tabpage.get().opt()) {
+        g_st().lastused_tabpage.get().tp_curwin.get().as_ptr()
     } else {
         ptr::null_mut()
     };
@@ -10640,7 +10644,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
         && !eap.arg.is_empty()
         && old_curwin != curwin_ptr()
         && win_valid(old_curwin.opt())
-        && old_curwin.w_buffer != g_st().curbuf
+        && old_curwin.w_buffer != g_st().curbuf.get()
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
         {
@@ -10771,7 +10775,7 @@ fn ex_read(eap: &mut Exarg) {
 
 pub fn free_cd_dir() {
     PREV_DIR.with(|cell| *cell.borrow_mut() = None);
-    g_st().globaldir = None;
+    g_st().globaldir.set(None);
 }
 
 fn get_prevdir(scope: CdScope) -> Option<std::ffi::CString> {
@@ -10805,8 +10809,8 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
     if scope < K_CD_SCOPE_GLOBAL {
         let pdir = get_prevdir(scope);
-        if g_st().globaldir.is_none() && pdir.is_some() {
-            g_st().globaldir = pdir;
+        if g_st().globaldir.get().is_none() && pdir.is_some() {
+            g_st().globaldir.set(pdir);
         }
     }
 
@@ -10817,11 +10821,11 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     let cwd_cstr = crate::memory::cstring_until_nul(&cwd);
     match scope {
         K_CD_SCOPE_GLOBAL => {
-            g_st().globaldir = if curbuf_mut().b_localdir.is_some() {
+            g_st().globaldir.set(if curbuf_mut().b_localdir.is_some() {
                 Some(cwd_cstr)
             } else {
                 None
-            };
+            });
         }
         K_CD_SCOPE_TABPAGE => {
             curtab_mut().tp_localdir.set(Some(cwd_cstr));
@@ -12150,20 +12154,22 @@ pub fn eval_vars(
             SPEC_AFILE => {
                 use_shellslash = !g_st().autocmd_fname_full.get();
                 if !g_st().autocmd_fname_full.get()
-                    && let Some(ref cur_fname) = g_st().autocmd_fname
+                    && let Some(ref cur_fname) = g_st().autocmd_fname.get()
                 {
                     g_st().autocmd_fname_full.set(true);
                     if let Some(full) = FullName_save(Some(cur_fname), false) {
-                        g_st().autocmd_fname = Some(full);
+                        g_st().autocmd_fname.set(Some(full));
                     }
                 }
-                let Some(ref af) = g_st().borrow_mut().autocmd_fname else {
+                let Some(af) = g_st().autocmd_fname.get() else {
                     *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE,
                     )));
                     return None;
                 };
-                result_cstr = path_try_shorten_fname(Some(af));
+                resultbuf = Some(af.into_bytes_with_nul());
+                result_cstr =
+                    path_try_shorten_fname(resultbuf.as_deref().map(crate::memory::bytes_as_cstr));
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr.get() <= 0 {
@@ -12176,13 +12182,14 @@ pub fn eval_vars(
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_AMATCH => {
-                let Some(ref am) = g_st().borrow_mut().autocmd_match else {
+                let Some(am) = g_st().autocmd_match.get() else {
                     *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_AUTOCOMMAND_MATCH_NAME_TO_SUBSTITUTE_FOR_AMATCH,
                     )));
                     return None;
                 };
-                result_cstr = Some(am);
+                resultbuf = Some(am.into_bytes_with_nul());
+                result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_SFILE => {
                 use_shellslash = true;

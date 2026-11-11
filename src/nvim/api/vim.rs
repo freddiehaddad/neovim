@@ -1356,7 +1356,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     };
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    if w.w_buffer != g_st().curbuf {
+    if w.w_buffer != g_st().curbuf.get() {
         reset_visual_and_resel();
     }
     goto_tabpage_win(&win_find_tabpage(&*w).unwrap(), w);
@@ -2170,14 +2170,14 @@ pub fn nvim_chan_set(
 pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
     if type_str.size == 0 || buf == 0 {
         g_st().cmdwin_type.set(0);
-        g_st().cmdwin_buf = crate::globals::BufPtr::NULL;
+        g_st().cmdwin_buf.set(crate::globals::BufPtr::NULL);
         return;
     }
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
     g_st().cmdwin_type.set(i32::from(type_str.first_byte()));
-    g_st().cmdwin_buf = crate::globals::BufPtr::from(&mut *b);
+    g_st().cmdwin_buf.set(crate::globals::BufPtr::from(&mut *b));
 }
 
 /// Gets information about a channel.
@@ -3080,7 +3080,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         } else if !buf.is_null() {
             buf
         } else {
-            g_st().curbuf
+            g_st().curbuf.get()
         };
         let line_count = i64::from(rbuf.b_ml.ml_line_count);
         let begin = begin_raw.min(line_count) as i32;

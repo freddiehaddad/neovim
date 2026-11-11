@@ -351,9 +351,9 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         extmark_del_id(buf, mc_session_ns(), sb.cursor_mark);
         topline_valid = extmark_get_pos(buf, mc_session_ns(), sb.topline_mark, &mut topline);
         extmark_del_id(buf, mc_session_ns(), sb.topline_mark);
-        g_st().curbuf == buf
+        g_st().curbuf.get() == buf
     } else {
-        g_st().curbuf.is_null()
+        g_st().curbuf.get().is_null()
     };
     if is_curbuf {
         restore_viewstate(curwin_mut(), &sb.view);
@@ -382,7 +382,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         (a.keys.clone(), a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
     });
 
-    if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
+    if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf.get() == b) {
         return;
     }
 
@@ -506,7 +506,7 @@ fn mc_cascade() {
         (origin, edits, g_atoms.len())
     });
     let _ = &mut edits;
-    let mcursor = if origin.buf.br_buf == g_st().curbuf {
+    let mcursor = if origin.buf.br_buf == g_st().curbuf.get() {
         origin.mcursor
     } else {
         0
@@ -536,7 +536,8 @@ fn mc_cascade() {
     'outer: for ai in 0..atoms_len {
         let atom_origin = with_atom(|st| st.g_atoms.borrow()[ai].origin);
         if !atom_origin.buf.br_buf.is_null()
-            && (!bufref_valid(Some(&atom_origin.buf)) || atom_origin.buf.br_buf != g_st().curbuf)
+            && (!bufref_valid(Some(&atom_origin.buf))
+                || atom_origin.buf.br_buf != g_st().curbuf.get())
         {
             continue;
         }
@@ -559,7 +560,7 @@ fn mc_cascade() {
     mc_sandbox_leave(&mut sb);
 
     mc_cleanup(true, Some(&curwin_mut().w_cursor), mcursor);
-    if handle_get_buffer(bufnr).is_some_and(|b| g_st().curbuf == b)
+    if handle_get_buffer(bufnr).is_some_and(|b| g_st().curbuf.get() == b)
         && !curbuf_mut().b_u_synced.get()
         && let Some(nh) = curbuf_mut().b_u_newhead.get()
     {
@@ -604,7 +605,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
         let dup = dedupe
             && ctx.mark != 0
             && ((!(curwin_ptr()).is_null()
-                && g_st().curbuf == buf
+                && g_st().curbuf.get() == buf
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)
                 || mc_mark_at(buf, ctx.pos, 0) != ctx.mark);
@@ -723,7 +724,7 @@ fn mc_ins_regions_clear() {
 
 #[inline]
 fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
-    handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b)
+    handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf.get() == b)
         && ctx.mark != 0
         && extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, pos)
 }
@@ -1059,7 +1060,9 @@ fn mc_reg_gather() {
     order.push(primary);
     for idx in 0..cursors_len() {
         let ctx = cursor_clone(idx);
-        if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
+        if !ctx.regs.is_empty()
+            && handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf.get() == b)
+        {
             order.push(ctx);
         }
     }
@@ -1818,7 +1821,7 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
 
     if !g_st().exiting.get() {
         extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
-        if g_st().curbuf == (&raw mut *buf) {
+        if g_st().curbuf.get() == (&raw mut *buf) {
             let mut primary: u32 = 1;
             extmark_set_pos(
                 buf,

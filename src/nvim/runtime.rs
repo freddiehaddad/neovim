@@ -2480,7 +2480,7 @@ fn do_source_buffer_init(
     eap: Option<&Exarg>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
-    if g_st().curbuf.is_null() {
+    if g_st().curbuf.get().is_null() {
         return None;
     }
 

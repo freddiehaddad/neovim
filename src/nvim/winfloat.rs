@@ -59,10 +59,10 @@ pub fn win_new_float(
 
         let win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp));
         debug_assert!(!win_tp.is_null());
-        if (win_tp == g_st().curtab
-            && g_st().firstwin == wp
+        if (win_tp == g_st().curtab.get()
+            && g_st().firstwin.get() == wp
             && ptr::eq(lastwin_nofloating(None), wp))
-            || win_tp != g_st().curtab
+            || win_tp != g_st().curtab.get()
                 && win_tp.tp_firstwin.get() == wp
                 && ptr::eq(lastwin_nofloating(win_tp.opt()), wp)
         {
@@ -73,7 +73,7 @@ pub fn win_new_float(
             );
             return None;
         }
-        let tp = if win_tp == g_st().curtab {
+        let tp = if win_tp == g_st().curtab.get() {
             crate::globals::TabpagePtr::NULL
         } else {
             win_tp.clone()
@@ -90,7 +90,7 @@ pub fn win_new_float(
 
         win_remove(wp, tp.opt());
 
-        if win_tp == g_st().curtab {
+        if win_tp == g_st().curtab.get() {
             last_status(false);
             win_comp_pos();
         }
@@ -99,7 +99,7 @@ pub fn win_new_float(
         wp
     } else {
         let mut tp_last = if last {
-            g_st().lastwin
+            g_st().lastwin.get()
         } else {
             crate::globals::WinPtr::from(lastwin_nofloating(None))
         };
@@ -110,11 +110,12 @@ pub fn win_new_float(
                 return None;
             }
             let tp = win_find_tabpage(parent_wp.borrow())?;
-            tp_last = crate::globals::WinPtr::from(lastwin_nofloating(if tp == g_st().curtab {
-                None
-            } else {
-                tp.opt()
-            }));
+            tp_last =
+                crate::globals::WinPtr::from(lastwin_nofloating(if tp == g_st().curtab.get() {
+                    None
+                } else {
+                    tp.opt()
+                }));
         }
         let wp = win_alloc(tp_last.opt_mut(), false);
         win_init(wp, curwin_mut(), 0);
@@ -399,7 +400,7 @@ pub fn win_float_find_altwin(
     tp: Option<&TabPageInfo>,
 ) -> &'static mut WinInfoInfo {
     let Some(tp) = tp else {
-        return if win_valid(g_st().prevwin.opt())
+        return if win_valid(g_st().prevwin.get().opt())
             && let Some(wp) = prevwin_opt()
             && !ptr::eq(wp, win)
             && win_is_focusable(wp)
@@ -410,7 +411,7 @@ pub fn win_float_find_altwin(
         };
     };
 
-    debug_assert!(g_st().curtab != tp);
+    debug_assert!(g_st().curtab.get() != tp);
     let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.get().opt()) {
         tp.tp_prevwin.get()
     } else {

@@ -208,7 +208,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 
-    if g_st().visual_global.active && wp.w_buffer == g_st().curbuf {
+    if g_st().visual_global.active && wp.w_buffer == g_st().curbuf.get() {
         redraw_buf_later(curbuf_mut(), UPD_INVERTED);
     }
 }
@@ -2627,7 +2627,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
             cursor_up_inner(curwin_mut(), curscount, true);
         }
     } else {
-        let one_window = g_st().firstwin == g_st().lastwin;
+        let one_window = g_st().firstwin.get() == g_st().lastwin.get();
         count *= if one_window
             && opt_vars().p_window.get() > 0
             && opt_vars().p_window.get() < i64::from(g_st().rows_global.get() - 1)
@@ -2698,10 +2698,10 @@ pub fn do_check_cursorbind() {
             const { std::cell::Cell::new(MoveCursorbindState::new()) };
     }
 
-    debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());
+    debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.get().is_null());
     let prev = MOVE_CB_STATE.get();
     if prev.prev_curwin == curwin_ptr()
-        && prev.prev_curbuf == g_st().curbuf
+        && prev.prev_curbuf == g_st().curbuf.get()
         && buf_get_changedtick(curbuf_mut()) == prev.prev_changedtick
         && equalpos(curwin_mut().w_cursor, prev.prev_cursor)
     {
@@ -2709,7 +2709,7 @@ pub fn do_check_cursorbind() {
     }
     MOVE_CB_STATE.set(MoveCursorbindState {
         prev_curwin: crate::globals::curwin_ptr(),
-        prev_curbuf: g_st().curbuf,
+        prev_curbuf: g_st().curbuf.get(),
         prev_changedtick: buf_get_changedtick(curbuf_mut()),
         prev_cursor: curwin_mut().w_cursor,
     });
@@ -2720,7 +2720,7 @@ pub fn do_check_cursorbind() {
     let curswant = curwin_mut().w_curswant.get();
     let set_curswant = curwin_mut().w_set_curswant.get();
     let old_curwin = curwin_ptr();
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.get();
     let old_visual_select = g_st().visual_global.select;
     let old_visual_active = g_st().visual_global.active;
 
@@ -2728,7 +2728,7 @@ pub fn do_check_cursorbind() {
     g_st().visual_global.active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb.get() {
             if curwin_mut().w_onebuf_opt.wo_diff.get() {
                 curwin_mut().w_cursor.lnum = diff_get_corresponding_line(&old_curbuf, line);
@@ -2764,7 +2764,7 @@ pub fn do_check_cursorbind() {
     g_st().visual_global.select = old_visual_select;
     g_st().visual_global.active = old_visual_active;
     set_curwin(old_curwin);
-    g_st().curbuf = old_curbuf;
+    g_st().curbuf.set(old_curbuf);
 }
 
 #[cfg(test)]

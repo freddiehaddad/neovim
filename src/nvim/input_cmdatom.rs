@@ -493,7 +493,7 @@ fn atom_origin() -> CmdOrigin {
         mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor, 0),
         ..CmdOrigin::default()
     };
-    set_bufref(&mut origin.buf, g_st().curbuf.opt_mut());
+    set_bufref(&mut origin.buf, g_st().curbuf.get().opt_mut());
     origin
 }
 
@@ -1850,7 +1850,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     let keycls = atom_key_class(ca.cmdchar, ca.nchar, ca.extra_char);
     let opaque = (keycls & K_KEY_OPAQUE) != 0;
     let synthetic = (keycls & K_KEY_SYNTHETIC) != 0;
-    let unchanged = old_origin.buf.br_buf == g_st().curbuf
+    let unchanged = old_origin.buf.br_buf == g_st().curbuf.get()
         && old_origin.win == curwin_ptr()
         && !atom_origin_moved(old_origin)
         && !atom_origin_changed(old_origin)
@@ -1869,7 +1869,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     let mapped = user && !old_keytyped && !synthetic;
     if mapped
         && with_atom(|st| st.global_ops.get() == old_global_ops)
-        && ((old_origin.buf.br_buf == g_st().curbuf && atom_origin_changed(old_origin))
+        && ((old_origin.buf.br_buf == g_st().curbuf.get() && atom_origin_changed(old_origin))
             || ins_cascaded)
     {
         with_atom(|st| st.map_edit.set(true));
@@ -2013,7 +2013,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     }
 
     if vis
-        && (old_origin.buf.br_buf != g_st().curbuf
+        && (old_origin.buf.br_buf != g_st().curbuf.get()
             || (atom_origin_changed(old_origin) && with_atom(|st| st.vatom.frame.get() != old_id)))
     {
         with_atom(|st| st.vatom.state.set(st.vatom.state.get() | K_VATOM_VOID));

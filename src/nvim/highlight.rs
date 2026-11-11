@@ -290,7 +290,7 @@ pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
 
 #[inline]
 pub fn hl_attr(n: i32) -> i32 {
-    if let Some(ref tbl) = g_st().hl_attr_active {
+    if let Some(ref tbl) = g_st().hl_attr_active.get() {
         tbl[n as usize].get()
     } else {
         g_st().highlight_attr[n as usize]
@@ -575,11 +575,11 @@ pub fn hl_check_ns() -> bool {
     }
 
     g_st().ns_hl_active.set(ns);
-    g_st().hl_attr_active = None;
+    g_st().hl_attr_active.set(None);
     if ns > 0 {
         update_ns_hl(ns);
         if let Some(hl_def) = hl_st(|st| st.ns_hl_attr.borrow().get(&ns).cloned()) {
-            g_st().hl_attr_active = Some(hl_def);
+            g_st().hl_attr_active.set(Some(hl_def));
         }
     }
     true

@@ -263,7 +263,7 @@ pub fn prompt_for_input(
     mouse_used: Option<&mut bool>,
 ) -> i32 {
     let mut ret = if one_key { ESC } else { 0 };
-    let kmsg = g_st().keep_msg.clone();
+    let kmsg = g_st().keep_msg.get().clone();
 
     let prompt_cstr = if let Some(prompt_cstr) = prompt {
         prompt_cstr

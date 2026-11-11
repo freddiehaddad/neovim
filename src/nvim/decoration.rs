@@ -697,8 +697,8 @@ pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: 
 
 fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(if g_st().curtab == tp {
-            g_st().firstwin.as_ptr()
+        for wp in win_iter_mut(if g_st().curtab.get() == tp {
+            g_st().firstwin.get().as_ptr()
         } else {
             tp.tp_firstwin.get().as_ptr()
         }) {

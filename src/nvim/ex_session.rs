@@ -382,7 +382,7 @@ fn put_view(
 
     let save_curwin = curwin_ptr();
     set_curwin(&mut *wp);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
     let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
             fd,
@@ -398,7 +398,7 @@ fn put_view(
         true
     };
     set_curwin(save_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
     if !f {
         return false;
     }
@@ -570,7 +570,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
         } else if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0 {
-            let sname = home_replace_save(None, g_st().globaldir.as_deref().or(Some(dirnow)));
+            let sname = home_replace_save(None, g_st().globaldir.get().as_deref().or(Some(dirnow)));
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
                 return false;
@@ -700,20 +700,20 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let tab_topframe;
 
             if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
-                if g_st().curtab == tp {
-                    tab_firstwin = g_st().firstwin;
-                    tab_topframe = g_st().topframe.clone();
+                if g_st().curtab.get() == tp {
+                    tab_firstwin = g_st().firstwin.get();
+                    tab_topframe = g_st().topframe.get().clone();
                 } else {
                     tab_firstwin = tp.tp_firstwin.get();
                     tab_topframe = tp.tp_topframe.get();
                 }
-                if g_st().first_tabpage != tp {
+                if g_st().first_tabpage.get() != tp {
                     need_tabnext = true;
                 }
             } else {
-                tp = g_st().curtab.clone();
-                tab_firstwin = g_st().firstwin;
-                tab_topframe = g_st().topframe.clone();
+                tp = g_st().curtab.get().clone();
+                tab_firstwin = g_st().firstwin.get();
+                tab_topframe = g_st().topframe.get().clone();
             }
 
             if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
@@ -852,7 +852,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0
             && !write_fmt(
                 fd,
-                format!("tabnext {}\n", tabpage_index(g_st().curtab.opt())),
+                format!("tabnext {}\n", tabpage_index(g_st().curtab.get().opt())),
             )
         {
             return false;
@@ -1005,7 +1005,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     }
                 } else if has_dirnow
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
-                    && let Some(ref gdir) = g_st().globaldir
+                    && let Some(ref gdir) = g_st().globaldir.get()
                     && os_chdir(gdir) == 0
                 {
                     shorten_fnames(true);
@@ -1016,7 +1016,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if has_dirnow
                     && ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SESDIR) != 0
                         || ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
-                            && g_st().globaldir.is_some()))
+                            && g_st().globaldir.get().is_some()))
                 {
                     if os_chdir(dirnow_cstr) != 0 {
                         emsg(gettext(E_PREV_DIR));

@@ -2864,7 +2864,7 @@ fn shada_write(
         }
 
         if dump_global_marks
-            && !ignore_buf(g_st().curbuf.opt(), &removable_bufs)
+            && !ignore_buf(g_st().curbuf.get().opt(), &removable_bufs)
             && curwin_mut().w_cursor.lnum != 0
         {
             replace_numbered_mark(

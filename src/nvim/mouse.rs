@@ -265,7 +265,7 @@ fn move_tab_to_mouse() {
     let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col.get() as usize].tabnr;
     if tabnr <= 0 {
         tabpage_move(9999);
-    } else if tabnr < tabpage_index(g_st().curtab.opt()) {
+    } else if tabnr < tabpage_index(g_st().curtab.get().opt()) {
         tabpage_move(tabnr - 1);
     } else {
         tabpage_move(tabnr);
@@ -275,11 +275,11 @@ fn move_tab_to_mouse() {
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
-        g_st().curtab.clone()
+        g_st().curtab.get().clone()
     } else {
         crate::globals::TabpagePtr::from(find_tabpage(c1))
     };
-    if g_st().curtab == tp {
+    if g_st().curtab.get() == tp {
         if !crate::globals::first_tabpage_mut().tp_next.get().is_null() {
             tabpage_close(false);
         }
@@ -1194,7 +1194,7 @@ pub fn ins_mouse(c: i32) {
 
         if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
             set_curwin(old_curwin);
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
             if bt_prompt(Some(crate::globals::curbuf_mut())) {
                 curbuf_mut().b_prompt_insert.set(b'A' as i32);
             }
@@ -1210,7 +1210,7 @@ pub fn ins_mouse(c: i32) {
         );
         if curwin_ptr() != new_curwin && win_valid(new_curwin.opt()) {
             set_curwin(new_curwin);
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
         }
         set_can_cindent(true);
     }
@@ -1272,7 +1272,7 @@ pub fn ins_mousescroll(dir: i32) {
             return;
         };
         set_curwin(&mut *wp);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
 
     if curwin_ptr() == old_curwin {
@@ -1289,7 +1289,7 @@ pub fn ins_mousescroll(dir: i32) {
 
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
 
     if !equalpos(curwin_mut().w_cursor, orig_cursor) {
         start_arrow(Some(orig_cursor), true, 0);
@@ -1331,10 +1331,10 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
     let old_curwin = curwin_ptr();
 
     set_curwin(&mut *wp);
-    g_st().curbuf = wp.w_buffer;
+    g_st().curbuf.set(wp.w_buffer);
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
 
     update_screen();
     true
@@ -1812,14 +1812,14 @@ pub fn nv_mousescroll(cap: &mut Cmdarg) {
             return;
         };
         set_curwin(&mut *wp);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
 
     do_mousescroll(cap);
 
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
 }
 
 /// Mouse clicks and drags.

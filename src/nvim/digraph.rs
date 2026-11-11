@@ -2189,16 +2189,16 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
         return 0;
     }
 
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.get();
     let old_curwin = curwin_ptr();
 
-    g_st().curbuf = wp.w_buffer;
+    g_st().curbuf.set(wp.w_buffer);
     set_curwin(&raw mut *wp);
     g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     let s = eval_to_string(c"b:keymap_name", false, false);
     let mut p_cstr = s.as_deref().unwrap_or(c"");
     g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
-    g_st().curbuf = old_curbuf;
+    g_st().curbuf.set(old_curbuf);
     set_curwin(old_curwin);
     if p_cstr.is_empty() {
         if (wp.buf_mut().b_kmap_state.get() & KEYMAP_LOADED) != 0 {

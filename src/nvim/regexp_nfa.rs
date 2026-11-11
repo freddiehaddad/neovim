@@ -3244,7 +3244,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
 fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
     cleanup_zsubexpr();
     let idx = subidx as usize;
-    let Some(ref em) = g_st().re_extmatch_in else {
+    let Some(ref em) = g_st().re_extmatch_in.get() else {
         *bytelen = 0;
         return true;
     };
@@ -4884,7 +4884,7 @@ fn nfa_regtry(
             }
         }
 
-        g_st().re_extmatch_out = None;
+        g_st().re_extmatch_out.set(None);
 
         if prog.reghasz == REX_SET {
             cleanup_zsubexpr();
@@ -4909,7 +4909,7 @@ fn nfa_regtry(
                     }
                 }
             }
-            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
+            g_st().re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
         }
 
         1 + re_s.rex.lnum.get()
@@ -5101,7 +5101,7 @@ pub(super) fn nfa_regexec_nl(
         re_s.rex.load_match(rmp);
         re_s.rex.reg_maxline.set(0);
         re_s.rex.reg_line_lbr.set(line_lbr);
-        re_s.rex.reg_buf.set(g_st().curbuf);
+        re_s.rex.reg_buf.set(g_st().curbuf.get());
         re_s.rex.reg_win.set(crate::globals::WinPtr::NULL);
         re_s.rex.reg_ic.set(rmp.rm_ic);
         re_s.rex.reg_icombine.set(false);

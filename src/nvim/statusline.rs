@@ -536,7 +536,7 @@ fn win_redr_stl_expr(
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
     }
 
     if wp.is_null() {
@@ -573,7 +573,7 @@ fn win_redr_stl_expr(
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf = restore_curwin.w_buffer;
+                g_st().curbuf.set(restore_curwin.w_buffer);
             }
             return;
         }
@@ -653,7 +653,7 @@ fn win_redr_stl_expr(
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf = restore_curwin.w_buffer;
+                g_st().curbuf.set(restore_curwin.w_buffer);
             }
             return;
         } else if wp_ref.w_floating.get() {
@@ -824,7 +824,7 @@ fn win_redr_stl_expr(
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        g_st().curbuf = restore_curwin.w_buffer;
+        g_st().curbuf.set(restore_curwin.w_buffer);
     }
 }
 pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
@@ -890,14 +890,14 @@ fn ui_ext_tabline_update() {
     let mut arena = Arena::new();
 
     let mut n_tabs: usize = 0;
-    let mut tp = g_st().first_tabpage.clone();
+    let mut tp = g_st().first_tabpage.get().clone();
     while !tp.is_null() {
         n_tabs += 1;
         tp = tp.tp_next.get();
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
-    tp = g_st().first_tabpage.clone();
+    tp = g_st().first_tabpage.get().clone();
     while !tp.is_null() {
         let mut tab_info = arena_dict(&mut arena, 2);
 
@@ -910,7 +910,7 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        let cwp = if g_st().curtab == tp {
+        let cwp = if g_st().curtab.get() == tp {
             curwin_ptr()
         } else {
             tp.tp_curwin.get()
@@ -942,7 +942,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut n_buffers: usize = 0;
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.get();
     while !buf.is_null() {
         if buf.b_p_bl.get() {
             n_buffers += 1;
@@ -951,7 +951,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
-    buf = g_st().firstbuf;
+    buf = g_st().firstbuf.get();
     while !buf.is_null() {
         let b = buf.borrow_mut();
         if b.b_p_bl.get() {
@@ -1030,7 +1030,7 @@ pub fn draw_tabline() {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
         grid_line_start(&mut g_st().default_gridview, 0);
-        let mut tp = g_st().first_tabpage.clone();
+        let mut tp = g_st().first_tabpage.get().clone();
         while !tp.is_null() {
             tabcount += 1;
             tp = tp.tp_next.get();
@@ -1046,20 +1046,20 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = g_st().first_tabpage.clone();
+        tp = g_st().first_tabpage.get().clone();
         while !tp.is_null() {
             if col >= g_st().columns_global.get() - 4 {
                 break;
             }
 
             let mut scol = col;
-            let (cwp, mut wp) = if g_st().curtab == tp {
-                (curwin_ptr(), g_st().firstwin)
+            let (cwp, mut wp) = if g_st().curtab.get() == tp {
+                (curwin_ptr(), g_st().firstwin.get())
             } else {
                 (tp.tp_curwin.get(), tp.tp_firstwin.get())
             };
 
-            if tp.tp_topframe.get() == g_st().topframe {
+            if tp.tp_topframe.get() == g_st().topframe.get() {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
@@ -1067,7 +1067,7 @@ pub fn draw_tabline() {
                 col += 1;
             }
 
-            if tp.tp_topframe.get() != g_st().topframe {
+            if tp.tp_topframe.get() != g_st().topframe.get() {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TP));
             }
 
@@ -2054,12 +2054,12 @@ pub fn build_stl_str_hl_slice(
                         crate::memory::bytes_as_cstr(&buf_tmp),
                     );
 
-                    let save_curbuf = g_st().curbuf;
+                    let save_curbuf = g_st().curbuf.get();
                     let save_curwin = curwin_ptr();
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.active;
                     set_curwin(&mut *wp);
-                    g_st().curbuf = wp.w_buffer;
+                    g_st().curbuf.set(wp.w_buffer);
                     if curwin_ptr() != save_curwin {
                         g_st().visual_global.active = false;
                     }
@@ -2072,7 +2072,7 @@ pub fn build_stl_str_hl_slice(
                     str_slice = owned_str.as_deref().map(std::ffi::CStr::to_bytes_with_nul);
 
                     set_curwin(save_curwin);
-                    g_st().curbuf = save_curbuf;
+                    g_st().curbuf.set(save_curbuf);
                     g_st().visual_global.active = save_VIsual_active;
 
                     do_unlet(b"g:actual_curbuf", true);

@@ -805,7 +805,7 @@ pub fn search_for_fuzzy_match<'a>(
 
     let whole_line = ctrl_x_mode_whole_line();
     let line_count = buf.b_ml.ml_line_count;
-    let circly_end = if g_st().curbuf == buf {
+    let circly_end = if g_st().curbuf.get() == buf {
         *start_pos
     } else {
         CursorPos {

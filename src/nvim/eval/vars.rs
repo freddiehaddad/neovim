@@ -3251,7 +3251,8 @@ fn get_var_from(
         && !win.is_null()
         && (htname != b'b' as i32 || !buf.is_null())
     {
-        let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr()) && !do_change_curbuf;
+        let need_switch_win =
+            !(tp == g_st().curtab.get() && win == curwin_ptr()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3263,10 +3264,10 @@ fn get_var_from(
             )
         {
             if varname_cstr.to_bytes().first() == Some(&b'&') && htname != b't' as i32 {
-                let save_curbuf = g_st().curbuf;
+                let save_curbuf = g_st().curbuf.get();
 
                 if do_change_curbuf {
-                    g_st().curbuf = buf;
+                    g_st().curbuf.set(buf);
                 }
 
                 if varname_cstr.to_bytes().len() == 1 {
@@ -3280,7 +3281,7 @@ fn get_var_from(
                     }
                 }
 
-                g_st().curbuf = save_curbuf;
+                g_st().curbuf.set(save_curbuf);
             } else if varname_cstr.to_bytes().is_empty() {
                 let v = if htname == b'b' as i32 {
                     buf.b_bufvar.clone()
@@ -3331,7 +3332,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab.clone()
+        g_st().curtab.get().clone()
     };
     let win =
         crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
@@ -3495,7 +3496,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab.clone()
+        g_st().curtab.get().clone()
     };
     let win =
         crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
@@ -3508,7 +3509,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         return;
     };
 
-    let need_switch_win = !(g_st().curtab == tp && win == curwin_ptr());
+    let need_switch_win = !(g_st().curtab.get() == tp && win == curwin_ptr());
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if !need_switch_win
         || ctx_switch(
@@ -3704,8 +3705,8 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut win = crate::globals::WinPtr::NULL;
 
     if let Some(tp_ref) = tp.opt() {
-        win = if g_st().curtab == tp_ref || tp_ref.tp_firstwin.get().is_null() {
-            g_st().firstwin
+        win = if g_st().curtab.get() == tp_ref || tp_ref.tp_firstwin.get().is_null() {
+            g_st().firstwin.get()
         } else {
             tp_ref.tp_firstwin.get()
         };
@@ -3773,8 +3774,8 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
 
-    let save_curtab = g_st().curtab.clone();
-    let save_lu_tp = g_st().lastused_tabpage.clone();
+    let save_curtab = g_st().curtab.get().clone();
+    let save_lu_tp = g_st().lastused_tabpage.get().clone();
     goto_tabpage_tp(Some(&tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
@@ -3782,7 +3783,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if valid_tabpage(save_curtab.opt()) {
         goto_tabpage_tp(save_curtab.opt(), false, false);
         if valid_tabpage(save_lu_tp.opt()) {
-            g_st().lastused_tabpage = save_lu_tp;
+            g_st().lastused_tabpage.set(save_lu_tp);
         }
     }
 }
@@ -3822,12 +3823,12 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     } else {
         let varname_len = varname.to_bytes().len();
         let mut bufvarname = Vec::with_capacity(varname_len + 3);
-        let save_curbuf = g_st().curbuf;
-        g_st().curbuf = (buf).into();
+        let save_curbuf = g_st().curbuf.get();
+        g_st().curbuf.set((buf).into());
         bufvarname.push(b'b');
         bufvarname.push(b':');
         bufvarname.extend_from_slice(varname.to_bytes_with_nul());
         set_var(&bufvarname[..varname_len + 2], arg2, true);
-        g_st().curbuf = save_curbuf;
+        g_st().curbuf.set(save_curbuf);
     }
 }

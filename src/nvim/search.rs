@@ -2944,7 +2944,7 @@ fn update_search_stat(
             && s.stat_lastpat.is_some()
             && s.stat_lastpat.as_deref() == s.spats[s.last_idx as usize].pat.as_deref()
             && equalpos(s.stat_lastpos, cursor_pos)
-            && s.stat_lbuf == g_st().curbuf
+            && s.stat_lbuf == g_st().curbuf.get()
             && !wraparound
             && s.stat_cur >= 0
             && (maxcount <= 0 || s.stat_cur <= maxcount)
@@ -2961,7 +2961,7 @@ fn update_search_stat(
                 col: 0,
                 coladd: 0,
             };
-            s.stat_lbuf = g_st().curbuf;
+            s.stat_lbuf = g_st().curbuf.get();
         });
     }
 
@@ -3047,7 +3047,7 @@ fn update_search_stat(
                 let last_idx = s.last_idx as usize;
                 s.stat_lastpat = s.spats[last_idx].pat.clone();
                 s.stat_chgtick = chgtick;
-                s.stat_lbuf = g_st().curbuf;
+                s.stat_lbuf = g_st().curbuf.get();
                 s.stat_lastpos = p;
             });
         }

@@ -280,7 +280,7 @@ pub fn diff_buf_delete(buf: &FileBuf) {
         if i != DB_COUNT as i32 {
             tp.tp_diffbuf[i as usize].set(crate::globals::BufPtr::NULL);
             tp.tp_diff_invalid.set(1);
-            if g_st().curtab == tp {
+            if g_st().curtab.get() == tp {
                 g_st().need_diff_redraw.set(true);
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             }
@@ -348,7 +348,7 @@ pub fn diff_invalidate(buf: &FileBuf) {
         let i = diff_buf_idx(buf, &tp);
         if i != DB_COUNT as i32 {
             tp.tp_diff_invalid.set(1);
-            if g_st().curtab == tp {
+            if g_st().curtab.get() == tp {
                 diff_redraw(true);
             }
         }
@@ -571,7 +571,7 @@ fn diff_mark_adjust_tp(
             i_dp += 1;
         }
     }
-    if g_st().curtab == tp {
+    if g_st().curtab.get() == tp {
         g_st().need_diff_redraw.set(true);
         g_st().diff_need_scrollbind.set(true);
     }
@@ -1343,7 +1343,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
+    set_bufref(&mut old_curbuf, g_st().curbuf.get().opt_mut());
     validate_cursor(curwin_mut());
     set_fraction(curwin_mut());
     g_st().cmdmod.cmod_tab = 0;
@@ -1382,7 +1382,7 @@ pub fn ex_diffthis(_eap: &mut Exarg) {
 fn set_diff_option(wp: &mut WinInfoInfo, value: bool) {
     let old_curwin = curwin_ptr();
     set_curwin(wp);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
     curbuf_mut()
         .b_ro_locked
         .set(curbuf_mut().b_ro_locked.get() + (1));
@@ -1391,7 +1391,7 @@ fn set_diff_option(wp: &mut WinInfoInfo, value: bool) {
         .b_ro_locked
         .set(curbuf_mut().b_ro_locked.get() - (1));
     set_curwin(old_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
 }
 pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     let old_curwin = curwin_ptr();
@@ -2233,7 +2233,7 @@ fn parse_diffanchors(
         buf.b_p_dia.to_owned()
     };
     let mut dia = dia_owned.as_c_str();
-    let orig_curbuf = g_st().curbuf;
+    let orig_curbuf = g_st().curbuf.get();
     let orig_curwin = curwin_ptr();
     let bufwin = if check_only {
         curwin_ptr()
@@ -2256,7 +2256,7 @@ fn parse_diffanchors(
         if dia.to_bytes().first() == Some(&b',') {
             return false;
         }
-        g_st().curbuf = (buf).into();
+        g_st().curbuf.set((buf).into());
         set_curwin(bufwin);
         let mut errormsg = None;
         let mut dia_opt = Some(dia);
@@ -2270,7 +2270,7 @@ fn parse_diffanchors(
             1,
             &mut errormsg,
         );
-        g_st().curbuf = orig_curbuf;
+        g_st().curbuf.set(orig_curbuf);
         set_curwin(orig_curwin);
         if let Some(msg) = errormsg {
             emsg(&msg);
@@ -2314,7 +2314,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
                 tp.tp_diff_invalid.set(1);
             } else {
                 for idx in 0..DB_COUNT {
-                    if tp.tp_diffbuf[idx].get() == g_st().curbuf {
+                    if tp.tp_diffbuf[idx].get() == g_st().curbuf.get() {
                         tp.tp_diff_invalid.set(1);
                         break;
                     }
@@ -3078,7 +3078,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         return false;
     }
     let u_idx = idx as usize;
-    if g_st().curtab == tp && tp.tp_diff_invalid.get() != 0 {
+    if g_st().curtab.get() == tp && tp.tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
     if tp.tp_diffs.borrow().is_empty() {
@@ -3148,7 +3148,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         let mut found_not_ma = false;
         let mut idx = 0;
         while idx < DB_COUNT {
-            if curtab_mut().tp_diffbuf[idx].get() != g_st().curbuf
+            if curtab_mut().tp_diffbuf[idx].get() != g_st().curbuf.get()
                 && let Some(buf) = curtab_mut().diffbuf_opt(idx)
             {
                 if eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf) {
@@ -3168,7 +3168,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             return;
         }
         for i in (idx_other + 1)..DB_COUNT {
-            if curtab_mut().tp_diffbuf[i].get() != g_st().curbuf
+            if curtab_mut().tp_diffbuf[i].get() != g_st().curbuf.get()
                 && let Some(buf) = curtab_mut().diffbuf_opt(i)
                 && (eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf))
             {
@@ -3197,7 +3197,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             semsg!(gettext(c"E102: Can't find buffer \"%s\""), eap.arg,);
             return;
         };
-        if g_st().curbuf == &*buf {
+        if g_st().curbuf.get() == &*buf {
             return;
         }
         let idx_o = diff_buf_idx(&*buf, &curtab_mut());

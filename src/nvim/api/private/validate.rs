@@ -31,6 +31,13 @@ impl<T: Clone> CloneCell<T> {
     }
 }
 
+impl<T: Default> CloneCell<T> {
+    #[inline]
+    pub fn take(&self) -> T {
+        self.0.take()
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum NvimStringData {
     #[default]

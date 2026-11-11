@@ -1754,7 +1754,7 @@ pub fn mark_col_adjust(
             }
         }
 
-        if win.w_buffer == g_st().curbuf {
+        if win.w_buffer == g_st().curbuf.get() {
             for i in 0..(win.w_tagstacklen.get() as usize) {
                 if win.w_tagstack[i].fmark.fnum == fnum {
                     col_adjust(

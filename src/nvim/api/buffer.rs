@@ -549,7 +549,7 @@ pub fn nvim_buf_set_lines(
         );
 
         if g_st().visual_global.active
-            && g_st().curbuf == b
+            && g_st().curbuf.get() == b
             && g_st().visual_global.start.lnum >= (start as Linenr)
         {
             if g_st().visual_global.start.lnum >= (end as Linenr) {
@@ -870,7 +870,7 @@ pub fn nvim_buf_set_text(
         );
 
         if g_st().visual_global.active
-            && b_ptr == g_st().curbuf.as_ptr()
+            && b_ptr == g_st().curbuf.get().as_ptr()
             && g_st().visual_global.mode != CTRL_V_CONST
         {
             fix_pos_col(

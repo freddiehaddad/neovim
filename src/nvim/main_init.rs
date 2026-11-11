@@ -312,7 +312,9 @@ pub fn event_init() {
     loop_init(crate::event::r#loop::main_loop_ptr());
     env_init();
     let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
-    g_st().resize_events = multiqueue_new_child(queues.events);
+    g_st()
+        .resize_events
+        .set(multiqueue_new_child(queues.events));
 
     autocmd_init();
     signal_init();
@@ -895,11 +897,12 @@ pub fn getout(mut exitval: i32) -> ! {
 
     if g_st().v_dying.get() <= 1 {
         let mut next_tp: Option<crate::globals::TabpagePtr>;
-        let mut tp_opt = (!g_st().first_tabpage.is_null()).then(|| g_st().first_tabpage.clone());
+        let mut tp_opt =
+            (!g_st().first_tabpage.get().is_null()).then(|| g_st().first_tabpage.get().clone());
         while let Some(tp) = tp_opt {
             next_tp = tp.next_opt();
-            let first_wp = if g_st().curtab == tp {
-                g_st().firstwin.as_ptr()
+            let first_wp = if g_st().curtab.get() == tp {
+                g_st().firstwin.get().as_ptr()
             } else {
                 tp.tp_firstwin.get().as_ptr()
             };
@@ -924,8 +927,8 @@ pub fn getout(mut exitval: i32) -> ! {
                     {
                         buf_set_changedtick(buf_now, -1);
                     }
-                    next_tp =
-                        (!g_st().first_tabpage.is_null()).then(|| g_st().first_tabpage.clone());
+                    next_tp = (!g_st().first_tabpage.get().is_null())
+                        .then(|| g_st().first_tabpage.get().clone());
                     break;
                 }
             }
@@ -1952,7 +1955,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if parmp.window_layout == WIN_TABS {
                     goto_tabpage(1);
                 } else {
-                    set_curwin(g_st().firstwin.as_ptr());
+                    set_curwin(g_st().firstwin.get().as_ptr());
                 }
             } else if parmp.window_layout == WIN_TABS {
                 if curtab_mut().tp_next.get().is_null() {
@@ -1966,7 +1969,7 @@ fn create_windows(parmp: &mut Mparm) {
                 set_curwin(curwin_mut().w_next.as_ptr());
             }
             dorewind = false;
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
             if curbuf_mut().b_ml.ml_mfp.is_none() {
                 if opt_vars().p_fdls.get() >= 0 {
                     curwin_mut()
@@ -2002,11 +2005,11 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
         } else if parmp.window_count > 1 || !win_valid(startup_curwin.opt()) {
-            set_curwin(g_st().firstwin.as_ptr());
+            set_curwin(g_st().firstwin.get().as_ptr());
         } else {
             set_curwin(startup_curwin);
         }
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
         g_st()
             .autocmd_no_enter
             .set(g_st().autocmd_no_enter.get() - (1));
@@ -2066,8 +2069,10 @@ fn edit_buffers(parmp: &mut Mparm) {
         }
         advance = true;
 
-        if ptr::eq(g_st().curbuf.as_ptr(), firstwin_mut().w_buffer.as_ptr())
-            || curbuf_mut().b_ffname.is_none()
+        if ptr::eq(
+            g_st().curbuf.get().as_ptr(),
+            firstwin_mut().w_buffer.as_ptr(),
+        ) || curbuf_mut().b_ffname.is_none()
         {
             curwin_mut().w_arg_idx.set(arg_idx);
             g_st().swap_exists_did_quit.set(false);
@@ -2115,14 +2120,14 @@ fn edit_buffers(parmp: &mut Mparm) {
         .set(g_st().autocmd_no_enter.get() - (1));
 
     let mut win = if parmp.window_count > 1 {
-        g_st().firstwin
+        g_st().firstwin.get()
     } else {
         curwin_ptr()
     };
     while win.w_onebuf_opt.wo_pvw.get() {
         win = win.w_next;
         if win.is_null() {
-            win = g_st().firstwin;
+            win = g_st().firstwin.get();
             break;
         }
     }

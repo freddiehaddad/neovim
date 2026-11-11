@@ -2560,7 +2560,7 @@ pub fn ins_compl_clear() {
     INSEXPAND.with(|s| s.compl_curr_buf.set(crate::globals::BufPtr::NULL));
     set_compl_pattern(None);
     clear_compl_leader();
-    g_st().edit_submode_extra = None;
+    g_st().edit_submode_extra.set(None);
     COMPL_ORIG_EXTMARKS.with(|c| c.borrow_mut().clear());
     clear_compl_orig_text();
     INSEXPAND.with(|s| s.compl_enter_selects.set(false));
@@ -3113,7 +3113,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
     INSEXPAND.with(|s| s.compl_num_bests.set(0));
     INSEXPAND.with(|s| s.compl_ins_end_col.set(0));
 
-    if c == CTRL_C_CONST && bt_cmdwin(g_st().curbuf.opt()) {
+    if c == CTRL_C_CONST && bt_cmdwin(g_st().curbuf.get().opt()) {
         update_screen();
     }
 
@@ -3138,7 +3138,7 @@ pub fn ins_compl_prep(c: i32) -> bool {
     let prev_mode = INSEXPAND.with(|s| s.ctrl_x_mode.get());
 
     if c != CTRL_R_CONST && vim_is_ctrl_x_key(c) {
-        g_st().edit_submode_extra = None;
+        g_st().edit_submode_extra.set(None);
     }
 
     if c == K_SELECT
@@ -3263,7 +3263,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
     let mut buf = crate::globals::BufPtr::from(&*buf_arg);
     if flag == b'w' as i32 {
-        if g_st().curbuf == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
+        if g_st().curbuf.get() == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
             INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::curwin_ptr()));
         }
 
@@ -3273,7 +3273,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             let next_wp = if !wp.w_next.is_null() {
                 wp.w_next
             } else {
-                g_st().firstwin
+                g_st().firstwin.get()
             };
             INSEXPAND.with(|s| s.next_buf_wp.set(next_wp));
             if next_wp == curwin_ptr()
@@ -3289,9 +3289,9 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             buf = if !buf.b_next.is_null() {
                 buf.b_next
             } else {
-                g_st().firstbuf
+                g_st().firstbuf.get()
             };
-            if g_st().curbuf == buf {
+            if g_st().curbuf.get() == buf {
                 break;
             }
 
@@ -3394,7 +3394,7 @@ fn parse_cpt_callbacks(cpt: &CStr, cbp: &mut Vec<Callback>) {
 pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
     let opt_flags = args.os_flags;
 
-    if g_st().curbuf.is_null() {
+    if g_st().curbuf.get().is_null() {
         return false;
     }
 
@@ -3457,7 +3457,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
     let mut rettv: TypVal = TypVal::new();
     let save_state = g_st().state_global.get();
 
-    debug_assert!(!g_st().curbuf.is_null());
+    debug_assert!(!g_st().curbuf.get().is_null());
 
     let is_cpt_function = cb_opt.is_some();
     let use_sandbox = is_cpt_function
@@ -4100,7 +4100,7 @@ fn process_next_cpt_value(
         && !skip_source
         && !INSEXPAND.with(|s| s.compl_time_slice_expired.get())
     {
-        st.ins_buf = g_st().curbuf;
+        st.ins_buf = g_st().curbuf.get();
         st.first_match_pos = *start_match_pos;
         if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut st.first_match_pos) < 0 {
             st.first_match_pos.lnum = st.ins_buf.b_ml.ml_line_count;
@@ -4118,7 +4118,7 @@ fn process_next_cpt_value(
                 st.ins_buf.borrow_mut(),
                 i32::from(st.e_cpt_char()),
             ));
-            st.ins_buf != g_st().curbuf
+            st.ins_buf != g_st().curbuf.get()
         }
     {
         let ins_buf = st.ins_buf.borrow();
@@ -4737,7 +4737,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let leader_str = ins_compl_leader_str();
     let leader_slice = leader_str.as_bytes();
     let mut score = FUZZY_SCORE_NONE;
-    let in_curbuf = st.ins_buf == g_st().curbuf;
+    let in_curbuf = st.ins_buf == g_st().curbuf.get();
 
     let save_p_scs = opt_vars().p_scs.get();
     debug_assert!(!st.ins_buf.is_null());
@@ -5065,7 +5065,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
         }
         _ => {
             found_new_match = get_next_default_completion(st, ini);
-            if !found_new_match && st.ins_buf == g_st().curbuf {
+            if !found_new_match && st.ins_buf == g_st().curbuf.get() {
                 st.found_all = true;
             }
         }
@@ -5200,7 +5200,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
     let mut may_advance_cpt_idx = false;
     let mut start_pos = *ini;
 
-    debug_assert!(!g_st().curbuf.is_null());
+    debug_assert!(!g_st().curbuf.get().is_null());
 
     if !INSEXPAND.with(|s| s.compl_started.get()) {
         for buf in for_all_buffers_mut() {
@@ -5211,7 +5211,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             INSEXPAND.with(|s| s.next_state_cleared.set(true));
         }
         st.found_all = false;
-        st.ins_buf = g_st().curbuf;
+        st.ins_buf = g_st().curbuf.get();
         let mut e_cpt_copy: Vec<u8> =
             if (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_LOCAL) != 0 {
                 c".".to_owned().into_bytes_with_nul()
@@ -5228,8 +5228,8 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         }
         st.first_match_pos = start_pos;
         st.last_match_pos = start_pos;
-    } else if st.ins_buf != g_st().curbuf && !buf_valid(st.ins_buf.opt()) {
-        st.ins_buf = g_st().curbuf;
+    } else if st.ins_buf != g_st().curbuf.get() && !buf_valid(st.ins_buf.opt()) {
+        st.ins_buf = g_st().curbuf.get();
     }
     debug_assert!(!st.ins_buf.is_null());
 
@@ -5886,7 +5886,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
     let mut num_matches: i32 = -1;
     let todo = count;
     let started = INSEXPAND.with(|s| s.compl_started.get());
-    let orig_curbuf = g_st().curbuf;
+    let orig_curbuf = g_st().curbuf.get();
     let cur_cot_flags = get_cot_flags();
     let compl_no_insert = (cur_cot_flags & K_OPT_COT_FLAG_NOINSERT) != 0
         || (INSEXPAND.with(|s| s.compl_autocomplete.get()) && !ins_compl_has_preinsert());
@@ -5924,7 +5924,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
         return -1;
     }
 
-    if g_st().curbuf != orig_curbuf {
+    if g_st().curbuf.get() != orig_curbuf {
         return -1;
     }
 
@@ -6731,10 +6731,12 @@ fn ins_compl_start() -> bool {
     }
 
     if !shortmess(K_SHM_COMPLETIONMENU) && !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
-        g_st().edit_submode_extra = Some(gettext(c"-- Searching...").to_owned());
+        g_st()
+            .edit_submode_extra
+            .set(Some(gettext(c"-- Searching...").to_owned()));
         g_st().edit_submode_highl.set(HLF_COUNT);
         showmode();
-        g_st().edit_submode_extra = None;
+        g_st().edit_submode_extra.set(None);
         ui_flush();
     }
 
@@ -6744,28 +6746,34 @@ fn ins_compl_start() -> bool {
 
 fn ins_compl_show_statusmsg() {
     if compl_next_idx(0) == Some(0) {
-        g_st().edit_submode_extra = Some(
+        g_st().edit_submode_extra.set(Some(
             (if compl_status_adding() && INSEXPAND.with(|s| s.compl_length.get()) > 1 {
                 gettext(c"Hit end of paragraph")
             } else {
                 gettext(c"Pattern not found")
             })
             .to_owned(),
-        );
+        ));
         g_st().edit_submode_highl.set(HLF_E);
     }
 
-    if g_st().edit_submode_extra.is_none() {
+    if g_st().edit_submode_extra.get().is_none() {
         let curr_idx = INSEXPAND.with(|s| s.compl_curr_idx.get()).unwrap();
         let curr = compl_meta_at(curr_idx);
         if meta_at_original_text(curr.clone()) {
-            g_st().edit_submode_extra = Some(gettext(c"Back at original").to_owned());
+            g_st()
+                .edit_submode_extra
+                .set(Some(gettext(c"Back at original").to_owned()));
             g_st().edit_submode_highl.set(HLF_W);
         } else if (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_S_IPOS) != 0 {
-            g_st().edit_submode_extra = Some(gettext(c"Word from other line").to_owned());
+            g_st()
+                .edit_submode_extra
+                .set(Some(gettext(c"Word from other line").to_owned()));
             g_st().edit_submode_highl.set(HLF_COUNT);
         } else if compl_next_idx(curr_idx) == compl_prev_idx(curr_idx) {
-            g_st().edit_submode_extra = Some(gettext(c"The only match").to_owned());
+            g_st()
+                .edit_submode_extra
+                .set(Some(gettext(c"The only match").to_owned()));
             g_st().edit_submode_highl.set(HLF_COUNT);
             COMPL_LIST.with(|c| c.borrow_mut()[curr_idx].cp_number = 1);
         } else {
@@ -6786,8 +6794,9 @@ fn ins_compl_show_statusmsg() {
                 } else {
                     format_to_buf!(&mut match_ref, gettext(c"match %d"), curr.cp_number,);
                 }
-                g_st().edit_submode_extra =
-                    Some(crate::memory::bytes_as_cstr(&match_ref).to_owned());
+                g_st()
+                    .edit_submode_extra
+                    .set(Some(crate::memory::bytes_as_cstr(&match_ref).to_owned()));
                 g_st().edit_submode_highl.set(HLF_R);
                 if g_st().dollar_vcol.get() >= 0 {
                     curs_columns(curwin_mut(), false);
@@ -6798,7 +6807,7 @@ fn ins_compl_show_statusmsg() {
 
     g_st().redraw_mode.set(true);
     if !shortmess(K_SHM_COMPLETIONMENU) {
-        if let Some(extra) = g_st().edit_submode_extra.clone() {
+        if let Some(extra) = g_st().edit_submode_extra.get().clone() {
             if !opt_vars().p_smd.get() {
                 g_st().msg_hist_off.set(true);
                 msg_ext_set_kind(c"completion");

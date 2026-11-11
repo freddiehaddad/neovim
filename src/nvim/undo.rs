@@ -361,7 +361,7 @@ pub fn u_savecommon(
             return false;
         }
 
-        if (&raw mut *buf) == g_st().curbuf.as_ptr() {
+        if (&raw mut *buf) == g_st().curbuf.get().as_ptr() {
             change_warning(buf, 0);
         }
 
@@ -1265,7 +1265,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 0
             };
             let mut bi = Bufinfo {
-                bi_buf: g_st().curbuf,
+                bi_buf: g_st().curbuf.get(),
                 bi_fp,
                 bi_fsize: fsize,
             };
@@ -2281,7 +2281,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     }
 
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_cole.get() > 0 {
+        if wp.w_buffer == g_st().curbuf.get() && wp.w_onebuf_opt.wo_cole.get() > 0 {
             redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         }
     }
@@ -2874,7 +2874,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let tv = &mut argvars[0];
     let buf = if tv.v_type == VarType::VarUnknown {
-        g_st().curbuf.opt_mut()
+        g_st().curbuf.get().opt_mut()
     } else {
         get_buf_arg(tv)
     };

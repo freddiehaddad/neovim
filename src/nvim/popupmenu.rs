@@ -505,7 +505,7 @@ pub fn pum_display(
             below_row = g_st().cmdline_row.get();
         }
         let target_win = if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-            g_st().cmdline_win
+            g_st().cmdline_win.get()
         } else {
             curwin_ptr()
         };
@@ -516,7 +516,7 @@ pub fn pum_display(
         let mut cursor_col: i32;
 
         if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-            let cmdline_win_ref = g_st().cmdline_win.opt();
+            let cmdline_win_ref = g_st().cmdline_win.get().opt();
             pum_win_row = if let Some(cw) = cmdline_win_ref {
                 cw.w_wrow.get()
             } else if ui_has(K_UICMDLINE) {
@@ -1460,10 +1460,11 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             && g_st().rows_global.get() > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
-            && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
+            && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0
+                && !g_st().cmdwin_buf.get().is_null())
         {
             let curwin_save = curwin_ptr();
-            let curtab_save = g_st().curtab.clone();
+            let curtab_save = g_st().curtab.get().clone();
 
             if use_float {
                 block_autocmds();
@@ -1563,9 +1564,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     }
 
                     if (curwin_ptr() != curwin_save && win_valid(curwin_save.opt()))
-                        || (g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()))
+                        || (g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()))
                     {
-                        if g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()) {
+                        if g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()) {
                             goto_tabpage_tp(curtab_save.opt(), false, false);
                         }
 

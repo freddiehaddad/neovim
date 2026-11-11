@@ -1286,7 +1286,7 @@ pub fn map_to_exists_mode(rhs: &CStr, mode: i32, abbr: bool) -> bool {
     let rhs_b = rhs.to_bytes();
     for exp_buffer in [false, true] {
         let b = if exp_buffer {
-            g_st().curbuf.opt()
+            g_st().curbuf.get().opt()
         } else {
             None
         };
@@ -1487,7 +1487,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
     let exp_buf = if !MAP_STATE.with(|s| s.expand_isabbrev.get())
         && MAP_STATE.with(|s| s.expand_buffer.get())
     {
-        g_st().curbuf.opt()
+        g_st().curbuf.get().opt()
     } else {
         None
     };
@@ -2051,7 +2051,7 @@ pub fn check_map(
 
     for local in (0..=1).rev() {
         let b = if local != 0 {
-            g_st().curbuf.opt()
+            g_st().curbuf.get().opt()
         } else {
             None
         };
@@ -2317,7 +2317,11 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
         let mut arena = Arena::new();
-        let b = if loc.local { g_st().curbuf.opt() } else { None };
+        let b = if loc.local {
+            g_st().curbuf.get().opt()
+        } else {
+            None
+        };
         let dict = with_map_buckets(b, loc.abbr, |buckets| {
             let mp = &buckets[loc.bucket][loc.idx];
             mapblock_fill_dict(
@@ -2529,7 +2533,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     for buffer_local in 0..=1 {
         let b = if buffer_local != 0 {
-            g_st().curbuf.opt()
+            g_st().curbuf.get().opt()
         } else {
             None
         };

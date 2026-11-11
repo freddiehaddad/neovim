@@ -190,7 +190,7 @@ pub fn changed(buf: &mut FileBuf) {
     }
     buf_inc_changedtick(buf);
 
-    if g_st().curbuf == buf {
+    if g_st().curbuf.get() == buf {
         g_st().search_global.hl_match = false;
     }
 }
@@ -430,7 +430,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     set_must_redraw(UPD_VALID);
 
-    if g_st().last_cursormoved_win == curwin_ptr()
+    if g_st().last_cursormoved_win.get() == curwin_ptr()
         && curwin_mut().w_buffer == (&raw mut *buf)
         && lnum <= curwin_mut().w_cursor.lnum
         && lnume + xtra.abs() > curwin_mut().w_cursor.lnum

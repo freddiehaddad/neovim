@@ -1423,10 +1423,10 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
 
     let name_bytes = tv.vval.v_string_bytes();
     if name_bytes.is_empty() {
-        return g_st().curbuf.opt_mut();
+        return g_st().curbuf.get().opt_mut();
     }
     if name_bytes == b"$" {
-        return g_st().lastbuf.opt_mut();
+        return g_st().lastbuf.get().opt_mut();
     }
 
     let save_magic = opt_vars().p_magic.get();
@@ -2763,7 +2763,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
     let buf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.get()
     } else {
         g_st().vim_ignored.set(tv_get_number(&argvars[0]) as i32);
         g_st().emsg_off.set(g_st().emsg_off.get() + (1));
@@ -3067,7 +3067,7 @@ fn getregionpos(
     let findbuf = if fnum1 != 0 {
         buflist_findnr(fnum1)
     } else {
-        g_st().curbuf.opt_mut()
+        g_st().curbuf.get().opt_mut()
     };
     let Some(findbuf_ref) = findbuf else {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
@@ -3100,8 +3100,8 @@ fn getregionpos(
         return false;
     }
 
-    g_st().curbuf = (findbuf_ref).into();
-    curwin_mut().w_buffer = g_st().curbuf;
+    g_st().curbuf.set((findbuf_ref).into());
+    curwin_mut().w_buffer = g_st().curbuf.get();
     g_st()
         .virtual_op
         .set(TriState::from(virtual_active(curwin_mut())));
@@ -3123,7 +3123,7 @@ fn getregionpos(
 
 /// "getregion()" function
 pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let save_curbuf = g_st().curbuf;
+    let save_curbuf = g_st().curbuf.get();
     let save_virtual = g_st().virtual_op.get();
 
     let mut p1 = CursorPos {
@@ -3185,8 +3185,8 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
     }
 
-    g_st().curbuf = save_curbuf;
-    curwin_mut().w_buffer = g_st().curbuf;
+    g_st().curbuf.set(save_curbuf);
+    curwin_mut().w_buffer = g_st().curbuf.get();
     g_st().virtual_op.set(save_virtual);
 }
 
@@ -3213,7 +3213,7 @@ fn add_regionpos_range(rettv: &mut TypVal, p1: CursorPos, p2: CursorPos) {
 
 /// "getregionpos()" function
 pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let save_curbuf = g_st().curbuf;
+    let save_curbuf = g_st().curbuf.get();
     let save_virtual = g_st().virtual_op.get();
 
     let mut p1 = CursorPos {
@@ -3329,8 +3329,8 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
     }
 
-    g_st().curbuf = save_curbuf;
-    curwin_mut().w_buffer = g_st().curbuf;
+    g_st().curbuf.set(save_curbuf);
+    curwin_mut().w_buffer = g_st().curbuf.get();
     g_st().virtual_op.set(save_virtual);
 }
 
@@ -4502,7 +4502,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let pid = chan_ref.uv.proc_.pid;
-        let buf = g_st().curbuf.borrow_mut();
+        let buf = g_st().curbuf.get().borrow_mut();
 
         buf.b_p_swf.set(false);
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
@@ -8205,10 +8205,10 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut wp = crate::globals::WinPtr::NULL;
     if argvars[0].v_type == VarType::VarUnknown {
-        wp = g_st().firstwin;
+        wp = g_st().firstwin.get();
     } else if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
-        wp = if g_st().curtab == tp {
-            g_st().firstwin
+        wp = if g_st().curtab.get() == tp {
+            g_st().firstwin.get()
         } else {
             tp.tp_firstwin.get()
         };

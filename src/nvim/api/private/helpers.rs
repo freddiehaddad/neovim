@@ -374,7 +374,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         let msg = get_error_exception_string(throw_slice, None);
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &msg);
     } else if g_st().did_throw.get() || g_st().need_rethrow.get() {
-        if let Some(excp) = g_st().current_exception.clone() {
+        if let Some(excp) = g_st().current_exception.get().clone() {
             if !excp.throw_name.as_bytes().is_empty() {
                 if excp.throw_lnum != 0 {
                     api_set_error!(
@@ -402,7 +402,9 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
     }
 
     g_st().msg_list = tstate.msg_list.clone();
-    g_st().current_exception = tstate.current_exception.clone();
+    g_st()
+        .current_exception
+        .set(tstate.current_exception.clone());
     g_st().got_int.set(tstate.got_int != 0);
     g_st().did_throw.set(tstate.did_throw);
     g_st().need_rethrow.set(tstate.need_rethrow != 0);
@@ -559,7 +561,7 @@ pub fn dict_set_var(
 
 pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     if buffer == 0 {
-        return g_st().curbuf.opt_mut();
+        return g_st().curbuf.get().opt_mut();
     }
     let rv = g_st()
         .buffer_handles
@@ -603,7 +605,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinP
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
     if tabpage == 0 {
-        return (!g_st().curtab.is_null()).then(|| g_st().curtab.clone());
+        return (!g_st().curtab.get().is_null()).then(|| g_st().curtab.get().clone());
     }
     let rv = g_st()
         .tabpage_handles

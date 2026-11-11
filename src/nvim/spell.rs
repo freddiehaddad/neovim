@@ -3140,7 +3140,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
 pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell.get() {
+        if wp.w_buffer == g_st().curbuf.get() && wp.w_onebuf_opt.wo_spell.get() {
             errmsg = parse_spelllang(&mut *wp);
             break;
         }

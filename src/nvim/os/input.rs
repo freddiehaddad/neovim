@@ -628,7 +628,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     if events_opt != Some(main_loop_events()) {
         // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
         osi_st(|st| st.blocking.set(true));
-        multiqueue_process_events(g_st().ch_before_blocking_events);
+        multiqueue_process_events(g_st().ch_before_blocking_events.get());
     }
 
     // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());

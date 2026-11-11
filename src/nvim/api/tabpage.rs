@@ -46,8 +46,8 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
         return rv;
     }
 
-    let first = if g_st().curtab == tab {
-        g_st().firstwin
+    let first = if g_st().curtab.get() == tab {
+        g_st().firstwin.get()
     } else {
         tab.tp_firstwin.get()
     };
@@ -123,7 +123,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     if !valid_tabpage(Some(&tab)) {
         return 0;
     }
-    if g_st().curtab == tab {
+    if g_st().curtab.get() == tab {
         return nvim_get_current_win();
     }
     for wp in win_iter_ptr(tab.tp_firstwin.get().as_ptr()) {
@@ -157,7 +157,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
         );
         return;
     }
-    if tp == g_st().curtab {
+    if tp == g_st().curtab.get() {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         win_goto(wp.borrow_mut());

@@ -857,7 +857,9 @@ fn set_init_expand_env() {
 
 /// Initialize the encoding used for "default" in 'fileencodings'.
 fn set_init_fenc_default() {
-    g_st().fenc_default = Some(enc_locale().unwrap_or_else(|| c"utf-8".to_owned()));
+    g_st()
+        .fenc_default
+        .set(Some(enc_locale().unwrap_or_else(|| c"utf-8".to_owned())));
 }
 
 /// Initialize the options, first part.
@@ -1079,7 +1081,7 @@ pub fn free_all_options() {
     free_operatorfunc_option();
     free_tagfunc_option();
     free_findfunc_option();
-    g_st().fenc_default = None;
+    g_st().fenc_default.set(None);
     P_TERM.with(|cell| *cell.borrow_mut() = None);
     P_TTYTYPE.with(|cell| *cell.borrow_mut() = None);
 }
@@ -2750,7 +2752,7 @@ pub fn did_set_foldnestmax<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Multicursor: handle updates to 'follow' option.
 pub fn did_set_follow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if args.os_buf == g_st().curbuf {
+    if args.os_buf == g_st().curbuf.get() {
         atom_follow_changed();
     }
     None
@@ -3018,7 +3020,7 @@ pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
     let win = args.os_win;
     let tab = if win == curwin_ptr() {
-        g_st().curtab.clone()
+        g_st().curtab.get().clone()
     } else {
         crate::globals::TabpagePtr::from(win_find_tabpage(win.borrow()))
     };
@@ -5610,7 +5612,7 @@ fn set_option<'a>(
         os_restore_chartab: false,
         os_errbuf: errbuf,
         os_win: crate::globals::curwin_ptr(),
-        os_buf: g_st().curbuf,
+        os_buf: g_st().curbuf.get(),
     };
 
     let opt = get_option(opt_idx);
@@ -5736,7 +5738,7 @@ fn set_option<'a>(
     args.os_varp = varp;
     args.os_oldval = old_value;
     args.os_newval = value.clone();
-    args.os_buf = g_st().curbuf;
+    args.os_buf = g_st().curbuf.get();
     args.os_win = crate::globals::curwin_ptr();
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
     args.os_prep = crate::optionstr::OptSetPrep::None;
@@ -5794,17 +5796,17 @@ pub fn set_option_direct_for(
     set_sid: Scid,
     target: OptTarget,
 ) {
-    let save_curbuf = g_st().curbuf;
+    let save_curbuf = g_st().curbuf.get();
     let save_curwin = curwin_ptr();
 
     match target {
         OptTarget::Global => {}
         OptTarget::Win(win) => {
             set_curwin(win);
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
         }
         OptTarget::Buf(buf) => {
-            g_st().curbuf = buf;
+            g_st().curbuf.set(buf);
         }
         OptTarget::Tab(_) => std::process::abort(),
     }
@@ -5812,7 +5814,7 @@ pub fn set_option_direct_for(
     set_option_direct(opt_idx, value, opt_flags, set_sid);
 
     set_curwin(save_curwin);
-    g_st().curbuf = save_curbuf;
+    g_st().curbuf.set(save_curbuf);
 }
 
 /// Sets the value of an (non-tty) option.
@@ -5913,7 +5915,7 @@ fn switch_option_context(
             let OptTarget::Buf(buf) = from else {
                 return false;
             };
-            if buf == g_st().curbuf.as_ptr() {
+            if buf == g_st().curbuf.get().as_ptr() {
                 return false;
             }
             let mut cs = CtxSwitch::new();
@@ -5925,10 +5927,10 @@ fn switch_option_context(
             let OptTarget::Tab(tab) = from else {
                 return false;
             };
-            if tab == g_st().curtab {
+            if tab == g_st().curtab.get() {
                 return false;
             }
-            *ctx = OptSavedCtx::Tab(g_st().curtab.clone());
+            *ctx = OptSavedCtx::Tab(g_st().curtab.get().clone());
             unuse_tabpage(&curtab_mut());
             use_tabpage(tab.borrow());
             true
@@ -5986,7 +5988,7 @@ pub fn set_option_value_for(
     err: &mut Error,
 ) {
     if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, &from)
-        && *tab != g_st().curtab
+        && *tab != g_st().curtab.get()
     {
         assert!(opt_idx == K_OPT_CMDHEIGHT);
         if value.obj_type != ObjectType::ObjectTypeInteger {

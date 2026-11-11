@@ -1813,12 +1813,15 @@ fn normal_redraw_mode_message(_s: &mut NormalState) {
         g_st().state_global.set(MODE_INSERT);
     }
 
-    if g_st().must_redraw.get() != 0 && g_st().keep_msg.is_some() && !g_st().emsg_on_display.get() {
+    if g_st().must_redraw.get() != 0
+        && g_st().keep_msg.get().is_some()
+        && !g_st().emsg_on_display.get()
+    {
         let kmsg = g_st().keep_msg.take();
         setcursor();
         update_screen();
         if let Some(kmsg_cstr) = kmsg {
-            g_st().keep_msg = Some(kmsg_cstr.clone());
+            g_st().keep_msg.set(Some(kmsg_cstr.clone()));
             msg(&kmsg_cstr, g_st().keep_msg_hl_id.get());
         }
     }
@@ -2368,11 +2371,13 @@ fn normal_check_window_scrolled(_s: &mut NormalState) {
 fn normal_check_cursor_moved(_s: &mut NormalState) {
     if !g_st().finish_op.get()
         && has_event(EVENT_CURSORMOVED)
-        && (g_st().last_cursormoved_win != curwin_ptr()
+        && (g_st().last_cursormoved_win.get() != curwin_ptr()
             || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
     {
         apply_autocmds(EVENT_CURSORMOVED, None, None, false, curbuf_opt_mut());
-        g_st().last_cursormoved_win = crate::globals::curwin_ptr();
+        g_st()
+            .last_cursormoved_win
+            .set(crate::globals::curwin_ptr());
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
 }
@@ -2422,7 +2427,7 @@ fn normal_redraw(_s: &mut NormalState) {
 
     curbuf_mut().b_last_used.set(os_time() as time_t);
 
-    if let Some(p) = g_st().keep_msg.clone() {
+    if let Some(p) = g_st().keep_msg.get().clone() {
         g_st().msg_hist_off.set(true);
         msg(&p, g_st().keep_msg_hl_id.get());
         g_st().msg_hist_off.set(false);
@@ -3131,7 +3136,7 @@ pub fn do_check_scrollbind(check: bool) {
 
 pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let old_curwin = curwin_mut();
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.get();
     let old_visual_select = g_st().visual_global.select;
     let old_visual_active = g_st().visual_global.active;
     let tgt_leftcol = old_curwin.w_leftcol.get();
@@ -3146,7 +3151,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     g_st().visual_global.active = false;
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
-        g_st().curbuf = curwin_mut().w_buffer;
+        g_st().curbuf.set(curwin_mut().w_buffer);
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_scb.get() {
             if want_ver {
                 if old_curwin.w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_diff.get()
@@ -3187,7 +3192,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     g_st().visual_global.select = old_visual_select;
     g_st().visual_global.active = old_visual_active;
     set_curwin(old_curwin);
-    g_st().curbuf = old_curbuf;
+    g_st().curbuf.set(old_curbuf);
 }
 
 fn nv_ignore(cap: &mut Cmdarg) {
@@ -4734,7 +4739,7 @@ fn nv_down(cap: &mut Cmdarg) {
     if (g_st().mod_mask.get() & i32::from(MOD_MASK_SHIFT)) != 0 {
         cap.arg = FORWARD;
         nv_page(cap);
-    } else if bt_cmdwin(g_st().curbuf.opt()) && cap.cmdchar == CAR {
+    } else if bt_cmdwin(g_st().curbuf.get().opt()) && cap.cmdchar == CAR {
         cmdwin_do_action(c"confirm");
     } else if bt_quickfix(Some(crate::globals::curbuf_mut())) && cap.cmdchar == CAR {
         qf_view_result(false);
@@ -6987,7 +6992,7 @@ fn nv_normal(cap: &mut Cmdarg) {
 fn nv_esc(cap: &mut Cmdarg) {
     let no_reason =
         cap.oap.op_type == OP_NOP && cap.opcount == 0 && cap.count0 == 0 && cap.oap.regname == 0;
-    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(g_st().curbuf.opt());
+    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(g_st().curbuf.get().opt());
 
     if cmdwin_cancel {
         g_st().got_int.set(false);
@@ -7175,7 +7180,7 @@ fn nv_q(cap: &mut Cmdarg) {
             K_FALSE
         });
     } else if cap.nchar == b':' as i32 || cap.nchar == b'/' as i32 || cap.nchar == b'?' as i32 {
-        if !g_st().cmdwin_buf.is_null() {
+        if !g_st().cmdwin_buf.get().is_null() {
             emsg(tr(E_CMDLINE_WINDOW_ALREADY_OPEN));
             return;
         }

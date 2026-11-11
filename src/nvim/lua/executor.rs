@@ -2066,7 +2066,7 @@ pub fn ex_luado(eap: &mut Exarg) {
         return;
     }
 
-    let was_curbuf = g_st().curbuf;
+    let was_curbuf = g_st().curbuf.get();
     for l in eap.line1..=eap.line2 {
         if l > curbuf_mut().b_ml.ml_line_count {
             break;
@@ -2082,7 +2082,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             break;
         }
 
-        if g_st().curbuf != was_curbuf || l > curbuf_mut().b_ml.ml_line_count {
+        if g_st().curbuf.get() != was_curbuf || l > curbuf_mut().b_ml.ml_line_count {
             break;
         }
 

@@ -241,7 +241,7 @@ pub fn free_all_mem() {
         block_autocmds();
 
         opt_vars().p_ea.set(false);
-        if !g_st().first_tabpage.is_null()
+        if !g_st().first_tabpage.get().is_null()
             && !crate::globals::first_tabpage_mut().tp_next.get().is_null()
         {
             do_cmdline_cmd(c"tabonly!");
@@ -250,7 +250,7 @@ pub fn free_all_mem() {
         spell_free_all();
         ex_comclear(&mut Exarg::new());
 
-        if !g_st().curbuf.is_null() {
+        if !g_st().curbuf.get().is_null() {
             do_cmdline_cmd(c"aunmenu *");
             do_cmdline_cmd(c"tlunmenu *");
             do_cmdline_cmd(c"menutranslate clear");
@@ -280,13 +280,13 @@ pub fn free_all_mem() {
         free_cd_dir();
         free_signs();
         set_expr_line(None);
-        if !g_st().curtab.is_null() {
+        if !g_st().curtab.get().is_null() {
             diff_clear(&curtab_mut());
         }
         clear_sb_text(true);
 
-        g_st().last_cmdline = None;
-        g_st().new_last_cmdline = None;
+        g_st().last_cmdline.set(None);
+        g_st().new_last_cmdline.set(None);
         set_keep_msg(None, 0);
 
         opt_vars().p_hi.set(0);
@@ -302,7 +302,7 @@ pub fn free_all_mem() {
         free_all_options();
 
         opt_vars().p_acd.set(false);
-        let mut buf = g_st().firstbuf;
+        let mut buf = g_st().firstbuf.get();
         while !buf.is_null() {
             let mut bufref = Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
@@ -318,7 +318,7 @@ pub fn free_all_mem() {
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {
-                g_st().firstbuf
+                g_st().firstbuf.get()
             };
         }
 
@@ -327,11 +327,11 @@ pub fn free_all_mem() {
         free_highlight();
         reset_last_sourcing();
 
-        if !g_st().first_tabpage.is_null() {
-            let first_tp = g_st().first_tabpage.clone();
+        if !g_st().first_tabpage.get().is_null() {
+            let first_tp = g_st().first_tabpage.get().clone();
             free_tabpage(first_tp.opt());
-            g_st().first_tabpage = crate::globals::TabpagePtr::NULL;
-            g_st().curtab = crate::globals::TabpagePtr::NULL;
+            g_st().first_tabpage.set(crate::globals::TabpagePtr::NULL);
+            g_st().curtab.set(crate::globals::TabpagePtr::NULL);
         }
 
         msg_hist_clear(0);

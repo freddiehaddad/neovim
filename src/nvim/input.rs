@@ -1963,7 +1963,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
 
                 mouse_comp_pos(win, &mut row, &mut col, &mut lnum);
 
-                let mut wp = g_st().firstwin;
+                let mut wp = g_st().firstwin.get();
                 while wp != win_ptr {
                     winnr += 1;
 

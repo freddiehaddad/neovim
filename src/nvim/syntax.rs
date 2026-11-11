@@ -771,8 +771,10 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
     if (syn_block_mut().b_syn_sync_flags & SF_CCOMMENT) != 0 {
         let curwin_save = curwin_ptr();
         set_curwin(&raw mut *wp);
-        let curbuf_save = g_st().curbuf;
-        g_st().curbuf = (SYN_STATE.with(|s| s.syn_buf.get()).as_ptr()).into();
+        let curbuf_save = g_st().curbuf.get();
+        g_st()
+            .curbuf
+            .set((SYN_STATE.with(|s| s.syn_buf.get()).as_ptr()).into());
 
         while start_lnum > 1 {
             if crate::memline::ml_get_slice(start_lnum - 1).last() != Some(&b'\\') {
@@ -802,7 +804,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
 
         wp.w_cursor = cursor_save;
         set_curwin(curwin_save);
-        g_st().curbuf = curbuf_save;
+        g_st().curbuf.set(curbuf_save);
     } else if (syn_block_mut().b_syn_sync_flags & SF_MATCH) != 0 {
         let break_lnum = if syn_block_mut().b_syn_sync_maxlines != 0
             && start_lnum > syn_block_mut().b_syn_sync_maxlines
@@ -1058,7 +1060,7 @@ fn syn_stack_free_block(block: &mut Synblock) {
 pub fn syn_stack_free_all(block: &mut Synblock) {
     syn_stack_free_block(block);
 
-    if !g_st().curtab.is_null() {
+    if !g_st().curtab.get().is_null() {
         for wp in for_all_windows_mut() {
             if (!wp.w_buffer.is_null() || wp.w_s_owned.is_some())
                 && ptr::eq(win_s(wp), block)
@@ -1098,7 +1100,7 @@ pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
     let mod_xlines = buf.b_mod_xlines.get();
     syn_stack_apply_changes_block(&mut buf.b_s, mod_top, mod_bot, mod_xlines);
 
-    if !g_st().curtab.is_null() {
+    if !g_st().curtab.get().is_null() {
         for wp in for_all_windows_mut() {
             if wp.w_buffer == buf && !ptr::eq(win_s(wp), &raw mut buf.b_s) {
                 syn_stack_apply_changes_block(&mut *win_s(wp), mod_top, mod_bot, mod_xlines);
@@ -1978,7 +1980,7 @@ fn syn_current_attr(
 
     drop(zero_width_next_ga);
 
-    g_st().re_extmatch_out = None;
+    g_st().re_extmatch_out.set(None);
     drop(cur_extmatch);
 
     SYN_STATE.with(|s| s.current_attr.get())
@@ -2399,7 +2401,7 @@ fn find_endpos(
         None
     };
 
-    g_st().re_extmatch_in = start_ext;
+    g_st().re_extmatch_in.set(start_ext);
 
     let mut matchcol = startpos.col;
     let start_idx = idx;
@@ -2523,7 +2525,7 @@ fn find_endpos(
 
     restore_chartab(&buf_chartab);
 
-    g_st().re_extmatch_in = None;
+    g_st().re_extmatch_in.set(None);
 }
 
 fn limit_pos(pos: &mut Lpos, limit: &mut Lpos) {

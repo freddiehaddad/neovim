@@ -1131,7 +1131,7 @@ pub fn buf_write(
     if buf.b_ffname.is_none()
         && reset_changed
         && whole
-        && buf == g_st().curbuf.as_ptr()
+        && buf == g_st().curbuf.get().as_ptr()
         && !bt_nofilename(buf.opt())
         && !filtering
         && (!append || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEAPP))
@@ -1140,7 +1140,7 @@ pub fn buf_write(
         if !set_rw_fname(fname, sfname) {
             return false;
         }
-        buf = g_st().curbuf;
+        buf = g_st().curbuf.get();
     }
     if sfname.is_none() {
         sfname = fname;

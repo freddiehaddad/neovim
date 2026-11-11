@@ -777,11 +777,11 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
     }
 
     if regname == i32::from(b':') {
-        let Some(last_cmd) = g_st().borrow_mut().last_cmdline.as_ref() else {
+        let Some(last_cmd) = g_st().last_cmdline.get() else {
             emsg(gettext(E_NOLASTCMD));
             return false;
         };
-        g_st().new_last_cmdline = None;
+        g_st().new_last_cmdline.set(None);
         let p = vim_strsave_escaped_ext(
             last_cmd.as_bytes(),
             b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f",
@@ -944,6 +944,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
         x if x == i32::from(b':') => {
             let last_cmd = g_st()
                 .last_cmdline
+                .get()
                 .as_ref()
                 .map(|s| s.as_bytes_with_nul().to_vec());
             if last_cmd.is_none() && errmsg {
@@ -2499,7 +2500,7 @@ pub fn ex_display(eap: &mut Exarg) {
         dis_msg(Some(&insert), true);
     }
 
-    if let Some(last_cmd) = g_st().last_cmdline.as_ref()
+    if let Some(last_cmd) = g_st().last_cmdline.get().as_ref()
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b':')))
         && !g_st().got_int.get()
         && !message_filtered(last_cmd)

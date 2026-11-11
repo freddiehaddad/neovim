@@ -718,8 +718,8 @@ fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<std::rc::Rc<QfInfo>> {
 
 #[inline]
 fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
-    if g_st().curtab == tp {
-        g_st().firstwin.borrow_mut()
+    if g_st().curtab.get() == tp {
+        g_st().firstwin.get().borrow_mut()
     } else {
         tp.tp_firstwin.get().borrow_mut()
     }
@@ -2015,7 +2015,7 @@ fn wipe_qf_buffer(qi: &QfInfo) {
     {
         let mut buf_was_null = false;
         if curwin_mut().w_buffer.is_null() {
-            curwin_mut().w_buffer = g_st().curbuf;
+            curwin_mut().w_buffer = g_st().curbuf.get();
             buf_was_null = true;
         }
 
@@ -2809,7 +2809,7 @@ fn qf_goto_win_with_ll_file(
                     break;
                 }
                 if win.w_prev.is_null() {
-                    win = g_st().lastwin;
+                    win = g_st().lastwin.get();
                 } else {
                     win = win.w_prev;
                 }
@@ -2836,17 +2836,17 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
             break;
         }
         if win.w_prev.is_null() {
-            win = g_st().lastwin;
+            win = g_st().lastwin.get();
         } else {
             win = win.w_prev;
         }
 
         if is_qf_window(win.borrow()) {
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USELAST) != 0
-                && win_valid(g_st().prevwin.opt())
+                && win_valid(g_st().prevwin.get().opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb.get()
             {
-                win = g_st().prevwin;
+                win = g_st().prevwin.get();
             } else if !altwin.is_null() {
                 win = altwin;
             } else if !curwin_mut().w_prev.is_null() {
@@ -2893,7 +2893,8 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         usable_win = qf_goto_tabwin_with_file(qf_fnum);
     }
 
-    if ((g_st().firstwin == g_st().lastwin) && bt_quickfix(Some(crate::globals::curbuf_mut())))
+    if ((g_st().firstwin.get() == g_st().lastwin.get())
+        && bt_quickfix(Some(crate::globals::curbuf_mut())))
         || !usable_win
         || newwin
     {
@@ -2962,7 +2963,7 @@ fn qf_jump_edit_buffer(
                 return QfStatus::Fail;
             }
 
-            if win_valid(g_st().prevwin.opt())
+            if win_valid(g_st().prevwin.get().opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb.get()
                 && !bt_quickfix(crate::globals::prevwin_mut().buf_opt())
             {
@@ -3193,7 +3194,7 @@ fn qf_jump_to_buffer(
     openfold: i32,
     print_message: bool,
 ) -> QfStatus {
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.get();
     let old_lnum = curwin_mut().w_cursor.lnum;
     let retval;
     let qfl_rc = qf_get_curlist(qi);
@@ -3207,7 +3208,7 @@ fn qf_jump_to_buffer(
         retval = QfStatus::Ok;
     }
 
-    if g_st().curbuf == old_curbuf {
+    if g_st().curbuf.get() == old_curbuf {
         setpcmark();
     }
 
@@ -3228,7 +3229,13 @@ fn qf_jump_to_buffer(
     if print_message {
         let qfl_b = qfl_rc.borrow();
         let qfp = &qfl_b.qf_items[(qf_index - 1) as usize];
-        qf_jump_print_msg(qi, qf_index, qfp, g_st().curbuf == old_curbuf, old_lnum);
+        qf_jump_print_msg(
+            qi,
+            qf_index,
+            qfp,
+            g_st().curbuf.get() == old_curbuf,
+            old_lnum,
+        );
     }
 
     retval
@@ -3812,7 +3819,7 @@ fn qf_set_cwindow_options() {
 
 fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
     let mut oldwin = curwin_ptr();
-    let prevtab = g_st().curtab.clone();
+    let prevtab = g_st().curtab.get().clone();
     let mut flags: i32 = 0;
 
     let qf_buf_fnum = qf_find_buf(qi).map(|b| b.b_fnum.get());
@@ -3871,12 +3878,12 @@ fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
         qf_set_cwindow_options();
     }
 
-    if g_st().curtab == prevtab && curwin_mut().w_width.get() == g_st().columns_global.get() {
+    if g_st().curtab.get() == prevtab && curwin_mut().w_width.get() == g_st().columns_global.get() {
         win_setheight(height);
     }
     curwin_mut().w_onebuf_opt.wo_wfh.set(true);
     if win_valid(win.opt()) {
-        g_st().prevwin = win;
+        g_st().prevwin.set(win);
     }
     true
 }
@@ -3936,7 +3943,7 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
     let old_curwin = curwin_ptr();
 
     set_curwin(&mut *win);
-    g_st().curbuf = win.w_buffer;
+    g_st().curbuf.set(win.w_buffer);
     curwin_mut().w_cursor.lnum = lnum;
     curwin_mut().w_cursor.col = 0;
     curwin_mut().w_cursor.coladd = 0;
@@ -3945,7 +3952,7 @@ fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     curwin_mut().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf = curwin_mut().w_buffer;
+    g_st().curbuf.set(curwin_mut().w_buffer);
 }
 
 pub fn ex_cbottom(eap: &mut Exarg) {
@@ -4281,7 +4288,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
     let old_key_typed = g_st().key_typed.get();
 
     if old_count == 0 {
-        if g_st().curbuf != buf {
+        if g_st().curbuf.get() != buf {
             internal_error(c"qf_fill_buffer()");
             return;
         }
@@ -4295,7 +4302,7 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
 
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(tab_firstwin(&tp)) {
-                if wp.w_buffer == g_st().curbuf {
+                if wp.w_buffer == g_st().curbuf.get() {
                     wp.w_skipcol.set(0);
                 }
             }
@@ -5394,13 +5401,13 @@ fn vgr_jump_to_match(
     first_match_buf: Option<&FileBuf>,
     target_dir: Option<&CStr>,
 ) {
-    let buf = g_st().curbuf;
+    let buf = g_st().curbuf.get();
     qf_jump(Some(qi), 0, 0, forceit);
-    if buf != g_st().curbuf {
+    if buf != g_st().curbuf.get() {
         *redraw_for_dummy = false;
     }
 
-    if first_match_buf.is_some_and(|b| g_st().curbuf == b)
+    if first_match_buf.is_some_and(|b| g_st().curbuf.get() == b)
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
@@ -5757,9 +5764,9 @@ fn load_dummy_buffer(
             && (curbuf_mut().b_flags.get() & BF_NEW) == 0
         {
             failed = false;
-            if g_st().curbuf != newbuf {
+            if g_st().curbuf.get() != newbuf {
                 set_bufref(&mut newbuf_to_wipe, newbuf.opt_mut());
-                newbuf = g_st().curbuf;
+                newbuf = g_st().curbuf.get();
             }
         }
 
@@ -5811,7 +5818,7 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
         }
     }
 
-    if !give_up && g_st().curbuf != buf && buf.b_nwindows.get() == 0 {
+    if !give_up && g_st().curbuf.get() != buf && buf.b_nwindows.get() == 0 {
         let mut cs: ExCleanup = ExCleanup::new();
         enter_cleanup(&mut cs);
         wipe_buffer(buf, true);
@@ -5828,7 +5835,7 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
 
 fn unload_dummy_buffer(buf: &mut FileBuf, dirname_start: &CStr) {
     let buf_ptr = ptr::from_mut(buf);
-    if g_st().curbuf == buf_ptr {
+    if g_st().curbuf.get() == buf_ptr {
         return;
     }
 
@@ -6924,7 +6931,7 @@ fn cbuffer_process_args(
     let mut buf = crate::globals::BufPtr::NULL;
 
     if eap.arg.is_empty() {
-        buf = g_st().curbuf;
+        buf = g_st().curbuf.get();
     } else if skipwhite_slice(skipdigits_slice(eap.arg.as_bytes())).is_empty() {
         buf = crate::globals::BufPtr::from(buflist_findnr(crate::charset::parse_i64_prefix(
             eap.arg.as_bytes(),
@@ -7019,7 +7026,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     }
     let save_qfid = qf_get_curlist(qi).borrow().qf_id;
     if let Some(au_name) = au_name {
-        let curbuf_old = g_st().curbuf;
+        let curbuf_old = g_st().curbuf.get();
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
             Some(au_name),
@@ -7027,7 +7034,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
             true,
             curbuf_opt_mut(),
         );
-        if g_st().curbuf != curbuf_old {
+        if g_st().curbuf.get() != curbuf_old {
             res = 0;
         }
     }

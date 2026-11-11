@@ -183,7 +183,7 @@ pub fn ui_free_all_mem() {
         *st.uis.borrow_mut() = Vec::new();
     });
 
-    if let Some(events) = g_st().resize_events.opt_mut() {
+    if let Some(events) = g_st().resize_events.get().opt_mut() {
         multiqueue_free(events);
     }
 }
@@ -338,7 +338,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(g_st().resize_events.borrow_mut(), Event::UiRefresh);
+    multiqueue_put_event(g_st().resize_events.get().borrow_mut(), Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {

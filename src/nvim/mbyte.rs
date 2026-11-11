@@ -2907,7 +2907,7 @@ fn enc_alias_search(bytes: &[u8]) -> i32 {
 pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
     let enc_bytes = enc.to_bytes();
     if enc_bytes == b"default" {
-        return g_st().fenc_default.clone().unwrap_or_default();
+        return g_st().fenc_default.get().clone().unwrap_or_default();
     }
 
     let mut r_vec: Vec<u8> = enc_bytes

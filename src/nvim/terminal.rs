@@ -1216,7 +1216,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 }
 
 pub fn terminal_enter() -> bool {
-    let buf = g_st().curbuf;
+    let buf = g_st().curbuf.get();
 
     debug_assert!(!buf.terminal.get().is_null());
 
@@ -2331,7 +2331,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
         if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
             let save_curwin = curwin_ptr();
             set_curwin(&mut *mouse_win);
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
 
             let mut cap = Cmdarg::new();
             cap.cmdchar = c;
@@ -2347,7 +2347,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
 
             curwin_mut().w_redr_status.set(true);
             set_curwin(save_curwin);
-            g_st().curbuf = curwin_mut().w_buffer;
+            g_st().curbuf.set(curwin_mut().w_buffer);
             redraw_later(Some(&mut *mouse_win), UPD_NOT_VALID);
             with_term_mut(term_id, |term| invalidate_terminal(term_id, term, -1, -1));
             return mouse_win == curwin_ptr();

@@ -6583,8 +6583,8 @@ pub fn eval_call_provider(
     let new_scope = CallerScope {
         script_ctx: g_st().current_sctx,
         es_entry: crate::runtime::estack_top_clone(),
-        autocmd_fname: g_st().autocmd_fname.clone(),
-        autocmd_match: g_st().autocmd_match.clone(),
+        autocmd_fname: g_st().autocmd_fname.get().clone(),
+        autocmd_match: g_st().autocmd_match.get().clone(),
         autocmd_fname_full: g_st().autocmd_fname_full.get(),
         autocmd_bufnr: g_st().autocmd_bufnr.get(),
         funccalp: get_current_funccal().into(),

@@ -353,7 +353,7 @@ pub fn nvim_open_win(
 
     'cleanup: {
         let mut wp = crate::globals::WinPtr::NULL;
-        let mut tp = g_st().curtab.clone();
+        let mut tp = g_st().curtab.get().clone();
         assert!(!(curwin_ptr()).is_null());
         let mut parent = if config.win == 0 {
             curwin_ptr()
@@ -458,7 +458,7 @@ pub fn nvim_open_win(
         }
 
         if fconfig._cmdline_offset < i32::MAX {
-            g_st().cmdline_win = wp;
+            g_st().cmdline_win.set(wp);
         }
 
         let mut bufref = Bufref {
@@ -568,7 +568,14 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
 }
 
 fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> bool {
-    if one_window(wp, if g_st().curtab == tp { None } else { Some(tp) }) {
+    if one_window(
+        wp,
+        if g_st().curtab.get() == tp {
+            None
+        } else {
+            Some(tp)
+        },
+    ) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -603,7 +610,7 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> b
 }
 
 fn win_find_altwin(win: &mut WinInfoInfo, tp: &TabPageInfo) -> Option<&'static mut WinInfoInfo> {
-    let tp_arg = if g_st().curtab == tp {
+    let tp_arg = if g_st().curtab.get() == tp {
         crate::globals::TabpagePtr::NULL
     } else {
         crate::globals::TabpagePtr::from(tp)
@@ -656,7 +663,7 @@ fn win_config_split(
         let mut parent_tp = crate::globals::TabpagePtr::NULL;
         if config.win == 0 {
             parent = curwin_ptr();
-            parent_tp = g_st().curtab.clone();
+            parent_tp = g_st().curtab.get().clone();
         } else if config.win > 0 {
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
@@ -756,7 +763,7 @@ fn win_config_split(
                         altwin = crate::globals::WinPtr::from(winframe_remove(
                             win,
                             &mut dir,
-                            if win_tp == g_st().curtab {
+                            if win_tp == g_st().curtab.get() {
                                 None
                             } else {
                                 win_tp.opt()
@@ -767,7 +774,7 @@ fn win_config_split(
                         altwin = crate::globals::WinPtr::from(winframe_remove(
                             win,
                             &mut dir,
-                            if win_tp == g_st().curtab {
+                            if win_tp == g_st().curtab.get() {
                                 None
                             } else {
                                 win_tp.opt()
@@ -788,7 +795,7 @@ fn win_config_split(
                     altwin = crate::globals::WinPtr::from(winframe_remove(
                         win,
                         &mut dir,
-                        if win_tp == g_st().curtab {
+                        if win_tp == g_st().curtab.get() {
                             None
                         } else {
                             win_tp.opt()
@@ -799,19 +806,19 @@ fn win_config_split(
             } else {
                 altwin = crate::globals::WinPtr::from(win_float_find_altwin(
                     win,
-                    (win_tp != g_st().curtab).then(|| win_tp.borrow()),
+                    (win_tp != g_st().curtab.get()).then(|| win_tp.borrow()),
                 ));
             }
 
             win_remove(
                 win,
-                if win_tp == g_st().curtab {
+                if win_tp == g_st().curtab.get() {
                     None
                 } else {
                     win_tp.opt()
                 },
             );
-            if win_tp == g_st().curtab {
+            if win_tp == g_st().curtab.get() {
                 last_status(false);
                 win_comp_pos();
             }
@@ -820,7 +827,7 @@ fn win_config_split(
             parent_tp = if !parent.is_null() {
                 crate::globals::TabpagePtr::from(win_find_tabpage(parent.borrow()))
             } else {
-                g_st().curtab.clone()
+                g_st().curtab.get().clone()
             };
 
             let win_ptr = crate::globals::WinPtr::from(&*win);
@@ -843,7 +850,7 @@ fn win_config_split(
                     win_append(
                         win_ptr.w_prev.opt_mut(),
                         win_ptr.borrow_mut(),
-                        if win_tp == g_st().curtab {
+                        if win_tp == g_st().curtab.get() {
                             None
                         } else {
                             win_tp.opt()
@@ -965,13 +972,13 @@ fn win_config_float_tp(
         if win_tp != parent_tp {
             win_remove(
                 win,
-                if win_tp == g_st().curtab {
+                if win_tp == g_st().curtab.get() {
                     None
                 } else {
                     win_tp.opt()
                 },
             );
-            let append_tp = if parent_tp == g_st().curtab {
+            let append_tp = if parent_tp == g_st().curtab.get() {
                 crate::globals::TabpagePtr::NULL
             } else {
                 parent_tp
@@ -982,7 +989,7 @@ fn win_config_float_tp(
                 append_tp.opt(),
             );
 
-            if win_tp != g_st().curtab && win_tp.tp_curwin.get() == win {
+            if win_tp != g_st().curtab.get() && win_tp.tp_curwin.get() == win {
                 win_tp.tp_curwin.set(altwin);
             }
 
@@ -1065,9 +1072,11 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
         changed_window_setting(w);
     }
     if fconfig._cmdline_offset < i32::MAX {
-        g_st().cmdline_win = crate::globals::WinPtr::from(&mut *w);
-    } else if g_st().cmdline_win == w && fconfig._cmdline_offset == i32::MAX {
-        g_st().cmdline_win = crate::globals::WinPtr::NULL;
+        g_st()
+            .cmdline_win
+            .set(crate::globals::WinPtr::from(&mut *w));
+    } else if g_st().cmdline_win.get() == w && fconfig._cmdline_offset == i32::MAX {
+        g_st().cmdline_win.set(crate::globals::WinPtr::NULL);
     }
 }
 

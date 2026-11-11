@@ -1294,10 +1294,10 @@ pub fn nvim_buf_create_user_command(
         return;
     };
 
-    let save_curbuf = g_st().curbuf;
-    g_st().curbuf = (target_buf).into();
+    let save_curbuf = g_st().curbuf.get();
+    g_st().curbuf.set((target_buf).into());
     create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
-    g_st().curbuf = save_curbuf;
+    g_st().curbuf.set(save_curbuf);
 }
 
 /// Delete a buffer-local user-defined command.

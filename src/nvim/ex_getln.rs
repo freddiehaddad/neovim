@@ -1105,7 +1105,7 @@ fn command_line_enter(
                 (false, curbuf_mut().b_p_imsearch.get())
             };
             s.b_im_use_insert = Some(use_insert);
-            s.b_im_ptr_buf = g_st().curbuf;
+            s.b_im_ptr_buf = g_st().curbuf.get();
             if im_val == B_IMODE_LMAP {
                 g_st()
                     .state_global
@@ -1277,10 +1277,12 @@ fn command_line_enter(
                     },
                 );
                 if s.firstc == b':' as i32 {
-                    g_st().new_last_cmdline = Some(crate::memory::bytes_to_cstring(
-                        (get_cmdline_info().cmdbuff())
-                            .slice(get_cmdline_info().cmdlen.get() as usize),
-                    ));
+                    g_st()
+                        .new_last_cmdline
+                        .set(Some(crate::memory::bytes_to_cstring(
+                            (get_cmdline_info().cmdbuff())
+                                .slice(get_cmdline_info().cmdlen.get() as usize),
+                        )));
                 }
             }
 
@@ -2205,7 +2207,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
     }
 
     if let Some(use_insert) = use_insert_opt {
-        if use_insert && s.b_im_ptr_buf == g_st().curbuf {
+        if use_insert && s.b_im_ptr_buf == g_st().curbuf.get() {
             set_iminsert_global(curbuf_mut());
         } else {
             set_imsearch_global(curbuf_mut());
@@ -2990,7 +2992,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         cmdpreview_buf = crate::globals::BufPtr::from(buflist_findnr(bufnr));
     }
 
-    if cmdpreview_buf == g_st().curbuf {
+    if cmdpreview_buf == g_st().curbuf.get() {
         return None;
     }
 
@@ -3545,8 +3547,8 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
     let mut m: i32;
     let mut col = cmd_startcol();
     if g_st().key_typed.get() {
-        m = if !g_st().cmdline_win.is_null() {
-            let cw = g_st().cmdline_win.borrow();
+        m = if !g_st().cmdline_win.get().is_null() {
+            let cw = g_st().cmdline_win.get().borrow();
             cw.w_view_width.get() * cw.w_view_height.get()
         } else {
             g_st().columns_global.get() * g_st().rows_global.get()
@@ -5084,7 +5086,7 @@ fn open_cmdwin() -> i32 {
         beep_flush();
         return K_IGNORE;
     }
-    if !g_st().cmdwin_buf.is_null() {
+    if !g_st().cmdwin_buf.get().is_null() {
         beep_flush();
         return K_IGNORE;
     }
@@ -5117,7 +5119,7 @@ fn open_cmdwin() -> i32 {
 
 /// @return true if `curbuf` is the cmdwin and we're not editing the command line.
 pub fn is_in_cmdwin() -> bool {
-    bt_cmdwin(g_st().curbuf.opt()) && get_cmdline_type() == NUL as i32
+    bt_cmdwin(g_st().curbuf.get().opt()) && get_cmdline_type() == NUL as i32
 }
 
 /// Get script string.

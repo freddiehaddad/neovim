@@ -3469,7 +3469,7 @@ fn regmatch_inner(
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
                             let no = (op - ZREF) as usize;
-                            let ext_in = g_st().re_extmatch_in.clone();
+                            let ext_in = g_st().re_extmatch_in.get().clone();
                             if let Some(ref em) = ext_in
                                 && let Some(ref m_cstr) = em.matches[no]
                             {
@@ -4069,7 +4069,7 @@ fn regtry(
             }
         }
 
-        g_st().re_extmatch_out = None;
+        g_st().re_extmatch_out.set(None);
 
         if prog.reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
@@ -4096,7 +4096,7 @@ fn regtry(
                     }
                 }
             }
-            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
+            g_st().re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
         }
         1 + re_s.rex.lnum.get()
     })
@@ -4319,7 +4319,7 @@ pub(super) fn bt_regexec_nl(
         s.rex.load_match(rmp);
         s.rex.reg_maxline.set(0);
         s.rex.reg_line_lbr.set(line_lbr);
-        s.rex.reg_buf.set(g_st().curbuf);
+        s.rex.reg_buf.set(g_st().curbuf.get());
         s.rex.reg_win.set(crate::globals::WinPtr::NULL);
         s.rex.reg_ic.set(rmp.rm_ic);
         s.rex.reg_icombine.set(false);
