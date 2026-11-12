@@ -39,7 +39,7 @@ use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
-    invalidate_botline_win, validate_cursor,
+    invalidate_botline_win, set_topline_valid, validate_cursor,
 };
 use crate::normal::check_scrollbind;
 use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
@@ -1007,7 +1007,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
             dio_internal: diff_internal(),
         };
         diff_try_update(&mut diffio, idx_orig, eap);
-        curwin_mut().w_valid_cursor.set_lnum(0);
+        changed_line_abv_curs();
     }
     if had_diffs || !curtab_mut().tp_diffs.borrow().is_empty() {
         diff_redraw(true);
@@ -2236,6 +2236,7 @@ pub fn diff_set_topline(fromwin: &WinInfoInfo, towin: &WinInfoInfo) {
     let mut topline = towin.w_topline.get();
     has_folding(towin, topline, Some(&mut topline), None);
     towin.w_topline.set(topline);
+    set_topline_valid(towin);
 }
 fn parse_diffanchors(
     check_only: bool,

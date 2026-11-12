@@ -78,7 +78,7 @@ use crate::message::{
     msg_puts_len, msg_sb_eol, msg_start, semsg, semsg_multiline, smsg, verb_msg, verbose_enter,
     verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
 };
-use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
+use crate::r#move::{update_topline, validate_botline_win};
 use crate::option::{
     K_OPT_FOLDEXPR, K_OPT_FOLDTEXT, K_OPT_INVALID, OPT_GLOBAL, OPT_LOCAL, find_option_end,
     get_option_value, get_tty_option, is_option_hidden, is_tty_option, optval_free,
@@ -5417,11 +5417,11 @@ pub fn var2fpos(
     pos.coladd = 0;
 
     if name_bytes.first() == Some(&b'w') && dollar_lnum {
-        check_cursor_moved(wp);
-
+        // The "w_valid" flags are not reset when moving the cursor, so update
+        // the view before reading either endpoint.
+        update_topline(wp);
         pos.col = 0;
         if name_bytes.get(1) == Some(&b'0') {
-            update_topline(wp);
             pos.lnum = if wp.w_topline.get() > 0 {
                 wp.w_topline.get()
             } else {

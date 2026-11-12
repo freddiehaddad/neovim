@@ -865,6 +865,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     } else if found != 0 {
         curwin_mut().w_cursor.set(end_pos);
         curwin_mut().w_valid_cursor.set(end_pos); // mark as valid for cmdline_show redraw
+        crate::r#move::set_topline_valid(&curwin_mut());
     }
 
     msg_starthere();

@@ -279,14 +279,6 @@ fn scrolloffpad_eof_pressure(wp: &WinInfoInfo, lnum: Linenr, so: OptInt) -> bool
 
 /// Update `wp->w_topline` to move the cursor onto the screen.
 pub fn update_topline(wp: &WinInfoInfo) {
-    let mut check_botline = false;
-    let use_win_so = wp.w_onebuf_opt.wo_so.get() >= 0;
-    let save_so = if use_win_so {
-        wp.w_onebuf_opt.wo_so.get()
-    } else {
-        opt_vars().p_so.get()
-    };
-
     if g_st().skip_update_topline.get() {
         return;
     }
@@ -301,9 +293,22 @@ pub fn update_topline(wp: &WinInfoInfo) {
     }
 
     check_cursor_moved(wp);
+    // Cursor position checks update w_valid_cursor. Track the cursor line for
+    // the view separately, so those checks do not hide a pending view update.
+    if wp.w_cursor.get().lnum != wp.w_topline_cursor_lnum.get() {
+        wp.w_valid.set(wp.w_valid.get() & (!VALID_TOPLINE));
+    }
     if (wp.w_valid.get() & VALID_TOPLINE) != 0 {
         return;
     }
+
+    let mut check_botline = false;
+    let use_win_so = wp.w_onebuf_opt.wo_so.get() >= 0;
+    let save_so = if use_win_so {
+        wp.w_onebuf_opt.wo_so.get()
+    } else {
+        opt_vars().p_so.get()
+    };
 
     let so = if g_st().mouse_dragging.get() > 0 {
         let drag_so = i64::from(g_st().mouse_dragging.get() - 1);
@@ -462,7 +467,7 @@ pub fn update_topline(wp: &WinInfoInfo) {
             }
         }
     }
-    wp.w_valid.set(wp.w_valid.get() | (VALID_TOPLINE));
+    set_topline_valid(wp);
     wp.w_viewport_invalid.set(true);
     win_check_anchored_floats(wp);
 
@@ -538,6 +543,14 @@ pub fn update_curswant() {
     }
 }
 
+/// Mark the current view as valid for the current cursor position.
+/// A bound cursor can be off screen. Later cursor position checks must
+/// preserve this view.
+pub fn set_topline_valid(wp: &WinInfoInfo) {
+    wp.w_topline_cursor_lnum.set(wp.w_cursor.get().lnum);
+    wp.w_valid.set(wp.w_valid.get() | VALID_TOPLINE);
+}
+
 /// Check if the cursor has moved. Set the `w_valid` flag accordingly.
 pub fn check_cursor_moved(wp: &WinInfoInfo) {
     if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr() {
@@ -546,12 +559,7 @@ pub fn check_cursor_moved(wp: &WinInfoInfo) {
     if wp.w_cursor.get().lnum != wp.w_valid_cursor.get().lnum {
         wp.w_valid.set(
             wp.w_valid.get()
-                & (!(VALID_WROW
-                    | VALID_WCOL
-                    | VALID_VIRTCOL
-                    | VALID_CHEIGHT
-                    | VALID_CROW
-                    | VALID_TOPLINE)),
+                & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CHEIGHT | VALID_CROW)),
         );
 
         if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr()
@@ -1449,9 +1457,7 @@ pub fn scroll_redraw(up: i32, count: Linenr) {
     if get_scrolloff_value(&curwin_mut()) > 0 {
         cursor_correct(&curwin_mut());
         check_cursor_moved(&curwin_mut());
-        curwin_mut()
-            .w_valid
-            .set(curwin_mut().w_valid.get() | (VALID_TOPLINE));
+        set_topline_valid(&curwin_mut());
 
         while curwin_mut().w_topline.get() == prev_topline
             && curwin_mut().w_skipcol.get() == prev_skipcol
@@ -1468,9 +1474,7 @@ pub fn scroll_redraw(up: i32, count: Linenr) {
                 break;
             }
             check_cursor_moved(&curwin_mut());
-            curwin_mut()
-                .w_valid
-                .set(curwin_mut().w_valid.get() | (VALID_TOPLINE));
+            set_topline_valid(&curwin_mut());
         }
     }
 
@@ -2041,7 +2045,7 @@ pub fn scroll_cursor_top(wp: &WinInfoInfo, min_scroll: i32, always: i32) {
                 wp.w_valid.get() & (!(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP)),
             );
         }
-        wp.w_valid.set(wp.w_valid.get() | (VALID_TOPLINE));
+        set_topline_valid(wp);
         wp.w_viewport_invalid.set(true);
     }
 }
@@ -2262,7 +2266,7 @@ pub fn scroll_cursor_bot(wp: &WinInfoInfo, min_scroll: i32, set_topbot: bool) {
         wp.w_empty_rows.set(old_empty_rows);
         wp.w_valid.set(old_valid);
     }
-    wp.w_valid.set(wp.w_valid.get() | (VALID_TOPLINE));
+    set_topline_valid(wp);
     wp.w_viewport_invalid.set(true);
 
     if set_topbot {
@@ -2394,7 +2398,7 @@ pub fn scroll_cursor_halfway(wp: &WinInfoInfo, atend: bool, prefer_above: bool) 
     check_topfill(wp, false);
     wp.w_valid
         .set(wp.w_valid.get() & (!(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP)));
-    wp.w_valid.set(wp.w_valid.get() | (VALID_TOPLINE));
+    set_topline_valid(wp);
 }
 
 /// Correct the cursor position so that it is in a part of the screen at least
@@ -2465,7 +2469,7 @@ pub fn cursor_correct(wp: &WinInfoInfo) {
         }
     }
     check_cursor_moved(wp);
-    wp.w_valid.set(wp.w_valid.get() | (VALID_TOPLINE));
+    set_topline_valid(wp);
     wp.w_viewport_invalid.set(true);
 }
 
@@ -2776,10 +2780,7 @@ pub fn do_check_cursorbind() {
                 update_topline(&curwin_mut());
             } else {
                 // A later view query must not scroll an already bound view.
-                check_cursor_moved(&curwin_mut());
-                curwin_mut()
-                    .w_valid
-                    .set(curwin_mut().w_valid.get() | VALID_TOPLINE);
+                set_topline_valid(&curwin_mut());
             }
             curwin_mut().w_redr_status.set(true);
         }
