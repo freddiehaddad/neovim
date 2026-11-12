@@ -1257,12 +1257,58 @@ static EVENT_HASH: [AuEvent; 150] = [
     EVENT_FILECHANGEDSHELLPOST,
 ];
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+struct AuEventMask([u64; 3]);
+
+const _: () = assert!(NUM_EVENTS <= 192);
+
+impl AuEventMask {
+    const EMPTY: Self = Self([0; 3]);
+
+    #[inline(always)]
+    const fn is_empty(self) -> bool {
+        (self.0[0] | self.0[1] | self.0[2]) == 0
+    }
+
+    #[inline(always)]
+    fn insert(&mut self, ev: AuEvent) {
+        let u = ev as usize;
+        self.0[u >> 6] |= 1u64 << (u & 63);
+    }
+
+    #[inline(always)]
+    fn remove(&mut self, ev: AuEvent) {
+        let u = ev as usize;
+        self.0[u >> 6] &= !(1u64 << (u & 63));
+    }
+
+    #[inline(always)]
+    fn pop_first(&mut self) -> Option<AuEvent> {
+        for (word_idx, word) in self.0.iter_mut().enumerate() {
+            if *word != 0 {
+                let bit = word.trailing_zeros() as usize;
+                *word &= *word - 1;
+                return Some(((word_idx << 6) + bit) as AuEvent);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Copy)]
+struct AuIdLoc {
+    event: AuEvent,
+    idx: u32,
+    remaining: u32,
+    extra_events: AuEventMask,
+}
+
 struct AutocmdState {
     autocmd_winid: std::cell::Cell<ObjHandle>,
     next_augroup_id: std::cell::Cell<i32>,
     deleted_augroup: std::cell::Cell<Option<&'static CStr>>,
     current_augroup: std::cell::Cell<i32>,
-    au_need_clean: std::cell::Cell<bool>,
+    au_need_clean_mask: std::cell::Cell<AuEventMask>,
     autocmd_blocked: std::cell::Cell<i32>,
     autocmd_nested: std::cell::Cell<bool>,
     autocmd_include_groups: std::cell::Cell<bool>,
@@ -1284,7 +1330,7 @@ impl AutocmdState {
             next_augroup_id: std::cell::Cell::new(1),
             deleted_augroup: std::cell::Cell::new(None),
             current_augroup: std::cell::Cell::new(AUGROUP_DEFAULT),
-            au_need_clean: std::cell::Cell::new(false),
+            au_need_clean_mask: std::cell::Cell::new(AuEventMask::EMPTY),
             autocmd_blocked: std::cell::Cell::new(0),
             autocmd_nested: std::cell::Cell::new(false),
             autocmd_include_groups: std::cell::Cell::new(false),
@@ -1320,6 +1366,8 @@ thread_local! {
     static AUTOCMDS: [std::cell::RefCell<AutoCmdVec>; NUM_EVENTS] = const {
         [const { std::cell::RefCell::new(Vec::new()) }; NUM_EVENTS]
     };
+    static AU_ID_INDEX: std::cell::RefCell<std::collections::HashMap<i64, AuIdLoc>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
     static ACTIVE_APC_LIST: std::cell::RefCell<Vec<std::rc::Rc<std::cell::Cell<i32>>>> = const {
         std::cell::RefCell::new(Vec::new())
     };
@@ -1685,16 +1733,47 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
     }
 }
 
-fn aucmd_del(ac: &mut AutoCmd) {
+#[inline]
+fn mark_au_need_clean(event: AuEvent) {
+    AU_STATE.with(|s| {
+        let mut mask = s.au_need_clean_mask.get();
+        mask.insert(event);
+        s.au_need_clean_mask.set(mask);
+    });
+}
+
+#[inline]
+fn clear_au_need_clean(event: AuEvent) {
+    AU_STATE.with(|s| {
+        let mut mask = s.au_need_clean_mask.get();
+        mask.remove(event);
+        s.au_need_clean_mask.set(mask);
+    });
+}
+
+#[inline]
+fn aucmd_del_event(event: AuEvent, ac: &mut AutoCmd) {
+    if ac.id > 0 {
+        AU_ID_INDEX.with(|cell| {
+            let mut map = cell.borrow_mut();
+            if let std::collections::hash_map::Entry::Occupied(mut o) = map.entry(ac.id) {
+                if o.get().remaining <= 1 {
+                    o.remove();
+                } else {
+                    o.get_mut().remaining -= 1;
+                }
+            }
+        });
+    }
     *ac = AutoCmd::new();
-    AU_STATE.with(|s| s.au_need_clean.set(true));
+    mark_au_need_clean(event);
 }
 
 pub fn aucmd_del_for_event_and_group(event: AuEvent, group: i32) {
     with_autocmds_for_event(event, |acs| {
         for ac in acs {
             if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
-                aucmd_del(ac);
+                aucmd_del_event(event, ac);
             }
         }
     });
@@ -1702,21 +1781,41 @@ pub fn aucmd_del_for_event_and_group(event: AuEvent, group: i32) {
 }
 
 fn au_cleanup() {
-    if g_st().autocmd_busy.get() || !AU_STATE.with(|s| s.au_need_clean.get()) {
+    let mut mask = AU_STATE.with(|s| s.au_need_clean_mask.get());
+    if g_st().autocmd_busy.get() || mask.is_empty() {
         return;
     }
 
     AUTOCMDS.with(|all| {
-        for cell in all {
-            let mut acs = cell.borrow_mut();
-            acs.retain(|ac| ac.pat.is_some());
-            if acs.is_empty() {
-                *acs = Vec::new();
+        AU_ID_INDEX.with(|id_cell| {
+            let mut id_map = id_cell.borrow_mut();
+            while let Some(ev_nr) = mask.pop_first() {
+                let ev = ev_nr as usize;
+                let mut acs = all[ev].borrow_mut();
+                let mut new_idx = 0u32;
+                acs.retain(|ac| {
+                    if ac.pat.is_some() {
+                        if ac.id > 0
+                            && let Some(loc) = id_map.get_mut(&ac.id)
+                            && loc.extra_events.is_empty()
+                            && loc.event as usize == ev
+                        {
+                            loc.idx = new_idx;
+                        }
+                        new_idx += 1;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                if acs.is_empty() {
+                    *acs = Vec::new();
+                }
             }
-        }
+        });
     });
 
-    AU_STATE.with(|s| s.au_need_clean.set(false));
+    AU_STATE.with(|s| s.au_need_clean_mask.set(AuEventMask::EMPTY));
 }
 
 pub fn aubuflocal_remove(buf: &FileBuf) {
@@ -1737,7 +1836,7 @@ pub fn aubuflocal_remove(buf: &FileBuf) {
                     .as_ref()
                     .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum.get())
                 {
-                    aucmd_del(ac);
+                    aucmd_del_event(event, ac);
                     removed_count += 1;
                 }
             }
@@ -1822,10 +1921,10 @@ pub fn augroup_del(name: &CStr, id_for_error: i32, stupid_legacy_mode: bool) {
         }
     } else {
         AUTOCMDS.with(|all| {
-            for cell in all {
+            for (ev, cell) in all.iter().enumerate() {
                 for ac in cell.borrow_mut().iter_mut() {
                     if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
-                        aucmd_del(ac);
+                        aucmd_del_event(ev as AuEvent, ac);
                     }
                 }
             }
@@ -1918,15 +2017,16 @@ pub fn do_augroup(arg: &CStr, del_group: bool) {
 
 pub fn free_all_autocmds() {
     AUTOCMDS.with(|all| {
-        for cell in all {
+        for (ev, cell) in all.iter().enumerate() {
             let mut acs = cell.borrow_mut();
             for ac in acs.iter_mut() {
-                aucmd_del(ac);
+                aucmd_del_event(ev as AuEvent, ac);
             }
             *acs = Vec::new();
         }
     });
-    AU_STATE.with(|s| s.au_need_clean.set(false));
+    AU_ID_INDEX.with(|cell| cell.borrow_mut().clear());
+    AU_STATE.with(|s| s.au_need_clean_mask.set(AuEventMask::EMPTY));
 
     AUGROUP_MAPS.with(|cell| {
         let mut maps = cell.borrow_mut();
@@ -2115,7 +2215,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 break 'run;
             }
 
-            if !cmd.to_bytes().is_empty() {
+            if !cmd.to_bytes().is_empty() && cmd.to_bytes().contains(&b'<') {
                 cmd_owned = expand_sfile(cmd);
                 match cmd_owned {
                     Some(ref co) => cmd = co.as_c_str(),
@@ -2227,7 +2327,7 @@ pub fn do_autocmd_event(
                         && ap.patlen == pat_slice.len() as i32
                         && pat_slice == ap.pat.as_bytes()
                     {
-                        aucmd_del(ac);
+                        aucmd_del_event(event, ac);
                     }
                 }
             });
@@ -2388,7 +2488,32 @@ pub fn autocmd_register(
     ac.once = once;
     ac.nested = nested;
     ac.desc = desc.map(CStr::to_owned);
-    with_autocmds_for_event(event, |acs| acs.push(ac));
+    let idx = with_autocmds_for_event(event, |acs| {
+        let i = acs.len() as u32;
+        acs.push(ac);
+        i
+    });
+    if id > 0 {
+        AU_ID_INDEX.with(|cell| {
+            let mut map = cell.borrow_mut();
+            match map.entry(id) {
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(AuIdLoc {
+                        event,
+                        idx,
+                        remaining: 1,
+                        extra_events: AuEventMask::EMPTY,
+                    });
+                }
+                std::collections::hash_map::Entry::Occupied(mut o) => {
+                    let loc = o.get_mut();
+                    loc.remaining += 1;
+                    loc.extra_events.insert(loc.event);
+                    loc.extra_events.insert(event);
+                }
+            }
+        });
+    }
 
     true
 }
@@ -3199,19 +3324,33 @@ pub fn is_autocmd_blocked() -> bool {
 }
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
-    let acs_len = AUTOCMDS.with(|a| a[apc.event as usize].borrow().len());
-    assert!(apc.ausize <= acs_len);
     let mut i = apc.auidx;
     while i < apc.ausize && !g_st().got_int.get() {
-        let ap_opt = AUTOCMDS.with(|a| a[apc.event as usize].borrow()[i].pat.clone());
+        let (same_lastpat, ap_opt) = AUTOCMDS.with(|a| {
+            let acs = a[apc.event as usize].borrow();
+            assert!(apc.ausize <= acs.len());
+            let Some(ref ap) = acs[i].pat else {
+                return (false, None);
+            };
+            if apc
+                .lastpat
+                .as_ref()
+                .is_some_and(|l| std::rc::Rc::ptr_eq(l, ap))
+            {
+                (true, None)
+            } else {
+                (false, Some(ap.clone()))
+            }
+        });
+        if same_lastpat {
+            apc.auidx = i;
+            line_breakcheck();
+            return;
+        }
         let Some(ap) = ap_opt else {
             i += 1;
             continue;
         };
-        if !apc
-            .lastpat
-            .as_ref()
-            .is_some_and(|l| std::rc::Rc::ptr_eq(l, &ap))
         {
             if apc.group != AUGROUP_ALL && apc.group != ap.group {
                 i += 1;
@@ -3408,7 +3547,7 @@ pub fn getnextac(
 
     if oneshot {
         with_autocmds_for_event(event, |acs| {
-            aucmd_del(&mut acs[auidx]);
+            aucmd_del_event(event, &mut acs[auidx]);
         });
     }
 
@@ -3721,18 +3860,60 @@ pub fn aupat_normalize_buflocal_pat(dest: &mut [u8], pat: &[u8], mut buflocal_nr
 
 pub fn autocmd_delete_id(id: i64) -> bool {
     assert!(id > 0);
-    let mut success = false;
+    let Some(loc) = AU_ID_INDEX.with(|cell| cell.borrow_mut().remove(&id)) else {
+        return false;
+    };
+    let busy = g_st().autocmd_busy.get();
+    if loc.extra_events.is_empty() {
+        let mut success = false;
+        with_autocmds_for_event(loc.event, |acs| {
+            let i = loc.idx as usize;
+            if acs.get(i).is_some_and(|ac| ac.id == id && ac.pat.is_some()) {
+                acs[i] = AutoCmd::new();
+                mark_au_need_clean(loc.event);
+                success = true;
+            } else {
+                for ac in acs.iter_mut() {
+                    if ac.id == id && ac.pat.is_some() {
+                        *ac = AutoCmd::new();
+                        mark_au_need_clean(loc.event);
+                        success = true;
+                    }
+                }
+            }
+            if !busy {
+                while acs.last().is_some_and(|ac| ac.pat.is_none()) {
+                    acs.pop();
+                }
+                if acs.is_empty() {
+                    clear_au_need_clean(loc.event);
+                }
+            }
+        });
+        return success;
+    }
 
-    AUTOCMDS.with(|all| {
-        for cell in all {
-            for ac in cell.borrow_mut().iter_mut() {
-                if ac.id == id {
-                    aucmd_del(ac);
+    let mut mask = loc.extra_events;
+    let mut success = false;
+    while let Some(ev) = mask.pop_first() {
+        with_autocmds_for_event(ev, |acs| {
+            for ac in acs.iter_mut() {
+                if ac.id == id && ac.pat.is_some() {
+                    *ac = AutoCmd::new();
+                    mark_au_need_clean(ev);
                     success = true;
                 }
             }
-        }
-    });
+            if !busy {
+                while acs.last().is_some_and(|ac| ac.pat.is_none()) {
+                    acs.pop();
+                }
+                if acs.is_empty() {
+                    clear_au_need_clean(ev);
+                }
+            }
+        });
+    }
     success
 }
 
@@ -3923,5 +4104,53 @@ mod tests {
         let (span, rest) = aucmd_span_pattern_slice(b",,*.{c,h},*.rs").unwrap();
         assert_eq!(span, b"*.{c,h}");
         assert_eq!(rest, b",*.rs");
+    }
+
+    #[test]
+    fn autocmd_delete_id_handles_partial_pattern_deletion() {
+        free_all_autocmds();
+        for pat in [c"PatA", c"PatB"] {
+            let ap = std::rc::Rc::new(AutoPat {
+                pat: pat.to_owned(),
+                reg_prog: None,
+                group: AUGROUP_DEFAULT,
+                patlen: 4,
+                buflocal_nr: 0,
+                allow_dirs: 0,
+            });
+            let mut ac = AutoCmd::new();
+            ac.pat = Some(ap);
+            ac.id = 42;
+            let idx = with_autocmds_for_event(EVENT_USER, |acs| {
+                let i = acs.len() as u32;
+                acs.push(ac);
+                i
+            });
+            AU_ID_INDEX.with(|cell| {
+                let mut map = cell.borrow_mut();
+                match map.entry(42) {
+                    std::collections::hash_map::Entry::Vacant(v) => {
+                        v.insert(AuIdLoc {
+                            event: EVENT_USER,
+                            idx,
+                            remaining: 1,
+                            extra_events: AuEventMask::EMPTY,
+                        });
+                    }
+                    std::collections::hash_map::Entry::Occupied(mut o) => {
+                        let loc = o.get_mut();
+                        loc.remaining += 1;
+                        loc.extra_events.insert(loc.event);
+                        loc.extra_events.insert(EVENT_USER);
+                    }
+                }
+            });
+        }
+        with_autocmds_for_event(EVENT_USER, |acs| {
+            aucmd_del_event(EVENT_USER, &mut acs[0]);
+        });
+        assert!(autocmd_delete_id(42));
+        assert!(!autocmd_delete_id(42));
+        free_all_autocmds();
     }
 }
