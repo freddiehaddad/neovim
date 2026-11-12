@@ -6143,10 +6143,7 @@ pub fn f_reltimestr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 fn repeat_list(l: Option<&TvList>, mut n: Varnumber, rettv: &mut TypVal) {
     let slen = tv_list_len(l);
-    tv_list_alloc_ret(
-        &mut *rettv,
-        (Varnumber::from(n > 0) * n * Varnumber::from(slen)) as isize,
-    );
+    tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
     if l.is_none() || n <= 0 || slen == 0 {
         return;
     }
