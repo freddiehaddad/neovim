@@ -1539,7 +1539,7 @@ static CMDNAMES: [CommandDefinition; 564] = [
         cmd_name: c"connect",
         cmd_func: ex_connect,
         cmd_preview_func: None,
-        cmd_argt: 2206,
+        cmd_argt: 2078,
         cmd_addr_type: ADDR_NONE,
     },
     CommandDefinition {
@@ -10399,21 +10399,28 @@ fn ex_connect(eap: &mut Exarg) {
     let mut ssh_rettv = TypVal::new();
     let addr_bytes = addr.as_bytes();
     let is_tcp = crate::event::socket::socket_address_tcp_host_end(addr_bytes).is_some();
+    let is_ssh = addr_bytes
+        .get(..6)
+        .is_some_and(|p| p.eq_ignore_ascii_case(b"ssh://"));
     let mut error: Option<&'static CStr> = None;
 
-    if addr_bytes
-        .get(..6)
-        .is_some_and(|p| p.eq_ignore_ascii_case(b"ssh://"))
-    {
-        if eap.forceit {
-            let _ = emsg(gettext(E_NOBANG));
-            return;
-        }
-        if !remote_ui_attached(g_st().current_ui.get()) {
-            let _ = emsg(gettext(E_NOUI));
-            return;
-        }
+    if eap.forceit && (addr_bytes.is_empty() || is_ssh) {
+        let _ = emsg(gettext(E_NOBANG));
+        return;
+    }
+    if !remote_ui_attached(g_st().current_ui.get()) {
+        let _ = emsg(gettext(E_NOUI));
+        return;
+    }
 
+    // No address: let the user select from a menu of known servers.
+    if addr_bytes.is_empty() {
+        let mut no_args = [TypVal::new()];
+        nlua_call_typval(c"vim._core.server", c"select_connect", &mut no_args, None);
+        return;
+    }
+
+    if is_ssh {
         let mut argvars = [
             TypVal {
                 v_type: VarType::VarString,

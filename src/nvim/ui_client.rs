@@ -324,7 +324,7 @@ pub fn ui_client_stop() {
     if let Some(addr) = UIC_STATE.with(|s| s.detached_addr.borrow_mut().take()) {
         let addr_lossy = addr.to_string_lossy();
         eprintln!(
-            "Detached from {addr_lossy}\nTo reattach: nvim --remote-ui --server \"{addr_lossy}\""
+            "Detached from: {addr_lossy}\nTo reattach run :connect or nvim +\"connect <address>\""
         );
     }
 }
