@@ -37,5 +37,5 @@ TREESITTER_URL https://github.com/tree-sitter/tree-sitter/archive/v0.27.2.tar.gz
 TREESITTER_SHA256 356528363bf7fbad12a2cfeb5a2678c0118ef886a4d69ad9a379db5fdef0735f
 
 # NOTE: Also update the find_package() call if bumping the minimum.
-WASMTIME_URL https://github.com/bytecodealliance/wasmtime/archive/v48.0.1.tar.gz
-WASMTIME_SHA256 1ced053e4c04bd7e68c46908f65aac99c90469fc26b7dd86dfaff6551fd40f14
+WASMTIME_URL https://github.com/bytecodealliance/wasmtime/archive/v48.0.8.tar.gz
+WASMTIME_SHA256 7226b04a8d87a3dc2cca2e440622db1fd5b5c2e458be75b674b2eedf985ae76a
