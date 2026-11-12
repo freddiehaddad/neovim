@@ -500,6 +500,11 @@ impl WinInfoInfo {
         self.w_buffer.get()
     }
 
+    #[inline(always)]
+    pub fn with_buf<R>(&self, f: impl FnOnce(&crate::buffer::FileBuf) -> R) -> R {
+        self.w_buffer.with(|b| f(b))
+    }
+
     #[inline]
     pub fn buf_opt(&self) -> Option<crate::globals::BufPtr> {
         let b = self.w_buffer.get();

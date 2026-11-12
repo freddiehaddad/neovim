@@ -1212,8 +1212,9 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         let line_cstr = get_cursor_line_ptr();
         vcol = 0;
         if !line_cstr.to_bytes().is_empty() {
+            let wp = curwin_mut();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), 0, &line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &wp, 0, &line_cstr);
             let mut ci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
@@ -1719,8 +1720,9 @@ pub fn get_lisp_indent() -> i32 {
             let mut col = pos.col;
 
             let line_cstr = get_cursor_line_ptr();
+            let wp = curwin_mut();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), pos.lnum, &line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &wp, pos.lnum, &line_cstr);
 
             let mut sci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
             amount = 0;

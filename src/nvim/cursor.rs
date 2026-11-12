@@ -213,10 +213,11 @@ pub fn coladvance(wp: &WinInfoInfo, wcol: Colnr) -> bool {
 
     if wcol == MAXCOL || !rc {
         wp.w_valid.set(wp.w_valid.get() & (!VALID_VIRTCOL));
-    } else if crate::memline::ml_get_buf_slice(&wp.buf_mut(), wp.w_cursor.get().lnum)
-        .get(wp.w_cursor.get().col as usize)
-        != Some(&TAB)
-    {
+    } else if wp.with_buf(|buf| {
+        crate::memline::with_ml_buf_line(buf, wp.w_cursor.get().lnum, |s| {
+            s.get(wp.w_cursor.get().col as usize) != Some(&TAB)
+        })
+    }) {
         set_valid_virtcol(&curwin_mut(), wcol);
     }
     rc

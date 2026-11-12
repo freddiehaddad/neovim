@@ -6345,14 +6345,10 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         disp_vcol2vcol(&curwin_mut(), curwin_mut().w_cursor.get().lnum, i),
     );
     if flag {
+        let wp = curwin_mut();
         let mut csarg = CharsizeArg::new();
         let mut spans = ConcealSpans::new();
-        init_charsize_arg_extconceal(
-            &mut csarg,
-            &curwin_mut(),
-            curwin_mut().w_cursor.get().lnum,
-            &mut spans,
-        );
+        init_charsize_arg_extconceal(&mut csarg, &wp, wp.w_cursor.get().lnum, &mut spans);
         loop {
             i = gchar_cursor();
             csarg.line = crate::plines::CsLine::Rc(get_cursor_line_ptr());

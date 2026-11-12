@@ -36,7 +36,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{UTF8LEN_TAB, mb_get_class, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::mcursor::mc_toggle;
-use crate::memline::{gchar_pos, inc, ml_get_buf};
+use crate::memline::{gchar_pos, inc};
 use crate::menu::show_popupmenu;
 use crate::message::siemsg;
 use crate::r#move::{check_topfill, pagescroll, scroll_redraw, win_col_off, win_col_off2};
@@ -2091,34 +2091,37 @@ fn mouse_find_grid_win(
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
 pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mut Colnr>) -> Colnr {
-    let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-    let mut csarg = CharsizeArg::new();
-    let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, &line_cstr);
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
-    let mut cur_vcol: i32 = 0;
-    while cur_vcol < vcol && !ci.ptr.is_empty() {
-        let cli = utf_cluster_info(ci);
-        let next_vcol = cur_vcol
-            + win_charsize(
-                cstype,
-                cur_vcol,
-                ci.cstr(),
-                ci.chr.value,
-                &mut csarg,
-                cli.cells,
-            )
-            .width;
-        if next_vcol > vcol {
-            break;
-        }
-        cur_vcol = next_vcol;
-        ci = cli.next;
-    }
+    wp.with_buf(|buf| {
+        crate::memline::with_ml_buf_cstr(buf, lnum, |line_cstr| {
+            let mut csarg = CharsizeArg::new();
+            let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_cstr);
+            let mut ci = utf_ptr2_str_char_info(line_cstr);
+            let mut cur_vcol: i32 = 0;
+            while cur_vcol < vcol && !ci.ptr.is_empty() {
+                let cli = utf_cluster_info(ci);
+                let next_vcol = cur_vcol
+                    + win_charsize(
+                        cstype,
+                        cur_vcol,
+                        ci.cstr(),
+                        ci.chr.value,
+                        &mut csarg,
+                        cli.cells,
+                    )
+                    .width;
+                if next_vcol > vcol {
+                    break;
+                }
+                cur_vcol = next_vcol;
+                ci = cli.next;
+            }
 
-    if let Some(coladdp) = coladdp {
-        *coladdp = vcol - cur_vcol;
-    }
-    ci.offset_from(&line_cstr) as Colnr
+            if let Some(coladdp) = coladdp {
+                *coladdp = vcol - cur_vcol;
+            }
+            ci.offset_from(line_cstr) as Colnr
+        })
+    })
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.

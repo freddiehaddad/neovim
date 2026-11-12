@@ -1899,13 +1899,10 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
                 let oldlen = get_cursor_line_len();
 
+                let wp = curwin_mut();
                 let mut csarg = CharsizeArg::new();
-                let mut cstype: CSType = init_charsize_arg(
-                    &mut csarg,
-                    &curwin_mut(),
-                    curwin_mut().w_cursor.get().lnum,
-                    &oldp_cstr,
-                );
+                let mut cstype: CSType =
+                    init_charsize_arg(&mut csarg, &wp, wp.w_cursor.get().lnum, &oldp_cstr);
                 let mut ci = utf_ptr2_str_char_info(&oldp_cstr);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
@@ -1942,7 +1939,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     spaces = y_width + 1;
 
                     let y_data = y_item.as_cstr();
-                    cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, y_data);
+                    cstype = init_charsize_arg(&mut csarg, &wp, 0, y_data);
 
                     ci = utf_ptr2_str_char_info(y_data);
 

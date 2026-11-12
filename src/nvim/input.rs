@@ -2700,11 +2700,12 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 let ptr_cstr = get_cursor_line_ptr();
                                 let end_off = curwin_mut().w_cursor.get().col as usize;
 
+                                let wp = curwin_mut();
                                 let mut csarg = CharsizeArg::new();
                                 let cstype: CSType = init_charsize_arg(
                                     &mut csarg,
-                                    &curwin_mut(),
-                                    curwin_mut().w_cursor.get().lnum,
+                                    &wp,
+                                    wp.w_cursor.get().lnum,
                                     &ptr_cstr,
                                 );
                                 let mut ci: StrCharInfo = utf_ptr2_str_char_info(&ptr_cstr);

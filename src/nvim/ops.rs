@@ -490,13 +490,10 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             }
         }
 
+        let wp = curwin_mut();
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(
-            &mut csarg,
-            &curwin_mut(),
-            curwin_mut().w_cursor.get().lnum,
-            &bd.textstart,
-        );
+        let cstype: CSType =
+            init_charsize_arg(&mut csarg, &wp, wp.w_cursor.get().lnum, &bd.textstart);
         let textstart_rc = bd.textstart.clone();
         let mut ci = utf_ptr2_str_char_info(&textstart_rc);
         let mut vcol = bd.start_vcol;
@@ -556,13 +553,10 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
 
         let mut non_white_col = bd.start_vcol;
 
+        let wp = curwin_mut();
         let mut csarg = CharsizeArg::new();
-        let mut cstype: CSType = init_charsize_arg(
-            &mut csarg,
-            &curwin_mut(),
-            curwin_mut().w_cursor.get().lnum,
-            &bd.textstart,
-        );
+        let mut cstype: CSType =
+            init_charsize_arg(&mut csarg, &wp, wp.w_cursor.get().lnum, &bd.textstart);
         while let Some(&b0) = non_white_cstr.to_bytes().first()
             && ascii_iswhite(i32::from(b0))
         {
@@ -588,7 +582,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         if bd.startspaces != 0 {
             verbatim_copy_width -= bd.start_char_vcols;
         }
-        cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, &bd.textstart);
+        cstype = init_charsize_arg(&mut csarg, &wp, 0, &bd.textstart);
         let mut ci = utf_ptr2_str_char_info(&bd.textstart);
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
@@ -2191,8 +2185,9 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     let line_cstr = ml_get(lnum);
     let mut prev_pstart_off = 0usize;
 
+    let wp = curwin_mut();
     let mut csarg = CharsizeArg::new();
-    let mut cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, &line_cstr);
+    let mut cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
     let mut ci = utf_ptr2_str_char_info(&line_cstr);
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !ci.ptr.is_empty() {
@@ -2241,7 +2236,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 }
             }
         } else {
-            cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, &line_cstr);
+            cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
             ci = utf_ptr2_str_char_info(&line_cstr[pend_off..]);
             vcol = bdp.end_vcol;
             let mut prev_pend_off = pend_off;

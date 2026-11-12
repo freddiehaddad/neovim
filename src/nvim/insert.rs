@@ -3802,8 +3802,9 @@ fn ins_tab() -> bool {
 
         let tab = c"\t";
         let tab_v = b'\t' as i32;
+        let wp = curwin_mut();
         let mut csarg = CharsizeArg::new();
-        let mut cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, tab);
+        let mut cstype = init_charsize_arg(&mut csarg, &wp, 0, tab);
 
         while ascii_iswhite(byte_at(&saved_line_vec, fpos.col as usize)) {
             let i = win_charsize(cstype, vcol, tab.to_bytes_with_nul(), tab_v, &mut csarg, 1).width;
@@ -3841,7 +3842,7 @@ fn ins_tab() -> bool {
                 cursor_line_rc = get_cursor_line_ptr();
                 crate::memory::CStrSubslice::advance(&cursor_line_rc, fpos.col as usize)
             };
-            cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, ptr_cstr);
+            cstype = init_charsize_arg(&mut csarg, &wp, 0, ptr_cstr);
             while vcol < want_vcol
                 && byte_at(&saved_line_vec, (fpos.col + repl_off) as usize) == b' '
             {
@@ -4014,8 +4015,9 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     let end_vcol = curwin_mut().w_virtcol.get();
     let line_cstr = ml_get(lnum);
 
+    let wp = curwin_mut();
     let mut csarg = CharsizeArg::new();
-    let cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, &line_cstr);
+    let cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
     let mut ci = utf_ptr2_str_char_info(&line_cstr);
     let mut vcol: i32 = 0;
     while vcol < end_vcol && !ci.ptr.is_empty() {
