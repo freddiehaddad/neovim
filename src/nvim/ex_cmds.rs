@@ -2,7 +2,7 @@
 
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
-use crate::api::private::helpers::{cstr_as_obj, cstr_as_string, cstrn_as_string};
+use crate::api::private::helpers::{cstr_as_obj, cstr_as_string};
 use crate::api::private::validate::NvimString;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, check_arg_idx, do_argfile,
@@ -93,7 +93,7 @@ use crate::mbyte::{
 use crate::memline::{
     makeswapname, ml_append, ml_append_buf, ml_clearmarked, ml_delete, ml_delete_flags,
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
-    ml_replace, ml_replace_buf, ml_setmarked,
+    ml_replace_buf, ml_setmarked,
 };
 use crate::memory::bytes_to_cstring;
 use crate::message::{
@@ -3688,13 +3688,6 @@ impl SubBuf {
             size: bytes.len(),
         }
     }
-
-    #[inline]
-    fn as_nvim_string(&self) -> NvimString {
-        self.vec.as_deref().map_or(NvimString::new(), |v| {
-            NvimString::from_bytes_len(v, self.size)
-        })
-    }
 }
 
 /// Allocate memory to store the replacement text for `:substitute`.
@@ -4133,8 +4126,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     break;
                 }
                 if sub_firstline.is_null() {
-                    let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                    sub_firstline = SubBuf::from_cbuf(&sub_slice);
+                    crate::memline::with_ml_buf_line(&curbuf_mut(), sub_firstlnum, |sub_slice| {
+                        sub_firstline = SubBuf::from_cbuf(sub_slice);
+                    });
                 }
 
                 curwin_mut().w_cursor.set_lnum(lnum);
@@ -4409,20 +4403,18 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             break 'skip;
                         }
 
-                        let tmp: NvimString;
-                        if nmatch == 1 {
-                            tmp = sub_firstline.as_nvim_string();
+                        let tmp_size = if nmatch == 1 {
+                            sub_firstline.size
                         } else {
                             let lastlnum = sub_firstlnum + nmatch - 1;
-                            let last_slice = crate::memline::ml_get_slice(lastlnum);
-                            tmp = cstrn_as_string(&last_slice);
                             nmatch_tl += nmatch - 1;
-                        }
+                            crate::memline::ml_get_len(lastlnum) as usize
+                        };
                         let copy_len = (regmatch.startpos[0].col - copycol) as usize;
                         sub_grow_buf(
                             &mut new_start,
                             &mut new_start_size,
-                            copy_len + (tmp.size - regmatch.endpos[0].col as usize) + sublen + 1,
+                            copy_len + (tmp_size - regmatch.endpos[0].col as usize) + sublen + 1,
                         );
 
                         let cc = copycol as usize;
@@ -4604,27 +4596,24 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || regmatch.startpos[0].lnum > 0
                 {
                     if !new_start.is_null() {
-                        let tail = crate::memory::bytes_as_cstr(
-                            &sub_firstline.as_slice()
-                                [(copycol as usize).min(sub_firstline.as_slice().len())..],
-                        )
-                        .to_bytes_with_nul()
-                        .to_vec();
-
+                        let cc = (copycol as usize).min(sub_firstline.size);
+                        let tail_len = sub_firstline.size - cc;
                         let ns_size = new_start.size;
-                        new_start.as_mut_slice()[ns_size..ns_size + tail.len()]
-                            .copy_from_slice(&tail);
+                        new_start.as_mut_slice()[ns_size..ns_size + tail_len]
+                            .copy_from_slice(&sub_firstline.as_slice()[cc..cc + tail_len]);
+                        new_start.as_mut_slice()[ns_size + tail_len] = 0;
 
-                        new_start.size += sub_firstline.size - copycol as usize;
+                        new_start.size += tail_len;
                         matchcol = sub_firstline.size as Colnr - matchcol;
                         prev_matchcol = sub_firstline.size as Colnr - prev_matchcol;
 
                         if !u_savesub(lnum) {
                             break;
                         }
-                        ml_replace(
+                        crate::memline::ml_replace_len(
                             lnum,
-                            crate::memory::bytes_until_nul(new_start.as_slice()),
+                            &new_start.as_slice()[..new_start.size],
+                            new_start.size,
                             true,
                         );
 

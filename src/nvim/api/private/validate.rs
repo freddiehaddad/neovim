@@ -1044,15 +1044,15 @@ pub fn api_err_conflict(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi
 /// Validate that `arr` contains only `String` items (and optionally no embedded newlines)
 /// (`check_string_array`).
 pub fn check_string_array(
-    arr: Array,
+    arr: impl std::borrow::Borrow<Array>,
     name: &std::ffi::CStr,
     disallow_nl: bool,
     err: &mut Error,
 ) -> bool {
-    let name_str = name.to_string_lossy();
-    for i in 0..arr.size {
-        let item = &arr[i];
+    let arr = arr.borrow().as_slice();
+    for item in arr {
         if item.obj_type != ObjectType::ObjectTypeString {
+            let name_str = name.to_string_lossy();
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",
                 object_typename(item.obj_type)
@@ -1060,13 +1060,11 @@ pub fn check_string_array(
             set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
             return false;
         }
-        if disallow_nl {
-            let l = item.data.string();
-            if l.as_bytes().contains(&b'\n') {
-                let msg = format!("'{name_str}' item contains newlines");
-                set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
-                return false;
-            }
+        if disallow_nl && item.data.as_bytes().contains(&b'\n') {
+            let name_str = name.to_string_lossy();
+            let msg = format!("'{name_str}' item contains newlines");
+            set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
+            return false;
         }
     }
     true

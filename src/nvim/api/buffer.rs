@@ -36,7 +36,6 @@ use crate::mark::{K_MARK_ADJUST_API, K_MARK_ALL_NO_RESOLVE, mark_adjust_buf, mar
 use crate::marktree::K_MTMETA_LINES;
 use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf_len,
-    ml_replace_buf,
 };
 use crate::memory::Arena;
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
@@ -436,25 +435,14 @@ pub fn nvim_buf_set_lines(
     }
 
     let disallow_nl = channel_id != VIML_INTERNAL_CALL;
-    if !check_string_array(replacement.clone(), c"replacement string", disallow_nl, err) {
+    if !check_string_array(&replacement, c"replacement string", disallow_nl, err) {
         return;
     }
 
-    let new_len = replacement.size;
+    let replacement_slice = replacement.as_slice();
+    let new_len = replacement_slice.len();
     let old_len = (end - start) as usize;
     let mut extra: isize = 0;
-    let mut lines: Vec<Vec<u8>> = Vec::with_capacity(new_len);
-
-    for i in 0..new_len {
-        let l = replacement[i].data.string();
-        let mut p = l.as_bytes().to_vec();
-        for b in &mut p {
-            if *b == 0 {
-                *b = b'\n';
-            }
-        }
-        lines.push(p);
-    }
 
     try_wrap_err(err, |err| 'end: {
         if !b.b_p_ma.get() {
@@ -491,7 +479,8 @@ pub fn nvim_buf_set_lines(
 
         let to_replace = old_len.min(new_len);
         let mut inserted_bytes: Bcount = 0;
-        for (i, line) in lines.iter().enumerate().take(to_replace) {
+        let mut scratch: Vec<u8> = Vec::new();
+        for (i, item) in replacement_slice.iter().enumerate().take(to_replace) {
             let lnum = start + (i as i64);
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -503,7 +492,28 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if !ml_replace_buf(&b, lnum as Linenr, line, false, true) {
+            let raw = item.data.as_bytes();
+            let line: &[u8] = if raw.contains(&0) {
+                scratch.clear();
+                scratch.extend_from_slice(raw);
+                for byte in &mut scratch {
+                    if *byte == 0 {
+                        *byte = b'\n';
+                    }
+                }
+                &scratch
+            } else {
+                raw
+            };
+
+            if !crate::memline::ml_replace_buf_len(
+                &b,
+                lnum as Linenr,
+                line,
+                line.len(),
+                false,
+                true,
+            ) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -515,7 +525,12 @@ pub fn nvim_buf_set_lines(
             inserted_bytes += line.len() as Bcount + 1;
         }
 
-        for (i, line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
+        for (i, item) in replacement_slice
+            .iter()
+            .enumerate()
+            .take(new_len)
+            .skip(to_replace)
+        {
             let lnum = start + (i as i64) - 1;
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -527,7 +542,21 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if !ml_append_buf(&b, lnum as Linenr, line, 0, false) {
+            let raw = item.data.as_bytes();
+            let line: &[u8] = if raw.contains(&0) {
+                scratch.clear();
+                scratch.extend_from_slice(raw);
+                for byte in &mut scratch {
+                    if *byte == 0 {
+                        *byte = b'\n';
+                    }
+                }
+                &scratch
+            } else {
+                raw
+            };
+
+            if !ml_append_buf(&b, lnum as Linenr, line, (line.len() + 1) as Colnr, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
@@ -651,9 +680,8 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_start_slice = crate::memline::ml_get_buf_slice(&b, start_row as Linenr);
-    let len_at_start = str_at_start_slice.len() as Colnr;
-    let str_at_start = str_at_start_slice.to_vec();
+    let str_at_start = crate::memline::with_ml_buf_line(&b, start_row as Linenr, <[u8]>::to_vec);
+    let len_at_start = str_at_start.len() as Colnr;
     if start_col < 0 {
         start_col = i64::from(len_at_start) + start_col + 1;
     }
@@ -662,9 +690,8 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_end_slice = crate::memline::ml_get_buf_slice(&b, end_row as Linenr);
-    let len_at_end = str_at_end_slice.len() as Colnr;
-    let str_at_end = str_at_end_slice.to_vec();
+    let str_at_end = crate::memline::with_ml_buf_line(&b, end_row as Linenr, <[u8]>::to_vec);
+    let len_at_end = str_at_end.len() as Colnr;
     if end_col < 0 {
         end_col = i64::from(len_at_end) + end_col + 1;
     }
@@ -685,7 +712,7 @@ pub fn nvim_buf_set_text(
 
     let disallow_nl = channel_id != VIML_INTERNAL_CALL;
     if replacement.size != 0
-        && !check_string_array(replacement.clone(), c"replacement string", disallow_nl, err)
+        && !check_string_array(&replacement, c"replacement string", disallow_nl, err)
     {
         return;
     }
@@ -820,7 +847,14 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_replace_buf(&b, lnum as Linenr, line, false, true) {
+            if !crate::memline::ml_replace_buf_len(
+                &b,
+                lnum as Linenr,
+                line,
+                line.len(),
+                false,
+                true,
+            ) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -842,7 +876,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_append_buf(&b, lnum as Linenr, line, 0, false) {
+            if !ml_append_buf(&b, lnum as Linenr, line, (line.len() + 1) as Colnr, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }

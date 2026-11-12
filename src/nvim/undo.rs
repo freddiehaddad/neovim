@@ -121,7 +121,7 @@ pub struct UHeader {
     pub uh_alt_prev: Option<usize>,
     pub uh_seq: i32,
     pub uh_walk: i32,
-    pub uh_entries: Vec<UEntry>,
+    pub uh_entries: std::collections::VecDeque<UEntry>,
     pub uh_getbot_entry: bool,
     pub uh_cursor: CursorPos,
     pub uh_cursor_after: CursorPos,
@@ -143,7 +143,7 @@ impl UHeader {
             uh_alt_prev: None,
             uh_seq: 0,
             uh_walk: 0,
-            uh_entries: Vec::new(),
+            uh_entries: std::collections::VecDeque::new(),
             uh_getbot_entry: false,
             uh_cursor: CursorPos::new(),
             uh_cursor_after: CursorPos::new(),
@@ -491,8 +491,8 @@ pub fn u_savecommon(buf: &FileBuf, top: Linenr, bot: Linenr, newbot: Linenr, rel
                         u_getbot(buf);
                         buf.b_u_synced.set(false);
 
-                        let entry = uhp_mut(buf, newhead).uh_entries.remove(i);
-                        uhp_mut(buf, newhead).uh_entries.insert(0, entry);
+                        let entry = uhp_mut(buf, newhead).uh_entries.remove(i).unwrap();
+                        uhp_mut(buf, newhead).uh_entries.push_front(entry);
                     }
 
                     let line_count = buf.b_ml.ml_line_count.get();
@@ -541,7 +541,7 @@ pub fn u_savecommon(buf: &FileBuf, top: Linenr, bot: Linenr, newbot: Linenr, rel
         }
     }
 
-    uhp_mut(buf, newhead).uh_entries.insert(0, uep);
+    uhp_mut(buf, newhead).uh_entries.push_front(uep);
     if reload {
         uhp_mut(buf, newhead).uh_flags |= UH_RELOAD;
     }
@@ -553,7 +553,12 @@ pub fn u_savecommon(buf: &FileBuf, top: Linenr, bot: Linenr, newbot: Linenr, rel
 
 fn u_entry_resized(buf: &FileBuf, uep: &UEntry) -> bool {
     let newhead = uhp_ref(buf, buf.b_u_newhead.get().unwrap());
-    if !newhead.uh_getbot_entry || !ptr::eq(uep, newhead.uh_entries.as_ptr()) {
+    if !newhead.uh_getbot_entry
+        || !newhead
+            .uh_entries
+            .front()
+            .is_some_and(|first| ptr::eq(uep, first))
+    {
         uep.ue_top + uep.ue_size() + 1
             != if uep.ue_bot == 0 {
                 buf.b_ml.ml_line_count.get() + 1
@@ -827,7 +832,7 @@ fn unserialize_uhp(bi: &mut Bufinfo, file_name: &CStr) -> Option<(UHeader, [i32;
     while c == UF_ENTRY_MAGIC {
         let mut error = false;
         let uep = unserialize_uep(bi, &mut error, file_name);
-        uhp.uh_entries.push(uep);
+        uhp.uh_entries.push_back(uep);
         if error {
             return None;
         }
@@ -1994,7 +1999,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     let entries_len = curhead.uh_entries.len();
     for entry_idx in 0..entries_len {
         let is_last = entry_idx + 1 == entries_len;
-        let uep = &mut curhead.uh_entries.as_mut_slice()[entry_idx];
+        let uep = &mut curhead.uh_entries[entry_idx];
         let top = uep.ue_top;
         let mut bot = uep.ue_bot;
         if bot == 0 {
@@ -2064,10 +2069,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         if newsize != 0 {
             for (i, line) in uep.ue_array.drain(..).enumerate() {
                 let lnum = top + i as Linenr;
+                let bytes = line.to_bytes();
                 if empty_buffer && lnum == 0 {
-                    ml_replace(1, line.to_bytes(), true);
+                    crate::memline::ml_replace_len(1, bytes, bytes.len(), true);
                 } else {
-                    ml_append_flags(lnum, line.to_bytes(), 0, 0);
+                    ml_append_flags(lnum, bytes, (bytes.len() + 1) as Colnr, 0);
                 }
             }
         }
@@ -2150,7 +2156,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
     curwin_mut().w_cursor.set(new_curpos);
     check_cursor_lnum(&curwin_mut());
 
-    curhead.uh_entries.reverse();
+    curhead.uh_entries.make_contiguous().reverse();
     curhead.uh_flags = new_flags;
     if (old_flags & UH_EMPTYBUF) != 0 && buf_is_empty(&curbuf_mut()) {
         curbuf_mut()
@@ -2721,16 +2727,15 @@ pub fn u_forget_unchanged(buf: &FileBuf) {
         return;
     }
     for i in 0..ue_size {
-        let saved_bytes = uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize]
-            .as_bytes()
-            .to_vec();
-        let line_bytes = crate::memline::ml_get_buf_slice(buf, ue_top + 1 + i);
-        if saved_bytes.as_slice() != line_bytes {
+        let differs = crate::memline::with_ml_buf_line(buf, ue_top + 1 + i, |line_bytes| {
+            uhp_ref(buf, uhp).uh_entries[0].ue_array[i as usize].as_bytes() != line_bytes
+        });
+        if differs {
             return;
         }
     }
 
-    uhp_mut(buf, uhp).uh_entries.remove(0);
+    uhp_mut(buf, uhp).uh_entries.pop_front();
     uhp_mut(buf, uhp).uh_getbot_entry = false;
     if uhp_ref(buf, uhp).uh_entries.is_empty() {
         u_forget_header(buf, uhp);
@@ -2847,7 +2852,11 @@ fn u_save_line(lnum: Linenr) -> std::ffi::CString {
 }
 
 fn u_save_line_buf(buf: &FileBuf, lnum: Linenr) -> std::ffi::CString {
-    crate::memory::bytes_to_cstring(&crate::memline::ml_get_buf_slice(buf, lnum))
+    crate::memline::with_ml_buf_bytes_with_nul(buf, lnum, |s| {
+        std::ffi::CStr::from_bytes_until_nul(s)
+            .unwrap_or(c"")
+            .to_owned()
+    })
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
