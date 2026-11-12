@@ -10476,6 +10476,39 @@ fn ex_connect(eap: &mut Exarg) {
             );
             return;
         }
+
+        // remote-ssh: UI reconnects through same tunnel, relinked to `addr` (vim.net._ssh.relink()).
+        if !is_tcp
+            && let Some(chan_addr) =
+                find_channel(g_st().current_ui.get()).and_then(|c| c.addr.clone())
+        {
+            let mut argvars = [
+                TypVal {
+                    v_type: VarType::VarString,
+                    v_lock: 0,
+                    vval: TypvalVval::from_opt_cstr(Some(chan_addr.as_c_str())),
+                },
+                TypVal {
+                    v_type: VarType::VarString,
+                    v_lock: 0,
+                    vval: TypvalVval::from_opt_cstr(addr.as_opt_cstr()),
+                },
+                TypVal::new(),
+            ];
+            let mut relinked = TypVal::new();
+            nlua_call_typval(
+                c"vim.net._ssh",
+                c"relink",
+                &mut argvars,
+                Some(&mut relinked),
+            );
+            if relinked.v_type != VarType::VarBool {
+                return;
+            }
+            if relinked.vval.v_bool() == K_BOOL_VAR_TRUE_CONST {
+                addr = crate::strings::OwnedSlice::from_cstr(chan_addr.as_c_str());
+            }
+        }
     }
 
     let stop_server = !is_ssh && ui_active() == 1;
