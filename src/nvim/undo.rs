@@ -1088,7 +1088,7 @@ pub fn u_write_undo(
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
             if buf.b_ffname.get().is_some()
-                && os_fileinfo(buf.ffname_cstr(), &mut file_info_old)
+                && os_fileinfo(&buf.ffname_cstr(), &mut file_info_old)
                 && os_fileinfo(file_name_cstr, &mut file_info_new)
                 && file_info_old.stat.st_gid != file_info_new.stat.st_gid
                 && os_fchown(

@@ -1144,7 +1144,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
             const S_IFMT: i32 = 0o170000;
             const S_IFIFO: i32 = 0o010000;
             const S_IFSOCK: i32 = 0o140000;
-            let perm = os_getperm(curbuf_mut().ffname_cstr());
+            let perm = os_getperm(&curbuf_mut().ffname_cstr());
             if perm >= 0 {
                 let fmt = perm & S_IFMT;
                 #[cfg(any(
@@ -1154,7 +1154,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
                     target_os = "dragonfly",
                     target_os = "macos"
                 ))]
-                let is_chr_fd = fmt == 0o020000 && is_dev_fd_file(curbuf_mut().ffname_bytes());
+                let is_chr_fd = fmt == 0o020000 && is_dev_fd_file(&curbuf_mut().ffname_bytes());
                 #[cfg(not(any(
                     target_os = "freebsd",
                     target_os = "netbsd",

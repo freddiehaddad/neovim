@@ -1327,7 +1327,7 @@ pub fn buf_write(
                 && perm >= 0
                 && (perm & 0o200) == 0
                 && file_info_old.stat.st_uid == u64::from(getuid())
-                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE)
+                && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE)
             {
                 perm |= 0o200;
                 let _ = os_setperm(fname.unwrap_or(c""), perm);
@@ -1479,7 +1479,7 @@ pub fn buf_write(
                                         );
                                         if forceit
                                             && !crate::strings::vim_haschr(
-                                                opt_vars().p_cpo.as_cstr(),
+                                                &opt_vars().p_cpo.as_cstr(),
                                                 K_CPO_FWRITE,
                                             )
                                             && perm >= 0

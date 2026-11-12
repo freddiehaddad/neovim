@@ -2169,7 +2169,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 break 'theend;
             }
             #[cfg(unix)]
-            if !check_writable(curbuf_mut().ffname_cstr()) {
+            if !check_writable(&curbuf_mut().ffname_cstr()) {
                 break 'theend;
             }
             if check_readonly(&mut eap.forceit, &curbuf_mut()) {

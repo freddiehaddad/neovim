@@ -2616,18 +2616,22 @@ fn find_is_eval_item(
     false
 }
 
-pub fn find_ident_under_cursor(find_type: i32, offset: Option<&mut i32>) -> Vec<u8> {
+pub fn find_ident_under_cursor(find_type: i32, textcol_out: Option<&mut i32>) -> Vec<u8> {
     let mut textcol: i32 = 0;
-    let has_offset = offset.is_some();
+    let has_textcol = textcol_out.is_some();
     let ident = find_ident_at_pos(
         &curwin_mut(),
         curwin_mut().w_cursor.get().lnum,
         curwin_mut().w_cursor.get().col,
-        if has_offset { Some(&mut textcol) } else { None },
+        if has_textcol {
+            Some(&mut textcol)
+        } else {
+            None
+        },
         find_type,
     );
-    if let Some(offset) = offset {
-        *offset = curwin_mut().w_cursor.get().col - textcol;
+    if let Some(out) = textcol_out {
+        *out = textcol;
     }
     ident
 }
@@ -4369,10 +4373,7 @@ fn nv_ident(cap: &mut Cmdarg) {
     match cmdchar {
         c if c == b'*' as i32 || c == b'#' as i32 => {
             setpcmark();
-            curwin_mut().w_cursor.set_col(
-                ((ident_slice.as_ptr() as isize) - (get_cursor_line_ptr().as_ptr() as isize))
-                    as Colnr,
-            );
+            curwin_mut().w_cursor.set_col(ident_offset);
 
             if !g_cmd && vim_iswordp(ident_slice) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
