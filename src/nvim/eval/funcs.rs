@@ -2347,25 +2347,29 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
     };
 
     let mut list_opt = argvars[0].vval.v_list_opt();
-    rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(argvars[0].vval.v_list());
     if list_opt.is_none() {
+        rettv.v_type = VarType::VarList;
+        rettv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::NULL);
         return;
     }
 
+    let copied_id;
     if make_copy {
-        let copied = crate::eval::typval::ListId::from(tv_list_copy(
+        copied_id = crate::eval::typval::ListId::from(tv_list_copy(
             None,
             list_opt.take(),
             false,
             get_copy_id(),
         ));
-        rettv.vval = crate::eval::typval::TypvalVval::List(copied);
-        list_opt = rettv.vval.v_list_opt();
+        list_opt = copied_id.opt();
         if list_opt.is_none() {
             return;
         }
     } else {
+        // Do not touch "rettv" before the lock check: on failure "rettv"
+        // must stay VAR_UNKNOWN, since the caller unconditionally calls
+        // clear_tv() on it, which must not drop a reference to "l" that
+        // was never taken.
         if value_check_lock(
             tv_list_locked(list_opt),
             Some(c"flatten() argument"),
@@ -2374,9 +2378,12 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
             return;
         }
         tv_list_ref(list_opt);
+        copied_id = argvars[0].vval.v_list();
     }
 
-    let list_ref = list_opt.unwrap();
+    rettv.v_type = VarType::VarList;
+    rettv.vval = crate::eval::typval::TypvalVval::List(copied_id);
+    let list_ref = rettv.vval.v_list_ref();
     let len = i64::from(tv_list_len(Some(list_ref)));
     tv_list_flatten(list_ref, None, len, i64::from(maxdepth));
 }
@@ -5973,8 +5980,7 @@ pub fn f_range(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         return;
     }
 
-    let len: u64;
-    if if stride > 0 { end < start } else { end > start } {
+    let len: u64 = if if stride > 0 { end < start } else { end > start } {
         // One step before the start gives an empty list, further away is
         // an error.  Subtract unsigned to avoid an overflow.
         let back = if stride > 0 {
@@ -5986,7 +5992,7 @@ pub fn f_range(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             emsg(gettext(c"E727: Start past end"));
             return;
         }
-        len = 0;
+        0
     } else {
         let astride = if stride > 0 { stride } else { -stride } as u64;
         let span = if stride > 0 {
@@ -6002,8 +6008,8 @@ pub fn f_range(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             semsg!(gettext(E_VAL_TOO_LARGE), crate::memory::bytes_as_cstr(&buf));
             return;
         }
-        len = count + 1;
-    }
+        count + 1
+    };
 
     tv_list_alloc_ret(rettv, len as isize);
     let mut i = start;
