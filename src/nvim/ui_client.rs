@@ -465,7 +465,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
     let mut err: Option<&CStr> = None;
     let is_tcp = socket_address_tcp_host_end(server_addr.to_bytes()).is_some();
     let on_data = CallbackReader::none();
-    let chan = channel_connect(is_tcp, &server_addr, true, false, on_data, 50, &mut err);
+    let chan = channel_connect(is_tcp, &server_addr, true, false, on_data, 500, &mut err);
 
     if let Some(err_cstr) = err {
         logmsg!(
@@ -594,7 +594,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         let is_tcp = socket_address_tcp_host_end(first_arg_cstr.to_bytes()).is_some();
         let mut err: Option<&CStr> = None;
         let on_data = CallbackReader::none();
-        let id = channel_connect(is_tcp, first_arg_cstr, true, false, on_data, 50, &mut err);
+        let id = channel_connect(is_tcp, first_arg_cstr, true, false, on_data, 500, &mut err);
         if let Some(err_cstr) = err {
             logmsg!(
                 LOGLVL_ERR,
