@@ -1041,6 +1041,10 @@ impl AsMbyteSlice for crate::regexp::RegLineSlice {
             f(&[])
         } else if b0 < 0x80 {
             f(&[b0])
+        } else if self.valid_len() >= 4 {
+            let lb = self.lookahead_bytes();
+            let valid = &lb[..self.valid_len() as usize];
+            f(crate::memory::bytes_until_nul(valid))
         } else {
             self.with_bytes(|b| f(&b[..b.len().min(MB_MAXCHAR as usize)]))
         }

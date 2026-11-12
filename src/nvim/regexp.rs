@@ -383,19 +383,23 @@ const REG_LINE_SLOTS: usize = 64;
 #[derive(Clone, Copy, Default, Debug)]
 pub struct RegLineSlice {
     slot: u8,
-    is_some: bool,
-    b0: u8,
-    b1: u8,
+    valid: u8,
     off: u32,
-    addr: usize,
+    b: [u8; 8],
 }
 
 impl PartialEq for RegLineSlice {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
-        match (self.is_some, other.is_some) {
+        match (self.valid != 0, other.valid != 0) {
             (false, false) => true,
-            (true, true) => self.addr == other.addr,
+            (true, true) => {
+                if self.slot == other.slot {
+                    self.off == other.off
+                } else {
+                    self.addr() == other.addr()
+                }
+            }
             _ => false,
         }
     }
@@ -405,42 +409,56 @@ impl Eq for RegLineSlice {}
 
 pub const REG_LINE_NULL: RegLineSlice = RegLineSlice {
     slot: 0,
-    is_some: false,
-    b0: 0,
-    b1: 0,
+    valid: 0,
     off: 0,
-    addr: 0,
+    b: [0; 8],
 };
 
 impl RegLineSlice {
     #[inline(always)]
     pub const fn is_null(self) -> bool {
-        !self.is_some
+        self.valid == 0
     }
 
     #[inline(always)]
-    pub const fn addr(self) -> usize {
-        if self.is_some { self.addr } else { 0 }
+    pub fn addr(self) -> usize {
+        if self.valid == 0 {
+            0
+        } else {
+            LINE_SLOTS
+                .with(|cell| cell.borrow().line_slot_addrs[self.slot as usize])
+                .wrapping_add(self.off as usize)
+        }
     }
 
     #[inline(always)]
     pub const fn first_byte(self) -> u8 {
-        self.b0
+        self.b[0]
     }
 
     #[inline(always)]
     pub const fn second_byte(self) -> u8 {
-        self.b1
+        self.b[1]
+    }
+
+    #[inline(always)]
+    pub const fn lookahead_bytes(&self) -> &[u8] {
+        &self.b
+    }
+
+    #[inline(always)]
+    pub const fn valid_len(self) -> u8 {
+        self.valid
     }
 
     #[inline(always)]
     pub const fn is_empty(self) -> bool {
-        self.b0 == 0
+        self.b[0] == 0
     }
 
     #[inline(always)]
     pub fn with_raw_bytes<R>(self, f: impl FnOnce(&[u8]) -> R) -> R {
-        if !self.is_some {
+        if self.valid == 0 {
             return f(&[]);
         }
         LINE_SLOTS.with(|cell| {
@@ -453,7 +471,7 @@ impl RegLineSlice {
 
     #[inline(always)]
     pub fn with_bytes<R>(self, f: impl FnOnce(&[u8]) -> R) -> R {
-        if !self.is_some {
+        if self.valid == 0 {
             return f(&[]);
         }
         LINE_SLOTS.with(|cell| {
@@ -487,39 +505,59 @@ impl RegLineSlice {
 
     #[inline(always)]
     pub fn wrapping_add(self, n: usize) -> Self {
-        if !self.is_some {
+        if self.valid == 0 {
             return REG_LINE_NULL;
         }
-        if n == 0 || self.b0 == 0 {
+        if n == 0 || self.b[0] == 0 {
             return self;
+        }
+        if n == 1 && self.valid > 2 {
+            return Self {
+                slot: self.slot,
+                valid: self.valid - 1,
+                off: self.off + 1,
+                b: (u64::from_le_bytes(self.b) >> 8).to_le_bytes(),
+            };
+        }
+        if n < 7 && (self.valid as usize) > n + 1 {
+            let mut actual = 0usize;
+            while actual < n && self.b[actual] != 0 {
+                actual += 1;
+            }
+            return Self {
+                slot: self.slot,
+                valid: self.valid - actual as u8,
+                off: self.off + actual as u32,
+                b: (u64::from_le_bytes(self.b) >> (actual * 8)).to_le_bytes(),
+            };
         }
         LINE_SLOTS.with(|cell| {
             let slots = cell.borrow();
-            let b = &slots.line_slots[self.slot as usize];
-            let max_off = b.len().saturating_sub(1);
-            let cur_off = self.off as usize;
-            let new_off = (cur_off + n).min(max_off);
-            let delta = new_off.saturating_sub(cur_off);
-            let b0 = b.get(new_off).copied().unwrap_or(0);
-            let b1 = if b0 != 0 {
-                b.get(new_off + 1).copied().unwrap_or(0)
-            } else {
-                0
-            };
+            let slice = &slots.line_slots[self.slot as usize];
+            let max_off = slice.len().saturating_sub(1);
+            let new_off = ((self.off as usize) + n).min(max_off);
+            let rem = &slice[new_off..];
+            let mut b = [0u8; 8];
+            let copy_len = rem.len().min(8);
+            b[..copy_len].copy_from_slice(&rem[..copy_len]);
             Self {
                 slot: self.slot,
-                is_some: true,
-                b0,
-                b1,
+                valid: 8,
                 off: new_off as u32,
-                addr: self.addr.wrapping_add(delta),
+                b,
             }
         })
     }
 
     #[inline(always)]
-    pub const fn offset_from(self, base: Self) -> usize {
-        self.addr().saturating_sub(base.addr())
+    pub fn offset_from(self, base: Self) -> usize {
+        if self.valid == 0 || base.valid == 0 {
+            0
+        } else if self.slot == base.slot {
+            (self.off as usize).saturating_sub(base.off as usize)
+        } else {
+            self.addr().saturating_sub(base.addr())
+        }
     }
 
     #[inline(always)]
@@ -533,40 +571,51 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
-    pub const fn before(self, other: Self) -> bool {
-        self.is_some && other.is_some && self.addr < other.addr
+    pub fn before(self, other: Self) -> bool {
+        self.valid != 0
+            && other.valid != 0
+            && if self.slot == other.slot {
+                self.off < other.off
+            } else {
+                self.addr() < other.addr()
+            }
     }
 }
 
 #[inline(always)]
 pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
     let bytes = s.to_bytes_with_nul();
+    let len = bytes.len();
     let addr = s.as_ptr() as usize;
-    let b0 = bytes.first().copied().unwrap_or(0);
-    let b1 = if b0 != 0 {
-        bytes.get(1).copied().unwrap_or(0)
-    } else {
-        0
-    };
+    let mut b = [0u8; 8];
+    let copy_len = len.min(8);
+    b[..copy_len].copy_from_slice(&bytes[..copy_len]);
     let slot = LINE_SLOTS.with(|cell| {
         let mut st = cell.borrow_mut();
+        let cur_gen = st.cur_gen;
         let cur = st.cur_line_slot;
-        if st.line_slot_addrs[cur] != addr || st.line_slots[cur].as_slice() != bytes {
-            let next = (cur + 1) % REG_LINE_SLOTS;
-            st.cur_line_slot = next;
-            st.line_slot_addrs[next] = addr;
-            st.line_slots[next].clear();
-            st.line_slots[next].extend_from_slice(bytes);
+        for step in 0..4 {
+            let idx = (cur + REG_LINE_SLOTS - step) % REG_LINE_SLOTS;
+            if st.line_slot_gens[idx] == cur_gen
+                && st.line_slot_addrs[idx] == addr
+                && st.line_slots[idx].len() == len
+            {
+                return idx as u8;
+            }
         }
-        st.cur_line_slot as u8
+        let next = (cur + 1) % REG_LINE_SLOTS;
+        st.cur_line_slot = next;
+        st.line_slot_gens[next] = cur_gen;
+        st.line_slot_addrs[next] = addr;
+        st.line_slots[next].clear();
+        st.line_slots[next].extend_from_slice(bytes);
+        next as u8
     });
     RegLineSlice {
         slot,
-        is_some: true,
-        b0,
-        b1,
+        valid: 8,
         off: 0,
-        addr,
+        b,
     }
 }
 
@@ -1564,7 +1613,9 @@ static DECOMP_TABLE: [Decomp; 0xfb4f - 0xfb20 + 1] = [
 struct RegLineSlots {
     line_slots: [Vec<u8>; REG_LINE_SLOTS],
     line_slot_addrs: [usize; REG_LINE_SLOTS],
+    line_slot_gens: [u64; REG_LINE_SLOTS],
     cur_line_slot: usize,
+    cur_gen: u64,
 }
 
 impl RegLineSlots {
@@ -1572,7 +1623,9 @@ impl RegLineSlots {
         Self {
             line_slots: [const { Vec::new() }; REG_LINE_SLOTS],
             line_slot_addrs: [0; REG_LINE_SLOTS],
+            line_slot_gens: [0; REG_LINE_SLOTS],
             cur_line_slot: 0,
+            cur_gen: 1,
         }
     }
 }
@@ -1777,13 +1830,24 @@ impl RegexecState {
         self.reg_buf.get()
     }
     #[inline(always)]
+    pub fn with_buf<R>(&self, f: impl FnOnce(&FileBuf) -> R) -> R {
+        self.reg_buf.with(|b| f(b))
+    }
+    #[inline(always)]
     pub fn win_mut(&self) -> crate::globals::WinPtr {
         self.reg_win.get()
     }
     #[inline(always)]
+    pub fn win_cursor(&self) -> Option<crate::cursor::CursorPos> {
+        self.reg_win.with(|w| w.opt().map(|wp| wp.w_cursor.get()))
+    }
+    #[inline(always)]
+    pub fn buf_chartab(&self) -> [u64; 4] {
+        self.reg_buf.with(|b| b.b_chartab.get())
+    }
+    #[inline(always)]
     pub fn load_line(&self, lnum: Linenr) {
-        self.line
-            .set(reg_line_from_opt_cstr(reg_getline(lnum).as_deref()));
+        self.line.set(reg_load_line_slice(lnum));
     }
     #[inline(always)]
     pub fn input_col(&self) -> Colnr {
@@ -2771,7 +2835,7 @@ pub(super) fn reg_breakcheck() {
 }
 
 pub(super) fn reg_iswordc(c: i32) -> bool {
-    vim_iswordc_buf(c, &RE_STATE.with(|s| s.rex.buf_mut()))
+    RE_STATE.with(|s| s.rex.with_buf(|buf| vim_iswordc_buf(c, buf)))
 }
 
 #[inline(always)]
@@ -2786,6 +2850,27 @@ fn reg_getline_bounds(lnum: Linenr, submatch: bool) -> (Linenr, Linenr) {
     })
 }
 
+#[inline(always)]
+pub(super) fn reg_with_cstr<R>(lnum: Linenr, f: impl FnOnce(Option<&std::ffi::CStr>) -> R) -> R {
+    RE_STATE.with(|s| {
+        let firstlnum = s.rex.reg_firstlnum.get() + lnum;
+        let maxline = s.rex.reg_maxline.get();
+        if firstlnum < 1 {
+            return f(None);
+        }
+        if lnum > maxline {
+            return f(Some(c""));
+        }
+        s.rex
+            .with_buf(|buf| crate::memline::with_ml_buf_cstr(buf, firstlnum, |cstr| f(Some(cstr))))
+    })
+}
+
+#[inline(always)]
+pub(super) fn reg_load_line_slice(lnum: Linenr) -> RegLineSlice {
+    reg_with_cstr(lnum, reg_line_from_opt_cstr)
+}
+
 pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcCStr> {
     RE_STATE.with(|s| {
         let firstlnum = s.rex.reg_firstlnum.get() + lnum;
@@ -2795,7 +2880,7 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcCStr> {
         if lnum > s.rex.reg_maxline.get() {
             return Some(crate::option_vars::RcCStr::EMPTY);
         }
-        Some(ml_get_buf(&s.rex.buf_mut(), firstlnum))
+        Some(s.rex.with_buf(|buf| ml_get_buf(buf, firstlnum)))
     })
 }
 
@@ -2805,7 +2890,7 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
         if firstlnum < 1 || lnum > s.rex.reg_maxline.get() {
             return 0;
         }
-        ml_get_buf_len(&s.rex.buf_mut(), firstlnum)
+        s.rex.with_buf(|buf| ml_get_buf_len(buf, firstlnum))
     })
 }
 
@@ -2813,11 +2898,12 @@ pub(super) fn reg_prev_class() -> i32 {
     let off = RE_STATE.with(|s| s.rex.input_off());
     if off > 0 {
         return RE_STATE.with(|s| {
+            let chartab = s.rex.buf_chartab();
             s.rex.line.get().with_raw_bytes(|line_bytes| {
                 let prev_off = off - 1;
                 let head_off =
                     prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
-                mb_get_class_tab(&line_bytes[head_off..], &s.rex.buf_mut().b_chartab.get())
+                mb_get_class_tab(&line_bytes[head_off..], &chartab)
             })
         });
     }
@@ -3004,10 +3090,12 @@ pub(super) fn cleanup_zsubexpr() {
 }
 
 pub(super) fn reg_nextline() {
-    RE_STATE.with(|s| s.rex.lnum.set(s.rex.lnum.get() + (1)));
-    let cur_lnum = RE_STATE.with(|s| s.rex.lnum.get());
-    RE_STATE.with(|s| s.rex.load_line(cur_lnum));
-    RE_STATE.with(|s| s.rex.input.set(RE_STATE.with(|s| s.rex.line.get())));
+    RE_STATE.with(|s| {
+        let cur_lnum = s.rex.lnum.get() + 1;
+        s.rex.lnum.set(cur_lnum);
+        s.rex.load_line(cur_lnum);
+        s.rex.input.set(s.rex.line.get());
+    });
     reg_breakcheck();
 }
 
@@ -4207,6 +4295,10 @@ fn report_re_switch(pat: &CStr) {
 }
 
 fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> i32 {
+    LINE_SLOTS.with(|cell| {
+        let mut st = cell.borrow_mut();
+        st.cur_gen = st.cur_gen.wrapping_add(1);
+    });
     let prog = rmp.regprog.opt().unwrap().clone();
     match &mut *prog.0.engine.borrow_mut() {
         RegProgEngine::Bt(bt) => bt_regexec_nl(bt, rmp, line, col, nl),
@@ -4223,6 +4315,10 @@ fn exec_regmmatch_multi(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
+    LINE_SLOTS.with(|cell| {
+        let mut st = cell.borrow_mut();
+        st.cur_gen = st.cur_gen.wrapping_add(1);
+    });
     let prog = rmp.regprog.opt().unwrap().clone();
     match &mut *prog.0.engine.borrow_mut() {
         RegProgEngine::Bt(bt) => bt_regexec_multi(bt, rmp, win, buf, lnum, col, tm, timed_out),

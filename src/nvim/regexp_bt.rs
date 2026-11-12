@@ -198,11 +198,10 @@ fn operand_cmp(prog: &[u8], idx: usize) -> u8 {
 
 #[inline(always)]
 fn advance_reginput() {
-    let step = utfc_ptr2len(RE_STATE.with(|s| s.rex.input.get())) as usize;
     RE_STATE.with(|s| {
-        s.rex
-            .input
-            .set(RE_STATE.with(|s| s.rex.input.get()).wrapping_add(step))
+        let inp = s.rex.input.get();
+        let step = utfc_ptr2len(inp) as usize;
+        s.rex.input.set(inp.wrapping_add(step));
     });
 }
 
@@ -2197,49 +2196,46 @@ pub(super) fn bt_regcomp(expr: &CStr, re_flags: i32) -> Option<BtRegprog> {
 
 fn reg_save(save: &mut Regsave) {
     let len = BACKPOS.with(|c| c.borrow().len()) as i32;
-    if reg_multi() {
-        save.rs_u = crate::regexp::RegPos::from_pos(Lpos {
-            col: RE_STATE.with(|s| s.rex.input_col()),
-            lnum: RE_STATE.with(|s| s.rex.lnum.get()),
-        });
-    } else {
-        save.rs_u.ptr = RE_STATE.with(|s| s.rex.input.get());
-    }
+    RE_STATE.with(|s| {
+        if !s.rex.has_match.get() {
+            save.rs_u = crate::regexp::RegPos::from_pos(Lpos {
+                col: s.rex.input_col(),
+                lnum: s.rex.lnum.get(),
+            });
+        } else {
+            save.rs_u.ptr = s.rex.input.get();
+        }
+    });
     save.rs_len = len;
 }
 
 fn reg_restore(save: &mut Regsave) {
-    if reg_multi() {
-        let pos = save.rs_u.pos();
-        if RE_STATE.with(|s| s.rex.lnum.get()) != pos.lnum {
-            RE_STATE.with(|s| s.rex.lnum.set(pos.lnum));
-            RE_STATE.with(|s| s.rex.load_line(pos.lnum));
+    RE_STATE.with(|s| {
+        if !s.rex.has_match.get() {
+            let pos = save.rs_u.pos();
+            if s.rex.lnum.get() != pos.lnum {
+                s.rex.lnum.set(pos.lnum);
+                s.rex.load_line(pos.lnum);
+            }
+            s.rex
+                .input
+                .set(s.rex.line.get().wrapping_add(pos.col as usize));
+        } else {
+            s.rex.input.set(save.rs_u.ptr);
         }
-        RE_STATE.with(|s| {
-            s.rex.input.set(
-                RE_STATE
-                    .with(|s| s.rex.line.get())
-                    .wrapping_add(pos.col as usize),
-            )
-        });
-    } else {
-        RE_STATE.with(|s| s.rex.input.set(save.rs_u.ptr));
-    }
+    });
     BACKPOS.with(|c| c.borrow_mut().truncate(save.rs_len as usize));
 }
 
 fn reg_save_equal(save: &Regsave) -> bool {
-    if reg_multi() {
-        let pos = save.rs_u.pos();
-        RE_STATE.with(|s| s.rex.lnum.get()) == pos.lnum
-            && RE_STATE.with(|s| s.rex.input.get()).addr()
-                == RE_STATE
-                    .with(|s| s.rex.line.get())
-                    .wrapping_add(pos.col as usize)
-                    .addr()
-    } else {
-        RE_STATE.with(|s| s.rex.input.get()).addr() == save.rs_u.ptr.addr()
-    }
+    RE_STATE.with(|s| {
+        if !s.rex.has_match.get() {
+            let pos = save.rs_u.pos();
+            s.rex.lnum.get() == pos.lnum && s.rex.input_col() == pos.col
+        } else {
+            s.rex.input.get() == save.rs_u.ptr
+        }
+    })
 }
 
 fn save_se_multi(savep: &mut SaveSe, posp: &mut Lpos) {
@@ -2350,36 +2346,47 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         let do_class =
             |mask: i16, testval: i16, scan: &mut crate::regexp::RegLineSlice, count: &mut i64| {
                 while *count < maxcount {
-                    let b0 = (*scan).first_byte();
-                    if b0 == NUL {
-                        if re_s.rex.has_match.get()
-                            || !with_nl(op)
-                            || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
-                            || re_s.rex.reg_line_lbr.get()
-                        {
-                            break;
-                        }
-                        reg_nextline();
-                        *scan = re_s.rex.input.get();
-                        if g_st().got_int.get() {
-                            break;
-                        }
-                    } else {
-                        let l = utfc_ptr2len(*scan);
-                        if l > 1 {
-                            if testval != 0 {
+                    let byte_adv = (*scan).with_bytes(|bytes| {
+                        let mut idx = 0usize;
+                        while idx < bytes.len() && *count < maxcount {
+                            let b0 = bytes[idx];
+                            let l = if b0 < 0x80 && !matches!(bytes.get(idx + 1), Some(0x80..)) {
+                                1
+                            } else {
+                                crate::mbyte::utfc_slice2len(&bytes[idx..])
+                            };
+                            if l > 1 {
+                                if testval != 0 {
+                                    break;
+                                }
+                                idx += l;
+                            } else if ((RI_CLASS_TAB[b0 as usize] & mask) == testval)
+                                || (re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op))
+                            {
+                                idx += 1;
+                            } else {
                                 break;
                             }
-                            *scan = (*scan).wrapping_add(l as usize);
-                        } else if ((RI_CLASS_TAB[b0 as usize] & mask) == testval)
-                            || (re_s.rex.reg_line_lbr.get() && b0 == b'\n' && with_nl(op))
-                        {
-                            *scan = (*scan).wrapping_add(1);
-                        } else {
-                            break;
+                            *count += 1;
                         }
+                        idx
+                    });
+                    *scan = (*scan).wrapping_add(byte_adv);
+                    if (*scan).first_byte() != NUL
+                        || re_s.rex.has_match.get()
+                        || !with_nl(op)
+                        || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
+                        || re_s.rex.reg_line_lbr.get()
+                        || *count == maxcount
+                    {
+                        break;
                     }
+                    reg_nextline();
+                    *scan = re_s.rex.input.get();
                     *count += 1;
+                    if g_st().got_int.get() {
+                        break;
+                    }
                 }
             };
 
@@ -2449,7 +2456,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             }
             while count < maxcount {
                 let b0 = (scan).first_byte();
-                if scan.with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
+                if scan.with_bytes(|b| re_s.rex.with_buf(|buf| vim_iswordp_buf(b, buf)))
                     && (testval != 0 || !ascii_isdigit(b0 as i32))
                 {
                     let step = utfc_ptr2len(scan) as usize;
@@ -2853,7 +2860,7 @@ fn regmatch_inner(
                     let c = utf_ptr2char(re_s.rex.input.get());
                     match op {
                         BOL => {
-                            if re_s.rex.input.get().addr() != re_s.rex.line.get().addr() {
+                            if re_s.rex.input.get() != re_s.rex.line.get() {
                                 status = RegAction::NoMatch;
                             }
                         }
@@ -2864,7 +2871,7 @@ fn regmatch_inner(
                         }
                         RE_BOF => {
                             if re_s.rex.lnum.get() != 0
-                                || re_s.rex.input.get().addr() != re_s.rex.line.get().addr()
+                                || re_s.rex.input.get() != re_s.rex.line.get()
                                 || (!re_s.rex.has_match.get() && re_s.rex.reg_firstlnum.get() > 1)
                             {
                                 status = RegAction::NoMatch;
@@ -2877,11 +2884,10 @@ fn regmatch_inner(
                             }
                         }
                         CURSOR => {
-                            if re_s.rex.reg_win.get().is_null()
-                                || (re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get()
-                                    != re_s.rex.win_mut().w_cursor.get().lnum)
-                                || (re_s.rex.input_col() != re_s.rex.win_mut().w_cursor.get().col)
-                            {
+                            if !re_s.rex.win_cursor().is_some_and(|cur| {
+                                re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get() == cur.lnum
+                                    && re_s.rex.input_col() == cur.col
+                            }) {
                                 status = RegAction::NoMatch;
                             }
                         }
@@ -2991,21 +2997,27 @@ fn regmatch_inner(
                             if c == NUL as i32 {
                                 status = RegAction::NoMatch;
                             } else {
-                                let this_class = re_s.rex.input.get().with_raw_bytes(|b| {
-                                    mb_get_class_tab(b, &re_s.rex.buf_mut().b_chartab.get())
-                                });
+                                let chartab = re_s.rex.buf_chartab();
+                                let this_class = re_s
+                                    .rex
+                                    .input
+                                    .get()
+                                    .with_raw_bytes(|b| mb_get_class_tab(b, &chartab));
                                 if this_class <= 1 || reg_prev_class() == this_class {
                                     status = RegAction::NoMatch;
                                 }
                             }
                         }
                         EOW => {
-                            if re_s.rex.input.get().addr() == re_s.rex.line.get().addr() {
+                            if re_s.rex.input.get() == re_s.rex.line.get() {
                                 status = RegAction::NoMatch;
                             } else {
-                                let this_class = re_s.rex.input.get().with_raw_bytes(|b| {
-                                    mb_get_class_tab(b, &re_s.rex.buf_mut().b_chartab.get())
-                                });
+                                let chartab = re_s.rex.buf_chartab();
+                                let this_class = re_s
+                                    .rex
+                                    .input
+                                    .get()
+                                    .with_raw_bytes(|b| mb_get_class_tab(b, &chartab));
                                 let prev_class = reg_prev_class();
                                 if this_class == prev_class || prev_class == 0 || prev_class == 1 {
                                     status = RegAction::NoMatch;
@@ -3038,7 +3050,7 @@ fn regmatch_inner(
                                 .rex
                                 .input
                                 .get()
-                                .with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
+                                .with_bytes(|b| re_s.rex.with_buf(|buf| vim_iswordp_buf(b, buf)))
                             {
                                 status = RegAction::NoMatch;
                             } else {
@@ -3047,11 +3059,9 @@ fn regmatch_inner(
                         }
                         SKWORD => {
                             if ascii_isdigit(input_byte() as i32)
-                                || !re_s
-                                    .rex
-                                    .input
-                                    .get()
-                                    .with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
+                                || !re_s.rex.input.get().with_bytes(|b| {
+                                    re_s.rex.with_buf(|buf| vim_iswordp_buf(b, buf))
+                                })
                             {
                                 status = RegAction::NoMatch;
                             } else {
@@ -3661,9 +3671,7 @@ fn regmatch_inner(
                                 {
                                     status = RegAction::NoMatch;
                                 }
-                            } else if re_s.behind_pos.get().rs_u.ptr.addr()
-                                != re_s.rex.input.get().addr()
-                            {
+                            } else if re_s.behind_pos.get().rs_u.ptr != re_s.rex.input.get() {
                                 status = RegAction::NoMatch;
                             }
                         }
@@ -3866,7 +3874,9 @@ fn regmatch_inner(
                                     rp.rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
 
                                     let new_lnum = rp.rs_un.regsave().rs_u.pos().lnum;
-                                    if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_none() {
+                                    if new_lnum + 1 < bpos.lnum
+                                        || re_s.rex.reg_firstlnum.get() + new_lnum < 1
+                                    {
                                         no = false;
                                     } else {
                                         reg_restore(rp.rs_un.regsave_mut());
@@ -3874,18 +3884,25 @@ fn regmatch_inner(
                                             reg_getline_len(re_s.rex.lnum.get());
                                     }
                                 } else {
-                                    let line_opt = reg_getline(rp_pos.lnum);
-                                    let line_bytes =
-                                        line_opt.as_deref().map_or(&[][..], CStr::to_bytes);
-                                    rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
-                                        crate::mbyte::utf_head_off_slice(
-                                            line_bytes,
-                                            rp_pos.col as usize - 1,
-                                        ) + 1;
+                                    let head_off = if rp_pos.lnum == re_s.rex.lnum.get() {
+                                        re_s.rex.line.get().with_raw_bytes(|line_bytes| {
+                                            crate::mbyte::utf_head_off_slice(
+                                                line_bytes,
+                                                rp_pos.col as usize - 1,
+                                            )
+                                        })
+                                    } else {
+                                        crate::regexp::reg_with_cstr(rp_pos.lnum, |opt| {
+                                            let line_bytes = opt.map_or(&[][..], CStr::to_bytes);
+                                            crate::mbyte::utf_head_off_slice(
+                                                line_bytes,
+                                                rp_pos.col as usize - 1,
+                                            )
+                                        })
+                                    };
+                                    rp.rs_un.regsave_mut().rs_u.pos_mut().col -= head_off + 1;
                                 }
-                            } else if rp.rs_un.regsave().rs_u.ptr.addr()
-                                == re_s.rex.line.get().addr()
-                            {
+                            } else if rp.rs_un.regsave().rs_u.ptr == re_s.rex.line.get() {
                                 no = false;
                             } else {
                                 let line = re_s.rex.line.get();
@@ -3949,8 +3966,7 @@ fn regmatch_inner(
                                         if rst.count < rst.minval {
                                             break;
                                         }
-                                        if re_s.rex.input.get().addr() == re_s.rex.line.get().addr()
-                                        {
+                                        if re_s.rex.input.get() == re_s.rex.line.get() {
                                             if re_s.rex.lnum.get() == 0 {
                                                 status = RegAction::NoMatch;
                                                 break;
@@ -4037,13 +4053,12 @@ fn regmatch_inner(
 fn regtry(
     prog: &mut BtRegprog,
     col: Colnr,
+    cur_input: RegLineSlice,
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        re_s.rex
-            .input
-            .set(re_s.rex.line.get().wrapping_add(col as usize));
+        re_s.rex.input.set(cur_input);
         re_s.rex.need_clear_subexpr.set(true);
         re_s.rex
             .need_clear_zsubexpr
@@ -4074,7 +4089,7 @@ fn regtry(
             }
         } else {
             if re_s.rex.rm_startp[0].get().is_null() {
-                re_s.rex.rm_startp[0].set(re_s.rex.line.get().wrapping_add(col as usize));
+                re_s.rex.rm_startp[0].set(cur_input);
             }
             if re_s.rex.rm_endp[0].get().is_null() {
                 re_s.rex.rm_endp[0].set(re_s.rex.input.get());
@@ -4134,7 +4149,7 @@ fn bt_regexec_both(
         });
 
         if !re_s.rex.has_match.get() {
-            line = reg_line_from_opt_cstr(reg_getline(0).as_deref());
+            line = crate::regexp::reg_load_line_slice(0);
         }
         if line.is_null() {
             iemsg(tr(E_NULL));
@@ -4207,8 +4222,9 @@ fn bt_regexec_both(
         re_s.rex.lnum.set(0);
         re_s.reg_toolong.set(0);
 
+        let mut cur_input = line.wrapping_add(col as usize);
         if prog.reganch != 0 {
-            let c = utf_ptr2char(re_s.rex.line.get().wrapping_add(col as usize));
+            let c = utf_ptr2char(cur_input);
             if prog.regstart == NUL as i32
                 || prog.regstart == c
                 || (re_s.rex.reg_ic.get()
@@ -4220,6 +4236,7 @@ fn bt_regexec_both(
                 retval = regtry(
                     &mut *prog,
                     col,
+                    cur_input,
                     tm,
                     (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
                 );
@@ -4230,17 +4247,16 @@ fn bt_regexec_both(
             let mut tm_count: i32 = 0;
             while !g_st().got_int.get() {
                 if prog.regstart != NUL as i32 {
-                    let found_off = re_s
-                        .rex
-                        .line
-                        .get()
-                        .wrapping_add(col as usize)
-                        .with_cstr(|rem_cstr| cstrchr(rem_cstr, prog.regstart));
+                    let found_off =
+                        cur_input.with_cstr(|rem_cstr| cstrchr(rem_cstr, prog.regstart));
                     let Some(found_off) = found_off else {
                         retval = 0;
                         break;
                     };
-                    col += found_off as Colnr;
+                    if found_off > 0 {
+                        col += found_off as Colnr;
+                        cur_input = cur_input.wrapping_add(found_off);
+                    }
                 }
 
                 if re_s.rex.reg_maxcol.get() > 0 && col >= re_s.rex.reg_maxcol.get() {
@@ -4251,6 +4267,7 @@ fn bt_regexec_both(
                 retval = regtry(
                     &mut *prog,
                     col,
+                    cur_input,
                     tm,
                     (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
                 );
@@ -4260,12 +4277,14 @@ fn bt_regexec_both(
 
                 if re_s.rex.lnum.get() != 0 {
                     re_s.rex.lnum.set(0);
-                    re_s.rex.load_line(0);
+                    re_s.rex.line.set(line);
                 }
-                if re_s.rex.line.get().wrapping_add(col as usize).is_empty() {
+                if cur_input.is_empty() {
                     break;
                 }
-                col += utfc_ptr2len(re_s.rex.line.get().wrapping_add(col as usize));
+                let step = utfc_ptr2len(cur_input);
+                col += step;
+                cur_input = cur_input.wrapping_add(step as usize);
                 if let Some(tm_val) = tm {
                     tm_count += 1;
                     if tm_count == 20 {

@@ -3300,6 +3300,7 @@ fn recursive_regmatch(
     RE_STATE.with(|re_s| {
         let save_reginput_col = re_s.rex.input_off();
         let save_reglnum = re_s.rex.lnum.get();
+        let save_regline = re_s.rex.line.get();
         let save_nfa_match = nfa_st(|st| st.nfa_match.get());
         let save_nfa_listid = re_s.rex.nfa_listid.get();
         let save_nfa_endp = re_s.nfa_endp.get();
@@ -3406,7 +3407,7 @@ fn recursive_regmatch(
 
         re_s.rex.lnum.set(save_reglnum);
         if !re_s.rex.has_match.get() {
-            re_s.rex.load_line(save_reglnum);
+            re_s.rex.line.set(save_regline);
         }
         re_s.rex
             .input
@@ -3770,7 +3771,7 @@ fn nfa_regmatch(
                     match t_st.c {
                         NFA_MATCH => {
                             if !re_s.rex.reg_icombine.get()
-                                && re_s.rex.input.get().addr() != re_s.rex.line.get().addr()
+                                && re_s.rex.input.get() != re_s.rex.line.get()
                                 && utf_iscomposing_legacy(curc)
                             {
                                 listidx += 1;
@@ -3799,7 +3800,7 @@ fn nfa_regmatch(
                                     re_s.rex.lnum.get() != end_pos.lnum
                                         || re_s.rex.input_col() != end_pos.col
                                 } else {
-                                    re_s.rex.input.get().addr() != endp.se_u.ptr.addr()
+                                    re_s.rex.input.get() != endp.se_u.ptr
                                 }
                             {
                                 listidx += 1;
@@ -3991,7 +3992,7 @@ fn nfa_regmatch(
                             }
                         }
                         NFA_BOL => {
-                            if re_s.rex.input.get().addr() == re_s.rex.line.get().addr() {
+                            if re_s.rex.input.get() == re_s.rex.line.get() {
                                 add_here = true;
                                 add_state = t_st.out;
                             }
@@ -4004,9 +4005,12 @@ fn nfa_regmatch(
                         }
                         NFA_BOW => {
                             if curc != NUL as i32 {
-                                let this_class = re_s.rex.input.get().with_raw_bytes(|b| {
-                                    mb_get_class_tab(b, &re_s.rex.buf_mut().b_chartab.get())
-                                });
+                                let chartab = re_s.rex.buf_chartab();
+                                let this_class = re_s
+                                    .rex
+                                    .input
+                                    .get()
+                                    .with_raw_bytes(|b| mb_get_class_tab(b, &chartab));
                                 if this_class > 1 && reg_prev_class() != this_class {
                                     add_here = true;
                                     add_state = t_st.out;
@@ -4014,10 +4018,13 @@ fn nfa_regmatch(
                             }
                         }
                         NFA_EOW => {
-                            if re_s.rex.input.get().addr() != re_s.rex.line.get().addr() {
-                                let this_class = re_s.rex.input.get().with_raw_bytes(|b| {
-                                    mb_get_class_tab(b, &re_s.rex.buf_mut().b_chartab.get())
-                                });
+                            if re_s.rex.input.get() != re_s.rex.line.get() {
+                                let chartab = re_s.rex.buf_chartab();
+                                let this_class = re_s
+                                    .rex
+                                    .input
+                                    .get()
+                                    .with_raw_bytes(|b| mb_get_class_tab(b, &chartab));
                                 let prev_class = reg_prev_class();
                                 if this_class != prev_class && prev_class != 0 && prev_class != 1 {
                                     add_here = true;
@@ -4027,7 +4034,7 @@ fn nfa_regmatch(
                         }
                         NFA_BOF => {
                             if re_s.rex.lnum.get() == 0
-                                && re_s.rex.input.get().addr() == re_s.rex.line.get().addr()
+                                && re_s.rex.input.get() == re_s.rex.line.get()
                                 && (re_s.rex.has_match.get() || re_s.rex.reg_firstlnum.get() == 1)
                             {
                                 add_here = true;
@@ -4497,11 +4504,10 @@ fn nfa_regmatch(
                             }
                         }
                         NFA_CURSOR => {
-                            if !re_s.rex.reg_win.get().is_null()
-                                && re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get()
-                                    == re_s.rex.win_mut().w_cursor.get().lnum
-                                && re_s.rex.input_col() == re_s.rex.win_mut().w_cursor.get().col
-                            {
+                            if re_s.rex.win_cursor().is_some_and(|cur| {
+                                re_s.rex.lnum.get() + re_s.rex.reg_firstlnum.get() == cur.lnum
+                                    && re_s.rex.input_col() == cur.col
+                            }) {
                                 add_here = true;
                                 add_state = t_st.out;
                             }
@@ -4710,13 +4716,14 @@ fn nfa_regmatch(
                                 .nfa_endp
                                 .get()
                                 .is_some_and(|endp| re_s.rex.lnum.get() < endp.se_u.pos().lnum)
-                            && let Some(next_line) = reg_getline(re_s.rex.lnum.get() + 1)
                         {
-                            re_s.rex
-                                .line
-                                .set(crate::regexp::reg_line_from_cstr(&next_line));
-                            re_s.rex.input.set(re_s.rex.line.get());
-                            re_s.rex.lnum.set(re_s.rex.lnum.get() + (1));
+                            let next_line =
+                                crate::regexp::reg_load_line_slice(re_s.rex.lnum.get() + 1);
+                            if !next_line.is_null() {
+                                re_s.rex.line.set(next_line);
+                                re_s.rex.input.set(next_line);
+                                re_s.rex.lnum.set(re_s.rex.lnum.get() + (1));
+                            }
                         }
 
                         let r = addstate_idx(
@@ -4933,7 +4940,7 @@ fn nfa_regexec_both(
         let mut col = startcol;
 
         if !re_s.rex.has_match.get() {
-            line = crate::regexp::reg_line_from_opt_cstr(reg_getline(0).as_deref());
+            line = crate::regexp::reg_load_line_slice(0);
         }
         if line.is_null() {
             iemsg(tr(E_NULL));
