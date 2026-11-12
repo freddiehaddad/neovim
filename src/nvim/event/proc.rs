@@ -476,6 +476,7 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
 
         while !ptr::read_volatile(&raw const (*stream).s.closed)
             && ptr::read_volatile(&raw const (*stream).num_bytes) < max_bytes
+            && !g_st().got_int.get()
         {
             let num_bytes = ptr::read_volatile(&raw const (*stream).num_bytes);
 
