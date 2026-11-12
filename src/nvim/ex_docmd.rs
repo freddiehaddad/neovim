@@ -10442,20 +10442,26 @@ fn ex_connect(eap: &mut Exarg) {
         }
 
         addr = crate::strings::OwnedSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
-    } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
-        && !crate::event::socket::socket_alive(
+    } else {
+        if !is_tcp && !crate::path::path_is_absolute(addr_bytes) {
+            // Relative to the current directory (not the UI's), like other file args.
+            if let Some(full_addr) = crate::path::FullName_save(addr.as_opt_cstr(), true) {
+                addr = crate::strings::OwnedSlice::from_cstr(full_addr.as_c_str());
+            }
+        }
+        if !crate::event::socket::socket_alive(
             crate::event::r#loop::main_loop_ptr(),
             is_tcp,
             addr.as_cstr(),
             &mut error,
-        )
-    {
-        let _ = semsg!(
-            gettext(c"E6102: Cannot connect to %s: %s"),
-            addr,
-            error.unwrap_or(c""),
-        );
-        return;
+        ) {
+            let _ = semsg!(
+                gettext(c"E6102: Cannot connect to %s: %s"),
+                addr,
+                error.unwrap_or(c""),
+            );
+            return;
+        }
     }
 
     let stop_server = if eap.forceit { ui_active() == 1 } else { false };

@@ -470,6 +470,12 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             &server_addr,
             err_cstr,
         );
+        ui_client_stop(); // Leave the alternate screen, so the message is visible.
+        eprintln!(
+            "Cannot connect to server {}: {}",
+            server_addr.to_string_lossy(),
+            err_cstr.to_string_lossy()
+        );
         drop(server_addr);
         g_st().ui_client_exit_status.set(1);
         os_exit(1);
