@@ -3070,17 +3070,12 @@ pub fn diff_find_change(wp: &WinInfoInfo, lnum: Linenr, diffline: &mut Diffline)
     }
     added
 }
-pub fn diff_infold(wp: &WinInfoInfo, lnum: Linenr) -> bool {
+pub fn diff_infold(wp: &WinInfoInfo, tp: Option<crate::globals::TabpagePtr>, lnum: Linenr) -> bool {
     if !wp.w_onebuf_opt.wo_diff.get() {
         return false;
     }
 
-    // "wp" may be in another tab page.
-    let tp = if crate::window::win_valid(Some(wp)) {
-        curtab_mut()
-    } else {
-        crate::window::win_find_tabpage(wp).unwrap_or_else(curtab_mut)
-    };
+    let tp = tp.unwrap_or_else(curtab_mut);
 
     let mut idx: i32 = -1;
     let mut other = false;

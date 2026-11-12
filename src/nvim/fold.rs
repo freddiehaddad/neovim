@@ -82,6 +82,7 @@ pub struct FoldEntry {
 
 struct Fline {
     wp: crate::globals::WinPtr,
+    tp: Option<crate::globals::TabpagePtr>,
     lnum: Linenr,
     off: Linenr,
     lnum_save: Linenr,
@@ -1736,6 +1737,7 @@ fn fold_update_iems(wp: &WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
     FOLD_STATE.with(|st| st.fold_changed.set(false));
     let mut fline = Fline {
         wp: crate::globals::WinPtr::from(wp),
+        tp: None,
         lnum: 0,
         off: 0,
         lnum_save: 0,
@@ -1784,6 +1786,7 @@ fn fold_update_iems(wp: &WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
             getlevel = LevelGetterKind::Syntax;
         } else if foldmethod_is_diff(wp) {
             getlevel = LevelGetterKind::Diff;
+            fline.tp = crate::window::win_find_tabpage(wp);
         } else {
             getlevel = LevelGetterKind::Indent;
             if top > 1 {
@@ -2504,7 +2507,11 @@ fn foldlevel_indent(flp: &mut Fline) {
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
-    flp.lvl = i32::from(diff_infold(&flp.wp_mut(), flp.lnum + flp.off));
+    flp.lvl = i32::from(diff_infold(
+        &flp.wp_mut(),
+        flp.tp.clone(),
+        flp.lnum + flp.off,
+    ));
 }
 
 fn foldlevel_expr(flp: &mut Fline) {
