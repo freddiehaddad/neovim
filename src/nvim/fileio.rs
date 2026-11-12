@@ -3539,6 +3539,7 @@ pub fn buf_reload(buf: &FileBuf, orig_mode: i32, reload_options: bool) {
     curwin_mut().w_cursor.set(old_cursor);
     check_cursor(&curwin_mut());
     update_topline(&curwin_mut());
+    crate::window::check_lnums(false);
     curbuf_mut().b_keep_filetype.set(false);
 
     for tp in for_all_tabpages_ptr() {
