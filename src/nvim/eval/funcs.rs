@@ -5965,16 +5965,47 @@ pub fn f_range(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         emsg(gettext(c"E726: Stride is zero"));
         return;
     }
-    if if stride > 0 {
-        end.saturating_add(1) < start
-    } else {
-        end.saturating_sub(1) > start
-    } {
-        emsg(gettext(c"E727: Start past end"));
+
+    if stride < Varnumber::from(i32::MIN) || stride > Varnumber::from(i32::MAX) {
+        let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+        format_to_buf!(&mut buf, c"%lld", stride);
+        semsg!(gettext(E_VAL_TOO_LARGE), crate::memory::bytes_as_cstr(&buf));
         return;
     }
 
-    tv_list_alloc_ret(rettv, ((end - start) / stride) as isize);
+    let len: u64;
+    if if stride > 0 { end < start } else { end > start } {
+        // One step before the start gives an empty list, further away is
+        // an error.  Subtract unsigned to avoid an overflow.
+        let back = if stride > 0 {
+            (start as u64).wrapping_sub(end as u64)
+        } else {
+            (end as u64).wrapping_sub(start as u64)
+        };
+        if back > 1 {
+            emsg(gettext(c"E727: Start past end"));
+            return;
+        }
+        len = 0;
+    } else {
+        let astride = if stride > 0 { stride } else { -stride } as u64;
+        let span = if stride > 0 {
+            (end as u64).wrapping_sub(start as u64)
+        } else {
+            (start as u64).wrapping_sub(end as u64)
+        };
+        let count = span / astride;
+        // The number of items is "count" + 1 and must fit in an int.
+        if count >= i32::MAX as u64 {
+            let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
+            format_to_buf!(&mut buf, c"%llu", count.saturating_add(1));
+            semsg!(gettext(E_VAL_TOO_LARGE), crate::memory::bytes_as_cstr(&buf));
+            return;
+        }
+        len = count + 1;
+    }
+
+    tv_list_alloc_ret(rettv, len as isize);
     let mut i = start;
     while if stride > 0 { i <= end } else { i >= end } {
         tv_list_append_number(rettv.vval.v_list_ref(), i);
