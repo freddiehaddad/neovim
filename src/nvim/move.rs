@@ -2774,6 +2774,12 @@ pub fn do_check_cursorbind() {
 
             if !curwin_mut().w_onebuf_opt.wo_scb.get() {
                 update_topline(&curwin_mut());
+            } else {
+                // A later view query must not scroll an already bound view.
+                check_cursor_moved(&curwin_mut());
+                curwin_mut()
+                    .w_valid
+                    .set(curwin_mut().w_valid.get() | VALID_TOPLINE);
             }
             curwin_mut().w_redr_status.set(true);
         }
