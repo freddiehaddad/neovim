@@ -149,7 +149,7 @@ struct MouseModuleState {
     orig_topline: std::cell::Cell<Linenr>,
     orig_topfill: std::cell::Cell<i32>,
     got_click: std::cell::Cell<bool>,
-    dragwin: std::cell::Cell<crate::globals::WinPtr>,
+    dragwin: crate::globals::CloneCell<crate::globals::WinPtr>,
     in_tab_line: std::cell::Cell<bool>,
     orig_cursor: std::cell::Cell<CursorPos>,
     status_line_offset: std::cell::Cell<i32>,
@@ -169,7 +169,7 @@ impl MouseModuleState {
             orig_topline: std::cell::Cell::new(0),
             orig_topfill: std::cell::Cell::new(0),
             got_click: std::cell::Cell::new(false),
-            dragwin: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            dragwin: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
             in_tab_line: std::cell::Cell::new(false),
             orig_cursor: std::cell::Cell::new(CursorPos {
                 lnum: 0,
@@ -379,7 +379,10 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
 
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
-fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: Option<&mut Option<&'static WinInfoInfo>>) -> i32 {
+fn get_fpos_of_mouse(
+    mpos: &mut CursorPos,
+    wpp: Option<&mut Option<crate::globals::WinPtr>>,
+) -> i32 {
     let mut grid = g_st().mouse_grid.get();
     let mut row = g_st().mouse_row.get();
     let mut col = g_st().mouse_col.get();
@@ -392,21 +395,21 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: Option<&mut Option<&'static WinI
         return IN_UNKNOWN;
     };
     let wpp_is_none = wpp.is_none();
-    let wp_ptr = crate::globals::WinPtr::from(wp);
+    let wp_ptr = wp.clone();
     if let Some(wpp) = wpp {
-        *wpp = Some(wp_ptr.borrow_mut());
+        *wpp = Some(wp_ptr);
     }
     let winrow = row;
     let wincol = col;
 
-    let below_buffer = mouse_comp_pos(wp, &mut row, &mut col, &mut mpos.lnum);
+    let below_buffer = mouse_comp_pos(&wp, &mut row, &mut col, &mut mpos.lnum);
 
     if !below_buffer
         && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl.get() {
-            wincol >= wp.w_view_width.get() - win_col_off(wp)
+            wincol >= wp.w_view_width.get() - win_col_off(&wp)
         } else {
-            wincol < win_col_off(wp)
+            wincol < win_col_off(&wp)
         })
     {
         return MOUSE_STATUSCOL;
@@ -440,7 +443,7 @@ fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: Option<&mut Option<&'static WinI
         return IN_UNKNOWN;
     }
 
-    mpos.col = vcol2col(wp, mpos.lnum, col, Some(&mut mpos.coladd));
+    mpos.col = vcol2col(&wp, mpos.lnum, col, Some(&mut mpos.coladd));
     IN_BUFFER
 }
 
@@ -476,17 +479,19 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
                 let mut cursor = curwin_mut().w_cursor.get();
+                let mut vstart = g_st().visual_global.borrow().start;
                 getvcols(
-                    curwin_mut(),
+                    &curwin_mut(),
                     &mut cursor,
-                    &mut g_st().visual_global.borrow_mut().start,
+                    &mut vstart,
                     &mut leftcol,
                     &mut rightcol,
                     0,
                 );
+                g_st().visual_global.borrow_mut().start = vstart;
                 curwin_mut().w_cursor.set(cursor);
                 let mut col = m_pos.col;
-                getvcol(curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
+                getvcol(&curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
                 m_pos.col = col;
                 if m_pos.col < leftcol || m_pos.col > rightcol {
                     jump_flags = MOUSE_MAY_STOP_VIS;
@@ -731,16 +736,16 @@ pub fn do_mouse(
 
     if is_click && (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
         let mut pos = ZERO_POS;
-        let mut wp: Option<&'static WinInfoInfo> = None;
+        let mut wp: Option<crate::globals::WinPtr> = None;
         if get_fpos_of_mouse(&mut pos, Some(&mut wp)) == IN_BUFFER
             && let Some(wp) = wp
-            && !bt_quickfix(wp.buf_opt())
+            && !bt_quickfix(wp.buf_opt().as_deref())
         {
             mouse_st(|st| st.got_click.set(false));
             if (g_st().state_global.get() & MODE_INSERT) == 0 {
                 pos.coladd = 0;
 
-                mc_toggle(wp.buf_mut(), pos, false, K_NONE);
+                mc_toggle(&wp.buf_mut(), pos, false, K_NONE);
             }
             return false;
         }
@@ -856,9 +861,9 @@ pub fn do_mouse(
 
         let mut click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
             let stl_wp: &WinInfoInfo = if in_global_statusline {
-                curwin_mut()
+                &curwin_mut()
             } else {
-                wp
+                &wp
             };
             if in_global_statusline {
                 click_col = g_st().mouse_col.get();
@@ -934,7 +939,7 @@ pub fn do_mouse(
         clearop(oap.as_deref_mut().unwrap());
     }
 
-    if g_st().visual_global.borrow().active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
+    if g_st().visual_global.borrow().active && is_drag && get_scrolloff_value(&curwin_mut()) != 0 {
         if g_st().mouse_row.get() == 0 {
             g_st().mouse_dragging.set(2);
         } else {
@@ -957,7 +962,7 @@ pub fn do_mouse(
             let mut leftcol: Colnr = 0;
             let mut rightcol: Colnr = 0;
             getvcols(
-                curwin_mut(),
+                &curwin_mut(),
                 &mut start_visual,
                 &mut end_visual,
                 &mut leftcol,
@@ -975,7 +980,7 @@ pub fn do_mouse(
 
             start_visual = curwin_mut().w_cursor.get();
             curwin_mut().w_cursor.set(end_visual);
-            coladvance(curwin_mut(), end_visual.col);
+            coladvance(&curwin_mut(), end_visual.col);
             g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor.get();
             curwin_mut().w_cursor.set(start_visual);
         } else if lt(curwin_mut().w_cursor.get(), start_visual) {
@@ -1065,7 +1070,7 @@ pub fn do_mouse(
         );
     } else if ((g_st().mod_mask.get() & MOD_MASK_CTRL) != 0
         || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
-        && bt_quickfix(Some(crate::globals::curbuf_mut()))
+        && bt_quickfix(Some(&crate::globals::curbuf_mut()))
     {
         if curwin_mut().w_llist_ref.get().is_null() {
             do_cmdline_cmd(c".cc");
@@ -1171,9 +1176,13 @@ pub fn do_mouse(
                     mouse_st(|st| st.orig_cursor.get()),
                 ) {
                     curwin_mut().w_cursor.update_mut(find_start_of_word);
-                    find_end_of_word(&mut g_st().visual_global.borrow_mut().start);
+                    let mut vstart = g_st().visual_global.borrow().start;
+                    find_end_of_word(&mut vstart);
+                    g_st().visual_global.borrow_mut().start = vstart;
                 } else {
-                    find_start_of_word(&mut g_st().visual_global.borrow_mut().start);
+                    let mut vstart = g_st().visual_global.borrow().start;
+                    find_start_of_word(&mut vstart);
+                    g_st().visual_global.borrow_mut().start = vstart;
                     let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
                     if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
                         curwin_mut()
@@ -1217,9 +1226,9 @@ pub fn ins_mouse(c: i32) {
         let new_curwin = curwin_ptr();
 
         if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
-            set_curwin(old_curwin);
+            set_curwin(&old_curwin);
             g_st().curbuf.set(curwin_mut().w_buffer.get());
-            if bt_prompt(Some(crate::globals::curbuf_mut())) {
+            if bt_prompt(Some(&crate::globals::curbuf_mut())) {
                 curbuf_mut().b_prompt_insert.set(b'A' as i32);
             }
         }
@@ -1354,7 +1363,7 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
 
     let old_curwin = curwin_ptr();
 
-    set_curwin(wp);
+    set_curwin(&wp);
     g_st().curbuf.set(wp.w_buffer.get());
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
@@ -1507,13 +1516,13 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         && !on_winbar
         && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl.get() {
-            col >= wp.w_view_width.get() - win_col_off(wp)
+            col >= wp.w_view_width.get() - win_col_off(&wp)
         } else {
-            col < win_col_off(wp)
+            col < win_col_off(&wp)
         });
 
     if on_status_line && on_sep_line {
-        if stl_connected(wp) {
+        if stl_connected(&wp) {
             on_sep_line = false;
         } else {
             on_status_line = false;
@@ -1545,25 +1554,25 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
 
         if !on_statuscol {
-            let fdc = win_fdccol_count(wp);
+            let fdc = win_fdccol_count(&wp);
             let mut dragwin = crate::globals::WinPtr::NULL;
 
             let mut status_line_offset = if below_window {
-                dragwin = crate::globals::WinPtr::from(wp);
+                dragwin = wp.clone().clone().clone();
                 row + wp.w_winbar_height.get() - wp.w_height.get() + 1
             } else {
                 0
             };
 
             let mut sep_line_offset = if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width.get() {
-                dragwin = crate::globals::WinPtr::from(wp);
+                dragwin = wp.clone().clone().clone();
                 col - wp.w_width.get() + 1
             } else {
                 0
             };
 
             if status_line_offset != 0 && sep_line_offset != 0 {
-                if stl_connected(wp) {
+                if stl_connected(&wp) {
                     sep_line_offset = 0;
                 } else {
                     status_line_offset = 0;
@@ -1587,9 +1596,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         })
                         && (flags & MOUSE_MAY_STOP_VIS) != 0));
             if status_line_offset == 0 && sep_line_offset == 0 {
-                resolved = crate::globals::WinPtr::from(wp);
+                resolved = wp.clone().clone();
                 let past_bottom =
-                    mouse_resolve(wp, row, col, &mut lnum, &mut vcol, &mut mouse_fold_flags);
+                    mouse_resolve(&wp, row, col, &mut lnum, &mut vcol, &mut mouse_fold_flags);
                 g_st().mouse_past_bottom.set(past_bottom);
             }
             if stop_visual {
@@ -1598,10 +1607,10 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             }
 
             if mouse_st(|st| st.dragwin.get().is_null()) || (flags & MOUSE_RELEASED) != 0 {
-                win_enter(wp, true);
+                win_enter(&wp, true);
             }
             if curwin_ptr() != old_curwin {
-                set_mouse_topline(curwin_mut());
+                set_mouse_topline(&curwin_mut());
             }
             if mouse_st(|st| st.status_line_offset.get()) != 0 {
                 if curwin_ptr() == old_curwin {
@@ -1659,21 +1668,21 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             let mut first = true;
             while curwin_mut().w_topline.get() > 1 {
                 if curwin_mut().w_topfill.get()
-                    < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline.get())
+                    < win_get_fill(&crate::globals::curwin_mut(), curwin_mut().w_topline.get())
                 {
                     count += 1;
                 } else {
-                    count += plines_win(curwin_mut(), curwin_mut().w_topline.get() - 1, true);
+                    count += plines_win(&curwin_mut(), curwin_mut().w_topline.get() - 1, true);
                 }
                 if !first && count > -row {
                     break;
                 }
                 first = false;
                 let mut topline = curwin_mut().w_topline.get();
-                has_folding(curwin_mut(), topline, Some(&mut topline), None);
+                has_folding(&curwin_mut(), topline, Some(&mut topline), None);
                 curwin_mut().w_topline.set(topline);
                 if curwin_mut().w_topfill.get()
-                    < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline.get())
+                    < win_get_fill(&crate::globals::curwin_mut(), curwin_mut().w_topline.get())
                 {
                     curwin_mut()
                         .w_topfill
@@ -1685,12 +1694,12 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                     curwin_mut().w_topfill.set(0);
                 }
             }
-            check_topfill(curwin_mut(), false);
+            check_topfill(&curwin_mut(), false);
             curwin_mut().w_valid.set(
                 curwin_mut().w_valid.get()
                     & (!(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP)),
             );
-            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+            redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
             row = 0;
         } else if row >= curwin_mut().w_view_height.get() {
             let mut count = 0;
@@ -1699,7 +1708,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 if curwin_mut().w_topfill.get() > 0 {
                     count += 1;
                 } else {
-                    count += plines_win(curwin_mut(), curwin_mut().w_topline.get(), true);
+                    count += plines_win(&curwin_mut(), curwin_mut().w_topline.get(), true);
                 }
 
                 if !first && count > row - curwin_mut().w_view_height.get() + 1 {
@@ -1713,7 +1722,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         .set(curwin_mut().w_topfill.get() - (1));
                 } else {
                     let mut topline = curwin_mut().w_topline.get();
-                    let folded = has_folding(curwin_mut(), topline, None, Some(&mut topline));
+                    let folded = has_folding(&curwin_mut(), topline, None, Some(&mut topline));
                     curwin_mut().w_topline.set(topline);
                     if folded
                         && curwin_mut().w_topline.get() == curbuf_mut().b_ml.ml_line_count.get()
@@ -1724,13 +1733,13 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         .w_topline
                         .set(curwin_mut().w_topline.get() + (1));
                     curwin_mut().w_topfill.set(win_get_fill(
-                        crate::globals::curwin_mut(),
+                        &crate::globals::curwin_mut(),
                         curwin_mut().w_topline.get(),
                     ));
                 }
             }
-            check_topfill(curwin_mut(), false);
-            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+            check_topfill(&curwin_mut(), false);
+            redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
             curwin_mut().w_valid.set(
                 curwin_mut().w_valid.get()
                     & (!(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP)),
@@ -1753,7 +1762,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     {
         mouse_fold_flags = 0;
         let past_bottom = mouse_resolve(
-            curwin_mut(),
+            &curwin_mut(),
             row,
             col,
             &mut lnum,
@@ -1778,7 +1787,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     curwin_mut().w_curswant.set(vcol);
     curwin_mut().w_set_curswant.set(false);
-    if !coladvance(curwin_mut(), vcol) {
+    if !coladvance(&curwin_mut(), vcol) {
         if let Some(inclusive) = inclusive {
             *inclusive = true;
         }
@@ -1814,7 +1823,7 @@ fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
         return false;
     }
 
-    if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.get().lnum)
+    if !virtual_active(&curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.get().lnum)
     {
         curwin_mut().w_cursor.set_lnum(find_longest_lnum());
         curwin_mut().w_cursor.set_col(0);
@@ -1968,7 +1977,7 @@ pub fn mouse_find_win_inner(
     gridp: &mut i32,
     rowp: &mut i32,
     colp: &mut i32,
-) -> Option<&'static WinInfoInfo> {
+) -> Option<crate::globals::WinPtr> {
     if let Some(wp_grid) = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp) {
         return Some(wp_grid);
     } else if *gridp > 1 {
@@ -2017,7 +2026,7 @@ pub fn mouse_find_win_inner_opt(
     gridp: &mut i32,
     rowp: &mut i32,
     colp: &mut i32,
-) -> Option<&'static WinInfoInfo> {
+) -> Option<crate::globals::WinPtr> {
     mouse_find_win_inner(gridp, rowp, colp)
 }
 
@@ -2027,7 +2036,7 @@ pub fn mouse_find_win_outer(
     gridp: &mut i32,
     rowp: &mut i32,
     colp: &mut i32,
-) -> Option<&'static WinInfoInfo> {
+) -> Option<crate::globals::WinPtr> {
     if let Some(wp) = mouse_find_win_inner(gridp, rowp, colp) {
         *rowp += wp.w_winrow_off.get();
         *colp += wp.w_wincol_off.get();
@@ -2041,7 +2050,7 @@ fn mouse_find_grid_win(
     gridp: &mut i32,
     rowp: &mut i32,
     colp: &mut i32,
-) -> Option<&'static WinInfoInfo> {
+) -> Option<crate::globals::WinPtr> {
     if *gridp == g_st().msg_grid.handle.get() {
         *rowp += g_st().msg_grid_pos.get();
         *gridp = DEFAULT_GRID_HANDLE;
@@ -2056,14 +2065,14 @@ fn mouse_find_grid_win(
         }
     } else if *gridp == 0 {
         if let Some(grid) = ui_comp_mouse_focus(*rowp, *colp) {
-            if ptr::eq(grid, &raw const g_st().pum_grid) {
+            if ptr::eq(&*grid, &raw const g_st().pum_grid) {
                 *gridp = grid.handle.get();
                 *rowp -= grid.comp_row.get();
                 *colp -= grid.comp_col.get();
                 return None;
             } else {
                 for wp in for_all_windows_mut() {
-                    if !ptr::eq(&raw const wp.w_grid_alloc, grid) {
+                    if !ptr::eq(&raw const wp.w_grid_alloc, &*grid) {
                         continue;
                     }
                     *gridp = grid.handle.get();
@@ -2082,7 +2091,7 @@ fn mouse_find_grid_win(
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
 pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mut Colnr>) -> Colnr {
-    let line_cstr = ml_get_buf(wp.buf_mut(), lnum);
+    let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
     let mut csarg = CharsizeArg::new();
     let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_cstr);
     let mut ci = utf_ptr2_str_char_info(line_cstr);
@@ -2131,7 +2140,7 @@ fn scroll_line_len(lnum: Linenr) -> Colnr {
     let mut line = crate::memline::ml_get_slice(lnum);
     if !line.is_empty() {
         loop {
-            let numchar = win_chartabsize(curwin_mut(), line, col);
+            let numchar = win_chartabsize(&curwin_mut(), line, col);
             line = &line[crate::mbyte::utfc_slice2len(line)..];
             if line.is_empty() {
                 break;
@@ -2178,7 +2187,7 @@ fn mouse_check_grid(wp: &WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     let mut click_col = g_st().mouse_col.get();
 
     if !mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col)
-        .is_some_and(|w| ptr::eq(w, wp))
+        .is_some_and(|w| w == wp)
         || wp.w_redr_type.get() != 0
     {
         return;
@@ -2265,8 +2274,8 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             winrow = Varnumber::from(row + 1 + wp.w_winrow_off.get());
             wincol = Varnumber::from(col + 1 + wp.w_wincol_off.get());
             if row >= 0 && row < wp.w_height.get() && col >= 0 && col < wp.w_width.get() {
-                mouse_comp_pos(wp, &mut row, &mut col, &mut lnum);
-                col = vcol2col(wp, lnum, col, Some(&mut coladd));
+                mouse_comp_pos(&wp, &mut row, &mut col, &mut lnum);
+                col = vcol2col(&wp, lnum, col, Some(&mut coladd));
                 column = Varnumber::from(col) + 1;
             }
         }

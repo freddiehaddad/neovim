@@ -15,7 +15,7 @@ impl<T> CloneCell<T> {
 
     #[inline]
     pub fn set(&self, val: T) {
-        *self.0.borrow_mut() = val;
+        drop(self.0.replace(val));
     }
 
     #[inline]

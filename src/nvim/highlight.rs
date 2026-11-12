@@ -898,7 +898,7 @@ pub fn hl_invalidate_blends() {
         st.blendthrough_attr_entries.borrow_mut().clear();
     });
     highlight_changed();
-    update_window_hl(curwin_mut(), true);
+    update_window_hl(&curwin_mut(), true);
 }
 
 #[inline]

@@ -1179,7 +1179,7 @@ pub fn do_map(maptype: i32, arg: &CStr, mode: i32, is_abbrev: bool) -> i32 {
     let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
     match result {
         0 => {
-            result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, curbuf_mut());
+            result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, &curbuf_mut());
         }
         1 => {}
         _ => {
@@ -1235,7 +1235,7 @@ fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: bool, abbr: bool) {
     }
 
     let mode = get_map_mode(&mut cmd_bytes, forceit);
-    map_clear_mode(curbuf_mut(), mode, local, abbr);
+    map_clear_mode(&curbuf_mut(), mode, local, abbr);
 }
 
 /// Clear all mappings in "mode".
@@ -1313,11 +1313,8 @@ pub fn map_to_exists(str_ptr: &CStr, modechars: &CStr, abbr: bool) -> bool {
 pub fn map_to_exists_mode(rhs: &CStr, mode: i32, abbr: bool) -> bool {
     let rhs_b = rhs.to_bytes();
     for exp_buffer in [false, true] {
-        let b = if exp_buffer {
-            g_st().curbuf.get().opt()
-        } else {
-            None
-        };
+        let cb = g_st().curbuf.get();
+        let b = if exp_buffer { cb.opt() } else { None };
         let found = with_map_buckets(b, abbr, |buckets| {
             for bucket in buckets {
                 for mp in bucket {
@@ -1512,10 +1509,11 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
         }
     }
 
+    let cb = g_st().curbuf.get();
     let exp_buf = if !MAP_STATE.with(|s| s.expand_isabbrev.get())
         && MAP_STATE.with(|s| s.expand_buffer.get())
     {
-        g_st().curbuf.get().opt()
+        cb.opt()
     } else {
         None
     };
@@ -2085,11 +2083,8 @@ pub fn check_map(
     *rhs_lua = LUA_NOREF;
 
     for local in (0..=1).rev() {
-        let b = if local != 0 {
-            g_st().curbuf.get().opt()
-        } else {
-            None
-        };
+        let cb = g_st().curbuf.get();
+        let b = if local != 0 { cb.opt() } else { None };
         let found = with_map_buckets(b, abbr != 0, |buckets| {
             for (b_idx, bucket) in buckets.iter().enumerate() {
                 for (i_idx, mp) in bucket.iter().enumerate() {
@@ -2352,11 +2347,8 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
         let mut arena = Arena::new();
-        let b = if loc.local {
-            g_st().curbuf.get().opt()
-        } else {
-            None
-        };
+        let cb = g_st().curbuf.get();
+        let b = if loc.local { cb.opt() } else { None };
         let dict = with_map_buckets(b, loc.abbr, |buckets| {
             let mp = &buckets[loc.bucket][loc.idx];
             mapblock_fill_dict(
@@ -2521,7 +2513,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         &mut unmap_args,
         mode,
         is_abbr != 0,
-        curbuf_mut(),
+        &curbuf_mut(),
     );
 
     let alt = lhsrawalt.is_some().then(|| {
@@ -2530,7 +2522,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         })
     });
     map_add(
-        curbuf_mut(),
+        &curbuf_mut(),
         buffer,
         lhsraw.as_c_str(),
         &args,
@@ -2544,7 +2536,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     );
     if let Some(ref lhsrawalt) = lhsrawalt {
         map_add(
-            curbuf_mut(),
+            &curbuf_mut(),
             buffer,
             lhsrawalt.as_c_str(),
             &args,
@@ -2567,11 +2559,8 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
 
     for buffer_local in 0..=1 {
-        let b = if buffer_local != 0 {
-            g_st().curbuf.get().opt()
-        } else {
-            None
-        };
+        let cb = g_st().curbuf.get();
+        let b = if buffer_local != 0 { cb.opt() } else { None };
         with_map_buckets(b, abbr, |buckets| {
             for bucket in buckets {
                 for mp in bucket {
@@ -2644,7 +2633,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: i32, buffer: bo
     );
     args.buffer = buffer;
 
-    buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, curbuf_mut());
+    buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, &curbuf_mut());
 }
 
 fn langmap_set_entry(from: i32, to: i32) {
@@ -2793,7 +2782,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
         &mut parsed_args,
     );
     match result {
-        0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, curbuf_mut()) {
+        0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &curbuf_mut()) {
             1 => {
                 emsg(gettext(E_INVARG));
             }
@@ -3005,7 +2994,7 @@ pub fn modify_keymap(
             maptype = MAPTYPE_NOREMAP;
         }
 
-        match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
+        match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, &target_buf) {
             0 => {}
             1 => {
                 api_set_error!(err, ErrorType::ErrorTypeException, E_INVARG, 0);

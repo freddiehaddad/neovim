@@ -20,8 +20,7 @@ use crate::os::fs::CFile;
 use crate::strings::gettext;
 use crate::tag::{do_tag, find_tags};
 use crate::window::{
-    WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_is_focusable, win_setheight,
-    win_split,
+    WSP_BOT, WSP_HELP, WSP_TOP, win_close, win_enter, win_is_focusable, win_setheight, win_split,
 };
 use std::ffi::CStr;
 
@@ -42,7 +41,7 @@ use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
-    let mut wp: Option<&'static WinInfoInfo>;
+    let mut wp: Option<crate::globals::WinPtr>;
     let mut empty_fnum: i32 = 0;
     let mut alt_fnum: i32 = 0;
     let old_key_typed = g_st().key_typed.get();
@@ -156,13 +155,13 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if !bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.borrow().cmod_tab != 0 {
+    if !bt_help(curwin_mut().buf_opt().as_deref()) || g_st().cmdmod.borrow().cmod_tab != 0 {
         if g_st().cmdmod.borrow().cmod_tab != 0 {
             wp = None;
         } else {
             wp = None;
             for wp2 in for_all_windows_ptr() {
-                if bt_help(wp2.buf_opt()) && win_is_focusable(wp2) {
+                if bt_help(wp2.buf_opt().as_deref()) && win_is_focusable(&wp2) {
                     wp = Some(wp2);
                     break;
                 }
@@ -171,7 +170,7 @@ pub fn ex_help(eap: &mut Exarg) {
         if let Some(wp) = wp
             && wp.buf_mut().b_nwindows.get() > 0
         {
-            win_enter(wp, true);
+            win_enter(&wp, true);
         } else if CFile::open(opt_vars().p_hf.as_cstr(), c"rb").is_none() {
             smsg!(0, gettext(c"Help file \"%s\" not found"), &opt_vars().p_hf);
             early_ret = true;
@@ -224,7 +223,7 @@ pub fn ex_help(eap: &mut Exarg) {
             && let Some(buf) = buflist_findnr_opt(empty_fnum)
             && buf.b_nwindows.get() == 0
         {
-            wipe_buffer(buf, true);
+            wipe_buffer(&buf, true);
         }
 
         if alt_fnum != 0
@@ -240,8 +239,8 @@ pub fn ex_help(eap: &mut Exarg) {
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut Exarg) {
     for win in for_all_windows_ptr() {
-        if bt_help(win.buf_opt()) {
-            win_close(win, false, eap.forceit);
+        if bt_help(win.buf_opt().as_deref()) {
+            win_close(&win, false, eap.forceit);
             return;
         }
     }
@@ -423,8 +422,8 @@ pub fn prepare_help_buffer() {
     let p = c"!-~,^*,^|,^\",192-255";
     if curbuf_mut().b_p_isk.as_bytes() != p.to_bytes() {
         set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(Some(p)), OPT_LOCAL, 0);
-        check_buf_options(curbuf_mut());
-        buf_init_isk_chartab(curbuf_mut());
+        check_buf_options(&curbuf_mut());
+        buf_init_isk_chartab(&curbuf_mut());
     }
 
     set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);

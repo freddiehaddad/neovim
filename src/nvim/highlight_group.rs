@@ -900,7 +900,7 @@ pub fn load_colors(name: &CStr) -> bool {
         Some(name),
         curbuf_mut().fname_opt(),
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
     buf.extend_from_slice(b"colors/");
     buf.extend_from_slice(name_bytes);
@@ -912,7 +912,7 @@ pub fn load_colors(name: &CStr) -> bool {
             Some(name),
             curbuf_mut().fname_opt(),
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
         );
     }
 

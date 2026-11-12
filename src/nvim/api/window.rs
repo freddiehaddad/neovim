@@ -93,7 +93,7 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    win_set_buf(w, b, err);
+    win_set_buf(&w, &b, err);
 }
 
 /// Gets the (1,0)-indexed, buffer-relative cursor position for a given window
@@ -154,24 +154,24 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     w.w_cursor.set_lnum(row as Linenr);
     w.w_cursor.set_col(col as Colnr);
     w.w_cursor.set_coladd(0);
-    check_cursor_col(w);
+    check_cursor_col(&w);
 
     w.w_set_curswant.set(true);
 
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut switchwin,
-        Some(w),
+        Some(&w),
         None,
         None,
         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
     ) {
-        update_topline(curwin_mut());
-        validate_cursor(curwin_mut());
+        update_topline(&curwin_mut());
+        validate_cursor(&curwin_mut());
     }
     ctx_restore(&mut switchwin);
 
-    redraw_later(Some(w), UPD_VALID);
+    redraw_later(Some(&w), UPD_VALID);
     w.w_redr_status.set(true);
 }
 
@@ -358,11 +358,11 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         return;
     };
 
-    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w));
+    let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(&w));
     try_wrap(err, || {
         ex_win_close(
             force,
-            w,
+            &w,
             if tabpage == g_st().curtab.get() {
                 None
             } else {
@@ -432,7 +432,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 
     w.w_ns_hl.set(ns_id as i32);
     w.w_hl_needs_update.set(1);
-    redraw_later(Some(w), UPD_NOT_VALID);
+    redraw_later(Some(&w), UPD_NOT_VALID);
 }
 
 /// Computes the number of screen lines occupied by a range of text in a given window.
@@ -500,11 +500,11 @@ pub fn nvim_win_text_height(
     let mask = opts.is_set_win_text_height;
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
-        start_lnum = normalize_index(buf, opts.start_row, false, &mut oob) as Linenr;
+        start_lnum = normalize_index(&buf, opts.start_row, false, &mut oob) as Linenr;
     }
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-        end_lnum = normalize_index(buf, opts.end_row, false, &mut oob) as Linenr;
+        end_lnum = normalize_index(&buf, opts.end_row, false, &mut oob) as Linenr;
     }
 
     if oob {
@@ -581,7 +581,7 @@ pub fn nvim_win_text_height(
 
     let mut fill: i64 = 0;
     let mut all = win_text_height(
-        w,
+        &w,
         start_lnum,
         start_vcol,
         &mut end_lnum,
@@ -591,7 +591,7 @@ pub fn nvim_win_text_height(
         false,
     );
     if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-        let end_fill = i64::from(win_get_fill(w, line_count + 1));
+        let end_fill = i64::from(win_get_fill(&w, line_count + 1));
         fill += end_fill;
         all += end_fill;
     }

@@ -370,7 +370,7 @@ pub fn get_sw_value_col(buf: &FileBuf, col: Colnr, left: bool) -> i32 {
 /// Return the effective softtabstop value for the current buffer (`get_sts_value`).
 pub fn get_sts_value() -> i32 {
     if curbuf_mut().b_p_sts.get() < 0 {
-        get_sw_value(curbuf_mut())
+        get_sw_value(&curbuf_mut())
     } else {
         curbuf_mut().b_p_sts.get() as i32
     }
@@ -696,7 +696,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         );
         if (flags & SIN_NOMARK) == 0 {
             extmark_splice_cols(
-                curbuf_mut(),
+                &curbuf_mut(),
                 curwin_mut().w_cursor.get().lnum - 1,
                 skipcols,
                 old_offset - skipcols,
@@ -769,7 +769,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         return -1;
     }
     let mut col: Colnr = 0;
-    getvcol(curwin_mut(), &mut pos, Some(&mut col), None, None, 0);
+    getvcol(&curwin_mut(), &mut pos, Some(&mut col), None, None, 0);
     col as i32
 }
 
@@ -822,8 +822,8 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
 
     let buf_fnum = wp.buf_mut().b_fnum.get();
     let buf_p_ts = wp.buf_mut().b_p_ts.get();
-    let buf_tick = buf_get_changedtick(wp.buf_mut());
-    let flp_val = get_flp_value(wp.buf_mut());
+    let buf_tick = buf_get_changedtick(&wp.buf_mut());
+    let flp_val = get_flp_value(&wp.buf_mut());
     let line_bytes = &line[..line.iter().position(|&b| b == 0).unwrap_or(line.len())];
     let need_recalc = INDENT_STATE.with_borrow(|st| {
         st.prev_fnum != buf_fnum
@@ -933,13 +933,13 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
     let mut last_changed: Linenr = 0;
     let start_lnum = curwin_mut().w_cursor.get().lnum;
 
-    if !modifiable(curbuf_mut()) {
+    if !modifiable(&curbuf_mut()) {
         emsg(gettext(E_MODIFIABLE));
         return;
     }
 
     if u_savecommon(
-        curbuf_mut(),
+        &curbuf_mut(),
         start_lnum - 1,
         start_lnum + oap.line_count,
         start_lnum + oap.line_count,
@@ -1003,7 +1003,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
 
     if last_changed != 0 {
         changed_lines(
-            curbuf_mut(),
+            &curbuf_mut(),
             first_changed,
             0,
             if oap.is_visual {
@@ -1211,7 +1211,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         vcol = 0;
         if !line_cstr.to_bytes().is_empty() {
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), 0, line_cstr);
             let mut ci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
@@ -1245,7 +1245,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     curwin_mut().w_onebuf_opt.wo_list.set(save_p_list);
     curwin_mut().w_cursor.set_col(new_cursor_col.max(0));
     curwin_mut().w_set_curswant.set(true);
-    changed_cline_bef_curs(curwin_mut());
+    changed_cline_bef_curs(&curwin_mut());
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 {
         if curwin_mut().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
@@ -1300,7 +1300,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
         let delta = orig_col - new_col;
         extmark_splice_cols(
-            curbuf_mut(),
+            &curbuf_mut(),
             curwin_mut().w_cursor.get().lnum - 1,
             new_col,
             if delta < 0 { -delta } else { 0 },
@@ -1505,7 +1505,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         if ml_replace(lnum, &new_line_vec[..(new_len - 1) as usize], true) {
                             ptr_slice = curbuf_mut().b_ml.current_line_slice();
                             extmark_splice_cols(
-                                curbuf_mut(),
+                                &curbuf_mut(),
                                 lnum - 1,
                                 0,
                                 old_len,
@@ -1534,7 +1534,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             if rem_slice.is_empty() {
                 break;
             }
-            vcol += i64::from(win_chartabsize(curwin_mut(), rem_slice, vcol as Colnr));
+            vcol += i64::from(win_chartabsize(&curwin_mut(), rem_slice, vcol as Colnr));
             if vcol >= i64::from(MAXCOL) {
                 emsg_text_too_long();
                 break;
@@ -1552,11 +1552,11 @@ pub fn ex_retab(eap: &mut Exarg) {
     }
 
     if first_line != 0 {
-        changed_lines(curbuf_mut(), first_line, 0, last_line + 1, 0, true);
+        changed_lines(&curbuf_mut(), first_line, 0, last_line + 1, 0, true);
     }
 
     curwin_mut().w_onebuf_opt.wo_list.set(save_list);
-    u_clearline(curbuf_mut());
+    u_clearline(&curbuf_mut());
 
     if let Some(ref ts_cstr) = new_ts_str {
         let win_handle: ObjHandle = curwin_mut().handle;
@@ -1585,13 +1585,13 @@ pub fn ex_retab(eap: &mut Exarg) {
             return;
         }
     }
-    coladvance(curwin_mut(), curwin_mut().w_curswant.get());
+    coladvance(&curwin_mut(), curwin_mut().w_curswant.get());
 }
 
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
 pub fn get_expr_indent() -> i32 {
     let use_sandbox = was_set_insecurely(
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         K_OPT_INDENTEXPR,
         OPT_LOCAL,
     ) != 0;
@@ -1617,7 +1617,7 @@ pub fn get_expr_indent() -> i32 {
     curwin_mut().w_cursor.set(save_pos);
     curwin_mut().w_curswant.set(save_curswant);
     curwin_mut().w_set_curswant.set(save_set_curswant);
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
     g_st().state_global.set(save_state);
 
     if g_st().did_throw.get()
@@ -1718,7 +1718,7 @@ pub fn get_lisp_indent() -> i32 {
 
             let line_cstr = get_cursor_line_ptr();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), pos.lnum, line_cstr);
 
             let mut sci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
             amount = 0;

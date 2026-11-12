@@ -210,7 +210,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             let mut fold_skipped = false;
             if first
                 && has_folding(
-                    curwin_mut(),
+                    &curwin_mut(),
                     curr,
                     Some(&mut fold_first),
                     Some(&mut fold_last),
@@ -326,9 +326,9 @@ pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
         count >= 0
     } {
         let mut cur_lnum = curwin_mut().w_cursor.get().lnum;
-        if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+        if has_folding(&curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
             curwin_mut().w_cursor.set_lnum(cur_lnum);
-            coladvance(curwin_mut(), MAXCOL);
+            coladvance(&curwin_mut(), MAXCOL);
         }
         let sclass = cls();
 
@@ -375,7 +375,7 @@ pub fn bck_word(mut count: i32, bigword: bool, mut stop: bool) -> bool {
         count >= 0
     } {
         let mut cur_lnum = curwin_mut().w_cursor.get().lnum;
-        if has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
+        if has_folding(&curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
             curwin_mut().w_cursor.set_lnum(cur_lnum);
             curwin_mut().w_cursor.set_col(0);
         }
@@ -430,9 +430,9 @@ pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> b
         count >= 0
     } {
         let mut cur_lnum = curwin_mut().w_cursor.get().lnum;
-        if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+        if has_folding(&curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
             curwin_mut().w_cursor.set_lnum(cur_lnum);
-            coladvance(curwin_mut(), MAXCOL);
+            coladvance(&curwin_mut(), MAXCOL);
         }
         let sclass = cls();
         if inc_cursor() == -1 {
@@ -1599,7 +1599,9 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
                 dec_cursor();
                 did_exclusive_adj = true;
             } else if !vis_empty {
-                dec(&mut g_st().visual_global.borrow_mut().start);
+                let mut vstart = g_st().visual_global.borrow().start;
+                dec(&mut vstart);
+                g_st().visual_global.borrow_mut().start = vstart;
                 did_exclusive_adj = true;
             }
             vis_empty = equalpos(

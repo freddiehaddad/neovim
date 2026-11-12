@@ -170,7 +170,7 @@ pub fn check_changed(buf: &FileBuf, flags: i32) -> bool {
 
             if (flags & CCGD_ALLBUF) != 0 {
                 for buf2 in for_all_buffers_mut() {
-                    if buf_is_changed_fn(buf2) && buf2.b_ffname.get().is_some() {
+                    if buf_is_changed_fn(&buf2) && buf2.b_ffname.get().is_some() {
                         count += 1;
                     }
                 }
@@ -187,7 +187,7 @@ pub fn check_changed(buf: &FileBuf, flags: i32) -> bool {
         if (flags & CCGD_EXCMD) != 0 {
             no_write_message();
         } else {
-            no_write_message_nobang(curbuf_mut());
+            no_write_message_nobang(&curbuf_mut());
         }
         return true;
     }
@@ -260,7 +260,7 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
-            unchanged(buf2, true, false);
+            unchanged(&buf2, true, false);
         }
     }
 }
@@ -389,7 +389,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf.opt_mut());
 
-                        goto_tabpage_win(tp.borrow(), wp);
+                        goto_tabpage_win(tp.borrow(), &wp);
 
                         if !bufref_valid(Some(&bufref)) {
                             wiped = true;
@@ -466,7 +466,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
         if win_valid(g_st().prevwin.get().opt())
             && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb.get()
         {
-            win_goto(crate::globals::prevwin_mut());
+            win_goto(&crate::globals::prevwin_mut());
         }
         if curwin_mut().w_onebuf_opt.wo_wfb.get() {
             win_split(0, 0);
@@ -493,9 +493,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
     if eap.cmdidx == Cmdidx::CmdWindo
         || eap.cmdidx == Cmdidx::CmdTabdo
-        || buf_hide(curbuf_mut())
+        || buf_hide(&curbuf_mut())
         || !check_changed(
-            curbuf_mut(),
+            &curbuf_mut(),
             CCGD_AW | (if eap.forceit { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
         )
     {
@@ -572,7 +572,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 if i == curwin_argcount() {
                     break;
                 }
-                if curwin_mut().w_arg_idx.get() != i || !editing_arg_idx(curwin_mut()) {
+                if curwin_mut().w_arg_idx.get() != i || !editing_arg_idx(&curwin_mut()) {
                     do_argfile(eap, i);
                 }
                 if curwin_mut().w_arg_idx.get() != i {
@@ -605,7 +605,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 tp = tp.tp_next.get();
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
-                for bp in buf_iter_mut(curbuf_mut().b_next.get().as_ptr()) {
+                for bp in buf_iter_mut(curbuf_mut().b_next.get()) {
                     if bp.b_p_bl.get() {
                         next_fnum = bp.b_fnum.get();
                         break;
@@ -663,7 +663,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             }
 
             if eap.cmdidx == Cmdidx::CmdWindo && execute {
-                validate_cursor(curwin_mut());
+                validate_cursor(&curwin_mut());
                 if curwin_mut().w_onebuf_opt.wo_scb.get() {
                     do_check_scrollbind(true);
                 }
@@ -702,7 +702,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                         Some(&b_p_syn),
                         b_fname.as_deref(),
                         true,
-                        curbuf_opt_mut(),
+                        curbuf_opt_mut().as_deref(),
                     );
                 } else {
                     let b_p_syn = buf_ref.b_p_syn.to_owned();
@@ -781,7 +781,7 @@ pub fn ex_checktime(eap: &mut Exarg) {
     if eap.addr_count == 0 {
         check_timestamps(0);
     } else if let Some(buf) = crate::buffer::buflist_findnr_opt(eap.line2) {
-        buf_check_timestamp(buf);
+        buf_check_timestamp(&buf);
     }
     g_st().no_check_timestamps.set(save_no_check_timestamps);
 }
@@ -847,12 +847,12 @@ pub fn ex_drop(eap: &mut Exarg) {
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.w_buffer.get() == buf {
-                goto_tabpage_win(&tp, wp);
+                goto_tabpage_win(&tp, &wp);
                 curwin_mut().w_arg_idx.set(0);
-                if !buf_is_changed_fn(curbuf_mut()) {
+                if !buf_is_changed_fn(&curbuf_mut()) {
                     let save_ar = curbuf_mut().b_p_ar.get();
                     curbuf_mut().b_p_ar.set(Some(true));
-                    buf_check_timestamp(curbuf_mut());
+                    buf_check_timestamp(&curbuf_mut());
                     curbuf_mut().b_p_ar.set(save_ar);
                 }
                 if (curbuf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
@@ -875,9 +875,9 @@ pub fn ex_drop(eap: &mut Exarg) {
         }
     }
 
-    if !buf_hide(curbuf_mut()) {
+    if !buf_hide(&curbuf_mut()) {
         g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-        split = check_changed(curbuf_mut(), CCGD_AW | CCGD_EXCMD);
+        split = check_changed(&curbuf_mut(), CCGD_AW | CCGD_EXCMD);
         g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     }
 

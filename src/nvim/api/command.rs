@@ -352,7 +352,9 @@ pub fn nvim_parse_cmd(
             Some((c.uc_name.clone(), c.uc_def))
         })
     } else if ea.cmdidx == Cmdidx::CmdUserBuf {
-        let c = &curbuf_mut().b_ucmds.borrow()[ea.useridx as usize];
+        let cb = curbuf_mut();
+        let ucmds = cb.b_ucmds.borrow();
+        let c = &ucmds[ea.useridx as usize];
         Some((c.uc_name.clone(), c.uc_def))
     } else {
         None
@@ -1297,7 +1299,7 @@ pub fn nvim_buf_create_user_command(
     };
 
     let save_curbuf = g_st().curbuf.get();
-    g_st().curbuf.set((target_buf).into());
+    g_st().curbuf.set(target_buf);
     create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
     g_st().curbuf.set(save_curbuf);
 }
@@ -1330,12 +1332,12 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
-        if let Some(i) = b
+        let pos = b
             .b_ucmds
             .borrow()
             .iter()
-            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
-        {
+            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes);
+        if let Some(i) = pos {
             let _ = b.b_ucmds.borrow_mut().remove(i);
             true
         } else {
@@ -1702,7 +1704,7 @@ pub fn nvim_buf_get_commands(
     if opts.builtin {
         return Dict::new();
     }
-    commands_array(Some(b), arena)
+    commands_array(Some(&b), arena)
 }
 
 #[cfg(test)]

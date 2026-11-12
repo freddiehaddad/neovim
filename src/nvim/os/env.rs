@@ -447,17 +447,15 @@ pub fn init_homedir() {
         }
 
         if let Some(ref cur_var) = var
-            && os_realpath(cur_var, (&mut *g_st().iobuff_bytes_mut())).is_some()
+            && os_realpath(cur_var, &mut *g_st().iobuff_bytes_mut()).is_some()
         {
             var = Some(g_st().iobuff_cstr().to_owned());
         }
 
         if var.as_ref().is_none_or(|s| s.as_bytes().is_empty())
-            && os_dirname((&mut *g_st().os_buf_bytes_mut()))
+            && os_dirname(&mut *g_st().os_buf_bytes_mut())
         {
-            var = Some(crate::memory::cstring_until_nul(
-                (&mut *g_st().os_buf_bytes_mut()),
-            ));
+            var = Some(crate::memory::cstring_until_nul(&*g_st().os_buf.borrow()));
         }
     }
 

@@ -13,8 +13,7 @@ use crate::lua::converter::Boolean;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::window::{
-    WinInfoInfo, tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage,
-    win_set_buf,
+    tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
 };
 
 pub type Buffer = ObjHandle;
@@ -51,10 +50,10 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     } else {
         tab.tp_firstwin.get()
     };
-    let n = win_iter_mut(first.as_ptr()).count();
+    let n = win_iter_mut(&first).count();
 
     rv = arena_array(arena, n);
-    for wp in win_iter_mut(first.as_ptr()) {
+    for wp in win_iter_mut(first) {
         *rv.next_slot_mut() = window_obj(wp.handle);
         rv.size += 1;
     }
@@ -126,7 +125,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     if g_st().curtab.get() == tab {
         return nvim_get_current_win();
     }
-    for wp in win_iter_ptr(tab.tp_firstwin.get().as_ptr()) {
+    for wp in win_iter_ptr(tab.tp_firstwin.get()) {
         if tab.tp_curwin.get() == wp {
             return wp.handle;
         }
@@ -224,7 +223,7 @@ pub fn nvim_open_tabpage(
         -1
     };
 
-    let mut wp_opt: Option<&'static WinInfoInfo> = None;
+    let mut wp_opt: Option<crate::globals::WinPtr> = None;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let tp = crate::globals::TabpagePtr::from(win_new_tabpage(
@@ -256,9 +255,7 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp.opt(), wp.opt())
-        && wp.w_buffer.get() != (std::ptr::from_ref(b).cast_mut())
-    {
+    if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer.get() != b {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st()
@@ -268,7 +265,7 @@ pub fn nvim_open_tabpage(
                 .autocmd_no_leave
                 .set(g_st().autocmd_no_leave.get() + (1));
         }
-        win_set_buf(wp.borrow_mut(), b, err);
+        win_set_buf(wp.borrow_mut(), &b, err);
         if au_no_enter_leave {
             g_st()
                 .autocmd_no_enter

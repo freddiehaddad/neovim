@@ -326,7 +326,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
         }
     }
 
-    changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+    changed_lines(&curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
 }
 
 fn get_vts(vts_array: &[i32], index: i32) -> i32 {
@@ -420,7 +420,8 @@ fn get_new_vts_indent(left: bool, round: bool, amount: i32, vts_array: &[i32]) -
 pub fn shift_line(left: bool, round: bool, amount: i32, call_changed_bytes: i32) {
     let sw_val = curbuf_mut().b_p_sw.get();
     let ts_val = curbuf_mut().b_p_ts.get();
-    let vts_array = &curbuf_mut().b_p_vts_array.borrow();
+    let cb = curbuf_mut();
+    let vts_array = &cb.b_p_vts_array.borrow();
 
     let count = if sw_val != 0 {
         get_new_sw_indent(left, round, i64::from(amount), sw_val)
@@ -448,7 +449,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let left = oap.op_type == OP_LSHIFT;
     let oldstate = g_st().state_global.get();
     let oldcol = curwin_mut().w_cursor.get().col;
-    let sw_val = get_sw_value_indent(curbuf_mut(), left);
+    let sw_val = get_sw_value_indent(&curbuf_mut(), left);
     let ts_val = curbuf_mut().b_p_ts.get() as i32;
     let mut bd = BlockDef::new();
     let old_p_ri = opt_vars().p_ri.get();
@@ -492,7 +493,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(
             &mut csarg,
-            curwin_mut(),
+            &curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
             bd.textstart,
         );
@@ -561,7 +562,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let mut csarg = CharsizeArg::new();
         let mut cstype: CSType = init_charsize_arg(
             &mut csarg,
-            curwin_mut(),
+            &curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
             bd.textstart,
         );
@@ -590,7 +591,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         if bd.startspaces != 0 {
             verbatim_copy_width -= bd.start_char_vcols;
         }
-        cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
+        cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, bd.textstart);
         let mut ci = utf_ptr2_str_char_info(bd.textstart);
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
@@ -644,7 +645,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     drop(newp_vec);
     changed_bytes(curwin_mut().w_cursor.get().lnum, bd.textcol);
     extmark_splice_cols(
-        curbuf_mut(),
+        &curbuf_mut(),
         curwin_mut().w_cursor.get().lnum - 1,
         startcol,
         oldlen,
@@ -757,7 +758,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
             drop(newp_vec);
             extmark_splice_cols(
-                curbuf_mut(),
+                &curbuf_mut(),
                 lnum - 1,
                 startcol,
                 skipped,
@@ -769,9 +770,10 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
                 curbuf_mut().b_op_end.set_lnum(oap.end.lnum);
                 curbuf_mut().b_op_end.set_col(offset);
                 if curbuf_mut().b_visual.borrow().vi_end.coladd != 0 {
-                    curbuf_mut().b_visual.borrow_mut().vi_end.col +=
-                        curbuf_mut().b_visual.borrow().vi_end.coladd;
-                    curbuf_mut().b_visual.borrow_mut().vi_end.coladd = 0;
+                    let cb = curbuf_mut();
+                    let mut vis = cb.b_visual.borrow_mut();
+                    vis.vi_end.col += vis.vi_end.coladd;
+                    vis.vi_end.coladd = 0;
                 }
             }
         }
@@ -780,7 +782,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
 
         if oap.start.lnum < oap.end.lnum {
             changed_lines(
-                curbuf_mut(),
+                &curbuf_mut(),
                 oap.start.lnum + 1,
                 0,
                 oap.end.lnum + 1,
@@ -804,7 +806,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         return u_save_cursor();
     }
 
-    if !modifiable(curbuf_mut()) {
+    if !modifiable(&curbuf_mut()) {
         emsg(tr(E_MODIFIABLE));
         return false;
     }
@@ -915,7 +917,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 drop(newp_vec);
 
                 extmark_splice_cols(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     lnum - 1,
                     bd.textcol,
                     bd.textlen,
@@ -924,9 +926,9 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 );
             }
 
-            check_cursor_col(curwin_mut());
+            check_cursor_col(&curwin_mut());
             changed_lines(
-                curbuf_mut(),
+                &curbuf_mut(),
                 curwin_mut().w_cursor.get().lnum,
                 curwin_mut().w_cursor.get().col,
                 oap.end.lnum + 1,
@@ -954,12 +956,12 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 }
                 truncate_line(0);
                 if oap.line_count > 1 {
-                    u_clearline(curbuf_mut());
+                    u_clearline(&curbuf_mut());
                 }
             } else {
                 del_lines(oap.line_count, true);
                 beginline(BL_WHITE | BL_FIX);
-                u_clearline(curbuf_mut());
+                u_clearline(&curbuf_mut());
             }
         } else {
             if g_st().virtual_op.get() != 0 {
@@ -974,7 +976,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     coladvance_force(getviscol2(oap.start.col, oap.start.coladd));
                     oap.start = curwin_mut().w_cursor.get();
                     if oap.line_count == 1 {
-                        coladvance(curwin_mut(), endcol);
+                        coladvance(&curwin_mut(), endcol);
                         oap.end.col = curwin_mut().w_cursor.get().col;
                         oap.end.coladd = curwin_mut().w_cursor.get().coladd;
                         curwin_mut().w_cursor.set(oap.start);
@@ -1044,7 +1046,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     .set(g_st().curbuf_splice_pending.get() + (1));
                 let startpos = curwin_mut().w_cursor.get();
                 let deleted_bytes = get_region_bytecount(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     startpos.lnum,
                     oap.end.lnum,
                     startpos.col,
@@ -1070,7 +1072,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     .curbuf_splice_pending
                     .set(g_st().curbuf_splice_pending.get() - (1));
                 extmark_splice(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     startpos.lnum - 1,
                     startpos.col,
                     oap.line_count - 1,
@@ -1120,7 +1122,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 
 fn pbyte(mut lp: CursorPos, c: i32) {
     debug_assert!(c <= u8::MAX as i32);
-    crate::memline::with_ml_get_buf_mut_slice(curbuf_mut(), lp.lnum, |slice| {
+    crate::memline::with_ml_get_buf_mut_slice(&curbuf_mut(), lp.lnum, |slice| {
         let len = curbuf_mut().b_ml.ml_line_textlen.get();
 
         if lp.col >= len {
@@ -1133,7 +1135,7 @@ fn pbyte(mut lp: CursorPos, c: i32) {
     });
 
     if g_st().curbuf_splice_pending.get() == 0 {
-        extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
+        extmark_splice_cols(&curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
     }
 }
 
@@ -1185,7 +1187,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     col: 0,
                     coladd: 0,
                 };
-                getvpos(curwin_mut(), &mut vpos, oap.start_vcol);
+                getvpos(&curwin_mut(), &mut vpos, oap.start_vcol);
                 bd.startspaces += vpos.coladd;
                 n = bd.startspaces;
             } else {
@@ -1286,7 +1288,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 .curbuf_splice_pending
                 .set(g_st().curbuf_splice_pending.get() - (1));
             extmark_splice(
-                curbuf_mut(),
+                &curbuf_mut(),
                 baselnum - 1,
                 bd.textcol,
                 0,
@@ -1335,7 +1337,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                         }
                         coladvance_force(getviscol());
                         if curwin_mut().w_cursor.get().lnum == oap.end.lnum {
-                            getvpos(curwin_mut(), &mut oap.end, end_vcol);
+                            getvpos(&curwin_mut(), &mut oap.end, end_vcol);
                         }
                     }
                     if gchar_cursor() != i32::from(NUL) {
@@ -1379,9 +1381,9 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
     }
 
     curwin_mut().w_cursor.set(oap.start);
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
     changed_lines(
-        curbuf_mut(),
+        &curbuf_mut(),
         oap.start.lnum,
         oap.start.col,
         oap.end.lnum + 1,
@@ -1416,7 +1418,7 @@ pub fn op_tilde(oap: &mut Oparg) {
             pos.lnum += 1;
         }
         if did_change {
-            changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+            changed_lines(&curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
         }
     } else {
         if oap.motion_type == MT_LINE_WISE {
@@ -1448,7 +1450,7 @@ pub fn op_tilde(oap: &mut Oparg) {
         }
         if did_change {
             changed_lines(
-                curbuf_mut(),
+                &curbuf_mut(),
                 oap.start.lnum,
                 oap.start.col,
                 oap.end.lnum + 1,
@@ -1598,7 +1600,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             }
         } else {
             curwin_mut().w_cursor.set(oap.end);
-            check_cursor_col(curwin_mut());
+            check_cursor_col(&curwin_mut());
 
             if !lineempty(curwin_mut().w_cursor.get().lnum) && oap.start_vcol != oap.end_vcol {
                 inc_cursor();
@@ -1716,7 +1718,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             }
 
             curwin_mut().w_cursor.set_col(oap.start.col);
-            check_cursor(curwin_mut());
+            check_cursor(&curwin_mut());
         }
     }
 }
@@ -1793,7 +1795,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                         coladd: 0,
                     };
                     if bd.is_short {
-                        getvpos(curwin_mut(), &mut vpos, oap.start_vcol);
+                        getvpos(&curwin_mut(), &mut vpos, oap.start_vcol);
                     } else {
                         vpos.coladd = 0;
                     }
@@ -1813,7 +1815,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     ml_replace(linenr, crate::memory::bytes_until_nul(&newp_vec), true);
                     drop(newp_vec);
                     extmark_splice_cols(
-                        curbuf_mut(),
+                        &curbuf_mut(),
                         linenr - 1,
                         bd.textcol,
                         0,
@@ -1822,9 +1824,9 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     );
                 }
             }
-            check_cursor(curwin_mut());
+            check_cursor(&curwin_mut());
             changed_lines(
-                curbuf_mut(),
+                &curbuf_mut(),
                 oap.start.lnum + 1,
                 0,
                 oap.end.lnum + 1,
@@ -1841,7 +1843,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
 /// When the cursor is on the NUL past the end of the line and it should not be
 /// there move it left.
 pub fn adjust_cursor_eol() {
-    let cur_ve_flags = get_ve_flags(curwin_mut());
+    let cur_ve_flags = get_ve_flags(&curwin_mut());
 
     let adj_cursor = curwin_mut().w_cursor.get().col > 0
         && gchar_cursor() == i32::from(NUL)
@@ -1860,7 +1862,7 @@ pub fn adjust_cursor_eol() {
         let mut cursor = curwin_mut().w_cursor.get();
 
         getvcol(
-            curwin_mut(),
+            &curwin_mut(),
             &mut cursor,
             Some(&mut scol),
             None,
@@ -2012,7 +2014,7 @@ pub fn do_join(
         if t > 0 && g_st().curbuf_splice_pending.get() == 0 {
             let removed = (curr_start.len() - curr.len()) as Colnr;
             extmark_splice(
-                curbuf_mut(),
+                &curbuf_mut(),
                 curwin_mut().w_cursor.get().lnum - 1,
                 sumsize,
                 1,
@@ -2110,7 +2112,7 @@ pub fn do_join(
         }
 
         changed_lines(
-            curbuf_mut(),
+            &curbuf_mut(),
             curwin_mut().w_cursor.get().lnum,
             currsize,
             curwin_mut().w_cursor.get().lnum + 1,
@@ -2134,7 +2136,7 @@ pub fn do_join(
                 col
             },
         );
-        check_cursor_col(curwin_mut());
+        check_cursor_col(&curwin_mut());
 
         curwin_mut().w_cursor.set_coladd(0);
         curwin_mut().w_set_curswant.set(true);
@@ -2188,7 +2190,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     let mut prev_pstart_off = 0usize;
 
     let mut csarg = CharsizeArg::new();
-    let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
+    let mut cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, line_cstr);
     let mut ci = utf_ptr2_str_char_info(line_cstr);
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !ci.ptr.is_empty() {
@@ -2237,7 +2239,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 }
             }
         } else {
-            cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
+            cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, line_cstr);
             ci = utf_ptr2_str_char_info(&line_cstr[pend_off..]);
             vcol = bdp.end_vcol;
             let mut prev_pend_off = pend_off;
@@ -2310,8 +2312,8 @@ pub fn getregionpos_prep(
         let mut sc2: Colnr = 0;
         let mut ec2: Colnr = 0;
         let lbr_saved = reset_lbr();
-        getvvcol(curwin_mut(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
-        getvvcol(curwin_mut(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
+        getvvcol(&curwin_mut(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
+        getvvcol(&curwin_mut(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
         restore_lbr(lbr_saved);
         oap.motion_type = MT_BLOCK_WISE;
         oap.inclusive = true;
@@ -2450,7 +2452,7 @@ pub fn charwise_block_prep(
         startcol = start.col;
         if g_st().virtual_op.get() != 0 {
             getvcol(
-                curwin_mut(),
+                &curwin_mut(),
                 &mut start,
                 Some(&mut cs),
                 None,
@@ -2469,7 +2471,7 @@ pub fn charwise_block_prep(
         endcol = end.col;
         if g_st().virtual_op.get() != 0 {
             getvcol(
-                curwin_mut(),
+                &curwin_mut(),
                 &mut end,
                 Some(&mut cs),
                 None,
@@ -2529,7 +2531,7 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
             .disable_fold_update
             .set(g_st().disable_fold_update.get() - (1));
         if change_cnt != 0 {
-            changed_lines(curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
+            changed_lines(&curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
         }
     } else {
         let mut length: i32;
@@ -2590,7 +2592,7 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
             .disable_fold_update
             .set(g_st().disable_fold_update.get() - (1));
         if change_cnt != 0 {
-            changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+            changed_lines(&curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
         }
 
         if change_cnt == 0 && oap.is_visual {
@@ -2636,7 +2638,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     let do_unsigned = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'u' as i32);
     let do_blank = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'k' as i32);
 
-    if virtual_active(curwin_mut()) {
+    if virtual_active(&curwin_mut()) {
         save_coladd = pos.coladd;
         pos.coladd = 0;
     }
@@ -2650,7 +2652,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     if col + i32::from(save_coladd != 0) >= linelen {
         if visual {
             curwin_mut().w_cursor.set(save_cursor);
-        } else if virtual_active(curwin_mut()) {
+        } else if virtual_active(&curwin_mut()) {
             curwin_mut().w_cursor.set_coladd(save_coladd);
         }
         return false;
@@ -2755,7 +2757,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         beep_flush();
         if visual {
             curwin_mut().w_cursor.set(save_cursor);
-        } else if virtual_active(curwin_mut()) {
+        } else if virtual_active(&curwin_mut()) {
             curwin_mut().w_cursor.set_coladd(save_coladd);
         }
         return false;
@@ -2973,7 +2975,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         curwin_mut().w_cursor.set(save_cursor);
     } else if did_change {
         curwin_mut().w_set_curswant.set(true);
-    } else if virtual_active(curwin_mut()) {
+    } else if virtual_active(&curwin_mut()) {
         curwin_mut().w_cursor.set_coladd(save_coladd);
     }
 
@@ -3052,7 +3054,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
     } else {
         let mut last_check: Varnumber = 100000;
         let mut line_count_selected: i32 = 0;
-        let eol_size = if get_fileformat(curbuf_mut()) == EOL_DOS {
+        let eol_size = if get_fileformat(&curbuf_mut()) == EOL_DOS {
             2
         } else {
             1
@@ -3081,7 +3083,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 oparg.motion_type = MT_BLOCK_WISE;
                 oparg.op_type = OP_NOP;
                 getvcols(
-                    curwin_mut(),
+                    &curwin_mut(),
                     &mut min_pos,
                     &mut max_pos,
                     &mut oparg.start_vcol,
@@ -3116,7 +3118,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 if l_visual_mode == CTRL_V_CONST {
                     g_st()
                         .virtual_op
-                        .set(TriState::from(virtual_active(curwin_mut())));
+                        .set(TriState::from(virtual_active(&curwin_mut())));
                     block_prep(&mut oparg, &mut bd, lnum, false);
                     g_st().virtual_op.set(K_NONE);
                     s_opt = Some(bd.textstart.to_bytes());
@@ -3186,7 +3188,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     let mut min_col = min_pos.col;
                     let mut max_col = max_pos.col;
                     getvcols(
-                        curwin_mut(),
+                        &curwin_mut(),
                         &mut min_pos,
                         &mut max_pos,
                         &mut min_col,
@@ -3234,7 +3236,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     );
                 }
             } else {
-                validate_virtcol(curwin_mut());
+                validate_virtcol(&curwin_mut());
                 col_print(
                     &mut buf1,
                     curwin_mut().w_cursor.get().col + 1,
@@ -3351,7 +3353,7 @@ fn op_colon(oap: &mut Oparg) {
 
         let mut end_of_start_fold = oap.start.lnum;
         has_folding(
-            curwin_mut(),
+            &curwin_mut(),
             oap.start.lnum,
             None,
             Some(&mut end_of_start_fold),
@@ -3363,7 +3365,7 @@ fn op_colon(oap: &mut Oparg) {
             } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count.get() {
                 stuffchar_readbuff(b'$' as i32);
             } else if oap.start.lnum == curwin_mut().w_cursor.get().lnum
-                && !has_folding(curwin_mut(), oap.end.lnum, None, None)
+                && !has_folding(&curwin_mut(), oap.end.lnum, None, None)
             {
                 stuff_readbuff(c".+");
                 stuffnum_readbuff(oap.line_count - 1);
@@ -3468,10 +3470,10 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         return;
     }
 
-    mark_mb_adjustpos(curwin_mut().buf_mut(), &mut oap.end);
+    mark_mb_adjustpos(&curwin_mut().buf_mut(), &mut oap.end);
 
     getvvcol(
-        curwin_mut(),
+        &curwin_mut(),
         &mut oap.start,
         Some(&mut oap.start_vcol),
         None,
@@ -3479,7 +3481,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         0,
     );
     getvvcol(
-        curwin_mut(),
+        &curwin_mut(),
         &mut oap.end,
         Some(&mut start),
         None,
@@ -3502,7 +3504,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         curwin_mut().w_cursor.set_lnum(oap.start.lnum);
         while curwin_mut().w_cursor.get().lnum <= oap.end.lnum {
             let mut cursor = curwin_mut().w_cursor.get();
-            getvvcol(curwin_mut(), &mut cursor, None, None, Some(&mut end), 0);
+            getvvcol(&curwin_mut(), &mut cursor, None, None, Some(&mut end), 0);
             curwin_mut().w_cursor.set(cursor);
             oap.end_vcol = oap.end_vcol.max(end);
             curwin_mut().w_cursor.add_lnum(1);
@@ -3510,11 +3512,11 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
     }
 
     curwin_mut().w_cursor.set_lnum(oap.end.lnum);
-    coladvance(curwin_mut(), oap.end_vcol);
+    coladvance(&curwin_mut(), oap.end_vcol);
     oap.end = curwin_mut().w_cursor.get();
 
     curwin_mut().w_cursor.set(oap.start);
-    coladvance(curwin_mut(), oap.start_vcol);
+    coladvance(&curwin_mut(), oap.start_vcol);
     oap.start = curwin_mut().w_cursor.get();
 }
 
@@ -3626,7 +3628,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         if lt(oap.start, curwin_mut().w_cursor.get()) {
             if !g_st().visual_global.borrow().active {
                 if has_folding(
-                    curwin_mut(),
+                    &curwin_mut(),
                     oap.start.lnum,
                     Some(&mut oap.start.lnum),
                     None,
@@ -3638,7 +3640,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     || oap.motion_type == MT_LINE_WISE
                 {
                     let mut cur_lnum = curwin_mut().w_cursor.get().lnum;
-                    if has_folding(curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
+                    if has_folding(&curwin_mut(), cur_lnum, None, Some(&mut cur_lnum)) {
                         curwin_mut().w_cursor.set_lnum(cur_lnum);
                         curwin_mut().w_cursor.set_col(get_cursor_line_len());
                     }
@@ -3653,12 +3655,12 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         } else {
             if !g_st().visual_global.borrow().active && oap.motion_type == MT_LINE_WISE {
                 let mut cur_lnum = curwin_mut().w_cursor.get().lnum;
-                if has_folding(curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
+                if has_folding(&curwin_mut(), cur_lnum, Some(&mut cur_lnum), None) {
                     curwin_mut().w_cursor.set_lnum(cur_lnum);
                     curwin_mut().w_cursor.set_col(0);
                 }
                 if has_folding(
-                    curwin_mut(),
+                    &curwin_mut(),
                     oap.start.lnum,
                     None,
                     Some(&mut oap.start.lnum),
@@ -3670,12 +3672,12 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             oap.start = curwin_mut().w_cursor.get();
         }
 
-        check_pos(curwin_mut().buf_mut(), &mut oap.end);
+        check_pos(&curwin_mut().buf_mut(), &mut oap.end);
         oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
         g_st()
             .virtual_op
-            .set(TriState::from(virtual_active(curwin_mut())));
+            .set(TriState::from(virtual_active(&curwin_mut())));
 
         if g_st().visual_global.borrow().active {
             get_op_vcol(&mut *oap, true);
@@ -3688,7 +3690,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 } else {
                     if g_st().visual_global.borrow().mode != CTRL_V_CONST {
                         getvvcol(
-                            curwin_mut(),
+                            &curwin_mut(),
                             &mut oap.end,
                             None,
                             None,
@@ -3699,7 +3701,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     if g_st().visual_global.borrow().mode == CTRL_V_CONST || oap.line_count <= 1 {
                         if g_st().visual_global.borrow().mode != CTRL_V_CONST {
                             getvvcol(
-                                curwin_mut(),
+                                &curwin_mut(),
                                 &mut oap.start,
                                 Some(&mut oap.start_vcol),
                                 None,
@@ -3775,7 +3777,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         let empty_region_error =
             oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EMPTYREGION);
 
-        if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
+        if oap.is_visual && (oap.empty || !modifiable(&curbuf_mut()) || oap.op_type == OP_FOLD) {
             restore_lbr(lbr_saved);
             redraw_curbuf_later(UPD_INVERTED);
         }
@@ -3854,7 +3856,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     }
                     op_yank(oap, !gui_yank);
                 }
-                check_cursor_col(curwin_mut());
+                check_cursor_col(&curwin_mut());
             }
             OP_CHANGE => {
                 g_st().visual_global.borrow_mut().reselect = 0;
@@ -3873,7 +3875,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     curbuf_mut()
                         .b_last_changedtick_i
-                        .set(buf_get_changedtick(curbuf_mut()));
+                        .set(buf_get_changedtick(&curbuf_mut()));
 
                     let v_ins = op_ins_visual(cap);
                     let oap = &mut cap.oap;
@@ -3930,7 +3932,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 } else {
                     op_tilde(oap);
                 }
-                check_cursor_col(curwin_mut());
+                check_cursor_col(&curwin_mut());
             }
             OP_FORMAT => {
                 if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST {
@@ -3961,7 +3963,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
                     curbuf_mut()
                         .b_last_changedtick_i
-                        .set(buf_get_changedtick(curbuf_mut()));
+                        .set(buf_get_changedtick(&curbuf_mut()));
 
                     let v_ins = op_ins_visual(cap);
                     let oap = &mut cap.oap;
@@ -3996,7 +3998,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
             OP_FOLD => {
                 g_st().visual_global.borrow_mut().reselect = 0;
-                fold_create(curwin_mut(), oap.start, oap.end);
+                fold_create(&curwin_mut(), oap.start, oap.end);
             }
             OP_MCURSOR => {
                 restore_lbr(lbr_saved);
@@ -4015,7 +4017,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             OP_FOLDDEL | OP_FOLDDELREC => {
                 g_st().visual_global.borrow_mut().reselect = 0;
                 delete_fold(
-                    curwin_mut(),
+                    &curwin_mut(),
                     oap.start.lnum,
                     oap.end.lnum,
                     i32::from(oap.op_type == OP_FOLDDELREC),
@@ -4032,7 +4034,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     op_addsub(oap, cap.count1, cap.arg != 0);
                     g_st().visual_global.borrow_mut().active = false;
                 }
-                check_cursor_col(curwin_mut());
+                check_cursor_col(&curwin_mut());
             }
             _ => {
                 clearopbeep(oap);
@@ -4050,7 +4052,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             {
                 reset_lbr();
                 curwin_mut().w_curswant.set(old_col);
-                coladvance(curwin_mut(), old_col);
+                coladvance(&curwin_mut(), old_col);
             }
         } else {
             curwin_mut().w_cursor.set(old_cursor);

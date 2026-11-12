@@ -1360,10 +1360,10 @@ pub fn do_search(
     }
 
     if dirc == b'/' as i32 {
-        if has_folding(curwin_mut(), pos.lnum, None, Some(&mut pos.lnum)) {
+        if has_folding(&curwin_mut(), pos.lnum, None, Some(&mut pos.lnum)) {
             pos.col = MAXCOL - 2;
         }
-    } else if has_folding(curwin_mut(), pos.lnum, Some(&mut pos.lnum), None) {
+    } else if has_folding(&curwin_mut(), pos.lnum, Some(&mut pos.lnum), None) {
         pos.col = 0;
     }
 
@@ -1585,8 +1585,8 @@ pub fn do_search(
         }
 
         c = i64::from(searchit(
-            Some(curwin_mut()),
-            curbuf_mut(),
+            Some(&curwin_mut()),
+            &curbuf_mut(),
             &mut pos,
             None,
             if dirc == b'/' as i32 {
@@ -1676,7 +1676,7 @@ pub fn do_search(
         if show_search_stats {
             let cursor_lnum = curwin_mut().w_cursor.get().lnum;
             let cursor_folded = (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_SEARCH) == 0
-                && has_folding(curwin_mut(), cursor_lnum, None, None);
+                && has_folding(&curwin_mut(), cursor_lnum, None, None);
             cmdline_search_stat(
                 dirc,
                 &mut pos,
@@ -2538,7 +2538,7 @@ pub fn showmatch(c: i32) {
     }
 
     if !curwin_mut().w_onebuf_opt.wo_wrap.get() {
-        getvcol(curwin_mut(), &mut lpos, None, Some(&mut vcol), None, 0);
+        getvcol(&curwin_mut(), &mut lpos, None, Some(&mut vcol), None, 0);
     }
 
     let col_visible = curwin_mut().w_onebuf_opt.wo_wrap.get()
@@ -2681,8 +2681,8 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         }
 
         result = searchit(
-            Some(curwin_mut()),
-            curbuf_mut(),
+            Some(&curwin_mut()),
+            &curbuf_mut(),
             &mut pos,
             Some(&mut end_pos),
             if dir { FORWARD } else { BACKWARD },
@@ -2752,7 +2752,9 @@ pub fn current_search(count: i32, forward: bool) -> bool {
                 g_st().visual_global.borrow().start,
             )
         {
-            inc(&mut g_st().visual_global.borrow_mut().start);
+            let mut vstart = g_st().visual_global.borrow().start;
+            inc(&mut vstart);
+            g_st().visual_global.borrow_mut().start = vstart;
         }
     }
 
@@ -2816,8 +2818,8 @@ fn is_zero_width(
             flag = SEARCH_START;
         }
         if searchit(
-            Some(curwin_mut()),
-            curbuf_mut(),
+            Some(&curwin_mut()),
+            &curbuf_mut(),
             &mut pos,
             None,
             direction,
@@ -2836,8 +2838,8 @@ fn is_zero_width(
                 let start_col = regmatch.startpos[0].col;
                 nmatched = vim_regexec_multi(
                     &mut regmatch,
-                    Some(curwin_mut()),
-                    curbuf_mut(),
+                    Some(&curwin_mut()),
+                    &curbuf_mut(),
                     pos.lnum,
                     start_col,
                     None,
@@ -2966,7 +2968,7 @@ fn update_search_stat(
     let wraparound = (dirc == b'?' as i32 && lt(stat_lastpos, p))
         || (dirc == b'/' as i32 && lt(p, stat_lastpos));
 
-    let chgtick = buf_get_changedtick(curbuf_mut());
+    let chgtick = buf_get_changedtick(&curbuf_mut());
     let valid_cache = with_srch(|s| {
         i64::from(s.stat_chgtick) == chgtick
             && s.stat_lastpat.is_some()
@@ -3027,8 +3029,8 @@ fn update_search_stat(
         let mut lastpos = with_srch(|s| s.stat_lastpos);
         while !g_st().got_int.get()
             && searchit(
-                Some(curwin_mut()),
-                curbuf_mut(),
+                Some(&curwin_mut()),
+                &curbuf_mut(),
                 &mut lastpos,
                 Some(&mut endpos),
                 FORWARD,
@@ -3070,7 +3072,7 @@ fn update_search_stat(
             with_srch_mut(|s| s.stat_cur = -1);
         }
         if done_search {
-            let chgtick = buf_get_changedtick(curbuf_mut()) as i32;
+            let chgtick = buf_get_changedtick(&curbuf_mut()) as i32;
             with_srch_mut(|s| {
                 let last_idx = s.last_idx as usize;
                 s.stat_lastpat = s.spats[last_idx].pat.clone();
@@ -3528,7 +3530,9 @@ pub fn find_pattern_in_path(
                                 tr(c"Scanning included file: %s"),
                                 curr_fname.as_deref().unwrap_or(c""),
                             );
-                            msg_trunc(&mut *g_st().iobuff_bytes_mut(), true, HLF_R);
+                            let mut iob = *g_st().iobuff.borrow();
+                            msg_trunc(&mut iob, true, HLF_R);
+                            *g_st().iobuff.borrow_mut() = iob;
                         } else if opt_vars().p_verbose.get() >= 5 {
                             verbose_enter();
                             smsg!(
@@ -3841,7 +3845,7 @@ pub fn find_pattern_in_path(
                                     if !win_split(0, 0) {
                                         stop_fpip_loop = true;
                                     } else {
-                                        reset_binding(curwin_mut());
+                                        reset_binding(&curwin_mut());
                                     }
                                 }
                                 if !stop_fpip_loop {
@@ -3864,7 +3868,7 @@ pub fn find_pattern_in_path(
                                         }
                                         if !stop_fpip_loop {
                                             curwin_mut().w_cursor.set_lnum(lnum);
-                                            check_cursor(curwin_mut());
+                                            check_cursor(&curwin_mut());
                                         }
                                     } else if !getfile_success(getfile(
                                         0,
@@ -3892,8 +3896,8 @@ pub fn find_pattern_in_path(
                                     && curwin_ptr() != curwin_save
                                     && win_valid(curwin_save.opt())
                                 {
-                                    validate_cursor(curwin_mut());
-                                    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+                                    validate_cursor(&curwin_mut());
+                                    redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
                                     win_enter(curwin_save.borrow_mut(), true);
                                 }
                                 stop_fpip_loop = true;

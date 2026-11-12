@@ -363,7 +363,7 @@ pub fn init_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch) {
         } else {
             syn_id2attr(cur.mit_hlg_id)
         };
-        cur.mit_hl.buf = buf;
+        cur.mit_hl.buf = buf.clone();
         cur.mit_hl.lnum = 0;
         cur.mit_hl.first_lnum = 0;
         cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
@@ -562,12 +562,12 @@ fn next_search_hl(
             let mut timed_out: i32 = 0;
             let (mut rm, shl_buf, shl_tm) = {
                 let mut shl = get_shl_mut(win, search_hl, match_idx);
-                (std::mem::take(&mut shl.rm), shl.buf.borrow_mut(), shl.tm)
+                (std::mem::take(&mut shl.rm), shl.buf.clone(), shl.tm)
             };
             nmatched = vim_regexec_multi(
                 &mut rm,
                 Some(win),
-                shl_buf,
+                &shl_buf,
                 lnum,
                 matchcol,
                 Some(shl_tm),
@@ -746,7 +746,7 @@ pub fn prepare_search_hl_line(
                 (shl.startcol, shl.endcol)
             };
             if startcol == endcol {
-                let line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
+                let line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
                 let end_off = endcol as usize;
                 let step = if end_off < line_bytes.len() {
                     utfc_ptr2len(&line_bytes[end_off..])
@@ -782,7 +782,7 @@ pub fn update_search_hl(
     on_last_col: &mut bool,
     search_attr_from_match: &mut bool,
 ) -> i32 {
-    let mut line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
+    let mut line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
     let mut idx = 0usize;
     let len = wp.w_match_head.borrow().len();
     let mut shl_flag = false;
@@ -838,7 +838,7 @@ pub fn update_search_hl(
                 pos_inprogress =
                     match_idx.is_some_and(|m_idx| wp.w_match_head.borrow()[m_idx].mit_pos_cur != 0);
 
-                line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
+                line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
 
                 if get_shl(wp, search_hl, match_idx).lnum == lnum {
                     {
@@ -970,7 +970,7 @@ pub fn get_search_match_hl(
 fn matchadd_dict_arg<'a>(
     tv: &'a TypVal,
     conceal_char: &mut Option<std::borrow::Cow<'a, std::ffi::CStr>>,
-    win: &mut &'static WinInfoInfo,
+    win: &mut crate::globals::WinPtr,
 ) -> bool {
     if tv.v_type != VarType::VarDict {
         emsg(gettext(E_DICTREQ));
@@ -999,7 +999,7 @@ fn matchadd_dict_arg<'a>(
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     if let Some(win) = get_optional_window(argvars, 0) {
-        clear_matches(win);
+        clear_matches(&win);
     }
 }
 
@@ -1094,7 +1094,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }
 
-    clear_matches(win);
+    clear_matches(&win);
     let mut match_add_failed = false;
     for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
@@ -1137,7 +1137,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         if i == 0 {
             let pat = tv_dict_get_string(Some(d), c"pattern");
             if match_add(
-                win,
+                &win,
                 group.as_deref(),
                 pat.as_deref(),
                 priority,
@@ -1150,7 +1150,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
         } else {
             if match_add(
-                win,
+                &win,
                 group.as_deref(),
                 None,
                 priority,
@@ -1207,7 +1207,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-        win,
+        &win,
         Some(grp),
         Some(pat),
         prio,
@@ -1264,7 +1264,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let l = argvars[1].vval.v_list_opt();
     rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-        win,
+        &win,
         Some(group),
         None,
         prio,
@@ -1281,7 +1281,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
     if (1..=3).contains(&id) {
-        if let Some((mit_hlg_id, mit_pattern)) = get_match(curwin_mut(), id) {
+        if let Some((mit_hlg_id, mit_pattern)) = get_match(&curwin_mut(), id) {
             let group_name = syn_id2name(mit_hlg_id);
             tv_list_append_string(rettv.vval.v_list_ref(), Some(&group_name), -1);
             tv_list_append_string(rettv.vval.v_list_ref(), mit_pattern.as_deref(), -1);
@@ -1296,7 +1296,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(
         if let Some(win) = get_optional_window(argvars, 1) {
-            match_delete(win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
+            match_delete(&win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
         } else {
             -1
         },
@@ -1315,7 +1315,7 @@ pub fn ex_match(eap: &mut Exarg) {
     };
 
     if !eap.skip {
-        match_delete(curwin_mut(), id, false);
+        match_delete(&curwin_mut(), id, false);
     }
 
     let arg_slice = eap.arg.clone();
@@ -1364,7 +1364,7 @@ pub fn ex_match(eap: &mut Exarg) {
                 let pat_len = (end.as_ptr() as usize).wrapping_sub(p_next.as_ptr() as usize);
                 let pat_cstr = crate::memory::bytes_to_cstring(&p_next.to_bytes()[..pat_len]);
                 match_add(
-                    curwin_mut(),
+                    &curwin_mut(),
                     g.as_deref(),
                     Some(pat_cstr.as_c_str()),
                     10,

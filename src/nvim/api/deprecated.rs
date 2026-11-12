@@ -220,7 +220,7 @@ pub fn nvim_buf_add_highlight(
     decor.data.hl_mut().hl_id = hl_id;
 
     extmark_set(
-        buf,
+        &buf,
         ns,
         None,
         line as i32,
@@ -284,7 +284,7 @@ pub fn nvim_buf_set_virtual_text(
         return 0;
     }
 
-    if let Some(existing) = decor_find_virttext(buf, line as i32, u64::from(ns_id)) {
+    if let Some(existing) = decor_find_virttext(&buf, line as i32, u64::from(ns_id)) {
         existing.with_vt_mut(|vt| {
             vt.data = DecorVirtTextData::VirtText(virt_text);
             vt.width = width;
@@ -314,7 +314,7 @@ pub fn nvim_buf_set_virtual_text(
     };
 
     extmark_set(
-        buf,
+        &buf,
         ns_id,
         None,
         line as i32,
@@ -755,7 +755,7 @@ const fn convert_index(index: i64) -> i64 {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
 pub fn nvim_get_option_info(name: NvimString, arena: &mut Arena, err: &mut Error) -> Dict {
-    get_option_info(name, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena, err)
+    get_option_info(name, OPT_GLOBAL, &curbuf_mut(), &curwin_mut(), arena, err)
 }
 
 /// Sets the global value of an option.
@@ -808,7 +808,7 @@ pub fn nvim_buf_get_option(buffer: Buffer, name: NvimString, err: &mut Error) ->
     let Some(buf) = find_buffer_by_handle(buffer, err) else {
         return OBJECT_NIL;
     };
-    get_option_from(OptTarget::Buf(buf.into()), K_OPT_SCOPE_BUF, name, err)
+    get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -836,7 +836,7 @@ pub fn nvim_buf_set_option(
     };
     set_option_to(
         channel_id,
-        OptTarget::Buf(buf.into()),
+        OptTarget::Buf(buf),
         K_OPT_SCOPE_BUF,
         name,
         value,
@@ -1234,7 +1234,7 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
         return;
     };
     try_wrap(err, || {
-        win_setheight_win(height as i32, w, true);
+        win_setheight_win(height as i32, &w, true);
     });
 }
 
@@ -1256,7 +1256,7 @@ pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
         return;
     };
     try_wrap(err, || {
-        win_setwidth_win(width as i32, w, true);
+        win_setwidth_win(width as i32, &w, true);
     });
 }
 

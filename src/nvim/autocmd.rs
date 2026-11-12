@@ -2451,8 +2451,8 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
             None,
             true,
             group,
-            curbuf_opt_mut(),
-            Some(crate::globals::curwin_mut()),
+            curbuf_opt_mut().as_deref(),
+            Some(&crate::globals::curwin_mut()),
             None,
             None,
             false,
@@ -2484,14 +2484,14 @@ pub fn ex_doautoall(eap: &mut Exarg) {
             continue;
         }
 
-        ctx_switch(&mut aco, None, None, Some(buf), 0);
-        set_bufref(&mut bufref, Some(buf));
+        ctx_switch(&mut aco, None, None, Some(&buf), 0);
+        set_bufref(&mut bufref, Some(&buf));
 
         let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
         retval = ok;
 
         if call_do_modelines && did_aucmd {
-            do_modelines(if is_ctx_win(curwin_mut()) {
+            do_modelines(if is_ctx_win(&curwin_mut()) {
                 OPT_NOWIN
             } else {
                 0
@@ -2554,7 +2554,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
     let mut err = Error::new();
     if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
-        let buf_ptr = crate::globals::BufPtr::from(buf);
+        let buf_ptr = buf.clone();
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         if let Some(ref data_obj) = data
@@ -2575,7 +2575,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
         let win = curwin_ptr();
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, Some(buf), 0);
+        ctx_switch(&mut aco, None, None, Some(&buf), 0);
 
         apply_autocmds_group(
             event,
@@ -2607,7 +2607,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
         let old = boolean_obj(!new_val);
         let new = boolean_obj(new_val);
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, Some(buf), 0);
+        ctx_switch(&mut aco, None, None, Some(&buf), 0);
         apply_optionset_autocmd_now(
             K_OPT_MODIFIED,
             OPT_LOCAL,
@@ -2650,7 +2650,7 @@ pub fn apply_autocmds(
         force,
         AUGROUP_ALL,
         buf,
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         None,
         None,
         false,
@@ -2693,7 +2693,7 @@ pub fn apply_autocmds_exarg(
         force,
         AUGROUP_ALL,
         buf,
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         eap,
         None,
         false,
@@ -2719,7 +2719,7 @@ pub fn apply_autocmds_retval(
         force,
         AUGROUP_ALL,
         buf,
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         None,
         None,
         false,
@@ -3151,7 +3151,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
         true,
         AUGROUP_ALL,
         None,
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         None,
         Some(&data_obj),
         false,
@@ -3846,7 +3846,7 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         None,
         None,
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
     restore_v_event(&dict, &mut save_v_event);
 
@@ -3867,7 +3867,7 @@ pub fn do_autocmd_focusgained(gained: bool) {
         None,
         None,
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
 
     if gained && AU_STATE.with(|s| s.focusgained_last_time.get()) + 2000 < os_now() {

@@ -1085,8 +1085,7 @@ fn get_lval_dict_item<'a>(
         }
     }
 
-    if !lp.ll_di.is_null() && tv_is_luafunc(&mut lp.ll_di.tv_mut()) && len == -1 && rettv.is_none()
-    {
+    if !lp.ll_di.is_null() && tv_is_luafunc(&lp.ll_di.tv()) && len == -1 && rettv.is_none() {
         semsg!(E_ILLVAR, c"v:['lua']");
         return GLV_FAIL;
     }
@@ -1472,7 +1471,7 @@ pub fn get_lval<'a>(
 
     lp.ll_tv = crate::eval::vars::LvalTv::DictItem(v);
 
-    if tv_is_luafunc(&mut lp.ll_tv.borrow_mut()) {
+    if tv_is_luafunc(&lp.ll_tv.borrow()) {
         return Some(p_cstr);
     }
 
@@ -3488,7 +3487,7 @@ fn eval_index_inner(
             let Some(item) = item else {
                 return false;
             };
-            if tv_is_luafunc(&mut item.tv_mut()) {
+            if tv_is_luafunc(&item.tv()) {
                 return false;
             }
 
@@ -5197,7 +5196,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
         };
         let mut total_len: usize = 0;
         for lnum in 1..=buf.b_ml.ml_line_count.get() {
-            total_len += crate::memline::ml_get_buf_len(buf, lnum) as usize + 1;
+            total_len += crate::memline::ml_get_buf_len(&buf, lnum) as usize + 1;
         }
 
         if total_len == 0 {
@@ -5206,7 +5205,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
 
         let mut ret = Vec::with_capacity(total_len);
         for lnum in 1..=buf.b_ml.ml_line_count.get() {
-            for &p_byte in crate::memline::ml_get_buf_slice(buf, lnum) {
+            for &p_byte in crate::memline::ml_get_buf_slice(&buf, lnum) {
                 ret.push(if p_byte == b'\n' { 0 } else { p_byte });
             }
             ret.push(b'\n');
@@ -5520,7 +5519,7 @@ pub fn list2fpos(
         let cur_lnum = curwin_mut().w_cursor.get().lnum;
 
         n = buf_charidx_to_byteidx(
-            Some(buf),
+            Some(&buf),
             if posp.lnum == 0 { cur_lnum } else { posp.lnum },
             n,
         ) + 1;
@@ -5794,7 +5793,7 @@ pub fn is_luafunc(partial: Option<&TvPartial>) -> bool {
     get_vim_var_partial(VV_LUA).is_some_and(|p| ptr::eq(partial, &*p))
 }
 
-fn tv_is_luafunc(tv: &mut TypVal) -> bool {
+fn tv_is_luafunc(tv: &TypVal) -> bool {
     tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv))
 }
 

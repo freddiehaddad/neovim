@@ -209,7 +209,7 @@ impl Default for CmdSpec {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct CmdOrigin {
     pub buf: Bufref,
     pub win: crate::globals::WinPtr,
@@ -320,7 +320,7 @@ pub struct CmdFrame {
 struct CompositeState {
     active: std::cell::Cell<bool>,
     open: std::cell::Cell<bool>,
-    origin: std::cell::Cell<CmdOrigin>,
+    origin: crate::globals::CloneCell<CmdOrigin>,
     follow: std::cell::Cell<TriState>,
     atoms: std::cell::RefCell<CmdAtomVec>,
     lhs: std::cell::Cell<[u8; MAXMAPLEN + 4]>,
@@ -333,7 +333,7 @@ struct CompositeState {
 struct VatomStateStruct {
     atoms: std::cell::RefCell<CmdAtomVec>,
     state: std::cell::Cell<u32>,
-    origin: std::cell::Cell<CmdOrigin>,
+    origin: crate::globals::CloneCell<CmdOrigin>,
     frame: std::cell::Cell<u64>,
     done: std::cell::Cell<usize>,
 }
@@ -369,7 +369,7 @@ impl CmdAtomModuleState {
             composite: CompositeState {
                 active: std::cell::Cell::new(false),
                 open: std::cell::Cell::new(false),
-                origin: std::cell::Cell::new(CmdOrigin::new()),
+                origin: crate::globals::CloneCell::new(CmdOrigin::new()),
                 follow: std::cell::Cell::new(K_NONE),
                 atoms: std::cell::RefCell::new(Vec::new()),
                 lhs: std::cell::Cell::new([0; MAXMAPLEN + 4]),
@@ -381,7 +381,7 @@ impl CmdAtomModuleState {
             vatom: VatomStateStruct {
                 atoms: std::cell::RefCell::new(Vec::new()),
                 state: std::cell::Cell::new(K_VATOM_NONE),
-                origin: std::cell::Cell::new(CmdOrigin::new()),
+                origin: crate::globals::CloneCell::new(CmdOrigin::new()),
                 frame: std::cell::Cell::new(0),
                 done: std::cell::Cell::new(0),
             },
@@ -488,9 +488,9 @@ fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
         win: crate::globals::curwin_ptr(),
         pos: curwin_mut().w_cursor.get(),
-        tick: buf_get_changedtick(curbuf_mut()),
+        tick: buf_get_changedtick(&curbuf_mut()),
         maptick: g_st().maptick.get(),
-        mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor.get(), 0),
+        mcursor: mc_mark_at(&curbuf_mut(), curwin_mut().w_cursor.get(), 0),
         ..CmdOrigin::default()
     };
     set_bufref(&mut origin.buf, g_st().curbuf.get().opt_mut());
@@ -740,7 +740,8 @@ fn atom_emit(atom: &CmdAtom) {
         }
         dict_put(&mut data, c"atoms", array_obj(atoms));
     }
-    let buf = atom.origin.buf.buf_opt().unwrap_or_else(curbuf_mut);
+    let cb = curbuf_mut();
+    let buf = atom.origin.buf.buf_opt().unwrap_or(&cb);
     let mut obj = dict_obj(data.clone());
     aucmd_defer(
         EVENT_CMDATOM,
@@ -756,9 +757,9 @@ fn atom_emit(atom: &CmdAtom) {
 pub fn atom_push_raw(cascade: bool, atom: &mut CmdAtom) {
     assert!(atom.keys.is_some());
     if !atom.origin.buf.br_buf.is_null() {
-        atom.changed = atom_origin_changed(atom.origin);
-        atom.moved = atom_origin_moved(atom.origin);
-        atom.undoseq = atom_origin_undoseq(atom.origin);
+        atom.changed = atom_origin_changed(atom.origin.clone());
+        atom.moved = atom_origin_moved(atom.origin.clone());
+        atom.undoseq = atom_origin_undoseq(atom.origin.clone());
     }
     let cur_frame_id = with_cur_frame_opt(|f| f.map_or(0, |f| f.id));
     let collect = with_atom(|st| {
@@ -788,7 +789,7 @@ pub fn atom_push_raw(cascade: bool, atom: &mut CmdAtom) {
         let copy = CmdAtom {
             r#type: atom.r#type,
             spec: atom.spec.without_body(),
-            origin: atom.origin,
+            origin: atom.origin.clone(),
             atoms: Vec::new(),
             keys: atom.keys.clone(),
             text: None,
@@ -821,7 +822,7 @@ fn atom_push(cascade: bool, atom: &mut CmdAtom) {
         *atom = CmdAtom::new();
         return;
     }
-    atom_push_raw(cascade && mc_buf_has_cursors(curbuf_mut()), &mut *atom);
+    atom_push_raw(cascade && mc_buf_has_cursors(&curbuf_mut()), &mut *atom);
 }
 
 fn atom_stage_set(atom: &mut CmdAtom) {
@@ -951,9 +952,9 @@ fn atom_composite_end() {
         atom.keys = keys_cstr;
         atom.lhs = Some(lhs);
         atom.remap = remap;
-        atom.origin = origin;
-        atom.changed = atom_origin_changed(origin);
-        atom.moved = atom_origin_moved(origin);
+        atom.origin = origin.clone();
+        atom.changed = atom_origin_changed(origin.clone());
+        atom.moved = atom_origin_moved(origin.clone());
         atom.undoseq = atom_origin_undoseq(origin);
         atom.atoms = sub_atoms;
     }
@@ -1007,7 +1008,7 @@ fn atom_capturable(consumers: bool, keytyped: bool) -> bool {
 
 #[inline]
 fn atom_buf_has_consumers() -> bool {
-    mc_buf_has_cursors(curbuf_mut()) || has_event(EVENT_CMDATOM)
+    mc_buf_has_cursors(&curbuf_mut()) || has_event(EVENT_CMDATOM)
 }
 
 pub fn atom_key_class(cmd: i32, arg: i32, arg2: i32) -> u32 {
@@ -1226,7 +1227,7 @@ pub fn atom_follow_changed() {
     let following = mc_following();
     with_atom(|st| {
         for frame in st.cmd_frames.borrow_mut().iter_mut().rev() {
-            if !atom_origin_moved(frame.origin) {
+            if !atom_origin_moved(frame.origin.clone()) {
                 frame.follow = following;
             } else if st.composite.follow.get() == K_NONE {
                 st.composite
@@ -1364,7 +1365,7 @@ fn atom_visual_span_flush() {
     if with_atom(|st| st.vatom.done.get() >= st.vatom.atoms.borrow().len())
         || !atom_visual_replayable()
         || !atom_visual_typed()
-        || !mc_buf_has_cursors(curbuf_mut())
+        || !mc_buf_has_cursors(&curbuf_mut())
     {
         return;
     }
@@ -1473,13 +1474,13 @@ fn atom_visual_end_suffix(
         atom.spec = spec.without_body();
     }
     atom.keys = Some(keys_cstr);
-    atom.origin = origin;
+    atom.origin = origin.clone();
     if let Some(spec) = spec {
         let mut op_atom = CmdAtom::new();
         op_atom.r#type = K_AOPERATOR;
         op_atom.spec = spec.without_body();
         op_atom.keys = suffix;
-        op_atom.origin = with_cur_frame(|f| f.origin);
+        op_atom.origin = with_cur_frame(|f| f.origin.clone());
         with_atom(|st| st.vatom.atoms.borrow_mut().push(op_atom));
     }
     let (cascaded, need_span) = with_atom(|st| {
@@ -1535,7 +1536,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
                 spec.cmd2 = if operand { NUL } else { cap.nchar };
                 spec.cmdarg = if operand { cap.nchar } else { NUL };
                 let mut op_atom = atom_from_spec(K_AOPERATOR, spec);
-                op_atom.origin = with_cur_frame(|f| f.origin);
+                op_atom.origin = with_cur_frame(|f| f.origin.clone());
                 atom_stage_set(&mut op_atom);
             }
         } else if !g_st().visual_global.borrow().active || oap.motion_force != 0 {
@@ -1655,7 +1656,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
         origin: if vis == K_VINS_KEYS {
             with_atom(|st| st.vatom.origin.get())
         } else {
-            with_cur_frame(|f| f.origin)
+            with_cur_frame(|f| f.origin.clone())
         },
         vsel: None,
     };
@@ -1678,7 +1679,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
         || (vis == K_VINS_MOTION && with_cur_frame(|f| f.payload_start == usize::MAX));
     mc_ins_cascade_start(
         session.typed && count <= 1 && !repl && !vblock && reexec,
-        session.origin,
+        session.origin.clone(),
         with_root_frame(|f| f.id),
         session.vsel.clone(),
     );
@@ -1713,7 +1714,7 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
         session.vsel = None;
         return;
     }
-    atom_ins_push(session, mc_buf_has_cursors(curbuf_mut()));
+    atom_ins_push(session, mc_buf_has_cursors(&curbuf_mut()));
     session.vsel = None;
 }
 
@@ -1741,7 +1742,7 @@ fn atom_ins_push(session: &InsSession, cascade: bool) {
         return;
     }
     atom.text = get_last_insert_save();
-    atom.origin = session.origin;
+    atom.origin = session.origin.clone();
     atom_push_raw(cascade, &mut atom);
 }
 
@@ -1756,7 +1757,7 @@ pub fn atom_cmd_start(cmdchar: i32) {
         st.frame_id.set(frame_id);
         let is_root = st.cmd_frames.borrow().is_empty();
         st.cmd_frames.borrow_mut().push(CmdFrame {
-            origin,
+            origin: origin.clone(),
             staged: CmdAtom::default(),
             visual: *g_st().visual_global.borrow(),
             keytyped: g_st().key_typed.get(),
@@ -1835,7 +1836,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
             root.id,
             root.redo_frame,
             root.cmdline.is_some(),
-            old.origin,
+            old.origin.clone(),
             old.visual,
             old.keytyped,
             old.captures,
@@ -1851,8 +1852,8 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     let synthetic = (keycls & K_KEY_SYNTHETIC) != 0;
     let unchanged = old_origin.buf.br_buf == g_st().curbuf.get()
         && old_origin.win == curwin_ptr()
-        && !atom_origin_moved(old_origin)
-        && !atom_origin_changed(old_origin)
+        && !atom_origin_moved(old_origin.clone().clone().clone().clone().clone())
+        && !atom_origin_changed(old_origin.clone().clone().clone().clone())
         && g_st().visual_global.borrow().active == old_visual.active
         && (!g_st().visual_global.borrow().active
             || (equalpos(old_visual.start, g_st().visual_global.borrow().start)
@@ -1868,7 +1869,8 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     let mapped = user && !old_keytyped && !synthetic;
     if mapped
         && with_atom(|st| st.global_ops.get() == old_global_ops)
-        && ((old_origin.buf.br_buf == g_st().curbuf.get() && atom_origin_changed(old_origin))
+        && ((old_origin.buf.br_buf == g_st().curbuf.get()
+            && atom_origin_changed(old_origin.clone().clone().clone()))
             || ins_cascaded)
     {
         with_atom(|st| st.map_edit.set(true));
@@ -1881,7 +1883,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
             atom_visual_reset();
             with_atom(|st| {
                 st.vatom.state.set(K_VATOM_FED);
-                st.vatom.origin.set(old_origin);
+                st.vatom.origin.set(old_origin.clone().clone());
             });
         }
         if atom_visual_pending() && user && !synthetic && (old_keytyped || atom_composite_active())
@@ -1944,12 +1946,13 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
             && ca.cmdchar != b'@' as i32
             && !scroll_cmd)
             || special_motion;
-        let changed = atom_origin_changed(old_origin);
+        let changed = atom_origin_changed(old_origin.clone().clone().clone().clone());
         let motion = (nv_is(ca.cmdchar, NV_MOTION) || special_motion)
             && !changed
             && !g_st().finish_op.get()
             && !jump_cmd;
-        let failed = g_st().did_beep.get() != old_beeps && !atom_origin_moved(old_origin);
+        let failed = g_st().did_beep.get() != old_beeps
+            && !atom_origin_moved(old_origin.clone().clone().clone());
         let follow = (mc_following() || mapped) && motion && !failed;
 
         if root_redo_frame == old_id && !mouse_cmd {
@@ -1958,10 +1961,10 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
 
             let effect = (changed
                 || reg_max_ts(true) > old_reg_ts
-                || (mc_following() && atom_origin_moved(old_origin)))
+                || (mc_following() && atom_origin_moved(old_origin.clone().clone())))
                 && with_atom(|st| st.global_ops.get() == old_global_ops);
             if atom.keys.as_ref().is_some_and(|k| !k.as_bytes().is_empty()) {
-                atom.origin = old_origin;
+                atom.origin = old_origin.clone();
                 atom_push(effect, &mut atom);
             }
         } else if ca.searchbuf.is_some()
@@ -1969,13 +1972,13 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
             && !(vis && unchanged)
         {
             let mut atom = atom_from_cmdline(K_AMOTION, ca, ca.searchbuf_cstr(), old_visual.active);
-            atom.origin = old_origin;
+            atom.origin = old_origin.clone();
             atom_push(false, &mut atom);
         } else if (root_has_cmdline && (ca.cmdchar == b':' as i32 || ca.cmdchar == K_COMMAND))
             || (vis && ca.cmdchar == K_LUA)
         {
             let mut atom = atom_from_cur_frame(ca);
-            atom.origin = old_origin;
+            atom.origin = old_origin.clone();
             atom_push(false, &mut atom);
         } else if replayable && (!vis || ((keycls & K_KEY_PAYLOAD) == 0 && !failed)) {
             let mut spec = atom_cmd_spec(ca);
@@ -1992,7 +1995,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
                 },
                 spec,
             );
-            atom.origin = old_origin;
+            atom.origin = old_origin.clone();
             atom_push(follow, &mut atom);
             if jump_cmd && atom_composite_active() {
                 with_atom(|st| st.composite.queued.set(true));
@@ -2003,7 +2006,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
                 spec.count = 0;
             }
             let mut atom = atom_from_spec(if scroll_cmd { K_ASCROLL } else { K_AMOUSE }, spec);
-            atom.origin = old_origin;
+            atom.origin = old_origin.clone();
             atom_push(false, &mut atom);
         }
         if vis && with_atom(|st| st.vatom.atoms.borrow().len() == collected) && !unchanged {
@@ -2026,7 +2029,7 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
     let (is_root, old_origin, old_follow) = with_atom(|st| {
         let frames = st.cmd_frames.borrow();
         let old = frames.last().unwrap();
-        (frames.len() == 1, old.origin, old.follow)
+        (frames.len() == 1, old.origin.clone(), old.follow)
     });
     if with_atom(|st| st.composite.follow.get() == K_NONE)
         && !mc_replaying()

@@ -440,7 +440,7 @@ pub fn mf_release_all() -> bool {
 
     for buf in for_all_buffers_mut() {
         if buf.b_ml.mfp_opt().is_some_and(|mfp| mfp.mf_fd < 0) && buf.b_may_swap.get() {
-            ml_open_file(buf);
+            ml_open_file(&buf);
         }
         if let Some(mut mfp_ref) = buf.b_ml.mfp_opt()
             && mfp_ref.mf_fd >= 0

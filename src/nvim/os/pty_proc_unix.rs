@@ -68,7 +68,7 @@ pub const fn wtermsig(stat: i32) -> i32 {
 mod unix_impl {
     use super::*;
     use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues, uv_signal_t};
-    use crate::event::proc::{Proc, PtyProc};
+    use crate::event::proc::PtyProc;
     use crate::event::stream::uv_pipe_t;
 
     #[cfg(target_os = "linux")]
@@ -604,7 +604,6 @@ mod unix_impl {
             let qc = loop_queues(&mut *loop_);
 
             for &proc_ in &qc.children {
-                let proc_ = proc_.as_ptr();
                 let hdr = proc_;
                 let proc_t = proc_;
 
@@ -621,14 +620,20 @@ mod unix_impl {
                 }
 
                 if wifstopped(stat) {
-                    if let Some(data) = (*hdr).data.opt_mut() {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, true, data);
+                    if (*hdr).chan_id != 0
+                        && let Some(chan) =
+                            crate::msgpack_rpc::channel::find_channel_opt((*hdr).chan_id)
+                    {
+                        crate::channel::channel_proc_state_cb(&mut *proc_, true, chan);
                     }
                     continue;
                 }
                 if wifcontinued(stat) {
-                    if let Some(data) = (*hdr).data.opt_mut() {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, false, data);
+                    if (*hdr).chan_id != 0
+                        && let Some(chan) =
+                            crate::msgpack_rpc::channel::find_channel_opt((*hdr).chan_id)
+                    {
+                        crate::channel::channel_proc_state_cb(&mut *proc_, false, chan);
                     }
                     continue;
                 }

@@ -401,7 +401,7 @@ pub fn nvim_buf_get_extmark_by_id(
         true
     };
 
-    let extmark = extmark_from_id(b, ns_id as u32, id as u32);
+    let extmark = extmark_from_id(&b, ns_id as u32, id as u32);
     if extmark.start.pos.row < 0 {
         return rv;
     }
@@ -530,13 +530,13 @@ pub fn nvim_buf_get_extmarks(
 
     let mut l_row: i32 = 0;
     let mut l_col: Colnr = 0;
-    if !extmark_get_index_from_obj(b, ns_id, start, &mut l_row, &mut l_col, err) {
+    if !extmark_get_index_from_obj(&b, ns_id, start, &mut l_row, &mut l_col, err) {
         return rv;
     }
 
     let mut u_row: i32 = 0;
     let mut u_col: Colnr = 0;
-    if !extmark_get_index_from_obj(b, ns_id, end, &mut u_row, &mut u_col, err) {
+    if !extmark_get_index_from_obj(&b, ns_id, end, &mut u_row, &mut u_col, err) {
         return rv;
     }
 
@@ -549,7 +549,7 @@ pub fn nvim_buf_get_extmarks(
     }
 
     let marks = extmark_get(
-        b,
+        &b,
         ns_id as u32,
         l_row,
         l_col,
@@ -1098,7 +1098,7 @@ pub fn nvim_buf_set_extmark(
             len = if opts.ephemeral {
                 MAXCOL as Colnr
             } else {
-                ml_get_buf_len(b, (line as Linenr) + 1)
+                ml_get_buf_len(&b, (line as Linenr) + 1)
             };
         }
 
@@ -1120,7 +1120,7 @@ pub fn nvim_buf_set_extmark(
                 len = if opts.ephemeral {
                     MAXCOL as Colnr
                 } else {
-                    ml_get_buf_len(b, line2 + 1)
+                    ml_get_buf_len(&b, line2 + 1)
                 };
             } else if line2 == b.b_ml.ml_line_count.get() {
                 len = 0;
@@ -1140,7 +1140,7 @@ pub fn nvim_buf_set_extmark(
 
         if opts.ephemeral
             && !g_st().decor_state.borrow().win.is_null()
-            && g_st().decor_state.borrow().win.w_buffer.get() == (std::ptr::from_ref(b).cast_mut())
+            && g_st().decor_state.borrow().win.w_buffer.get() == b
         {
             let r = line as i32;
             let c = col as i32;
@@ -1289,7 +1289,7 @@ pub fn nvim_buf_set_extmark(
             };
 
             extmark_set(
-                b,
+                &b,
                 ns_id as u32,
                 Some(&mut id),
                 line as i32,
@@ -1332,7 +1332,7 @@ pub fn nvim_buf_del_extmark(buf: Buffer, ns_id: Integer, id: Integer, err: &mut 
         api_err_invalid(err, c"ns_id", None, ns_id, false);
         return false;
     }
-    extmark_del_id(b, ns_id as u32, id as u32)
+    extmark_del_id(&b, ns_id as u32, id as u32)
 }
 
 /// Clears |namespace|d objects (highlights, |extmarks|, virtual text) from
@@ -1370,7 +1370,7 @@ pub fn nvim_buf_clear_namespace(
         line_end = MAXLNUM;
     }
     extmark_clear(
-        b,
+        &b,
         if ns_id < 0 { 0 } else { ns_id as u32 },
         line_start as i32,
         0,
@@ -1508,15 +1508,15 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     if count != if enabled { 1 } else { 0 } {
         return;
     }
-    let b_ptr = crate::globals::BufPtr::from(b);
+    let b_ptr = b;
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_mut(if g_st().curtab.get() == tp {
-            g_st().firstwin.get().as_ptr()
+            g_st().firstwin.get()
         } else {
-            tp.tp_firstwin.get().as_ptr()
+            tp.tp_firstwin.get()
         }) {
             if wp.w_buffer.get() == b_ptr {
-                changed_window_setting(wp);
+                changed_window_setting(&wp);
             }
         }
     }
@@ -1711,7 +1711,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
-                if windows.contains(&(std::ptr::from_ref(wp).cast_mut()))
+                if windows.contains(&wp.as_ptr())
                     && wp.w_ns_set.borrow_mut().insert(ns_id as u32)
                     && (*wp)
                         .buf_mut()
@@ -1719,10 +1719,10 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                         .borrow()
                         .contains_key(&(ns_id as u32))
                 {
-                    changed_window_setting(wp);
+                    changed_window_setting(&wp);
                 }
 
-                if !windows.contains(&(std::ptr::from_ref(wp).cast_mut()))
+                if !windows.contains(&wp.as_ptr())
                     && wp.w_ns_set.borrow_mut().remove(&(ns_id as u32))
                     && (*wp)
                         .buf_mut()
@@ -1730,7 +1730,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                         .borrow()
                         .contains_key(&(ns_id as u32))
                 {
-                    changed_window_setting(wp);
+                    changed_window_setting(&wp);
                 }
             }
         }
@@ -1755,7 +1755,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                     .borrow()
                     .contains_key(&(ns_id as u32))
                 {
-                    changed_window_setting(wp);
+                    changed_window_setting(&wp);
                 }
             }
         }

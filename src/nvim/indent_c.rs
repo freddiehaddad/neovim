@@ -577,7 +577,7 @@ fn get_indent_nolabel(lnum: Linenr) -> i32 {
         coladd: 0,
     };
     let mut col: Colnr = 0;
-    getvcol(curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
+    getvcol(&curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
     col
 }
 fn skip_label(lnum: Linenr, pp: &mut &'static [u8]) -> i32 {
@@ -632,7 +632,7 @@ fn cin_first_id_amount() -> i32 {
         coladd: 0,
     };
     let mut col: Colnr = 0;
-    getvcol(curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
+    getvcol(&curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
     col
 }
 fn cin_get_equal_amount(lnum: Linenr) -> i32 {
@@ -667,7 +667,7 @@ fn cin_get_equal_amount(lnum: Linenr) -> i32 {
         coladd: 0,
     };
     let mut col: Colnr = 0;
-    getvcol(curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
+    getvcol(&curwin_mut(), &mut fp, Some(&mut col), None, None, 0);
     col
 }
 #[inline]
@@ -1099,7 +1099,7 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
     } else {
         curwin_mut().w_cursor.set_col(col);
         let mut cursor = curwin_mut().w_cursor.get();
-        getvcol(curwin_mut(), &mut cursor, Some(&mut vcol), None, None, 0);
+        getvcol(&curwin_mut(), &mut cursor, Some(&mut vcol), None, None, 0);
         curwin_mut().w_cursor.set(cursor);
         amount = vcol;
     }
@@ -1499,7 +1499,7 @@ pub fn get_c_indent() -> i32 {
                     }
                 }
                 if let Some(mut tp) = trypos {
-                    getvcol(curwin_mut(), &mut tp, Some(&mut col), None, None, 0);
+                    getvcol(&curwin_mut(), &mut tp, Some(&mut col), None, None, 0);
 
                     amount = col;
                     break 'theend;
@@ -1518,7 +1518,7 @@ pub fn get_c_indent() -> i32 {
                 let mut start_off: i32 = 0;
                 let mut done = false;
 
-                getvcol(curwin_mut(), &mut cp, Some(&mut col), None, None, 0);
+                getvcol(&curwin_mut(), &mut cp, Some(&mut col), None, None, 0);
 
                 amount = col;
                 lead_start[0] = 0;
@@ -1629,7 +1629,7 @@ pub fn get_c_indent() -> i32 {
                             }
                         }
 
-                        getvcol(curwin_mut(), &mut cp, Some(&mut col), None, None, 0);
+                        getvcol(&curwin_mut(), &mut cp, Some(&mut col), None, None, 0);
 
                         amount = col;
                         if curbuf_mut().b_ind_in_comment2.get() != 0 || look.is_empty() {
@@ -1792,7 +1792,7 @@ pub fn get_c_indent() -> i32 {
                             }
                             if our_paren_pos.col > 0 {
                                 getvcol(
-                                    curwin_mut(),
+                                    &curwin_mut(),
                                     &mut our_paren_pos,
                                     Some(&mut col),
                                     None,
@@ -1864,7 +1864,7 @@ pub fn get_c_indent() -> i32 {
                     let start_slice = crate::memline::ml_get_slice(ourscope);
                     let look_slice = crate::charset::skipwhite_slice(start_slice);
                     if look_slice.first() == Some(&b'{') {
-                        getvcol(curwin_mut(), &mut tb, Some(&mut col), None, None, 0);
+                        getvcol(&curwin_mut(), &mut tb, Some(&mut col), None, None, 0);
 
                         amount = col;
                         if start_slice.first() == Some(&b'{') {

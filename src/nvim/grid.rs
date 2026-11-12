@@ -39,6 +39,40 @@ const K_OPT_RDB_FLAG_NODELTA: u32 = 0x08;
 const HLF_BTITLE: usize = 68;
 const HLF_BFOOTER: usize = 69;
 
+#[derive(Clone)]
+pub enum GridRef {
+    Static(&'static ScreenGrid),
+    Win(crate::globals::WinPtr),
+}
+
+impl std::ops::Deref for GridRef {
+    type Target = ScreenGrid;
+
+    #[inline]
+    fn deref(&self) -> &ScreenGrid {
+        match self {
+            Self::Static(g) => g,
+            Self::Win(wp) => &wp.w_grid_alloc,
+        }
+    }
+}
+
+impl AsRef<ScreenGrid> for GridRef {
+    #[inline]
+    fn as_ref(&self) -> &ScreenGrid {
+        self
+    }
+}
+
+impl PartialEq for GridRef {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(&**self, &**other)
+    }
+}
+
+impl Eq for GridRef {}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GridTarget {
     #[default]
@@ -56,49 +90,36 @@ impl GridTarget {
     }
 
     #[inline]
-    pub fn opt(self) -> Option<&'static ScreenGrid> {
+    pub fn opt(self) -> Option<GridRef> {
         match self {
             Self::None => None,
-            Self::Default => Some(&g_st().default_grid),
-            Self::Msg => Some(&g_st().msg_grid),
-            Self::Pum => Some(&g_st().pum_grid),
+            Self::Default => Some(GridRef::Static(&g_st().default_grid)),
+            Self::Msg => Some(GridRef::Static(&g_st().msg_grid)),
+            Self::Pum => Some(GridRef::Static(&g_st().pum_grid)),
             Self::Win(h) => g_st()
                 .window_handles
                 .borrow()
                 .get(&h)
-                .copied()
-                .and_then(WinPtr::opt)
+                .cloned()
+                .filter(|w| !w.is_null())
                 .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
-                .map(|wp| &wp.w_grid_alloc),
+                .map(GridRef::Win),
         }
     }
 
     #[inline]
-    pub fn opt_mut(self) -> Option<&'static ScreenGrid> {
-        match self {
-            Self::None => None,
-            Self::Default => Some(&g_st().default_grid),
-            Self::Msg => Some(&g_st().msg_grid),
-            Self::Pum => Some(&g_st().pum_grid),
-            Self::Win(h) => g_st()
-                .window_handles
-                .borrow()
-                .get(&h)
-                .copied()
-                .and_then(WinPtr::opt)
-                .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
-                .map(|wp| &wp.w_grid_alloc),
-        }
+    pub fn opt_mut(self) -> Option<GridRef> {
+        self.opt()
     }
 
     #[inline]
-    pub fn borrow(self) -> &'static ScreenGrid {
+    pub fn borrow(self) -> GridRef {
         self.opt().expect("null GridTarget")
     }
 
     #[inline]
-    pub fn borrow_mut(self) -> &'static ScreenGrid {
-        self.opt_mut().expect("null GridTarget")
+    pub fn borrow_mut(self) -> GridRef {
+        self.borrow()
     }
 }
 
@@ -287,18 +308,14 @@ fn strnlen_4(bytes: &[u8; 4]) -> usize {
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
-pub fn grid_adjust_opt(
-    grid: &GridView,
-    row_off: &mut i32,
-    col_off: &mut i32,
-) -> Option<&'static ScreenGrid> {
+pub fn grid_adjust_opt(grid: &GridView, row_off: &mut i32, col_off: &mut i32) -> Option<GridRef> {
     *row_off += grid.row_offset.get();
     *col_off += grid.col_offset.get();
     grid.target.get().opt_mut()
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
-pub fn grid_adjust(grid: &GridView, row_off: &mut i32, col_off: &mut i32) -> &'static ScreenGrid {
+pub fn grid_adjust(grid: &GridView, row_off: &mut i32, col_off: &mut i32) -> GridRef {
     grid_adjust_opt(grid, row_off, col_off).unwrap()
 }
 
@@ -586,7 +603,7 @@ pub fn grid_getchar(grid: &ScreenGrid, row: i32, col: i32, attrp: Option<&mut i3
 pub fn grid_line_start(view: &GridView, mut row: i32) {
     let mut col: i32 = 0;
     let grid = grid_adjust(view, &mut row, &mut col);
-    screengrid_line_start(grid, row, col);
+    screengrid_line_start(&grid, row, col);
 }
 
 pub fn screengrid_line_start(grid: &ScreenGrid, row: i32, col: i32) {
@@ -854,7 +871,7 @@ pub fn grid_line_flush() {
     }
 
     grid_put_linebuf(
-        grid.borrow_mut(),
+        &grid.borrow_mut(),
         row,
         coloff,
         first,
@@ -1594,7 +1611,7 @@ fn linecopy(grid: &ScreenGrid, to: i32, from: i32, col: i32, width: i32) {
         .copy_within(off_from..off_from + len, off_to);
 }
 
-pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<&'static WinInfoInfo> {
+pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<crate::globals::WinPtr> {
     for_all_windows_ptr().find(|wp| wp.w_grid_alloc.handle.get() == handle)
 }
 

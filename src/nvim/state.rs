@@ -337,7 +337,7 @@ pub fn may_trigger_modechanged() {
         Some(crate::memory::bytes_as_cstr(&pattern_buf)),
         None,
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
     *g_st().last_mode.borrow_mut() = curr_mode;
 
@@ -373,7 +373,13 @@ pub fn may_trigger_safestate(safe: bool) {
         );
     }
     if is_safe {
-        apply_autocmds(EVENT_SAFESTATE, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_SAFESTATE,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
     }
     WAS_SAFE.set(is_safe);
 }

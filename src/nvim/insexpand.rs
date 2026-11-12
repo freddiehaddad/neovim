@@ -480,8 +480,8 @@ struct InsexpandState {
     compl_longest_end_col: std::cell::Cell<Colnr>,
     compl_orig_text: crate::api::private::validate::CloneCell<NvimString>,
     compl_cont_mode: std::cell::Cell<i32>,
-    compl_curr_win: std::cell::Cell<crate::globals::WinPtr>,
-    compl_curr_buf: std::cell::Cell<crate::globals::BufPtr>,
+    compl_curr_win: crate::globals::CloneCell<crate::globals::WinPtr>,
+    compl_curr_buf: crate::globals::CloneCell<crate::globals::BufPtr>,
     compl_autocomplete: std::cell::Cell<bool>,
     compl_autostarted: std::cell::Cell<bool>,
     compl_autostart_pending: std::cell::Cell<bool>,
@@ -497,7 +497,7 @@ struct InsexpandState {
     compl_selected_item: std::cell::Cell<i32>,
     cpt_sources_index: std::cell::Cell<i32>,
     adjusted_leader: crate::api::private::validate::CloneCell<NvimString>,
-    next_buf_wp: std::cell::Cell<crate::globals::WinPtr>,
+    next_buf_wp: crate::globals::CloneCell<crate::globals::WinPtr>,
     next_state_cleared: std::cell::Cell<bool>,
 }
 
@@ -536,8 +536,8 @@ impl InsexpandState {
             compl_longest_end_col: std::cell::Cell::new(0),
             compl_orig_text: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
             compl_cont_mode: std::cell::Cell::new(0),
-            compl_curr_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
-            compl_curr_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
+            compl_curr_win: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
+            compl_curr_buf: crate::globals::CloneCell::new(crate::globals::BufPtr::NULL),
             compl_autocomplete: std::cell::Cell::new(false),
             compl_autostarted: std::cell::Cell::new(false),
             compl_autostart_pending: std::cell::Cell::new(false),
@@ -553,7 +553,7 @@ impl InsexpandState {
             compl_selected_item: std::cell::Cell::new(-1),
             cpt_sources_index: std::cell::Cell::new(-1),
             adjusted_leader: crate::api::private::validate::CloneCell::new(empty_nvim_string()),
-            next_buf_wp: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            next_buf_wp: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
             next_state_cleared: std::cell::Cell::new(false),
         }
     }
@@ -1741,7 +1741,13 @@ fn trigger_complete_changed_event(cur: i32) {
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
         g_st().textlock.set(g_st().textlock.get() + (1));
-        apply_autocmds(EVENT_COMPLETECHANGED, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_COMPLETECHANGED,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
         g_st().textlock.set(g_st().textlock.get() - (1));
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
 
@@ -2156,9 +2162,9 @@ pub fn ins_compl_show_pum() {
     pum_display(arr, cur, array_changed, 0);
     curwin_mut().w_cursor.set_col(col);
 
-    if curwin_mut().w_onebuf_opt.wo_cole.get() > 0 && conceal_cursor_line(curwin_mut()) {
+    if curwin_mut().w_onebuf_opt.wo_cole.get() > 0 && conceal_cursor_line(&curwin_mut()) {
         redraw_winline(
-            crate::globals::curwin_mut(),
+            &crate::globals::curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
         );
     }
@@ -2390,8 +2396,9 @@ fn ins_compl_files(
                 gettext(c"Scanning dictionary: %s"),
                 file_cstr,
             );
+            let mut iob = *g_st().iobuff.borrow();
             msg_progress(
-                Some(&mut *g_st().iobuff_bytes_mut()),
+                Some(&mut iob),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -2400,6 +2407,7 @@ fn ins_compl_files(
                 true,
                 false,
             );
+            *g_st().iobuff.borrow_mut() = iob;
         }
 
         let Some(fp) = fp else {
@@ -3002,7 +3010,7 @@ fn set_ctrl_x_mode(c: i32) -> bool {
 }
 
 fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
-    if ins_compl_preinsert_effect() && ins_compl_win_active(curwin_mut()) {
+    if ins_compl_preinsert_effect() && ins_compl_win_active(&curwin_mut()) {
         ins_compl_delete(false);
     }
 
@@ -3065,7 +3073,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
             retval = true;
         }
         redraw_winline(
-            crate::globals::curwin_mut(),
+            &crate::globals::curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
         );
     }
@@ -3272,7 +3280,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
     redo_append_lit(&ptr_bytes[len.min(ptr_bytes.len())..]);
 }
 
-fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> &'static FileBuf {
+fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> crate::globals::BufPtr {
     let mut buf = crate::globals::BufPtr::from(buf_arg);
     if flag == b'w' as i32 {
         if g_st().curbuf.get() == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
@@ -3287,7 +3295,7 @@ fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> &'static FileBuf {
             } else {
                 g_st().firstwin.get()
             };
-            INSEXPAND.with(|s| s.next_buf_wp.set(next_wp));
+            INSEXPAND.with(|s| s.next_buf_wp.set(next_wp.clone()));
             if next_wp == curwin_ptr()
                 || (!next_wp.buf_mut().b_scanned.get() && next_wp.w_config.borrow().focusable)
             {
@@ -3318,7 +3326,7 @@ fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> &'static FileBuf {
             }
         }
     }
-    buf.borrow_mut()
+    buf
 }
 
 fn get_cpt_sources_count(cpt: &CStr) -> i32 {
@@ -3455,17 +3463,17 @@ pub fn set_ref_in_insexpand_funcs(copy_id: i32) -> bool {
     abort
 }
 
-fn get_insert_callback(type_: i32) -> &'static Callback {
+fn get_insert_callback(type_: i32) -> Callback {
     if type_ == CTRL_X_FUNCTION {
-        return &curbuf_mut().b_p_cfu;
+        return curbuf_mut().b_p_cfu.clone();
     }
     if type_ == CTRL_X_OMNI {
-        return &curbuf_mut().b_p_ofu;
+        return curbuf_mut().b_p_ofu.clone();
     }
     if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-        &curbuf_mut().b_p_tsrfu
+        curbuf_mut().b_p_tsrfu.clone()
     } else {
-        &opt_vars().p_tsrfu
+        opt_vars().p_tsrfu.clone()
     }
 }
 
@@ -3480,18 +3488,19 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
     let is_cpt_function = cb_opt.is_some();
     let use_sandbox = is_cpt_function
         && was_set_insecurely(
-            Some(crate::globals::curwin_mut()),
+            Some(&crate::globals::curwin_mut()),
             K_OPT_COMPLETE,
             OPT_LOCAL,
         ) != 0;
+    let cb_owned;
     let cb = match cb_opt {
         Some(c) => c,
         None => {
-            let c = get_insert_callback(type_);
-            if c.cb_type() == K_CALLBACK_NONE_CONST {
+            cb_owned = get_insert_callback(type_);
+            if cb_owned.cb_type() == K_CALLBACK_NONE_CONST {
                 return;
             }
-            c
+            &cb_owned
         }
     };
 
@@ -3528,8 +3537,8 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
     g_st().textlock.set(g_st().textlock.get() - (1));
 
     curwin_mut().w_cursor.set(pos);
-    check_cursor(curwin_mut());
-    validate_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
+    validate_cursor(&curwin_mut());
     if !equalpos(curwin_mut().w_cursor.get(), pos) {
         emsg(gettext(E_COMPLDEL));
     } else if !matchlist.is_null() {
@@ -3669,7 +3678,7 @@ fn ins_compl_add_dict(dict: &TvDict) {
 fn save_orig_extmarks() {
     COMPL_ORIG_EXTMARKS.with(|c| {
         extmark_splice_delete(
-            curbuf_mut(),
+            &curbuf_mut(),
             curwin_mut().w_cursor.get().lnum - 1,
             INSEXPAND.with(|s| s.compl_col.get()),
             curwin_mut().w_cursor.get().lnum - 1,
@@ -3783,7 +3792,7 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    if !undo_allowed(curbuf_mut()) {
+    if !undo_allowed(&curbuf_mut()) {
         return;
     }
 
@@ -4135,10 +4144,7 @@ fn process_next_cpt_value(
         && !INSEXPAND.with(|s| s.compl_time_slice_expired.get())
         && crate::strings::vim_haschr(c"buwU", i32::from(st.e_cpt_char()))
         && {
-            st.ins_buf = crate::globals::BufPtr::from(ins_compl_next_buf(
-                st.ins_buf.borrow_mut(),
-                i32::from(st.e_cpt_char()),
-            ));
+            st.ins_buf = ins_compl_next_buf(st.ins_buf.borrow_mut(), i32::from(st.e_cpt_char()));
             st.ins_buf != g_st().curbuf.get()
         }
     {
@@ -4177,8 +4183,9 @@ fn process_next_cpt_value(
                 gettext(c"Scanning: %s"),
                 name.unwrap_or(c"")
             );
+            let mut iob = *g_st().iobuff.borrow();
             msg_progress(
-                Some(&mut *g_st().iobuff_bytes_mut()),
+                Some(&mut iob),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -4187,6 +4194,7 @@ fn process_next_cpt_value(
                 true,
                 false,
             );
+            *g_st().iobuff.borrow_mut() = iob;
         }
     } else if st.e_cpt_char() == 0 {
         status = INS_COMPL_CPT_END;
@@ -4230,8 +4238,9 @@ fn process_next_cpt_value(
                         c"%s",
                         gettext(c"Scanning tags.")
                     );
+                    let mut iob = *g_st().iobuff.borrow();
                     msg_progress(
-                        Some(&mut *g_st().iobuff_bytes_mut()),
+                        Some(&mut iob),
                         c"nvim.completion",
                         c"running",
                         -1,
@@ -4240,6 +4249,7 @@ fn process_next_cpt_value(
                         true,
                         false,
                     );
+                    *g_st().iobuff.borrow_mut() = iob;
                 }
             }
         }
@@ -4454,6 +4464,7 @@ fn fuzzy_longest_match() {
 
 fn get_next_filename_completion() {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut leader_str = ins_compl_leader_str();
     let mut leader_slice = leader_str.as_bytes();
     let leader_len = leader_slice.len();
@@ -4760,7 +4771,8 @@ fn ins_compl_get_next_word_or_line<'a>(
 }
 
 fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut CursorPos) -> bool {
-    let mut matched_slice: Option<&'static [u8]> = None;
+    let ins_buf_ref = st.ins_buf.clone();
+    let mut matched_slice: Option<&[u8]> = None;
     let mut len: i32 = 0;
     let in_fuzzy_collect =
         !compl_status_adding() && cot_fuzzy() && INSEXPAND.with(|s| s.compl_length.get()) > 0;
@@ -4785,14 +4797,13 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let mut found_new_match: bool;
     loop {
         let mut cont_s_ipos = false;
-        let ins_buf_ref = st.ins_buf.borrow_mut();
 
         g_st().msg_silent.set(g_st().msg_silent.get() + (1));
 
         if in_fuzzy_collect {
-            let mut matched_line: &'static [u8] = &[];
+            let mut matched_line: &[u8] = &[];
             found_new_match = search_for_fuzzy_match(
-                ins_buf_ref,
+                &ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 Some(leader_slice),
                 INSEXPAND.with(|s| s.compl_direction.get()),
@@ -4808,7 +4819,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         {
             let pat = compl_pattern();
             found_new_match = search_for_exact_line(
-                ins_buf_ref,
+                &ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 INSEXPAND.with(|s| s.compl_direction.get()),
                 pat.as_deref().unwrap_or(c""),
@@ -4817,7 +4828,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             let pat = compl_pattern();
             found_new_match = searchit(
                 None,
-                ins_buf_ref,
+                &ins_buf_ref,
                 st.cur_match_pos_ptr(),
                 None,
                 INSEXPAND.with(|s| s.compl_direction.get()),
@@ -4871,7 +4882,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 
         if !in_fuzzy_collect {
             matched_slice = ins_compl_get_next_word_or_line(
-                st.ins_buf.borrow_mut(),
+                &ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 &mut len,
                 &mut cont_s_ipos,
@@ -5032,7 +5043,8 @@ fn get_callback_if_cpt_func(p: &CStr, idx: i32) -> CptFuncSource {
     if p_bytes.first() == Some(&b'F') {
         let next = p_bytes.get(1).copied().unwrap_or(0);
         if next != b',' && next != 0 {
-            let cbs = &curbuf_mut().b_p_cpt_cb.borrow();
+            let cb = curbuf_mut();
+            let cbs = cb.b_p_cpt_cb.borrow();
             if idx < 0 || (idx as usize) >= cbs.len() {
                 return CptFuncSource::None;
             }
@@ -5532,7 +5544,7 @@ pub fn ins_compl_delete(new_leader: bool) {
         curwin_mut().w_cursor.set_col(orig_col);
     }
 
-    changed_cline_bef_curs(curwin_mut());
+    changed_cline_bef_curs(&curwin_mut());
     set_vim_var_dict(VV_COMPLETED_ITEM, Some(&tv_dict_alloc_lock(VAR_FIXED)));
 }
 
@@ -6400,15 +6412,16 @@ fn get_userdefined_compl_info(
     let is_cpt_function = cb_opt.is_some();
     let use_sandbox = is_cpt_function
         && was_set_insecurely(
-            Some(crate::globals::curwin_mut()),
+            Some(&crate::globals::curwin_mut()),
             K_OPT_COMPLETE,
             OPT_LOCAL,
         ) != 0;
+    let cb_owned;
     let cb = match cb_opt {
         Some(c) => c,
         None => {
-            let c = get_insert_callback(INSEXPAND.with(|s| s.ctrl_x_mode.get()));
-            if c.cb_type() == K_CALLBACK_NONE_CONST {
+            cb_owned = get_insert_callback(INSEXPAND.with(|s| s.ctrl_x_mode.get()));
+            if cb_owned.cb_type() == K_CALLBACK_NONE_CONST {
                 semsg!(
                     gettext(E_NOTSET),
                     if ctrl_x_mode_function() {
@@ -6419,7 +6432,7 @@ fn get_userdefined_compl_info(
                 );
                 return false;
             }
-            c
+            &cb_owned
         }
     };
 
@@ -6443,8 +6456,8 @@ fn get_userdefined_compl_info(
 
     g_st().state_global.set(save_state);
     curwin_mut().w_cursor.set(pos);
-    check_cursor(curwin_mut());
-    validate_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
+    validate_cursor(&curwin_mut());
     if !equalpos(curwin_mut().w_cursor.get(), pos) {
         emsg(gettext(E_COMPLDEL));
         return false;
@@ -6837,7 +6850,7 @@ fn ins_compl_show_statusmsg() {
                     .set(Some(crate::memory::bytes_as_cstr(&match_ref).to_owned()));
                 g_st().edit_submode_highl.set(HLF_R);
                 if g_st().dollar_vcol.get() >= 0 {
-                    curs_columns(curwin_mut(), false);
+                    curs_columns(&curwin_mut(), false);
                 }
             }
         }
@@ -6883,11 +6896,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
     }
 
     INSEXPAND.with(|s| s.compl_curr_win.set(crate::globals::curwin_ptr()));
-    INSEXPAND.with(|s| {
-        s.compl_curr_buf.set(crate::globals::BufPtr::new(
-            curwin_mut().w_buffer.get().as_ptr(),
-        ))
-    });
+    INSEXPAND.with(|s| s.compl_curr_buf.set(curwin_mut().w_buffer.get()));
     INSEXPAND.with(|s| {
         s.compl_shown_idx
             .set(INSEXPAND.with(|s| s.compl_curr_idx.get()))
@@ -7090,7 +7099,7 @@ fn spell_back_to_badword() {
     let tpos = curwin_mut().w_cursor.get();
     INSEXPAND.with(|s| {
         s.spell_bad_len
-            .set(spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, None))
+            .set(spell_move_to(&curwin_mut(), BACKWARD, SMT_ALL, true, None))
     });
     if curwin_mut().w_cursor.get().col != tpos.col {
         start_arrow(Some(tpos), true, NUL as i32);

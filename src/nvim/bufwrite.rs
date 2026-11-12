@@ -371,7 +371,7 @@ fn buf_write_do_autocmds(
     orig_start: CursorPos,
     orig_end: CursorPos,
 ) -> Option<bool> {
-    let mut buf = bufref.br_buf;
+    let mut buf = bufref.br_buf.clone();
     let old_line_count = buf.b_ml.ml_line_count.get();
     let msg_save = g_st().msg_scroll.get();
 
@@ -390,11 +390,11 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
         if !did_cmd {
-            if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
+            if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
                 nofile_err = true;
             } else {
                 let _ = apply_autocmds_exarg(
@@ -402,7 +402,7 @@ fn buf_write_do_autocmds(
                     sfname_opt,
                     sfname_opt,
                     false,
-                    curbuf_opt_mut(),
+                    curbuf_opt_mut().as_deref(),
                     eap,
                 );
             }
@@ -413,7 +413,7 @@ fn buf_write_do_autocmds(
             None,
             sfname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
     } else if reset_changed && whole {
@@ -423,15 +423,15 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
         if did_cmd {
             if was_changed && !curbuf_is_changed_fn() {
-                u_unchanged(curbuf_mut());
-                u_update_save_nr(curbuf_mut());
+                u_unchanged(&curbuf_mut());
+                u_update_save_nr(&curbuf_mut());
             }
-        } else if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
+        } else if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
             nofile_err = true;
         } else {
             let _ = apply_autocmds_exarg(
@@ -439,7 +439,7 @@ fn buf_write_do_autocmds(
                 sfname_opt,
                 sfname_opt,
                 false,
-                curbuf_opt_mut(),
+                curbuf_opt_mut().as_deref(),
                 eap,
             );
         }
@@ -449,11 +449,11 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
         if !did_cmd {
-            if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
+            if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
                 nofile_err = true;
             } else {
                 let _ = apply_autocmds_exarg(
@@ -461,7 +461,7 @@ fn buf_write_do_autocmds(
                     sfname_opt,
                     sfname_opt,
                     false,
-                    curbuf_opt_mut(),
+                    curbuf_opt_mut().as_deref(),
                     eap,
                 );
             }
@@ -584,7 +584,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
     } else if filtering {
@@ -593,7 +593,7 @@ fn buf_write_do_post_autocmds(
             None,
             fname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
     } else if reset_changed && whole {
@@ -602,7 +602,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
     } else {
@@ -611,7 +611,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
             eap,
         );
     }
@@ -1172,7 +1172,7 @@ pub fn buf_write(
     buf.b_op_end.set_col(0);
 
     let mut bufref = Bufref {
-        br_buf: buf,
+        br_buf: buf.clone(),
         br_fnum: 0,
         br_buf_free_count: 0,
     };
@@ -1650,8 +1650,9 @@ pub fn buf_write(
                                     Some(buf),
                                     msgname_opt,
                                 );
+                                let mut iob = *g_st().iobuff.borrow();
                                 let _ = msg_progress(
-                                    Some(&mut *g_st().iobuff_bytes_mut()),
+                                    Some(&mut iob),
                                     crate::memory::bytes_as_cstr(&msg_id),
                                     c"running",
                                     progress,
@@ -1660,6 +1661,7 @@ pub fn buf_write(
                                     true,
                                     false,
                                 );
+                                *g_st().iobuff.borrow_mut() = iob;
                                 if buf_get_changedtick(buf) != write_tick {
                                     err = set_err(Some(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY)));
                                     end = 0;

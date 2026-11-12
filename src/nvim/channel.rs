@@ -1085,7 +1085,7 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());
     tv_dict_set_keys_readonly(&dict);
 
-    let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut());
+    let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut().as_deref());
 
     restore_v_event(&dict, &mut save_v_event);
     arena_mem_free(arena_finish(&mut arena));

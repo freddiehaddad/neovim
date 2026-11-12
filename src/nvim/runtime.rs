@@ -2631,7 +2631,7 @@ fn do_source_ext(
                     fname_exp_opt,
                     fname_exp_opt,
                     false,
-                    curbuf_opt_mut(),
+                    curbuf_opt_mut().as_deref(),
                 )
             {
                 retval = !aborting();
@@ -2641,7 +2641,7 @@ fn do_source_ext(
                         fname_exp_opt,
                         fname_exp_opt,
                         false,
-                        curbuf_opt_mut(),
+                        curbuf_opt_mut().as_deref(),
                     );
                 }
                 break 'block;
@@ -2652,7 +2652,7 @@ fn do_source_ext(
                 fname_exp_opt,
                 fname_exp_opt,
                 false,
-                curbuf_opt_mut(),
+                curbuf_opt_mut().as_deref(),
             );
         }
 
@@ -2940,7 +2940,7 @@ fn do_source_ext(
                 fname_exp_opt,
                 fname_exp_opt,
                 false,
-                curbuf_opt_mut(),
+                curbuf_opt_mut().as_deref(),
             );
         }
     }

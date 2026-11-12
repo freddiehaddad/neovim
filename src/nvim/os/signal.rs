@@ -301,7 +301,7 @@ pub(crate) fn on_signal(signum: i32) {
                 Some(c"SIGUSR1"),
                 crate::globals::curbuf_mut().fname_opt(),
                 true,
-                crate::globals::curbuf_opt_mut(),
+                crate::globals::curbuf_opt_mut().as_deref(),
             );
             return;
         }
@@ -324,7 +324,7 @@ pub(crate) fn on_signal(signum: i32) {
                     Some(c"SIGWINCH"),
                     crate::globals::curbuf_mut().fname_opt(),
                     true,
-                    crate::globals::curbuf_opt_mut(),
+                    crate::globals::curbuf_opt_mut().as_deref(),
                 );
             }
             _ => {

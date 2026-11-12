@@ -1176,7 +1176,7 @@ pub fn nvim_exec_autocmds(
                 true,
                 au_group,
                 b.opt_mut(),
-                Some(crate::globals::curwin_mut()),
+                Some(&crate::globals::curwin_mut()),
                 None,
                 data,
                 has_buf,

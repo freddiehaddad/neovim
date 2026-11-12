@@ -3749,8 +3749,8 @@ pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         arg2,
         b'b' as i32,
         Some(&curtab_mut()),
-        Some(curwin_mut()),
-        buf,
+        Some(&curwin_mut()),
+        buf.as_deref(),
     );
 }
 
@@ -3819,14 +3819,14 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
 
     if varname.to_bytes().first() == Some(&b'&') {
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, Some(buf), 0);
+        ctx_switch(&mut aco, None, None, Some(&buf), 0);
         set_option_from_tv(&varname[1..], arg2);
         ctx_restore(&mut aco);
     } else {
         let varname_len = varname.to_bytes().len();
         let mut bufvarname = Vec::with_capacity(varname_len + 3);
         let save_curbuf = g_st().curbuf.get();
-        g_st().curbuf.set((buf).into());
+        g_st().curbuf.set(buf);
         bufvarname.push(b'b');
         bufvarname.push(b':');
         bufvarname.extend_from_slice(varname.to_bytes_with_nul());

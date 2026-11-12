@@ -311,7 +311,7 @@ struct Spellinfo {
     si_compress_cnt: i32,
     si_first_free: Option<usize>,
     si_free_count: i32,
-    si_spellbuf: Option<Box<FileBuf>>,
+    si_spellbuf: Option<std::rc::Rc<FileBuf>>,
     si_ascii: bool,
     si_add: i32,
     si_clear_chartab: i32,
@@ -762,8 +762,8 @@ pub fn suggest_load_files() {
     let mut ga: Vec<u8> = Vec::new();
 
     let mut lpi: usize = 0;
-    while lpi < win_s(curwin_mut()).b_langp.borrow().len() {
-        let lp_slang_id = win_s(curwin_mut()).b_langp.borrow()[lpi].lp_slang;
+    while lpi < win_s(&curwin_mut()).b_langp.borrow().len() {
+        let lp_slang_id = win_s(&curwin_mut()).b_langp.borrow()[lpi].lp_slang;
         let idx = (lp_slang_id.0.unwrap().get() - 1) as usize;
         let need_load = lp_slang_id.rc().sl_sugtime != 0 && !lp_slang_id.rc().sl_sugloaded;
         if need_load {
@@ -850,8 +850,8 @@ pub fn suggest_load_files() {
 
                     if !someerror {
                         *slang.sl_sugbuf.borrow_mut() = Some(open_spellbuf());
-                        let mut sugbuf_borrow = slang.sl_sugbuf.borrow_mut();
-                        let sugbuf = sugbuf_borrow.as_deref_mut().unwrap();
+                        let sugbuf_borrow = slang.sl_sugbuf.borrow();
+                        let sugbuf = sugbuf_borrow.as_deref().unwrap();
                         let wcount = get4c(&fd);
                         if wcount < 0 {
                             someerror = true;
@@ -1612,7 +1612,7 @@ fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
     }
 
     if added_word && !didit {
-        parse_spelllang(curwin_mut());
+        parse_spelllang(&curwin_mut());
     }
 }
 
@@ -2756,12 +2756,12 @@ fn aff_check_string(
 fn add_fromto(gap: &mut Vec<Fromto>, from: &[u8], to: &[u8]) {
     let mut word = [0u8; MAXWLEN];
     spell_casefold(
-        curwin_mut(),
+        &curwin_mut(),
         crate::memory::bytes_until_nul(from),
         &mut word,
     );
     let ft_from = crate::memory::bytes_as_cstr(&word).to_owned();
-    spell_casefold(curwin_mut(), crate::memory::bytes_until_nul(to), &mut word);
+    spell_casefold(&curwin_mut(), crate::memory::bytes_until_nul(to), &mut word);
     let ft_to = crate::memory::bytes_as_cstr(&word).to_owned();
     gap.push(Fromto { ft_from, ft_to });
 }
@@ -3616,7 +3616,7 @@ fn store_word(
         return false;
     }
 
-    spell_casefold(curwin_mut(), word_bytes, &mut foldword);
+    spell_casefold(&curwin_mut(), word_bytes, &mut foldword);
     let mut p = pfx_bytes;
     while res {
         if !need_affix || !p.is_empty() {
@@ -4624,10 +4624,10 @@ fn sug_filltable(
 
             gap.push(0);
 
-            let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
+            let spellbuf = spin.si_spellbuf.as_deref().unwrap();
             let text_len = gap.len().saturating_sub(1);
             if !ml_append_buf(
-                &*spellbuf,
+                spellbuf,
                 wordnr as Linenr,
                 &gap[..text_len],
                 gap.len() as i32,
@@ -4721,7 +4721,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
 
     put_node(Some(&fd), &mut spin.si_nodes, tree, 0, 0, false);
 
-    let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
+    let spellbuf = spin.si_spellbuf.as_deref().unwrap();
     let wcount = spellbuf.b_ml.ml_line_count.get();
     put_bytes(&fd, wcount as u64, 4);
 
@@ -5003,17 +5003,17 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         };
         wl.as_c_str()
     } else {
-        if win_s(curwin_mut()).b_p_spf.is_empty() {
+        if win_s(&curwin_mut()).b_p_spf.is_empty() {
             init_spellfile();
             new_spf = true;
         }
 
-        if win_s(curwin_mut()).b_p_spf.is_empty() {
+        if win_s(&curwin_mut()).b_p_spf.is_empty() {
             semsg!(gettext(E_NOTSET), c"spellfile");
             return;
         }
 
-        let mut spf = win_s(curwin_mut()).b_p_spf.as_bytes();
+        let mut spf = win_s(&curwin_mut()).b_p_spf.as_bytes();
         let mut i: i32 = 1;
         while !spf.is_empty() {
             copy_option_part(&mut spf, &mut fnamebuf_arr[..MAXPATHL], c",");
@@ -5149,11 +5149,11 @@ fn init_spellfile() {
     let mut aspath = false;
     let mut lstart = curbuf_mut().b_s.b_p_spl.as_cstr();
 
-    if win_s(curwin_mut()).b_p_spl.is_empty() || win_s(curwin_mut()).b_langp.borrow().is_empty() {
+    if win_s(&curwin_mut()).b_p_spl.is_empty() || win_s(&curwin_mut()).b_langp.borrow().is_empty() {
         return;
     }
 
-    let spl_cstr = win_s(curwin_mut()).b_p_spl.as_cstr();
+    let spl_cstr = win_s(&curwin_mut()).b_p_spl.as_cstr();
     let spl_bytes = spl_cstr.to_bytes();
     let mut lend_off = 0usize;
     while lend_off < spl_bytes.len() && vim_strchr(c",._", i32::from(spl_bytes[lend_off])).is_none()
@@ -5198,7 +5198,7 @@ fn init_spellfile() {
         ((spl_cstr.as_ptr().wrapping_add(lend_off) as isize) - (lstart.as_ptr() as isize)) as i32;
     format_to_buf!(&mut buf_arr[cur_len..], c"/%.*s", lstart_len, lstart);
 
-    let slang0 = win_s(curwin_mut()).b_langp.borrow()[0].slang();
+    let slang0 = win_s(&curwin_mut()).b_langp.borrow()[0].slang();
     let fname_opt = slang0.sl_fname.as_deref();
     let sp_enc = spell_enc();
     let enc_suffix =

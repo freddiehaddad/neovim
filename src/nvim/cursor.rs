@@ -172,7 +172,7 @@ pub(crate) const K_OPT_VE_FLAG_ALL: u32 = 0x04;
 pub fn getviscol() -> i32 {
     let mut x: Colnr = 0;
     let mut cursor = curwin_mut().w_cursor.get();
-    getvvcol(curwin_mut(), &mut cursor, Some(&mut x), None, None, 0);
+    getvvcol(&curwin_mut(), &mut cursor, Some(&mut x), None, None, 0);
     curwin_mut().w_cursor.set(cursor);
     x as i32
 }
@@ -185,14 +185,14 @@ pub fn getviscol2(col: Colnr, coladd: Colnr) -> i32 {
         col,
         coladd,
     };
-    getvvcol(curwin_mut(), &mut pos, Some(&mut x), None, None, 0);
+    getvvcol(&curwin_mut(), &mut pos, Some(&mut x), None, None, 0);
     x as i32
 }
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
 pub fn coladvance_force(wcol: Colnr) -> bool {
     let mut cursor = curwin_mut().w_cursor.get();
-    let rc = coladvance2(curwin_mut(), &mut cursor, true, false, wcol);
+    let rc = coladvance2(&curwin_mut(), &mut cursor, true, false, wcol);
     curwin_mut().w_cursor.set(cursor);
 
     if wcol == MAXCOL {
@@ -200,7 +200,7 @@ pub fn coladvance_force(wcol: Colnr) -> bool {
             .w_valid
             .set(curwin_mut().w_valid.get() & (!VALID_VIRTCOL));
     } else {
-        set_valid_virtcol(curwin_mut(), wcol);
+        set_valid_virtcol(&curwin_mut(), wcol);
     }
     rc
 }
@@ -213,11 +213,11 @@ pub fn coladvance(wp: &WinInfoInfo, wcol: Colnr) -> bool {
 
     if wcol == MAXCOL || !rc {
         wp.w_valid.set(wp.w_valid.get() & (!VALID_VIRTCOL));
-    } else if crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.get().lnum)
+    } else if crate::memline::ml_get_buf_slice(&wp.buf_mut(), wp.w_cursor.get().lnum)
         .get(wp.w_cursor.get().col as usize)
         != Some(&TAB)
     {
-        set_valid_virtcol(curwin_mut(), wcol);
+        set_valid_virtcol(&curwin_mut(), wcol);
     }
     rc
 }
@@ -244,7 +244,7 @@ fn coladvance2(
     );
 
     if wcol == MAXCOL {
-        idx = ml_get_buf_len(wp.buf_mut(), pos.lnum) - 1 + one_more;
+        idx = ml_get_buf_len(&wp.buf_mut(), pos.lnum) - 1 + one_more;
         col = wcol;
 
         if (addspaces || finetune) && !g_st().visual_global.borrow().active {
@@ -277,8 +277,8 @@ fn coladvance2(
             }
         }
 
-        let line_cstr = ml_get_buf(wp.buf_mut(), pos.lnum);
-        let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
+        let line_cstr = ml_get_buf(&wp.buf_mut(), pos.lnum);
+        let linelen = ml_get_buf_len(&wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line_cstr);
         let mut ci = utf_ptr2_str_char_info(line_cstr);
@@ -372,7 +372,7 @@ fn coladvance2(
         }
     }
 
-    mark_mb_adjustpos(wp.buf_mut(), pos);
+    mark_mb_adjustpos(&wp.buf_mut(), pos);
 
     if wcol < 0 || col < wcol {
         return false;
@@ -444,7 +444,7 @@ pub fn check_cursor_col(win: &WinInfoInfo) {
     let oldcoladd = win.w_cursor.get().col + win.w_cursor.get().coladd;
     let cur_ve_flags = get_ve_flags(win);
 
-    let len = ml_get_buf_len(win.buf_mut(), win.w_cursor.get().lnum);
+    let len = ml_get_buf_len(&win.buf_mut(), win.w_cursor.get().lnum);
     if len == 0 {
         win.w_cursor.set_col(0);
     } else if win.w_cursor.get().col >= len {
@@ -459,7 +459,7 @@ pub fn check_cursor_col(win: &WinInfoInfo) {
         } else {
             win.w_cursor.set_col(len - 1);
             win.w_cursor
-                .update_mut(|c| mark_mb_adjustpos(win.buf_mut(), c));
+                .update_mut(|c| mark_mb_adjustpos(&win.buf_mut(), c));
         }
     } else if win.w_cursor.get().col < 0 {
         win.w_cursor.set_col(0);
@@ -525,24 +525,24 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
     }
     curwin_mut().w_leftcol.set(leftcol);
 
-    changed_cline_bef_curs(curwin_mut());
+    changed_cline_bef_curs(&curwin_mut());
     let lastcol = i64::from(curwin_mut().w_leftcol.get())
         + i64::from(curwin_mut().w_view_width.get())
-        - i64::from(win_col_off(curwin_mut()))
+        - i64::from(win_col_off(&curwin_mut()))
         - 1;
-    validate_virtcol(curwin_mut());
+    validate_virtcol(&curwin_mut());
 
     let mut retval = false;
-    let siso = get_sidescrolloff_value(curwin_mut());
+    let siso = get_sidescrolloff_value(&curwin_mut());
     if curwin_mut().w_virtcol.get() > (lastcol - siso) as Colnr {
         retval = true;
-        coladvance(curwin_mut(), (lastcol - siso) as Colnr);
+        coladvance(&curwin_mut(), (lastcol - siso) as Colnr);
     } else if curwin_mut().w_virtcol.get()
         < (i64::from(curwin_mut().w_leftcol.get()) + siso) as Colnr
     {
         retval = true;
         coladvance(
-            curwin_mut(),
+            &curwin_mut(),
             (i64::from(curwin_mut().w_leftcol.get()) + siso) as Colnr,
         );
     }
@@ -551,7 +551,7 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
     let mut e: Colnr = 0;
     let mut cursor = curwin_mut().w_cursor.get();
     getvvcol(
-        curwin_mut(),
+        &curwin_mut(),
         &mut cursor,
         Some(&mut s),
         None,
@@ -561,19 +561,19 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
     curwin_mut().w_cursor.set(cursor);
     if e > lastcol as Colnr {
         retval = true;
-        coladvance(curwin_mut(), s - 1);
+        coladvance(&curwin_mut(), s - 1);
     } else if s < curwin_mut().w_leftcol.get() {
         retval = true;
-        if !coladvance(curwin_mut(), e + 1) {
+        if !coladvance(&curwin_mut(), e + 1) {
             curwin_mut().w_leftcol.set(s);
-            changed_cline_bef_curs(curwin_mut());
+            changed_cline_bef_curs(&curwin_mut());
         }
     }
 
     if retval {
         curwin_mut().w_set_curswant.set(true);
     }
-    redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
+    redraw_later(Some(&crate::globals::curwin_mut()), UPD_NOT_VALID);
     retval
 }
 
@@ -602,13 +602,13 @@ pub fn pchar_cursor(c: u8) {
 /// Return the cursor line as a CStr (`get_cursor_line_ptr`).
 pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
     let lnum = curwin_mut().w_cursor.get().lnum;
-    ml_get_buf(crate::globals::curbuf_mut(), lnum)
+    ml_get_buf(&crate::globals::curbuf_mut(), lnum)
 }
 
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
     let cursor = curwin_mut().w_cursor.get();
-    let line = ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum);
+    let line = ml_get_buf(&crate::globals::curbuf_mut(), cursor.lnum);
     let col = (cursor.col.max(0) as usize).min(line.to_bytes().len());
     &line[col..]
 }
@@ -617,7 +617,7 @@ pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
 #[inline]
 pub fn get_cursor_line_slice() -> &'static [u8] {
     ml_get_buf_slice(
-        crate::globals::curbuf_mut(),
+        &crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
     )
 }
@@ -626,7 +626,7 @@ pub fn get_cursor_line_slice() -> &'static [u8] {
 #[inline]
 pub fn with_cursor_line_mut_slice<R>(f: impl FnOnce(&mut [u8]) -> R) -> R {
     crate::memline::with_ml_get_buf_mut_slice(
-        crate::globals::curbuf_mut(),
+        &crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
         f,
     )
@@ -642,7 +642,7 @@ pub fn get_cursor_pos_slice() -> &'static [u8] {
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).
 pub fn get_cursor_line_len() -> Colnr {
     ml_get_buf_len(
-        crate::globals::curbuf_mut(),
+        &crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
     )
 }
@@ -650,7 +650,7 @@ pub fn get_cursor_line_len() -> Colnr {
 /// Return length (excluding the NUL) of the cursor position (`get_cursor_pos_len`).
 pub fn get_cursor_pos_len() -> Colnr {
     ml_get_buf_len(
-        crate::globals::curbuf_mut(),
+        &crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
     ) - curwin_mut().w_cursor.get().col
 }

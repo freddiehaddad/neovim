@@ -554,7 +554,7 @@ pub fn do_tag(
                         if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_VIEW) != 0 {
                             mark_view_restore(Some(&saved_fmark));
                         }
-                        check_cursor(curwin_mut());
+                        check_cursor(&curwin_mut());
                         if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
                             fold_open_cursor();
                         }
@@ -647,7 +647,7 @@ pub fn do_tag(
                             .fnum = curbuf_mut().b_fnum.get();
                         curwin_mut().w_tagstack.borrow_mut()[tagstackidx as usize]
                             .fmark
-                            .view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
+                            .view = mark_view_make(&curwin_mut(), curwin_mut().w_cursor.get());
                     }
 
                     curwin_mut().w_tagstackidx.set(tagstackidx);
@@ -1109,7 +1109,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
 
         format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"ltag %s", tag);
         set_errorlist(
-            Some(curwin_mut()),
+            Some(&curwin_mut()),
             Some(&list),
             b' ' as i32,
             Some(g_st().iobuff_cstr()),
@@ -1134,9 +1134,11 @@ pub fn do_tags(_eap: &mut Exarg) {
 
     msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
     for i in 0..tagstacklen {
-        let entry = &mut curwin_mut().w_tagstack.borrow_mut()[i as usize];
+        let cw = curwin_mut();
+        let ts_borrow = cw.w_tagstack.borrow();
+        let entry = &ts_borrow[i as usize];
         if let Some(ref tagname) = entry.tagname {
-            let Some(name) = fm_getname(&mut entry.fmark, 30) else {
+            let Some(name) = fm_getname(&entry.fmark, 30) else {
                 continue;
             };
 
@@ -1333,7 +1335,7 @@ fn find_tagfunc_tags(
     let save_pos = curwin_mut().w_cursor.get();
     let mut result = callback_call(&curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);
     curwin_mut().w_cursor.set(save_pos);
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
     d.dv_refcount.set(d.dv_refcount.get() - 1);
 
     if !result {
@@ -2707,7 +2709,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
         if g_st().postponed_split.get() != 0
             && (opt_vars().swb_flags.get() & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && let Some(existing_buf) = buflist_findname_exp(fname_opt_ref)
-            && swbuf_goto_win_with_buf(Some(existing_buf)).is_some()
+            && swbuf_goto_win_with_buf(Some(&existing_buf)).is_some()
         {
             getfile_result = GetFileResult::SameFile;
         }
@@ -2741,7 +2743,9 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if keep_help {
             if l_g_do_tagpreview != 0 {
-                g_st().keep_help_flag.set(bt_help(curwin_save.buf_opt()));
+                g_st()
+                    .keep_help_flag
+                    .set(bt_help(curwin_save.buf_opt().as_deref()));
             } else {
                 g_st().keep_help_flag.set(curbuf_mut().b_help.get());
             }
@@ -2885,7 +2889,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 opt_vars().p_ic.set(save_p_ic);
                 opt_vars().p_scs.set(save_p_scs);
 
-                check_cursor(curwin_mut());
+                check_cursor(&curwin_mut());
             } else {
                 let save_secure = g_st().secure.get();
 
@@ -2914,7 +2918,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
             if retval == Some(true) {
                 if curbuf_mut().b_help.get() {
-                    set_topline(curwin_mut(), curwin_mut().w_cursor.get().lnum);
+                    set_topline(&curwin_mut(), curwin_mut().w_cursor.get().lnum);
                 }
                 if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
                     fold_open_cursor();
@@ -2923,8 +2927,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
             if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save.opt())
             {
-                validate_cursor(curwin_mut());
-                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+                validate_cursor(&curwin_mut());
+                redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
                 win_enter(curwin_save.borrow_mut(), true);
             }
 
@@ -2936,7 +2940,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 .redrawing_disabled
                 .set(g_st().redrawing_disabled.get() - (1));
             if g_st().postponed_split.get() != 0 {
-                win_close(curwin_mut(), false, false);
+                win_close(&curwin_mut(), false, false);
                 g_st().postponed_split.set(0);
             }
         }

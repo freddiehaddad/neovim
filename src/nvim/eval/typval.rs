@@ -5528,7 +5528,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
     let mut lnum = tv_get_number_chk(tv, None) as Linenr;
     if lnum <= 0 && did_emsg_before == g_st().did_emsg.get() && tv.v_type != VarType::VarNumber {
         let mut fnum: i32 = 0;
-        if let Some(fp) = var2fpos(tv, true, &mut fnum, false, curwin_mut()) {
+        if let Some(fp) = var2fpos(tv, true, &mut fnum, false, &curwin_mut()) {
             lnum = fp.lnum;
         }
     }

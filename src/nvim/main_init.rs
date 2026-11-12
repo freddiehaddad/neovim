@@ -540,7 +540,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     win_init_size();
     if params.diff_mode != 0 {
-        diff_win_options(firstwin_mut(), false);
+        diff_win_options(&firstwin_mut(), false);
     }
 
     assert!(
@@ -683,7 +683,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     setmouse();
 
-    redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+    redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
 
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
@@ -698,7 +698,13 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
     }
 
-    apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
+    apply_autocmds(
+        EVENT_BUFENTER,
+        None,
+        None,
+        false,
+        curbuf_opt_mut().as_deref(),
+    );
     time_msg_if_enabled(c"BufEnter autocommands");
     setpcmark();
 
@@ -710,9 +716,9 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     edit_buffers(&mut params);
 
     if params.diff_mode != 0 {
-        for wp in win_iter_ptr(curtab_mut().tp_firstwin.get().as_ptr()) {
+        for wp in win_iter_ptr(curtab_mut().tp_firstwin.get()) {
             if !wp.w_arg_idx_invalid.get() {
-                diff_win_options(wp, true);
+                diff_win_options(&wp, true);
             }
         }
     }
@@ -734,7 +740,13 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     do_autochdir();
 
     set_vim_var_nr(VV_VIM_DID_ENTER, 1);
-    apply_autocmds(EVENT_VIMENTER, None, None, false, curbuf_opt_mut());
+    apply_autocmds(
+        EVENT_VIMENTER,
+        None,
+        None,
+        false,
+        curbuf_opt_mut().as_deref(),
+    );
     time_msg_if_enabled(c"VimEnter autocommands");
     if use_remote_ui {
         do_autocmd_uienter_all();
@@ -752,7 +764,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     set_reg_var(get_default_register_name());
 
     if curwin_mut().w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_scb.get() {
-        update_topline(curwin_mut());
+        update_topline(&curwin_mut());
         check_scrollbind(0, 0);
         time_msg_if_enabled(c"diff scrollbinding");
     }
@@ -904,17 +916,17 @@ pub fn getout(mut exitval: i32) -> ! {
         while let Some(tp) = tp_opt {
             next_tp = tp.next_opt();
             let first_wp = if g_st().curtab.get() == tp {
-                g_st().firstwin.get().as_ptr()
+                g_st().firstwin.get()
             } else {
-                tp.tp_firstwin.get().as_ptr()
+                tp.tp_firstwin.get()
             };
             for wp in win_iter_mut(first_wp) {
-                if !buf_valid(wp.buf_opt()) {
+                if !buf_valid(wp.buf_opt().as_deref()) {
                     continue;
                 }
                 let buf = wp.buf_mut();
-                let buf_ptr = crate::globals::BufPtr::from(buf);
-                if buf_get_changedtick(buf) != -1 {
+                let buf_ptr = buf.clone();
+                if buf_get_changedtick(&buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf_ptr.opt_mut());
                     let b_fname = buf.fname_opt();
@@ -940,14 +952,14 @@ pub fn getout(mut exitval: i32) -> ! {
         for buf in for_all_buffers_ptr() {
             if buf.b_ml.ml_mfp.borrow().is_some() {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, Some(buf));
+                set_bufref(&mut bufref, Some(&buf));
                 let b_fname = buf.fname_opt().map(CStr::to_owned);
                 apply_autocmds(
                     EVENT_BUFUNLOAD,
                     b_fname.as_deref(),
                     b_fname.as_deref(),
                     false,
-                    Some(buf),
+                    Some(&buf),
                 );
                 if !bufref_valid(Some(&bufref)) {
                     break;
@@ -960,7 +972,13 @@ pub fn getout(mut exitval: i32) -> ! {
             unblock_autocmds();
             unblock += 1;
         }
-        apply_autocmds(EVENT_VIMLEAVEPRE, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_VIMLEAVEPRE,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
         if unblock != 0 {
             block_autocmds();
         }
@@ -976,7 +994,13 @@ pub fn getout(mut exitval: i32) -> ! {
             unblock_autocmds();
             unblock += 1;
         }
-        apply_autocmds(EVENT_VIMLEAVE, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_VIMLEAVE,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
         if unblock != 0 {
             block_autocmds();
         }
@@ -1042,9 +1066,13 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     ml_close_notmod();
 
     for buf in for_all_buffers_mut() {
-        if let Some(mfp) = buf.b_ml.ml_mfp.borrow().as_ref()
-            && mfp.mf_fname.is_some()
-        {
+        let has_fname = buf
+            .b_ml
+            .ml_mfp
+            .borrow()
+            .as_ref()
+            .is_some_and(|mfp| mfp.mf_fname.is_some());
+        if has_fname {
             if errmsg.is_some() {
                 fprintf!(stderr, c"Nvim: preserving files...\n");
             }
@@ -1879,14 +1907,14 @@ fn read_stdin() {
             semsg!(c"Failed to create buffer for stdin");
             return;
         };
-        let stdin_buf = crate::globals::BufPtr::from(stdin_buf_ref);
+        let stdin_buf = stdin_buf_ref;
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
         set_curbuf(stdin_buf.borrow_mut(), 0, false);
         readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
         let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum.get();
-        let stdin_buf_empty = buf_is_empty(curbuf_mut());
+        let stdin_buf_empty = buf_is_empty(&curbuf_mut());
 
         let mut buf = [0u8; 100];
         format_to_buf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
@@ -1899,7 +1927,7 @@ fn read_stdin() {
     } else {
         set_buflisted(1);
         open_buffer(true, None, 0);
-        if buf_is_empty(curbuf_mut()) && !curbuf_mut().b_next.get().is_null() {
+        if buf_is_empty(&curbuf_mut()) && !curbuf_mut().b_next.get().is_null() {
             do_cmdline_cmd(c"silent! bnext");
             do_cmdline_cmd(c"silent! bwipeout 1");
         }
@@ -1961,7 +1989,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if parmp.window_layout == WIN_TABS {
                     goto_tabpage(1);
                 } else {
-                    set_curwin(g_st().firstwin.get().as_ptr());
+                    set_curwin(g_st().firstwin.get());
                 }
             } else if parmp.window_layout == WIN_TABS {
                 if curtab_mut().tp_next.get().is_null() {
@@ -1972,7 +2000,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if curwin_mut().w_next.get().is_null() {
                     break;
                 }
-                set_curwin(curwin_mut().w_next.get().as_ptr());
+                set_curwin(curwin_mut().w_next.get());
             }
             dorewind = false;
             g_st().curbuf.set(curwin_mut().w_buffer.get());
@@ -1994,7 +2022,7 @@ fn create_windows(parmp: &mut Mparm) {
                         ui_call_error_exit(1);
                         getout(1);
                     }
-                    setfname(curbuf_mut(), None, None, false);
+                    setfname(&curbuf_mut(), None, None, false);
                     curwin_mut().w_arg_idx.set(-1);
                     g_st().swap_exists_action.set(SEA_NONE);
                 } else {
@@ -2011,7 +2039,7 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
         } else if parmp.window_count > 1 || !win_valid(startup_curwin.opt()) {
-            set_curwin(g_st().firstwin.get().as_ptr());
+            set_curwin(g_st().firstwin.get());
         } else {
             set_curwin(startup_curwin);
         }
@@ -2037,7 +2065,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         .set(g_st().autocmd_no_leave.get() + (1));
 
     if curwin_mut().w_arg_idx.get() == -1 {
-        win_close(curwin_mut(), true, false);
+        win_close(&curwin_mut(), true, false);
         advance = false;
     }
 
@@ -2045,7 +2073,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     for i in 1..parmp.window_count {
         if curwin_mut().w_arg_idx.get() == -1 {
             arg_idx += 1;
-            win_close(curwin_mut(), true, false);
+            win_close(&curwin_mut(), true, false);
             advance = false;
             continue;
         }
@@ -2091,7 +2119,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 None,
                 ECMD_LASTL,
                 ECMD_HIDE,
-                Some(curwin_mut()),
+                Some(&curwin_mut()),
             );
             if g_st().swap_exists_did_quit.get() {
                 if g_st().got_int.get() || only_one_window() {
@@ -2099,7 +2127,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                     ui_call_error_exit(1);
                     getout(1);
                 }
-                win_close(curwin_mut(), true, false);
+                win_close(&curwin_mut(), true, false);
                 advance = false;
             }
             if arg_idx == gargcount() - 1 {
@@ -2144,7 +2172,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         .set(g_st().autocmd_no_leave.get() - (1));
     time_msg_if_enabled(c"editing files in windows");
     if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
-        win_equal(Some(curwin_mut()), false, b'b' as i32);
+        win_equal(Some(&curwin_mut()), false, b'b' as i32);
     }
 }
 

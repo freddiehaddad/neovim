@@ -484,7 +484,7 @@ pub extern "C-unwind" fn nts_parser_parse_buf(
     let Some(buf) = handle_get_buffer(bufnr as ObjHandle) else {
         std::process::abort();
     };
-    ts_parser_parse_with_input(p, old_tree, buf, input_cb, timeout_ns)
+    ts_parser_parse_with_input(p, old_tree, &buf, input_cb, timeout_ns)
 }
 
 extern "C-unwind" fn parser_parse(lstate: *mut lua_State) -> i32 {

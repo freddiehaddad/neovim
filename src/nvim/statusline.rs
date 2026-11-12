@@ -491,7 +491,7 @@ fn win_redr_stl_expr(
     draw_ruler: bool,
     ui_event: bool,
 ) {
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     enum StlGridTarget {
         Default,
         MsgAdj,
@@ -515,7 +515,7 @@ fn win_redr_stl_expr(
     let is_stl_global = global_stl_height() > 0;
 
     let mut grid_target = if !wp.is_null() && wp.w_floating.get() && !is_stl_global {
-        StlGridTarget::WinAlloc(wp)
+        StlGridTarget::WinAlloc(wp.clone().clone().clone())
     } else {
         StlGridTarget::Default
     };
@@ -565,13 +565,13 @@ fn win_redr_stl_expr(
         col = 0;
         let has_grid = crate::grid::grid_adjust_opt(&wp_ref.w_grid, &mut row, &mut col).is_some();
         if has_grid {
-            grid_target = StlGridTarget::WinGrid(wp);
+            grid_target = StlGridTarget::WinGrid(wp.clone().clone());
         }
 
         if row < 0 || !has_grid {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
-                set_curwin(restore_curwin);
+                set_curwin(&restore_curwin);
                 g_st().curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
@@ -651,7 +651,7 @@ fn win_redr_stl_expr(
         } else if wp_ref.w_status_height.get() == 0 {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
-                set_curwin(restore_curwin);
+                set_curwin(&restore_curwin);
                 g_st().curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
@@ -673,12 +673,16 @@ fn win_redr_stl_expr(
     }
 
     if maxwidth > 0 {
-        let ewp = if wp.is_null() { curwin_ptr() } else { wp };
+        let ewp = if wp.is_null() {
+            curwin_ptr()
+        } else {
+            wp.clone()
+        };
         let p_crb_save = ewp.w_onebuf_opt.wo_crb.get();
         ewp.w_onebuf_opt.wo_crb.set(false);
 
         build_stl_str_hl_slice(
-            ewp,
+            ewp.clone(),
             &mut buf,
             Some(&stl_cstr),
             opt_idx,
@@ -728,12 +732,12 @@ fn win_redr_stl_expr(
 
         if !ui_event {
             let grid_ref = match grid_target {
-                StlGridTarget::Default => &g_st().default_grid,
+                StlGridTarget::Default => crate::grid::GridRef::Static(&g_st().default_grid),
                 StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow_mut(),
                 StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow_mut(),
-                StlGridTarget::WinAlloc(w) => &w.borrow_mut().w_grid_alloc,
+                StlGridTarget::WinAlloc(w) => crate::grid::GridRef::Win(w),
             };
-            screengrid_line_start(grid_ref, row, 0);
+            screengrid_line_start(&grid_ref, row, 0);
         }
 
         let mut p_off = 0usize;
@@ -832,7 +836,7 @@ fn win_redr_stl_expr(
     with_stl_state(|st| st.stl_expr_entered.set(false));
 
     if !restore_curwin.is_null() {
-        set_curwin(restore_curwin);
+        set_curwin(&restore_curwin);
         g_st().curbuf.set(restore_curwin.w_buffer.get());
     }
 }
@@ -880,7 +884,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    win_redr_stl_expr(Some(wp), false, true, ui_has(K_UIMESSAGES));
+    win_redr_stl_expr(Some(&wp), false, true, ui_has(K_UIMESSAGES));
     with_stl_state(|st| st.did_show_ruler.set(!ui_has(K_UIMESSAGES)));
 }
 
@@ -925,7 +929,7 @@ fn ui_ext_tabline_update() {
             tp.tp_curwin.get()
         };
 
-        get_trans_bufname(cwp.borrow_mut().buf_mut());
+        get_trans_bufname(&cwp.borrow_mut().buf_mut());
 
         put_c(
             &mut tab_info,
@@ -1091,7 +1095,7 @@ pub fn draw_tabline() {
                 let wp_ref = wp.borrow_mut();
                 if !win_is_focusable(wp_ref) {
                     wincount -= 1;
-                } else if buf_is_changed_fn(wp_ref.buf_mut()) {
+                } else if buf_is_changed_fn(&wp_ref.buf_mut()) {
                     modified = true;
                 }
 
@@ -1125,7 +1129,7 @@ pub fn draw_tabline() {
 
             let room = scol - col + tabwidth - 1;
             if room > 0 {
-                get_trans_bufname(cwp.borrow_mut().buf_mut());
+                get_trans_bufname(&cwp.borrow_mut().buf_mut());
 
                 shorten_dir(&mut *g_st().name_buff_bytes_mut());
                 let name_cstr = g_st().name_buff_cstr();
@@ -1480,7 +1484,7 @@ pub struct CharBuf {
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn build_stl_str_hl(
-    wp: crate::globals::WinPtr,
+    wp: *const WinInfoInfo,
     out: CharBuf,
     fmt: *mut u8,
     opt_idx: OptIndex,
@@ -1492,6 +1496,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
 ) -> i32 {
+    let wp = unsafe { wp.as_ref() }
+        .map(crate::globals::WinPtr::from)
+        .unwrap_or_default();
     let out_buf = if out.addr == 0 || out.size == 0 {
         &mut [][..]
     } else {
@@ -1618,7 +1625,7 @@ pub fn build_stl_str_hl_slice(
         wp.w_cursor.set_lnum(lnum);
     }
 
-    let line_slice = crate::memline::ml_get_buf_slice((*wp).buf_mut(), lnum);
+    let line_slice = crate::memline::ml_get_buf_slice(&(*wp).buf_mut(), lnum);
     let empty_line = line_slice.is_empty();
 
     let len = line_slice.len() as Colnr;
@@ -2077,7 +2084,7 @@ pub fn build_stl_str_hl_slice(
                     let save_curwin = curwin_ptr();
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.borrow().active;
-                    set_curwin(wp);
+                    set_curwin(&wp);
                     g_st().curbuf.set(wp.w_buffer.get());
                     if curwin_ptr() != save_curwin {
                         g_st().visual_global.borrow_mut().active = false;
@@ -2236,7 +2243,7 @@ pub fn build_stl_str_hl_slice(
                     base = NumberBase::NumBaseHexadecimal;
                 }
                 let l =
-                    ml_find_line_or_offset((*wp).buf_mut(), wp.w_cursor.get().lnum, None, false);
+                    ml_find_line_or_offset(&(*wp).buf_mut(), wp.w_cursor.get().lnum, None, false);
                 num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 || l < 0 {
                     0
                 } else {
@@ -2255,7 +2262,7 @@ pub fn build_stl_str_hl_slice(
                 num = byteval;
                 if num == NL {
                     num = 0;
-                } else if num == CAR && get_fileformat((*wp).buf_mut()) == EOL_MAC {
+                } else if num == CAR && get_fileformat(&(*wp).buf_mut()) == EOL_MAC {
                     num = NL;
                 }
             }
@@ -2325,7 +2332,7 @@ pub fn build_stl_str_hl_slice(
             STL_MODIFIED | STL_MODIFIED_ALT => {
                 itemisflag = true;
                 let code = i32::from(opt == STL_MODIFIED_ALT)
-                    + i32::from(buf_is_changed_fn((*wp).buf_mut())) * 2
+                    + i32::from(buf_is_changed_fn(&(*wp).buf_mut())) * 2
                     + i32::from(!(*wp).buf_mut().b_p_ma.get()) * 4;
                 str_slice = match code {
                     2 => Some(c"[+]".to_bytes_with_nul()),
@@ -2778,9 +2785,9 @@ mod tests {
                          exp_cells: Option<i32>| {
                 if let Some(fname) = file_name {
                     let fn_c = CString::new(fname).unwrap();
-                    setfname(curbuf_mut(), Some(fn_c.as_c_str()), None, true);
+                    setfname(&curbuf_mut(), Some(fn_c.as_c_str()), None, true);
                 } else {
-                    setfname(curbuf_mut(), None, None, true);
+                    setfname(&curbuf_mut(), None, None, true);
                 }
                 curwin_mut().w_cursor.set_lnum(0);
 

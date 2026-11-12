@@ -146,7 +146,7 @@ pub fn cursorhold_event() {
     } else {
         EVENT_CURSORHOLD
     };
-    apply_autocmds(event, None, None, false, curbuf_opt_mut());
+    apply_autocmds(event, None, None, false, curbuf_opt_mut().as_deref());
     g_st().did_cursorhold.set(true);
 }
 

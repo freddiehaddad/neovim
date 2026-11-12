@@ -786,7 +786,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
         ExtmarkUndoObject::Splice(splice) => {
             if undo {
                 extmark_splice_impl(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     splice.start_row,
                     splice.start_col,
                     splice.start_byte,
@@ -800,7 +800,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                 );
             } else {
                 extmark_splice_impl(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     splice.start_row,
                     splice.start_col,
                     splice.start_byte,
@@ -817,20 +817,20 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
         ExtmarkUndoObject::SavePos(pos) => {
             if undo && pos.undo_row >= 0 {
                 extmark_setraw(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     pos.mark,
                     pos.undo_row,
                     pos.undo_col,
                     pos.invalidated,
                 );
             } else if !undo && pos.redo_row >= 0 {
-                extmark_setraw(curbuf_mut(), pos.mark, pos.redo_row, pos.redo_col, true);
+                extmark_setraw(&curbuf_mut(), pos.mark, pos.redo_row, pos.redo_col, true);
             }
         }
         ExtmarkUndoObject::Move(move_) => {
             if undo {
                 extmark_move_region(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     move_.new_row,
                     move_.new_col,
                     move_.new_byte,
@@ -844,7 +844,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                 );
             } else {
                 extmark_move_region(
-                    curbuf_mut(),
+                    &curbuf_mut(),
                     move_.start_row,
                     move_.start_col,
                     move_.start_byte,

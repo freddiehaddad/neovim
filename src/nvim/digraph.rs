@@ -2139,7 +2139,8 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
     for idx in 0..kmap_len {
         {
-            let kmaps = curbuf_mut().b_kmap_ga.borrow();
+            let cb = curbuf_mut();
+            let kmaps = cb.b_kmap_ga.borrow();
             let kp = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
         }
@@ -2172,7 +2173,8 @@ fn keymap_unload() {
     let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
     for idx in 0..kmap_len {
         {
-            let kmaps = curbuf_mut().b_kmap_ga.borrow();
+            let cb = curbuf_mut();
+            let kmaps = cb.b_kmap_ga.borrow();
             let entry = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
         }
@@ -2203,7 +2205,7 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     let old_curwin = curwin_ptr();
 
     g_st().curbuf.set(wp.w_buffer.get());
-    set_curwin(std::ptr::from_ref(wp).cast_mut());
+    set_curwin(wp);
     g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     let s = eval_to_string(c"b:keymap_name", false, false);
     let mut p_cstr = s.as_deref().unwrap_or(c"");

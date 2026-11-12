@@ -2387,8 +2387,8 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     }
 
     let mut group: Hlf = 0;
-    let fillchar = fillchar_status(&mut group, curwin_mut());
-    let attr = win_hl_attr(curwin_mut(), group);
+    let fillchar = fillchar_status(&mut group, &curwin_mut());
+    let attr = win_hl_attr(&curwin_mut(), group);
 
     let mut len: usize;
     if CMDEXP_STATE.with(|s| s.first_match.get()) == 0 {
@@ -6200,7 +6200,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         g_st().msg_silent.set(g_st().msg_silent.get() + (1));
         let found_new_match = searchit(
             None,
-            curbuf_mut(),
+            &curbuf_mut(),
             &mut cur_match_pos,
             Some(&mut end_match_pos),
             dir,

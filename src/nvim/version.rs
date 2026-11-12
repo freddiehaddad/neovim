@@ -4160,11 +4160,11 @@ pub fn list_version() {
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
-    buf_is_empty(curbuf_mut())
+    buf_is_empty(&curbuf_mut())
         && curbuf_mut().fname_opt().is_none()
         && curbuf_mut().b_fnum.get() == 1
         && curwin_mut().handle == LOWEST_WIN_ID
-        && one_window(curwin_mut(), None)
+        && one_window(&curwin_mut(), None)
         && !crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), K_SHM_INTRO)
 }
 

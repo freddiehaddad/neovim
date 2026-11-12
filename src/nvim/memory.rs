@@ -249,8 +249,8 @@ pub fn free_all_mem() {
             do_cmdline_cmd(c"tlunmenu *");
             do_cmdline_cmd(c"menutranslate clear");
 
-            map_clear_mode(curbuf_mut(), MAP_ALL_MODES, false, false);
-            map_clear_mode(curbuf_mut(), MAP_ALL_MODES, false, true);
+            map_clear_mode(&curbuf_mut(), MAP_ALL_MODES, false, false);
+            map_clear_mode(&curbuf_mut(), MAP_ALL_MODES, false, true);
             do_cmdline_cmd(c"breakdel *");
             do_cmdline_cmd(c"profdel *");
             do_cmdline_cmd(c"set keymap=");

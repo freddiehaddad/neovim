@@ -498,7 +498,8 @@ fn add_menu_path(
         let next_is_empty = path_name_vec.get(next_off).is_none_or(|&b| b == 0);
         let mut lower_pri_idx: usize = 0;
         let mut found_idx: Option<usize> = None;
-        let mut menup_vec = &mut *g_st().root_menu.borrow_mut();
+        let mut root_menu_guard = g_st().root_menu.borrow_mut();
+        let mut menup_vec = &mut *root_menu_guard;
         for &idx in &ancestor_stack {
             menup_vec = &mut menup_vec[idx].children;
         }
@@ -508,12 +509,14 @@ fn add_menu_path(
                     if !g_st().sys_menu.get() {
                         emsg(gettext(c"E330: Menu path must not lead to a sub-menu"));
                     }
+                    drop(root_menu_guard);
                     return cleanup_erret(&ancestor_stack);
                 }
                 if !next_is_empty && m.children.is_empty() {
                     if !g_st().sys_menu.get() {
                         emsg(gettext(E_NOTSUBMENU));
                     }
+                    drop(root_menu_guard);
                     return cleanup_erret(&ancestor_stack);
                 }
                 found_idx = Some(idx);
@@ -538,11 +541,13 @@ fn add_menu_path(
                 emsg(gettext(
                     c"E331: Must not add menu items directly to menu bar",
                 ));
+                drop(root_menu_guard);
                 return cleanup_erret(&ancestor_stack);
             }
 
             if menu_is_separator(dname.as_bytes()) && !next_is_empty {
                 emsg(gettext(c"E332: Separator cannot be part of a menu path"));
+                drop(root_menu_guard);
                 return cleanup_erret(&ancestor_stack);
             }
 
@@ -1521,7 +1526,7 @@ pub fn show_popupmenu() {
         Some(mode_cstr),
         None,
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
 
     let mut found_idx: Option<usize> = None;
@@ -1543,7 +1548,7 @@ pub fn show_popupmenu() {
     }
 
     let mut m = g_st().root_menu.borrow()[idx].clone();
-    pum_show_popupmenu(&mut m);
+    pum_show_popupmenu(&mut m, None);
 }
 
 /// Execute `menu` (`execute_menu`).
@@ -1589,11 +1594,11 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
 
             g_st().visual_global.borrow_mut().active = true;
             g_st().visual_global.borrow_mut().reselect = 1;
-            check_cursor(curwin_mut());
+            check_cursor(&curwin_mut());
             g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor.get();
             curwin_mut().w_cursor.set(tpos);
 
-            check_cursor(curwin_mut());
+            check_cursor(&curwin_mut());
 
             if opt_vars().p_sel.first_byte() == b'e' && gchar_cursor() != i32::from(NUL) {
                 curwin_mut().w_cursor.add_col(1);

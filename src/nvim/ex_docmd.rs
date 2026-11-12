@@ -5634,9 +5634,9 @@ fn current_win_nr(win: Option<&WinInfoInfo>, cmdarg: Option<&Exarg>) -> i32 {
     let mut nr = 0;
 
     for wp in for_all_windows_ptr() {
-        let include_this = nonnr || win_has_winnr(wp, &curtab_mut());
+        let include_this = nonnr || win_has_winnr(&wp, &curtab_mut());
         nr += i32::from(include_this);
-        if win.is_some_and(|w| ptr::eq(wp, w)) {
+        if win.is_some_and(|w| wp == w) {
             if !include_this {
                 return 0;
             }
@@ -5710,7 +5710,7 @@ pub fn set_cmd_addr_type(eap: &mut Exarg, p: Option<&CStr>) {
         get_wincmd_addr_type(crate::charset::skipwhite_slice(p.to_bytes()), eap);
     }
     if (eap.cmdidx == Cmdidx::CmdCc || eap.cmdidx == Cmdidx::CmdLl)
-        && bt_quickfix(Some(crate::globals::curbuf_mut()))
+        && bt_quickfix(Some(&crate::globals::curbuf_mut()))
     {
         eap.addr_type = ADDR_OTHER;
     }
@@ -5723,7 +5723,7 @@ pub fn get_cmd_default_range(eap: &mut Exarg) -> Linenr {
             .get()
             .lnum
             .min(curbuf_mut().b_ml.ml_line_count.get()),
-        ADDR_WINDOWS => current_win_nr(Some(curwin_mut()), None),
+        ADDR_WINDOWS => current_win_nr(Some(&curwin_mut()), None),
         ADDR_ARGUMENTS => (curwin_mut().w_arg_idx.get() + 1).min(argcount()),
         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => curbuf_mut().b_fnum.get(),
         ADDR_TABS => current_tab_nr(Some(&curtab_mut())),
@@ -6222,8 +6222,8 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
             && g_st().global_busy.get() == 0
             && eap.addr_type == ADDR_LINES
         {
-            has_folding(curwin_mut(), eap.line1, Some(&mut eap.line1), None);
-            has_folding(curwin_mut(), eap.line2, None, Some(&mut eap.line2));
+            has_folding(&curwin_mut(), eap.line1, Some(&mut eap.line1), None);
+            has_folding(&curwin_mut(), eap.line2, None, Some(&mut eap.line2));
         }
 
         if !parse_count(&mut *eap, &mut errormsg, true) {
@@ -6607,8 +6607,8 @@ fn do_one_cmd(
             && g_st().global_busy.get() == 0
             && ea.addr_type == ADDR_LINES
         {
-            has_folding(curwin_mut(), ea.line1, Some(&mut ea.line1), None);
-            has_folding(curwin_mut(), ea.line2, None, Some(&mut ea.line2));
+            has_folding(&curwin_mut(), ea.line1, Some(&mut ea.line1), None);
+            has_folding(&curwin_mut(), ea.line2, None, Some(&mut ea.line2));
         }
 
         let p_slice = replace_makeprg(&mut ea, p_opt);
@@ -7371,14 +7371,14 @@ pub fn parse_cmd_address(
 
                     eap.cmd = eap.cmd.wrapping_add(1);
                     if !eap.skip {
-                        let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
+                        let fm1 = mark_get_visual(&curbuf_mut(), b'<' as i32);
                         if !mark_check(fm1.as_ref(), errormsg) {
                             break 'theend;
                         }
 
                         eap.line1 = fm1.unwrap().mark.lnum;
 
-                        let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
+                        let fm2 = mark_get_visual(&curbuf_mut(), b'>' as i32);
                         if !mark_check(fm2.as_ref(), errormsg) {
                             break 'theend;
                         }
@@ -7397,9 +7397,9 @@ pub fn parse_cmd_address(
                 if !eap.skip {
                     curwin_mut().w_cursor.set_lnum(eap.line2);
                     if eap.line2 > 0 {
-                        check_cursor(curwin_mut());
+                        check_cursor(&curwin_mut());
                     } else {
-                        check_cursor_col(curwin_mut());
+                        check_cursor_col(&curwin_mut());
                     }
                     need_check_cursor = true;
                 }
@@ -7419,7 +7419,7 @@ pub fn parse_cmd_address(
     }
 
     if need_check_cursor {
-        check_cursor(curwin_mut());
+        check_cursor(&curwin_mut());
     }
     ret
 }
@@ -7824,7 +7824,7 @@ pub fn get_address(
                     cmd_cur = cmd_cur.map(|c| crate::memory::CStrSubslice::advance(c, 1));
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.get().lnum,
-                        ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
+                        ADDR_WINDOWS => lnum = current_win_nr(Some(&curwin_mut()), None),
                         ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
                         ADDR_TABS => lnum = current_tab_nr(Some(&curtab_mut())),
@@ -7902,8 +7902,8 @@ pub fn get_address(
                             K_MARK_BUF_LOCAL
                         };
                         let fm = mark_get(
-                            curbuf_mut(),
-                            curwin_mut(),
+                            &curbuf_mut(),
+                            &curwin_mut(),
                             None,
                             flag,
                             i32::from(after_quote.to_bytes()[0]),
@@ -8011,8 +8011,8 @@ pub fn get_address(
                             coladd: 0,
                         };
                         if searchit(
-                            Some(curwin_mut()),
-                            curbuf_mut(),
+                            Some(&curwin_mut()),
+                            &curbuf_mut(),
                             &mut pos,
                             None,
                             if b_next == b'?' { BACKWARD } else { FORWARD },
@@ -8057,7 +8057,7 @@ pub fn get_address(
                 if lnum == MAXLNUM {
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.get().lnum,
-                        ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
+                        ADDR_WINDOWS => lnum = current_win_nr(Some(&curwin_mut()), None),
                         ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx.get() + 1,
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum.get(),
                         ADDR_TABS => lnum = current_tab_nr(Some(&curtab_mut())),
@@ -8120,7 +8120,7 @@ pub fn get_address(
                         && (op == b'-' as i32 || op == b'+' as i32)
                         && address_count >= 2
                     {
-                        has_folding(curwin_mut(), lnum, None, Some(&mut lnum));
+                        has_folding(&curwin_mut(), lnum, None, Some(&mut lnum));
                     }
                     if op == b'-' as i32 {
                         lnum -= n;
@@ -9165,7 +9165,13 @@ pub fn before_quit_autocmds(wp_in: &WinInfoInfo, quit_all: bool, forceit: bool) 
     }
 
     if quit_all || (check_more(false, forceit) && only_one_window()) {
-        apply_autocmds(EVENT_EXITPRE, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_EXITPRE,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
         if !win_valid(wp.opt())
             || curbuf_locked()
             || (curbuf_mut().b_nwindows.get() == 1 && curbuf_mut().b_locked.get() > 0)
@@ -9210,9 +9216,9 @@ fn ex_quit(eap: &mut Exarg) {
     if check_more(false, eap.forceit) && only_one_window() {
         g_st().exiting.set(true);
     }
-    if (!buf_hide(wp.borrow().buf_mut())
+    if (!buf_hide(&wp.borrow().buf_mut())
         && check_changed(
-            wp.borrow().buf_mut(),
+            &wp.borrow().buf_mut(),
             (if opt_vars().p_awa.get() { CCGD_AW } else { 0 })
                 | (if eap.forceit { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
@@ -9228,7 +9234,7 @@ fn ex_quit(eap: &mut Exarg) {
             getout(0);
         }
         not_exiting(save_exiting);
-        let close_buf = !buf_hide(wp.borrow().buf_mut()) || eap.forceit;
+        let close_buf = !buf_hide(&wp.borrow().buf_mut()) || eap.forceit;
         win_close(wp.borrow_mut(), close_buf, eap.forceit);
     }
 }
@@ -9244,7 +9250,7 @@ pub fn before_quit_all(eap: &mut Exarg) -> bool {
         text_locked_msg();
         return false;
     }
-    if before_quit_autocmds(curwin_mut(), true, eap.forceit) {
+    if before_quit_autocmds(&curwin_mut(), true, eap.forceit) {
         return false;
     }
     true
@@ -9670,17 +9676,16 @@ fn ex_close(eap: &mut Exarg) {
         let win = if eap.addr_count == 0 {
             curwin_mut()
         } else {
-            win_find_nr(eap.line2, Some(&curtab_mut()))
-                .unwrap_or_else(|| g_st().lastwin.get().borrow_mut())
+            win_find_nr(eap.line2, Some(&curtab_mut())).unwrap_or_else(|| g_st().lastwin.get())
         };
-        ex_win_close(eap.forceit, win, None);
+        ex_win_close(eap.forceit, &win, None);
     }
 }
 
 fn ex_pclose(eap: &mut Exarg) {
     for win in for_all_windows_mut() {
         if win.w_onebuf_opt.wo_pvw.get() {
-            ex_win_close(eap.forceit, win, None);
+            ex_win_close(eap.forceit, &win, None);
             break;
         }
     }
@@ -9701,14 +9706,14 @@ pub fn ex_win_close(forceit: bool, win: &WinInfoInfo, tp_in: Option<&TabPageInfo
 
     let buf = win.w_buffer.get();
 
-    let mut need_hide = buf_is_changed_fn(win.buf_mut()) && win.buf_mut().b_nwindows.get() <= 1;
-    if need_hide && !buf_hide(win.buf_mut()) && !forceit {
+    let mut need_hide = buf_is_changed_fn(&win.buf_mut()) && win.buf_mut().b_nwindows.get() <= 1;
+    if need_hide && !buf_hide(&win.buf_mut()) && !forceit {
         if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
             && opt_vars().p_write.get()
         {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf.opt_mut());
-            dialog_changed(win.buf_mut(), false);
+            dialog_changed(&win.buf_mut(), false);
             if bufref_valid(Some(&bufref)) && bufref.buf_opt().is_some_and(buf_is_changed_fn) {
                 return;
             }
@@ -9720,10 +9725,10 @@ pub fn ex_win_close(forceit: bool, win: &WinInfoInfo, tp_in: Option<&TabPageInfo
     }
 
     if tp.is_null() {
-        let close_b = !need_hide && !buf_hide(win.buf_mut());
+        let close_b = !need_hide && !buf_hide(&win.buf_mut());
         win_close(win, close_b, forceit);
     } else {
-        let close_b = i32::from(!need_hide && !buf_hide(win.buf_mut()));
+        let close_b = i32::from(!need_hide && !buf_hide(&win.buf_mut()));
         win_close_othertab(win, close_b, tp.borrow(), forceit);
     }
 }
@@ -9803,7 +9808,7 @@ pub fn tabpage_close(forceit: bool) {
         done += 1;
         done < 1000
     } {
-        ex_win_close(forceit, curwin_mut(), None);
+        ex_win_close(forceit, &curwin_mut(), None);
     }
     if done == 1000 {
         return;
@@ -9813,7 +9818,7 @@ pub fn tabpage_close(forceit: bool) {
         close_others(1, forceit, true);
     }
     if g_st().firstwin.get() == g_st().lastwin.get() {
-        ex_win_close(forceit, curwin_mut(), None);
+        ex_win_close(forceit, &curwin_mut(), None);
     }
     if g_st().curtab.get() == save_curtab {
         curtab_mut().tp_did_tabclosedpre.set(false);
@@ -9881,7 +9886,7 @@ fn ex_only(eap: &mut Exarg) {
             wp = next;
         }
         if wp != curwin_ptr() {
-            win_goto(wp);
+            win_goto(&wp);
         }
     }
     close_others(1, eap.forceit, false);
@@ -9926,7 +9931,7 @@ fn ex_exit(eap: &mut Exarg) {
         g_st().exiting.set(true);
     }
     if ((eap.cmdidx == Cmdidx::CmdWq || curbuf_is_changed_fn()) && !do_write(eap))
-        || before_quit_autocmds(curwin_mut(), false, eap.forceit)
+        || before_quit_autocmds(&curwin_mut(), false, eap.forceit)
         || !check_more(true, eap.forceit)
         || (only_one_window() && check_changed_any(eap.forceit, false))
     {
@@ -9936,8 +9941,8 @@ fn ex_exit(eap: &mut Exarg) {
             getout(0);
         }
         not_exiting(save_exiting);
-        let close_b = !buf_hide(curwin_mut().buf_mut());
-        win_close(curwin_mut(), close_b, eap.forceit);
+        let close_b = !buf_hide(&curwin_mut().buf_mut());
+        win_close(&curwin_mut(), close_b, eap.forceit);
     }
 }
 
@@ -9969,18 +9974,18 @@ fn ex_goto(eap: &mut Exarg) {
 }
 
 fn ex_preserve(_eap: &mut Exarg) {
-    ml_preserve(curbuf_mut(), true, true);
+    ml_preserve(&curbuf_mut(), true, true);
 }
 
 fn ex_recover(eap: &mut Exarg) {
     g_st().recoverymode.set(true);
     if !check_changed(
-        curbuf_mut(),
+        &curbuf_mut(),
         (if opt_vars().p_awa.get() { CCGD_AW } else { 0 })
             | CCGD_MULTWIN
             | (if eap.forceit { CCGD_FORCEIT } else { 0 })
             | CCGD_EXCMD,
-    ) && (eap.arg.is_empty() || setfname(curbuf_mut(), eap.arg.as_opt_cstr(), None, true))
+    ) && (eap.arg.is_empty() || setfname(&curbuf_mut(), eap.arg.as_opt_cstr(), None, true))
     {
         ml_recover(true);
     }
@@ -10019,7 +10024,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();
-    let retval = callback_call(cb, 2, &mut args, &mut rettv);
+    let retval = callback_call(&cb, 2, &mut args, &mut rettv);
 
     g_st().current_sctx.set(saved_sctx);
     g_st().textlock.set(g_st().textlock.get() - (1));
@@ -10117,7 +10122,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
         || eap.cmdidx == Cmdidx::CmdTabfind
         || eap.cmdidx == Cmdidx::CmdTabnew;
 
-    if bt_quickfix(Some(crate::globals::curbuf_mut())) && g_st().cmdmod.borrow().cmod_tab == 0 {
+    if bt_quickfix(Some(&crate::globals::curbuf_mut())) && g_st().cmdmod.borrow().cmod_tab == 0 {
         if eap.cmdidx == Cmdidx::CmdSplit {
             eap.cmdidx = Cmdidx::CmdNew;
         }
@@ -10162,7 +10167,13 @@ pub fn ex_splitview(eap: &mut Exarg) {
             let arg_cstr = eap.arg.as_opt_cstr().map(CStr::to_owned);
             if win_new_tabpage(after, arg_cstr.as_deref(), true, None).is_some() {
                 do_exedit(eap, old_curwin.opt_mut());
-                apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
+                apply_autocmds(
+                    EVENT_TABNEWENTERED,
+                    None,
+                    None,
+                    false,
+                    curbuf_opt_mut().as_deref(),
+                );
 
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin.opt())
@@ -10278,33 +10289,33 @@ fn ex_tabs(_eap: &mut Exarg) {
             if g_st().got_int.get() {
                 break;
             }
-            if !win_is_focusable(wp) {
+            if !win_is_focusable(&wp) {
                 continue;
             }
 
             msg_putchar(b'\n' as i32);
             msg_putchar(if wp == curwin_ptr() {
                 b'>' as i32
-            } else if std::ptr::eq(wp, lastused_win) {
+            } else if wp == lastused_win {
                 b'#' as i32
             } else {
                 b' ' as i32
             });
             msg_putchar(b' ' as i32);
-            msg_putchar(if buf_is_changed_fn(wp.buf_mut()) {
+            msg_putchar(if buf_is_changed_fn(&wp.buf_mut()) {
                 b'+' as i32
             } else {
                 b' ' as i32
             });
             msg_putchar(b' ' as i32);
-            if let Some(spname) = buf_spname(wp.buf_mut()) {
+            if let Some(spname) = buf_spname(&wp.buf_mut()) {
                 crate::memory::copy_bytes_to_c_buf(
                     &mut *g_st().iobuff_bytes_mut(),
                     spname.to_bytes(),
                 );
             } else {
                 home_replace(
-                    wp.buf_opt(),
+                    wp.buf_opt().as_deref(),
                     wp.buf_mut().fname_opt(),
                     &mut *g_st().iobuff_bytes_mut(),
                     true,
@@ -10496,14 +10507,14 @@ fn ex_resize(eap: &mut Exarg) {
         } else if n == 0 && eap.arg.is_empty() {
             n = g_st().columns_global.get();
         }
-        win_setwidth_win(n, wp, true);
+        win_setwidth_win(n, &wp, true);
     } else {
         if eap.arg.first_byte() == b'-' || eap.arg.first_byte() == b'+' {
             n += wp.w_height.get();
         } else if n == 0 && eap.arg.is_empty() {
             n = g_st().rows_global.get() - 1;
         }
-        win_setheight_win(n, wp, true);
+        win_setheight_win(n, &wp, true);
     }
 }
 
@@ -10571,7 +10582,7 @@ fn ex_edit(eap: &mut Exarg) {
         return;
     }
 
-    if bt_prompt(Some(crate::globals::curbuf_mut()))
+    if bt_prompt(Some(&crate::globals::curbuf_mut()))
         && eap.cmdidx == Cmdidx::CmdEdit
         && eap.arg.is_empty()
     {
@@ -10598,7 +10609,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
             Some(&*eap),
             ECMD_ONE,
             ECMD_HIDE + if eap.forceit { ECMD_FORCEIT } else { 0 },
-            old_curwin.is_null().then(curwin_mut),
+            old_curwin.is_null().then(curwin_mut).as_deref(),
         );
     } else if (eap.cmdidx != Cmdidx::CmdSplit && eap.cmdidx != Cmdidx::CmdVsplit)
         || !eap.arg.is_empty()
@@ -10615,8 +10626,11 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
         if eap.cmdidx != Cmdidx::CmdBalt && eap.cmdidx != Cmdidx::CmdBadd {
             setpcmark();
         }
-        let ecmd_flags = (if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 })
-            + (if eap.forceit { ECMD_FORCEIT } else { 0 })
+        let ecmd_flags = (if buf_hide(&curbuf_mut()) {
+            ECMD_HIDE
+        } else {
+            0
+        }) + (if eap.forceit { ECMD_FORCEIT } else { 0 })
             + (if !old_curwin.is_null() {
                 ECMD_OLDBUF
             } else {
@@ -10643,15 +10657,15 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
             Some(&*eap),
             eap.do_ecmd_lnum,
             ecmd_flags,
-            old_curwin.is_null().then(curwin_mut),
+            old_curwin.is_null().then(curwin_mut).as_deref(),
         ) {
             if !old_curwin.is_null() {
                 let need_hide = curbuf_is_changed_fn() && curbuf_mut().b_nwindows.get() <= 1;
-                if !need_hide || buf_hide(curbuf_mut()) {
+                if !need_hide || buf_hide(&curbuf_mut()) {
                     let mut cs: ExCleanup = ExCleanup::new();
                     enter_cleanup(&mut cs);
-                    let close_b = !need_hide && !buf_hide(curbuf_mut());
-                    win_close(curwin_mut(), close_b, false);
+                    let close_b = !need_hide && !buf_hide(&curbuf_mut());
+                    win_close(&curwin_mut(), close_b, false);
                     leave_cleanup(&mut cs);
                 }
             }
@@ -10664,7 +10678,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
             do_cmdline_cmd(cmd);
         }
         let n = curwin_mut().w_arg_idx_invalid.get();
-        check_arg_idx(curwin_mut());
+        check_arg_idx(&curwin_mut());
         if n != curwin_mut().w_arg_idx_invalid.get() {
             maketitle();
         }
@@ -10707,11 +10721,11 @@ fn ex_syncbind(_eap: &mut Exarg) {
     setpcmark();
 
     let vtopline = if curwin_mut().w_onebuf_opt.wo_scb.get() {
-        let mut vt = get_vtopline(curwin_mut());
+        let mut vt = get_vtopline(&curwin_mut());
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_scb.get() && !wp.w_buffer.get().is_null() {
-                let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count.get())
-                    - (get_scrolloff_value(curwin_mut()) as i32);
+                let y = plines_m_win_fill(&wp, 1, wp.buf_mut().b_ml.ml_line_count.get())
+                    - (get_scrolloff_value(&curwin_mut()) as i32);
                 vt = vt.min(y);
             }
         }
@@ -10722,15 +10736,15 @@ fn ex_syncbind(_eap: &mut Exarg) {
 
     for wp in for_all_windows_ptr() {
         if wp.w_onebuf_opt.wo_scb.get() {
-            let y = vtopline - get_vtopline(wp);
+            let y = vtopline - get_vtopline(&wp);
             if y > 0 {
-                scrollup(wp, y, true);
+                scrollup(&wp, y, true);
             } else {
-                scrolldown(wp, -y, true);
+                scrolldown(&wp, -y, true);
             }
             wp.w_scbind_pos.set(vtopline);
-            redraw_later(Some(wp), UPD_VALID);
-            cursor_correct(wp);
+            redraw_later(Some(&wp), UPD_VALID);
+            cursor_correct(&wp);
             wp.w_redr_status.set(true);
         }
     }
@@ -11033,8 +11047,8 @@ fn ex_equal(eap: &mut Exarg) {
 }
 
 fn ex_sleep(eap: &mut Exarg) {
-    if cursor_valid(curwin_mut()) != 0 {
-        setcursor_mayforce(curwin_mut(), true);
+    if cursor_valid(&curwin_mut()) != 0 {
+        setcursor_mayforce(&curwin_mut(), true);
     }
 
     let mut len = i64::from(eap.line2);
@@ -11179,7 +11193,7 @@ fn ex_put(eap: &mut Exarg) {
         eap.forceit = true;
     }
     curwin_mut().w_cursor.set_lnum(eap.line2);
-    check_cursor_col(curwin_mut());
+    check_cursor_col(&curwin_mut());
     do_put(
         eap.regname,
         None,
@@ -11195,7 +11209,7 @@ fn ex_iput(eap: &mut Exarg) {
         eap.forceit = true;
     }
     curwin_mut().w_cursor.set_lnum(eap.line2);
-    check_cursor_col(curwin_mut());
+    check_cursor_col(&curwin_mut());
     do_put(
         eap.regname,
         None,
@@ -11242,7 +11256,7 @@ fn ex_copymove(eap: &mut Exarg) {
     } else {
         ex_copy(eap.line1, eap.line2, n);
     }
-    u_clearline(curbuf_mut());
+    u_clearline(&curbuf_mut());
     beginline(BL_SOL | BL_FIX);
     ex_may_print(eap);
 }
@@ -11285,7 +11299,7 @@ fn ex_at(eap: &mut Exarg) {
     let prev_len = g_st().typebuf.tb_len.get();
 
     curwin_mut().w_cursor.set_lnum(eap.line2);
-    check_cursor_col(curwin_mut());
+    check_cursor_col(&curwin_mut());
 
     let mut c = i32::from(eap.arg.first_byte());
     if c == 0 {
@@ -11339,12 +11353,12 @@ fn ex_undo(eap: &mut Exarg) {
             .or(curbuf_mut().b_u_newhead.get());
         let mut count: i32 = 0;
         while let Some(uh) = uhp
-            && uhp_ref(curbuf_mut(), uh).uh_seq > step
+            && uhp_ref(&curbuf_mut(), uh).uh_seq > step
         {
-            uhp = uhp_ref(curbuf_mut(), uh).uh_next;
+            uhp = uhp_ref(&curbuf_mut(), uh).uh_next;
             count += 1;
         }
-        if step != 0 && uhp.is_none_or(|uh| uhp_ref(curbuf_mut(), uh).uh_seq < step) {
+        if step != 0 && uhp.is_none_or(|uh| uhp_ref(&curbuf_mut(), uh).uh_seq < step) {
             let _ = emsg(gettext(E_UNDOBANG_CANNOT_REDO_OR_MOVE_BRANCH));
             return;
         }
@@ -11356,13 +11370,13 @@ fn ex_undo(eap: &mut Exarg) {
 
 fn ex_wundo(eap: &mut Exarg) {
     let mut hash = [0u8; UNDO_HASH_SIZE];
-    u_compute_hash(curbuf_mut(), &mut hash);
-    u_write_undo(eap.arg.as_opt_cstr(), eap.forceit, curbuf_mut(), &hash);
+    u_compute_hash(&curbuf_mut(), &mut hash);
+    u_write_undo(eap.arg.as_opt_cstr(), eap.forceit, &curbuf_mut(), &hash);
 }
 
 fn ex_rundo(eap: &mut Exarg) {
     let mut hash = [0u8; UNDO_HASH_SIZE];
-    u_compute_hash(curbuf_mut(), &mut hash);
+    u_compute_hash(&curbuf_mut(), &mut hash);
     u_read_undo(eap.arg.as_opt_cstr(), &hash, None);
 }
 
@@ -11503,8 +11517,8 @@ fn ex_redraw(eap: &mut Exarg) {
 
     g_st().redrawing_disabled.set(0);
     opt_vars().p_lz.set(false);
-    validate_cursor(curwin_mut());
-    update_topline(curwin_mut());
+    validate_cursor(&curwin_mut());
+    update_topline(&curwin_mut());
     if eap.forceit {
         redraw_all_later(UPD_NOT_VALID);
         g_st().redraw_cmdline.set(true);
@@ -11626,10 +11640,10 @@ fn ex_mark(eap: &mut Exarg) {
 }
 
 pub fn update_topline_cursor() {
-    check_cursor(curwin_mut());
-    update_topline(curwin_mut());
+    check_cursor(&curwin_mut());
+    update_topline(&curwin_mut());
     if !curwin_mut().w_onebuf_opt.wo_wrap.get() {
-        validate_cursor(curwin_mut());
+        validate_cursor(&curwin_mut());
     }
     update_curswant();
 }
@@ -11739,7 +11753,7 @@ fn ex_normal(eap: &mut Exarg) {
             curwin_mut().w_cursor.set_lnum(eap.line1);
             eap.line1 += 1;
             curwin_mut().w_cursor.set_col(0);
-            check_cursor_moved(curwin_mut());
+            check_cursor_moved(&curwin_mut());
         }
 
         exec_normal_cmd(
@@ -11953,8 +11967,8 @@ fn prepare_preview_window() {
 fn back_to_current_window(curwin_save: Option<&WinInfoInfo>) {
     let curwin_save = crate::globals::WinPtr::from(curwin_save);
     if curwin_ptr() != curwin_save && win_valid(curwin_save.opt()) {
-        validate_cursor(curwin_mut());
-        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+        validate_cursor(&curwin_mut());
+        redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
         win_enter(curwin_save.borrow_mut(), true);
     }
     g_st().g_do_tagpreview.set(0);
@@ -12061,7 +12075,7 @@ pub fn eval_vars(
     mut escaped: Option<&mut bool>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
-    let mut resultbuf: Option<Vec<u8>> = None;
+    let resultbuf: Option<Vec<u8>>;
     let mut resultlen: usize;
     let mut valid = VALID_HEAD | VALID_PATH;
     let mut tilde_file = false;
@@ -12292,11 +12306,7 @@ pub fn eval_vars(
             }
         }
 
-        let mut fbuf = if resultbuf.is_some() {
-            resultbuf.take().unwrap()
-        } else {
-            result_cstr.unwrap_or(c"").to_bytes_with_nul().to_vec()
-        };
+        let mut fbuf = result_cstr.unwrap_or(c"").to_bytes_with_nul().to_vec();
         resultlen = crate::memory::bytes_until_nul(&fbuf).len();
         let mut fname_off = 0usize;
         if src_buf.get(src_off + *usedlen) == Some(&b'<') {
@@ -12568,7 +12578,7 @@ fn ex_fold(eap: &mut Exarg) {
             col: 1,
             coladd: 0,
         };
-        fold_create(curwin_mut(), start, end);
+        fold_create(&curwin_mut(), start, end);
     }
 }
 
@@ -12595,7 +12605,7 @@ fn ex_foldopen(eap: &mut Exarg) {
 fn ex_folddo(eap: &mut Exarg) {
     let mut lnum = eap.line1;
     while lnum <= eap.line2 {
-        if has_folding(curwin_mut(), lnum, None, None) == (eap.cmdidx == Cmdidx::CmdFolddoclosed) {
+        if has_folding(&curwin_mut(), lnum, None, None) == (eap.cmdidx == Cmdidx::CmdFolddoclosed) {
             ml_setmarked(lnum);
         }
         lnum += 1;

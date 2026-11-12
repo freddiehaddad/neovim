@@ -256,7 +256,9 @@ pub fn find_ucmd(
     let cmd_all = eap.cmd.as_bytes();
     let cmd_bytes = &cmd_all[..(len.max(0) as usize).min(cmd_all.len())];
     with_ucmds(|global_ucmds| {
-        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds.borrow();
+        let pbuf = prevwin_curwin().buf_mut();
+        let ucmds_borrow = pbuf.b_ucmds.borrow();
+        let mut gap: &[Ucmd] = &ucmds_borrow;
         loop {
             let mut j: i32 = 0;
             while (j as usize) < gap.len() {
@@ -583,7 +585,9 @@ fn uc_list(name_prefix: &[u8]) {
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds.borrow();
+        let pbuf = prevwin_curwin().buf_mut();
+        let ucmds_borrow = pbuf.b_ucmds.borrow();
+        let mut gap: &[Ucmd] = &ucmds_borrow;
         loop {
             let mut i: i32 = 0;
             while (i as usize) < gap.len() {
@@ -1660,7 +1664,9 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                 )
             })
         } else {
-            let c = &prevwin_curwin().buf_mut().b_ucmds.borrow()[eap.useridx as usize];
+            let pbuf = prevwin_curwin().buf_mut();
+            let ucmds_borrow = pbuf.b_ucmds.borrow();
+            let c = &ucmds_borrow[eap.useridx as usize];
             (
                 c.uc_name.clone(),
                 c.uc_rep.as_bytes().to_vec(),

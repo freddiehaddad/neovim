@@ -84,7 +84,7 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&WinInfoInf
     if restore_size && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
         for wp in win_iter_mut(tab_firstwin) {
-            if ses_do_win(wp) == 0 {
+            if ses_do_win(&wp) == 0 {
                 continue;
             }
             n += 1;
@@ -178,7 +178,7 @@ fn ses_skipframe(fr: Option<crate::globals::FramePtr>) -> Option<crate::globals:
 
 fn ses_do_frame(fr: &Frame) -> bool {
     if fr.fr_layout.get() == FR_LEAF {
-        return ses_do_win(fr.win_mut()) != 0;
+        return ses_do_win(&fr.win_mut()) != 0;
     }
     for frc in frame_iter_mut(fr.fr_child.get()) {
         if ses_do_frame(&frc) {
@@ -193,13 +193,13 @@ fn ses_do_win(wp: &WinInfoInfo) -> i32 {
         return 0;
     }
     let buf = wp.buf_mut();
-    if buf.fname_opt().is_none() || (buf.terminal.get().is_null() && bt_nofilename(Some(buf))) {
+    if buf.fname_opt().is_none() || (buf.terminal.get().is_null() && bt_nofilename(Some(&buf))) {
         return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BLANK) as i32;
     }
-    if bt_help(Some(buf)) {
+    if bt_help(Some(&buf)) {
         return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) as i32;
     }
-    if bt_terminal(Some(buf)) {
+    if bt_terminal(Some(&buf)) {
         return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) as i32;
     }
     1
@@ -321,8 +321,8 @@ fn put_view(
     }
 
     if add_edit && (!did_next || wp.w_arg_idx_invalid.get()) {
-        let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
-        if bt_help(wp.buf_opt()) {
+        let fname_esc = ses_escape_fname(ses_get_fname(&(*wp).buf_mut(), flagp));
+        if bt_help(wp.buf_opt().as_deref()) {
             let mut curtag_owned: Option<std::ffi::CString> = None;
             if 0 < wp.w_tagstackidx.get() && wp.w_tagstackidx.get() <= wp.w_tagstacklen.get() {
                 curtag_owned = wp.w_tagstack.borrow()[(wp.w_tagstackidx.get() - 1) as usize]
@@ -338,7 +338,8 @@ fn put_view(
                 return false;
             }
         } else if (*wp).buf_mut().b_ffname.get().is_some()
-            && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.get().is_null())
+            && (!bt_nofilename(wp.buf_opt().as_deref())
+                || !(*wp).buf_mut().terminal.get().is_null())
         {
             let fesc = cstr_to_str(&fname_esc);
             if !write_fmt(
@@ -367,15 +368,15 @@ fn put_view(
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && !alt.fname_bytes().is_empty()
         && alt.b_p_bl.get()
-        && !(bt_terminal(Some(alt))
+        && !(bt_terminal(Some(&alt))
             && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-        && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, flagp, true))
+        && (fd.puts(c"balt ") < 0 || !ses_fname(fd, &alt, flagp, true))
     {
         return false;
     }
 
     if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
-        && !makemap(fd, wp.buf_opt())
+        && !makemap(fd, wp.buf_opt().as_deref())
     {
         return false;
     }
@@ -405,7 +406,7 @@ fn put_view(
 
     if (flagp.get() & K_OPT_SSOP_FLAG_FOLDS) != 0
         && (*wp).buf_mut().b_ffname.get().is_some()
-        && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
+        && (bt_normal(wp.buf_opt().as_deref()) || bt_help(wp.buf_opt().as_deref()))
         && !put_folds(fd, wp)
     {
         return false;
@@ -597,7 +598,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         for buf in for_all_buffers_ptr() {
             if !(only_save_windows && buf.b_nwindows.get() == 0)
                 && !(buf.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
-                && !(bt_terminal(Some(buf))
+                && !(bt_terminal(Some(&buf))
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
                 && buf.b_p_bl.get()
@@ -608,7 +609,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || !ses_fname(fd, buf, &opt_vars().ssop_flags, true)
+                    || !ses_fname(fd, &buf, &opt_vars().ssop_flags, true)
                 {
                     return false;
                 }
@@ -633,7 +634,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     || !b.b_p_bl.get()
                     || (only_save_windows && b.b_nwindows.get() == 0)
                     || (b.b_help.get() && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) == 0)
-                    || (bt_terminal(Some(b))
+                    || (bt_terminal(Some(&b))
                         && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
@@ -642,7 +643,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
-                    || fd.puts(ses_get_fname(b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
+                    || fd.puts(ses_get_fname(&b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
                     || fd.puts(&b_localdir) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
@@ -733,12 +734,12 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 DID_LCD.set(true);
             }
 
-            let mut wp = tab_firstwin;
+            let mut wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) != 0
                     && wp_ref.buf_mut().b_ffname.get().is_some()
-                    && !bt_help(wp_ref.buf_opt())
-                    && !bt_nofilename(wp_ref.buf_opt())
+                    && !bt_help(wp_ref.buf_opt().as_deref())
+                    && !bt_nofilename(wp_ref.buf_opt().as_deref())
                 {
                     if need_tabnext && !put_line(fd, c"tabnext") {
                         return false;
@@ -746,7 +747,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     need_tabnext = false;
 
                     if fd.puts(c"edit ") < 0
-                        || !ses_fname(fd, wp_ref.buf_mut(), &opt_vars().ssop_flags, true)
+                        || !ses_fname(fd, &wp_ref.buf_mut(), &opt_vars().ssop_flags, true)
                     {
                         return false;
                     }
@@ -775,7 +776,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
             let mut nr: i32 = 0;
             let mut restore_size = true;
-            wp = tab_firstwin;
+            wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) != 0 {
                     nr += 1;
@@ -812,7 +813,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
 
-            wp = tab_firstwin;
+            wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt_mut() {
                 if ses_do_win(wp_ref) == 0 {
                     wp = wp_ref.w_next.get();
@@ -958,7 +959,13 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let mut failed = false;
 
         if eap.cmdidx == Cmdidx::CmdMksession {
-            apply_autocmds(EVENT_SESSIONWRITEPRE, None, None, false, curbuf_opt_mut());
+            apply_autocmds(
+                EVENT_SESSIONWRITEPRE,
+                None,
+                None,
+                false,
+                curbuf_opt_mut().as_deref(),
+            );
         }
 
         if eap.cmdidx == Cmdidx::CmdMkvimrc {
@@ -1030,7 +1037,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 } else {
                     &opt_vars().ssop_flags
                 };
-                failed |= !put_view(&fd, curwin_mut(), &curtab_mut(), !using_vdir, flagp, -1);
+                failed |= !put_view(&fd, &curwin_mut(), &curtab_mut(), !using_vdir, flagp, -1);
             }
             if !write_bytes(&fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                 failed = true;
@@ -1070,7 +1077,13 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     drop(view_file);
 
     if eap.cmdidx == Cmdidx::CmdMksession {
-        apply_autocmds(EVENT_SESSIONWRITEPOST, None, None, false, curbuf_opt_mut());
+        apply_autocmds(
+            EVENT_SESSIONWRITEPOST,
+            None,
+            None,
+            false,
+            curbuf_opt_mut().as_deref(),
+        );
     }
 }
 

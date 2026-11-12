@@ -1416,7 +1416,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
             .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get());
 
         let use_sandbox = was_set_insecurely(
-            Some(crate::globals::curwin_mut()),
+            Some(&crate::globals::curwin_mut()),
             K_OPT_INCLUDEEXPR,
             OPT_LOCAL,
         ) != 0;
@@ -1582,7 +1582,7 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
             Some(crate::memory::bytes_as_cstr(&buf)),
             new_dir_opt,
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
         );
 
         restore_v_event(&dict, &mut save_v_event);

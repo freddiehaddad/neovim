@@ -116,10 +116,10 @@ pub const fn replace_normal(s: i32) -> bool {
 }
 
 #[inline]
-fn for_all_tab_windows(mut f: impl FnMut(&'static WinInfoInfo)) {
+fn for_all_tab_windows(mut f: impl FnMut(&WinInfoInfo)) {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            f(wp);
+            f(&wp);
         }
     }
 }
@@ -238,8 +238,8 @@ pub fn changed_lines_invalidate_win(
 
     if (xtra < 0
         && wp.w_onebuf_opt.wo_wrap.get()
-        && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
-        || (xtra != 0 && buf_meta_total(wp.buf_mut(), K_MTMETA_LINES) != 0)
+        && buf_meta_total(&wp.buf_mut(), K_MTMETA_INLINE) != 0)
+        || (xtra != 0 && buf_meta_total(&wp.buf_mut(), K_MTMETA_LINES) != 0)
     {
         lnume += 1;
     }
@@ -314,7 +314,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
             && lnum >= curwin_mut().w_topline.get()
             && lnum <= curwin_mut().w_botline.get()
         {
-            view = mark_view_make(curwin_mut(), curwin_mut().w_cursor.get());
+            view = mark_view_make(&curwin_mut(), curwin_mut().w_cursor.get());
         }
         reset_fmark(
             &mut buf.b_last_change.borrow_mut(),
@@ -453,23 +453,23 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
 
 /// Changed bytes within a single line for the current buffer.
 pub fn changed_bytes(lnum: Linenr, col: Colnr) {
-    changed_lines_redraw_buf(curbuf_mut(), lnum, lnum + 1, 0);
-    changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
-    if spell_check_window(curwin_mut())
+    changed_lines_redraw_buf(&curbuf_mut(), lnum, lnum + 1, 0);
+    changed_common(&curbuf_mut(), lnum, col, lnum + 1, 0);
+    if spell_check_window(&curwin_mut())
         && lnum < curbuf_mut().b_ml.ml_line_count.get()
         && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
     {
-        redraw_winline(crate::globals::curwin_mut(), lnum + 1);
+        redraw_winline(&crate::globals::curwin_mut(), lnum + 1);
     }
-    buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
+    buf_updates_send_changes(&curbuf_mut(), lnum, 1, 1);
 
     if curwin_mut().w_onebuf_opt.wo_diff.get() {
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
-                redraw_later(Some(wp), UPD_VALID);
-                let wlnum = diff_lnum_win(lnum, wp);
+                redraw_later(Some(&wp), UPD_VALID);
+                let wlnum = diff_lnum_win(lnum, &wp);
                 if wlnum > 0 {
-                    changed_lines_redraw_buf((*wp).buf_mut(), wlnum, wlnum + 1, 0);
+                    changed_lines_redraw_buf(&(*wp).buf_mut(), wlnum, wlnum + 1, 0);
                 }
             }
         }
@@ -480,7 +480,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: i32, new_col: i32) {
     if g_st().curbuf_splice_pending.get() == 0 {
         extmark_splice_cols(
-            curbuf_mut(),
+            &curbuf_mut(),
             lnum - 1,
             start_col,
             old_col,
@@ -499,13 +499,13 @@ pub fn appended_lines_buf(buf: &FileBuf, lnum: Linenr, count: Linenr) {
 
 /// Appended `count` lines below line `lnum` in the current buffer.
 pub fn appended_lines(lnum: Linenr, count: Linenr) {
-    appended_lines_buf(curbuf_mut(), lnum, count);
+    appended_lines_buf(&curbuf_mut(), lnum, count);
 }
 
 /// Like `appended_lines()`, but adjust marks first.
 pub fn appended_lines_mark(lnum: Linenr, count: i32) {
     mark_adjust(lnum + 1, MAXLNUM, count, 0, K_EXTMARK_UNDO);
-    changed_lines(curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
+    changed_lines(&curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
@@ -515,7 +515,7 @@ pub fn deleted_lines_buf(buf: &FileBuf, lnum: Linenr, count: Linenr) {
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
 pub fn deleted_lines(lnum: Linenr, count: Linenr) {
-    deleted_lines_buf(crate::globals::curbuf_mut(), lnum, count);
+    deleted_lines_buf(&crate::globals::curbuf_mut(), lnum, count);
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
@@ -524,14 +524,14 @@ pub fn deleted_lines_mark(lnum: Linenr, count: i32) {
 
     mark_adjust(lnum, lnum + count - 1, MAXLNUM, -count, K_EXTMARK_NOOP);
     extmark_adjust(
-        curbuf_mut(),
+        &curbuf_mut(),
         lnum,
         lnum + count - 1,
         MAXLNUM,
         -count + i32::from(made_empty),
         K_EXTMARK_UNDO,
     );
-    changed_lines(curbuf_mut(), lnum, 0, lnum + count, -count, true);
+    changed_lines(&curbuf_mut(), lnum, 0, lnum + count, -count, true);
 }
 
 /// Marks the area to be redrawn after a change.
@@ -574,10 +574,10 @@ pub fn changed_lines(
     {
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
-                redraw_later(Some(wp), UPD_VALID);
-                let wlnum = diff_lnum_win(lnum, wp);
+                redraw_later(Some(&wp), UPD_VALID);
+                let wlnum = diff_lnum_win(lnum, &wp);
                 if wlnum > 0 {
-                    changed_lines_redraw_buf((*wp).buf_mut(), wlnum, lnume - lnum + wlnum, 0);
+                    changed_lines_redraw_buf(&(*wp).buf_mut(), wlnum, lnume - lnum + wlnum, 0);
                 }
             }
         }
@@ -697,7 +697,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
     buf_cstr[..copy_len].copy_from_slice(&buf_slice[..copy_len]);
     let buf_bytes = &buf_cstr[..copy_len];
     {
-        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
+        if virtual_active(&curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
             coladvance_force(getviscol());
         }
 
@@ -719,12 +719,12 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                 }
                 let mut vcol: Colnr = 0;
                 let mut cursor = curwin_mut().w_cursor.get();
-                getvcol(curwin_mut(), &mut cursor, None, Some(&mut vcol), None, 0);
+                getvcol(&curwin_mut(), &mut cursor, None, Some(&mut vcol), None, 0);
                 curwin_mut().w_cursor.set(cursor);
-                let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_bytes, vcol);
+                let new_vcol = vcol + win_chartabsize(&curwin_mut(), buf_bytes, vcol);
                 while col + oldlen < oldp_bytes.len() && vcol < new_vcol {
                     let rem = &oldp_bytes[col + oldlen..];
-                    vcol += win_chartabsize(curwin_mut(), rem, vcol);
+                    vcol += win_chartabsize(&curwin_mut(), rem, vcol);
                     if vcol > new_vcol && rem.first() == Some(&TAB) {
                         break;
                     }
@@ -774,7 +774,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
 pub fn ins_str(s: &[u8], slen: usize) {
     let lnum = curwin_mut().w_cursor.get().lnum;
 
-    if virtual_active(curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
+    if virtual_active(&curwin_mut()) && curwin_mut().w_cursor.get().coladd > 0 {
         coladvance_force(getviscol());
     }
 
@@ -873,7 +873,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         if col > 0
             && fixpos
             && g_st().restart_edit.get() == 0
-            && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
+            && (get_ve_flags(&curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
         {
             curwin_mut().w_cursor.sub_col(1);
             curwin_mut().w_cursor.set_coladd(0);
@@ -911,6 +911,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         );
 
         ml.ml_line_textlen.set(newlen + 1);
+        ml.ml_line_cstr.set(None);
         ml.ml_line_buf.borrow_mut().truncate((newlen + 1) as usize);
     }
 
@@ -985,7 +986,7 @@ pub fn open_line(
         saved_line_vec[col_u] = 0;
     }
 
-    u_clearline(curbuf_mut());
+    u_clearline(&curbuf_mut());
     g_st().ins_global.borrow_mut().did_si = false;
     g_st().ins_global.borrow_mut().ai_col = 0;
 
@@ -1605,7 +1606,7 @@ pub fn open_line(
     }
 
     if dir == BACKWARD {
-        if bt_prompt(Some(crate::globals::curbuf_mut()))
+        if bt_prompt(Some(&crate::globals::curbuf_mut()))
             && curwin_mut().w_cursor.get().lnum == curbuf_mut().b_prompt_start.borrow().mark.lnum
         {
             let prompt_line_cstr = ml_get(curwin_mut().w_cursor.get().lnum);
@@ -1682,7 +1683,7 @@ pub fn open_line(
         if newindent != 0 || g_st().ins_global.borrow().did_si {
             curwin_mut().w_cursor.add_lnum(1);
             if g_st().ins_global.borrow().did_si {
-                let sw = get_sw_value(curbuf_mut());
+                let sw = get_sw_value(&curbuf_mut());
                 if opt_vars().p_sr.get() {
                     newindent -= newindent % sw;
                 }
@@ -1737,7 +1738,7 @@ pub fn open_line(
                 let mut cols_spliced: i32 = 0;
                 if new_len < curwin_mut().w_cursor.get().col {
                     extmark_splice_cols(
-                        curbuf_mut(),
+                        &curbuf_mut(),
                         curwin_mut().w_cursor.get().lnum - 1,
                         new_len,
                         curwin_mut().w_cursor.get().col - new_len,
@@ -1750,7 +1751,7 @@ pub fn open_line(
                 if did_append {
                     let cols_added = mincol - 1 + less_cols_off - less_cols;
                     extmark_splice(
-                        curbuf_mut(),
+                        &curbuf_mut(),
                         lnum - 1,
                         mincol - 1 - cols_spliced,
                         0,
@@ -1763,7 +1764,7 @@ pub fn open_line(
                     );
 
                     changed_lines(
-                        curbuf_mut(),
+                        &curbuf_mut(),
                         curwin_mut().w_cursor.get().lnum,
                         curwin_mut().w_cursor.get().col,
                         curwin_mut().w_cursor.get().lnum + 1,
@@ -1794,7 +1795,7 @@ pub fn open_line(
         if did_append {
             let extra = ml_get_len(curwin_mut().w_cursor.get().lnum) as Bcount;
             extmark_splice(
-                curbuf_mut(),
+                &curbuf_mut(),
                 curwin_mut().w_cursor.get().lnum - 1,
                 0,
                 0,
@@ -1806,7 +1807,7 @@ pub fn open_line(
                 K_EXTMARK_UNDO,
             );
             changed_lines(
-                curbuf_mut(),
+                &curbuf_mut(),
                 curwin_mut().w_cursor.get().lnum,
                 0,
                 curwin_mut().w_cursor.get().lnum,
@@ -1923,7 +1924,7 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
     }
 
     curwin_mut().w_cursor.set_col(0);
-    check_cursor_lnum(curwin_mut());
+    check_cursor_lnum(&curwin_mut());
 
     deleted_lines_mark(first, n);
 }

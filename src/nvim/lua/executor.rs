@@ -2077,8 +2077,8 @@ pub fn ex_luado(eap: &mut Exarg) {
         }
 
         lua_pushvalue_safe(lstate, -1);
-        let old_line_cstr = ml_get_buf(crate::globals::curbuf_mut(), l);
-        let old_line_len: Colnr = ml_get_buf_len(crate::globals::curbuf_mut(), l);
+        let old_line_cstr = ml_get_buf(&crate::globals::curbuf_mut(), l);
+        let old_line_len: Colnr = ml_get_buf_len(&crate::globals::curbuf_mut(), l);
         lua_pushstring(lstate, old_line_cstr);
         lua_pushnumber_safe(lstate, f64::from(l));
         if nlua_pcall(lstate, 2, 1) != 0 {
@@ -2107,7 +2107,7 @@ pub fn ex_luado(eap: &mut Exarg) {
     }
 
     lua_pop(lstate, 1);
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
     redraw_curbuf_later(UPD_NOT_VALID);
 }
 

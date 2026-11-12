@@ -1363,7 +1363,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     if w.w_buffer.get() != g_st().curbuf.get() {
         reset_visual_and_resel();
     }
-    goto_tabpage_win(&win_find_tabpage(w).unwrap(), w);
+    goto_tabpage_win(&win_find_tabpage(&w).unwrap(), &w);
     try_leave(&tstate, err);
 }
 
@@ -1390,16 +1390,16 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             unblock_autocmds();
             break 'create;
         };
-        if !ml_open(buf) {
+        if !ml_open(&buf) {
             unblock_autocmds();
             break 'create;
         }
-        let tick = buf_get_changedtick(buf);
+        let tick = buf_get_changedtick(&buf);
         buf.b_last_changedtick.set(tick);
         buf.b_last_changedtick_i.set(tick);
         buf.b_last_changedtick_pum.set(tick);
 
-        buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
+        buf_copy_options(&buf, BCO_ENTER | BCO_NOHELP);
 
         if scratch {
             set_option_direct_for(
@@ -1407,14 +1407,14 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 string_obj(static_cstr_as_string(c"hide")),
                 OPT_LOCAL,
                 0,
-                OptTarget::Buf(buf.into()),
+                OptTarget::Buf(buf.clone()),
             );
             set_option_direct_for(
                 K_OPT_BUFTYPE,
                 string_obj(static_cstr_as_string(c"nofile")),
                 OPT_LOCAL,
                 0,
-                OptTarget::Buf(buf.into()),
+                OptTarget::Buf(buf.clone()),
             );
             assert!(buf.b_ml.ml_mfp.borrow().as_ref().unwrap().mf_fd < 0);
             buf.b_p_swf.set(false);
@@ -1423,7 +1423,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         unblock_autocmds();
 
-        let buf_ptr = crate::globals::BufPtr::from(buf);
+        let buf_ptr = buf;
         let mut bufref = Bufref::new();
         set_bufref(&mut bufref, buf_ptr.opt_mut());
         if apply_autocmds(EVENT_BUFNEW, None, None, false, buf_ptr.opt_mut())
@@ -1507,7 +1507,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
             return 0;
         }
 
-        buf_close_terminal(b);
+        buf_close_terminal(&b);
 
         may_read_buffer = false;
     }
@@ -1530,7 +1530,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     chan.internal.closed = false;
     let topts = TerminalOptions {
         chan_id: chan.id,
-        width: (curwin_mut().w_view_width.get() - win_col_off(curwin_mut())).max(0) as u16,
+        width: (curwin_mut().w_view_width.get() - win_col_off(&curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height.get() as u16,
         force_crlf,
     };
@@ -1538,14 +1538,14 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     let mut contents: Vec<u8> = Vec::new();
     if may_read_buffer {
         let line_count = b.b_ml.ml_line_count.get();
-        read_buffer_into(Some(b), 1, line_count, &mut contents);
+        read_buffer_into(Some(&b), 1, line_count, &mut contents);
     }
 
     channel_incref(chan);
 
-    chan.term = terminal_alloc(b, topts);
+    chan.term = terminal_alloc(&b, topts);
 
-    terminal_open(chan.term.borrow_mut(), b);
+    terminal_open(chan.term.borrow_mut(), &b);
 
     if !chan.term.is_null() {
         terminal_check_size(chan.term.borrow_mut());
@@ -2181,7 +2181,7 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
         return;
     };
     g_st().cmdwin_type.set(i32::from(type_str.first_byte()));
-    g_st().cmdwin_buf.set(crate::globals::BufPtr::from(b));
+    g_st().cmdwin_buf.set(b);
 }
 
 /// Gets information about a channel.
@@ -2484,7 +2484,8 @@ pub fn nvim_inspect_cell(
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
-            wp.is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
+            wp.clone()
+                .is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
             c"grid handle",
             grid,
             err,
@@ -2759,10 +2760,10 @@ pub fn nvim_eval_statusline(
         let mut num_id: i32 = 0;
         let lnum = statuscol_lnum as Linenr;
         let mut cursorline_fi = Foldinfo::new();
-        let wp_buf = wp.w_buffer.get().borrow_mut();
+        let wp_buf = wp.w_buffer.get();
         decor_redraw_signs(
             wp.borrow_mut(),
-            wp_buf,
+            &wp_buf,
             lnum - 1,
             Some(&mut statuscol.sattrs),
             Some(&mut line_id),
@@ -2822,7 +2823,7 @@ pub fn nvim_eval_statusline(
     wp.w_onebuf_opt.wo_crb.set(false);
 
     let width = build_stl_str_hl_slice(
-        wp,
+        wp.clone(),
         &mut buf_vec,
         str_.as_opt_cstr(),
         -1,
@@ -3085,7 +3086,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let rbuf = if !win.is_null() {
             win.w_buffer.get()
         } else if !buf.is_null() {
-            buf
+            buf.clone()
         } else {
             g_st().curbuf.get()
         };
@@ -3124,7 +3125,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if win.is_null() {
             for wp in for_all_windows_mut() {
                 if buf.is_null() || wp.w_buffer.get() == buf {
-                    redraw_status(wp, opts);
+                    redraw_status(&wp, opts);
                 }
             }
         } else {
@@ -3146,8 +3147,8 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     if opts.flush && !g_st().cmdpreview.get() {
-        validate_cursor(curwin_mut());
-        update_topline(curwin_mut());
+        validate_cursor(&curwin_mut());
+        update_topline(&curwin_mut());
         update_screen();
     }
 

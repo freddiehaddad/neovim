@@ -256,7 +256,7 @@ pub fn internal_format(
             break;
         }
 
-        coladvance(curwin_mut(), textwidth);
+        coladvance(&curwin_mut(), textwidth);
         let wantcol = curwin_mut().w_cursor.get().col;
 
         curwin_mut().w_cursor.set_col(startcol);
@@ -525,7 +525,7 @@ pub fn internal_format(
     curwin_mut().w_onebuf_opt.wo_lbr.set(has_lbr);
 
     if !format_only && haveto_redraw {
-        update_topline(curwin_mut());
+        update_topline(&curwin_mut());
         redraw_curbuf_later(UPD_VALID);
     }
 }
@@ -752,9 +752,9 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         curwin_mut()
             .w_cursor
             .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
-        coladvance(curwin_mut(), MAXCOL);
+        coladvance(&curwin_mut(), MAXCOL);
     } else {
-        check_cursor_col(curwin_mut());
+        check_cursor_col(&curwin_mut());
     }
 
     if !wasatend && has_format_option(K_FO_WHITE_PAR) {
@@ -775,7 +775,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         }
     }
 
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
 }
 
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
@@ -806,7 +806,7 @@ pub fn comp_textwidth(ff: bool) -> i32 {
     let mut textwidth = curbuf_mut().b_p_tw.get() as i32;
     if textwidth == 0 && curbuf_mut().b_p_wm.get() != 0 {
         textwidth = curwin_mut().w_view_width.get() - curbuf_mut().b_p_wm.get() as i32;
-        textwidth -= win_fdccol_count(curwin_mut());
+        textwidth -= win_fdccol_count(&curwin_mut());
         textwidth -= curwin_mut().w_scwidth.get();
 
         if curwin_mut().w_onebuf_opt.wo_nu.get() || curwin_mut().w_onebuf_opt.wo_rnu.get() {
@@ -864,7 +864,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
             v.lnum = 0;
             g_st().saved_cursor.set(v);
         }
-        check_cursor(curwin_mut());
+        check_cursor(&curwin_mut());
     }
 
     if oap.is_visual {
@@ -896,7 +896,7 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
     let use_sandbox = was_set_insecurely(
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         K_OPT_FORMATEXPR,
         OPT_LOCAL,
     ) != 0;
@@ -1063,7 +1063,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 }
 
                 g_st().state_global.set(MODE_NORMAL);
-                coladvance(curwin_mut(), MAXCOL);
+                coladvance(&curwin_mut(), MAXCOL);
                 while curwin_mut().w_cursor.get().col != 0 && ascii_isspace(gchar_cursor()) {
                     dec_cursor();
                 }

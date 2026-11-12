@@ -1583,7 +1583,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
         true,
         AUGROUP_ALL,
         None,
-        Some(crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin_mut()),
         None,
         Some(&dict_obj),
         false,
@@ -2020,7 +2020,7 @@ pub fn wait_return(redraw: i32) {
     } else if !g_st().skip_redraw.get()
         && (redraw == 1 || (g_st().msg_scrolled.get() != 0 && redraw != -1))
     {
-        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+        redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
     }
 }
 

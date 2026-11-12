@@ -52,7 +52,7 @@ struct UiCompositorState {
 
 impl UiCompositorState {
     #[inline]
-    fn curgrid_mut(&self) -> &'static ScreenGrid {
+    fn curgrid_mut(&self) -> crate::grid::GridRef {
         self.curgrid.get().borrow_mut()
     }
 
@@ -88,7 +88,7 @@ fn with_comp<R>(f: impl FnOnce(&UiCompositorState) -> R) -> R {
 }
 
 #[inline]
-fn layer_mut(idx: usize) -> &'static ScreenGrid {
+fn layer_mut(idx: usize) -> crate::grid::GridRef {
     with_comp(|c| c.layers.borrow()[idx]).borrow_mut()
 }
 
@@ -358,7 +358,7 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
             new_index -= 1;
         }
         if curgrid.comp_index.get() < new_index {
-            ui_comp_raise_grid(curgrid, new_index);
+            ui_comp_raise_grid(&curgrid, new_index);
         }
     }
 
@@ -369,14 +369,14 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     ui_composed_call_grid_cursor_goto(1, cursor_row as Integer, cursor_col as Integer);
 }
 
-pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static ScreenGrid> {
+pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<crate::grid::GridRef> {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
         if g.mouse_enabled.get()
             && row >= g.comp_row.get()
             && row < g.comp_row.get() + g.rows.get()
             && col >= g.comp_col.get()
-            && col < g.comp_col.get() + g.cols.get()
+            && col < g.comp_col.get() + grid_cols(&g)
         {
             return Some(g);
         }
@@ -390,15 +390,20 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static ScreenGrid> {
                 && col >= wp.w_wincol.get()
                 && col < wp.w_wincol.get() + grid.cols.get()
             {
-                return Some(grid);
+                return Some(crate::grid::GridRef::Win(wp));
             }
         }
     }
     None
 }
 
+#[inline]
+fn grid_cols(g: &ScreenGrid) -> i32 {
+    g.cols.get()
+}
+
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
-pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static ScreenGrid {
+pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> crate::grid::GridRef {
     for idx in (1..layers_len()).rev() {
         let g = layer_mut(idx);
         if row >= g.comp_row.get()
@@ -418,10 +423,10 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static ScreenGrid {
             && col < grid.comp_col.get() + grid.cols.get()
             && !wp.w_config.borrow().hide
         {
-            return grid;
+            return crate::grid::GridRef::Win(wp);
         }
     }
-    &g_st().default_grid
+    crate::grid::GridRef::Static(&g_st().default_grid)
 }
 
 fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut flags: LineFlags) {
@@ -438,7 +443,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
     }
 
     let mut col = startcol as i32;
-    let mut grid: Option<&'static ScreenGrid> = None;
+    let mut grid: Option<crate::grid::GridRef> = None;
     let line_off = g_st().default_grid.line_offset.borrow()[row as usize] + (startcol as usize);
     let bg_line = g_st().default_grid.chars.borrow()[line_off..].to_vec();
     let bg_attrs = g_st().default_grid.attrs.borrow()[line_off..].to_vec();
@@ -470,8 +475,8 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                     continue;
                 }
                 if g.comp_col.get() <= col && col < g.comp_col.get() + grid_width {
-                    grid = Some(g);
                     until = g.comp_col.get() + grid_width;
+                    grid = Some(g);
                 } else if g.comp_col.get() > col {
                     until = until.min(g.comp_col.get());
                 }
@@ -484,9 +489,9 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
             let n = (until - col) as usize;
 
             if row == (msg_sep_row as Integer)
-                && grid.unwrap().comp_index <= g_st().msg_grid.comp_index
+                && grid.as_ref().unwrap().comp_index <= g_st().msg_grid.comp_index
             {
-                grid = Some(&g_st().msg_grid);
+                grid = Some(crate::grid::GridRef::Static(&g_st().msg_grid));
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
                 for i in col..until {
                     let idx = (i - startcol as i32) as usize;
@@ -494,7 +499,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                     abuf[idx] = msg_sep_attr;
                 }
             } else {
-                let g = grid.unwrap();
+                let g = grid.as_ref().unwrap();
                 let off = g.line_offset.borrow()[(row as i32 - g.comp_row.get()) as usize]
                     + (col - g.comp_col.get()) as usize;
                 let dst_idx = (col - startcol as i32) as usize;
@@ -510,7 +515,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 }
             }
 
-            if grid.unwrap().blending.get() {
+            if grid.as_ref().unwrap().blending.get() {
                 let mut i = col - (startcol as i32);
                 let limit = until - (startcol as i32);
                 let end_rel = (endcol - startcol) as i32;
@@ -555,7 +560,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         debug_assert!(row < chk_height as Integer);
 
         if !grid.is_some_and(|g| {
-            ptr::eq(g, &raw const g_st().default_grid)
+            ptr::eq(&*g, &raw const g_st().default_grid)
                 || (g.comp_col.get() == 0 && g.cols.get() == g_st().columns_global.get())
         }) {
             flags &= !K_LINE_FLAG_WRAP;
@@ -832,7 +837,7 @@ fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
     for idx in start_idx..layers_len() {
         let g = layer_mut(idx);
         let grid_top = g.comp_row.get()
-            - if ptr::eq(g, &raw const g_st().msg_grid) && msg_was_scrolled {
+            - if ptr::eq(&*g, &raw const g_st().msg_grid) && msg_was_scrolled {
                 1
             } else {
                 0

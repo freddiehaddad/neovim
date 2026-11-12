@@ -246,10 +246,10 @@ fn do_ft_buf(
     filetype: Option<&CStr>,
     aco: &mut CtxSwitch,
     err: &mut Error,
-) -> Option<&'static FileBuf> {
+) -> Option<crate::globals::BufPtr> {
     let filetype = filetype?;
 
-    let Some(ftbuf_ref) = buflist_new(None, None, 1, BLN_DUMMY) else {
+    let Some(ftbuf) = buflist_new(None, None, 1, BLN_DUMMY) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -258,16 +258,15 @@ fn do_ft_buf(
         return None;
     };
 
-    if !ml_open(ftbuf_ref) {
+    if !ml_open(&ftbuf) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
             c"Could not load internal buffer",
         );
-        return Some(ftbuf_ref);
+        return Some(ftbuf);
     }
 
-    let ftbuf = crate::globals::BufPtr::from(ftbuf_ref);
     let mut bufref = Bufref {
         br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
@@ -297,7 +296,7 @@ fn do_ft_buf(
     ftbuf.b_p_ft.set_option_cstr(filetype);
 
     if !has_event(EVENT_FILETYPE) {
-        return ftbuf.opt_mut();
+        return (!ftbuf.is_null()).then_some(ftbuf);
     }
 
     let mut did_au_ft = false;
@@ -323,7 +322,7 @@ fn do_ft_buf(
             c"Could not execute FileType autocommands",
         );
     }
-    ftbuf.opt_mut()
+    (!ftbuf.is_null()).then_some(ftbuf)
 }
 
 fn wipe_ft_buf(buf: &FileBuf) {
@@ -413,7 +412,7 @@ pub fn nvim_get_option_value(
 
     if !ftbuf.is_null() {
         assert!(matches!(from, OptTarget::Global));
-        from = OptTarget::Buf(ftbuf);
+        from = OptTarget::Buf(ftbuf.clone());
     }
 
     let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
@@ -591,14 +590,14 @@ pub fn nvim_set_option_value(
     let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
 
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &to) {
-        *b
+        b
     } else {
-        g_st().curbuf.get()
+        &g_st().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &to) {
-        *w
+        w
     } else {
-        crate::globals::curwin_handle()
+        &crate::globals::curwin_handle()
     };
     let varp = get_varp_from(option, buf.borrow_mut(), win.opt_mut());
 
@@ -675,7 +674,7 @@ pub fn nvim_set_option_value(
         if right_type == ObjectType::ObjectTypeInteger || right_type == ObjectType::ObjectTypeString
         {
             let mut oldval = if i == 0 {
-                optval_own(opt_idx, opt_from_varp(opt_idx, varp))
+                optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()))
             } else {
                 merged_val
             };
@@ -687,7 +686,7 @@ pub fn nvim_set_option_value(
                 &mut argp,
                 0,
                 operation,
-                varp,
+                varp.clone(),
                 Some(&mut oldval),
                 &mut errmsg,
             );
@@ -713,8 +712,8 @@ pub fn nvim_set_option_value(
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: Some(&mut raw_buf),
-            os_win: win,
-            os_buf: buf,
+            os_win: win.clone(),
+            os_buf: buf.clone(),
         };
         let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;
@@ -820,14 +819,14 @@ pub fn nvim_get_option_info2(
     }
 
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &from) {
-        *b
+        b
     } else {
-        g_st().curbuf.get()
+        &g_st().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &from) {
-        *w
+        w
     } else {
-        crate::globals::curwin_handle()
+        &crate::globals::curwin_handle()
     };
 
     get_option_info(

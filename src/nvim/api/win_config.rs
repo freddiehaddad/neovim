@@ -45,7 +45,6 @@ use crate::winfloat::{
     win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 pub type FloatAnchor = i32;
 pub type FloatRelative = i32;
@@ -376,7 +375,7 @@ pub fn nvim_open_win(
         }
         if is_split {
             let check_win = if !parent.is_null() {
-                parent
+                parent.clone()
             } else {
                 curwin_ptr()
             };
@@ -458,7 +457,7 @@ pub fn nvim_open_win(
         }
 
         if fconfig._cmdline_offset < i32::MAX {
-            g_st().cmdline_win.set(wp);
+            g_st().cmdline_win.set(wp.clone());
         }
 
         let mut bufref = Bufref {
@@ -466,7 +465,7 @@ pub fn nvim_open_win(
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&mut bufref, Some(b));
+        set_bufref(&mut bufref, Some(&b));
         if !fconfig.noautocmd {
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let result = ctx_switch(
@@ -477,7 +476,14 @@ pub fn nvim_open_win(
                 K_CTX_NO_DISPLAY,
             );
             assert!(result);
-            if apply_autocmds_win(EVENT_WINNEW, None, None, false, curbuf_opt_mut(), wp.opt()) {
+            if apply_autocmds_win(
+                EVENT_WINNEW,
+                None,
+                None,
+                false,
+                curbuf_opt_mut().as_deref(),
+                wp.opt(),
+            ) {
                 tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
             }
             ctx_restore(&mut switchwin);
@@ -486,10 +492,7 @@ pub fn nvim_open_win(
             goto_tabpage_win(tp.borrow(), wp.borrow_mut());
             tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
         }
-        if !tp.is_null()
-            && bufref_valid(Some(&bufref))
-            && (std::ptr::from_ref(b).cast_mut()) != wp.w_buffer.get().as_ptr()
-        {
+        if !tp.is_null() && bufref_valid(Some(&bufref)) && b != wp.w_buffer.get() {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
                 g_st()
@@ -499,7 +502,7 @@ pub fn nvim_open_win(
                     .autocmd_no_leave
                     .set(g_st().autocmd_no_leave.get() + (1));
             }
-            win_set_buf(wp.borrow_mut(), b, err);
+            win_set_buf(wp.borrow_mut(), &b, err);
             if !fconfig.noautocmd {
                 tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
             }
@@ -612,7 +615,7 @@ fn win_can_move_tp(wp: &WinInfoInfo, tp: &TabPageInfo, err: &mut Error) -> bool 
     true
 }
 
-fn win_find_altwin(win: &WinInfoInfo, tp: &TabPageInfo) -> Option<&'static WinInfoInfo> {
+fn win_find_altwin(win: &WinInfoInfo, tp: &TabPageInfo) -> Option<crate::globals::WinPtr> {
     let tp_arg = if g_st().curtab.get() == tp {
         crate::globals::TabpagePtr::NULL
     } else {
@@ -785,7 +788,7 @@ fn win_config_split(
                             },
                             Some(&mut unflat_altfr),
                         ));
-                        neighbor = altwin;
+                        neighbor = altwin.clone();
                     } else {
                         api_set_error!(
                             err,
@@ -808,10 +811,10 @@ fn win_config_split(
                     ));
                 }
             } else {
-                altwin = crate::globals::WinPtr::from(win_float_find_altwin(
+                altwin = win_float_find_altwin(
                     win,
                     (win_tp != g_st().curtab.get()).then(|| win_tp.borrow()),
-                ));
+                );
             }
 
             win_remove(
@@ -988,7 +991,7 @@ fn win_config_float_tp(
                 parent_tp
             };
             win_append(
-                Some(lastwin_nofloating(append_tp.opt())),
+                Some(&lastwin_nofloating(append_tp.opt())),
                 win,
                 append_tp.opt(),
             );
@@ -1052,7 +1055,7 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
     let will_float = (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
     if !parse_win_config(
-        Some(w),
+        Some(&w),
         &mut *config,
         &mut fconfig,
         !was_split || to_split,
@@ -1063,20 +1066,20 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
     }
 
     if to_split {
-        if !win_config_split(w, &*config, &mut fconfig, err) {
+        if !win_config_split(&w, &*config, &mut fconfig, err) {
             return;
         }
-    } else if !win_config_float_tp(w, &*config, &fconfig, err) {
+    } else if !win_config_float_tp(&w, &*config, &fconfig, err) {
         return;
     }
 
     if fconfig.style == K_WIN_STYLE_MINIMAL && old_style != fconfig.style {
-        win_set_minimal_style(w);
-        didset_window_options(w, true);
-        changed_window_setting(w);
+        win_set_minimal_style(&w);
+        didset_window_options(&w, true);
+        changed_window_setting(&w);
     }
     if fconfig._cmdline_offset < i32::MAX {
-        g_st().cmdline_win.set(crate::globals::WinPtr::from(w));
+        g_st().cmdline_win.set(w);
     } else if g_st().cmdline_win.get() == w && fconfig._cmdline_offset == i32::MAX {
         g_st().cmdline_win.set(crate::globals::WinPtr::NULL);
     }
@@ -1223,7 +1226,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         rv.width = i64::from(wp.w_width.get());
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
         rv.height = i64::from(wp.w_height.get());
-        let split = win_split_dir(wp);
+        let split = win_split_dir(&wp);
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
         rv.split = cstr_as_string(Some(WIN_SPLIT_STR[split as usize]));
     }
@@ -1747,7 +1750,7 @@ fn parse_win_config(
             else {
                 break 'fail;
             };
-            if wp.is_some_and(|w| ptr::eq(target_win, w)) {
+            if wp.is_some_and(|w| target_win == w) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,

@@ -15,7 +15,7 @@ use crate::autocmd::{
     au_exists, autocmd_supported,
 };
 use crate::buffer::{
-    FileBuf, K_UIMESSAGES, VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, setfname,
+    K_UIMESSAGES, VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, setfname,
 };
 use crate::buffer_updates::luaret_truthy;
 use crate::channel::{
@@ -109,9 +109,7 @@ use crate::ex_getln::{
 };
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::*;
-use crate::grid::{
-    Schar, ScreenGrid, grid_getchar, schar_from_char, schar_get, schar_get_first_codepoint,
-};
+use crate::grid::{Schar, grid_getchar, schar_from_char, schar_get, schar_get_first_codepoint};
 use crate::highlight_group::{
     get_highlight_name_ext, highlight_color, highlight_exists, highlight_has_attr,
     syn_get_final_id, syn_name2id,
@@ -211,7 +209,7 @@ use crate::ui::{
 };
 use crate::ui_compositor::ui_comp_get_grid_at_coord;
 use crate::version::{has_nvim_version, has_vim_patch};
-use crate::window::{WinInfoInfo, find_tabpage};
+use crate::window::find_tabpage;
 use std::ffi::CStr;
 
 pub type SpecialVarValue = i32;
@@ -1415,7 +1413,7 @@ pub fn f_atan2(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 }
 
 /// Get buffer by number or pattern.
-pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static FileBuf> {
+pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<crate::globals::BufPtr> {
     if tv.v_type == VarType::VarNumber {
         return buflist_findnr(tv.vval.v_number() as i32);
     }
@@ -1425,10 +1423,12 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static FileBuf>
 
     let name_bytes = tv.vval.v_string_bytes();
     if name_bytes.is_empty() {
-        return g_st().curbuf.get().opt_mut();
+        let b = g_st().curbuf.get();
+        return (!b.is_null()).then_some(b);
     }
     if name_bytes == b"$" {
-        return g_st().lastbuf.get().opt_mut();
+        let b = g_st().lastbuf.get();
+        return (!b.is_null()).then_some(b);
     }
 
     let save_magic = opt_vars().p_magic.get();
@@ -1448,7 +1448,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static FileBuf>
 }
 
 /// Like `tv_get_buf()` but give an error message if the type is wrong.
-pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<&'static FileBuf> {
+pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<crate::globals::BufPtr> {
     if !tv_check_str_or_nr(&*tv) {
         return None;
     }
@@ -1459,7 +1459,7 @@ pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<&'static FileBuf> {
 }
 
 /// Get the buffer from "arg" and give an error and return NULL if it is not valid.
-pub fn get_buf_arg(arg: &mut TypVal) -> Option<&'static FileBuf> {
+pub fn get_buf_arg(arg: &mut TypVal) -> Option<crate::globals::BufPtr> {
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let buf = tv_get_buf(arg, 0);
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
@@ -1476,7 +1476,7 @@ pub fn f_byte2line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(
-            curbuf_mut(),
+            &curbuf_mut(),
             0,
             Some(&mut boff),
             false,
@@ -1664,11 +1664,11 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
             return;
         }
 
-        check_cursor(wp_ref);
-        wp = wp_ref.into();
+        check_cursor(&wp_ref);
+        wp = wp_ref;
     }
 
-    let bp = wp.w_buffer.get().borrow_mut();
+    let bp = wp.w_buffer.get();
     let mut col: Colnr = 0;
     let mut fnum = bp.b_fnum.get();
     let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, wp.borrow_mut());
@@ -1677,7 +1677,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
     {
         if fp_ref.col == MAXCOL {
             if fp_ref.lnum <= bp.b_ml.ml_line_count.get() {
-                col = ml_get_buf_len(bp, fp_ref.lnum) + 1;
+                col = ml_get_buf_len(&bp, fp_ref.lnum) + 1;
             } else {
                 col = MAXCOL;
             }
@@ -1693,7 +1693,7 @@ pub fn f_charcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     get_col(argvars, rettv, true);
 }
 
-pub fn get_optional_window(argvars: &mut [TypVal], idx: i32) -> Option<&'static WinInfoInfo> {
+pub fn get_optional_window(argvars: &mut [TypVal], idx: i32) -> Option<crate::globals::WinPtr> {
     if argvars[idx as usize].v_type == VarType::VarUnknown {
         return Some(curwin_mut());
     }
@@ -1810,7 +1810,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         lnum = ln;
         col = tv_get_number_chk(&argvars[1], None) as Colnr;
         if charcol {
-            col = buf_charidx_to_byteidx(Some(crate::globals::curbuf_mut()), lnum, col) + 1;
+            col = buf_charidx_to_byteidx(Some(&crate::globals::curbuf_mut()), lnum, col) + 1;
         }
         if argvars[2].v_type != VarType::VarUnknown {
             coladd = tv_get_number_chk(&argvars[2], None) as Colnr;
@@ -1834,7 +1834,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
     curwin_mut().w_cursor.set_col(col);
     curwin_mut().w_cursor.set_coladd(coladd);
 
-    check_cursor(curwin_mut());
+    check_cursor(&curwin_mut());
     mb_adjust_cursor();
 
     curwin_mut().w_set_curswant.set(set_curswant);
@@ -2836,7 +2836,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if argvars[0].v_type != VarType::VarUnknown {
             if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
                 fp = Some(found.w_cursor.get());
-                wp = found.into();
+                wp = found;
             } else {
                 wp = crate::globals::WinPtr::NULL;
             }
@@ -2849,7 +2849,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             pos.col = buf_byteidx_to_charidx(wp.w_buffer.get().opt_mut(), pos.lnum, pos.col);
         }
     } else {
-        fp = var2fpos(&argvars[0], true, &mut fnum, charcol, curwin_mut());
+        fp = var2fpos(&argvars[0], true, &mut fnum, charcol, &curwin_mut());
     }
 
     let l = tv_list_alloc_ret(&mut *rettv, 4 + isize::from(getcurpos));
@@ -2923,9 +2923,9 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp) = find_tabwin(&argvars[0], &argvars[1]) else {
         return;
     };
-    let wp_handle = crate::globals::WinPtr::from(wp);
+    let wp_handle = wp;
 
-    cleanup_jumplist(wp_handle, true);
+    cleanup_jumplist(wp_handle.clone(), true);
     let wp = wp_handle.borrow_mut();
 
     let l = tv_list_alloc(wp.w_jumplistlen.get() as isize);
@@ -2977,7 +2977,7 @@ pub fn f_getmarklist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(buf) = tv_get_buf(&mut argvars[0], 0) else {
         return;
     };
-    get_buf_local_marks(buf, rettv.vval.v_list_ref());
+    get_buf_local_marks(&buf, rettv.vval.v_list_ref());
 }
 
 /// "getpid()" function
@@ -3084,7 +3084,7 @@ fn getregionpos(
     let findbuf = if fnum1 != 0 {
         buflist_findnr(fnum1)
     } else {
-        g_st().curbuf.get().opt_mut()
+        curbuf_opt_mut()
     };
     let Some(findbuf_ref) = findbuf else {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
@@ -3100,8 +3100,8 @@ fn getregionpos(
         return false;
     }
     if p1.col == MAXCOL {
-        p1.col = ml_get_buf_len(findbuf_ref, p1.lnum) + 1;
-    } else if p1.col < 1 || p1.col > ml_get_buf_len(findbuf_ref, p1.lnum) + 1 {
+        p1.col = ml_get_buf_len(&findbuf_ref, p1.lnum) + 1;
+    } else if p1.col < 1 || p1.col > ml_get_buf_len(&findbuf_ref, p1.lnum) + 1 {
         semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p1.col);
         return false;
     }
@@ -3111,17 +3111,17 @@ fn getregionpos(
         return false;
     }
     if p2.col == MAXCOL {
-        p2.col = ml_get_buf_len(findbuf_ref, p2.lnum) + 1;
-    } else if p2.col < 1 || p2.col > ml_get_buf_len(findbuf_ref, p2.lnum) + 1 {
+        p2.col = ml_get_buf_len(&findbuf_ref, p2.lnum) + 1;
+    } else if p2.col < 1 || p2.col > ml_get_buf_len(&findbuf_ref, p2.lnum) + 1 {
         semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p2.col);
         return false;
     }
 
-    g_st().curbuf.set((findbuf_ref).into());
+    g_st().curbuf.set(findbuf_ref);
     curwin_mut().w_buffer.set(g_st().curbuf.get());
     g_st()
         .virtual_op
-        .set(TriState::from(virtual_active(curwin_mut())));
+        .set(TriState::from(virtual_active(&curwin_mut())));
 
     p1.col -= 1;
     p2.col -= 1;
@@ -3421,7 +3421,7 @@ pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "gettagstack()" function
 pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp: &WinInfoInfo = curwin_mut();
+    let mut wp = curwin_mut();
     tv_dict_alloc_ret(rettv);
     if argvars[0].v_type != VarType::VarUnknown {
         let Some(found) = find_win_by_nr_or_id(&argvars[0]) else {
@@ -3429,7 +3429,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         };
         wp = found;
     }
-    get_tagstack(wp, rettv.vval.v_dict_ref());
+    get_tagstack(&wp, rettv.vval.v_dict_ref());
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
@@ -3588,7 +3588,7 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         n = ui_gui_attached();
     } else if name_bytes.eq_ignore_ascii_case(b"syntax_items") {
         x = true;
-        n = syntax_present(curwin_mut());
+        n = syntax_present(&curwin_mut());
     } else if name_bytes.eq_ignore_ascii_case(b"wsl") {
         x = true;
         n = has_wsl();
@@ -4459,7 +4459,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 );
                 return;
             }
-            buf_close_terminal(curbuf_mut());
+            buf_close_terminal(&curbuf_mut());
         }
         debug_assert!(!rpc);
         term_name = Some(c"xterm-256color");
@@ -4470,7 +4470,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         detach = false;
         stdin_mode = K_CHANNEL_STDIN_PIPE_CONST;
         if width == 0 {
-            width = (curwin_mut().w_view_width.get() - win_col_off(curwin_mut())).max(0) as u16;
+            width = (curwin_mut().w_view_width.get() - win_col_off(&curwin_mut())).max(0) as u16;
         }
         if height == 0 {
             height = curwin_mut().w_view_height.get() as u16;
@@ -4519,10 +4519,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let pid = chan_ref.uv.proc_.pid;
-        let buf = g_st().curbuf.get().borrow_mut();
+        let buf = g_st().curbuf.get();
 
         buf.b_p_swf.set(false);
-        if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(buf) {
+        if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(&buf) {
             proc_stop(&mut chan_ref.uv.proc_);
 
             channel_decref(chan_ref);
@@ -4532,10 +4532,10 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         channel_incref(&mut *chan_ref);
 
-        channel_terminal_alloc(buf, &mut *chan_ref);
+        channel_terminal_alloc(&buf, &mut *chan_ref);
 
         'term_done: {
-            apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(buf));
+            apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&buf));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
                 break 'term_done;
@@ -4567,8 +4567,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
 
             let fname_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
-            setfname(buf, Some(fname_cstr.as_c_str()), None, true);
-            apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(buf));
+            setfname(&buf, Some(fname_cstr.as_c_str()), None, true);
+            apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&buf));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
                 break 'term_done;
@@ -4610,7 +4610,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            terminal_open(chan_ref.term.borrow_mut(), buf);
+            terminal_open(chan_ref.term.borrow_mut(), &buf);
         }
 
         channel_create_event(&mut *chan_ref);
@@ -4921,12 +4921,12 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             {
                 g_st().skip_update_topline.set(true);
             }
-            check_cursor(wp_ref);
-            fp = var2fpos(&argvars[0], true, &mut fnum, false, wp_ref);
+            check_cursor(&wp_ref);
+            fp = var2fpos(&argvars[0], true, &mut fnum, false, &wp_ref);
             g_st().skip_update_topline.set(false);
         }
     } else {
-        fp = var2fpos(&argvars[0], true, &mut fnum, false, curwin_mut());
+        fp = var2fpos(&argvars[0], true, &mut fnum, false, &curwin_mut());
     }
 
     if let Some(fp_ref) = fp {
@@ -4942,7 +4942,7 @@ pub fn f_line2byte(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(
-            curbuf_mut(),
+            &curbuf_mut(),
             lnum,
             None,
             false,
@@ -5277,7 +5277,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
         return;
     };
-    let buf = crate::globals::BufPtr::from(buf_ref);
+    let buf = buf_ref;
     if buf.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return;
@@ -6489,8 +6489,8 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
 
         loop {
             subpatnum = searchit(
-                Some(curwin_mut()),
-                curbuf_mut(),
+                Some(&curwin_mut()),
+                &curbuf_mut(),
                 &mut pos,
                 None,
                 dir,
@@ -6546,7 +6546,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 match_pos.lnum = pos.lnum;
                 match_pos.col = pos.col + 1;
             }
-            check_cursor(curwin_mut());
+            check_cursor(&curwin_mut());
         }
 
         if (flags & SP_NOMOVE) != 0 {
@@ -6559,7 +6559,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
     retval
 }
 
-fn screenchar_adjust(row: &mut i32, col: &mut i32) -> &'static ScreenGrid {
+fn screenchar_adjust(row: &mut i32, col: &mut i32) -> crate::grid::GridRef {
     msg_scroll_flush();
     let grid = ui_comp_get_grid_at_coord(*row, *col);
     *row -= grid.comp_row.get();
@@ -6595,7 +6595,7 @@ pub fn f_screenchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             -1
         } else {
             Varnumber::from(schar_get_first_codepoint(grid_getchar(
-                grid, row, col, None,
+                &grid, row, col, None,
             )))
         },
     );
@@ -6614,7 +6614,7 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
-    schar_get(&mut buf, grid_getchar(grid, row, col, None));
+    schar_get(&mut buf, grid_getchar(&grid, row, col, None));
 
     let mut i: usize = 0;
     loop {
@@ -6651,7 +6651,7 @@ pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
-    schar_get(&mut buf, grid_getchar(grid, row, col, None));
+    schar_get(&mut buf, grid_getchar(&grid, row, col, None));
     crate::eval::typval::tv_set_string(
         rettv,
         Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
@@ -6865,8 +6865,8 @@ pub fn do_searchpair(
         };
 
         let n = searchit(
-            Some(curwin_mut()),
-            curbuf_mut(),
+            Some(&curwin_mut()),
+            &curbuf_mut(),
             &mut pos,
             None,
             dir,
@@ -7115,7 +7115,7 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
             curwin_mut().w_curswant.set(curswant - 1);
             curwin_mut().w_set_curswant.set(false);
         }
-        check_cursor(curwin_mut());
+        check_cursor(&curwin_mut());
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else if name_bytes.len() == 2 && name_bytes[0] == b'\'' {
         if setmark_pos(i32::from(name_bytes[1]), &mut pos, fnum, None) {
@@ -7382,7 +7382,7 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp_ref) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
-    let wp = crate::globals::WinPtr::from(wp_ref);
+    let wp = wp_ref;
     if !tv_check_for_dict_arg(argvars, 1) {
         return;
     }
@@ -7453,14 +7453,14 @@ pub fn f_shiftwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             return;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(get_sw_value_col(
-            curbuf_mut(),
+            &curbuf_mut(),
             col,
             false,
         )));
         return;
     }
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(get_sw_value(curbuf_mut())));
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(get_sw_value(&curbuf_mut())));
 }
 
 /// "sockconnect()" function
@@ -7577,7 +7577,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
 
     if !curwin_mut().w_onebuf_opt.wo_spell.get() {
-        parse_spelllang(curwin_mut());
+        parse_spelllang(&curwin_mut());
         curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
 
@@ -7593,7 +7593,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut attr: Hlf = HLF_COUNT;
     let mut len: usize = 0;
     if argvars[0].v_type == VarType::VarUnknown {
-        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
+        len = spell_move_to(&curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
             word = get_cursor_pos_ptr();
             curwin_mut().w_set_curswant.set(true);
@@ -7604,7 +7604,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             str_cow = s;
             let mut str_cstr: &CStr = &str_cow;
             while !str_cstr.is_empty() {
-                len = spell_check(curwin_mut(), str_cstr, &mut attr, Some(&mut capcol), false);
+                len = spell_check(&curwin_mut(), str_cstr, &mut attr, Some(&mut capcol), false);
                 if attr != HLF_COUNT {
                     word = str_cstr;
                     break;
@@ -7635,7 +7635,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
 
     if !curwin_mut().w_onebuf_opt.wo_spell.get() {
-        parse_spelllang(curwin_mut());
+        parse_spelllang(&curwin_mut());
         curwin_mut().w_onebuf_opt.wo_spell.set(true);
     }
 
@@ -8040,7 +8040,7 @@ pub fn f_syn_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         && col >= 0
         && col < ml_get_len(lnum)
     {
-        id = syn_get_id(curwin_mut(), lnum, col, trans, None, 0);
+        id = syn_get_id(&curwin_mut(), lnum, col, trans, None, 0);
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(id));
 }
@@ -8165,7 +8165,7 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         && col <= ml_get_len(lnum)
         && curwin_mut().w_onebuf_opt.wo_cole.get() > 0
     {
-        syn_get_id(curwin_mut(), lnum, col, 0, None, 0);
+        syn_get_id(&curwin_mut(), lnum, col, 0, None, 0);
         syntax_flags = get_syntax_info(&mut matchid);
 
         if (syntax_flags & HL_CONCEAL) != 0 && curwin_mut().w_onebuf_opt.wo_cole.get() < 3 {
@@ -8209,7 +8209,7 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && col <= ml_get_len(lnum)
     {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-        syn_get_id(curwin_mut(), lnum, col, 0, None, 1);
+        syn_get_id(&curwin_mut(), lnum, col, 0, None, 1);
 
         let mut i: i32 = 0;
         loop {
@@ -8398,8 +8398,8 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if tp.is_none() {
                 break 'theend;
             }
-            wp = wp_ref.into();
-            check_cursor(wp_ref);
+            wp = wp_ref.clone();
+            check_cursor(&wp_ref);
         }
 
         let wp_ref = wp.borrow_mut();
@@ -8413,7 +8413,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if fp_val.col < 0 {
                 fp_val.col = 0;
             } else {
-                let len = ml_get_buf_len(bp, fp_val.lnum);
+                let len = ml_get_buf_len(&bp, fp_val.lnum);
                 if fp_val.col > len {
                     fp_val.col = len;
                 }

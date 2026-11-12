@@ -164,15 +164,18 @@ pub enum OptRef<T: 'static> {
 impl<T: 'static> Clone for OptRef<T> {
     #[inline]
     fn clone(&self) -> Self {
-        *self
+        match self {
+            Self::Global(f) => Self::Global(*f),
+            Self::Win(w, f) => Self::Win(w.clone(), *f),
+            Self::WinSyn(w, f) => Self::WinSyn(w.clone(), *f),
+            Self::Buf(b, f) => Self::Buf(b.clone(), *f),
+        }
     }
 }
 
-impl<T: 'static> Copy for OptRef<T> {}
-
 impl<T: 'static> OptRef<T> {
     #[inline]
-    pub fn with<R>(self, cb: impl FnOnce(&T) -> R) -> R {
+    pub fn with<R>(&self, cb: impl FnOnce(&T) -> R) -> R {
         match self {
             Self::Global(f) => cb(f(opt_vars())),
             Self::Win(w, f) => cb(f(w.borrow())),
@@ -185,7 +188,7 @@ impl<T: 'static> OptRef<T> {
     }
 
     #[inline]
-    pub fn as_ptr(self) -> *const () {
+    pub fn as_ptr(&self) -> *const () {
         self.with(|r| std::ptr::from_ref(r).cast::<()>())
     }
 }
@@ -199,7 +202,7 @@ impl<T: 'static> PartialEq for OptRef<T> {
 
 impl<T: 'static> Eq for OptRef<T> {}
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub enum OptVar {
     #[default]
     None,
@@ -214,17 +217,17 @@ pub enum OptVar {
 
 impl OptVar {
     #[inline]
-    pub const fn is_some(self) -> bool {
+    pub const fn is_some(&self) -> bool {
         !matches!(self, Self::None)
     }
 
     #[inline]
-    pub const fn is_none(self) -> bool {
+    pub const fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
     #[inline]
-    pub fn ptr_eq<T>(self, other: &T) -> bool {
+    pub fn ptr_eq<T>(&self, other: &T) -> bool {
         let p = std::ptr::from_ref(other).cast::<()>();
         match self {
             Self::None => false,
@@ -239,7 +242,7 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn as_cstr(self) -> &'static CStr {
+    pub fn as_cstr(&self) -> &'static CStr {
         match self {
             Self::Str(s) => s.with(|v| v.as_cstr()),
             _ => c"",
@@ -247,7 +250,7 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn opt_cstr(self) -> Option<&'static CStr> {
+    pub fn opt_cstr(&self) -> Option<&'static CStr> {
         match self {
             Self::Str(s) => Some(s.with(|v| v.as_cstr())),
             _ => None,
@@ -255,35 +258,35 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn set_cstr(self, val: &CStr) {
+    pub fn set_cstr(&self, val: &CStr) {
         if let Self::Str(s) = self {
             s.with(|v| v.set_option_cstr(val));
         }
     }
 
     #[inline]
-    pub fn set_bytes(self, bytes: &[u8]) {
+    pub fn set_bytes(&self, bytes: &[u8]) {
         if let Self::Str(s) = self {
             s.with(|v| v.set_option_bytes(bytes));
         }
     }
 
     #[inline]
-    pub fn clear_str(self) {
+    pub fn clear_str(&self) {
         if let Self::Str(s) = self {
             s.with(|v| v.clear_option_str());
         }
     }
 
     #[inline]
-    pub fn check_str(self) {
+    pub fn check_str(&self) {
         if let Self::Str(s) = self {
             s.with(|v| v.check_option_str());
         }
     }
 
     #[inline]
-    pub fn int_val(self) -> crate::option::OptInt {
+    pub fn int_val(&self) -> crate::option::OptInt {
         match self {
             Self::Int(p) => p.with(|v| v.get()),
             _ => 0,
@@ -291,14 +294,14 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn set_int(self, val: crate::option::OptInt) {
+    pub fn set_int(&self, val: crate::option::OptInt) {
         if let Self::Int(p) = self {
             p.with(|v| v.set(val));
         }
     }
 
     #[inline]
-    pub fn bool_tristate(self) -> i32 {
+    pub fn bool_tristate(&self) -> i32 {
         match self {
             Self::Bool(p) => i32::from(p.with(|v| v.get())),
             Self::I32Bool(p) => i32::from(p.with(|v| v.get()) != 0),
@@ -311,7 +314,7 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn set_bool(self, val: Option<bool>) {
+    pub fn set_bool(&self, val: Option<bool>) {
         match self {
             Self::Bool(p) => p.with(|v| v.set(val.unwrap())),
             Self::I32Bool(p) => p.with(|v| v.set(i32::from(val.unwrap()))),
@@ -321,7 +324,7 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn with_callback<R>(self, f: impl FnOnce(&crate::eval::typval::Callback) -> R) -> R {
+    pub fn with_callback<R>(&self, f: impl FnOnce(&crate::eval::typval::Callback) -> R) -> R {
         match self {
             Self::Callback(p) => p.with(f),
             _ => unreachable!(),
@@ -412,18 +415,18 @@ impl<'a> Optset<'a> {
     }
 
     #[inline]
-    pub fn buf_mut(&self) -> &'static FileBuf {
-        self.os_buf.borrow_mut()
+    pub fn buf_mut(&self) -> crate::globals::BufPtr {
+        self.os_buf.clone()
     }
 
     #[inline]
-    pub fn win_mut(&self) -> &'static WinInfoInfo {
-        self.os_win.borrow_mut()
+    pub fn win_mut(&self) -> crate::globals::WinPtr {
+        self.os_win.clone()
     }
 
     #[inline]
-    pub fn win_opt(&self) -> Option<&'static WinInfoInfo> {
-        self.os_win.opt_mut()
+    pub fn win_opt(&self) -> Option<crate::globals::WinPtr> {
+        (!self.os_win.is_null()).then(|| self.os_win.clone())
     }
 
     #[inline]
@@ -1534,7 +1537,7 @@ pub fn did_set_breakat<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_breakindentopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_briopt);
-    briopt_check(is_local.then_some(win));
+    briopt_check(is_local.then_some(&win));
 
     if is_local && win.w_briopt_list.get() != 0 {
         redraw_all_later(UPD_NOT_VALID);
@@ -1592,7 +1595,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
     if win.w_status_height.get() != 0 || global_stl_height() != 0 {
         win.w_redr_status.set(true);
-        redraw_later(Some(win), UPD_VALID);
+        redraw_later(Some(&win), UPD_VALID);
     }
     buf.b_help.set(buf.b_p_bt.first_byte() == b'h');
     redraw_titles();
@@ -1601,7 +1604,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 pub fn validate_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     set_chars_option(
-        args.win_mut(),
+        &args.win_mut(),
         args.os_newval.data.string().as_cstr(),
         if args.os_idx == K_OPT_LISTCHARS {
             CharsOption::Listchars
@@ -1654,7 +1657,7 @@ fn did_set_global_chars_option<'a>(
                 wp.w_onebuf_opt.wo_fcs.to_owned()
             };
             if opt.to_bytes().is_empty() {
-                set_chars_option(wp, &opt, what, true, None);
+                set_chars_option(&wp, &opt, what, true, None);
             }
         }
     }
@@ -1667,13 +1670,13 @@ fn did_set_global_chars_option<'a>(
 /// The 'fillchars' option or the 'listchars' option is changed.
 pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    let varp = args.os_varp;
+    let varp = &args.os_varp.clone();
     let val = args.var_cstr();
     let mut errmsg: Option<&CStr> = None;
 
     if varp.ptr_eq(&opt_vars().p_lcs) {
         errmsg = did_set_global_chars_option(
-            win,
+            &win,
             val,
             CharsOption::Listchars,
             args.os_flags,
@@ -1681,7 +1684,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
     } else if varp.ptr_eq(&opt_vars().p_fcs) {
         errmsg = did_set_global_chars_option(
-            win,
+            &win,
             val,
             CharsOption::Fillchars,
             args.os_flags,
@@ -1689,7 +1692,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
     } else if varp.ptr_eq(&win.w_onebuf_opt.wo_lcs) {
         errmsg = set_chars_option(
-            win,
+            &win,
             val,
             CharsOption::Listchars,
             true,
@@ -1697,7 +1700,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
     } else if varp.ptr_eq(&win.w_onebuf_opt.wo_fcs) {
         errmsg = set_chars_option(
-            win,
+            &win,
             val,
             CharsOption::Fillchars,
             true,
@@ -1724,7 +1727,7 @@ pub fn expand_set_chars_option(args: &mut Optexpand, matches: &mut Vec<std::ffi:
 
 /// The 'cinoptions' option is changed.
 pub fn did_set_cinoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    parse_cino(args.buf_mut());
+    parse_cino(&args.buf_mut());
     None
 }
 
@@ -1736,7 +1739,7 @@ pub fn validate_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_cc);
-    check_colorcolumn(Some(args.var_cstr()), is_local.then_some(win))
+    check_colorcolumn(Some(args.var_cstr()), is_local.then_some(&win))
 }
 
 /// Validate the 'comments' option.
@@ -2061,7 +2064,7 @@ pub fn did_set_display<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
 pub fn validate_encoding<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if args.os_idx == K_OPT_FILEENCODING {
-        if !modifiable(args.buf_mut()) && args.os_flags != OPT_GLOBAL {
+        if !modifiable(&args.buf_mut()) && args.os_flags != OPT_GLOBAL {
             return Some(E_MODIFIABLE);
         }
 
@@ -2083,7 +2086,7 @@ pub fn validate_encoding<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_encoding<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if args.os_idx == K_OPT_FILEENCODING {
         redraw_titles();
-        ml_setflags(args.buf_mut());
+        ml_setflags(&args.buf_mut());
     }
 
     if let Some(prep_cstr) = args.os_prep.take_encoding() {
@@ -2137,7 +2140,7 @@ pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::
 }
 
 pub fn validate_fileformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(args.buf_mut()) {
+    if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(&args.buf_mut()) {
         return Some(E_MODIFIABLE);
     }
     validate_str_generic(args)
@@ -2149,8 +2152,8 @@ pub fn did_set_fileformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let oldval = args.os_oldval.data.string();
 
     redraw_titles();
-    ml_setflags(buf);
-    if get_fileformat(buf) == EOL_MAC || oldval.first_byte() == b'm' {
+    ml_setflags(&buf);
+    if get_fileformat(&buf) == EOL_MAC || oldval.first_byte() == b'm' {
         redraw_buf_later(args.os_buf.borrow(), UPD_NOT_VALID);
     }
     None
@@ -2182,8 +2185,8 @@ pub fn did_set_filetype_or_syntax<'a>(args: &mut Optset<'a>) -> Option<&'a CStr>
 /// The 'foldexpr' option is changed.
 pub fn did_set_foldexpr<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if foldmethod_is_expr(win) {
-        fold_update_all(win);
+    if foldmethod_is_expr(&win) {
+        fold_update_all(&win);
     }
     None
 }
@@ -2191,8 +2194,8 @@ pub fn did_set_foldexpr<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'foldignore' option is changed.
 pub fn did_set_foldignore<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if foldmethod_is_indent(win) {
-        fold_update_all(win);
+    if foldmethod_is_indent(&win) {
+        fold_update_all(&win);
     }
     None
 }
@@ -2213,8 +2216,8 @@ pub fn validate_foldmarker<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'foldmarker' option is changed.
 pub fn did_set_foldmarker<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    if foldmethod_is_marker(win) {
-        fold_update_all(win);
+    if foldmethod_is_marker(&win) {
+        fold_update_all(&win);
     }
     None
 }
@@ -2222,8 +2225,8 @@ pub fn did_set_foldmarker<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'foldmethod' option is changed.
 pub fn did_set_foldmethod<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
-    fold_update_all(win);
-    if foldmethod_is_diff(win) {
+    fold_update_all(&win);
+    if foldmethod_is_diff(&win) {
         new_fold_level();
     }
     None
@@ -2252,7 +2255,7 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
     if g_st().visual_global.borrow().active {
         redraw_winline(
-            crate::globals::curwin_mut(),
+            &crate::globals::curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
         );
     }
@@ -2318,7 +2321,7 @@ pub fn validate_isopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'iskeyword' option is changed.
 pub fn did_set_iskeyword<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if !args.os_varp.ptr_eq(&opt_vars().p_isk) && !buf_init_isk_chartab(args.buf_mut()) {
+    if !args.os_varp.ptr_eq(&opt_vars().p_isk) && !buf_init_isk_chartab(&args.buf_mut()) {
         return Some(E_INVARG);
     }
     None
@@ -2363,10 +2366,10 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             }
         }
         if (opt_flags & OPT_LOCAL) == 0 {
-            set_iminsert_global(buf);
-            set_imsearch_global(buf);
+            set_iminsert_global(&buf);
+            set_imsearch_global(&buf);
         }
-        status_redraw_buf(buf);
+        status_redraw_buf(&buf);
     }
 
     errmsg
@@ -2646,7 +2649,7 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let oldval = args.os_oldval.data.string();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
-    if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(win)) {
+    if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&win)) {
         return Some(E_INVARG);
     }
     if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth.get() == SCL_NUM {
@@ -2738,13 +2741,15 @@ pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
     if (opt_flags & OPT_GLOBAL) == 0 {
         let ws = args.win_mut().w_s_ptr();
+        let mut flags = ws.b_p_spo_flags.get();
         let errmsg = opt_strings_flags(
             val,
             &OPT_SPO_VALUES,
-            Some(&mut ws.b_p_spo_flags.get()),
+            Some(&mut flags),
             true,
             args.os_errbuf.take(),
         );
+        ws.b_p_spo_flags.set(flags);
         if errmsg.is_some() {
             return errmsg;
         }
@@ -2829,7 +2834,7 @@ fn did_set_statustabline_rulerformat<'a>(
         && win.w_floating.get()
     {
         let cfg = win.w_config.borrow().clone();
-        win_config_float(win, cfg);
+        win_config_float(&win, cfg);
     }
 
     if rulerformat && !ui_has(K_UIMESSAGES) && s_bytes.first() == Some(&b'%') {
@@ -2947,8 +2952,8 @@ pub fn did_set_vartabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     };
     *array = args.os_prep.take_tabstop();
     drop(array);
-    if !soft && foldmethod_is_indent(win) {
-        fold_update_all(win);
+    if !soft && foldmethod_is_indent(&win) {
+        fold_update_all(&win);
     }
     None
 }
@@ -2994,9 +2999,9 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             opt_vars().ve_flags.set(new_flags);
         }
         if ve.to_bytes() != args.os_oldval.data.string().as_bytes() {
-            validate_virtcol(win);
+            validate_virtcol(&win);
             let vc = win.w_virtcol.get();
-            coladvance(win, vc);
+            coladvance(&win, vc);
         }
     }
     None
@@ -3056,7 +3061,7 @@ pub fn validate_border<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_winhighlight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_winhl);
-    if !parse_winhl_opt(Some(args.var_cstr()), is_local.then_some(win)) {
+    if !parse_winhl_opt(Some(args.var_cstr()), is_local.then_some(&win)) {
         return Some(E_INVARG);
     }
     None
@@ -3832,7 +3837,7 @@ pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> Option<&'static CStr> {
     if set_chars_option(
-        curwin_mut(),
+        &curwin_mut(),
         opt_vars().p_lcs.as_cstr(),
         CharsOption::Listchars,
         false,
@@ -3843,7 +3848,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
         return Some(E_CONFLICTS_WITH_VALUE_OF_LISTCHARS);
     }
     if set_chars_option(
-        curwin_mut(),
+        &curwin_mut(),
         opt_vars().p_fcs.as_cstr(),
         CharsOption::Fillchars,
         false,
@@ -3856,11 +3861,11 @@ pub fn check_chars_options() -> Option<&'static CStr> {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
             let wo_lcs = wp.w_onebuf_opt.wo_lcs.to_owned();
-            if set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None).is_some() {
+            if set_chars_option(&wp, &wo_lcs, CharsOption::Listchars, true, None).is_some() {
                 return Some(E_CONFLICTS_WITH_VALUE_OF_LISTCHARS);
             }
             let wo_fcs = wp.w_onebuf_opt.wo_fcs.to_owned();
-            if set_chars_option(wp, &wo_fcs, CharsOption::Fillchars, true, None).is_some() {
+            if set_chars_option(&wp, &wo_fcs, CharsOption::Fillchars, true, None).is_some() {
                 return Some(E_CONFLICTS_WITH_VALUE_OF_FILLCHARS);
             }
         }

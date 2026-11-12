@@ -780,8 +780,8 @@ fn ui_cursor_is_behind_floatwin() -> bool {
         };
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-    !ptr::eq(top_grid, &raw const curwin_mut().w_grid_alloc)
-        && !ptr::eq(top_grid, &raw const g_st().default_grid)
+    !ptr::eq(&*top_grid, &raw const curwin_mut().w_grid_alloc)
+        && !ptr::eq(&*top_grid, &raw const g_st().default_grid)
         && top_grid.zindex.get() >= curwin_mut().w_grid_alloc.zindex.get() + 50
 }
 
@@ -862,12 +862,12 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
             wp.w_config.borrow_mut().width = width.max(1);
             wp.w_config.borrow_mut().height = height.max(1);
             let cfg = wp.w_config.borrow().clone();
-            win_config_float(wp, cfg);
+            win_config_float(&wp, cfg);
         }
     } else {
         wp.w_height_request.set(height.max(0));
         wp.w_width_request.set(width.max(0));
-        win_set_inner_size(wp, true);
+        win_set_inner_size(&wp, true);
     }
 }
 

@@ -558,7 +558,7 @@ extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
         return luaL_error_cstr(lstate, c"invalid bot");
     }
 
-    fold_update(win, top, bot);
+    fold_update(&win, top, bot);
     0
 }
 

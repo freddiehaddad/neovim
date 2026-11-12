@@ -1202,7 +1202,7 @@ impl Default for ParseState {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct Regexec {
     pub has_match: bool,
     pub has_mmatch: bool,
@@ -1587,8 +1587,8 @@ pub(super) struct RegexecState {
     pub rmm_startpos: [std::cell::Cell<Lpos>; NSUBEXP],
     pub rmm_endpos: [std::cell::Cell<Lpos>; NSUBEXP],
     pub rmm_matchcol: std::cell::Cell<Colnr>,
-    pub reg_win: std::cell::Cell<crate::globals::WinPtr>,
-    pub reg_buf: std::cell::Cell<crate::globals::BufPtr>,
+    pub reg_win: crate::globals::CloneCell<crate::globals::WinPtr>,
+    pub reg_buf: crate::globals::CloneCell<crate::globals::BufPtr>,
     pub reg_firstlnum: std::cell::Cell<Linenr>,
     pub reg_maxline: std::cell::Cell<Linenr>,
     pub reg_line_lbr: std::cell::Cell<bool>,
@@ -1621,8 +1621,8 @@ impl RegexecState {
             rmm_startpos: [const { std::cell::Cell::new(Lpos::new()) }; NSUBEXP],
             rmm_endpos: [const { std::cell::Cell::new(Lpos::new()) }; NSUBEXP],
             rmm_matchcol: std::cell::Cell::new(0),
-            reg_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
-            reg_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
+            reg_win: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
+            reg_buf: crate::globals::CloneCell::new(crate::globals::BufPtr::NULL),
             reg_firstlnum: std::cell::Cell::new(0),
             reg_maxline: std::cell::Cell::new(0),
             reg_line_lbr: std::cell::Cell::new(false),
@@ -1750,8 +1750,8 @@ impl RegexecState {
         }
         self.rm_matchcol.set(snap.rm_matchcol);
         self.rmm_matchcol.set(snap.rmm_matchcol);
-        self.reg_win.set(snap.reg_win);
-        self.reg_buf.set(snap.reg_buf);
+        self.reg_win.set(snap.reg_win.clone());
+        self.reg_buf.set(snap.reg_buf.clone());
         self.reg_firstlnum.set(snap.reg_firstlnum);
         self.reg_maxline.set(snap.reg_maxline);
         self.reg_line_lbr.set(snap.reg_line_lbr);
@@ -1773,12 +1773,12 @@ impl RegexecState {
     }
 
     #[inline(always)]
-    pub fn buf_mut(&self) -> &'static FileBuf {
-        self.reg_buf.get().borrow_mut()
+    pub fn buf_mut(&self) -> crate::globals::BufPtr {
+        self.reg_buf.get()
     }
     #[inline(always)]
-    pub fn win_mut(&self) -> &'static WinInfoInfo {
-        self.reg_win.get().borrow_mut()
+    pub fn win_mut(&self) -> crate::globals::WinPtr {
+        self.reg_win.get()
     }
     #[inline(always)]
     pub fn load_line(&self, lnum: Linenr) {
@@ -2766,7 +2766,7 @@ pub(super) fn reg_breakcheck() {
 }
 
 pub(super) fn reg_iswordc(c: i32) -> bool {
-    vim_iswordc_buf(c, RE_STATE.with(|s| s.rex.buf_mut()))
+    vim_iswordc_buf(c, &RE_STATE.with(|s| s.rex.buf_mut()))
 }
 
 #[inline(always)]
@@ -2790,7 +2790,7 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
         if lnum > s.rex.reg_maxline.get() {
             return Some(c"");
         }
-        Some(ml_get_buf(s.rex.buf_mut(), firstlnum))
+        Some(ml_get_buf(&s.rex.buf_mut(), firstlnum))
     })
 }
 
@@ -2800,7 +2800,7 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
         if firstlnum < 1 || lnum > s.rex.reg_maxline.get() {
             return 0;
         }
-        ml_get_buf_len(s.rex.buf_mut(), firstlnum)
+        ml_get_buf_len(&s.rex.buf_mut(), firstlnum)
     })
 }
 
@@ -3788,7 +3788,7 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     }
     let _ = ml_get_buf_len;
     Some(crate::memline::ml_get_buf_slice(
-        RE_STATE.with(|s| s.rex.buf_mut()),
+        &RE_STATE.with(|s| s.rex.buf_mut()),
         firstlnum,
     ))
 }

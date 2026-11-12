@@ -1,10 +1,10 @@
+#![deny(unsafe_code)]
+
 //! Global variables (`src/nvim/globals.h`).
 
 pub use crate::api::private::validate::CloneCell;
 pub use crate::cursor::CursorPosCellExt;
 use crate::highlight::{HLF_COUNT, RgbValue};
-
-use std::ptr;
 
 use crate::decoration::{DecorState, NS};
 use crate::ex_docmd::Cmdmod;
@@ -144,6 +144,7 @@ pub struct EditorState {
     pub mouse_dragging: std::cell::Cell<i32>,
     pub root_menu: std::cell::RefCell<Vec<Vimmenu>>,
     pub sys_menu: std::cell::Cell<bool>,
+    pub curwin_rc: CloneCell<WinPtr>,
     pub firstwin: CloneCell<WinPtr>,
     pub lastwin: CloneCell<WinPtr>,
     pub prevwin: CloneCell<WinPtr>,
@@ -294,9 +295,9 @@ pub struct EditorState {
     pub autocmd_busy: std::cell::Cell<bool>,
     pub autocmd_no_enter: std::cell::Cell<i32>,
     pub autocmd_no_leave: std::cell::Cell<i32>,
-    pub au_new_curbuf: std::cell::Cell<Bufref>,
-    pub au_pending_free_buf: std::cell::RefCell<Vec<Box<FileBuf>>>,
-    pub au_pending_free_win: std::cell::RefCell<Vec<Box<WinInfoInfo>>>,
+    pub au_new_curbuf: CloneCell<Bufref>,
+    pub au_pending_free_buf: std::cell::RefCell<Vec<BufPtr>>,
+    pub au_pending_free_win: std::cell::RefCell<Vec<WinPtr>>,
     pub autocmd_fname: CloneCell<Option<std::ffi::CString>>,
     pub autocmd_fname_full: std::cell::Cell<bool>,
     pub autocmd_bufnr: std::cell::Cell<i32>,
@@ -512,6 +513,7 @@ impl EditorState {
             mouse_dragging: std::cell::Cell::new(0),
             root_menu: std::cell::RefCell::new(Vec::new()),
             sys_menu: std::cell::Cell::new(false),
+            curwin_rc: CloneCell::new(WinPtr::NULL),
             firstwin: CloneCell::new(WinPtr::NULL),
             lastwin: CloneCell::new(WinPtr::NULL),
             prevwin: CloneCell::new(WinPtr::NULL),
@@ -725,7 +727,7 @@ impl EditorState {
             autocmd_busy: std::cell::Cell::new(false),
             autocmd_no_enter: std::cell::Cell::new(0),
             autocmd_no_leave: std::cell::Cell::new(0),
-            au_new_curbuf: std::cell::Cell::new(Bufref {
+            au_new_curbuf: CloneCell::new(Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
@@ -897,34 +899,37 @@ pub fn g_st() -> &'static EditorState {
     EDITOR_STATE.with(|s| *s)
 }
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, unsafe_code)]
 #[unsafe(no_mangle)]
 pub static curwin: std::sync::atomic::AtomicPtr<WinInfoInfo> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[inline(always)]
-pub fn curwin_mut() -> &'static WinInfoInfo {
-    curwin_ptr().borrow_mut()
+pub fn curwin_mut() -> WinPtr {
+    g_st().curwin_rc.get()
 }
 
 #[inline(always)]
 pub fn curwin_ptr() -> WinPtr {
-    GraphPtr::new(curwin.load(std::sync::atomic::Ordering::Relaxed))
+    g_st().curwin_rc.get()
 }
 
 #[inline(always)]
 pub fn set_curwin(wp: impl Into<WinPtr>) {
-    curwin.store(wp.into().as_ptr(), std::sync::atomic::Ordering::Relaxed);
+    let wp = wp.into();
+    curwin.store(wp.as_ptr(), std::sync::atomic::Ordering::Relaxed);
+    g_st().curwin_rc.set(wp);
 }
 
 #[inline(always)]
-pub fn curbuf_mut() -> &'static FileBuf {
-    g_st().curbuf.get().borrow_mut()
+pub fn curbuf_mut() -> BufPtr {
+    g_st().curbuf.get()
 }
 
 #[inline(always)]
-pub fn curbuf_opt_mut() -> Option<&'static FileBuf> {
-    g_st().curbuf.get().opt_mut()
+pub fn curbuf_opt_mut() -> Option<BufPtr> {
+    let b = g_st().curbuf.get();
+    (!b.is_null()).then_some(b)
 }
 
 #[inline(always)]
@@ -933,446 +938,311 @@ pub fn curtab_mut() -> TabpagePtr {
 }
 
 #[inline(always)]
-pub fn firstwin_mut() -> &'static WinInfoInfo {
-    g_st().firstwin.get().borrow_mut()
+pub fn firstwin_mut() -> WinPtr {
+    g_st().firstwin.get()
 }
 
 #[inline(always)]
-pub fn lastwin_mut() -> &'static WinInfoInfo {
-    g_st().lastwin.get().borrow_mut()
+pub fn lastwin_mut() -> WinPtr {
+    g_st().lastwin.get()
 }
 
 #[inline(always)]
-pub fn prevwin_opt() -> Option<&'static WinInfoInfo> {
-    g_st().prevwin.get().opt_mut()
+pub fn prevwin_opt() -> Option<WinPtr> {
+    let w = g_st().prevwin.get();
+    (!w.is_null()).then_some(w)
 }
 
-/// Zero-cost typed handle for a raw pointer to a global graph node (`WinInfoInfo`,
-/// `FileBuf`, `TabPageInfo`, `Frame`, `TvList`, `TvDict`, etc.).
-///
-/// Holding a `GraphPtr<T>` across callbacks, autocommands, or event-loop ticks does not
-/// assert LLVM `noalias` uniqueness (unlike `&mut T`), while providing checked `.opt()`,
-/// `.opt_mut()`, `.borrow()`, and `.borrow_mut()` accessors for synchronous local borrows.
-#[repr(transparent)]
-pub struct GraphPtr<T>(*mut T);
+macro_rules! impl_rc_graph_ptr {
+    ($ptr_name:ident, $target:ty) => {
+        #[repr(transparent)]
+        #[derive(Clone, Default)]
+        pub struct $ptr_name(Option<std::rc::Rc<$target>>);
 
-impl<T> Copy for GraphPtr<T> {}
-
-impl<T> Clone for GraphPtr<T> {
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Default for GraphPtr<T> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::NULL
-    }
-}
-
-impl<T> PartialEq for GraphPtr<T> {
-    #[inline(always)]
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T> PartialEq<*mut T> for GraphPtr<T> {
-    #[inline(always)]
-    fn eq(&self, other: &*mut T) -> bool {
-        self.as_ptr() == *other
-    }
-}
-
-impl<T> PartialEq<*const T> for GraphPtr<T> {
-    #[inline(always)]
-    fn eq(&self, other: &*const T) -> bool {
-        self.as_ptr().cast_const() == *other
-    }
-}
-
-impl<T> PartialEq<&T> for GraphPtr<T> {
-    #[inline(always)]
-    fn eq(&self, other: &&T) -> bool {
-        ptr::eq(self.as_ptr(), *other)
-    }
-}
-
-impl<T> PartialEq<&mut T> for GraphPtr<T> {
-    #[inline(always)]
-    fn eq(&self, other: &&mut T) -> bool {
-        ptr::eq(self.as_ptr(), *other)
-    }
-}
-
-macro_rules! impl_sym_graph_eq {
-    ($($t:ty),* $(,)?) => {
-        $(
-            impl PartialEq<GraphPtr<$t>> for *mut $t {
-                #[inline(always)]
-                fn eq(&self, other: &GraphPtr<$t>) -> bool {
-                    *self == other.as_ptr()
+        impl PartialEq for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &Self) -> bool {
+                match (&self.0, &other.0) {
+                    (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+                    (None, None) => true,
+                    _ => false,
                 }
             }
-            impl PartialEq<GraphPtr<$t>> for *const $t {
-                #[inline(always)]
-                fn eq(&self, other: &GraphPtr<$t>) -> bool {
-                    *self == other.as_ptr().cast_const()
-                }
+        }
+
+        impl Eq for $ptr_name {}
+
+        impl PartialOrd for $ptr_name {
+            #[inline(always)]
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(other))
             }
-            impl PartialEq<GraphPtr<$t>> for &$t {
-                #[inline(always)]
-                fn eq(&self, other: &GraphPtr<$t>) -> bool {
-                    ptr::eq(*self, other.as_ptr())
-                }
+        }
+
+        impl Ord for $ptr_name {
+            #[inline(always)]
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.addr().cmp(&other.addr())
             }
-            impl PartialEq<GraphPtr<$t>> for &mut $t {
-                #[inline(always)]
-                fn eq(&self, other: &GraphPtr<$t>) -> bool {
-                    ptr::eq(*self, other.as_ptr())
-                }
+        }
+
+        impl PartialEq<&$ptr_name> for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &&$ptr_name) -> bool {
+                self == *other
             }
-        )*
+        }
+
+        impl PartialEq<$ptr_name> for &$ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &$ptr_name) -> bool {
+                *self == other
+            }
+        }
+
+        impl PartialEq<&$target> for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &&$target) -> bool {
+                self.0
+                    .as_ref()
+                    .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+            }
+        }
+
+        impl PartialEq<&mut $target> for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &&mut $target) -> bool {
+                self.0
+                    .as_ref()
+                    .is_some_and(|rc| std::ptr::eq(rc.as_ref(), *other))
+            }
+        }
+
+        impl PartialEq<*mut $target> for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &*mut $target) -> bool {
+                self.as_ptr() == *other
+            }
+        }
+
+        impl PartialEq<*const $target> for $ptr_name {
+            #[inline(always)]
+            fn eq(&self, other: &*const $target) -> bool {
+                self.as_ptr().cast_const() == *other
+            }
+        }
+
+        impl PartialEq<$ptr_name> for &$target {
+            #[inline(always)]
+            fn eq(&self, other: &$ptr_name) -> bool {
+                other == self
+            }
+        }
+
+        impl PartialEq<$ptr_name> for &mut $target {
+            #[inline(always)]
+            fn eq(&self, other: &$ptr_name) -> bool {
+                other == self
+            }
+        }
+
+        impl PartialEq<$ptr_name> for *mut $target {
+            #[inline(always)]
+            fn eq(&self, other: &$ptr_name) -> bool {
+                *self == other.as_ptr()
+            }
+        }
+
+        impl PartialEq<$ptr_name> for *const $target {
+            #[inline(always)]
+            fn eq(&self, other: &$ptr_name) -> bool {
+                *self == other.as_ptr().cast_const()
+            }
+        }
+
+        impl std::fmt::Debug for $ptr_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($ptr_name))
+                    .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+                    .finish()
+            }
+        }
+
+        impl $ptr_name {
+            pub const NULL: Self = Self(None);
+
+            #[inline(always)]
+            pub const fn is_null(&self) -> bool {
+                self.0.is_none()
+            }
+
+            #[inline(always)]
+            pub fn opt(&self) -> Option<&$target> {
+                self.0.as_deref()
+            }
+
+            #[inline(always)]
+            pub fn opt_mut(&self) -> Option<&$target> {
+                self.0.as_deref()
+            }
+
+            #[inline(always)]
+            pub fn as_ref(&self) -> Option<&$target> {
+                self.0.as_deref()
+            }
+
+            #[allow(dead_code)]
+            #[inline(always)]
+            pub fn as_mut(&self) -> Option<&$target> {
+                self.0.as_deref()
+            }
+
+            #[inline(always)]
+            pub fn borrow(&self) -> &$target {
+                self.opt().expect(concat!("null ", stringify!($ptr_name)))
+            }
+
+            #[inline(always)]
+            pub fn borrow_mut(&self) -> &$target {
+                self.borrow()
+            }
+
+            #[inline(always)]
+            pub fn rc(&self) -> Option<std::rc::Rc<$target>> {
+                self.0.clone()
+            }
+
+            #[inline(always)]
+            pub fn unwrap_rc(&self) -> std::rc::Rc<$target> {
+                self.0
+                    .clone()
+                    .expect(concat!("null ", stringify!($ptr_name)))
+            }
+
+            #[inline(always)]
+            pub fn as_ptr(&self) -> *mut $target {
+                self.0.as_ref().map_or(std::ptr::null_mut(), |rc| {
+                    std::rc::Rc::as_ptr(rc).cast_mut()
+                })
+            }
+
+            #[inline(always)]
+            pub fn addr(&self) -> usize {
+                self.as_ptr() as usize
+            }
+        }
+
+        impl From<std::rc::Rc<$target>> for $ptr_name {
+            #[inline(always)]
+            fn from(rc: std::rc::Rc<$target>) -> Self {
+                Self(Some(rc))
+            }
+        }
+
+        impl From<&std::rc::Rc<$target>> for $ptr_name {
+            #[inline(always)]
+            fn from(rc: &std::rc::Rc<$target>) -> Self {
+                Self(Some(rc.clone()))
+            }
+        }
+
+        impl From<Option<std::rc::Rc<$target>>> for $ptr_name {
+            #[inline(always)]
+            fn from(opt: Option<std::rc::Rc<$target>>) -> Self {
+                Self(opt)
+            }
+        }
+
+        impl From<&$ptr_name> for $ptr_name {
+            #[inline(always)]
+            fn from(p: &$ptr_name) -> Self {
+                p.clone()
+            }
+        }
+
+        impl From<&&$ptr_name> for $ptr_name {
+            #[inline(always)]
+            fn from(p: &&$ptr_name) -> Self {
+                (*p).clone()
+            }
+        }
+
+        impl From<&&$target> for $ptr_name {
+            #[inline(always)]
+            fn from(r: &&$target) -> Self {
+                Self(r.self_weak.upgrade())
+            }
+        }
+
+        impl From<Option<$ptr_name>> for $ptr_name {
+            #[inline(always)]
+            fn from(opt: Option<$ptr_name>) -> Self {
+                opt.unwrap_or(Self::NULL)
+            }
+        }
+
+        impl From<&Option<$ptr_name>> for $ptr_name {
+            #[inline(always)]
+            fn from(opt: &Option<$ptr_name>) -> Self {
+                opt.clone().unwrap_or(Self::NULL)
+            }
+        }
+
+        impl From<&$target> for $ptr_name {
+            #[inline(always)]
+            fn from(r: &$target) -> Self {
+                Self(r.self_weak.upgrade())
+            }
+        }
+
+        impl From<&mut $target> for $ptr_name {
+            #[inline(always)]
+            fn from(r: &mut $target) -> Self {
+                Self(r.self_weak.upgrade())
+            }
+        }
+
+        impl From<Option<&$target>> for $ptr_name {
+            #[inline(always)]
+            fn from(opt: Option<&$target>) -> Self {
+                Self(opt.and_then(|r| r.self_weak.upgrade()))
+            }
+        }
+
+        impl From<Option<&mut $target>> for $ptr_name {
+            #[inline(always)]
+            fn from(opt: Option<&mut $target>) -> Self {
+                Self(opt.and_then(|r| r.self_weak.upgrade()))
+            }
+        }
+
+        impl std::ops::Deref for $ptr_name {
+            type Target = $target;
+
+            #[inline(always)]
+            fn deref(&self) -> &Self::Target {
+                self.borrow()
+            }
+        }
+
+        impl AsRef<$target> for $ptr_name {
+            #[inline(always)]
+            fn as_ref(&self) -> &$target {
+                self.borrow()
+            }
+        }
+
+        impl std::borrow::Borrow<$target> for $ptr_name {
+            #[inline(always)]
+            fn borrow(&self) -> &$target {
+                self.borrow()
+            }
+        }
     };
 }
 
-impl_sym_graph_eq!(WinInfoInfo, FileBuf);
-
-impl<T> Eq for GraphPtr<T> {}
-
-impl<T> PartialOrd for GraphPtr<T> {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for GraphPtr<T> {
-    #[inline(always)]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (self.0 as usize).cmp(&(other.0 as usize))
-    }
-}
-
-impl<T> std::fmt::Debug for GraphPtr<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Pointer::fmt(&self.as_ptr(), f)
-    }
-}
-
-impl<T> From<*mut T> for GraphPtr<T> {
-    #[inline(always)]
-    fn from(ptr: *mut T) -> Self {
-        Self::new(ptr)
-    }
-}
-
-impl<T> From<&T> for GraphPtr<T> {
-    #[inline(always)]
-    fn from(r: &T) -> Self {
-        Self::new(std::hint::black_box(&raw const *r).cast_mut())
-    }
-}
-
-impl<T> From<&mut T> for GraphPtr<T> {
-    #[inline(always)]
-    fn from(r: &mut T) -> Self {
-        Self::new(std::hint::black_box(&raw mut *r))
-    }
-}
-
-impl<T> From<Option<&T>> for GraphPtr<T> {
-    #[inline(always)]
-    fn from(opt: Option<&T>) -> Self {
-        match opt {
-            Some(r) => Self::new(std::hint::black_box(&raw const *r).cast_mut()),
-            None => Self::NULL,
-        }
-    }
-}
-
-impl<T> From<Option<&mut T>> for GraphPtr<T> {
-    #[inline(always)]
-    fn from(opt: Option<&mut T>) -> Self {
-        match opt {
-            Some(r) => Self::new(std::hint::black_box(&raw mut *r)),
-            None => Self::NULL,
-        }
-    }
-}
-
-impl<T> std::ops::Deref for GraphPtr<T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &T {
-        unsafe { &*self.0 }
-    }
-}
-
-impl<T> std::ops::DerefMut for GraphPtr<T> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.0 }
-    }
-}
-
-pub trait AsGraphPtr<T> {
-    fn into_graph_ptr(self) -> GraphPtr<T>;
-}
-
-impl<T> AsGraphPtr<T> for GraphPtr<T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        self
-    }
-}
-
-impl<T> AsGraphPtr<T> for &GraphPtr<T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        *self
-    }
-}
-
-impl<T> AsGraphPtr<T> for &mut GraphPtr<T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        *self
-    }
-}
-
-impl<T> AsGraphPtr<T> for &T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &&T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(*self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &mut T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(&*self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &&mut T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(&**self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for Option<&T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for Option<&mut T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &Option<&T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(*self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &Option<&mut T> {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::from(self.as_deref())
-    }
-}
-
-impl<T> AsGraphPtr<T> for *mut T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::new(self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for &*mut T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::new(*self)
-    }
-}
-
-impl<T> AsGraphPtr<T> for *const T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::new(self.cast_mut())
-    }
-}
-
-impl<T> AsGraphPtr<T> for &*const T {
-    #[inline(always)]
-    fn into_graph_ptr(self) -> GraphPtr<T> {
-        GraphPtr::new((*self).cast_mut())
-    }
-}
-
-impl<T> GraphPtr<T> {
-    pub const NULL: Self = Self(ptr::null_mut());
-
-    #[inline(always)]
-    pub const fn new(ptr: *mut T) -> Self {
-        Self(ptr)
-    }
-
-    #[inline(always)]
-    pub fn of(val: impl AsGraphPtr<T>) -> Self {
-        val.into_graph_ptr()
-    }
-
-    #[inline(always)]
-    pub fn from_ref(r: &T) -> Self {
-        Self::from(r)
-    }
-
-    #[inline(always)]
-    pub const fn as_ptr(self) -> *mut T {
-        self.0
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
-        self.0.is_null()
-    }
-
-    #[inline(always)]
-    pub const fn cast<U>(self) -> *mut U {
-        self.0.cast()
-    }
-
-    #[inline(always)]
-    pub const fn cast_ptr<U>(self) -> GraphPtr<U> {
-        GraphPtr(self.0.cast())
-    }
-
-    #[inline(always)]
-    pub fn as_ref<'a>(self) -> Option<&'a T> {
-        self.opt()
-    }
-
-    #[allow(dead_code)]
-    #[inline(always)]
-    pub fn as_mut<'a>(self) -> Option<&'a T> {
-        self.opt_mut()
-    }
-
-    #[inline(always)]
-    pub fn opt<'a>(self) -> Option<&'a T> {
-        if (self.0 as usize) == 0 {
-            None
-        } else {
-            Some(unsafe { &*self.0 })
-        }
-    }
-
-    #[inline(always)]
-    pub fn opt_mut<'a>(self) -> Option<&'a T> {
-        self.opt()
-    }
-
-    #[inline(always)]
-    pub const fn borrow<'a>(self) -> &'a T {
-        unsafe { &*self.0 }
-    }
-
-    #[inline(always)]
-    pub const fn borrow_mut<'a>(self) -> &'a T {
-        self.borrow()
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_add(self, count: usize) -> Self {
-        Self::new(self.as_ptr().wrapping_add(count))
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_sub(self, count: usize) -> Self {
-        Self::new(self.as_ptr().wrapping_sub(count))
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_offset(self, count: isize) -> Self {
-        Self::new(self.as_ptr().wrapping_offset(count))
-    }
-
-    #[inline(always)]
-    pub const fn add(self, count: usize) -> Self {
-        self.wrapping_add(count)
-    }
-
-    #[inline(always)]
-    pub const fn sub(self, count: usize) -> Self {
-        self.wrapping_sub(count)
-    }
-
-    #[inline(always)]
-    pub const fn offset(self, count: isize) -> Self {
-        self.wrapping_offset(count)
-    }
-
-    #[inline(always)]
-    pub fn offset_from(self, origin: impl AsGraphPtr<T>) -> isize {
-        unsafe { self.0.offset_from(origin.into_graph_ptr().as_ptr()) }
-    }
-
-    #[inline(always)]
-    pub const fn cast_const(self) -> Self {
-        self
-    }
-
-    #[inline(always)]
-    pub const fn cast_mut(self) -> Self {
-        self
-    }
-
-    #[inline(always)]
-    pub fn addr(self) -> usize {
-        self.0 as usize
-    }
-
-    #[inline(always)]
-    pub fn into_box(self) -> Box<T> {
-        unsafe { Box::from_raw(self.0) }
-    }
-
-    #[inline(always)]
-    pub fn drop_box(self) {
-        if !self.0.is_null() {
-            unsafe {
-                drop(Box::from_raw(self.0));
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub fn replace_val(self, src: T) -> T {
-        unsafe { ptr::replace(self.0, src) }
-    }
-}
-
-pub type WinPtr = GraphPtr<WinInfoInfo>;
-pub type BufPtr = GraphPtr<FileBuf>;
+impl_rc_graph_ptr!(WinPtr, WinInfoInfo);
+impl_rc_graph_ptr!(BufPtr, FileBuf);
 
 #[repr(transparent)]
 #[derive(Clone, Default)]
@@ -1703,26 +1573,30 @@ pub fn curtab_handle() -> TabpagePtr {
 pub struct BufMutIter(BufPtr);
 
 impl Iterator for BufMutIter {
-    type Item = &'static FileBuf;
+    type Item = BufPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.b_next.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.b_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 pub struct BufPtrIter(BufPtr);
 
 impl Iterator for BufPtrIter {
-    type Item = &'static FileBuf;
+    type Item = BufPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.b_next.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.b_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
@@ -1744,13 +1618,15 @@ pub fn for_all_buffers_ptr() -> BufPtrIter {
 pub struct BufRevPtrIter(BufPtr);
 
 impl Iterator for BufRevPtrIter {
-    type Item = &'static FileBuf;
+    type Item = BufPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.b_prev.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let prev = self.0.b_prev.get();
+        Some(std::mem::replace(&mut self.0, prev))
     }
 }
 
@@ -1762,26 +1638,30 @@ pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
 pub struct WinMutIter(WinPtr);
 
 impl Iterator for WinMutIter {
-    type Item = &'static WinInfoInfo;
+    type Item = WinPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.w_next.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.w_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
 pub struct WinPtrIter(WinPtr);
 
 impl Iterator for WinPtrIter {
-    type Item = &'static WinInfoInfo;
+    type Item = WinPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.w_next.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let next = self.0.w_next.get();
+        Some(std::mem::replace(&mut self.0, next))
     }
 }
 
@@ -1826,13 +1706,15 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
 pub struct WinRevPtrIter(WinPtr);
 
 impl Iterator for WinRevPtrIter {
-    type Item = &'static WinInfoInfo;
+    type Item = WinPtr;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt()?;
-        self.0 = cur.w_prev.get();
-        Some(cur)
+        if self.0.is_null() {
+            return None;
+        }
+        let prev = self.0.w_prev.get();
+        Some(std::mem::replace(&mut self.0, prev))
     }
 }
 
@@ -1921,7 +1803,7 @@ pub fn frame_iter_ptr(start: impl Into<FramePtr>) -> FramePtrIter {
     FramePtrIter(start.into())
 }
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, unsafe_code)]
 #[unsafe(no_mangle)]
 pub static starting: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(NO_SCREEN);
 
@@ -1937,7 +1819,7 @@ pub fn set_starting(v: i32) {
 
 pub const ESCAPE_CHARS: &std::ffi::CStr = c" \t\\\"|";
 pub const NO_LINES_MSG: &std::ffi::CStr = c"--No lines in buffer--";
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, unsafe_code)]
 #[unsafe(no_mangle)]
 pub static display_tick: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -2069,7 +1951,7 @@ pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
 pub const fn hlf_name_ptr(idx: usize) -> Option<&'static std::ffi::CStr> {
     HLF_NAMES[idx]
 }
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, unsafe_code)]
 #[unsafe(no_mangle)]
 pub static test_disable_char_avail: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
@@ -2089,8 +1971,8 @@ pub fn first_tabpage_mut() -> TabpagePtr {
 }
 
 #[inline(always)]
-pub fn prevwin_mut() -> &'static WinInfoInfo {
-    g_st().prevwin.get().borrow_mut()
+pub fn prevwin_mut() -> WinPtr {
+    g_st().prevwin.get()
 }
 
 #[inline(always)]

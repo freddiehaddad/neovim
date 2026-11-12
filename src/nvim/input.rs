@@ -2017,9 +2017,9 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 let Some(win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
                     return;
                 };
-                let win_ptr = crate::globals::WinPtr::from(win);
+                let win_ptr = win.clone();
 
-                mouse_comp_pos(win, &mut row, &mut col, &mut lnum);
+                mouse_comp_pos(&win, &mut row, &mut col, &mut lnum);
 
                 let mut wp = g_st().firstwin.get();
                 while wp != win_ptr {
@@ -2269,7 +2269,8 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
 
         mp = None;
         with_maphash_list(local_state, tb_b1, |global_list| {
-            let buf_maphash = curbuf_mut().b_maphash.borrow();
+            let cb = curbuf_mut();
+            let buf_maphash = cb.b_maphash.borrow();
             let buf_list = buf_maphash[map_hash(local_state, tb_b1 as u8)].as_slice();
             for cand in buf_list.iter().chain(global_list) {
                 let m_keys_slice = cand.m_keys.as_bytes();
@@ -2689,7 +2690,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         unshowmode(true);
                         mode_deleted = true;
                     }
-                    validate_cursor(curwin_mut());
+                    validate_cursor(&curwin_mut());
                     let old_wcol = curwin_mut().w_wcol.get();
                     let old_wrow = curwin_mut().w_wrow.get();
 
@@ -2709,7 +2710,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 let mut csarg = CharsizeArg::new();
                                 let cstype: CSType = init_charsize_arg(
                                     &mut csarg,
-                                    curwin_mut(),
+                                    &curwin_mut(),
                                     curwin_mut().w_cursor.get().lnum,
                                     ptr_cstr,
                                 );
@@ -2742,7 +2743,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 );
                                 curwin_mut()
                                     .w_wcol
-                                    .set(curwin_mut().w_wcol.get() + (win_col_off(curwin_mut())));
+                                    .set(curwin_mut().w_wcol.get() + (win_col_off(&curwin_mut())));
                                 col = 0;
                             } else {
                                 curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() - (1));

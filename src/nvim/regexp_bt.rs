@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Backtracking regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::semsg;
@@ -1332,7 +1334,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                     let mut vcol: Colnr = 0;
                                     let mut cursor = crate::globals::curwin_mut().w_cursor.get();
                                     getvvcol(
-                                        crate::globals::curwin_mut(),
+                                        &crate::globals::curwin_mut(),
                                         &mut cursor,
                                         None,
                                         None,
@@ -2383,11 +2385,20 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
 
         if op == ANY || op == ANY + ADD_NL {
             while count < maxcount {
-                while (scan).first_byte() != NUL && count < maxcount {
-                    count += 1;
-                    let step = utfc_ptr2len(scan) as usize;
-                    scan = scan.wrapping_add(step);
-                }
+                let byte_adv = scan.with_bytes(|bytes| {
+                    let mut idx = 0usize;
+                    while idx < bytes.len() && count < maxcount {
+                        count += 1;
+                        let b0 = bytes[idx];
+                        idx += if b0 < 0x80 && !matches!(bytes.get(idx + 1), Some(0x80..)) {
+                            1
+                        } else {
+                            crate::mbyte::utfc_slice2len(&bytes[idx..])
+                        };
+                    }
+                    idx
+                });
+                scan = scan.wrapping_add(byte_adv);
                 if re_s.rex.has_match.get()
                     || !with_nl(op)
                     || re_s.rex.lnum.get() > re_s.rex.reg_maxline.get()
@@ -2438,7 +2449,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             }
             while count < maxcount {
                 let b0 = (scan).first_byte();
-                if scan.with_bytes(|b| vim_iswordp_buf(b, re_s.rex.buf_mut()))
+                if scan.with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
                     && (testval != 0 || !ascii_isdigit(b0 as i32))
                 {
                     let step = utfc_ptr2len(scan) as usize;
@@ -2884,8 +2895,8 @@ fn regmatch_inner(
                                 0
                             };
                             let fm = mark_get(
-                                re_s.rex.buf_mut(),
-                                crate::globals::curwin_mut(),
+                                &re_s.rex.buf_mut(),
+                                &crate::globals::curwin_mut(),
                                 None,
                                 K_MARK_BUF_LOCAL,
                                 mark,
@@ -2970,7 +2981,7 @@ fn regmatch_inner(
                                 lnum = 1;
                             }
                             let vcol = re_s.rex.line.get().with_cstr(|cs| {
-                                win_linetabsize(wp, lnum, cs, re_s.rex.input_col())
+                                win_linetabsize(&wp, lnum, cs, re_s.rex.input_col())
                             });
                             if !re_num_cmp((vcol as u32).wrapping_add(1), prog, scan_idx) {
                                 status = RegAction::NoMatch;
@@ -3027,7 +3038,7 @@ fn regmatch_inner(
                                 .rex
                                 .input
                                 .get()
-                                .with_bytes(|b| vim_iswordp_buf(b, re_s.rex.buf_mut()))
+                                .with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
                             {
                                 status = RegAction::NoMatch;
                             } else {
@@ -3040,7 +3051,7 @@ fn regmatch_inner(
                                     .rex
                                     .input
                                     .get()
-                                    .with_bytes(|b| vim_iswordp_buf(b, re_s.rex.buf_mut()))
+                                    .with_bytes(|b| vim_iswordp_buf(b, &re_s.rex.buf_mut()))
                             {
                                 status = RegAction::NoMatch;
                             } else {

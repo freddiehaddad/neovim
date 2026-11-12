@@ -90,8 +90,8 @@ impl CharsizeArg<'_> {
     }
 
     #[inline]
-    pub fn win_mut(&self) -> &'static WinInfoInfo {
-        self.win.borrow_mut()
+    pub fn win_mut(&self) -> &WinInfoInfo {
+        self.win.borrow()
     }
 
     #[inline]
@@ -163,7 +163,7 @@ pub fn win_chartabsize(wp: &WinInfoInfo, p: impl crate::mbyte::AsMbyteSlice, col
 
 pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
     let mut csarg = CharsizeArg::new();
-    let cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, s);
+    let cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, s);
     if cstype == K_CHARSIZE_FAST {
         linesize_fast(&csarg, startvcol, MAXCOL)
     } else {
@@ -172,7 +172,7 @@ pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
 }
 
 pub fn linetabsize(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
-    win_linetabsize(wp, lnum, ml_get_buf(wp.buf_mut(), lnum), MAXCOL)
+    win_linetabsize(wp, lnum, ml_get_buf(&wp.buf_mut(), lnum), MAXCOL)
 }
 
 pub fn linetabsize_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
@@ -195,7 +195,7 @@ pub fn line_has_extconceal(wp: &WinInfoInfo, lnum: Linenr) -> bool {
 pub fn has_extconceal(wp: &WinInfoInfo) -> bool {
     wp.w_onebuf_opt.wo_wrap.get()
         && wp.w_onebuf_opt.wo_cole.get() > 0
-        && (buf_meta_total(wp.buf_mut(), K_MTMETA_CONCEAL) > 0
+        && (buf_meta_total(&wp.buf_mut(), K_MTMETA_CONCEAL) > 0
             || wp.buf_mut().b_conceal_providers.get() > 0)
 }
 
@@ -255,10 +255,10 @@ pub fn init_charsize_arg_extconceal(
     spans.clear();
     if line_has_extconceal(wp, lnum) {
         decor_providers_invoke_conceal(wp, lnum - 1, false);
-        let len = ml_get_buf_len(wp.buf_mut(), lnum);
+        let len = ml_get_buf_len(&wp.buf_mut(), lnum);
         conceal_spans_collect(wp, lnum - 1, len, spans);
     }
-    let line = ml_get_buf(wp.buf_mut(), lnum);
+    let line = ml_get_buf(&wp.buf_mut(), lnum);
     let cstype = init_charsize_arg(csarg, wp, lnum, line);
     if spans.is_empty() {
         return cstype;
@@ -425,7 +425,11 @@ pub fn charsize_regular(
     mb_width: i32,
 ) -> CharSize {
     let line_bytes = csarg.line.to_bytes();
-    let cur_bytes = crate::memory::bytes_until_nul(cur);
+    let cur_bytes = if cur.last() == Some(&0) {
+        crate::memory::bytes_until_nul(cur)
+    } else {
+        cur
+    };
     let cur_off = if cur_bytes.is_empty() {
         line_bytes.len()
     } else {
@@ -437,7 +441,7 @@ pub fn charsize_regular(
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
 
-        let wp = csarg.win_mut();
+        let wp = csarg.win.clone();
         let buf = wp.buf_mut();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
@@ -466,7 +470,7 @@ pub fn charsize_regular(
                 let mark = marktree_itr_current(&buf.b_marktree.borrow(), &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
-                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
+                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &wp) {
                     let decor = mt_decor(mark);
                     crate::decoration::for_each_virt_text(
                         if decor.is_ext() {
@@ -529,21 +533,21 @@ pub fn charsize_regular(
 
         if is_doublewidth
             && wp.w_onebuf_opt.wo_wrap.get()
-            && in_win_border(wp, disp_vcol + size - 2)
+            && in_win_border(&wp, disp_vcol + size - 2)
         {
             size += 1;
             mb_added = 1;
         }
 
-        let sbr = get_showbreak_value(wp);
+        let sbr = get_showbreak_value(&wp);
 
         let mut head = mb_added;
         if size > 0
             && wp.w_onebuf_opt.wo_wrap.get()
             && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri.get())
         {
-            let mut col_off_prev = win_col_off(wp);
-            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(wp);
+            let mut col_off_prev = win_col_off(&wp);
+            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(&wp);
             let mut wcol = disp_vcol + col_off_prev;
             let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
@@ -562,7 +566,7 @@ pub fn charsize_regular(
                         head_prev += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri.get() {
-                        head_prev += get_breakindent_win(wp, line_bytes);
+                        head_prev += get_breakindent_win(&wp, line_bytes);
                     }
                     csarg.indent_width = head_prev;
                 }
@@ -587,7 +591,7 @@ pub fn charsize_regular(
                         head_mid += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri.get() {
-                        head_mid += get_breakindent_win(wp, line_bytes);
+                        head_mid += get_breakindent_win(&wp, line_bytes);
                     }
                     csarg.indent_width = head_mid;
                 }
@@ -643,12 +647,12 @@ pub fn charsize_regular(
         }
         if need_lbr {
             let mut s_off = cur_off;
-            let numberextra = win_col_off(wp);
+            let numberextra = win_col_off(&wp);
             let col_adj = size - 1;
             let mut colmax: Colnr = wp.w_view_width.get() - numberextra - col_adj;
             if disp_vcol >= colmax {
                 colmax += col_adj;
-                let n = colmax + win_col_off2(wp);
+                let n = colmax + win_col_off2(&wp);
                 if n > 0 {
                     colmax += (((disp_vcol + col_adj - colmax) / n) + 1) * n - col_adj;
                 }
@@ -684,7 +688,7 @@ pub fn charsize_regular(
                     ));
                 }
                 let virt_width = if has_virt != 0 {
-                    inline_virt_text_width(wp, &mut virt_iter, csarg.virt_row, col)
+                    inline_virt_text_width(&wp, &mut virt_iter, csarg.virt_row, col)
                 } else {
                     0
                 };
@@ -700,12 +704,12 @@ pub fn charsize_regular(
                         &buf.b_p_vts_array.borrow(),
                     )
                 } else {
-                    win_chartabsize(wp, s_bytes, raw_vcol2)
+                    win_chartabsize(&wp, s_bytes, raw_vcol2)
                 };
                 let mut w = if use_raw_width {
                     raw_w
                 } else {
-                    win_chartabsize(wp, s_bytes, vcol2 + virt_width)
+                    win_chartabsize(&wp, s_bytes, vcol2 + virt_width)
                 };
 
                 let span = csarg
@@ -1048,20 +1052,13 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
     let use_tabstop = csarg.use_tabstop;
     let line_cstr = csarg.line;
     let mut vcol = i64::from(vcol_arg);
+    let wp = csarg.win_mut();
 
     let mut ci = utf_ptr2_str_char_info(line_cstr);
     while (ci.offset_from(line_cstr) as Colnr) < len && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
-        vcol += i64::from(
-            charsize_fast_impl(
-                csarg.win_mut(),
-                use_tabstop,
-                vcol_arg,
-                ci.chr.value,
-                cli.cells,
-            )
-            .width,
-        );
+        vcol +=
+            i64::from(charsize_fast_impl(wp, use_tabstop, vcol_arg, ci.chr.value, cli.cells).width);
         ci = cli.next;
         if vcol > i64::from(MAXCOL) {
             vcol_arg = MAXCOL;
@@ -1101,7 +1098,7 @@ pub fn getvcol(
     let cstype = if (flags & GETVCOL_DISP) != 0 {
         init_charsize_arg_extconceal(&mut csarg, wp, pos.lnum, &mut spans)
     } else {
-        let line_ptr = ml_get_buf(wp.buf_mut(), pos.lnum);
+        let line_ptr = ml_get_buf(&wp.buf_mut(), pos.lnum);
         init_charsize_arg(&mut csarg, wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;
@@ -1202,9 +1199,9 @@ pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
 
     curwin_mut().w_onebuf_opt.wo_list.set(false);
     if pos.coladd != 0 {
-        getvvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
+        getvvcol(&curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     } else {
-        getvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
+        getvcol(&curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     }
     *posp = pos;
     curwin_mut().w_onebuf_opt.wo_list.set(list_save);
@@ -1226,7 +1223,7 @@ pub fn getvvcol(
         let mut coladd = pos.coladd;
         let mut endadd: Colnr = 0;
 
-        let line_slice = crate::memline::ml_get_buf_slice((*wp).buf_mut(), pos.lnum);
+        let line_slice = crate::memline::ml_get_buf_slice(&(*wp).buf_mut(), pos.lnum);
         if (pos.col as usize) < line_slice.len() {
             let cur_slice = &line_slice[pos.col as usize..];
             let c = crate::mbyte::utf_slice2char(cur_slice);

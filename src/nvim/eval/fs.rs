@@ -4,7 +4,6 @@
 
 use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handle};
 use crate::api::private::validate::{Error, ErrorType};
-use crate::buffer::FileBuf;
 use crate::cmdexpand::{
     EXPAND_FILES, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT,
     WILD_USE_NL, expand_one, globpath,
@@ -59,7 +58,7 @@ use crate::path::{
 use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
 use crate::strings::{gettext, vim_strsave_shellescape};
-use crate::window::{WinInfoInfo, find_tabpage};
+use crate::window::find_tabpage;
 use std::ffi::CStr;
 
 use crate::api::vim::K_CD_SCOPE_GLOBAL;
@@ -747,7 +746,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     #[cfg(windows)]
     let initial_cstr = path_to_slash_save(Some(&fname_cstr)).unwrap_or_default();
     #[cfg(not(windows))]
-    let initial_cstr = fname_cstr.to_owned();
+    let initial_cstr = fname_cstr.into_owned();
     len = initial_cstr.as_bytes().len();
     let mut fbuf = initial_cstr.into_bytes_with_nul();
     let mut fname_off = 0usize;
@@ -779,9 +778,9 @@ fn getcwd_scope_args(
     argvars: &mut [TypVal],
     default_scope: i32,
     scope: &mut i32,
-    win: &mut Option<&'static WinInfoInfo>,
+    win: &mut Option<crate::globals::WinPtr>,
     tp: &mut Option<crate::globals::TabpagePtr>,
-    buf: &mut Option<&'static FileBuf>,
+    buf: &mut Option<crate::globals::BufPtr>,
 ) -> bool {
     const K_WIN_ARG: usize = 0;
     const K_TAB_ARG: usize = 1;
@@ -897,9 +896,9 @@ fn getcwd_scope_args(
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_INVALID;
-    let mut win: Option<&'static WinInfoInfo> = None;
+    let mut win: Option<crate::globals::WinPtr> = None;
     let mut tp: Option<crate::globals::TabpagePtr> = None;
-    let mut buf: Option<&'static FileBuf> = None;
+    let mut buf: Option<crate::globals::BufPtr> = None;
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -1185,9 +1184,9 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_WINDOW;
-    let mut win: Option<&'static WinInfoInfo> = None;
+    let mut win: Option<crate::globals::WinPtr> = None;
     let mut tp: Option<crate::globals::TabpagePtr> = None;
-    let mut buf: Option<&'static FileBuf> = None;
+    let mut buf: Option<crate::globals::BufPtr> = None;
 
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);

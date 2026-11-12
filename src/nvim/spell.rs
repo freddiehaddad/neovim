@@ -153,9 +153,9 @@ impl Matchinf<'_> {
     }
 
     #[inline]
-    fn win_mut(&self) -> &'static WinInfoInfo {
+    fn win_mut(&self) -> crate::globals::WinPtr {
         assert!(!self.mi_win.is_null());
-        self.mi_win.borrow_mut()
+        self.mi_win.clone()
     }
 }
 
@@ -580,7 +580,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
             get_ptr_b(mip, ptr_is_mi_word)
                 .get(wlen as usize..)
                 .unwrap_or(&[]),
-            mip.win_mut(),
+            &mip.win_mut(),
         ) {
             if slang.sl_compprog.is_none() && !slang.sl_nobreak.get() {
                 continue;
@@ -705,7 +705,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                     }
                     if capflags != WF_ALLCAP {
                         p_off -= 1 + crate::mbyte::utf_head_off_slice(word_b, p_off - 1) as usize;
-                        if if spell_iswordp_nmw(&word_b[p_off..], mip.win_mut()) {
+                        if if spell_iswordp_nmw(&word_b[p_off..], &mip.win_mut()) {
                             capflags == WF_ONECAP
                         } else {
                             (flags & WF_ONECAP as u32) != 0 && capflags != WF_ONECAP
@@ -721,7 +721,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                     if slang.sl_compsylmax < MAXWLEN as i32 {
                         if ptr_is_mi_word {
                             spell_casefold(
-                                mip.win_mut(),
+                                &mip.win_mut(),
                                 &mip.mi_word.to_bytes()[..wlen as usize],
                                 &mut fword,
                             );
@@ -1028,7 +1028,7 @@ fn fold_more(mip: &mut Matchinf<'_>) -> i32 {
     let word_bytes = mip.mi_word.to_bytes();
     loop {
         mip.mi_fend += crate::mbyte::utfc_ptr2len(&word_bytes[mip.mi_fend..]) as usize;
-        if mip.mi_fend >= word_bytes.len() || !spell_iswordp(&word_bytes[mip.mi_fend..], win) {
+        if mip.mi_fend >= word_bytes.len() || !spell_iswordp(&word_bytes[mip.mi_fend..], &win) {
             break;
         }
     }
@@ -1038,7 +1038,7 @@ fn fold_more(mip: &mut Matchinf<'_>) -> i32 {
     let fold_len = mip.mi_fend - p_off;
     let fword_off = mip.mi_fwordlen as usize;
     spell_casefold(
-        win,
+        &win,
         &word_bytes[p_off..p_off + fold_len],
         &mut mip.mi_fword[fword_off..MAXWLEN],
     );
@@ -1130,8 +1130,8 @@ pub fn spell_move_to(
     let mut decor_lnum: Linenr = -1;
     'theend: {
         while !g_st().got_int.get() {
-            let mut line_cstr = ml_get_buf(wp.buf_mut(), lnum);
-            let mut len = ml_get_buf_len(wp.buf_mut(), lnum) as usize;
+            let mut line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
+            let mut len = ml_get_buf_len(&wp.buf_mut(), lnum) as usize;
             if buflen < len + MAXWLEN + 2 {
                 buflen = len + MAXWLEN + 2;
                 buf_vec = vec![0; buflen];
@@ -1143,10 +1143,10 @@ pub fn spell_move_to(
                 capcol = getwhitecols(line_cstr.to_bytes()) as Colnr;
             } else if curline && wp == curwin_ptr() {
                 let col = getwhitecols(line_cstr.to_bytes()) as Colnr;
-                if check_need_cap(curwin_mut(), lnum, col) {
+                if check_need_cap(&curwin_mut(), lnum, col) {
                     capcol = col;
                 }
-                line_cstr = ml_get_buf(wp.buf_mut(), lnum);
+                line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
             }
             let line_bytes = line_cstr.to_bytes_with_nul();
             let empty_line =
@@ -1154,7 +1154,7 @@ pub fn spell_move_to(
             buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
             if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
                 let cur_len = line_bytes.len() - 1;
-                let next_line = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum + 1);
+                let next_line = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum + 1);
                 spell_cat_line(&mut buf_vec[cur_len..cur_len + MAXWLEN], next_line);
             }
             let mut p_off = skip.max(0) as usize;
@@ -1340,7 +1340,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                     lang_opt,
                     curbuf_mut().fname_opt(),
                     false,
-                    curbuf_opt_mut(),
+                    curbuf_opt_mut().as_deref(),
                 )
             {
                 continue;
@@ -1949,7 +1949,7 @@ fn find_region(rp: &[u8], region: &[u8]) -> i32 {
 }
 pub fn captype(word: &[u8]) -> i32 {
     let mut rem = crate::memory::bytes_until_nul(word);
-    while !rem.is_empty() && !spell_iswordp_nmw_slice(rem, curwin_mut()) {
+    while !rem.is_empty() && !spell_iswordp_nmw_slice(rem, &curwin_mut()) {
         let step = utfc_slice2len(rem).max(1);
         rem = &rem[step.min(rem.len())..];
     }
@@ -1961,7 +1961,7 @@ pub fn captype(word: &[u8]) -> i32 {
     let firstcap = allcap;
     let mut past_second = false;
     while !rem.is_empty() {
-        if spell_iswordp_nmw_slice(rem, curwin_mut()) {
+        if spell_iswordp_nmw_slice(rem, &curwin_mut()) {
             c = crate::mbyte::utf_slice2char(rem);
             if !spell_isupper(c) {
                 if past_second && allcap {
@@ -2011,13 +2011,13 @@ pub fn spell_reload() {
     for wp in for_all_windows_ptr() {
         let w_s = (*wp).w_s_ptr();
         if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell.get() {
-            let _ = parse_spelllang(wp);
+            let _ = parse_spelllang(&wp);
             break;
         }
     }
 }
-pub fn open_spellbuf() -> Box<FileBuf> {
-    let buf = Box::new(FileBuf::new());
+pub fn open_spellbuf() -> std::rc::Rc<FileBuf> {
+    let buf = FileBuf::new_rc();
     buf.b_spell.set(true);
     buf.b_p_swf.set(true);
     if !ml_open(&buf) {
@@ -2033,7 +2033,7 @@ pub fn open_spellbuf() -> Box<FileBuf> {
     ml_open_file(&buf);
     buf
 }
-pub fn close_spellbuf(buf: &mut Option<Box<FileBuf>>) {
+pub fn close_spellbuf(buf: &mut Option<std::rc::Rc<FileBuf>>) {
     if let Some(b) = buf.take() {
         ml_close(&b, 1);
     }
@@ -2187,14 +2187,14 @@ pub fn check_need_cap(wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         return false;
     }
     let mut need_cap = false;
-    let mut line_cstr: Option<&CStr> = (col != 0).then(|| ml_get_buf(wp.buf_mut(), lnum));
+    let mut line_cstr: Option<&CStr> = (col != 0).then(|| ml_get_buf(&wp.buf_mut(), lnum));
     let mut line_copy: Option<std::ffi::CString> = None;
     let mut endcol: Colnr = 0;
     if col == 0 || (getwhitecols(line_cstr.unwrap_or(c"").to_bytes()) as Colnr) >= col {
         if lnum == 1 {
             need_cap = true;
         } else {
-            let prev_cstr = ml_get_buf(wp.buf_mut(), lnum - 1);
+            let prev_cstr = ml_get_buf(&wp.buf_mut(), lnum - 1);
             let prev_slice = prev_cstr.to_bytes();
             line_cstr = Some(prev_cstr);
             if crate::charset::skipwhite_slice(prev_slice).is_empty() {
@@ -2207,7 +2207,7 @@ pub fn check_need_cap(wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             }
         }
     } else {
-        let len = ml_get_buf_len(wp.buf_mut(), lnum);
+        let len = ml_get_buf_len(&wp.buf_mut(), lnum);
         endcol = col.min(len);
     }
     if endcol > 0 {
@@ -2399,7 +2399,7 @@ pub fn spell_soundfold(slang: &Slang, inword: &[u8], folded: bool, res: &mut [u8
         spell_soundfold_wsal(slang, inword, res);
     } else {
         let mut fword: [u8; MAXWLEN] = [0; MAXWLEN];
-        spell_casefold(curwin_mut(), inword, &mut fword);
+        spell_casefold(&curwin_mut(), inword, &mut fword);
         spell_soundfold_wsal(slang, &fword, res);
     }
 }
@@ -2446,7 +2446,7 @@ fn spell_soundfold_wsal(slang: &Slang, inword: &[u8], res: &mut [u8; MAXWLEN]) {
                 did_white = true;
             } else {
                 did_white = false;
-                if !spell_iswordp_nmw_slice(cur, curwin_mut()) {
+                if !spell_iswordp_nmw_slice(cur, &curwin_mut()) {
                     continue;
                 }
             }
@@ -2516,13 +2516,13 @@ fn spell_soundfold_wsal(slang: &Slang, inword: &[u8], res: &mut [u8; MAXWLEN]) {
                     || (sr_rem.first() == Some(&b'^')
                         && (i == 0
                             || !(word[i - 1] == b' ' as i32
-                                || spell_iswordp_w(&word[i - 1..], curwin_mut())))
+                                || spell_iswordp_w(&word[i - 1..], &curwin_mut())))
                         && (sr_rem.get(1) != Some(&b'$')
-                            || !spell_iswordp_w(&word[i + k0..], curwin_mut())))
+                            || !spell_iswordp_w(&word[i + k0..], &curwin_mut())))
                     || (sr_rem.first() == Some(&b'$')
                         && i > 0
-                        && spell_iswordp_w(&word[i - 1..], curwin_mut())
-                        && !spell_iswordp_w(&word[i + k0..], curwin_mut()))
+                        && spell_iswordp_w(&word[i - 1..], &curwin_mut())
+                        && !spell_iswordp_w(&word[i + k0..], &curwin_mut()))
                 {
                     let c0 = word[i + k - 1];
                     let mut n0 = slang.sl_sal_first[(c0 & 0xff) as usize];
@@ -2574,7 +2574,7 @@ fn spell_soundfold_wsal(slang: &Slang, inword: &[u8], res: &mut [u8; MAXWLEN]) {
                             }
                             if sr0.is_empty()
                                 || (sr0.first() == Some(&b'$')
-                                    && !spell_iswordp_w(&word[i + k0..], curwin_mut()))
+                                    && !spell_iswordp_w(&word[i + k0..], &curwin_mut()))
                             {
                                 if k0 == k || p0 < pri {
                                     n0 += 1;
@@ -2671,7 +2671,7 @@ fn spell_soundfold_wsal(slang: &Slang, inword: &[u8], res: &mut [u8; MAXWLEN]) {
     res[l] = 0;
 }
 pub fn ex_spellinfo(_eap: &mut Exarg) {
-    if no_spell_checking(curwin_mut()) {
+    if no_spell_checking(&curwin_mut()) {
         return;
     }
     msg_ext_set_kind(c"list_cmd");
@@ -2699,7 +2699,7 @@ pub fn ex_spellinfo(_eap: &mut Exarg) {
     msg_end();
 }
 pub fn ex_spelldump(eap: &mut Exarg) {
-    if no_spell_checking(curwin_mut()) {
+    if no_spell_checking(&curwin_mut()) {
         return;
     }
     let spl = get_option_value(K_OPT_SPELLLANG, OPT_LOCAL);
@@ -2707,14 +2707,14 @@ pub fn ex_spelldump(eap: &mut Exarg) {
     set_option_value_give_err(K_OPT_SPELL, boolean_obj(true), OPT_LOCAL);
     set_option_value_give_err(K_OPT_SPELLLANG, spl.clone(), OPT_LOCAL);
     optval_free(spl);
-    if !buf_is_empty(curbuf_mut()) {
+    if !buf_is_empty(&curbuf_mut()) {
         return;
     }
     spell_dump_compl(None, 0, None, if eap.forceit { DUMPFLAG_COUNT } else { 0 });
     if curbuf_mut().b_ml.ml_line_count.get() > 1 {
         let _ = ml_delete(curbuf_mut().b_ml.ml_line_count.get());
     }
-    redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
+    redraw_later(Some(&crate::globals::curwin_mut()), UPD_NOT_VALID);
 }
 pub fn spell_dump_compl(
     pat: Option<&std::ffi::CStr>,
@@ -3090,14 +3090,14 @@ pub fn spell_to_word_end(start: &[u8], win: &WinInfoInfo) -> usize {
     idx
 }
 pub fn spell_word_start(startcol: i32) -> i32 {
-    if no_spell_checking(curwin_mut()) {
+    if no_spell_checking(&curwin_mut()) {
         return startcol;
     }
     let line_bytes = get_cursor_line_slice();
     let mut p_idx = (startcol as usize).min(line_bytes.len());
     while p_idx > 0 {
         crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
-        if spell_iswordp_nmw(&line_bytes[p_idx..], curwin_mut()) {
+        if spell_iswordp_nmw(&line_bytes[p_idx..], &curwin_mut()) {
             break;
         }
     }
@@ -3105,7 +3105,7 @@ pub fn spell_word_start(startcol: i32) -> i32 {
     while p_idx > 0 {
         col = p_idx as i32;
         crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
-        if !spell_iswordp(&line_bytes[p_idx..], curwin_mut()) {
+        if !spell_iswordp(&line_bytes[p_idx..], &curwin_mut()) {
             break;
         }
         col = 0;
@@ -3115,7 +3115,7 @@ pub fn spell_word_start(startcol: i32) -> i32 {
 pub fn spell_expand_check_cap(col: Colnr) {
     SPELL_PRIV_STATE.with(|s| {
         s.spell_expand_need_cap.set(check_need_cap(
-            curwin_mut(),
+            &curwin_mut(),
             curwin_mut().w_cursor.get().lnum,
             col,
         ))
@@ -3156,7 +3156,7 @@ pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
         if wp.w_buffer.get() == g_st().curbuf.get() && wp.w_onebuf_opt.wo_spell.get() {
-            errmsg = parse_spelllang(wp);
+            errmsg = parse_spelllang(&wp);
             break;
         }
     }

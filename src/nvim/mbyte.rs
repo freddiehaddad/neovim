@@ -2811,14 +2811,14 @@ pub fn utf_valid_string(bytes: &[u8]) -> bool {
 pub fn mb_adjust_cursor() {
     curwin_mut()
         .w_cursor
-        .update_mut(|c| mark_mb_adjustpos(curbuf_mut(), c));
+        .update_mut(|c| mark_mb_adjustpos(&curbuf_mut(), c));
 }
 
 pub fn mb_check_adjust_col(win: &WinInfoInfo) {
     let oldcol = win.w_cursor.get().col;
 
     if oldcol != 0 {
-        let line = crate::memline::ml_get_buf_slice(win.buf_mut(), win.w_cursor.get().lnum);
+        let line = crate::memline::ml_get_buf_slice(&win.buf_mut(), win.w_cursor.get().lnum);
         let len = line.len() as Colnr;
 
         if len == 0 || oldcol < 0 {

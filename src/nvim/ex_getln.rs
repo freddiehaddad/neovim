@@ -148,7 +148,7 @@ use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
 };
 use crate::window::{
-    WSP_BOT, WinInfoInfo, close_windows, global_stl_height, lastwin_nofloating,
+    WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
     may_trigger_win_scrolled_resized, win_enter, win_size_restore, win_size_save, win_split,
 };
 use std::ffi::CStr;
@@ -381,7 +381,7 @@ impl Default for CpBufInfo {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CpWinInfo {
     win: crate::globals::WinPtr,
     save_w_cursor: CursorPos,
@@ -463,7 +463,7 @@ fn trigger_cmd_autocmd(typechar: i32, evt: AuEvent) {
         Some(typestr_cstr),
         Some(typestr_cstr),
         false,
-        curbuf_opt_mut(),
+        curbuf_opt_mut().as_deref(),
     );
 }
 
@@ -475,8 +475,8 @@ fn init_incsearch_state(s: &mut IncsearchState) {
     clearpos(&mut s.match_end);
     s.save_cursor = curwin_mut().w_cursor.get();
     s.search_start = curwin_mut().w_cursor.get();
-    save_viewstate(curwin_mut(), &mut s.init_viewstate);
-    save_viewstate(curwin_mut(), &mut s.old_viewstate);
+    save_viewstate(&curwin_mut(), &mut s.init_viewstate);
+    save_viewstate(&curwin_mut(), &mut s.old_viewstate);
 }
 
 fn set_search_match(t: &mut CursorPos) {
@@ -485,7 +485,7 @@ fn set_search_match(t: &mut CursorPos) {
     if t.lnum > curbuf_mut().b_ml.ml_line_count.get() {
         t.lnum = curbuf_mut().b_ml.ml_line_count.get();
         curwin_mut().w_cursor.set(*t);
-        coladvance(curwin_mut(), MAXCOL);
+        coladvance(&curwin_mut(), MAXCOL);
         *t = curwin_mut().w_cursor.get();
     }
 }
@@ -813,9 +813,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     // first restore the old curwin values, so the screen is
     // positioned in the same way as the actual search command
-    restore_viewstate(curwin_mut(), &s.old_viewstate);
-    changed_cline_bef_curs(curwin_mut());
-    update_topline(curwin_mut());
+    restore_viewstate(&curwin_mut(), &s.old_viewstate);
+    changed_cline_bef_curs(&curwin_mut());
+    update_topline(&curwin_mut());
 
     let mut end_pos = curwin_mut().w_cursor.get();
     if found != 0 {
@@ -823,7 +823,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         let mut match_pos = curwin_mut().w_cursor.get();
         set_search_match(&mut match_pos);
         curwin_mut().w_cursor.set(match_pos);
-        validate_cursor(curwin_mut());
+        validate_cursor(&curwin_mut());
         s.match_end = curwin_mut().w_cursor.get();
         curwin_mut().w_cursor.set(end_pos);
         end_pos = s.match_end;
@@ -841,7 +841,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         }
     }
 
-    validate_cursor(curwin_mut());
+    validate_cursor(&curwin_mut());
 
     // May redraw the status line to show the cursor position.
     if opt_vars().p_ru.get() && (curwin_mut().w_status_height.get() > 0 || global_stl_height() > 0)
@@ -849,7 +849,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         curwin_mut().w_redr_status.set(true);
     }
 
-    redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
+    redraw_later(Some(&crate::globals::curwin_mut()), UPD_SOME_VALID);
     update_screen();
     g_st().search_global.hl_match.set(false);
     restore_last_search_pattern();
@@ -963,14 +963,14 @@ fn finish_incsearch_highlighting(gotesc: bool, s: &mut IncsearchState, call_upda
         }
         curwin_mut().w_cursor.set(s.search_start);
     }
-    restore_viewstate(curwin_mut(), &s.old_viewstate);
+    restore_viewstate(&curwin_mut(), &s.old_viewstate);
     g_st().search_global.hl_match.set(false);
 
     // by default search all lines
     g_st().search_global.first_line.set(0);
     g_st().search_global.last_line.set(MAXLNUM);
 
-    validate_cursor(curwin_mut()); // needed for TAB
+    validate_cursor(&curwin_mut()); // needed for TAB
     status_redraw_all();
     redraw_all_later(UPD_SOME_VALID);
     if call_update_screen {
@@ -1148,7 +1148,7 @@ fn command_line_enter(
                 Some(firstc_cstr),
                 Some(firstc_cstr),
                 false,
-                curbuf_opt_mut(),
+                curbuf_opt_mut().as_deref(),
             );
             restore_v_event(&dict, &mut save_v_event);
             try_leave(&tstate, &mut err);
@@ -1243,7 +1243,7 @@ fn command_line_enter(
                 Some(firstc_cstr),
                 Some(firstc_cstr),
                 false,
-                curbuf_opt_mut(),
+                curbuf_opt_mut().as_deref(),
             );
             try_leave(&tstate, &mut err);
             if tv_dict_get_number(Some(&dict), c"abort") != 0 {
@@ -2025,8 +2025,8 @@ fn may_do_command_line_next_incsearch(
     }
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let found = searchit(
-        Some(curwin_mut()),
-        curbuf_mut(),
+        Some(&curwin_mut()),
+        &curbuf_mut(),
         &mut t,
         None,
         if next_match { FORWARD } else { BACKWARD },
@@ -2084,12 +2084,12 @@ fn may_do_command_line_next_incsearch(
 
         set_search_match(&mut s.match_end);
         curwin_mut().w_cursor.set(s.match_start);
-        changed_cline_bef_curs(curwin_mut());
-        update_topline(curwin_mut());
-        validate_cursor(curwin_mut());
+        changed_cline_bef_curs(&curwin_mut());
+        update_topline(&curwin_mut());
+        validate_cursor(&curwin_mut());
         g_st().search_global.hl_match.set(true);
-        save_viewstate(curwin_mut(), &mut s.old_viewstate);
-        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
+        save_viewstate(&curwin_mut(), &mut s.old_viewstate);
+        redraw_later(Some(&crate::globals::curwin_mut()), UPD_NOT_VALID);
         update_screen();
         g_st().search_global.hl_match.set(false);
         redrawcmdline();
@@ -2222,9 +2222,9 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
 
     if let Some(use_insert) = use_insert_opt {
         if use_insert && s.b_im_ptr_buf == g_st().curbuf.get() {
-            set_iminsert_global(curbuf_mut());
+            set_iminsert_global(&curbuf_mut());
         } else {
-            set_imsearch_global(curbuf_mut());
+            set_imsearch_global(&curbuf_mut());
         }
     }
     ui_cursor_shape();
@@ -2987,7 +2987,7 @@ pub fn cmdpreview_get_ns() -> i32 {
 }
 
 /// Sets up command preview buffer.
-fn cmdpreview_open_buf() -> Option<&'static FileBuf> {
+fn cmdpreview_open_buf() -> Option<crate::globals::BufPtr> {
     let mut cmdpreview_buf = if GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) != 0 {
         crate::globals::BufPtr::from(buflist_findnr(
             GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()),
@@ -3037,14 +3037,16 @@ fn cmdpreview_open_buf() -> Option<&'static FileBuf> {
     curbuf_mut().b_p_ul.set(-1);
     curbuf_mut().b_p_tw.set(0);
     ctx_restore(&mut aco);
-    let buf_ref = cmdpreview_buf.opt_mut()?;
-    GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(buf_ref.b_fnum.get()));
+    if cmdpreview_buf.is_null() {
+        return None;
+    }
+    GETLN_STATE.with(|s| s.cmdpreview_bufnr.set(cmdpreview_buf.b_fnum.get()));
 
-    Some(buf_ref)
+    Some(cmdpreview_buf)
 }
 
 /// Open command preview window if it's not already open.
-fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<&'static WinInfoInfo> {
+fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<crate::globals::WinPtr> {
     let save_curwin = curwin_ptr();
 
     if !win_split(opt_vars().p_cwh.get() as i32, WSP_BOT) {
@@ -3075,7 +3077,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<&'static WinInfoInfo>
     curwin_mut().w_onebuf_opt.wo_fen.set(false);
 
     win_enter(save_curwin.borrow_mut(), false);
-    preview_win.opt_mut()
+    (!preview_win.is_null()).then_some(preview_win)
 }
 
 /// Closes any open command preview windows.
@@ -3084,7 +3086,7 @@ fn cmdpreview_close_win() {
     if bufnr != 0
         && let Some(buf) = buflist_findnr(bufnr)
     {
-        close_windows(Some(buf), false);
+        close_windows(Some(&buf), false);
     }
 }
 
@@ -3100,24 +3102,24 @@ fn cmdpreview_prepare() -> CpInfo {
     };
 
     for win in for_all_windows_ptr() {
-        let buf = win.w_buffer.get().borrow_mut();
+        let buf = win.w_buffer.get();
 
         if buf.b_fnum.get() != GETLN_STATE.with(|s| s.cmdpreview_bufnr.get()) {
-            if saved_bufs.insert(std::ptr::from_ref(buf) as usize) {
+            if saved_bufs.insert(buf.addr()) {
                 let mut cp_bufinfo = CpBufInfo::new();
-                cp_bufinfo.buf = crate::globals::BufPtr::from(buf);
+                cp_bufinfo.buf = buf.clone();
                 cp_bufinfo.save_b_p_ma = buf.b_p_ma.get();
                 cp_bufinfo.save_b_changed = buf.b_changed.get();
                 cp_bufinfo.save_b_op_start = buf.b_op_start.get();
                 cp_bufinfo.save_b_op_end = buf.b_op_end.get();
-                u_checkpoint(&mut cp_bufinfo.undo_checkpoint, buf);
+                u_checkpoint(&mut cp_bufinfo.undo_checkpoint, &buf);
                 cpinfo.buf_info.push(cp_bufinfo);
             }
 
             let mut cp_wininfo = CpWinInfo::new();
-            cp_wininfo.win = crate::globals::WinPtr::from(win);
+            cp_wininfo.win = win.clone();
             cp_wininfo.save_w_cursor = win.w_cursor.get();
-            save_viewstate(win, &mut cp_wininfo.save_viewstate);
+            save_viewstate(&win, &mut cp_wininfo.save_viewstate);
             cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul.get();
             cp_wininfo.save_w_p_cuc = win.w_onebuf_opt.wo_cuc.get();
 
@@ -3302,7 +3304,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
             Some(firstc_cstr),
             Some(firstc_cstr),
             false,
-            curbuf_opt_mut(),
+            curbuf_opt_mut().as_deref(),
         );
         restore_v_event(&dict, &mut save_v_event);
         try_leave(&tstate, &mut err);
@@ -3562,7 +3564,7 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
     let mut col = cmd_startcol();
     if g_st().key_typed.get() {
         m = if !g_st().cmdline_win.get().is_null() {
-            let cw = g_st().cmdline_win.get().borrow();
+            let cw = g_st().cmdline_win.get();
             cw.w_view_width.get() * cw.w_view_height.get()
         } else {
             g_st().columns_global.get() * g_st().rows_global.get()
@@ -3722,23 +3724,24 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
     let mut printed_errmsg = false;
     let mut ret = true;
 
-    let mut ccline_colors_guard = colored_ccline.last_colors.borrow_mut();
-    let ccline_colors = &mut *ccline_colors_guard;
-
-    if ccline_colors.prompt_id == colored_ccline.prompt_id.get()
-        && ccline_colors
-            .cmdbuff
-            .as_ref()
-            .is_some_and(|cb| cb.to_bytes() == colored_ccline.cmdbuff().as_bytes())
     {
-        return ret;
-    }
+        let mut ccline_colors = colored_ccline.last_colors.borrow_mut();
 
-    ccline_colors.colors.clear();
+        if ccline_colors.prompt_id == colored_ccline.prompt_id.get()
+            && ccline_colors
+                .cmdbuff
+                .as_ref()
+                .is_some_and(|cb| cb.to_bytes() == colored_ccline.cmdbuff().as_bytes())
+        {
+            return ret;
+        }
 
-    if colored_ccline.cmdbuff().is_empty() {
-        ccline_colors.cmdbuff = None;
-        return ret;
+        ccline_colors.colors.clear();
+
+        if colored_ccline.cmdbuff().is_empty() {
+            ccline_colors.cmdbuff = None;
+            return ret;
+        }
     }
 
     let mut arg_owned: Option<std::ffi::CString> = None;
@@ -3783,7 +3786,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 try_leave(&tstate, &mut err);
                 can_free_cb = true;
             } else if colored_ccline.cmdfirstc.get() == b'=' as i32 {
-                color_expr_cmdline(colored_ccline, &mut *ccline_colors);
+                color_expr_cmdline(colored_ccline, &mut colored_ccline.last_colors.borrow_mut());
             }
             if error_set(&err) || !dgc_ret {
                 break 'color_cmdline_error;
@@ -3893,11 +3896,15 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     break 'color_cmdline_error;
                 }
                 if start != prev_end {
-                    ccline_colors.colors.push(CmdlineColorChunk {
-                        start: prev_end as i32,
-                        end: start as i32,
-                        hl_id: 0,
-                    });
+                    colored_ccline
+                        .last_colors
+                        .borrow_mut()
+                        .colors
+                        .push(CmdlineColorChunk {
+                            start: prev_end as i32,
+                            end: start as i32,
+                            hl_id: 0,
+                        });
                 }
                 let end = tv_get_number_chk(&second_li.tv(), Some(&mut error));
                 if error {
@@ -3936,18 +3943,28 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 else {
                     break 'color_cmdline_error;
                 };
-                ccline_colors.colors.push(CmdlineColorChunk {
-                    start: start as i32,
-                    end: end as i32,
-                    hl_id: syn_name2id(&group),
-                });
+                let hl_id = syn_name2id(&group);
+                colored_ccline
+                    .last_colors
+                    .borrow_mut()
+                    .colors
+                    .push(CmdlineColorChunk {
+                        start: start as i32,
+                        end: end as i32,
+                        hl_id,
+                    });
             }
             if prev_end < colored_ccline.cmdlen.get() as Varnumber {
-                ccline_colors.colors.push(CmdlineColorChunk {
-                    start: prev_end as i32,
-                    end: colored_ccline.cmdlen.get(),
-                    hl_id: 0,
-                });
+                let end_col = colored_ccline.cmdlen.get();
+                colored_ccline
+                    .last_colors
+                    .borrow_mut()
+                    .colors
+                    .push(CmdlineColorChunk {
+                        start: prev_end as i32,
+                        end: end_col,
+                        hl_id: 0,
+                    });
             }
             GETLN_STATE.with(|s| s.prev_prompt_errors.set(0));
             break 'color_cmdline_end;
@@ -3964,7 +3981,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
         let _ = printed_errmsg;
 
         GETLN_STATE.with(|s| s.prev_prompt_errors.set(s.prev_prompt_errors.get() + (1)));
-        ccline_colors.colors.clear();
+        colored_ccline.last_colors.borrow_mut().colors.clear();
         redrawcmdline();
         ret = false;
     }
@@ -3974,15 +3991,18 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
     if can_free_cb {
         callback_free(&color_cb);
     }
-    ccline_colors.prompt_id = colored_ccline.prompt_id.get();
-    ccline_colors.cmdbuff = arg_owned.or_else(|| {
-        Some(
-            std::ffi::CString::new(
-                (colored_ccline.cmdbuff()).slice(colored_ccline.cmdlen.get() as usize),
+    {
+        let mut ccline_colors = colored_ccline.last_colors.borrow_mut();
+        ccline_colors.prompt_id = colored_ccline.prompt_id.get();
+        ccline_colors.cmdbuff = arg_owned.or_else(|| {
+            Some(
+                std::ffi::CString::new(
+                    (colored_ccline.cmdbuff()).slice(colored_ccline.cmdlen.get() as usize),
+                )
+                .unwrap_or_default(),
             )
-            .unwrap_or_default(),
-        )
-    });
+        });
+    }
     tv_clear(&mut tv);
     ret
 }

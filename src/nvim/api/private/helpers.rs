@@ -560,15 +560,16 @@ pub fn dict_set_var(
     rv
 }
 
-pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static FileBuf> {
+pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<crate::globals::BufPtr> {
     if buffer == 0 {
-        return g_st().curbuf.get().opt_mut();
+        let b = g_st().curbuf.get();
+        return (!b.is_null()).then_some(b);
     }
     let rv = g_st()
         .buffer_handles
         .borrow()
         .get(&buffer)
-        .copied()
+        .cloned()
         .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
@@ -579,12 +580,10 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
         );
         return None;
     }
-    rv.opt_mut()
+    Some(rv)
 }
 
-#[allow(unsafe_code)]
-#[unsafe(no_mangle)]
-pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
+pub fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
     if window == 0 {
         return curwin_ptr();
     }
@@ -592,7 +591,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinP
         .window_handles
         .borrow()
         .get(&window)
-        .copied()
+        .cloned()
         .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
@@ -604,6 +603,12 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinP
         return WinPtr::NULL;
     }
     rv
+}
+
+#[allow(unsafe_code)]
+#[unsafe(export_name = "find_window_by_handle")]
+pub extern "C" fn find_window_by_handle_ffi(window: Window, err: &mut Error) -> *mut WinInfoInfo {
+    find_window_by_handle(window, err).as_ptr()
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
@@ -629,14 +634,17 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
 }
 
 #[inline]
-pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static FileBuf> {
+pub fn find_buffer_by_handle_mut(
+    buffer: Buffer,
+    err: &mut Error,
+) -> Option<crate::globals::BufPtr> {
     find_buffer_by_handle(buffer, err)
 }
 
 #[inline]
-pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static WinInfoInfo> {
+pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<WinPtr> {
     let w = find_window_by_handle(window, err);
-    w.opt_mut()
+    (!w.is_null()).then_some(w)
 }
 
 #[inline]
@@ -1311,7 +1319,7 @@ pub fn set_mark(
 ) -> bool {
     let buf: &FileBuf = match buf {
         Some(b) => b,
-        None => curbuf_mut(),
+        None => &curbuf_mut(),
     };
     let mut deleting = false;
     if line == 0 {

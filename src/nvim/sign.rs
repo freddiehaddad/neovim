@@ -560,8 +560,8 @@ fn sign_define_by_name(
                     sh.cursorline_hl_id = sp.sn_cul_hl;
                     if !did_redraw {
                         for wp in for_all_windows_mut() {
-                            if buf_has_signs(wp.buf_mut()) {
-                                redraw_buf_later(wp.buf_mut(), UPD_NOT_VALID);
+                            if buf_has_signs(&wp.buf_mut()) {
+                                redraw_buf_later(&wp.buf_mut(), UPD_NOT_VALID);
                             }
                         }
                         did_redraw = true;
@@ -699,7 +699,7 @@ fn sign_unplace(buf: Option<&FileBuf>, id: i32, group: Option<&CStr>, atlnum: Li
     } else {
         let mut retval = true;
         for cbuf in for_all_buffers_ptr() {
-            if !sign_unplace_inner(cbuf, id, group, atlnum) {
+            if !sign_unplace_inner(&cbuf, id, group, atlnum) {
                 retval = false;
             }
         }
@@ -716,7 +716,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
 
     if buf_jump_open_win(buf).is_some() {
         curwin_mut().w_cursor.set_lnum(lnum);
-        check_cursor_lnum(curwin_mut());
+        check_cursor_lnum(&curwin_mut());
         beginline(BL_WHITE);
     } else {
         if buf.fname_opt().is_none() {
@@ -732,8 +732,12 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
             None,
             None,
             lnum,
-            if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
-            Some(curwin_mut()),
+            if buf_hide(&curbuf_mut()) {
+                ECMD_HIDE
+            } else {
+                0
+            },
+            Some(&curwin_mut()),
         ) {
             return -1;
         }
@@ -828,7 +832,7 @@ fn sign_place_cmd(
 }
 
 fn sign_unplace_cmd(
-    mut buf: Option<&FileBuf>,
+    buf: Option<&FileBuf>,
     mut lnum: Linenr,
     name: Option<&CStr>,
     id: i32,
@@ -839,10 +843,13 @@ fn sign_unplace_cmd(
         return;
     }
 
-    if id == -1 {
+    let cw_buf = curwin_mut().w_buffer.get();
+    let buf = if id == -1 {
         lnum = curwin_mut().w_cursor.get().lnum;
-        buf = curwin_mut().w_buffer.get().opt_mut();
-    }
+        cw_buf.opt_mut()
+    } else {
+        buf
+    };
 
     if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
         emsg(gettext(c"E159: Missing sign number"));
@@ -880,7 +887,7 @@ fn parse_sign_cmd_args<'a>(
     id: &mut i32,
     group: &mut Option<&'a CStr>,
     prio: &mut i32,
-    buf: &mut Option<&'static FileBuf>,
+    buf: &mut Option<crate::globals::BufPtr>,
     lnum: &mut Linenr,
 ) -> bool {
     let mut arg_idx = 0usize;
@@ -990,7 +997,8 @@ fn parse_sign_cmd_args<'a>(
     }
 
     if filename_off.is_none() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
-        *buf = curwin_mut().w_buffer.get().opt_mut();
+        let cw_buf = curwin_mut().w_buffer.get();
+        *buf = (!cw_buf.is_null()).then_some(cw_buf);
     }
     true
 }
@@ -1047,7 +1055,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut name: Option<&CStr> = None;
         let mut group: Option<&CStr> = None;
         let mut prio: i32 = -1;
-        let mut buf: Option<&FileBuf> = None;
+        let mut buf: Option<crate::globals::BufPtr> = None;
 
         if !parse_sign_cmd_args(
             idx,
@@ -1063,11 +1071,11 @@ pub fn ex_sign(eap: &mut Exarg) {
         }
 
         if idx == SIGNCMD_PLACE {
-            sign_place_cmd(buf, lnum, name, id, group, prio);
+            sign_place_cmd(buf.as_deref(), lnum, name, id, group, prio);
         } else if idx == SIGNCMD_UNPLACE {
-            sign_unplace_cmd(buf, lnum, name, id, group);
+            sign_unplace_cmd(buf.as_deref(), lnum, name, id, group);
         } else if idx == SIGNCMD_JUMP {
-            sign_jump_cmd(buf, lnum, name, id, group);
+            sign_jump_cmd(buf.as_deref(), lnum, name, id, group);
         }
     }
 }
@@ -1197,8 +1205,8 @@ fn sign_get_placed(
         sign_get_placed_in_buf(buf, lnum, id, group, retlist);
     } else {
         for cbuf in for_all_buffers_ptr() {
-            if buf_has_signs(cbuf) {
-                sign_get_placed_in_buf(cbuf, 0, id, group, retlist);
+            if buf_has_signs(&cbuf) {
+                sign_get_placed_in_buf(&cbuf, 0, id, group, retlist);
             }
         }
     }
@@ -1525,7 +1533,7 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(
         id,
         group_owned.as_deref(),
-        buf_ref,
+        &buf_ref,
     )));
 }
 
@@ -1621,7 +1629,7 @@ fn sign_place_from_dict(
     }
 
     let mut uid = id as u32;
-    if sign_place(&mut uid, group, &name_cstr, buf_ref, lnum, prio) {
+    if sign_place(&mut uid, group, &name_cstr, &buf_ref, lnum, prio) {
         return uid as i32;
     }
 

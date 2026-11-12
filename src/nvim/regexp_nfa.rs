@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! NFA regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::{semsg, siemsg};
@@ -1260,7 +1262,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                         let mut vcol: Colnr = 0;
                         let mut cursor = crate::globals::curwin_mut().w_cursor.get();
                         getvvcol(
-                            crate::globals::curwin_mut(),
+                            &crate::globals::curwin_mut(),
                             &mut cursor,
                             None,
                             None,
@@ -4445,7 +4447,7 @@ fn nfa_regmatch(
                             };
                             let fm = mark_get(
                                 re_s.rex.reg_buf.get().borrow_mut(),
-                                crate::globals::curwin_mut(),
+                                &crate::globals::curwin_mut(),
                                 None,
                                 K_MARK_BUF_LOCAL,
                                 t_st.val,
