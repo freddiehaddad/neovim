@@ -397,7 +397,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
 
         msg_multiline(
-            cstr_as_string(Some(g_st().iobuff_cstr())),
+            cstr_as_string(Some(&g_st().iobuff_cstr())),
             0,
             true,
             false,
@@ -450,7 +450,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
 
         msg_multiline(
-            cstr_as_string(Some(g_st().iobuff_cstr())),
+            cstr_as_string(Some(&g_st().iobuff_cstr())),
             0,
             true,
             false,
@@ -1729,8 +1729,8 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                             linecount as i64,
                         );
                         let msg_cstr = g_st().msg_buf_cstr();
-                        if msg(msg_cstr, 0) && g_st().msg_scroll.get() == 0 {
-                            set_keep_msg(Some(msg_cstr), 0);
+                        if msg(&msg_cstr, 0) && g_st().msg_scroll.get() == 0 {
+                            set_keep_msg(Some(&msg_cstr), 0);
                         }
                     } else {
                         msgmore(linecount);
@@ -4863,8 +4863,8 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             g_st().sub_nlines.get() as i64,
         );
         let msg_cstr = g_st().msg_buf_cstr();
-        if msg(msg_cstr, 0) {
-            set_keep_msg(Some(msg_cstr), 0);
+        if msg(&msg_cstr, 0) {
+            set_keep_msg(Some(&msg_cstr), 0);
         }
         return true;
     }

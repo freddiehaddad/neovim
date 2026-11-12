@@ -241,13 +241,16 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> &std::ffi::CStr {
+pub fn describe_ns<'a>(
+    ns_id: NS,
+    unknown: &'a std::ffi::CStr,
+) -> std::borrow::Cow<'a, std::ffi::CStr> {
     for (name, id) in &*g_st().namespace_ids.borrow() {
         if *id == ns_id && !name.as_bytes().is_empty() {
-            return crate::option_vars::intern_opt_cstr(name.as_c_str());
+            return std::borrow::Cow::Owned(name.clone());
         }
     }
-    unknown
+    std::borrow::Cow::Borrowed(unknown)
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);

@@ -344,7 +344,7 @@ pub fn os_icon_init() {
             &vimruntime
         );
         let namebuff_cstr = g_st().name_buff_cstr();
-        if !os_path_exists(namebuff_cstr) {
+        if !os_path_exists(&namebuff_cstr) {
             logmsg!(
                 LOGLVL_WRN,
                 None,

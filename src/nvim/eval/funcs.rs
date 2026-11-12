@@ -435,15 +435,15 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         FUNCS_STATE.with(|s| s.get_func_name_intidx.set(-1));
     }
     if FUNCS_STATE.with(|s| s.get_func_name_intidx.get()) < 0
-        && let Some(name) = get_user_func_name(xp, idx)
+        && let Some(name) = get_user_func_name(xp, idx).map(CStr::to_owned)
     {
         if !name.is_empty()
-            && name.to_bytes()[0] != b'<'
+            && name.as_bytes()[0] != b'<'
             && xp.xp_pattern.as_bytes().starts_with(b"g:")
         {
-            return Some(xp.set_item(cat_prefix_varname(b'g' as i32, Some(name))));
+            return Some(xp.set_item(cat_prefix_varname(b'g' as i32, Some(&name))));
         }
-        return Some(name);
+        return Some(xp.set_item(name));
     }
 
     FUNCS_STATE.with(|s| {
@@ -454,18 +454,13 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let key_cstr = fdef.name?;
     let key_bytes = key_cstr.to_bytes();
     let key_len = key_bytes.len();
-    {
-        let iobuff = &mut *g_st().iobuff_bytes_mut();
-        iobuff[..key_len].copy_from_slice(key_bytes);
-        iobuff[key_len] = b'(';
-        if fdef.max_argc == 0 {
-            iobuff[key_len + 1] = b')';
-            iobuff[key_len + 2] = 0;
-        } else {
-            iobuff[key_len + 1] = 0;
-        }
+    let mut item_bytes = Vec::with_capacity(key_len + 2);
+    item_bytes.extend_from_slice(key_bytes);
+    item_bytes.push(b'(');
+    if fdef.max_argc == 0 {
+        item_bytes.push(b')');
     }
-    Some(g_st().iobuff_cstr())
+    Some(xp.set_item(crate::memory::bytes_to_cstring(&item_bytes)))
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
@@ -7791,7 +7786,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
         iter = vim_env_iter(ENV_SEPCHAR, dirs_bytes, iter, &mut dir);
         if !dir.is_empty() {
             let dir_cstr = bytes_to_cstring(dir);
-            let dir_with_nvim = concat_fnames_cstr(&dir_cstr, appname, true);
+            let dir_with_nvim = concat_fnames_cstr(&dir_cstr, &appname, true);
             tv_list_append_string(&list, Some(dir_with_nvim.as_c_str()), -1);
         }
         if iter.is_none() {

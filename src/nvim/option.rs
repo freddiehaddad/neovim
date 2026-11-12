@@ -854,15 +854,16 @@ fn set_init_expand_env() {
         if (opt.flags() & K_OPT_FLAG_NO_DEF_EXP) != 0 {
             continue;
         }
-        let mut p: Option<&CStr> = None;
+        let mut p: Option<std::borrow::Cow<'static, CStr>> = None;
         if (opt.flags() & K_OPT_FLAG_GETTEXT) != 0 && opt.var().is_some() {
             if let Some(cstr) = opt.var().opt_cstr() {
-                p = Some(tr(cstr));
+                p = Some(std::borrow::Cow::Borrowed(tr(cstr)));
             }
         } else if (opt.flags() & K_OPT_FLAG_EXPAND) != 0 {
-            p = option_expand(opt_idx, opt.def_val().data.string().as_opt_cstr());
+            p = option_expand(opt_idx, opt.def_val().data.string().as_opt_cstr())
+                .map(std::borrow::Cow::Owned);
         }
-        if let Some(p) = p {
+        if let Some(ref p) = p {
             let ov = cstr_to_obj(Some(p));
             if opt.var().is_some() {
                 set_option_varp(opt_idx, opt.var(), ov.clone());
@@ -972,7 +973,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val();
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags() & K_OPT_FLAG_NO_DEF_EXP) == 0
-        && let Some(s) = option_expand(opt_idx, def_val.data.as_opt_cstr())
+        && let Some(ref s) = option_expand(opt_idx, def_val.data.as_opt_cstr())
     {
         def_val = cstr_as_obj(Some(s));
     }
@@ -2073,7 +2074,7 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                     }
 
                     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-                    emsg(g_st().iobuff_cstr());
+                    emsg(&g_st().iobuff_cstr());
                     g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 
                     return false;
@@ -2198,7 +2199,7 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
 }
 
 /// Expand environment variables for some string options.
-fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'static CStr> {
+fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<std::ffi::CString> {
     let opt = get_option(opt_idx);
     if (opt.flags() & K_OPT_FLAG_EXPAND) == 0 || is_option_hidden(opt_idx) {
         return None;
@@ -6150,7 +6151,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 } else {
                     optval_fmt(opt_idx, opt_flags);
                     (opt.fullname.to_bytes().len() as i32)
-                        + vim_strsize(g_st().name_buff_cstr())
+                        + vim_strsize(&g_st().name_buff_cstr())
                         + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6253,7 +6254,7 @@ fn showoneopt(opt: &Vimoption, opt_flags: i32) {
         optval_fmt(opt_idx, opt_flags);
         let namebuf_cstr = g_st().name_buff_cstr();
         if !namebuf_cstr.to_bytes().is_empty() {
-            msg_outtrans(namebuf_cstr, 0, false);
+            msg_outtrans(&namebuf_cstr, 0, false);
         }
     }
 
@@ -7877,6 +7878,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
         });
     }
 
+    let nb_cstr: std::ffi::CString;
     let var = if OPT_STATE.with(|s| s.expand_option_idx.get()) != K_OPT_INVALID {
         let o = opt_from_varp(
             OPT_STATE.with(|s| s.expand_option_idx.get()),
@@ -7894,7 +7896,8 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
             OPT_STATE.with(|s| s.expand_option_idx.get()),
             OPT_STATE.with(|s| s.expand_option_flags.get()),
         );
-        g_st().name_buff_cstr().to_bytes()
+        nb_cstr = g_st().name_buff_cstr();
+        nb_cstr.to_bytes()
     } else {
         b""
     };

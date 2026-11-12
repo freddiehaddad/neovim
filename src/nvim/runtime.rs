@@ -2092,7 +2092,8 @@ fn add_env_sep_dirs(
         return;
     }
     let mut iter = None;
-    let appname_bytes = get_appname(false).to_bytes();
+    let appname = get_appname(false);
+    let appname_bytes = appname.to_bytes();
     loop {
         let mut dir: &[u8] = &[];
         iter = if forward {
@@ -2910,7 +2911,7 @@ fn do_source_ext(
                 c"sourcing %s",
                 fname_cstr_or_empty
             );
-            time_msg(g_st().iobuff_cstr(), Some(&start_time));
+            time_msg(&g_st().iobuff_cstr(), Some(&start_time));
             time_pop(rel_time);
         }
 
@@ -3030,11 +3031,11 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 i,
                 &*g_st().name_buff.borrow()
             );
-            if !message_filtered(g_st().iobuff_cstr()) {
+            if !message_filtered(&g_st().iobuff_cstr()) {
                 if g_st().msg_col.get() > 0 {
                     msg_putchar(b'\n' as i32);
                 }
-                msg_outtrans(g_st().iobuff_cstr(), 0, false);
+                msg_outtrans(&g_st().iobuff_cstr(), 0, false);
                 line_breakcheck();
             }
         }
@@ -3060,7 +3061,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                     gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
                 );
-                g_st().iobuff_cstr()
+                return Cow::Owned(g_st().iobuff_cstr());
             }
             SID_STR => gettext(c"anonymous :source"),
             _ => {
@@ -3076,7 +3077,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                         gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,
                     );
-                    g_st().iobuff_cstr()
+                    return Cow::Owned(g_st().iobuff_cstr());
                 }
             }
         };

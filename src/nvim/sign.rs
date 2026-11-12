@@ -385,7 +385,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
                         format_to_buf!(
                             &mut groupbuf[..],
                             gettext(c"  group=%s"),
-                            describe_ns(mark.ns as i32, c""),
+                            &*describe_ns(mark.ns as i32, c""),
                         );
                     }
                     format_to_buf!(
@@ -1120,7 +1120,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> crate::eval::typval::DictId {
 
     tv_dict_add_str(&d, c"name", Some(sign_get_name(&sh)));
     tv_dict_add_nr(&d, c"id", i64::from(mark.id as i32));
-    tv_dict_add_str(&d, c"group", Some(describe_ns(mark.ns as i32, c"")));
+    tv_dict_add_str(&d, c"group", Some(&describe_ns(mark.ns as i32, c"")));
     tv_dict_add_nr(&d, c"lnum", i64::from(mark.pos.row + 1));
     tv_dict_add_nr(&d, c"priority", i64::from(sh.priority));
     d
@@ -1226,10 +1226,10 @@ fn get_nth_sign_name(idx: i32) -> Option<std::ffi::CString> {
     })
 }
 
-fn get_nth_sign_group_name(idx: i32) -> Option<&'static CStr> {
+fn get_nth_sign_group_name(idx: i32) -> Option<std::ffi::CString> {
     let idx_usize = usize::try_from(idx).ok()?;
     let ns = SIGN_STATE.with(|st| st.sign_ns.borrow().get(idx_usize).copied())?;
-    Some(describe_ns(ns as NS, c""))
+    Some(describe_ns(ns as NS, c"").into_owned())
 }
 
 pub fn get_sign_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
@@ -1264,7 +1264,7 @@ pub fn get_sign_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
             LIST_ARG.get(i).copied()
         }
         EXP_SIGN_NAMES => get_nth_sign_name(idx).map(|s| xp.set_item(s)),
-        EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
+        EXP_SIGN_GROUPS => get_nth_sign_group_name(idx).map(|s| xp.set_item(s)),
         _ => None,
     }
 }

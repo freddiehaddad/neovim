@@ -1696,7 +1696,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         gettext(c"Reading affix file %s..."),
         fname,
     );
-    spell_message(&*spin, g_st().iobuff_cstr());
+    spell_message(&*spin, &g_st().iobuff_cstr());
 
     let do_rep = spin.si_rep.is_empty();
     let do_repsal = spin.si_repsal.is_empty();
@@ -2798,7 +2798,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         gettext(c"Reading dictionary file %s..."),
         fname,
     );
-    spell_message(&*spin, g_st().iobuff_cstr());
+    spell_message(&*spin, &g_st().iobuff_cstr());
 
     spin.si_msg_count = 999999;
 
@@ -3390,7 +3390,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().iobuff_cstr());
+        spell_message(&*spin, &g_st().iobuff_cstr());
 
         while !vim_fgets(&mut rline, &fd) && !g_st().got_int.get() {
             line_breakcheck();
@@ -3579,7 +3579,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, g_st().iobuff_cstr());
+            spell_message(&*spin, &g_st().iobuff_cstr());
         }
 
         retval
@@ -3894,7 +3894,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             tot - n,
             perc,
         );
-        spell_message(&*spin, g_st().iobuff_cstr());
+        spell_message(&*spin, &g_st().iobuff_cstr());
     }
 }
 
@@ -4705,7 +4705,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         gettext(c"Writing suggestion file %s..."),
         fname_cstr,
     );
-    spell_message(&*spin, g_st().iobuff_cstr());
+    spell_message(&*spin, &g_st().iobuff_cstr());
 
     if spell_write(&VIMSUGMAGIC[..VIMSUGMAGICL], &fd) != 1 {
         emsg(gettext(E_WRITE));
@@ -4755,7 +4755,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
             gettext(c"Estimated runtime memory use: %d bytes"),
             spin.si_memtot,
         );
-        spell_message(&*spin, g_st().iobuff_cstr());
+        spell_message(&*spin, &g_st().iobuff_cstr());
     }
 
     spell_close(fd);
@@ -4918,7 +4918,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Writing spell file %s..."),
                     wfname_cstr,
                 );
-                spell_message(&spin, g_st().iobuff_cstr());
+                spell_message(&spin, &g_st().iobuff_cstr());
 
                 error = !write_vim_spell(&mut spin, crate::memory::bytes_as_cstr(&wfname_buf));
 
@@ -4928,7 +4928,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
-                spell_message(&spin, g_st().iobuff_cstr());
+                spell_message(&spin, &g_st().iobuff_cstr());
 
                 if !error {
                     spell_reload_one(crate::memory::bytes_as_cstr(&wfname_buf), added_word);

@@ -348,7 +348,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
     }
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
-        g_st().iobuff_cstr(),
+        &g_st().iobuff_cstr(),
         &mut raw_matches,
         flags,
         crate::regexp::MAXCOL,

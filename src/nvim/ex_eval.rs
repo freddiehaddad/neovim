@@ -551,7 +551,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         };
         set_vim_var_string(
             VV_THROWPOINT,
-            Some(g_st().iobuff_cstr()),
+            Some(&g_st().iobuff_cstr()),
             iobufflen as isize,
         );
     } else {
@@ -611,7 +611,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                Some(g_st().iobuff_cstr()),
+                Some(&g_st().iobuff_cstr()),
                 iobufflen as isize,
             );
         } else {

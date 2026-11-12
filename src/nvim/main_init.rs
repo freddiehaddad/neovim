@@ -517,7 +517,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             dup2(startup_stderr_fd, STDERR_FILENO);
             close(startup_stderr_fd);
         }
-        mainerr(g_st().iobuff_cstr(), None, None);
+        mainerr(&g_st().iobuff_cstr(), None, None);
     }
 
     #[cfg(windows)]
@@ -1772,7 +1772,7 @@ fn set_argf_var() {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
             let _ = vim_full_name(Some(fname), &mut *g_st().name_buff_bytes_mut(), false);
-            tv_list_append_string(&list, Some(g_st().name_buff_cstr()), -1);
+            tv_list_append_string(&list, Some(&g_st().name_buff_cstr()), -1);
         }
     }
     tv_list_set_lock(Some(&list), VAR_FIXED);
@@ -1872,7 +1872,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
             Some(opt_vars().p_ef.as_cstr()),
             opt_vars().p_efm.as_cstr(),
             1,
-            Some(g_st().iobuff_cstr()),
+            Some(&g_st().iobuff_cstr()),
             Some(opt_vars().p_menc.as_cstr()),
         ) < 0
         {
@@ -1887,7 +1887,7 @@ fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
         g_st().swap_exists_did_quit.set(false);
         format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"ta %s", tagname);
-        do_cmdline_cmd(g_st().iobuff_cstr());
+        do_cmdline_cmd(&g_st().iobuff_cstr());
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit.get() {

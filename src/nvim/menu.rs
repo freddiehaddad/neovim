@@ -1127,7 +1127,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
-pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_menu_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
         MENU_STATE.with(|s| s.get_menu_name_idx.set(0));
         MENU_STATE.with(|s| s.get_menu_name_advance.set(false));
@@ -1153,14 +1153,12 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let str_res = if (menu.modes & MENU_STATE.with(|s| s.expand_modes.get())) != 0 {
         if MENU_STATE.with(|s| s.get_menu_name_advance.get()) {
-            menu.en_dname
-                .as_deref()
-                .map(crate::option_vars::intern_opt_cstr)
+            menu.en_dname.as_ref().map(|s| xp.set_item(s.clone()))
         } else {
             if menu.en_dname.is_none() {
                 MENU_STATE.with(|s| s.get_menu_name_advance.set(true));
             }
-            Some(crate::option_vars::intern_opt_cstr(menu.dname.as_c_str()))
+            Some(xp.set_item(menu.dname.clone()))
         }
     } else {
         Some(c"")
@@ -1225,14 +1223,12 @@ pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 
             Some(xp.set_item(crate::memory::bytes_as_cstr(&tbuf).to_owned()))
         } else if MENU_STATE.with(|s| s.get_menu_names_advance.get()) {
-            menu.en_dname
-                .as_deref()
-                .map(crate::option_vars::intern_opt_cstr)
+            menu.en_dname.as_ref().map(|s| xp.set_item(s.clone()))
         } else {
             if menu.en_dname.is_none() {
                 MENU_STATE.with(|s| s.get_menu_names_advance.set(true));
             }
-            Some(crate::option_vars::intern_opt_cstr(menu.dname.as_c_str()))
+            Some(xp.set_item(menu.dname.clone()))
         }
     } else {
         Some(c"")

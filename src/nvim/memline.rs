@@ -3895,7 +3895,7 @@ fn findswapname(
                             expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(
                                 buf_ffname_opt,
-                                Some(g_st().name_buff_cstr()),
+                                Some(&g_st().name_buff_cstr()),
                                 char_to_long(&b0.b0_ino),
                             ) {
                                 differ = true;
@@ -3905,7 +3905,7 @@ fn findswapname(
                         expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                         if fnamecmp_ino(
                             buf_ffname_opt,
-                            Some(g_st().name_buff_cstr()),
+                            Some(&g_st().name_buff_cstr()),
                             char_to_long(&b0.b0_ino),
                         ) {
                             differ = true;

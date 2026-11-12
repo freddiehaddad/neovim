@@ -3808,7 +3808,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             );
         }
 
-        if message_filtered(g_st().name_buff_cstr()) {
+        if message_filtered(&g_st().name_buff_cstr()) {
             continue;
         }
 
@@ -3866,7 +3866,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         )
         .min(IOSIZE - 20);
 
-        let mut i = 40 - vim_strsize(g_st().iobuff_cstr());
+        let mut i = 40 - vim_strsize(&g_st().iobuff_cstr());
         loop {
             g_st().iobuff_bytes_mut()[len] = b' ';
             len += 1;
@@ -3893,7 +3893,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             );
         }
 
-        msg_outtrans(g_st().iobuff_cstr(), 0, false);
+        msg_outtrans(&g_st().iobuff_cstr(), 0, false);
         line_breakcheck();
     }
 }

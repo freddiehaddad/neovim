@@ -208,7 +208,7 @@ fn load_language_from_object(
             luaL_error_cstr_arg(
                 lstate,
                 c"Failed to load parser: uv_dlsym: %s",
-                g_st().iobuff_cstr(),
+                &g_st().iobuff_cstr(),
             );
             ptr::null()
         }

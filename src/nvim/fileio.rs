@@ -2175,7 +2175,7 @@ pub fn readfile(
                     msg_add_lines(i32::from(c), linecnt, filesize);
 
                     g_st().keep_msg.set(None);
-                    let mut keep_cstr: Option<&CStr> = None;
+                    let mut keep_cstr: Option<std::ffi::CString> = None;
                     g_st().msg_scrolled_ign.set(true);
 
                     if !read_stdin && !read_buffer {
@@ -2194,7 +2194,7 @@ pub fn readfile(
                         } else {
                             msg_trunc(&mut iob, false, 0)
                         }
-                        .map(crate::option_vars::intern_opt_cstr);
+                        .map(CStr::to_owned);
                         *g_st().iobuff.borrow_mut() = iob;
                         keep_cstr = keep_owned;
                     }
@@ -2204,7 +2204,7 @@ pub fn readfile(
                         || g_st().restart_edit.get() != 0
                         || (g_st().msg_scrolled.get() != 0 && !g_st().need_wait_return.get())
                     {
-                        set_keep_msg(keep_cstr, 0);
+                        set_keep_msg(keep_cstr.as_deref(), 0);
                     }
                     g_st().msg_scrolled_ign.set(false);
                 } else if progress {
@@ -3763,7 +3763,7 @@ pub fn delete_recursive(name: &CStr) -> i32 {
             for entry in &entries {
                 format_to_buf!(&mut g_st().name_buff.borrow_mut()[len..], c"%s", entry);
                 let sub_cstr = g_st().name_buff_cstr();
-                if delete_recursive(sub_cstr) != 0 {
+                if delete_recursive(&sub_cstr) != 0 {
                     result = -1;
                 }
             }

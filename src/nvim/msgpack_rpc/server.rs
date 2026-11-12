@@ -130,7 +130,8 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     #[cfg(windows)]
     let r = {
         get_appname(true);
-        let app = name.unwrap_or_else(|| g_st().name_buff_cstr());
+        let nb = g_st().name_buff_cstr();
+        let app = name.unwrap_or(&nb);
         format_to_buf!(
             &mut fmt,
             c"//./pipe/%s.%llu.%u",

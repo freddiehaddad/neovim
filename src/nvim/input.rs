@@ -1443,7 +1443,7 @@ pub fn openscript(name: &CStr, directly: bool) {
         let error = with_inp_ext(|ext| {
             file_open(
                 &mut ext.scriptin.borrow_mut()[cur_idx],
-                Some(g_st().name_buff_cstr()),
+                Some(&g_st().name_buff_cstr()),
                 K_FILE_READ_ONLY,
                 0,
             )

@@ -2961,6 +2961,7 @@ fn dump_word(
             }
             p_cstr = crate::memory::bytes_as_cstr(&badword);
         }
+        let iob_owned: std::ffi::CString;
         if (dumpflags & DUMPFLAG_COUNT) != 0
             && let Some(&wc_count) = slang.sl_wordcount.borrow().get(tw_cstr.to_bytes())
         {
@@ -2970,7 +2971,8 @@ fn dump_word(
                 tw_cstr,
                 wc_count as i32,
             );
-            p_cstr = g_st().iobuff_cstr();
+            iob_owned = g_st().iobuff_cstr();
+            p_cstr = &iob_owned;
         }
         let _ = ml_append(lnum, p_cstr.to_bytes(), 0, false);
     }

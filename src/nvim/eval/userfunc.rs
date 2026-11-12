@@ -3591,7 +3591,7 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
         UF_STATE.with(|s| s.get_uf_done.set(0));
         GET_UF_ITEMS.with(|c| *c.borrow_mut() = func_tbl_values());
@@ -3619,7 +3619,8 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
                 crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len + 1..], b")");
             }
         }
-        return Some(g_st().iobuff_cstr());
+        let item = crate::memory::cstring_until_nul(&*g_st().iobuff.borrow());
+        return Some(xp.set_item(item));
     }
     None
 }

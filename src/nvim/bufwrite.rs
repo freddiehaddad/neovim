@@ -822,9 +822,9 @@ pub fn buf_get_backup_name(
     let old_len = dirp_bytes.len();
     let dir_len = copy_option_part(&mut dirp_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
     *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
-    if dirp.to_bytes().is_empty() && !os_isdir(g_st().iobuff_cstr()) {
+    if dirp.to_bytes().is_empty() && !os_isdir(&g_st().iobuff_cstr()) {
         let mut failed_dir: Option<std::ffi::CString> = None;
-        let ret = os_mkdir_recurse(g_st().iobuff_cstr(), 0o755, &mut failed_dir, None);
+        let ret = os_mkdir_recurse(&g_st().iobuff_cstr(), 0o755, &mut failed_dir, None);
         if ret != 0 {
             let _ = semsg!(
                 gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
@@ -841,7 +841,7 @@ pub fn buf_get_backup_name(
         backup = modname(Some(&swname), backup_ext, no_prepend_dot);
     }
     if backup.is_none()
-        && let Some(rootname) = get_file_in_dir(fname_opt, g_st().iobuff_cstr())
+        && let Some(rootname) = get_file_in_dir(fname_opt, &g_st().iobuff_cstr())
     {
         backup = modname(Some(&rootname), backup_ext, no_prepend_dot);
     }

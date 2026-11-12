@@ -2106,7 +2106,7 @@ pub fn path_guess_exepath(argv0: &CStr, buf_slice: &mut [u8]) {
                     argv0_bytes,
                 );
                 let nb_cstr = g_st().name_buff_cstr();
-                if os_can_exe(nb_cstr, None, false) {
+                if os_can_exe(&nb_cstr, None, false) {
                     crate::memory::copy_bytes_to_c_buf(buf_slice, nb_cstr.to_bytes());
                     to_slash(buf_slice);
                     return;

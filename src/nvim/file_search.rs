@@ -1164,9 +1164,9 @@ pub fn find_file_in_path_option(
                     let mut suf_bytes = suffixes_cstr.to_bytes();
                     loop {
                         let nb_cstr = g_st().name_buff_cstr();
-                        if os_path_exists(nb_cstr)
+                        if os_path_exists(&nb_cstr)
                             && (find_what == FindFileWhat::Both
-                                || ((find_what == FindFileWhat::Dir) == os_isdir(nb_cstr)))
+                                || ((find_what == FindFileWhat::Dir) == os_isdir(&nb_cstr)))
                         {
                             let slen = simplify_filename(&mut *g_st().name_buff_bytes_mut());
                             let res = Some(
@@ -1607,7 +1607,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
 
         if path_equal(
             crate::memory::bytes_as_cstr(&dir),
-            g_st().name_buff_cstr(),
+            &g_st().name_buff_cstr(),
             K_PATH_CMP_LITERAL,
         ) {
             return true;

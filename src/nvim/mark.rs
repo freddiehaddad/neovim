@@ -882,9 +882,10 @@ fn fname2fnum(fm: &Xfmark) {
     }
 
     os_dirname(&mut *g_st().iobuff_bytes_mut());
-    let p = path_shorten_fname(Some(g_st().name_buff_cstr()), g_st().iobuff_cstr());
+    let nb = g_st().name_buff_cstr();
+    let p = path_shorten_fname(Some(&nb), &g_st().iobuff_cstr());
 
-    let _ = buflist_new(Some(g_st().name_buff_cstr()), p, 1, 0);
+    let _ = buflist_new(Some(&nb), p, 1, 0);
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
@@ -1192,7 +1193,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
             crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.as_bytes());
 
-            msg_outtrans(g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
             msg_outtrans(
                 &name_cstr,
                 if curwin_mut().w_jumplist.borrow()[idx].fmark.fnum == curbuf_mut().b_fnum.get() {
@@ -1241,7 +1242,7 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
             crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.as_bytes());
 
-            msg_outtrans(g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
             let mark = curbuf_mut().b_changelist.borrow()[idx].mark;
             let name = mark_line(&mark, 17);
             msg_outtrans(&name, HLF_D, false);

@@ -4049,9 +4049,9 @@ fn show_pat_in_path(
         let has_trailing_bsl = cur_bytes.last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
             format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%3d: ", count);
-            msg_puts(g_st().iobuff_cstr());
+            msg_puts(&g_st().iobuff_cstr());
             format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%4d", *lnum);
-            msg_puts_hl(g_st().iobuff_cstr(), HLF_N, false);
+            msg_puts_hl(&g_st().iobuff_cstr(), HLF_N, false);
             msg_puts(c" ");
         }
         if use_line_buf {

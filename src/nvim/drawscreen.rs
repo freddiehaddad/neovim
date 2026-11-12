@@ -1089,7 +1089,7 @@ pub fn showmode() -> i32 {
                         &mut *g_st().name_buff_bytes_mut(),
                     ) > 0
                     {
-                        msg_puts_hl(g_st().name_buff_cstr(), hl_id, false);
+                        msg_puts_hl(&g_st().name_buff_cstr(), hl_id, false);
                     }
                 }
                 if (g_st().state_global.get() & MODE_INSERT) != 0 && opt_vars().p_paste.get() {

@@ -5993,7 +5993,7 @@ pub fn parse_cmdline(
                 eap.cmdline_ptr()
             };
             append_command((cmdname).as_cstr());
-            *errormsg = Some(std::borrow::Cow::Borrowed(g_st().iobuff_cstr()));
+            *errormsg = Some(std::borrow::Cow::Owned(g_st().iobuff_cstr()));
             break 'end;
         }
 
@@ -6521,7 +6521,7 @@ fn do_one_cmd(
                 if (flags & DOCMD_VERBOSE) == 0 {
                     append_command(cmdname);
                 }
-                errormsg = Some(std::borrow::Cow::Borrowed(g_st().iobuff_cstr()));
+                errormsg = Some(std::borrow::Cow::Owned(g_st().iobuff_cstr()));
                 g_st().did_emsg_syntax.set(true);
                 verify_command(cmdname.to_bytes());
             }
@@ -10285,7 +10285,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             gettext(c"Tab page %d"),
             tabcount
         );
-        let _ = msg_outtrans(g_st().iobuff_cstr(), HLF_T, false);
+        let _ = msg_outtrans(&g_st().iobuff_cstr(), HLF_T, false);
         os_breakcheck();
 
         for wp in for_all_windows_in_tab_ptr(&tp) {
@@ -10324,7 +10324,7 @@ fn ex_tabs(_eap: &mut Exarg) {
                     true,
                 );
             }
-            let _ = msg_outtrans(g_st().iobuff_cstr(), 0, false);
+            let _ = msg_outtrans(&g_st().iobuff_cstr(), 0, false);
             os_breakcheck();
         }
     }
@@ -10971,9 +10971,11 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         None
     };
 
+    let home_dir_cstr: Option<std::ffi::CString>;
     if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh.get() {
         expand_env(c"$HOME", &mut *g_st().name_buff_bytes_mut());
-        new_dir_cstr = g_st().name_buff_cstr();
+        home_dir_cstr = Some(g_st().name_buff_cstr());
+        new_dir_cstr = home_dir_cstr.as_deref().unwrap();
     }
 
     let new_dir_owned = to_slash_save(Some(new_dir_cstr)).unwrap_or_default();
@@ -11078,7 +11080,7 @@ fn ex_pwd(_eap: &mut Exarg) {
             };
             let _ = smsg!(0, c"[%s] %s", context, &*g_st().name_buff.borrow());
         } else {
-            let _ = msg(g_st().name_buff_cstr(), 0);
+            let _ = msg(&g_st().name_buff_cstr(), 0);
         }
     } else {
         let _ = emsg(gettext(c"E187: Unknown"));

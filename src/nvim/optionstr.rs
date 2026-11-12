@@ -2138,7 +2138,7 @@ pub fn validate_eventignore<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     None
 }
 
-fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let subtract = xp.xp_pattern.first_byte() == b'-';
     if !subtract && idx == 0 {
         return Some(c"all");
@@ -2156,7 +2156,8 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         if subtract { c"-" } else { c"" },
         name,
     );
-    Some(g_st().iobuff_cstr())
+    let item = crate::memory::cstring_until_nul(&*g_st().iobuff.borrow());
+    Some(xp.set_item(item))
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {

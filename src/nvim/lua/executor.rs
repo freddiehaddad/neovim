@@ -1338,7 +1338,7 @@ extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
             c"require('%s')",
             name_cstr
         );
-        time_msg(g_st().iobuff_cstr(), Some(&start_time));
+        time_msg(&g_st().iobuff_cstr(), Some(&start_time));
     }
     time_pop(rel_time);
 
@@ -1420,7 +1420,7 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
             c"Vimscript function \"%s\"",
             name_cstr,
         );
-        return nlua_fast_api_disabled_error(lstate, g_st().iobuff_cstr());
+        return nlua_fast_api_disabled_error(lstate, &g_st().iobuff_cstr());
     }
 
     let nargs = nlua_gettop(lstate) - 1;

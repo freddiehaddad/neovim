@@ -1121,33 +1121,15 @@ fn ins_compl_infercase_gettext<'a>(
     }
 
     // Generate encoding specific output from wide character array.
-    let iobuff = &mut *g_st().iobuff_bytes_mut();
-    let mut p_idx = 0usize;
-    let mut i: i32 = 0;
-    let mut gap: Vec<u8> = Vec::new();
-    while i < char_len {
-        if !gap.is_empty() {
-            let mut ch_buf = [0u8; 6];
-            let n = utf_char2bytes(wca[i as usize], &mut ch_buf) as usize;
-            gap.extend_from_slice(&ch_buf[..n]);
-            i += 1;
-        } else if p_idx + 6 >= IOSIZE {
-            gap.reserve(IOSIZE);
-            gap.extend_from_slice(&iobuff[..p_idx]);
-        } else {
-            p_idx += utf_char2bytes(wca[i as usize], &mut iobuff[p_idx..]) as usize;
-            i += 1;
-        }
+    tofree.clear();
+    tofree.reserve((char_len as usize) * 2 + 1);
+    for &ch in &wca[..(char_len as usize)] {
+        let mut ch_buf = [0u8; 6];
+        let n = utf_char2bytes(ch, &mut ch_buf) as usize;
+        tofree.extend_from_slice(&ch_buf[..n]);
     }
-
-    if !gap.is_empty() {
-        gap.push(0);
-        *tofree = gap;
-        return &tofree[..tofree.len() - 1];
-    }
-
-    iobuff[p_idx] = 0;
-    crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(&iobuff[..=p_idx])).to_bytes()
+    tofree.push(0);
+    &tofree[..tofree.len() - 1]
 }
 
 /// Like `ins_compl_add()`, but infers case if `'ic'` and `'inf'` are set.
@@ -4672,7 +4654,7 @@ fn ins_compl_get_next_word_or_line<'a>(
     cur_match_pos: &mut CursorPos,
     match_len: &mut i32,
     cont_s_ipos: &mut bool,
-) -> Option<&'a [u8]> {
+) -> Option<std::borrow::Cow<'a, [u8]>> {
     *match_len = 0;
     let line_count = ins_buf.b_ml.ml_line_count.get();
     if ctrl_x_mode_line_or_eval() && compl_status_adding() {
@@ -4685,7 +4667,9 @@ fn ins_compl_get_next_word_or_line<'a>(
         }
         let len = res_slice.len() as i32;
         *match_len = len;
-        return Some(&res_slice[..(len.max(0) as usize).min(res_slice.len())]);
+        return Some(std::borrow::Cow::Borrowed(
+            &res_slice[..(len.max(0) as usize).min(res_slice.len())],
+        ));
     }
 
     let (col_u, mut len) = {
@@ -4755,24 +4739,21 @@ fn ins_compl_get_next_word_or_line<'a>(
                 return None;
             }
             *match_len = len;
-            return Some(
-                crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(
-                    &iobuff[..=len as usize],
-                ))
-                .to_bytes(),
-            );
+            return Some(std::borrow::Cow::Owned(iobuff[..len as usize].to_vec()));
         }
         return None;
     }
 
     *match_len = len;
     let res_slice = &crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum)[col_u..];
-    Some(&res_slice[..(len.max(0) as usize).min(res_slice.len())])
+    Some(std::borrow::Cow::Borrowed(
+        &res_slice[..(len.max(0) as usize).min(res_slice.len())],
+    ))
 }
 
 fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut CursorPos) -> bool {
     let ins_buf_ref = st.ins_buf.clone();
-    let mut matched_slice: Option<&[u8]> = None;
+    let mut matched_slice: Option<std::borrow::Cow<'_, [u8]>> = None;
     let mut len: i32 = 0;
     let in_fuzzy_collect =
         !compl_status_adding() && cot_fuzzy() && INSEXPAND.with(|s| s.compl_length.get()) > 0;
@@ -4812,7 +4793,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 &mut matched_line,
                 &mut score,
             );
-            matched_slice = Some(matched_line);
+            matched_slice = Some(std::borrow::Cow::Borrowed(matched_line));
         } else if ctrl_x_mode_whole_line()
             || ctrl_x_mode_eval()
             || (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_SOL) != 0
@@ -4888,9 +4869,10 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 &mut cont_s_ipos,
             );
         }
-        let Some(m_slice) = matched_slice else {
+        let Some(ref m_slice) = matched_slice else {
             continue;
         };
+        let m_slice: &[u8] = m_slice.as_ref();
         if ins_compl_has_preinsert()
             && crate::memory::bytes_until_nul(m_slice) == ins_compl_leader_str().as_bytes()
         {
@@ -5795,7 +5777,7 @@ fn ins_compl_show_filename() {
             },
             s,
         );
-        msg(g_st().iobuff_cstr(), 0);
+        msg(&g_st().iobuff_cstr(), 0);
         g_st().msg_hist_off.set(false);
         g_st().redraw_cmdline.set(false);
     }

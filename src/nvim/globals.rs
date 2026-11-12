@@ -854,10 +854,11 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn iobuff_cstr(&self) -> std::ffi::CString {
         let b = self.iobuff.borrow();
-        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
-        crate::option_vars::intern_opt_cstr(c)
+        std::ffi::CStr::from_bytes_until_nul(&*b)
+            .unwrap_or(c"")
+            .to_owned()
     }
 
     #[inline(always)]
@@ -866,10 +867,11 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn name_buff_cstr(&self) -> std::ffi::CString {
         let b = self.name_buff.borrow();
-        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
-        crate::option_vars::intern_opt_cstr(c)
+        std::ffi::CStr::from_bytes_until_nul(&*b)
+            .unwrap_or(c"")
+            .to_owned()
     }
 
     #[inline(always)]
@@ -883,10 +885,11 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub fn msg_buf_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn msg_buf_cstr(&self) -> std::ffi::CString {
         let b = self.msg_buf.borrow();
-        let c = std::ffi::CStr::from_bytes_until_nul(&*b).unwrap_or(c"");
-        crate::option_vars::intern_opt_cstr(c)
+        std::ffi::CStr::from_bytes_until_nul(&*b)
+            .unwrap_or(c"")
+            .to_owned()
     }
 }
 

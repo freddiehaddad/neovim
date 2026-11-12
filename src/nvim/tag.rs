@@ -868,10 +868,10 @@ pub fn do_tag(
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
                         {
-                            msg(iobuf_cstr, if ic { HLF_W } else { 0 });
+                            msg(&iobuf_cstr, if ic { HLF_W } else { 0 });
                             g_st().msg_scroll.set(1);
                         } else {
-                            give_warning(iobuf_cstr, ic, true);
+                            give_warning(&iobuf_cstr, ic, true);
                         }
                         if ic && g_st().msg_scrolled.get() == 0 && g_st().msg_silent.get() == 0 {
                             msg_delay(1007, true);
@@ -885,7 +885,7 @@ pub fn do_tag(
                     );
                     set_vim_var_string(
                         VV_SWAPCOMMAND,
-                        Some(g_st().iobuff_cstr()),
+                        Some(&g_st().iobuff_cstr()),
                         iobufflen as isize,
                     );
 
@@ -1112,7 +1112,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             Some(&curwin_mut()),
             Some(&list),
             b' ' as i32,
-            Some(g_st().iobuff_cstr()),
+            Some(&g_st().iobuff_cstr()),
             None,
         );
 
@@ -1156,7 +1156,7 @@ pub fn do_tags(_eap: &mut Exarg) {
                 tagname,
                 entry.fmark.mark.lnum,
             );
-            msg_outtrans(g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
             msg_outtrans(
                 &name,
                 if entry.fmark.fnum == curbuf_mut().b_fnum.get() {

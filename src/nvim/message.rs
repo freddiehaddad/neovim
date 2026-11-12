@@ -254,7 +254,7 @@ macro_rules! smsg {
                 }
             }
             $crate::message::msg(
-                $crate::globals::g_st().iobuff_cstr(),
+                &$crate::globals::g_st().iobuff_cstr(),
                 hl,
             )
         }
@@ -280,7 +280,7 @@ macro_rules! smsg_keep {
                 }
             }
             $crate::message::msg_keep(
-                $crate::globals::g_st().iobuff_cstr(),
+                &$crate::globals::g_st().iobuff_cstr(),
                 hl,
                 true,
                 false,
@@ -362,7 +362,7 @@ macro_rules! msg_schedule_semsg {
                 }
             }
             $crate::message::msg_schedule_semsg_cstr(
-                $crate::globals::g_st().iobuff_cstr(),
+                &$crate::globals::g_st().iobuff_cstr(),
             );
         }
     }};
@@ -386,7 +386,7 @@ macro_rules! msg_schedule_semsg_multiline {
                 }
             }
             $crate::message::msg_schedule_semsg_multiline_cstr(
-                $crate::globals::g_st().iobuff_cstr(),
+                &$crate::globals::g_st().iobuff_cstr(),
             );
         }
     }};
@@ -411,7 +411,7 @@ macro_rules! swmsg {
                 }
             }
             $crate::message::give_warning(
-                $crate::globals::g_st().iobuff_cstr(),
+                &$crate::globals::g_st().iobuff_cstr(),
                 hl_val,
                 true,
             );
@@ -2116,8 +2116,8 @@ pub fn msgmore(n: i32) {
             );
         }
         let msg_cstr = g_st().msg_buf_cstr();
-        if msg(msg_cstr, 0) {
-            set_keep_msg(Some(msg_cstr), 0);
+        if msg(&msg_cstr, 0) {
+            set_keep_msg(Some(&msg_cstr), 0);
             MSG_STATE.with(|s| s.keep_msg_more.set(true));
         }
     }

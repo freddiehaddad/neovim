@@ -2872,6 +2872,7 @@ fn showmatches_oneline(
             msg_putchar(b' ' as i32);
         }
         let isdir: bool;
+        let nb_owned: std::ffi::CString;
         let p_cstr: &CStr;
         if xp.xp_context == EXPAND_FILES
             || xp.xp_context == EXPAND_SHELLCMD
@@ -2894,7 +2895,8 @@ fn showmatches_oneline(
                     &mut *g_st().name_buff_bytes_mut(),
                     true,
                 );
-                p_cstr = g_st().name_buff_cstr();
+                nb_owned = g_st().name_buff_cstr();
+                p_cstr = &nb_owned;
             }
         } else {
             isdir = false;
@@ -3000,7 +3002,7 @@ pub fn showmatches(
                     &mut *g_st().name_buff_bytes_mut(),
                     true,
                 );
-                vim_strsize(g_st().name_buff_cstr())
+                vim_strsize(&g_st().name_buff_cstr())
             } else {
                 vim_strsize(show_match(matches, i, showtail))
             };
@@ -4539,7 +4541,7 @@ fn get_breakadd_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments for ":scriptnames".
-fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_scriptnames_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if !script_id_valid(idx + 1) {
         return None;
     }
@@ -4551,7 +4553,8 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         &mut *g_st().name_buff_bytes_mut(),
         true,
     );
-    Some(g_st().name_buff_cstr())
+    let item = crate::memory::cstring_until_nul(&*g_st().name_buff.borrow());
+    Some(xp.set_item(item))
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
@@ -4569,7 +4572,7 @@ fn get_mapclear_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 /// Completion for |:checkhealth| command.
-fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_healthcheck_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let prompt_id = get_cmdline_last_prompt_id();
     if CMDEXP_STATE.with(|s| s.healthcheck_last_gen.get()) != prompt_id
         || CMDEXP_STATE.with(|s| s.healthcheck_last_gen.get()) == 0
@@ -4606,18 +4609,18 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             .array();
         let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            crate::memory::copy_bytes_to_c_buf(
-                &mut *g_st().name_buff_bytes_mut(),
-                item.data.as_bytes(),
-            );
-            return Some(g_st().name_buff_cstr());
+            return Some(xp.set_item(crate::memory::bytes_to_cstring(item.data.as_bytes())));
         }
     }
     None
 }
 
 /// Completes arg1 via Lua.
-fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_arg1_from_lua<'a>(
+    lua: &std::ffi::CStr,
+    xp: &'a mut ExpandCtx,
+    idx: i32,
+) -> Option<&'a CStr> {
     let prompt_id = get_cmdline_last_prompt_id();
     let xp_line_bytes = xp.xp_line.as_bytes();
 
@@ -4668,21 +4671,17 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         let names = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array();
         let item = &names[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            crate::memory::copy_bytes_to_c_buf(
-                &mut *g_st().name_buff_bytes_mut(),
-                item.data.as_bytes(),
-            );
-            return Some(g_st().name_buff_cstr());
+            return Some(xp.set_item(crate::memory::bytes_to_cstring(item.data.as_bytes())));
         }
     }
     None
 }
 
-fn get_marks_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_marks_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     get_arg1_from_lua(c"return require'vim._core.marks'.complete(...)", xp, idx)
 }
 
-fn get_log_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_log_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     get_arg1_from_lua(
         c"return require'vim._core.ex_cmd'.log_complete(...)",
         xp,
@@ -4690,7 +4689,7 @@ fn get_log_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     )
 }
 
-fn get_lsp_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_lsp_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     get_arg1_from_lua(
         c"return require'vim._core.ex_cmd'.lsp_complete(...)",
         xp,
@@ -4698,7 +4697,7 @@ fn get_lsp_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     )
 }
 
-fn get_packdel_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_packdel_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     get_arg1_from_lua(
         c"return require'vim._core.ex_cmd'.packdel_complete(...)",
         xp,
@@ -4706,7 +4705,7 @@ fn get_packdel_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     )
 }
 
-fn get_packupdate_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+fn get_packupdate_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     get_arg1_from_lua(
         c"return require'vim._core.ex_cmd'.packupdate_complete(...)",
         xp,

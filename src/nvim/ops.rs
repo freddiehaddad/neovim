@@ -314,7 +314,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             op,
             amount,
         );
-        msg_keep(g_st().iobuff_cstr(), 0, true, false);
+        msg_keep(&g_st().iobuff_cstr(), 0, true, false);
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -3301,7 +3301,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 msg_start();
                 g_st().msg_scroll.set(1);
             }
-            msg(g_st().iobuff_cstr(), 0);
+            msg(&g_st().iobuff_cstr(), 0);
             opt_vars().p_shm.set(p);
         }
     }

@@ -938,7 +938,7 @@ fn ui_ext_tabline_update() {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(arena_string(
                     &mut arena,
-                    cstr_as_string(Some(g_st().name_buff_cstr())),
+                    cstr_as_string(Some(&g_st().name_buff_cstr())),
                 )),
             },
         );
@@ -988,7 +988,7 @@ fn ui_ext_tabline_update() {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(arena_string(
                         &mut arena,
-                        cstr_as_string(Some(g_st().name_buff_cstr())),
+                        cstr_as_string(Some(&g_st().name_buff_cstr())),
                     )),
                 },
             );
@@ -1112,7 +1112,7 @@ pub fn draw_tabline() {
 
                     grid_line_puts(
                         col,
-                        g_st().name_buff_cstr(),
+                        &g_st().name_buff_cstr(),
                         len,
                         hl_combine_attr(attr, win_hl_attr(cwp.borrow_mut(), HLF_T)),
                     );
@@ -1133,8 +1133,8 @@ pub fn draw_tabline() {
 
                 shorten_dir(&mut *g_st().name_buff_bytes_mut());
                 let name_cstr = g_st().name_buff_cstr();
-                let mut len = vim_strsize(name_cstr);
-                let mut p_cstr = name_cstr;
+                let mut len = vim_strsize(&name_cstr);
+                let mut p_cstr: &CStr = &name_cstr;
                 while len > room {
                     let b = p_cstr.to_bytes();
                     len -= ptr2cells(b);
@@ -2035,10 +2035,12 @@ pub fn build_stl_str_hl_slice(
                     );
                 }
                 trans_characters(&mut *g_st().name_buff_bytes_mut());
+                owned_str = Some(g_st().name_buff_cstr());
+                let nb_cstr = owned_str.as_deref().unwrap();
                 if opt != STL_FILENAME {
-                    str_slice = Some(g_st().name_buff_cstr().to_bytes_with_nul());
+                    str_slice = Some(nb_cstr.to_bytes_with_nul());
                 } else {
-                    str_slice = Some(path_tail(g_st().name_buff_cstr()).to_bytes_with_nul());
+                    str_slice = Some(path_tail(nb_cstr).to_bytes_with_nul());
                 }
             }
             STL_VIM_EXPR => {

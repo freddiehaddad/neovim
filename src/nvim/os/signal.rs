@@ -272,7 +272,7 @@ fn deadly_signal(signum: i32) -> ! {
     }
 
     // Preserve files and exit.
-    preserve_exit(Some(g_st().iobuff_cstr()));
+    preserve_exit(Some(&g_st().iobuff_cstr()));
 }
 
 pub(crate) fn on_signal(signum: i32) {

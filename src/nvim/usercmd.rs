@@ -756,7 +756,7 @@ fn uc_list(name_prefix: &[u8]) {
 
                     iobuff[len] = 0;
                 }
-                msg_outtrans(g_st().iobuff_cstr(), 0, false);
+                msg_outtrans(&g_st().iobuff_cstr(), 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);

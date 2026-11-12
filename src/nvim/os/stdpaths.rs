@@ -72,11 +72,12 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 ];
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
-pub fn get_appname(namelike: bool) -> &'static CStr {
+pub fn get_appname(namelike: bool) -> std::borrow::Cow<'static, CStr> {
     let mut name_buff = g_st().name_buff_bytes_mut();
     let env_val = os_getenv_buf(c"NVIM_APPNAME", &mut *name_buff);
     if env_val.is_none() {
         name_buff[..5].copy_from_slice(b"nvim\0");
+        return std::borrow::Cow::Borrowed(c"nvim");
     }
     #[cfg(windows)]
     path_to_slash(&mut *name_buff);
@@ -91,7 +92,7 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
         }
     }
     let c = CStr::from_bytes_until_nul(&*name_buff).unwrap_or(c"nvim");
-    crate::option_vars::intern_opt_cstr(c)
+    std::borrow::Cow::Owned(c.to_owned())
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
@@ -206,7 +207,8 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     let dir = stdpaths_get_xdg_var(idx)?;
 
-    let appname_bytes = get_appname(false).to_bytes();
+    let appname = get_appname(false);
+    let appname_bytes = appname.to_bytes();
     let mut suffix = Vec::with_capacity(appname_bytes.len() + 6);
     suffix.extend_from_slice(appname_bytes);
     #[cfg(target_os = "windows")]

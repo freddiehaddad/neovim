@@ -3358,7 +3358,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         msg_putchar(b'\n' as i32);
     }
     msg_outtrans(
-        g_st().iobuff_cstr(),
+        &g_st().iobuff_cstr(),
         if cursel {
             HLF_QFL
         } else {
@@ -6981,17 +6981,17 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         return;
     };
 
-    let qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
-    let mut qf_title: &CStr = &qf_title_cstr;
+    let mut qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
     if let Some(buf_sfname) = buf.sfname_opt() {
         format_to_buf!(
             &mut *g_st().iobuff.borrow_mut(),
             c"%s (%s)",
-            qf_title,
+            &qf_title_cstr,
             buf_sfname
         );
-        qf_title = g_st().iobuff_cstr();
+        qf_title_cstr = g_st().iobuff_cstr();
     }
+    let qf_title: &CStr = &qf_title_cstr;
 
     incr_quickfix_busy();
 
@@ -7163,9 +7163,9 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
     let mut lnum: Linenr = 1;
     while !vim_fgets(&mut *g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int.get() {
         let orig_cstr = g_st().iobuff_cstr();
-        if vim_regexec(p_regmatch, orig_cstr, 0) {
-            let start_off = p_regmatch.start_offset(0, orig_cstr);
-            let end_off = p_regmatch.end_offset(0, orig_cstr);
+        if vim_regexec(p_regmatch, &orig_cstr, 0) {
+            let start_off = p_regmatch.start_offset(0, &orig_cstr);
+            let end_off = p_regmatch.end_offset(0, &orig_cstr);
             let mut l = orig_cstr.to_bytes().len();
             while l > 0 && g_st().iobuff.borrow()[l - 1] <= b' ' {
                 l -= 1;
@@ -7179,7 +7179,7 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 Some(fname),
                 None,
                 0,
-                line_cstr,
+                &line_cstr,
                 lnum,
                 0,
                 (start_off as i32) + 1,
