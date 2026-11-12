@@ -1009,7 +1009,7 @@ pub fn nvim_buf_set_extmark(
                 let mut dummig: i32 = 0;
                 let jtem = parse_virt_text(item.data.array(), err, Some(&mut dummig), false);
                 virt_lines.data.virt_lines_mut().push(VirtLine {
-                    line: jtem,
+                    line: std::rc::Rc::new(jtem),
                     flags: virt_lines_flags,
                     overflow: virt_lines_overflow,
                 });
@@ -1651,7 +1651,7 @@ pub fn parse_virt_text(
             w += mb_string2cells(text_cstr.as_bytes()) as i32;
 
             virt_text.push(VirtTextChunk {
-                text: Some(text_cstr),
+                text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
                 hl_id,
             });
         }

@@ -1550,7 +1550,9 @@ fn win_update(wp: &WinInfoInfo) {
                 next: crate::decoration::DecorVirtId::NULL,
             };
             vt.data.virt_text_mut().push(VirtTextChunk {
-                text: Some(c"[Process suspended]".to_owned()),
+                text: Some(crate::option_vars::RcCStr::from_static(
+                    c"[Process suspended]",
+                )),
                 hl_id: -1,
             });
             susp_vt = crate::decoration::decor_put_vt(vt, crate::decoration::DecorVirtId::NULL);

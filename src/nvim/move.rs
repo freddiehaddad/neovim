@@ -57,6 +57,8 @@ struct Lineoff {
     lnum: Linenr,
     fill: i32,
     height: i32,
+    fill_lnum: Linenr,
+    fill_max: i32,
 }
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.
@@ -412,6 +414,8 @@ pub fn update_topline(wp: &WinInfoInfo) {
                         lnum: wp.w_cursor.get().lnum,
                         fill: 0,
                         height: 0,
+                        fill_lnum: 0,
+                        fill_max: 0,
                     };
                     let mut n = if eof_pressure {
                         0
@@ -512,6 +516,8 @@ fn check_top_offset(wp: &WinInfoInfo) -> bool {
             lnum: wp.w_cursor.get().lnum,
             fill: 0,
             height: 0,
+            fill_lnum: 0,
+            fill_max: 0,
         };
         let mut n = i64::from(wp.w_topfill.get());
         while n < so {
@@ -1910,12 +1916,17 @@ pub fn scrollup_clamp() {
 }
 
 fn topline_back_winheight(wp: &WinInfoInfo, lp: &mut Lineoff, winheight: bool) {
-    if lp.fill < win_get_fill(wp, lp.lnum) {
+    if lp.fill_lnum != lp.lnum {
+        lp.fill_lnum = lp.lnum;
+        lp.fill_max = win_get_fill(wp, lp.lnum);
+    }
+    if lp.fill < lp.fill_max {
         lp.fill += 1;
         lp.height = 1;
     } else {
         lp.lnum -= 1;
         lp.fill = 0;
+        lp.fill_lnum = 0;
         if lp.lnum < 1 {
             lp.height = MAXCOL;
         } else if has_folding(wp, lp.lnum, Some(&mut lp.lnum), None) {
@@ -1931,12 +1942,17 @@ fn topline_back(wp: &WinInfoInfo, lp: &mut Lineoff) {
 }
 
 fn botline_forw(wp: &WinInfoInfo, lp: &mut Lineoff) {
-    if lp.fill < win_get_fill(wp, lp.lnum + 1) {
+    if lp.fill_lnum != lp.lnum + 1 {
+        lp.fill_lnum = lp.lnum + 1;
+        lp.fill_max = win_get_fill(wp, lp.lnum + 1);
+    }
+    if lp.fill < lp.fill_max {
         lp.fill += 1;
         lp.height = 1;
     } else {
         lp.lnum += 1;
         lp.fill = 0;
+        lp.fill_lnum = 0;
         if lp.lnum > wp.buf_mut().b_ml.ml_line_count.get() {
             lp.height = MAXCOL;
         } else if has_folding(wp, lp.lnum, None, Some(&mut lp.lnum)) {
@@ -2284,11 +2300,15 @@ pub fn scroll_cursor_halfway(wp: &WinInfoInfo, atend: bool, prefer_above: bool) 
         lnum: wp.w_cursor.get().lnum,
         fill: 0,
         height: 0,
+        fill_lnum: 0,
+        fill_max: 0,
     };
     let mut boff = Lineoff {
         lnum: wp.w_cursor.get().lnum,
         fill: 0,
         height: 0,
+        fill_lnum: 0,
+        fill_max: 0,
     };
     let lnum = loff.lnum;
     has_folding(wp, lnum, Some(&mut loff.lnum), Some(&mut boff.lnum));
@@ -2508,6 +2528,8 @@ fn get_scroll_overlap(dir: Direction) -> i32 {
         } else {
             plines_win_nofill(&curwin_mut(), lnum, true)
         },
+        fill_lnum: 0,
+        fill_max: 0,
     };
 
     let h1 = loff.height;

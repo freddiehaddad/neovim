@@ -20,7 +20,6 @@ use crate::lua::converter::{
     luaL_checkstring, luaL_checkudata_opt_typed, luaL_checkudata_typed, luaL_error_cstr,
     luaL_error_cstr_arg, luaL_error_str, luaL_newmetatable, luaL_ref_safe, nlua_gettop,
 };
-use crate::memline::{ml_get_buf_len, ml_get_buf_slice};
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::os::dl::{DlLoadError, os_dlopen_ts_language};
 use crate::strings::format_to_buf;
@@ -418,15 +417,18 @@ fn input_cb(bp: &FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32 {
         return 0;
     }
     let lnum = (position.row as Linenr) + 1;
-    let len = ml_get_buf_len(bp, lnum) as usize;
     let col = position.column as usize;
-    if col > len {
+    let (tocopy, ok) = crate::memline::with_ml_buf_line(bp, lnum, |line_slice| {
+        if col > line_slice.len() {
+            return (0, false);
+        }
+        let tocopy = (line_slice.len() - col).min(BUFSIZE);
+        buf[..tocopy].copy_from_slice(&line_slice[col..col + tocopy]);
+        (tocopy, true)
+    });
+    if !ok {
         return 0;
     }
-    let tocopy = (len - col).min(BUFSIZE);
-
-    let line_slice = ml_get_buf_slice(bp, lnum);
-    buf[..tocopy].copy_from_slice(&line_slice[col..col + tocopy]);
     for b in &mut buf[..tocopy] {
         if *b == b'\n' {
             *b = 0;

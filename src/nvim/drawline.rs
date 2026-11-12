@@ -510,7 +510,7 @@ fn draw_virt_text_item(
     eol_hl &= vt
         .last()
         .and_then(|c| c.text.as_ref())
-        .is_some_and(|s| s.as_bytes().is_empty());
+        .is_some_and(|s| s.to_bytes().is_empty());
 
     let mut ci = StrCharInfo {
         ptr: b"",
@@ -1325,11 +1325,11 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
 fn win_line_start(wp: &WinInfoInfo, wlv: &mut Winlinevars) {
     wlv.col = 0;
     wlv.off = 0;
-    for i in 0..wp.w_view_width.get() as usize {
-        g_st().linebuf_char.borrow_mut()[i] = schar_from_ascii(b' ');
-        g_st().linebuf_attr.borrow_mut()[i] = 0;
-        g_st().linebuf_vcol.borrow_mut()[i] = -1;
-    }
+    let width = wp.w_view_width.get() as usize;
+    let st = g_st();
+    st.linebuf_char.borrow_mut()[..width].fill(schar_from_ascii(b' '));
+    st.linebuf_attr.borrow_mut()[..width].fill(0);
+    st.linebuf_vcol.borrow_mut()[..width].fill(-1);
 }
 
 fn fix_for_boguscols(wlv: &mut Winlinevars) {
@@ -1964,6 +1964,13 @@ pub fn win_line(
             &line_cstr[off..]
         }};
     }
+    macro_rules! ptr_slice {
+        ($p:expr) => {{
+            let bytes = line_cstr.to_bytes();
+            let off = (($p as usize).saturating_sub(line as usize)).min(bytes.len());
+            &bytes[off..]
+        }};
+    }
     macro_rules! ptr_byte {
         ($p:expr) => {{
             let off = (($p as usize).saturating_sub(line as usize)).min(line_cstr.to_bytes().len());
@@ -2091,9 +2098,10 @@ pub fn win_line(
         wlv.fromcol = -1;
     }
 
+    let mut has_search_hl = false;
     if col_rows == 0 && draw_text && !has_foldtext {
         let v = ((ptr as isize) - (line as isize)) as i32;
-        area_highlighting |= prepare_search_hl_line(
+        has_search_hl = prepare_search_hl_line(
             wp,
             lnum,
             v,
@@ -2101,15 +2109,18 @@ pub fn win_line(
             &mut search_attr,
             &mut search_attr_from_match,
         );
-        line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-        line = line_cstr.as_ptr().cast_mut();
-        ptr = line.wrapping_add(v as usize);
+        area_highlighting |= has_search_hl;
+        if buf.b_ml.ml_line_lnum.get() != lnum {
+            line_cstr = ml_get_buf(&buf, lnum);
+            line = line_cstr.as_ptr().cast_mut();
+            ptr = line.wrapping_add(v as usize);
+        }
     }
 
-    if (g_st().state_global.get() & MODE_INSERT) != 0
+    let has_ins_compl = (g_st().state_global.get() & MODE_INSERT) != 0
         && ins_compl_win_active(wp)
-        && (in_curline || ins_compl_lnum_in_range(lnum))
-    {
+        && (in_curline || ins_compl_lnum_in_range(lnum));
+    if has_ins_compl {
         area_highlighting = true;
     }
 
@@ -2118,12 +2129,9 @@ pub fn win_line(
     let mut leftcols_width: i32 = 0;
 
     let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
-    if !wp.buf_mut().terminal.get().is_null() {
-        terminal_get_line_attributes(
-            wp.buf_mut().terminal.get().borrow_mut(),
-            lnum,
-            &mut term_attrs,
-        );
+    let has_terminal = !buf.terminal.get().is_null();
+    if has_terminal {
+        terminal_get_line_attributes(buf.terminal.get().borrow_mut(), lnum, &mut term_attrs);
 
         extra_check = true;
     }
@@ -2400,31 +2408,33 @@ pub fn win_line(
                     area_active = false;
                 }
 
-                if !has_foldtext && wlv.n_extra == 0 {
-                    let v = ((ptr as isize) - (line as isize)) as i32;
-                    search_attr = update_search_hl(
-                        wp,
-                        lnum,
-                        v,
-                        &mut g_st().screen_search_hl.borrow_mut(),
-                        &mut has_match_conc,
-                        &mut match_conc,
-                        lcs_eol_todo,
-                        &mut on_last_col,
-                        &mut search_attr_from_match,
-                    );
-                    line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-                    line = line_cstr.as_ptr().cast_mut();
-                    ptr = line.wrapping_add(v as usize);
+                if !has_foldtext && wlv.n_extra == 0 && (has_search_hl || has_ins_compl) {
+                    if has_search_hl {
+                        let v = ((ptr as isize) - (line as isize)) as i32;
+                        search_attr = update_search_hl(
+                            wp,
+                            lnum,
+                            v,
+                            &mut g_st().screen_search_hl.borrow_mut(),
+                            &mut has_match_conc,
+                            &mut match_conc,
+                            lcs_eol_todo,
+                            &mut on_last_col,
+                            &mut search_attr_from_match,
+                        );
+                        line_cstr = ml_get_buf(&buf, lnum);
+                        line = line_cstr.as_ptr().cast_mut();
+                        ptr = line.wrapping_add(v as usize);
 
-                    if ptr_byte!(ptr) == 0 {
-                        has_match_conc = 0;
+                        if ptr_byte!(ptr) == 0 {
+                            has_match_conc = 0;
+                        }
+                    } else {
+                        search_attr = 0;
+                        search_attr_from_match = false;
                     }
 
-                    if (g_st().state_global.get() & MODE_INSERT) != 0
-                        && ins_compl_win_active(wp)
-                        && (in_curline || ins_compl_lnum_in_range(lnum))
-                    {
+                    if has_ins_compl {
                         let ins_match_attr = ins_compl_col_range_attr(
                             lnum,
                             ((ptr as isize) - (line as isize)) as i32,
@@ -2616,7 +2626,7 @@ pub fn win_line(
                     wlv.skip_cells = 0;
                 }
 
-                let ci = utf_ptr2_str_char_info(ptr_cstr!(ptr));
+                let ci = crate::mbyte::utf_slice2_str_char_info(ptr_slice!(ptr));
                 let cli = utf_cluster_info(ci);
                 let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                 let mb_c = ci.chr.value;
@@ -2740,10 +2750,12 @@ pub fn win_line(
                             has_syntax = false;
                         }
 
-                        line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-                        line = line_cstr.as_ptr().cast_mut();
-                        ptr = line.wrapping_add(v as usize);
-                        prev_ptr = line.wrapping_offset(prev_v);
+                        if buf.b_ml.ml_line_lnum.get() != lnum {
+                            line_cstr = ml_get_buf(&buf, lnum);
+                            line = line_cstr.as_ptr().cast_mut();
+                            ptr = line.wrapping_add(v as usize);
+                            prev_ptr = line.wrapping_offset(prev_v);
+                        }
 
                         syntax_flags = if mb_schar == 0 {
                             0
@@ -2828,7 +2840,7 @@ pub fn win_line(
                         wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
                     }
 
-                    if !wp.buf_mut().terminal.get().is_null() {
+                    if has_terminal {
                         wlv.char_attr = hl_combine_attr(
                             if (wlv.vcol as usize) < TERM_ATTRS_MAX {
                                 term_attrs[wlv.vcol as usize]
@@ -2873,7 +2885,7 @@ pub fn win_line(
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
-                            let lbr_ci = utf_ptr2_str_char_info(ptr_cstr!(p));
+                            let lbr_ci = crate::mbyte::utf_slice2_str_char_info(ptr_slice!(p));
                             let lbr_cli = utf_cluster_info(lbr_ci);
                             let lbr_size = win_charsize(
                                 cstype,
@@ -3372,11 +3384,12 @@ pub fn win_line(
             }
 
             if mb_schar == 0 && eol_hl_off == 0 {
-                let prevcol_hl_flag = get_prevcol_hl_flag(
-                    wp,
-                    &mut g_st().screen_search_hl.borrow_mut(),
-                    (((ptr as isize) - (line as isize)) as Colnr) - 1,
-                );
+                let prevcol_hl_flag = has_search_hl
+                    && get_prevcol_hl_flag(
+                        wp,
+                        &mut g_st().screen_search_hl.borrow_mut(),
+                        (((ptr as isize) - (line as isize)) as Colnr) - 1,
+                    );
 
                 if lcs_eol_todo
                     && ((area_attr != 0

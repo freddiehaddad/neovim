@@ -425,6 +425,15 @@ impl OptString {
     }
 
     #[inline(always)]
+    pub fn byte_at(&self, idx: usize) -> u8 {
+        self.0.with(|opt| {
+            opt.as_ref()
+                .and_then(|s| s.to_bytes().get(idx).copied())
+                .unwrap_or(0)
+        })
+    }
+
+    #[inline(always)]
     pub fn as_ptr(&self) -> *const std::ffi::c_char {
         self.0.with(|opt| opt.as_deref().unwrap_or(c"").as_ptr())
     }

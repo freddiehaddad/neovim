@@ -1361,7 +1361,7 @@ pub fn parse_bordertext(
         *width = mb_string2cells(text_cstr.as_bytes()) as i32;
         chunks.clear();
         chunks.push(VirtTextChunk {
-            text: Some(text_cstr),
+            text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
             hl_id: -1,
         });
     } else {

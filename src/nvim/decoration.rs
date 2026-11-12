@@ -328,7 +328,7 @@ impl DecorInline {
 #[repr(C)]
 #[derive(Clone)]
 pub struct VirtTextChunk {
-    pub text: Option<std::ffi::CString>,
+    pub text: Option<crate::option_vars::RcCStr>,
     pub hl_id: i32,
 }
 
@@ -337,7 +337,7 @@ pub type VirtText = Vec<VirtTextChunk>;
 #[repr(C)]
 #[derive(Clone)]
 pub struct VirtLine {
-    pub line: VirtText,
+    pub line: std::rc::Rc<VirtText>,
     pub flags: i32,
     pub overflow: VirtLineOverflow,
 }
@@ -360,11 +360,10 @@ impl DecorVirtTextData {
     }
 
     #[inline]
-    pub fn virt_text(&self) -> &VirtText {
-        static EMPTY: VirtText = Vec::new();
+    pub fn virt_text(&self) -> &[VirtTextChunk] {
         match self {
             Self::VirtText(vt) => vt,
-            Self::VirtLines(_) => &EMPTY,
+            Self::VirtLines(_) => &[],
         }
     }
 
@@ -380,11 +379,10 @@ impl DecorVirtTextData {
     }
 
     #[inline]
-    pub fn virt_lines(&self) -> &VirtLines {
-        static EMPTY: VirtLines = Vec::new();
+    pub fn virt_lines(&self) -> &[VirtLine] {
         match self {
             Self::VirtLines(vl) => vl,
-            Self::VirtText(_) => &EMPTY,
+            Self::VirtText(_) => &[],
         }
     }
 
@@ -1503,8 +1501,8 @@ pub fn decor_row_has_conceal(wp: &WinInfoInfo, row: i32) -> bool {
 
 pub fn decor_conceal_line(wp: &WinInfoInfo, row: i32, check_cursor: bool) -> bool {
     if row < 0
-        || row >= wp.buf_mut().b_ml.ml_line_count.get()
         || wp.w_onebuf_opt.wo_cole.get() < 2
+        || row >= wp.with_buf(|buf| buf.b_ml.ml_line_count.get())
         || (!check_cursor
             && wp == curwin_ptr()
             && row + 1 == wp.w_cursor.get().lnum
@@ -1769,7 +1767,7 @@ pub fn decor_virt_line_rows(
     if row_width <= 0 {
         return 1;
     }
-    let vt = &vl.line;
+    let vt: &[VirtTextChunk] = &vl.line;
     let buf = wp.buf_mut();
     let mut vcol: i32 = 0;
     let mut row_cells: i32 = 0;
@@ -1778,7 +1776,7 @@ pub fn decor_virt_line_rows(
         let Some(ref text) = chunk.text else {
             continue;
         };
-        let bytes = text.as_bytes();
+        let bytes = text.to_bytes();
         let mut off = 0usize;
         while off < bytes.len() {
             let bytes_to_next_char = utfc_slice2len(&bytes[off..]);

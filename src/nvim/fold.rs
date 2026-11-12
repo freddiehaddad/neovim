@@ -160,10 +160,10 @@ pub fn copy_folding_state(wp_from: &WinInfoInfo, wp_to: &WinInfoInfo) {
 /// True if there may be folded lines in window `win`.
 pub fn has_any_folding(win: &WinInfoInfo) -> i32 {
     i32::from(
-        win.buf_mut().terminal.get().is_null()
-            && win.w_onebuf_opt.wo_fen.get()
+        win.w_onebuf_opt.wo_fen.get()
+            && (!foldmethod_is_manual(win) || !win.w_folds.borrow().is_empty())
             && !mc_replaying()
-            && (!foldmethod_is_manual(win) || !win.w_folds.borrow().is_empty()),
+            && win.with_buf(|buf| buf.terminal.get().is_null()),
     )
 }
 
@@ -321,7 +321,7 @@ pub fn fold_info(win: &WinInfoInfo, lnum: Linenr) -> Foldinfo {
 
 /// Return true if 'foldmethod' is "manual".
 pub fn foldmethod_is_manual(wp: &WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_fdm.as_bytes().get(3) == Some(&b'u')
+    wp.w_onebuf_opt.wo_fdm.byte_at(3) == b'u'
 }
 
 /// Return true if 'foldmethod' is "indent".
@@ -331,12 +331,12 @@ pub fn foldmethod_is_indent(wp: &WinInfoInfo) -> bool {
 
 /// Return true if 'foldmethod' is "expr".
 pub fn foldmethod_is_expr(wp: &WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_fdm.as_bytes().get(1) == Some(&b'x')
+    wp.w_onebuf_opt.wo_fdm.byte_at(1) == b'x'
 }
 
 /// Return true if 'foldmethod' is "marker".
 pub fn foldmethod_is_marker(wp: &WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_fdm.as_bytes().get(2) == Some(&b'r')
+    wp.w_onebuf_opt.wo_fdm.byte_at(2) == b'r'
 }
 
 /// Return true if 'foldmethod' is "syntax".
