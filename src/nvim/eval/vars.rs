@@ -3361,7 +3361,7 @@ fn opt_from_tv(tv: &mut TypVal, opt_idx: OptIndex, option: &CStr, error: &mut bo
     let option_has_num = !is_tty_opt && option_has_type(opt_idx, ObjectType::ObjectTypeInteger);
     let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::ObjectTypeString);
 
-    if !is_tty_opt && (get_option(opt_idx).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
+    if !is_tty_opt && (get_option(opt_idx).flags() & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
         let strval = encode_tv2string(tv, None);
         value = crate::api::private::helpers::cstr_to_obj(Some(&*strval));
     } else if option_has_bool || option_has_num {

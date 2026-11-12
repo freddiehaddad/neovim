@@ -455,7 +455,7 @@ pub fn nvim_option_to_object(
     }
 
     let option = get_option(opt_idx);
-    let flags = option.flags;
+    let flags = option.flags();
     let schema = option.schema;
     let str_cstr = value.data.as_cstr();
     let bytes = str_cstr.to_bytes();

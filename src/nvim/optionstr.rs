@@ -54,7 +54,6 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, vim_unsetenv_ext};
 use crate::regexp::{Regmatch, Regprog, vim_regexec};
-use crate::runtime::Sctx;
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
 };
@@ -455,12 +454,39 @@ pub type OptValidateCb = Option<for<'a> fn(&mut Optset<'a>) -> Option<&'a CStr>>
 pub type OptDidSetCb = Option<for<'a> fn(&mut Optset<'a>) -> Option<&'a CStr>>;
 pub type OptExpandCb = Option<fn(&mut Optexpand, &mut Vec<std::ffi::CString>) -> bool>;
 
+#[derive(Clone, Copy)]
+pub enum OptDefVal {
+    Boolean(bool),
+    Integer(i64),
+    String(&'static std::ffi::CStr),
+}
+
+impl OptDefVal {
+    #[inline]
+    pub const fn into_object(self) -> Object {
+        match self {
+            Self::Boolean(b) => Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(b),
+            },
+            Self::Integer(i) => Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(i),
+            },
+            Self::String(s) => Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(NvimString::from_static_cstr(s)),
+            },
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Vimoption {
     pub fullname: &'static std::ffi::CStr,
     pub shortname: Option<&'static std::ffi::CStr>,
-    pub flags: u32,
+    pub init_flags: u32,
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
     pub var: Option<fn() -> OptVar>,
@@ -472,8 +498,7 @@ pub struct Vimoption {
     pub opt_validate_cb: OptValidateCb,
     pub opt_did_set_cb: OptDidSetCb,
     pub opt_expand_cb: OptExpandCb,
-    pub def_val: Object,
-    pub script_ctx: Sctx,
+    pub init_def_val: OptDefVal,
 }
 
 impl Vimoption {
@@ -1210,7 +1235,7 @@ fn check_str_opt<'a>(
 ) -> Option<&'a CStr> {
     let opt = get_option(idx);
     let val_cstr = var_cstr.unwrap_or_else(|| opt.var().as_cstr());
-    let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
+    let list = (opt.flags() & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
     let mut new_flags = 0u32;
     let err = opt_strings_flags(
@@ -1246,7 +1271,7 @@ pub fn validate_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         value,
         opt_values(args.os_idx),
         None,
-        (opt.flags & K_OPT_FLAG_COMMA) != 0,
+        (opt.flags() & K_OPT_FLAG_COMMA) != 0,
         args.os_errbuf.take(),
     )
 }
