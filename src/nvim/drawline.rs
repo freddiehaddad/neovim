@@ -1409,20 +1409,20 @@ fn win_line_skip_columns(
 
     let mut vcol = wlv.vcol;
     let line_cstr = csarg.line.clone();
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
+    let line_bytes = line_cstr.to_bytes();
+    let mut ci = crate::mbyte::utf_slice2_str_char_info(line_bytes);
     while vcol - csarg.extconceal_off < start_vcol {
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
         prev_ptr = ci.ptr.as_ptr().cast();
-        let prev_idx = ci.offset_from(&line_cstr);
+        let prev_idx = ci.offset_from_bytes(line_bytes);
         if ci.is_empty() {
             break;
         }
         ci = cli.next;
         if wp.w_onebuf_opt.wo_list.get() {
-            let ci_off = ci.offset_from(&line_cstr);
-            let line_bytes = line_cstr.to_bytes();
+            let ci_off = ci.offset_from_bytes(line_bytes);
             *in_multispace = line_bytes.get(prev_idx) == Some(&b' ')
                 && (ci.first_byte() == b' '
                     || (prev_idx > 0 && line_bytes.get(prev_idx - 1) == Some(&b' ')));

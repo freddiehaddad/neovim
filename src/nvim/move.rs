@@ -1301,16 +1301,19 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// Convert a virtual (screen) column to a character column (1-based).
 fn virtcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
     let offset = vcol2col(wp, lnum, vcol - 1, None);
-    let line = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
-    let mut idx = (offset.max(0) as usize).min(line.len());
+    wp.with_buf(|buf| {
+        crate::memline::with_ml_buf_line(buf, lnum, |line| {
+            let mut idx = (offset.max(0) as usize).min(line.len());
 
-    if idx >= line.len() {
-        if idx == 0 {
-            return 0;
-        }
-        idx -= crate::mbyte::utf_head_off_slice(&line, idx - 1) as usize + 1;
-    }
-    idx as i32 + 1
+            if idx >= line.len() {
+                if idx == 0 {
+                    return 0;
+                }
+                idx -= crate::mbyte::utf_head_off_slice(line, idx - 1) as usize + 1;
+            }
+            idx as i32 + 1
+        })
+    })
 }
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.

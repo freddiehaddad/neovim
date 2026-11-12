@@ -169,7 +169,8 @@ fn grapheme_break_simple(lbc: u32, tbc: u32) -> bool {
     }
 }
 
-fn grapheme_break_extended(
+#[inline]
+pub(crate) fn grapheme_break_extended(
     lbc: u32,
     tbc: u32,
     licb: u32,

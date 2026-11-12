@@ -505,18 +505,16 @@ fn can_join(c1: i32, c2: i32) -> bool {
 }
 
 /// Check whether `two` could be an Arabic combining character (`arabic_maycombine`).
+#[inline]
 pub fn arabic_maycombine(two: i32) -> bool {
-    if arshape_enabled() {
-        matches!(
-            two as u32,
-            A_ALEF_MADDA | A_ALEF_HAMZA_ABOVE | A_ALEF_HAMZA_BELOW | A_ALEF
-        )
-    } else {
-        false
-    }
+    matches!(
+        two as u32,
+        A_ALEF_MADDA | A_ALEF_HAMZA_ABOVE | A_ALEF_HAMZA_BELOW | A_ALEF
+    ) && arshape_enabled()
 }
 
 /// Check whether `(one, two)` are Arabic combining characters (`arabic_combine`).
+#[inline]
 pub fn arabic_combine(one: i32, two: i32) -> bool {
     if one as u32 == A_LAM {
         arabic_maycombine(two)

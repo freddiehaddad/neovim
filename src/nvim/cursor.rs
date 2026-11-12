@@ -7,7 +7,7 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
-use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
+use crate::mbyte::{utf_cluster_info, utf_slice2_str_char_info};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_slice, ml_get_len, ml_get_pos_slice,
     ml_replace,
@@ -278,22 +278,30 @@ fn coladvance2(
             }
         }
 
-        let line_cstr = ml_get_buf(&wp.buf_mut(), pos.lnum);
-        let linelen = ml_get_buf_len(&wp.buf_mut(), pos.lnum);
-        let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, &line_cstr);
-        let mut ci = utf_ptr2_str_char_info(&line_cstr);
-        col = 0;
-        while col <= wcol && !ci.ptr.is_empty() {
-            let cli = utf_cluster_info(ci);
-            let cs: CharSize =
-                win_charsize(cstype, col, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
-            csize = cs.width;
-            head = cs.head;
-            col += cs.width;
-            ci = cli.next;
-        }
-        idx = ci.offset_from(&line_cstr) as i32;
+        (idx, col) = wp.with_buf(|buf| {
+            crate::memline::with_ml_buf_line(buf, pos.lnum, |line_bytes| {
+                let mut csarg = CharsizeArg::new();
+                let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line_bytes);
+                let mut ci = utf_slice2_str_char_info(line_bytes);
+                let mut cur_col = 0;
+                while cur_col <= wcol && !ci.ptr.is_empty() {
+                    let cli = utf_cluster_info(ci);
+                    let cs: CharSize = win_charsize(
+                        cstype,
+                        cur_col,
+                        ci.cstr(),
+                        ci.chr.value,
+                        &mut csarg,
+                        cli.cells,
+                    );
+                    csize = cs.width;
+                    head = cs.head;
+                    cur_col += cs.width;
+                    ci = cli.next;
+                }
+                (ci.offset_from_bytes(line_bytes) as i32, cur_col)
+            })
+        });
 
         if col > wcol || (!virtual_active(wp) && one_more == 0) {
             idx -= 1;
@@ -306,6 +314,8 @@ fn coladvance2(
             && wcol >= 0
             && ((col != wcol && col != wcol + 1) || csize > 1)
         {
+            let line_cstr = wp.with_buf(|buf| ml_get_buf(buf, pos.lnum));
+            let linelen = wp.with_buf(|buf| ml_get_buf_len(buf, pos.lnum));
             let line_bytes = line_cstr.to_bytes();
             if line_bytes.get(idx as usize..).is_none_or(<[u8]>::is_empty) {
                 let correct = wcol - col;
@@ -373,7 +383,7 @@ fn coladvance2(
         }
     }
 
-    mark_mb_adjustpos(&wp.buf_mut(), pos);
+    wp.with_buf(|buf| mark_mb_adjustpos(buf, pos));
 
     if wcol < 0 || col < wcol {
         return false;

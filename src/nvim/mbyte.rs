@@ -75,6 +75,11 @@ impl<'a> StrCharInfo<'a> {
     pub const fn offset_from(&self, base: &CStr) -> usize {
         base.to_bytes().len().saturating_sub(self.ptr.len())
     }
+
+    #[inline]
+    pub const fn offset_from_bytes(&self, base: &[u8]) -> usize {
+        base.len().saturating_sub(self.ptr.len())
+    }
 }
 
 #[repr(C)]
@@ -848,6 +853,8 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
     },
 ];
 
+static HAS_CW_TABLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 struct MbyteModuleState {
     cw_table: std::cell::RefCell<Vec<CwInterval>>,
     iconv_working: std::cell::Cell<WorkingStatus>,
@@ -888,13 +895,21 @@ const fn utf_is_trail_byte(byte: u8) -> bool {
 }
 
 #[inline]
-pub fn basechar_cells_impl(c: CharInfo) -> i32 {
+fn basechar_cells_and_compose(c: CharInfo) -> (i32, bool) {
     if c.value < 0 {
-        4
+        (4, false)
     } else if c.value < 0x80 {
-        ascii2cells(c.value)
+        (ascii2cells(c.value), false)
     } else {
-        utf_char2cells(c.value)
+        let prop = utf8proc_get_property(c.value);
+        let bc = prop.boundclass();
+        let fc = matches!(
+            bc,
+            crate::utf8proc::UTF8PROC_BOUNDCLASS_EXTEND
+                | crate::utf8proc::UTF8PROC_BOUNDCLASS_ZWJ
+                | UTF8PROC_BOUNDCLASS_SPACINGMARK
+        );
+        (utf_char2cells_with_prop(c.value, prop), fc)
     }
 }
 
@@ -1065,17 +1080,24 @@ impl AsMbyteSlice for crate::regexp::RegLineSlice {
 #[inline]
 pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
     bytes.with_char_bytes(|bytes| {
-        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-        if slice.is_empty() {
-            return CharInfo { value: 0, len: 1 };
+        let b0 = bytes.first().copied().unwrap_or(0);
+        if b0 < 0x80 {
+            return CharInfo {
+                value: i32::from(b0),
+                len: 1,
+            };
         }
-        utf_slice2_char_info(slice)
+        utf_slice2_char_info(bytes)
     })
 }
 
 #[inline]
 pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo<'_> {
-    let ptr = s.to_bytes();
+    utf_slice2_str_char_info(s.to_bytes())
+}
+
+#[inline]
+pub fn utf_slice2_str_char_info(ptr: &[u8]) -> StrCharInfo<'_> {
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info(ptr),
@@ -1089,9 +1111,13 @@ pub fn utf_ptr2_char_info_len(bytes: &[u8], size: i32) -> CharInfo {
         return CharInfo { value: -1, len: 1 };
     }
     let max_len = (size as usize).min(MB_MAXCHAR as usize).min(bytes.len());
-    let slice = crate::memory::bytes_until_nul(&bytes[..max_len]);
-    if slice.is_empty() {
-        return CharInfo { value: 0, len: 1 };
+    let slice = &bytes[..max_len];
+    let b0 = slice.first().copied().unwrap_or(0);
+    if b0 < 0x80 {
+        return CharInfo {
+            value: i32::from(b0),
+            len: 1,
+        };
     }
     utf_slice2_char_info(slice)
 }
@@ -1228,6 +1254,7 @@ pub fn utf_cluster_info(cur: StrCharInfo<'_>) -> ClusterInfo<'_> {
     let next = &cur.ptr[adv..];
     let next_b = next.first().copied().unwrap_or(0);
     if next_b < 0x80 {
+        let (cells, first_compose) = basechar_cells_and_compose(cur.chr);
         return ClusterInfo {
             next: StrCharInfo {
                 ptr: next,
@@ -1236,8 +1263,8 @@ pub fn utf_cluster_info(cur: StrCharInfo<'_>) -> ClusterInfo<'_> {
                     len: 1,
                 },
             },
-            cells: basechar_cells_impl(cur.chr),
-            first_compose: utf_iscomposing_first(cur.chr.value),
+            cells,
+            first_compose,
         };
     }
     let mut scratch = i32::MAX;
@@ -1255,6 +1282,7 @@ pub fn utf_cluster_info_len<'a>(cur: StrCharInfo<'a>, size: &mut i32) -> Cluster
         i32::from(nextptr.first().copied().unwrap_or(0))
     };
     if nextval < 0x80 {
+        let (cells, first_compose) = basechar_cells_and_compose(cur.chr);
         return ClusterInfo {
             next: StrCharInfo {
                 ptr: nextptr,
@@ -1263,8 +1291,8 @@ pub fn utf_cluster_info_len<'a>(cur: StrCharInfo<'a>, size: &mut i32) -> Cluster
                     len: 1,
                 },
             },
-            cells: basechar_cells_impl(cur.chr),
-            first_compose: utf_iscomposing_first(cur.chr.value),
+            cells,
+            first_compose,
         };
     }
     utf_cluster_info_impl(cur, size)
@@ -1346,11 +1374,8 @@ fn prop_is_emojilike(prop: &utf8proc_property_t) -> bool {
     bc == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC || bc == UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR
 }
 
-pub fn utf_char2cells(c: i32) -> i32 {
-    if c < 0x80 {
-        return 1;
-    }
-
+#[inline]
+fn utf_char2cells_with_prop(c: i32, prop: &utf8proc_property_t) -> i32 {
     if !vim_isprintc(c) {
         assert!(c <= 0xFFFF);
         return if c > 0xFF { 6 } else { 4 };
@@ -1361,26 +1386,29 @@ pub fn utf_char2cells(c: i32) -> i32 {
         return n;
     }
 
-    let prop = utf8proc_get_property(c);
     if prop.charwidth() == 2 {
         return 2;
     }
-    if !opt_vars().p_ambw.is_null()
-        && opt_vars().p_ambw.first_byte() == b'd'
-        && prop.ambiguous_width()
-    {
+    if prop.ambiguous_width() && opt_vars().p_ambw.first_byte() == b'd' {
         return 2;
     }
 
-    if opt_vars().p_emoji.get()
-        && c >= 0x1f000
+    if c >= 0x1f000
         && !prop.ambiguous_width()
         && prop_is_emojilike(prop)
+        && opt_vars().p_emoji.get()
     {
         return 2;
     }
 
     1
+}
+
+pub fn utf_char2cells(c: i32) -> i32 {
+    if c < 0x80 {
+        return 1;
+    }
+    utf_char2cells_with_prop(c, utf8proc_get_property(c))
 }
 
 #[inline]
@@ -1413,46 +1441,98 @@ pub fn mb_cslice2char_adv(s: &mut &[u8]) -> i32 {
 }
 
 pub fn ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
-    bytes.with_cluster_bytes(|bytes| slice2cells(crate::memory::bytes_until_nul(bytes)))
+    bytes.with_cluster_bytes(|bytes| {
+        if let Some(&b0) = bytes.first()
+            && b0 != 0
+            && b0 < 0x80
+            && bytes.get(1).is_none_or(|&b1| b1 < 0x80)
+        {
+            return ascii2cells(i32::from(b0));
+        }
+        let max_cluster = bytes.len().min(64);
+        slice2cells(crate::memory::bytes_until_nul(&bytes[..max_cluster]))
+    })
 }
 
 pub fn utf_ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
-    bytes.with_cluster_bytes(|bytes| utf_slice2cells(crate::memory::bytes_until_nul(bytes)))
+    bytes.with_cluster_bytes(|bytes| {
+        if bytes.first().is_some_and(|&b| b < 0x80 && b != 0) {
+            return 1;
+        }
+        let max_cluster = bytes.len().min(64);
+        slice2cells(crate::memory::bytes_until_nul(&bytes[..max_cluster]))
+    })
 }
 
+#[inline]
 pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
-    const CORRECTIONS: [u32; 7] = [
-        1u32 << 31,
-        1u32 << 31,
-        0u32.wrapping_sub(0x80u32 + (0xC0u32 << 6)),
-        0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0xE0u32 << 12)),
-        0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0xF0u32 << 18)),
-        0u32.wrapping_sub(
-            0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0xF8u32 << 24),
-        ),
-        0u32.wrapping_sub(
-            0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0x80u32 << 24),
-        ),
-    ];
-
-    let len = bytes.len();
-    let Some(corr) = CORRECTIONS.get(len).copied() else {
-        return -1;
-    };
-    let Some((&b0, tail)) = bytes.split_first() else {
-        return -1;
-    };
-    if len < 2 {
-        return -1;
-    }
-    let mut code_point = u32::from(b0);
-    for &cur in tail {
-        if (cur & 0xC0) != 0x80 {
-            return -1;
+    match *bytes {
+        [b0, b1] => {
+            if (b1 & 0xC0) != 0x80 {
+                return -1;
+            }
+            ((u32::from(b0) << 6)
+                .wrapping_add(u32::from(b1))
+                .wrapping_sub(0x80u32 + (0xC0u32 << 6))) as i32
         }
-        code_point = (code_point << 6).wrapping_add(u32::from(cur));
+        [b0, b1, b2] => {
+            if (b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 {
+                return -1;
+            }
+            ((u32::from(b0) << 12)
+                .wrapping_add(u32::from(b1) << 6)
+                .wrapping_add(u32::from(b2))
+                .wrapping_sub(0x80u32 + (0x80u32 << 6) + (0xE0u32 << 12))) as i32
+        }
+        [b0, b1, b2, b3] => {
+            if (b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80 {
+                return -1;
+            }
+            ((u32::from(b0) << 18)
+                .wrapping_add(u32::from(b1) << 12)
+                .wrapping_add(u32::from(b2) << 6)
+                .wrapping_add(u32::from(b3))
+                .wrapping_sub(0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0xF0u32 << 18)))
+                as i32
+        }
+        [b0, b1, b2, b3, b4] => {
+            if (b1 & 0xC0) != 0x80
+                || (b2 & 0xC0) != 0x80
+                || (b3 & 0xC0) != 0x80
+                || (b4 & 0xC0) != 0x80
+            {
+                return -1;
+            }
+            ((u32::from(b0) << 24)
+                .wrapping_add(u32::from(b1) << 18)
+                .wrapping_add(u32::from(b2) << 12)
+                .wrapping_add(u32::from(b3) << 6)
+                .wrapping_add(u32::from(b4))
+                .wrapping_sub(
+                    0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0xF8u32 << 24),
+                )) as i32
+        }
+        [b0, b1, b2, b3, b4, b5] => {
+            if (b1 & 0xC0) != 0x80
+                || (b2 & 0xC0) != 0x80
+                || (b3 & 0xC0) != 0x80
+                || (b4 & 0xC0) != 0x80
+                || (b5 & 0xC0) != 0x80
+            {
+                return -1;
+            }
+            ((u32::from(b0) << 30)
+                .wrapping_add(u32::from(b1) << 24)
+                .wrapping_add(u32::from(b2) << 18)
+                .wrapping_add(u32::from(b3) << 12)
+                .wrapping_add(u32::from(b4) << 6)
+                .wrapping_add(u32::from(b5))
+                .wrapping_sub(
+                    0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0x80u32 << 24),
+                )) as i32
+        }
+        _ => -1,
     }
-    code_point.wrapping_add(corr) as i32
 }
 
 pub fn mb_string2cells(bytes: &[u8]) -> usize {
@@ -1493,11 +1573,9 @@ pub fn mb_string2cells_len(bytes: &[u8]) -> usize {
     clen
 }
 
+#[inline]
 pub fn utf_ptr2char(bytes: impl AsMbyteSlice) -> i32 {
-    bytes.with_char_bytes(|bytes| {
-        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-        utf_slice2char(slice)
-    })
+    bytes.with_char_bytes(utf_slice2char)
 }
 
 fn utf_safe_read_char_adv(s: &mut &[u8]) -> i32 {
@@ -1562,16 +1640,7 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
 
 #[inline(always)]
 pub fn utf_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
-    bytes.with_char_bytes(|bytes| {
-        if let Some(&b0) = bytes.first()
-            && b0 != 0
-            && b0 < 0x80
-        {
-            return 1;
-        }
-        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-        utf_slice2len(slice) as i32
-    })
+    bytes.with_char_bytes(|bytes| utf_slice2len(bytes) as i32)
 }
 
 pub fn utf_byte2len(b: i32) -> i32 {
@@ -1617,7 +1686,7 @@ pub fn utfc_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
         {
             return 1;
         }
-        utfc_slice2len(crate::memory::bytes_until_nul(bytes)) as i32
+        utfc_slice2len(bytes) as i32
     })
 }
 
@@ -1645,7 +1714,7 @@ pub fn utfc_slice2len(bytes: &[u8]) -> usize {
             break;
         }
         let len_next_char = utf_slice2len_incomplete(next_bytes);
-        if len_next_char > next_bytes.len() {
+        if len_next_char == 1 || len_next_char > next_bytes.len() {
             break;
         }
         if !utf_composinglike_slice(&bytes[prevlen..], next_bytes, Some(&mut state)) {
@@ -1766,6 +1835,9 @@ fn intable(table: &[Interval], c: i32) -> bool {
 }
 
 pub fn utf_printable(c: i32) -> bool {
+    if !(0x070f..=0xffff).contains(&c) {
+        return true;
+    }
     const NONPRINT: &[Interval] = &[
         Interval {
             first: 0x070f,
@@ -2521,18 +2593,37 @@ pub fn utf_head_off(base: &[u8], idx: usize) -> i32 {
 }
 
 pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> ClusterInfo<'a> {
-    let mut cells = basechar_cells_impl(base.chr);
-    let first_compose = utf_iscomposing_first(base.chr.value);
+    let (mut cells, first_compose, mut prev_bc, mut prev_icb) = if base.chr.value < 0 {
+        (4, false, UTF8PROC_BOUNDCLASS_OTHER, 0)
+    } else if base.chr.value < 0x80 {
+        (
+            ascii2cells(base.chr.value),
+            false,
+            UTF8PROC_BOUNDCLASS_OTHER,
+            0,
+        )
+    } else {
+        let prop = utf8proc_get_property(base.chr.value);
+        let bc = prop.boundclass();
+        let fc = matches!(
+            bc,
+            crate::utf8proc::UTF8PROC_BOUNDCLASS_EXTEND
+                | crate::utf8proc::UTF8PROC_BOUNDCLASS_ZWJ
+                | UTF8PROC_BOUNDCLASS_SPACINGMARK
+        );
+        (
+            utf_char2cells_with_prop(base.chr.value, prop),
+            fc,
+            bc,
+            prop.indic_conjunct_break(),
+        )
+    };
     let mut prev_code = base.chr.value;
     let adv = (base.chr.len.max(0) as usize).min(base.ptr.len());
     let mut next = &base.ptr[adv..];
     let mut state: GraphemeState = GRAPHEME_STATE_INIT;
     assert!(*max_len > 0);
     let mut cluster_len = base.chr.len;
-
-    let mut check_emoji = cells == 1
-        && opt_vars().p_emoji.get()
-        && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
     loop {
         if *max_len <= 0 {
@@ -2545,9 +2636,7 @@ pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> Cl
                 first_compose,
             };
         }
-        let max_chunk = (*max_len as usize).min(MB_MAXCHAR as usize).min(next.len());
-        let chunk = crate::memory::bytes_until_nul(&next[..max_chunk]);
-        let b0 = chunk.first().copied().unwrap_or(0);
+        let b0 = next.first().copied().unwrap_or(0);
         if b0 < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
@@ -2574,22 +2663,37 @@ pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> Cl
             };
         }
 
-        let next_code = if chunk.len() < usize::from(next_len) {
-            -1
-        } else {
-            utf_slice2_char_info_impl(&chunk[..usize::from(next_len)])
+        let next_code = match next.get(..usize::from(next_len)) {
+            Some(s) => utf_slice2_char_info_impl(s),
+            None => -1,
         };
-        if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
+        if next_code < 0 {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next,
+                    chr: CharInfo { value: -1, len: 1 },
+                },
+                cells,
+                first_compose,
+            };
+        }
+        let next_prop = utf8proc_get_property(next_code);
+        let next_bc = next_prop.boundclass();
+        let next_icb = next_prop.indic_conjunct_break();
+        let composing = !crate::utf8proc::grapheme_break_extended(
+            prev_bc,
+            next_bc,
+            prev_icb,
+            next_icb,
+            Some(&mut state),
+        ) || arabic_combine(prev_code, next_code);
+        if !composing {
             return ClusterInfo {
                 next: StrCharInfo {
                     ptr: next,
                     chr: CharInfo {
                         value: next_code,
-                        len: if next_code < 0 {
-                            1
-                        } else {
-                            i32::from(next_len)
-                        },
+                        len: i32::from(next_len),
                     },
                 },
                 cells,
@@ -2597,17 +2701,18 @@ pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> Cl
             };
         }
 
-        if check_emoji {
-            if next_code == 0xFE0F {
-                cells = 2;
-            }
-            check_emoji = false;
+        if cluster_len == base.chr.len
+            && next_code == 0xFE0F
+            && cells == 1
+            && prop_is_emojilike(utf8proc_get_property(base.chr.value))
+            && opt_vars().p_emoji.get()
+        {
+            cells = 2;
         }
 
         cluster_len += i32::from(next_len);
         if cells == 1
-            && (utf8proc_get_property(next_code).boundclass() == UTF8PROC_BOUNDCLASS_SPACINGMARK
-                || (next_code & !1) == 0xFF9E)
+            && (next_bc == UTF8PROC_BOUNDCLASS_SPACINGMARK || (next_code & !1) == 0xFF9E)
             && base.chr.len != 1
             && (cluster_len as usize) < MAX_SCHAR_SIZE - 1 - usize::from(first_compose)
         {
@@ -2615,6 +2720,8 @@ pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> Cl
         }
 
         prev_code = next_code;
+        prev_bc = next_bc;
+        prev_icb = next_icb;
         next = &next[usize::from(next_len).min(next.len())..];
         *max_len -= i32::from(next_len);
     }
@@ -3349,7 +3456,11 @@ pub fn string_convert_ext(
     }
 }
 
+#[inline]
 fn cw_value(c: i32) -> i32 {
+    if !HAS_CW_TABLE.load(std::sync::atomic::Ordering::Relaxed) {
+        return 0;
+    }
     mbyte_st(|st| {
         let table = st.cw_table.borrow();
         let c64 = i64::from(c);
@@ -3438,11 +3549,15 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
         }
     }
 
+    let has_entries = !table.is_empty();
     let cw_table_save = mbyte_st(|st| std::mem::replace(&mut *st.cw_table.borrow_mut(), table));
+    HAS_CW_TABLE.store(has_entries, std::sync::atomic::Ordering::Relaxed);
 
     if let Some(error) = check_chars_options() {
         emsg(error);
+        let had_entries = !cw_table_save.is_empty();
         mbyte_st(|st| *st.cw_table.borrow_mut() = cw_table_save);
+        HAS_CW_TABLE.store(had_entries, std::sync::atomic::Ordering::Relaxed);
         return;
     }
 

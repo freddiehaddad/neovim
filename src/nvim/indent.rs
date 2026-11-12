@@ -819,55 +819,72 @@ pub fn briopt_check(wp: Option<&WinInfoInfo>) {
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
-    let eff_wwidth = wp.w_view_width.get() - win_col_off(wp) + win_col_off2(wp);
-    let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().tab1 == 0;
+    let off2 = win_col_off2(wp);
+    let eff_wwidth = wp.w_view_width.get() - win_col_off(wp) + off2;
 
-    let buf_fnum = wp.buf_mut().b_fnum.get();
-    let buf_p_ts = wp.buf_mut().b_p_ts.get();
-    let buf_tick = buf_get_changedtick(&wp.buf_mut());
-    let flp_val = get_flp_value(&wp.buf_mut());
-    let line_bytes = &line[..line.iter().position(|&b| b == 0).unwrap_or(line.len())];
-    let need_recalc = INDENT_STATE.with_borrow(|st| {
-        st.prev_fnum != buf_fnum
-            || st.prev_ts != buf_p_ts
-            || st.prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.borrow().as_slice()
-            || st.prev_tick != buf_tick
-            || st.prev_listopt != wp.w_briopt_list.get()
-            || st.prev_no_ts != no_ts
-            || st.prev_dy_uhex != (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX)
-            || st.prev_flp.as_deref() != Some(&flp_val)
-            || st
-                .prev_line
-                .as_deref()
-                .is_none_or(|c| c.to_bytes() != line_bytes)
-    });
-    if need_recalc {
-        let new_line = std::ffi::CString::new(line_bytes).unwrap_or_default();
-        let new_indent = if wp.w_briopt_vcol.get() == 0 {
-            if no_ts {
+    let mut bri = if wp.w_briopt_vcol.get() != 0 {
+        INDENT_STATE.with_borrow_mut(|st| {
+            st.prev_list = 0;
+            st.prev_listopt = wp.w_briopt_list.get();
+        });
+        wp.w_briopt_vcol.get()
+    } else if wp.w_briopt_list.get() == 0 {
+        let indent = if !matches!(line.first(), Some(b' ' | b'\t')) {
+            0
+        } else if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().tab1 == 0 {
+            indent_size_no_ts(line)
+        } else {
+            wp.with_buf(|buf| indent_size_ts(line, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow()))
+        };
+        indent + wp.w_briopt_shift.get()
+    } else {
+        let no_ts = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().tab1 == 0;
+        let (buf_fnum, buf_p_ts, buf_tick, flp_val) = wp.with_buf(|buf| {
+            (
+                buf.b_fnum.get(),
+                buf.b_p_ts.get(),
+                buf_get_changedtick(buf),
+                get_flp_value(buf),
+            )
+        });
+        let line_bytes = crate::memory::bytes_until_nul(line);
+        let need_recalc = INDENT_STATE.with_borrow(|st| {
+            st.prev_fnum != buf_fnum
+                || st.prev_ts != buf_p_ts
+                || wp
+                    .with_buf(|buf| st.prev_vts.as_slice() != buf.b_p_vts_array.borrow().as_slice())
+                || st.prev_tick != buf_tick
+                || st.prev_listopt != wp.w_briopt_list.get()
+                || st.prev_no_ts != no_ts
+                || st.prev_dy_uhex != (opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX)
+                || st.prev_flp.as_deref() != Some(&flp_val)
+                || st
+                    .prev_line
+                    .as_deref()
+                    .is_none_or(|c| c.to_bytes() != line_bytes)
+        });
+        if need_recalc {
+            let new_line = std::ffi::CString::new(line_bytes).unwrap_or_default();
+            let new_indent = if no_ts {
                 indent_size_no_ts(line_bytes)
             } else {
-                indent_size_ts(line_bytes, buf_p_ts, &wp.buf_mut().b_p_vts_array.borrow())
-            }
-        } else {
-            INDENT_STATE.with_borrow(|st| st.prev_indent)
-        };
-        let new_flp = flp_val.to_owned();
-        INDENT_STATE.with_borrow_mut(|st| {
-            st.prev_fnum = buf_fnum;
-            st.prev_line = Some(new_line.clone());
-            st.prev_ts = buf_p_ts;
-            st.prev_vts.clone_from(&wp.buf_mut().b_p_vts_array.borrow());
-            st.prev_indent = new_indent;
-            st.prev_tick = buf_tick;
-            st.prev_listopt = wp.w_briopt_list.get();
-            st.prev_list = 0;
-            st.prev_no_ts = no_ts;
-            st.prev_dy_uhex = opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX;
-            st.prev_flp = Some(new_flp.clone());
-        });
+                wp.with_buf(|buf| indent_size_ts(line_bytes, buf_p_ts, &buf.b_p_vts_array.borrow()))
+            };
+            let new_flp = flp_val.to_owned();
+            INDENT_STATE.with_borrow_mut(|st| {
+                st.prev_fnum = buf_fnum;
+                st.prev_line = Some(new_line.clone());
+                st.prev_ts = buf_p_ts;
+                wp.with_buf(|buf| st.prev_vts.clone_from(&buf.b_p_vts_array.borrow()));
+                st.prev_indent = new_indent;
+                st.prev_tick = buf_tick;
+                st.prev_listopt = wp.w_briopt_list.get();
+                st.prev_list = 0;
+                st.prev_no_ts = no_ts;
+                st.prev_dy_uhex = opt_vars().dy_flags.get() & K_OPT_DY_FLAG_UHEX;
+                st.prev_flp = Some(new_flp.clone());
+            });
 
-        if wp.w_briopt_list.get() != 0 && wp.w_briopt_vcol.get() == 0 {
             let mut regmatch = Regmatch::new();
             regmatch.set_prog(vim_regcomp(
                 &new_flp,
@@ -893,20 +910,18 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
                 regmatch.free_prog();
             }
         }
-    }
-
-    let mut bri = if wp.w_briopt_vcol.get() != 0 {
-        INDENT_STATE.with_borrow_mut(|st| st.prev_list = 0);
-        wp.w_briopt_vcol.get()
-    } else {
-        INDENT_STATE.with_borrow(|st| st.prev_indent) + wp.w_briopt_shift.get()
+        INDENT_STATE.with_borrow(|st| {
+            st.prev_indent
+                + wp.w_briopt_shift.get()
+                + if wp.w_briopt_list.get() > 0 {
+                    st.prev_list
+                } else {
+                    0
+                }
+        })
     };
 
-    bri += win_col_off2(wp);
-
-    if wp.w_briopt_list.get() > 0 {
-        bri += INDENT_STATE.with_borrow(|st| st.prev_list);
-    }
+    bri += off2;
 
     if wp.w_briopt_sbr.get() {
         bri -= vim_strsize(&get_showbreak_value(wp));

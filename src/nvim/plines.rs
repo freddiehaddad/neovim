@@ -25,7 +25,7 @@ use crate::marktree::{
     mt_right,
 };
 pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
+use crate::mbyte::{utf_cluster_info, utf_slice2_str_char_info};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -57,33 +57,35 @@ pub type ConcealSpans = Vec<ConcealSpan>;
 
 #[derive(Clone)]
 pub enum CsLine<'a> {
+    Bytes(&'a [u8]),
     Borrowed(&'a std::ffi::CStr),
     Rc(crate::option_vars::RcCStr),
 }
 
 impl<'a> CsLine<'a> {
     #[inline(always)]
-    pub fn as_cstr(&self) -> &std::ffi::CStr {
+    pub fn to_bytes(&self) -> &[u8] {
         match self {
-            Self::Borrowed(s) => s,
-            Self::Rc(s) => s.as_cstr(),
+            Self::Bytes(b) => b,
+            Self::Borrowed(s) => s.to_bytes(),
+            Self::Rc(s) => s.to_bytes(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_ptr(&self) -> *const std::ffi::c_char {
+        match self {
+            Self::Bytes(b) => b.as_ptr().cast(),
+            Self::Borrowed(s) => s.as_ptr(),
+            Self::Rc(s) => s.as_ptr(),
         }
     }
 }
 
-impl std::ops::Deref for CsLine<'_> {
-    type Target = std::ffi::CStr;
-
+impl<'a> From<&'a [u8]> for CsLine<'a> {
     #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_cstr()
-    }
-}
-
-impl AsRef<std::ffi::CStr> for CsLine<'_> {
-    #[inline(always)]
-    fn as_ref(&self) -> &std::ffi::CStr {
-        self.as_cstr()
+    fn from(b: &'a [u8]) -> Self {
+        Self::Bytes(b)
     }
 }
 
@@ -115,7 +117,14 @@ pub struct CharsizeArg<'a> {
     pub use_tabstop: bool,
     pub has_sbr: bool,
     pub has_vts: bool,
+    pub wo_wrap: bool,
+    pub wo_bri: bool,
+    pub wo_lbr: bool,
+    pub has_lcs_eol: bool,
     pub b_p_ts: i64,
+    pub w_view_width: i32,
+    pub col_off: i32,
+    pub width2: i32,
     pub indent_width: i32,
     pub virt_row: i32,
     pub skip_cur_text: bool,
@@ -131,11 +140,18 @@ impl<'a> CharsizeArg<'a> {
     pub const fn new() -> Self {
         Self {
             win: None,
-            line: CsLine::Borrowed(c""),
+            line: CsLine::Bytes(b""),
             use_tabstop: false,
             has_sbr: false,
             has_vts: false,
+            wo_wrap: false,
+            wo_bri: false,
+            wo_lbr: false,
+            has_lcs_eol: false,
             b_p_ts: 8,
+            w_view_width: 0,
+            col_off: 0,
+            width2: 0,
             indent_width: 0,
             virt_row: 0,
             skip_cur_text: false,
@@ -156,6 +172,40 @@ impl<'a> CharsizeArg<'a> {
     #[inline]
     pub fn extconceal_opt(&self) -> Option<&ConcealSpans> {
         self.extconceal.as_ref()
+    }
+
+    #[inline(always)]
+    fn can_use_fast_loop(&self, cstype: CSType) -> bool {
+        cstype == K_CHARSIZE_FAST
+            || (self.virt_row < 0
+                && self.extconceal.is_none()
+                && !self.wo_lbr
+                && self.indent_width == 0)
+    }
+}
+
+/// Returns the number of leading printable ASCII bytes (`0x20..=0x7E`) in `ptr`
+/// that are not followed by a non-ASCII UTF-8 byte (`>= 0x80`).
+#[inline(always)]
+fn printable_ascii_run_len(ptr: &[u8], max_bytes: usize) -> usize {
+    let limit = max_bytes.min(ptr.len());
+    let slice = &ptr[..limit];
+    let mut n = 0usize;
+    while n + 8 <= slice.len() {
+        let chunk = &slice[n..n + 8];
+        if chunk.iter().all(|&b| (0x20..=0x7E).contains(&b)) {
+            n += 8;
+        } else {
+            break;
+        }
+    }
+    while n < slice.len() && (0x20..=0x7E).contains(&slice[n]) {
+        n += 1;
+    }
+    if n > 0 && ptr.get(n).is_some_and(|&b| b >= 0x80) {
+        n - 1
+    } else {
+        n
     }
 }
 
@@ -199,9 +249,14 @@ pub(crate) fn win_charsize(
 
 #[inline]
 pub fn win_linetabsize(wp: &WinInfoInfo, lnum: Linenr, line: &std::ffi::CStr, len: Colnr) -> i32 {
+    win_linetabsize_bytes(wp, lnum, line.to_bytes(), len)
+}
+
+#[inline]
+pub fn win_linetabsize_bytes(wp: &WinInfoInfo, lnum: Linenr, line: &[u8], len: Colnr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
-    if cstype == K_CHARSIZE_FAST {
+    if csarg.can_use_fast_loop(cstype) {
         linesize_fast(&csarg, 0, len)
     } else {
         linesize_regular(&mut csarg, 0, len)
@@ -224,8 +279,8 @@ pub fn win_chartabsize(wp: &WinInfoInfo, p: impl crate::mbyte::AsMbyteSlice, col
 pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
     let wp = curwin_mut();
     let mut csarg = CharsizeArg::new();
-    let cstype = init_charsize_arg(&mut csarg, &wp, 0, s);
-    if cstype == K_CHARSIZE_FAST {
+    let cstype = init_charsize_arg(&mut csarg, &wp, 0, s.to_bytes());
+    if csarg.can_use_fast_loop(cstype) {
         linesize_fast(&csarg, startvcol, MAXCOL)
     } else {
         linesize_regular(&mut csarg, startvcol, MAXCOL)
@@ -234,7 +289,9 @@ pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
 
 pub fn linetabsize(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     wp.with_buf(|buf| {
-        crate::memline::with_ml_buf_cstr(buf, lnum, |line| win_linetabsize(wp, lnum, line, MAXCOL))
+        crate::memline::with_ml_buf_line(buf, lnum, |line| {
+            win_linetabsize_bytes(wp, lnum, line, MAXCOL)
+        })
     })
 }
 
@@ -278,14 +335,28 @@ pub fn init_charsize_arg<'a>(
     csarg.virt_row = -1;
     csarg.skip_cur_text = false;
     csarg.indent_width = i32::MIN;
-    csarg.use_tabstop = !wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0;
-    csarg.has_sbr = !get_showbreak_value(wp).is_empty();
+    let wo_list = wp.w_onebuf_opt.wo_list.get();
+    if wo_list {
+        let lcs = wp.w_p_lcs_chars.borrow();
+        csarg.use_tabstop = lcs.tab1 != 0;
+        csarg.has_lcs_eol = lcs.eol != 0;
+    } else {
+        csarg.use_tabstop = true;
+        csarg.has_lcs_eol = false;
+    }
+    let sbr = get_showbreak_value(wp);
+    csarg.has_sbr = !sbr.is_empty();
+    csarg.wo_wrap = wp.w_onebuf_opt.wo_wrap.get();
+    csarg.wo_bri = wp.w_onebuf_opt.wo_bri.get();
+    csarg.wo_lbr = wp.w_onebuf_opt.wo_lbr.get();
+    csarg.w_view_width = wp.w_view_width.get();
     csarg.extconceal = None;
 
     wp.with_buf(|buf| {
         csarg.b_p_ts = buf.b_p_ts.get();
         csarg.has_vts = !buf.b_p_vts_array.borrow().is_empty();
         if lnum > 0
+            && buf.b_marktree.borrow().meta_root[K_MTMETA_INLINE] > 0
             && marktree_itr_get_filter(
                 &buf.b_marktree.borrow(),
                 lnum - 1,
@@ -300,10 +371,27 @@ pub fn init_charsize_arg<'a>(
         }
     });
 
-    if csarg.virt_row >= 0
-        || (wp.w_onebuf_opt.wo_wrap.get()
-            && (wp.w_onebuf_opt.wo_lbr.get() || wp.w_onebuf_opt.wo_bri.get() || csarg.has_sbr))
-    {
+    if csarg.wo_wrap && (csarg.wo_lbr || csarg.wo_bri || csarg.has_sbr) {
+        csarg.col_off = win_col_off(wp);
+        csarg.width2 = csarg.w_view_width - csarg.col_off + win_col_off2(wp);
+        if (csarg.wo_bri || csarg.has_sbr)
+            && (!csarg.wo_bri || (wp.w_briopt_list.get() == 0 && wp.w_briopt_vcol.get() == 0))
+        {
+            let mut indent_width = 0;
+            if csarg.has_sbr {
+                indent_width += vim_strsize(&sbr);
+            }
+            if csarg.wo_bri {
+                indent_width += get_breakindent_win(wp, csarg.line.to_bytes());
+            }
+            csarg.indent_width = indent_width;
+        }
+    } else {
+        csarg.col_off = 0;
+        csarg.width2 = 0;
+    }
+
+    if csarg.virt_row >= 0 || (csarg.wo_wrap && (csarg.wo_lbr || csarg.wo_bri || csarg.has_sbr)) {
         K_CHARSIZE_REGULAR
     } else {
         K_CHARSIZE_FAST
@@ -348,7 +436,7 @@ fn with_charsize_arg_extconceal<R>(
         conceal_spans_collect(wp, lnum - 1, len, spans);
     }
     wp.with_buf(|buf| {
-        crate::memline::with_ml_buf_cstr(buf, lnum, |line| {
+        crate::memline::with_ml_buf_line(buf, lnum, |line| {
             let mut csarg = CharsizeArg::new();
             let mut cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
             if !spans.is_empty() {
@@ -537,8 +625,6 @@ pub fn charsize_regular(
 
         let disp_vcol = vcol - csarg.extconceal_off;
 
-        let has_lcs_eol = wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0;
-
         let mut size: i32;
         let mut is_doublewidth = false;
         if use_tabstop {
@@ -548,7 +634,7 @@ pub fn charsize_regular(
                 tabstop_padding(vcol, csarg.b_p_ts, &[])
             };
         } else if cur_bytes.is_empty() {
-            size = if has_lcs_eol { 1 } else { 0 };
+            size = if csarg.has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
             size = K_INVALID_BYTE_CELLS;
         } else {
@@ -627,29 +713,24 @@ pub fn charsize_regular(
         }
         size -= hidden;
 
-        if is_doublewidth
-            && wp.w_onebuf_opt.wo_wrap.get()
-            && in_win_border(wp, disp_vcol + size - 2)
-        {
+        if is_doublewidth && csarg.wo_wrap && in_win_border(wp, disp_vcol + size - 2) {
             size += 1;
             mb_added = 1;
         }
 
         let mut head = mb_added;
-        if size > 0
-            && wp.w_onebuf_opt.wo_wrap.get()
-            && (csarg.has_sbr || wp.w_onebuf_opt.wo_bri.get())
-        {
-            let mut col_off_prev = win_col_off(wp);
-            let width2 = wp.w_view_width.get() - col_off_prev + win_col_off2(wp);
+        if size > 0 && csarg.wo_wrap && (csarg.has_sbr || csarg.wo_bri) && csarg.indent_width != 0 {
+            let view_width = csarg.w_view_width;
+            let mut col_off_prev = csarg.col_off;
+            let width2 = csarg.width2;
             let mut wcol = disp_vcol + col_off_prev;
             let max_head_vcol = csarg.max_head_vcol;
             let mut added = 0;
 
             let mut head_prev = 0;
-            if wcol >= wp.w_view_width.get() {
-                wcol -= wp.w_view_width.get();
-                col_off_prev = wp.w_view_width.get() - width2;
+            if wcol >= view_width {
+                wcol -= view_width;
+                col_off_prev = view_width - width2;
                 if wcol >= width2 && width2 > 0 {
                     wcol %= width2;
                 }
@@ -660,7 +741,7 @@ pub fn charsize_regular(
                         let sbr = get_showbreak_value(wp);
                         head_prev += vim_strsize(&sbr);
                     }
-                    if wp.w_onebuf_opt.wo_bri.get() {
+                    if csarg.wo_bri {
                         head_prev += get_breakindent_win(wp, line_bytes);
                     }
                     csarg.indent_width = head_prev;
@@ -678,7 +759,7 @@ pub fn charsize_regular(
                 wcol += col_off_prev;
             }
 
-            if wcol + size > wp.w_view_width.get() {
+            if wcol + size > view_width {
                 let mut head_mid = csarg.indent_width;
                 if head_mid == i32::MIN {
                     head_mid = 0;
@@ -686,13 +767,13 @@ pub fn charsize_regular(
                         let sbr = get_showbreak_value(wp);
                         head_mid += vim_strsize(&sbr);
                     }
-                    if wp.w_onebuf_opt.wo_bri.get() {
+                    if csarg.wo_bri {
                         head_mid += get_breakindent_win(wp, line_bytes);
                     }
                     csarg.indent_width = head_mid;
                 }
                 if head_mid > 0 {
-                    let prev_rem = wp.w_view_width.get() - wcol;
+                    let prev_rem = view_width - wcol;
                     let mut width = width2 - head_mid;
                     if width <= 0 {
                         width = 1;
@@ -724,9 +805,9 @@ pub fn charsize_regular(
 
         let size_before_lbr = size;
         let mut need_lbr = false;
-        if wp.w_onebuf_opt.wo_lbr.get()
-            && wp.w_onebuf_opt.wo_wrap.get()
-            && wp.w_view_width.get() != 0
+        if csarg.wo_lbr
+            && csarg.wo_wrap
+            && csarg.w_view_width != 0
             && lbr_char > 0
             && lbr_char < 256
             && vim_isbreak(lbr_char)
@@ -743,12 +824,12 @@ pub fn charsize_regular(
         }
         if need_lbr {
             let mut s_off = cur_off;
-            let numberextra = win_col_off(wp);
+            let numberextra = csarg.col_off;
             let col_adj = size - 1;
-            let mut colmax: Colnr = wp.w_view_width.get() - numberextra - col_adj;
+            let mut colmax: Colnr = csarg.w_view_width - numberextra - col_adj;
             if disp_vcol >= colmax {
                 colmax += col_adj;
-                let n = colmax + win_col_off2(wp);
+                let n = csarg.width2;
                 if n > 0 {
                     colmax += (((disp_vcol + col_adj - colmax) / n) + 1) * n - col_adj;
                 }
@@ -1000,7 +1081,7 @@ pub fn vcol2disp_vcol(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr) -> Colnr {
 pub fn linetabsize_disp(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     let mut spans = ConcealSpans::new();
     with_charsize_arg_extconceal(wp, lnum, &mut spans, |csarg, cstype| {
-        if cstype == K_CHARSIZE_FAST {
+        if csarg.can_use_fast_loop(cstype) {
             linesize_fast(csarg, 0, MAXCOL)
         } else {
             linesize_regular(csarg, 0, MAXCOL)
@@ -1044,7 +1125,8 @@ fn extconceal_vcol_map(
     let mut from: i64 = 0;
     let mut to: i64 = 0;
     let line_cstr = csarg.line.clone();
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
+    let line_bytes = line_cstr.to_bytes();
+    let mut ci = utf_slice2_str_char_info(line_bytes);
     while (from < target || !to_disp) && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         let raw = charsize_regular(
@@ -1084,7 +1166,7 @@ fn extconceal_vcol_map(
 
         let tab_end = ci.chr.value == TAB
             && csarg.use_tabstop
-            && conceal_span_at(&spans, ci.offset_from(&line_cstr) as i32).is_none();
+            && conceal_span_at(&spans, ci.offset_from_bytes(line_bytes) as i32).is_none();
         let own_raw = raw.body - rawarg.cur_text_width_left - rawarg.cur_text_width_right;
         let own_cs = cs.body - csarg.cur_text_width_left - csarg.cur_text_width_right;
         let raw_parts = [raw.width - raw.tail - own_raw, own_raw, raw.tail];
@@ -1122,13 +1204,17 @@ fn extconceal_vcol_map(
 }
 
 pub fn linesize_regular(csarg: &mut CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> i32 {
+    if csarg.can_use_fast_loop(K_CHARSIZE_REGULAR) {
+        return linesize_fast(csarg, vcol_arg, len);
+    }
     let mut vcol = i64::from(vcol_arg);
     let mut raw_vcol = i64::from(vcol_arg);
 
     let line_cstr = csarg.line.clone();
+    let line_bytes = line_cstr.to_bytes();
 
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
-    while (ci.offset_from(&line_cstr) as Colnr) < len && !ci.ptr.is_empty() {
+    let mut ci = utf_slice2_str_char_info(line_bytes);
+    while (ci.offset_from_bytes(line_bytes) as Colnr) < len && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         let cs = charsize_regular(
             &mut *csarg,
@@ -1166,12 +1252,25 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
     let use_tabstop = csarg.use_tabstop;
     let has_vts = csarg.has_vts;
     let b_p_ts = csarg.b_p_ts;
-    let line_cstr = csarg.line.as_cstr();
+    let line_bytes = csarg.line.to_bytes();
     let mut vcol = i64::from(vcol_arg);
     let wp = csarg.win_mut();
 
-    let mut ci = utf_ptr2_str_char_info(line_cstr);
-    while (ci.offset_from(line_cstr) as Colnr) < len && !ci.ptr.is_empty() {
+    let mut ci = utf_slice2_str_char_info(line_bytes);
+    while (ci.offset_from_bytes(line_bytes) as Colnr) < len && !ci.ptr.is_empty() {
+        let cur_off = ci.offset_from_bytes(line_bytes);
+        let rem_limit = (len.max(0) as usize).saturating_sub(cur_off);
+        let ascii_run = printable_ascii_run_len(ci.ptr, rem_limit);
+        if ascii_run > 0 {
+            vcol += ascii_run as i64;
+            ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+            if vcol > i64::from(MAXCOL) {
+                vcol_arg = MAXCOL;
+                break;
+            }
+            vcol_arg = vcol as i32;
+            continue;
+        }
         let cli = utf_cluster_info(ci);
         vcol += i64::from(
             charsize_fast_impl(
@@ -1224,10 +1323,10 @@ pub fn getvcol(
         conceal_spans_collect(wp, pos.lnum - 1, len, &mut spans);
     }
     wp.with_buf(|buf| {
-        crate::memline::with_ml_buf_cstr(buf, pos.lnum, |line_cstr| {
+        crate::memline::with_ml_buf_line(buf, pos.lnum, |line_bytes| {
             let mut csarg = CharsizeArg::new();
             let mut on_nul = false;
-            let mut cstype = init_charsize_arg(&mut csarg, wp, pos.lnum, line_cstr);
+            let mut cstype = init_charsize_arg(&mut csarg, wp, pos.lnum, line_bytes);
             if !spans.is_empty() {
                 csarg.extconceal = Some(spans.clone());
                 cstype = K_CHARSIZE_REGULAR;
@@ -1237,12 +1336,21 @@ pub fn getvcol(
             let mut vcol: Colnr = 0;
             let mut off: i32 = 0;
             let mut char_size: CharSize;
-            let mut ci = utf_ptr2_str_char_info(line_cstr);
-            if cstype == K_CHARSIZE_FAST {
+            let mut ci = utf_slice2_str_char_info(line_bytes);
+            if csarg.can_use_fast_loop(cstype) {
                 let use_tabstop = csarg.use_tabstop;
                 let has_vts = csarg.has_vts;
                 let b_p_ts = csarg.b_p_ts;
                 loop {
+                    let cur_off = ci.offset_from_bytes(line_bytes);
+                    let max_adv = (end_col.max(0) as usize).saturating_sub(cur_off);
+                    if max_adv > 0 {
+                        let ascii_run = printable_ascii_run_len(ci.ptr, max_adv);
+                        if ascii_run > 0 {
+                            vcol += ascii_run as Colnr;
+                            ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+                        }
+                    }
                     if ci.ptr.is_empty() {
                         char_size = CharSize {
                             width: 1,
@@ -1265,7 +1373,7 @@ pub fn getvcol(
                         cli.cells,
                     );
                     let next = cli.next;
-                    if (next.offset_from(line_cstr) as Colnr) > end_col {
+                    if (next.offset_from_bytes(line_bytes) as Colnr) > end_col {
                         break;
                     }
                     ci = next;
@@ -1285,14 +1393,14 @@ pub fn getvcol(
                         break;
                     }
                     let next = cli.next;
-                    if (next.offset_from(line_cstr) as Colnr) > end_col {
+                    if (next.offset_from_bytes(line_bytes) as Colnr) > end_col {
                         break;
                     }
                     ci = next;
                     vcol += char_size.width;
                 }
             }
-            let ci_col = ci.offset_from(line_cstr) as Colnr;
+            let ci_col = ci.offset_from_bytes(line_bytes) as Colnr;
             let concealed = conceal_span_at(&spans, ci_col).is_some();
 
             if ci.ptr.is_empty() && end_col < MAXCOL && end_col > ci_col {
@@ -1476,13 +1584,13 @@ pub fn plines_win_nofold(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
             return 1;
         }
 
-        let mut col = if cstype == K_CHARSIZE_FAST {
+        let mut col = if csarg.can_use_fast_loop(cstype) {
             i64::from(linesize_fast(csarg, 0, MAXCOL))
         } else {
             i64::from(linesize_regular(csarg, 0, MAXCOL))
         };
 
-        if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
+        if csarg.has_lcs_eol {
             col += 1;
         }
 
@@ -1513,16 +1621,25 @@ pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut spans = ConcealSpans::new();
     with_charsize_arg_extconceal(wp, lnum, &mut spans, |csarg, cstype| {
         let line_cstr = csarg.line.clone();
+        let line_bytes = line_cstr.to_bytes();
 
         let mut vcol: Colnr = 0;
         let mut raw_vcol: Colnr = 0;
-        let mut ci = utf_ptr2_str_char_info(&line_cstr);
+        let mut ci = utf_slice2_str_char_info(line_bytes);
         let limit_col = column as usize;
-        if cstype == K_CHARSIZE_FAST {
+        if csarg.can_use_fast_loop(cstype) {
             let use_tabstop = csarg.use_tabstop;
             let has_vts = csarg.has_vts;
             let b_p_ts = csarg.b_p_ts;
-            while !ci.ptr.is_empty() && ci.offset_from(&line_cstr) < limit_col {
+            while !ci.ptr.is_empty() && ci.offset_from_bytes(line_bytes) < limit_col {
+                let cur_off = ci.offset_from_bytes(line_bytes);
+                let max_adv = limit_col.saturating_sub(cur_off);
+                let ascii_run = printable_ascii_run_len(ci.ptr, max_adv);
+                if ascii_run > 0 {
+                    vcol += ascii_run as Colnr;
+                    ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+                    continue;
+                }
                 let cli = utf_cluster_info(ci);
                 vcol += charsize_fast_impl(
                     wp,
@@ -1538,7 +1655,7 @@ pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
             }
             raw_vcol = vcol;
         } else {
-            while !ci.ptr.is_empty() && ci.offset_from(&line_cstr) < limit_col {
+            while !ci.ptr.is_empty() && ci.offset_from_bytes(line_bytes) < limit_col {
                 let cli = utf_cluster_info(ci);
                 let cs = charsize_regular(csarg, ci.cstr(), raw_vcol, ci.chr.value, cli.cells);
                 let hidden = cs.hidden;

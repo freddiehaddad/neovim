@@ -2204,8 +2204,12 @@ pub fn with_ml_buf_line<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&[u8]) ->
         return f(&[]);
     }
     buf.b_ml.with_current_line_slice(|s| {
-        let len = s.len().saturating_sub(1);
-        f(&s[..len])
+        let line = if (buf.b_ml.ml_flags.get() & ML_LINE_INPLACE) != 0 {
+            crate::memory::bytes_until_nul(s)
+        } else {
+            &s[..s.len().saturating_sub(1)]
+        };
+        f(line)
     })
 }
 
@@ -2214,6 +2218,9 @@ pub fn with_ml_buf_line<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&[u8]) ->
 pub fn with_ml_buf_cstr<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&CStr) -> R) -> R {
     if !ml_load_line(buf, lnum, false) {
         return f(c"");
+    }
+    if let Some(cstr) = buf.b_ml.ml_line_cstr.get() {
+        return f(cstr.as_cstr());
     }
     buf.b_ml
         .with_current_line_slice(|s| f(crate::memory::bytes_as_cstr(s)))

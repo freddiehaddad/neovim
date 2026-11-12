@@ -34,7 +34,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
-use crate::mbyte::{UTF8LEN_TAB, mb_get_class, utf_cluster_info, utf_ptr2_str_char_info};
+use crate::mbyte::{UTF8LEN_TAB, mb_get_class, utf_cluster_info};
 use crate::mcursor::mc_toggle;
 use crate::memline::{gchar_pos, inc};
 use crate::menu::show_popupmenu;
@@ -2092,10 +2092,10 @@ fn mouse_find_grid_win(
 /// The first column is zero.
 pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mut Colnr>) -> Colnr {
     wp.with_buf(|buf| {
-        crate::memline::with_ml_buf_cstr(buf, lnum, |line_cstr| {
+        crate::memline::with_ml_buf_line(buf, lnum, |line_bytes| {
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_cstr);
-            let mut ci = utf_ptr2_str_char_info(line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_bytes);
+            let mut ci = crate::mbyte::utf_slice2_str_char_info(line_bytes);
             let mut cur_vcol: i32 = 0;
             while cur_vcol < vcol && !ci.ptr.is_empty() {
                 let cli = utf_cluster_info(ci);
@@ -2119,7 +2119,7 @@ pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mu
             if let Some(coladdp) = coladdp {
                 *coladdp = vcol - cur_vcol;
             }
-            ci.offset_from(line_cstr) as Colnr
+            ci.offset_from_bytes(line_bytes) as Colnr
         })
     })
 }
