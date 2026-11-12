@@ -58,6 +58,7 @@ impl RcCStr {
     pub fn as_cstr(&self) -> &std::ffi::CStr {
         match self {
             Self::Static(s) => s,
+            Self::Shared(s, 0) => s,
             Self::Shared(s, start) => {
                 let len = s.to_bytes().len();
                 &s[(*start).min(len)..]

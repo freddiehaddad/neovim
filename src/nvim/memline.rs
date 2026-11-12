@@ -2213,17 +2213,21 @@ pub fn with_ml_buf_line<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&[u8]) ->
     })
 }
 
-/// Borrow the `CStr` of line `lnum` in `buf` directly from `Memline`.
+/// Borrow the NUL-terminated bytes (including trailing NUL) of line `lnum` in `buf`.
 #[inline(always)]
-pub fn with_ml_buf_cstr<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&CStr) -> R) -> R {
+pub fn with_ml_buf_bytes_with_nul<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&[u8]) -> R) -> R {
     if !ml_load_line(buf, lnum, false) {
-        return f(c"");
+        return f(b"\0");
     }
-    if let Some(cstr) = buf.b_ml.ml_line_cstr.get() {
-        return f(cstr.as_cstr());
-    }
-    buf.b_ml
-        .with_current_line_slice(|s| f(crate::memory::bytes_as_cstr(s)))
+    buf.b_ml.with_current_line_slice(|s| {
+        let slice = if (buf.b_ml.ml_flags.get() & ML_LINE_INPLACE) != 0 {
+            let len = crate::memory::bytes_until_nul(s).len();
+            &s[..(len + 1).min(s.len())]
+        } else {
+            s
+        };
+        f(slice)
+    })
 }
 
 /// Return a reference to a (read-only copy of a) line in `curbuf`.

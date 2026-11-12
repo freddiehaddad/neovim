@@ -3473,7 +3473,7 @@ fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
     let found_off = RE_STATE
         .with(|s| s.rex.line.get())
         .wrapping_add(*colp as usize)
-        .with_cstr(|s_cstr| cstrchr(s_cstr, c));
+        .with_bytes(|s_bytes| cstrchr(s_bytes, c));
     let Some(off) = found_off else {
         return false;
     };
@@ -4431,9 +4431,7 @@ fn nfa_regmatch(
                                         lnum = 1;
                                     }
                                     let vcol =
-                                        re_s.rex.line.get().with_cstr(|cs| {
-                                            win_linetabsize(&wp_mut, lnum, cs, col)
-                                        });
+                                        re_s.rex.line.get().win_linetabsize(&wp_mut, lnum, col);
                                     matched = nfa_re_num_cmp(
                                         t_st.val as u64,
                                         op,
@@ -5114,6 +5112,7 @@ pub(super) fn nfa_regexec_nl(
         re_s.rex.reg_line_lbr.set(line_lbr);
         re_s.rex.reg_buf.set(g_st().curbuf.get());
         re_s.rex.reg_win.set(crate::globals::WinPtr::NULL);
+        re_s.rex.reg_win_cursor.set(None);
         re_s.rex.reg_ic.set(rmp.rm_ic);
         re_s.rex.reg_icombine.set(false);
         re_s.rex

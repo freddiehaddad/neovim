@@ -747,23 +747,24 @@ pub fn vim_haschr<C: crate::charset::AsciiInt>(string: &CStr, c: C) -> bool {
     vim_strchr(string, c.into_ascii_int()).is_some()
 }
 
-pub fn vim_strchr(string: &CStr, c: i32) -> Option<&CStr> {
+#[inline]
+pub fn vim_strchr_pos(hay: &[u8], c: i32) -> Option<usize> {
     if c <= 0 {
         return None;
     }
-    let hay = string.to_bytes();
     if c < 0x80 {
-        hay.iter()
-            .position(|&b| i32::from(b) == c)
-            .map(|pos| &string[pos..])
+        let needle = c as u8;
+        hay.iter().position(|&b| b == needle)
     } else {
         let mut u8char = [0u8; MB_MAXBYTES + 1];
         let len = utf_char2slice(c, &mut u8char);
         let needle = &u8char[..len];
-        hay.windows(len)
-            .position(|w| w == needle)
-            .map(|pos| &string[pos..])
+        hay.windows(len).position(|w| w == needle)
     }
+}
+
+pub fn vim_strchr(string: &CStr, c: i32) -> Option<&CStr> {
+    vim_strchr_pos(string.to_bytes(), c).map(|pos| &string[pos..])
 }
 
 pub fn sort_strings(files: &mut [std::ffi::CString]) {

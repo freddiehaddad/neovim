@@ -200,7 +200,11 @@ fn operand_cmp(prog: &[u8], idx: usize) -> u8 {
 fn advance_reginput() {
     RE_STATE.with(|s| {
         let inp = s.rex.input.get();
-        let step = utfc_ptr2len(inp) as usize;
+        let step = if inp.first_byte() < 0x80 && inp.second_byte() < 0x80 {
+            1
+        } else {
+            utfc_ptr2len(inp) as usize
+        };
         s.rex.input.set(inp.wrapping_add(step));
     });
 }
@@ -2346,6 +2350,15 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         let do_class =
             |mask: i16, testval: i16, scan: &mut crate::regexp::RegLineSlice, count: &mut i64| {
                 while *count < maxcount {
+                    let sb0 = (*scan).first_byte();
+                    if sb0 != NUL
+                        && sb0 < 0x80
+                        && (*scan).second_byte() < 0x80
+                        && (RI_CLASS_TAB[sb0 as usize] & mask) != testval
+                        && !(re_s.rex.reg_line_lbr.get() && sb0 == b'\n' && with_nl(op))
+                    {
+                        break;
+                    }
                     let byte_adv = (*scan).with_bytes(|bytes| {
                         let mut idx = 0usize;
                         while idx < bytes.len() && *count < maxcount {
@@ -2615,7 +2628,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             }
         } else if op == ANYOF || op == ANYOF + ADD_NL || op == ANYBUT || op == ANYBUT + ADD_NL {
             let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
-            let opnd_cstr = crate::memory::bytes_as_cstr(opnd);
+            let opnd_bytes = crate::memory::bytes_until_nul(opnd);
             while count < maxcount {
                 let b0 = (scan).first_byte();
                 if b0 == NUL {
@@ -2636,12 +2649,12 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 } else {
                     let len = utfc_ptr2len(scan);
                     if len > 1 {
-                        if cstrchr(opnd_cstr, utf_ptr2char(scan)).is_none() == is_anyof {
+                        if cstrchr(opnd_bytes, utf_ptr2char(scan)).is_none() == is_anyof {
                             break;
                         }
                         scan = scan.wrapping_add(len as usize);
                     } else {
-                        if cstrchr(opnd_cstr, b0 as i32).is_none() == is_anyof {
+                        if cstrchr(opnd_bytes, b0 as i32).is_none() == is_anyof {
                             break;
                         }
                         scan = scan.wrapping_add(1);
@@ -2857,7 +2870,13 @@ fn regmatch_inner(
                     if with_nl(op) {
                         op -= ADD_NL;
                     }
-                    let c = utf_ptr2char(re_s.rex.input.get());
+                    let inp = re_s.rex.input.get();
+                    let b0 = inp.first_byte();
+                    let c = if b0 < 0x80 {
+                        i32::from(b0)
+                    } else {
+                        utf_ptr2char(inp)
+                    };
                     match op {
                         BOL => {
                             if re_s.rex.input.get() != re_s.rex.line.get() {
@@ -2986,9 +3005,11 @@ fn regmatch_inner(
                             {
                                 lnum = 1;
                             }
-                            let vcol = re_s.rex.line.get().with_cstr(|cs| {
-                                win_linetabsize(&wp, lnum, cs, re_s.rex.input_col())
-                            });
+                            let vcol = re_s.rex.line.get().win_linetabsize(
+                                &wp,
+                                lnum,
+                                re_s.rex.input_col(),
+                            );
                             if !re_num_cmp((vcol as u32).wrapping_add(1), prog, scan_idx) {
                                 status = RegAction::NoMatch;
                             }
@@ -3266,8 +3287,8 @@ fn regmatch_inner(
                         }
                         ANYOF | ANYBUT => {
                             let q_slice = &prog[operand_idx(scan_idx)..];
-                            let q_cstr = crate::memory::bytes_as_cstr(q_slice);
-                            let matched = cstrchr(q_cstr, c);
+                            let q_bytes = crate::memory::bytes_until_nul(q_slice);
+                            let matched = cstrchr(q_bytes, c);
                             if c == NUL as i32 || (matched.is_none() == (op == ANYOF)) {
                                 status = RegAction::NoMatch;
                             } else {
@@ -3892,8 +3913,7 @@ fn regmatch_inner(
                                             )
                                         })
                                     } else {
-                                        crate::regexp::reg_with_cstr(rp_pos.lnum, |opt| {
-                                            let line_bytes = opt.map_or(&[][..], CStr::to_bytes);
+                                        crate::regexp::reg_with_line(rp_pos.lnum, |line_bytes| {
                                             crate::mbyte::utf_head_off_slice(
                                                 line_bytes,
                                                 rp_pos.col as usize - 1,
@@ -3906,13 +3926,7 @@ fn regmatch_inner(
                                 no = false;
                             } else {
                                 let line = re_s.rex.line.get();
-                                let p_off = rp.rs_un.regsave().rs_u.ptr.offset_from(line);
-                                let prev_off = p_off
-                                    - 1
-                                    - line.with_raw_bytes(|lb| {
-                                        crate::mbyte::utf_head_off_slice(lb, p_off - 1) as usize
-                                    });
-                                let p = line.wrapping_add(prev_off);
+                                let p = rp.rs_un.regsave().rs_u.ptr.step_back_char(line);
                                 rp.rs_un.regsave_mut().rs_u.ptr = p;
 
                                 if limit > 0
@@ -3982,18 +3996,12 @@ fn regmatch_inner(
                                             ));
                                             reg_breakcheck();
                                         } else {
-                                            let line = re_s.rex.line.get();
-                                            let inp_off = re_s.rex.input_off();
-                                            let prev_off = inp_off
-                                                - 1
-                                                - line.with_raw_bytes(|lb| {
-                                                    crate::mbyte::utf_head_off_slice(
-                                                        lb,
-                                                        inp_off - 1,
-                                                    )
-                                                        as usize
-                                                });
-                                            re_s.rex.input.set(line.wrapping_add(prev_off));
+                                            let prev = re_s
+                                                .rex
+                                                .input
+                                                .get()
+                                                .step_back_char(re_s.rex.line.get());
+                                            re_s.rex.input.set(prev);
                                         }
                                     } else {
                                         if rst.count == rst.minval
@@ -4181,10 +4189,8 @@ fn bt_regexec_both(
             let mut s = line.wrapping_add(col as usize);
             if !re_s.rex.reg_ic.get() {
                 loop {
-                    let found_off = s.with_cstr(|s_cstr| {
-                        vim_strchr(s_cstr, c)
-                            .map(|found| (found.as_ptr() as usize) - (s_cstr.as_ptr() as usize))
-                    });
+                    let found_off =
+                        s.with_bytes(|s_bytes| crate::strings::vim_strchr_pos(s_bytes, c));
                     let Some(found_off) = found_off else {
                         s = REG_LINE_NULL;
                         break;
@@ -4199,7 +4205,7 @@ fn bt_regexec_both(
                 }
             } else {
                 loop {
-                    let found_off = s.with_cstr(|s_cstr| cstrchr(s_cstr, c));
+                    let found_off = s.with_bytes(|s_bytes| cstrchr(s_bytes, c));
                     let Some(found_off) = found_off else {
                         s = REG_LINE_NULL;
                         break;
@@ -4248,7 +4254,7 @@ fn bt_regexec_both(
             while !g_st().got_int.get() {
                 if prog.regstart != NUL as i32 {
                     let found_off =
-                        cur_input.with_cstr(|rem_cstr| cstrchr(rem_cstr, prog.regstart));
+                        cur_input.with_bytes(|rem_bytes| cstrchr(rem_bytes, prog.regstart));
                     let Some(found_off) = found_off else {
                         retval = 0;
                         break;
@@ -4282,7 +4288,11 @@ fn bt_regexec_both(
                 if cur_input.is_empty() {
                     break;
                 }
-                let step = utfc_ptr2len(cur_input);
+                let step = if cur_input.first_byte() < 0x80 && cur_input.second_byte() < 0x80 {
+                    1
+                } else {
+                    utfc_ptr2len(cur_input)
+                };
                 col += step;
                 cur_input = cur_input.wrapping_add(step as usize);
                 if let Some(tm_val) = tm {
@@ -4352,6 +4362,7 @@ pub(super) fn bt_regexec_nl(
         s.rex.reg_line_lbr.set(line_lbr);
         s.rex.reg_buf.set(g_st().curbuf.get());
         s.rex.reg_win.set(crate::globals::WinPtr::NULL);
+        s.rex.reg_win_cursor.set(None);
         s.rex.reg_ic.set(rmp.rm_ic);
         s.rex.reg_icombine.set(false);
         s.rex

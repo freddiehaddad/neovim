@@ -26,7 +26,7 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
-use crate::plines::{getvvcol, win_linetabsize};
+use crate::plines::getvvcol;
 use crate::profile::{Proftime, profile_passed_limit};
 pub(super) use crate::strings::tr;
 use crate::window::WinInfoInfo;
@@ -452,6 +452,11 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
+    pub const fn off(self) -> usize {
+        self.off as usize
+    }
+
+    #[inline(always)]
     pub const fn is_empty(self) -> bool {
         self.b[0] == 0
     }
@@ -503,6 +508,26 @@ impl RegLineSlice {
         self.with_span(end, cstring_from_bytes)
     }
 
+    pub fn win_linetabsize(self, wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> i32 {
+        let mut stack_buf = [0u8; 256];
+        let mut heap_buf: Vec<u8> = Vec::new();
+        let len = self.with_bytes(|b| {
+            let n = b.len();
+            if n <= stack_buf.len() {
+                stack_buf[..n].copy_from_slice(b);
+            } else {
+                heap_buf.extend_from_slice(b);
+            }
+            n
+        });
+        let slice = if len <= stack_buf.len() {
+            &stack_buf[..len]
+        } else {
+            &heap_buf[..len]
+        };
+        crate::plines::win_linetabsize_bytes(wp, lnum, slice, col)
+    }
+
     #[inline(always)]
     pub fn wrapping_add(self, n: usize) -> Self {
         if self.valid == 0 {
@@ -550,6 +575,38 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
+    pub fn step_back_char(self, base: Self) -> Self {
+        if self.valid == 0 || base.valid == 0 {
+            return REG_LINE_NULL;
+        }
+        let cur_off = self.offset_from(base);
+        if cur_off == 0 {
+            return base;
+        }
+        LINE_SLOTS.with(|cell| {
+            let slots = cell.borrow();
+            let slice = &slots.line_slots[base.slot as usize];
+            let max_off = slice.len().saturating_sub(1);
+            let prev = (cur_off - 1).min(max_off);
+            let prev_off = if slice.get(prev).is_none_or(|&b| b < 0x80) {
+                prev
+            } else {
+                prev.saturating_sub(crate::mbyte::utf_head_off_slice(slice, prev) as usize)
+            };
+            let rem = &slice[prev_off..];
+            let mut b = [0u8; 8];
+            let copy_len = rem.len().min(8);
+            b[..copy_len].copy_from_slice(&rem[..copy_len]);
+            Self {
+                slot: base.slot,
+                valid: 8,
+                off: prev_off as u32,
+                b,
+            }
+        })
+    }
+
+    #[inline(always)]
     pub fn offset_from(self, base: Self) -> usize {
         if self.valid == 0 || base.valid == 0 {
             0
@@ -583,10 +640,9 @@ impl RegLineSlice {
 }
 
 #[inline(always)]
-pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
-    let bytes = s.to_bytes_with_nul();
+pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
     let len = bytes.len();
-    let addr = s.as_ptr() as usize;
+    let addr = bytes.as_ptr() as usize;
     let mut b = [0u8; 8];
     let copy_len = len.min(8);
     b[..copy_len].copy_from_slice(&bytes[..copy_len]);
@@ -617,6 +673,11 @@ pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
         off: 0,
         b,
     }
+}
+
+#[inline(always)]
+pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
+    reg_line_from_bytes_with_nul(s.to_bytes_with_nul())
 }
 
 #[inline(always)]
@@ -1263,6 +1324,7 @@ pub(super) struct Regexec {
     pub rmm_endpos: [Lpos; NSUBEXP],
     pub rmm_matchcol: Colnr,
     pub reg_win: crate::globals::WinPtr,
+    pub reg_win_cursor: Option<crate::cursor::CursorPos>,
     pub reg_buf: crate::globals::BufPtr,
     pub reg_firstlnum: Linenr,
     pub reg_maxline: Linenr,
@@ -1297,6 +1359,7 @@ impl Regexec {
             rmm_endpos: [Lpos::new(); NSUBEXP],
             rmm_matchcol: 0,
             reg_win: crate::globals::WinPtr::NULL,
+            reg_win_cursor: None,
             reg_buf: crate::globals::BufPtr::NULL,
             reg_firstlnum: 0,
             reg_maxline: 0,
@@ -1641,6 +1704,7 @@ pub(super) struct RegexecState {
     pub rmm_endpos: [std::cell::Cell<Lpos>; NSUBEXP],
     pub rmm_matchcol: std::cell::Cell<Colnr>,
     pub reg_win: crate::globals::CloneCell<crate::globals::WinPtr>,
+    pub reg_win_cursor: std::cell::Cell<Option<crate::cursor::CursorPos>>,
     pub reg_buf: crate::globals::CloneCell<crate::globals::BufPtr>,
     pub reg_firstlnum: std::cell::Cell<Linenr>,
     pub reg_maxline: std::cell::Cell<Linenr>,
@@ -1675,6 +1739,7 @@ impl RegexecState {
             rmm_endpos: [const { std::cell::Cell::new(Lpos::new()) }; NSUBEXP],
             rmm_matchcol: std::cell::Cell::new(0),
             reg_win: crate::globals::CloneCell::new(crate::globals::WinPtr::NULL),
+            reg_win_cursor: std::cell::Cell::new(None),
             reg_buf: crate::globals::CloneCell::new(crate::globals::BufPtr::NULL),
             reg_firstlnum: std::cell::Cell::new(0),
             reg_maxline: std::cell::Cell::new(0),
@@ -1769,6 +1834,7 @@ impl RegexecState {
             rmm_endpos: self.endpos_arr(),
             rmm_matchcol: self.rmm_matchcol.get(),
             reg_win: self.reg_win.get(),
+            reg_win_cursor: self.reg_win_cursor.get(),
             reg_buf: self.reg_buf.get(),
             reg_firstlnum: self.reg_firstlnum.get(),
             reg_maxline: self.reg_maxline.get(),
@@ -1804,6 +1870,7 @@ impl RegexecState {
         self.rm_matchcol.set(snap.rm_matchcol);
         self.rmm_matchcol.set(snap.rmm_matchcol);
         self.reg_win.set(snap.reg_win.clone());
+        self.reg_win_cursor.set(snap.reg_win_cursor);
         self.reg_buf.set(snap.reg_buf.clone());
         self.reg_firstlnum.set(snap.reg_firstlnum);
         self.reg_maxline.set(snap.reg_maxline);
@@ -1839,7 +1906,7 @@ impl RegexecState {
     }
     #[inline(always)]
     pub fn win_cursor(&self) -> Option<crate::cursor::CursorPos> {
-        self.reg_win.with(|w| w.opt().map(|wp| wp.w_cursor.get()))
+        self.reg_win_cursor.get()
     }
     #[inline(always)]
     pub fn buf_chartab(&self) -> [u64; 4] {
@@ -1851,11 +1918,11 @@ impl RegexecState {
     }
     #[inline(always)]
     pub fn input_col(&self) -> Colnr {
-        self.input_off() as Colnr
+        self.input.get().off() as Colnr
     }
     #[inline(always)]
     pub fn input_off(&self) -> usize {
-        self.input.get().offset_from(self.line.get())
+        self.input.get().off()
     }
 }
 
@@ -2851,24 +2918,33 @@ fn reg_getline_bounds(lnum: Linenr, submatch: bool) -> (Linenr, Linenr) {
 }
 
 #[inline(always)]
-pub(super) fn reg_with_cstr<R>(lnum: Linenr, f: impl FnOnce(Option<&std::ffi::CStr>) -> R) -> R {
+pub(super) fn reg_with_line<R>(lnum: Linenr, f: impl FnOnce(&[u8]) -> R) -> R {
     RE_STATE.with(|s| {
         let firstlnum = s.rex.reg_firstlnum.get() + lnum;
         let maxline = s.rex.reg_maxline.get();
-        if firstlnum < 1 {
-            return f(None);
-        }
-        if lnum > maxline {
-            return f(Some(c""));
+        if firstlnum < 1 || lnum > maxline {
+            return f(&[]);
         }
         s.rex
-            .with_buf(|buf| crate::memline::with_ml_buf_cstr(buf, firstlnum, |cstr| f(Some(cstr))))
+            .with_buf(|buf| crate::memline::with_ml_buf_line(buf, firstlnum, f))
     })
 }
 
 #[inline(always)]
 pub(super) fn reg_load_line_slice(lnum: Linenr) -> RegLineSlice {
-    reg_with_cstr(lnum, reg_line_from_opt_cstr)
+    RE_STATE.with(|s| {
+        let firstlnum = s.rex.reg_firstlnum.get() + lnum;
+        let maxline = s.rex.reg_maxline.get();
+        if firstlnum < 1 {
+            return REG_LINE_NULL;
+        }
+        if lnum > maxline {
+            return reg_line_from_bytes_with_nul(b"\0");
+        }
+        s.rex.with_buf(|buf| {
+            crate::memline::with_ml_buf_bytes_with_nul(buf, firstlnum, reg_line_from_bytes_with_nul)
+        })
+    })
 }
 
 pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcCStr> {
@@ -3019,14 +3095,11 @@ pub(super) fn reg_match_visual() -> bool {
         });
 
         let cols = RE_STATE.with(|s| {
-            s.rex.line.get().with_cstr(|cs| {
-                win_linetabsize(
-                    wp.borrow_mut(),
-                    s.rex.reg_firstlnum.get() + s.rex.lnum.get(),
-                    cs,
-                    col,
-                )
-            })
+            s.rex.line.get().win_linetabsize(
+                wp.borrow_mut(),
+                s.rex.reg_firstlnum.get() + s.rex.lnum.get(),
+                col,
+            )
         });
         if cols < start || cols > end - Colnr::from(opt_vars().p_sel.first_byte() == b'e') {
             return false;
@@ -3255,10 +3328,9 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 }
 
 #[inline(always)]
-pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
-    let s_ptr = s.as_ptr();
+pub(super) fn cstrchr(s_bytes: &[u8], c: i32) -> Option<usize> {
     if !RE_STATE.with(|s| s.rex.reg_ic.get()) {
-        return vim_strchr(s, c).map(|found| (found.as_ptr() as usize) - (s_ptr as usize));
+        return crate::strings::vim_strchr_pos(s_bytes, c);
     }
 
     let (cc, lc) = if c > 0x80 {
@@ -3271,10 +3343,9 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         let u = (c as u8).to_ascii_uppercase() as i32;
         (u, c)
     } else {
-        return vim_strchr(s, c).map(|found| (found.as_ptr() as usize) - (s_ptr as usize));
+        return crate::strings::vim_strchr_pos(s_bytes, c);
     };
 
-    let s_bytes = s.to_bytes();
     let mut idx = 0usize;
     while idx < s_bytes.len() {
         let rem = &s_bytes[idx..];
@@ -3996,11 +4067,13 @@ pub(super) fn init_regexec_multi(
     let nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     let maxcol = rmp.rmm_maxcol;
     let buf_ptr = crate::globals::BufPtr::from(buf);
+    let win_cursor = win.map(|wp| wp.w_cursor.get());
     let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     RE_STATE.with(|s| {
         s.rex.load_mmatch(rmp);
         s.rex.reg_buf.set(buf_ptr);
         s.rex.reg_win.set(win_ptr);
+        s.rex.reg_win_cursor.set(win_cursor);
         s.rex.reg_firstlnum.set(lnum);
         s.rex.reg_maxline.set(maxline);
         s.rex.reg_line_lbr.set(false);
