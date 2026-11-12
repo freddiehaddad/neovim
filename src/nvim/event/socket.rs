@@ -423,9 +423,13 @@ pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) 
     }
 }
 
-pub fn socket_watcher_close(watcher: &mut SocketWatcher) {
+pub fn socket_watcher_close(watcher: Box<SocketWatcher>) {
+    let watcher = Box::into_raw(watcher);
     unsafe {
-        uv_close(ptr::from_mut(watcher.stream_mut()).cast(), Some(close_cb));
+        uv_close(
+            ptr::from_mut((*watcher).stream_mut()).cast(),
+            Some(close_cb),
+        );
     }
 }
 

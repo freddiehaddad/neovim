@@ -96,8 +96,7 @@ use crate::event::multiqueue::{
 };
 use crate::event::proc::{Proc, proc_stop, proc_wait};
 use crate::event::time::{
-    TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
-    time_watcher_stop,
+    TimeWatcher, WaitTimer, time_watcher_close, time_watcher_start, time_watcher_stop,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{
@@ -3469,15 +3468,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     } else {
         200
     };
-    let mut tw = Box::new(TimeWatcher::new());
-
-    time_watcher_init(
-        crate::event::r#loop::main_loop_ptr(),
-        &mut tw,
-        TimeWatcherData::WaitDummy,
-    );
-
-    time_watcher_start(&mut tw, interval as u64, interval as u64);
+    let tw = WaitTimer::start(crate::event::r#loop::main_loop_ptr(), interval as u64);
 
     let mut argv = tv_initial_value();
     let mut exprval = tv_initial_value();
@@ -3528,8 +3519,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
     tv_clear(&mut exprval);
 
-    time_watcher_stop(&mut tw);
-    time_watcher_close(Box::leak(tw));
+    tw.stop_and_close();
 }
 
 /// "gettext()" function

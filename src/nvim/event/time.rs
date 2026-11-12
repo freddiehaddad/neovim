@@ -43,6 +43,26 @@ pub fn loop_fast_events(loop_: &mut Loop) -> MultiQueue {
     loop_.fast_events
 }
 
+pub struct WaitTimer(*mut TimeWatcher);
+
+impl WaitTimer {
+    pub fn start(loop_: &mut Loop, interval: u64) -> Self {
+        let tw = Box::into_raw(Box::new(TimeWatcher::new()));
+        unsafe {
+            time_watcher_init(loop_, &mut *tw, TimeWatcherData::WaitDummy);
+            time_watcher_start(&mut *tw, interval, interval);
+        }
+        Self(tw)
+    }
+
+    pub fn stop_and_close(self) {
+        unsafe {
+            time_watcher_stop(&mut *self.0);
+            time_watcher_close(&mut *self.0);
+        }
+    }
+}
+
 pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: TimeWatcherData) {
     unsafe {
         uv_timer_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());

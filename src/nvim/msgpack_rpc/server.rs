@@ -115,7 +115,7 @@ fn set_vservername() {
 pub fn server_teardown() {
     let watchers = SERVER_STATE.with(|st| std::mem::take(&mut *st.watchers.borrow_mut()));
     for watcher in watchers {
-        socket_watcher_close(Box::leak(watcher));
+        socket_watcher_close(watcher);
     }
 }
 
@@ -242,7 +242,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
 
         watcher.free_tcp_addrinfo();
 
-        socket_watcher_close(Box::leak(watcher));
+        socket_watcher_close(watcher);
 
         return 2;
     }
@@ -261,7 +261,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             watcher.addr_cstr(),
         );
 
-        socket_watcher_close(Box::leak(watcher));
+        socket_watcher_close(watcher);
 
         return result;
     }
@@ -304,7 +304,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
         return false;
     };
 
-    socket_watcher_close(Box::leak(watcher));
+    socket_watcher_close(watcher);
 
     if !keep_vservername && Some(addr_bytes) == Some(get_vim_var_str(VV_SEND_SERVER).to_bytes()) {
         set_vservername();
