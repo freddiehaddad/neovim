@@ -183,10 +183,8 @@ impl UvRawTimer {
 }
 
 unsafe extern "C" fn uv_raw_timer_cb(handle: *mut uv_timer_t) {
-    unsafe {
-        let timer = &mut **handle.cast::<*mut UvRawTimer>();
-        if let Some(cb) = timer.cb {
-            cb();
-        }
+    let cb = unsafe { (**handle.cast::<*const UvRawTimer>()).cb };
+    if let Some(cb) = cb {
+        cb();
     }
 }

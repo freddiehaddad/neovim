@@ -1893,6 +1893,17 @@ pub fn wait_return(redraw: i32) {
             loop {
                 had_got_int = g_st().got_int.get();
 
+                // Process events while waiting, avoid OOM. #42669
+                let prompt_row = g_st().msg_row.get();
+                let prompt_col = g_st().msg_col.get();
+                if !crate::state::state_wait_key() {
+                    if g_st().msg_row.get() != prompt_row || g_st().msg_col.get() != prompt_col {
+                        hit_return_msg(false); // Show the prompt again, below the messages.
+                    }
+                    msg_cursor_goto(g_st().msg_row.get(), g_st().msg_col.get()); // Events may move the cursor.
+                    continue;
+                }
+
                 g_st().no_mapping.set(g_st().no_mapping.get() + (1));
                 g_st().allow_keys.set(g_st().allow_keys.get() + (1));
 

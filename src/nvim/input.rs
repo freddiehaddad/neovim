@@ -16,8 +16,8 @@ use crate::eval::typval::{
 use crate::eval::vars::{
     VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
 };
-use crate::event::r#loop::{main_loop_events, uv_strerror};
-use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
+use crate::event::r#loop::uv_strerror;
+use crate::event::multiqueue::MultiQueue;
 use crate::ex_cmds::{CTRL_C_CONST, check_secure};
 use crate::ex_docmd::update_topline_cursor;
 use crate::ex_getln::{
@@ -65,14 +65,13 @@ use crate::os::fileio::{
     FileDescriptor, K_FILE_NON_BLOCKING, K_FILE_READ_ONLY, file_close, file_open, file_open_stdin,
     file_read,
 };
-use crate::os::input::{input_available, input_get, line_breakcheck, os_breakcheck};
+use crate::os::input::{input_get, line_breakcheck, os_breakcheck};
 use crate::plines::{
     CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, win_charsize,
 };
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
-    MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
-    state_no_longer_safe,
+    MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_no_longer_safe, state_wait_key,
 };
 use crate::strings::{format_to_buf, gettext};
 use crate::textformat::Oparg;
@@ -1943,14 +1942,8 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         if argvars[0].v_type == VarType::VarUnknown
             || (argvars[0].v_type == VarType::VarNumber && argvars[0].vval.v_number() == -1)
         {
-            if !char_avail() {
-                ui_flush();
-                let events = main_loop_events();
-                input_get(None, -1, g_st().typebuf.tb_change_cnt.get(), Some(events));
-                if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
-                    state_handle_k_event();
-                    continue;
-                }
+            if !state_wait_key() {
+                continue;
             }
             n = Varnumber::from(safe_vgetc());
         } else if tv_get_bool_chk(&argvars[0], Some(&mut error)) != 0 {

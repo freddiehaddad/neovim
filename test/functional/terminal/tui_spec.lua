@@ -4202,9 +4202,18 @@ describe('TUI FocusGained/FocusLost', function()
       {102:Press ENTER or type command to continue}^           |
       {5:-- TERMINAL --}                                    |
     ]])
-    feed_data('\027[I')
-    feed_data('\027[I')
-    screen:expect_unchanged()
+    retry(2, 3 * screen.timeout, function()
+      feed_data('\027[I')
+      screen:expect([[
+        msg2                                              |
+        msg3                                              |
+        msg4                                              |
+        msg5                                              |
+        gained                                            |
+        {102:Press ENTER or type command to continue}^           |
+        {5:-- TERMINAL --}                                    |
+      ]])
+    end)
   end)
 end)
 

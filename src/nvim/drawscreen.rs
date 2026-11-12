@@ -571,7 +571,12 @@ pub fn update_screen() -> bool {
         diff_redraw(true);
     }
 
-    if !redrawing() || g_st().updating_screen.get() || cmdline_number_prompt() {
+    if !redrawing()
+        || g_st().updating_screen.get()
+        || cmdline_number_prompt()
+        || g_st().state_global.get() == MODE_HITRETURN
+        || g_st().state_global.get() == MODE_SETWSIZE
+    {
         return false;
     }
 

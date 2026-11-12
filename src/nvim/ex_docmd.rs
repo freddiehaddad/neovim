@@ -11573,16 +11573,18 @@ fn ex_redraw(eap: &mut Exarg) {
     } else if g_st().visual_global.borrow().active {
         redraw_curbuf_later(UPD_INVERTED);
     }
-    update_screen();
+    let redrawn = update_screen();
     if g_st().need_maketitle.get() {
         maketitle();
     }
     g_st().redrawing_disabled.set(r);
     opt_vars().p_lz.set(p);
 
-    g_st().msg_didout.set(false);
-    g_st().msg_col.set(0);
-    g_st().need_wait_return.set(false);
+    if redrawn {
+        g_st().msg_didout.set(false);
+        g_st().msg_col.set(0);
+        g_st().need_wait_return.set(false);
+    }
 
     ui_flush();
 }

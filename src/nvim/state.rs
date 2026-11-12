@@ -11,7 +11,8 @@ use crate::ex_getln::{K_EVENT, cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
 use crate::hashtab::Hashtab;
 use crate::input::{
-    check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script, vpeekc,
+    char_avail, check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script,
+    vpeekc,
 };
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::keycodes::get_special_key_name;
@@ -84,6 +85,20 @@ std::thread_local! {
     static WAS_SAFE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Blocks until a key is typed or an event (vim.schedule(), timer, RPC request) is queued.
+///
+/// @return  true if a key is available, false if only an event is.
+fn wait_key_or_event() -> bool {
+    ui_flush(); // Flush screen updates before blocking.
+    input_get(
+        None,
+        -1,
+        g_st().typebuf.tb_change_cnt.get(),
+        Some(main_loop_events()),
+    );
+    input_available() != 0 || multiqueue_empty(main_loop_events())
+}
+
 pub fn state_enter<S: EditorState>(s: &mut S) {
     loop {
         let check_result = s.check();
@@ -109,14 +124,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                         update_screen();
                         setcursor();
                     }
-                    ui_flush();
-                    input_get(
-                        None,
-                        -1,
-                        g_st().typebuf.tb_change_cnt.get(),
-                        Some(main_loop_events()),
-                    );
-                    if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
+                    if !wait_key_or_event() {
                         break K_EVENT;
                     }
                 }
@@ -170,6 +178,26 @@ pub fn state_handle_k_event() {
             return;
         }
     }
+}
+
+/// Waits for a key, meanwhile processing events (vim.schedule(), timers, RPC requests), for a prompt
+/// that gets keys outside of state_enter() (which passes events to the state as K_EVENT).
+///
+/// Legacy ui (not ui2/ext_messages): messages from events overwrite the prompt (last message line)
+/// and don't prompt again.
+///
+/// @return  true if a key is available, false if events were processed instead (caller must restore
+///          its prompt and call again).
+pub fn state_wait_key() -> bool {
+    if char_avail() || wait_key_or_event() {
+        return true;
+    }
+    g_st().cmdline_row.set(g_st().msg_row.get());
+    g_st().may_garbage_collect.set(false); // See nv_event().
+    g_st().no_wait_return.set(g_st().no_wait_return.get() + 1);
+    state_handle_k_event();
+    g_st().no_wait_return.set(g_st().no_wait_return.get() - 1);
+    false
 }
 
 pub fn virtual_active(wp: &WinInfoInfo) -> bool {
