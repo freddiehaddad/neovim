@@ -932,8 +932,8 @@ pub fn getout(mut exitval: i32) -> ! {
                     let b_fname = buf.fname_opt();
                     apply_autocmds(
                         EVENT_BUFWINLEAVE,
-                        b_fname,
-                        b_fname,
+                        b_fname.as_deref(),
+                        b_fname.as_deref(),
                         false,
                         buf_ptr.opt_mut(),
                     );
@@ -953,7 +953,7 @@ pub fn getout(mut exitval: i32) -> ! {
             if buf.b_ml.ml_mfp.borrow().is_some() {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&buf));
-                let b_fname = buf.fname_opt().map(CStr::to_owned);
+                let b_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
                 apply_autocmds(
                     EVENT_BUFUNLOAD,
                     b_fname.as_deref(),
@@ -1025,7 +1025,7 @@ pub fn getout(mut exitval: i32) -> ! {
     }
 
     if opt_vars().p_title.get() && !opt_vars().p_titleold.is_empty() {
-        ui_call_set_title(cstr_as_string(Some(opt_vars().p_titleold.as_cstr())));
+        ui_call_set_title(cstr_as_string(Some(&opt_vars().p_titleold.as_cstr())));
     }
 
     if g_st().garbage_collect_at_exit.get() {
@@ -1708,7 +1708,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                 && gargcount() > 0
             {
                 let e0 = garg_entry(0);
-                let name0 = alist_name(&e0).unwrap_or(c"");
+                let name0_rc = alist_name(&e0);
+                let name0 = name0_rc.as_deref().unwrap_or(c"");
                 if !os_isdir(name0) {
                     let tail = path_tail(name0);
                     let joined = concat_fnames(
@@ -1771,7 +1772,7 @@ fn set_argf_var() {
     for i in 0..count {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
-            let _ = vim_full_name(Some(fname), &mut *g_st().name_buff_bytes_mut(), false);
+            let _ = vim_full_name(Some(&fname), &mut *g_st().name_buff_bytes_mut(), false);
             tv_list_append_string(&list, Some(&g_st().name_buff_cstr()), -1);
         }
     }
@@ -1844,7 +1845,7 @@ fn init_path(exename: &CStr) {
 
 fn get_fname(_parmp: &mut Mparm) -> Option<std::ffi::CString> {
     let entry = garg_entry(0);
-    alist_name(&entry).map(std::ffi::CStr::to_owned)
+    alist_name(&entry).as_deref().map(std::ffi::CStr::to_owned)
 }
 
 fn set_window_layout(paramp: &mut Mparm) {
@@ -1869,11 +1870,11 @@ fn handle_quickfix(paramp: &mut Mparm) {
         );
         if qf_init(
             None,
-            Some(opt_vars().p_ef.as_cstr()),
-            opt_vars().p_efm.as_cstr(),
+            Some(&opt_vars().p_ef.as_cstr()),
+            &opt_vars().p_efm.as_cstr(),
             1,
             Some(&g_st().iobuff_cstr()),
-            Some(opt_vars().p_menc.as_cstr()),
+            Some(&opt_vars().p_menc.as_cstr()),
         ) < 0
         {
             msg_putchar(b'\n' as i32);
@@ -2111,10 +2112,10 @@ fn edit_buffers(parmp: &mut Mparm) {
             curwin_mut().w_arg_idx.set(arg_idx);
             g_st().swap_exists_did_quit.set(false);
             let entry_opt = (arg_idx < gargcount()).then(|| garg_entry(arg_idx as usize));
-            let fname = entry_opt.as_ref().and_then(|e| alist_name(e));
+            let fname = entry_opt.as_ref().and_then(alist_name);
             do_ecmd(
                 0,
-                fname,
+                fname.as_deref(),
                 None,
                 None,
                 ECMD_LASTL,

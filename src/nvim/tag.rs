@@ -723,8 +723,13 @@ pub fn do_tag(
                     });
 
                     let mut new_matches: Vec<Vec<u8>> = Vec::new();
-                    if find_tags(name_cstr, &mut new_matches, flags, max_num, buf_ffname)
-                        && (new_matches.len() as i32) < max_num
+                    if find_tags(
+                        name_cstr,
+                        &mut new_matches,
+                        flags,
+                        max_num,
+                        buf_ffname.as_deref(),
+                    ) && (new_matches.len() as i32) < max_num
                     {
                         tag_st(|st| st.do_tag_max_num_matches.set(MAXCOL));
                     }
@@ -1704,7 +1709,7 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         convert_setup(
             &mut st.vimconv,
             Some(crate::memory::bytes_as_cstr(&st.lbuf[20..])),
-            Some(opt_vars().p_enc.as_cstr()),
+            Some(&opt_vars().p_enc.as_cstr()),
         );
     }
 
@@ -2414,7 +2419,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             tnp.tn_hf_idx += 1;
             crate::memory::copy_bytes_to_c_buf(
                 &mut buf[..MAXPATHL - 4],
-                opt_vars().p_hf.as_bytes(),
+                &opt_vars().p_hf.as_bytes(),
             );
             let buf_cstr = crate::memory::bytes_as_cstr(buf);
             let tail_off = path_tail(buf_cstr).as_ptr() as usize - buf_cstr.as_ptr() as usize;
@@ -2489,7 +2494,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 FindFileWhat::File,
                 tnp.tn_search_ctx.take(),
                 true,
-                curbuf_mut().ffname_opt(),
+                curbuf_mut().ffname_opt().as_deref(),
             );
             if tnp.tn_search_ctx.is_some() {
                 tnp.tn_did_filefind_init = true;
@@ -2763,7 +2768,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             let save_no_hlsearch = g_st().search_global.no_hlsearch.get();
 
             let search_options =
-                if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_TAGPAT) {
+                if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_TAGPAT) {
                     0
                 } else {
                     SEARCH_KEEP
@@ -3074,7 +3079,7 @@ pub fn expand_tags(
             &mut raw_matches,
             TAG_REGEXP | extra_flag | TAG_VERBOSE,
             TAG_MANY,
-            b_ffname,
+            b_ffname.as_deref(),
         )
     } else {
         find_tags(
@@ -3082,7 +3087,7 @@ pub fn expand_tags(
             &mut raw_matches,
             TAG_REGEXP | extra_flag | TAG_VERBOSE | TAG_NOIC,
             TAG_MANY,
-            b_ffname,
+            b_ffname.as_deref(),
         )
     };
     file.clear();

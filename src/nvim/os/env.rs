@@ -838,7 +838,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                 let mut is_helpfile = false;
                 let mut vim_path_opt: Option<std::ffi::CString> = None;
                 if !opt_vars().p_hf.is_null()
-                    && !crate::strings::vim_haschr(opt_vars().p_hf.as_cstr(), b'$' as i32)
+                    && !crate::strings::vim_haschr(&opt_vars().p_hf.as_cstr(), b'$' as i32)
                 {
                     vim_path_opt = Some(opt_vars().p_hf.to_owned());
                     is_helpfile = true;

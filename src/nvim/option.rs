@@ -857,7 +857,7 @@ fn set_init_expand_env() {
         let mut p: Option<std::borrow::Cow<'static, CStr>> = None;
         if (opt.flags() & K_OPT_FLAG_GETTEXT) != 0 && opt.var().is_some() {
             if let Some(cstr) = opt.var().opt_cstr() {
-                p = Some(std::borrow::Cow::Borrowed(tr(cstr)));
+                p = Some(std::borrow::Cow::Owned(tr(&cstr).to_owned()));
             }
         } else if (opt.flags() & K_OPT_FLAG_EXPAND) != 0 {
             p = option_expand(opt_idx, opt.def_val().data.string().as_opt_cstr())
@@ -951,7 +951,7 @@ pub fn set_init_1(clean_arg: bool) {
     lang_init();
     set_init_fenc_default();
 
-    bind_textdomain_codeset(c"nvim", Some(opt_vars().p_enc.as_cstr()));
+    bind_textdomain_codeset(c"nvim", Some(&opt_vars().p_enc.as_cstr()));
 
     set_helplang_default(get_mess_lang());
 }
@@ -2205,7 +2205,14 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<std:
         return None;
     }
 
-    let val_cstr = val.or_else(|| opt.var().opt_cstr())?;
+    let var_cstr;
+    let val_cstr = match val {
+        Some(v) => v,
+        None => {
+            var_cstr = opt.var().opt_cstr()?;
+            &var_cstr
+        }
+    };
     if val_cstr.to_bytes().len() > MAXPATHL {
         return None;
     }
@@ -2237,11 +2244,11 @@ fn didset_options() {
 
     let mut sps_flags: i32 = 0;
     let mut sps_limit: i32 = 0;
-    if spell_check_sps(opt_vars().p_sps.as_cstr(), &mut sps_flags, &mut sps_limit) {
+    if spell_check_sps(&opt_vars().p_sps.as_cstr(), &mut sps_flags, &mut sps_limit) {
         spell_apply_sps(sps_flags, sps_limit);
     }
     let ws = curwin_mut().w_s_ptr();
-    compile_cap_prog(ws.b_p_spc.as_cstr(), &mut ws.b_cap_prog.borrow_mut());
+    compile_cap_prog(&ws.b_p_spc.as_cstr(), &mut ws.b_cap_prog.borrow_mut());
     did_set_spell_option();
     let mut dummy = Optset::new();
     did_set_cedit(&mut dummy);
@@ -2254,31 +2261,31 @@ fn didset_options2() {
 
     set_chars_option(
         &curwin_mut(),
-        curwin_mut().w_onebuf_opt.wo_fcs.as_cstr(),
+        &curwin_mut().w_onebuf_opt.wo_fcs.as_cstr(),
         CharsOption::Fillchars,
         true,
         None,
     );
     set_chars_option(
         &curwin_mut(),
-        curwin_mut().w_onebuf_opt.wo_lcs.as_cstr(),
+        &curwin_mut().w_onebuf_opt.wo_lcs.as_cstr(),
         CharsOption::Listchars,
         true,
         None,
     );
 
     let mut wim_flags = [0u8; 4];
-    check_opt_wim(opt_vars().p_wim.as_bytes(), &mut wim_flags);
+    check_opt_wim(&opt_vars().p_wim.as_bytes(), &mut wim_flags);
     for (dst, src) in g_st().wim_flags.iter().zip(wim_flags) {
         dst.set(src);
     }
     tabstop_set(
-        curbuf_mut().b_p_vsts.as_bytes(),
+        &curbuf_mut().b_p_vsts.as_bytes(),
         &mut curbuf_mut().b_p_vsts_array.borrow_mut(),
         None,
     );
     tabstop_set(
-        curbuf_mut().b_p_vts.as_bytes(),
+        &curbuf_mut().b_p_vts.as_bytes(),
         &mut curbuf_mut().b_p_vts_array.borrow_mut(),
         None,
     );
@@ -3005,7 +3012,7 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
             );
             if !buf.b_p_vsts.is_empty() {
                 tabstop_set(
-                    buf.b_p_vsts.as_bytes(),
+                    &buf.b_p_vsts.as_bytes(),
                     &mut buf.b_p_vsts_array.borrow_mut(),
                     None,
                 );
@@ -3211,7 +3218,7 @@ pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             && bp.b_ml.ml_mfp.borrow().is_some()
         {
             u_compute_hash(&bp, &mut hash);
-            u_read_undo(None, &hash, bp.fname_opt());
+            u_read_undo(None, &hash, bp.fname_opt().as_deref());
         }
     }
 
@@ -3354,7 +3361,7 @@ fn do_syntax_autocmd(buf: &FileBuf, value_changed: bool) {
     OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() + (1)));
     buf.b_flags.set(buf.b_flags.get() | (BF_SYN_SET));
     let syn_name = buf.b_p_syn.to_owned();
-    let buf_fname = buf.fname_opt().map(CStr::to_owned);
+    let buf_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
     apply_autocmds(
         EVENT_SYNTAX,
         Some(&syn_name),
@@ -3368,7 +3375,8 @@ fn do_syntax_autocmd(buf: &FileBuf, value_changed: bool) {
 fn do_spelllang_source(win: &WinInfoInfo) {
     let mut fname = [0u8; 200];
     let ws = win.w_s_ptr();
-    let mut q = ws.b_p_spl.as_cstr();
+    let spl = ws.b_p_spl.as_cstr();
+    let mut q = spl.as_cstr();
 
     if q.to_bytes().starts_with(b"cjk,") {
         q = &q[4..];
@@ -5078,7 +5086,7 @@ fn opt_from_callback(cb: &Callback) -> Object {
             return luaref_obj(api_new_luaref(luaref));
         }
         K_CALLBACK_EXPR | K_CALLBACK_FUNCREF => {
-            return cstr_to_obj(cb.data.as_funcref());
+            return cstr_to_obj(cb.data.as_funcref().as_deref());
         }
         K_CALLBACK_PARTIAL => {
             let mut tv = TypVal::new();
@@ -5146,7 +5154,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
             opt_from_tristate(tristate_from_int(OptInt::from(varp.bool_tristate())))
         }
         ObjectType::ObjectTypeInteger => integer_obj(varp.int_val()),
-        ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp.opt_cstr())),
+        ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp.opt_cstr().as_deref())),
         _ => std::process::abort(),
     }
 }
@@ -7182,7 +7190,7 @@ pub fn didset_window_options(wp: &WinInfoInfo, valid_cursor: bool) {
     check_colorcolumn(None::<&CStr>, Some(wp));
     briopt_check(Some(wp));
     let mut culopt_flags: u32 = 0;
-    if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt.as_bytes(), &mut culopt_flags) {
+    if fill_culopt_flags(&wp.w_onebuf_opt.wo_culopt.as_bytes(), &mut culopt_flags) {
         wp.w_p_culopt_flags.set(culopt_flags as u8);
     }
     let wo_fcs = wp.w_onebuf_opt.wo_fcs.to_owned();
@@ -7216,11 +7224,11 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
     let empty_opt = OptString::new();
 
     if !opt_vars().p_cpo.is_null() {
-        if (!crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPTGLOB)
+        if (!crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPTGLOB)
             || (flags & BCO_ENTER) == 0)
             && (buf.b_p_initialized.get()
                 || ((flags & BCO_ENTER) == 0
-                    && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPT)))
+                    && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BUFOPT)))
         {
             should_copy = false;
         }
@@ -7297,7 +7305,7 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
                 buf.b_p_swf.set(opt_vars().p_swf.get());
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
             }
-            buf.b_p_cpt.set_option_cstr(opt_vars().p_cpt.as_cstr());
+            buf.b_p_cpt.set_option_cstr(&opt_vars().p_cpt.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
             buf.b_p_cpt_flags.set(copy_opt_insecure(K_BUF_OPT_COMPLETE));
             set_buflocal_cpt_callbacks(Some(buf));
@@ -7316,11 +7324,11 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
             buf.b_p_sts_nopaste
                 .set(OPT_STATE.with(|s| s.p_sts_nopaste.get()));
-            buf.b_p_vsts.set_option_cstr(opt_vars().p_vsts.as_cstr());
+            buf.b_p_vsts.set_option_cstr(&opt_vars().p_vsts.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_empty() {
                 tabstop_set(
-                    opt_vars().p_vsts.as_bytes(),
+                    &opt_vars().p_vsts.as_bytes(),
                     &mut buf.b_p_vsts_array.borrow_mut(),
                     None,
                 );
@@ -7329,17 +7337,17 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
             }
             buf.b_p_vsts_nopaste
                 .set(P_VSTS_NOPASTE.with(|cell| cell.borrow().clone()));
-            buf.b_p_com.set_option_cstr(opt_vars().p_com.as_cstr());
+            buf.b_p_com.set_option_cstr(&opt_vars().p_com.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
-            buf.b_p_cms.set_option_cstr(opt_vars().p_cms.as_cstr());
+            buf.b_p_cms.set_option_cstr(&opt_vars().p_cms.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTSTRING);
-            buf.b_p_fo.set_option_cstr(opt_vars().p_fo.as_cstr());
+            buf.b_p_fo.set_option_cstr(&opt_vars().p_fo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_FORMATOPTIONS);
-            buf.b_p_flp.set_option_cstr(opt_vars().p_flp.as_cstr());
+            buf.b_p_flp.set_option_cstr(&opt_vars().p_flp.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_FORMATLISTPAT);
-            buf.b_p_nf.set_option_cstr(opt_vars().p_nf.as_cstr());
+            buf.b_p_nf.set_option_cstr(&opt_vars().p_nf.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
-            buf.b_p_mps.set_option_cstr(opt_vars().p_mps.as_cstr());
+            buf.b_p_mps.set_option_cstr(&opt_vars().p_mps.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
             buf.b_p_si.set(opt_vars().p_si.get());
             copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
@@ -7348,19 +7356,19 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
             buf.b_p_cin.set(opt_vars().p_cin.get());
             copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
-            buf.b_p_cink.set_option_cstr(opt_vars().p_cink.as_cstr());
+            buf.b_p_cink.set_option_cstr(&opt_vars().p_cink.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
-            buf.b_p_cino.set_option_cstr(opt_vars().p_cino.as_cstr());
+            buf.b_p_cino.set_option_cstr(&opt_vars().p_cino.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINOPTIONS);
-            buf.b_p_cinsd.set_option_cstr(opt_vars().p_cinsd.as_cstr());
+            buf.b_p_cinsd.set_option_cstr(&opt_vars().p_cinsd.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINSCOPEDECLS);
-            buf.b_p_lop.set_option_cstr(opt_vars().p_lop.as_cstr());
+            buf.b_p_lop.set_option_cstr(&opt_vars().p_lop.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
             buf.b_p_ft.set(empty_opt.clone());
             buf.b_p_pi.set(opt_vars().p_pi.get());
             copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
-            buf.b_p_cinw.set_option_cstr(opt_vars().p_cinw.as_cstr());
+            buf.b_p_cinw.set_option_cstr(&opt_vars().p_cinw.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
             buf.b_p_lisp.set(opt_vars().p_lisp.get());
             copy_opt_sctx(buf, K_BUF_OPT_LISP);
@@ -7368,34 +7376,34 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
             buf.b_p_smc.set(opt_vars().p_smc.get());
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
             buf.b_s.b_syn_isk.set(None);
-            buf.b_s.b_p_spc.set_option_cstr(opt_vars().p_spc.as_cstr());
+            buf.b_s.b_p_spc.set_option_cstr(&opt_vars().p_spc.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
             compile_cap_prog(
-                buf.b_s.b_p_spc.as_cstr(),
+                &buf.b_s.b_p_spc.as_cstr(),
                 &mut buf.b_s.b_cap_prog.borrow_mut(),
             );
-            buf.b_s.b_p_spf.set_option_cstr(opt_vars().p_spf.as_cstr());
+            buf.b_s.b_p_spf.set_option_cstr(&opt_vars().p_spf.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
-            buf.b_s.b_p_spl.set_option_cstr(opt_vars().p_spl.as_cstr());
+            buf.b_s.b_p_spl.set_option_cstr(&opt_vars().p_spl.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
-            buf.b_s.b_p_spo.set_option_cstr(opt_vars().p_spo.as_cstr());
+            buf.b_s.b_p_spo.set_option_cstr(&opt_vars().p_spo.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
             buf.b_s.b_p_spo_flags.set(opt_vars().spo_flags.get());
             callback_copy(&buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
             buf.b_p_inde_flags
                 .set(copy_opt_insecure(K_BUF_OPT_INDENTEXPR));
-            buf.b_p_indk.set_option_cstr(opt_vars().p_indk.as_cstr());
+            buf.b_p_indk.set_option_cstr(&opt_vars().p_indk.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
             buf.b_p_fp.set(empty_opt.clone());
             callback_copy(&buf.b_p_fex, &opt_vars().p_fex);
             copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
             buf.b_p_fex_flags
                 .set(copy_opt_insecure(K_BUF_OPT_FORMATEXPR));
-            buf.b_p_sua.set_option_cstr(opt_vars().p_sua.as_cstr());
+            buf.b_p_sua.set_option_cstr(&opt_vars().p_sua.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
             buf.b_p_keymap
-                .set_option_cstr(opt_vars().p_keymap.as_cstr());
+                .set_option_cstr(&opt_vars().p_keymap.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
             buf.b_kmap_state.set(buf.b_kmap_state.get() | (KEYMAP_INIT));
             buf.b_p_iminsert.set(opt_vars().p_iminsert.get());
@@ -7436,7 +7444,7 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
             buf.b_p_tsrfu
                 .data
                 .set(crate::eval::typval::CallbackData::NONE);
-            buf.b_p_qe.set_option_cstr(opt_vars().p_qe.as_cstr());
+            buf.b_p_qe.set_option_cstr(&opt_vars().p_qe.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
             buf.b_p_udf.set(opt_vars().p_udf.get());
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
@@ -7450,7 +7458,7 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
                     && buf.b_p_vts_array.borrow().is_empty()
                 {
                     tabstop_set(
-                        opt_vars().p_vts.as_bytes(),
+                        &opt_vars().p_vts.as_bytes(),
                         &mut buf.b_p_vts_array.borrow_mut(),
                         None,
                     );
@@ -7470,7 +7478,7 @@ pub fn buf_copy_options(buf: &FileBuf, flags: i32) {
                     && buf.b_p_vts_array.borrow().is_empty()
                 {
                     tabstop_set(
-                        opt_vars().p_vts.as_bytes(),
+                        &opt_vars().p_vts.as_bytes(),
                         &mut buf.b_p_vts_array.borrow_mut(),
                         None,
                     );
@@ -7974,7 +7982,7 @@ pub fn expand_setting_subtract(
             return false;
         }
 
-        let option_copy = option_val_cstr.to_owned().into_bytes_with_nul();
+        let option_copy = option_val_cstr.as_cstr().to_owned().into_bytes_with_nul();
         let copy_len = option_copy.len() - 1;
         let mut start = 0usize;
 
@@ -8016,7 +8024,7 @@ pub fn expand_setting_subtract(
 
         matches.clear();
         matches.reserve_exact(num_flags + 1);
-        matches.push(option_val_cstr.to_owned());
+        matches.push(option_val_cstr.as_cstr().to_owned());
 
         if num_flags > 1 {
             for &flag_byte in option_val_cstr.to_bytes() {
@@ -8056,7 +8064,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     {
         home_replace(
             None,
-            Some(vp.as_cstr()),
+            Some(&vp.as_cstr()),
             &mut *g_st().name_buff_bytes_mut(),
             false,
         );
@@ -8081,8 +8089,8 @@ fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> i32 {
 
 pub fn shortmess(x: i32) -> bool {
     !opt_vars().p_shm.is_null()
-        && (crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), x)
-            || (crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), b'a' as i32)
+        && (crate::strings::vim_haschr(&opt_vars().p_shm.as_cstr(), x)
+            || (crate::strings::vim_haschr(&opt_vars().p_shm.as_cstr(), b'a' as i32)
                 && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
 }
 
@@ -8198,7 +8206,7 @@ pub fn can_bs(what: i32) -> bool {
         return what != BS_NOSTOP;
     }
 
-    crate::strings::vim_haschr(opt_vars().p_bs.as_cstr(), what)
+    crate::strings::vim_haschr(&opt_vars().p_bs.as_cstr(), what)
 }
 
 /// Get the local or global value of 'backupcopy' flags.
@@ -8396,7 +8404,7 @@ pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> i32 {
     i32::from(
-        path_tail(opt_vars().p_sh.as_cstr())
+        path_tail(&opt_vars().p_sh.as_cstr())
             .to_bytes()
             .windows(3)
             .any(|w| w == b"csh"),
@@ -8405,7 +8413,7 @@ pub fn csh_like_shell() -> i32 {
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    path_tail(opt_vars().p_sh.as_cstr())
+    path_tail(&opt_vars().p_sh.as_cstr())
         .to_bytes()
         .windows(4)
         .any(|w| w == b"fish")

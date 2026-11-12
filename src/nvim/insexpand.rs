@@ -3402,7 +3402,7 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
 
     if (opt_flags & OPT_GLOBAL) == 0 {
         parse_cpt_callbacks(
-            curbuf_mut().b_p_cpt.as_cstr(),
+            &curbuf_mut().b_p_cpt.as_cstr(),
             &mut curbuf_mut().b_p_cpt_cb.borrow_mut(),
         );
     }
@@ -3413,7 +3413,7 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
 
     if (opt_flags & OPT_GLOBAL) != 0 {
         CPT_CB.with(|c| {
-            parse_cpt_callbacks(opt_vars().p_cpt.as_cstr(), &mut c.borrow_mut());
+            parse_cpt_callbacks(&opt_vars().p_cpt.as_cstr(), &mut c.borrow_mut());
         });
         return true;
     }
@@ -4148,17 +4148,22 @@ fn process_next_cpt_value(
             }
             compl_type = CTRL_X_DICTIONARY;
 
-            st.dict = Some(ins_buf.fname_cstr().to_owned());
+            st.dict = Some(ins_buf.fname_cstr().to_owned().as_cstr().to_owned());
 
             st.dict_f = DICT_EXACT;
         }
         if !shortmess(K_SHM_COMPLETIONSCAN) && !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
+            let spname;
+            let buf_name;
             let name = if ins_buf.fname_opt().is_none() {
-                buf_spname(ins_buf)
+                spname = buf_spname(ins_buf);
+                spname.as_deref()
             } else if ins_buf.b_sfname.get().is_none() {
-                ins_buf.fname_opt()
+                buf_name = ins_buf.fname_opt();
+                buf_name.as_deref()
             } else {
-                ins_buf.sfname_opt()
+                buf_name = ins_buf.sfname_opt();
+                buf_name.as_deref()
             };
             format_to_buf!(
                 &mut *g_st().iobuff.borrow_mut(),
@@ -4326,7 +4331,7 @@ fn get_next_tag_completion() {
                 0
             },
         TAG_MANY,
-        curbuf_mut().ffname_opt(),
+        curbuf_mut().ffname_opt().as_deref(),
     ) && !matches.is_empty()
     {
         let mut add_r = Some(true);
@@ -4883,15 +4888,16 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             score = (st.cur_match_pos().lnum - curwin_mut().w_cursor.get().lnum).abs();
         }
 
+        let sfname_opt = if in_curbuf {
+            None
+        } else {
+            st.ins_buf.sfname_opt()
+        };
         if ins_compl_add_infercase(
             m_slice,
             len,
             opt_vars().p_ic.get(),
-            if in_curbuf {
-                None
-            } else {
-                st.ins_buf.sfname_opt()
-            },
+            sfname_opt.as_deref(),
             0,
             cont_s_ipos,
             score,
@@ -5107,7 +5113,8 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
         if b.b_p_bl.get() && b.b_sfname.get().is_some() {
-            let tail = path_tail(b.sfname_cstr());
+            let sfname = b.sfname_cstr();
+            let tail = path_tail(&sfname);
             let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
             let orig_bytes = orig_str.as_bytes();
             let tail_b = tail.to_bytes();
@@ -7096,7 +7103,7 @@ fn cpt_sources_clear() {
 fn setup_cpt_sources() {
     cpt_sources_clear();
 
-    let count = get_cpt_sources_count(curbuf_mut().b_p_cpt.as_cstr());
+    let count = get_cpt_sources_count(&curbuf_mut().b_p_cpt.as_cstr());
     if count == 0 {
         return;
     }
@@ -7114,7 +7121,8 @@ fn setup_cpt_sources() {
 
     let mut buf: [u8; LSIZE] = [0; LSIZE];
     let mut idx: usize = 0;
-    let mut p = curbuf_mut().b_p_cpt.as_bytes();
+    let cpt_rc = curbuf_mut().b_p_cpt.as_bytes();
+    let mut p = cpt_rc.as_slice();
     while !p.is_empty() {
         while matches!(p.first(), Some(b',' | b' ')) {
             p = &p[1..];

@@ -78,7 +78,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<crate::globals::BufPtr> {
             let target = avar.vval.v_string_bytes();
             for bp in for_all_buffers_mut() {
                 if bp.fname_opt().is_some()
-                    && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&bp)))
+                    && (path_with_url(&bp.fname_bytes()) || bt_nofilename(Some(&bp)))
                     && bp.fname_bytes() == target
                 {
                     buf = bp;
@@ -541,7 +541,7 @@ pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if let Some(buf) = buf.opt()
         && buf.fname_opt().is_some()
     {
-        tv_set_string(rettv, buf.fname_opt());
+        tv_set_string(rettv, buf.fname_opt().as_deref());
     }
 }
 
@@ -689,7 +689,7 @@ fn get_buffer_info(buf: &FileBuf) -> crate::eval::typval::DictId {
     let dict = tv_dict_alloc();
 
     tv_dict_add_nr(&dict, c"bufnr", buf.b_fnum.get() as Varnumber);
-    tv_dict_add_str(&dict, c"name", Some(buf.ffname_cstr()));
+    tv_dict_add_str(&dict, c"name", Some(&buf.ffname_cstr()));
     let lnum = if g_st().curbuf.get() == buf {
         curwin_mut().w_cursor.get().lnum
     } else {
@@ -948,7 +948,7 @@ pub fn f_prompt_getprompt(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         return;
     }
 
-    tv_set_string(rettv, Some(buf_prompt_text(&buf)));
+    tv_set_string(rettv, Some(&buf_prompt_text(&buf)));
 }
 
 /// `prompt_getinput({buffer})` function (`f_prompt_getinput`).
@@ -987,7 +987,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
 
         let prompt_lno = buf.b_prompt_start.borrow().mark.lnum;
         let mark_col = buf.b_prompt_start.borrow().mark.col;
-        let old_prompt = buf_prompt_text(&buf).to_owned();
+        let old_prompt = buf_prompt_text(&buf);
         let old_prompt_bytes = old_prompt.to_bytes();
         let old_prompt_len = old_prompt_bytes.len() as i32;
         let mut cursor_col = curwin_mut().w_cursor.get().col;
@@ -1037,7 +1037,6 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         u_clearallandblockfree(&buf);
     }
 
-    buf.b_prompt_text
-        .set(Some(crate::option_vars::intern_opt_cstr(&new_prompt)));
+    buf.b_prompt_text.set(Some(new_prompt.into_owned()));
     buf.b_prompt_start.borrow_mut().mark.col = new_prompt_len as Colnr;
 }

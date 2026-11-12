@@ -783,7 +783,7 @@ pub fn nvim_replace_termcodes(
         0,
         flags,
         None,
-        opt_vars().p_cpo.as_bytes(),
+        &opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
     cbuf_to_string(out.as_bytes())

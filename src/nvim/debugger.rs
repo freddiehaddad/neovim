@@ -543,7 +543,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             };
             bp.dbg_name = name_src.to_owned();
         } else if here {
-            bp.dbg_name = curbuf_mut().b_ffname.get().map(CStr::to_owned)?;
+            bp.dbg_name = curbuf_mut().b_ffname.get().as_deref().map(CStr::to_owned)?;
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = p.to_owned();
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);

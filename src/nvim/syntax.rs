@@ -5184,7 +5184,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     apply_autocmds(
         EVENT_SYNTAX,
         eap.arg.as_opt_cstr(),
-        curbuf_mut().fname_opt(),
+        curbuf_mut().fname_opt().as_deref(),
         true,
         curbuf_opt_mut().as_deref(),
     );

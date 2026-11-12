@@ -158,7 +158,7 @@ pub fn win_set_minimal_style(wp: &WinInfoInfo) {
         if old.is_empty() {
             wp.w_onebuf_opt.wo_fcs.set_option_cstr(c"eob: ");
         } else {
-            let joined = concat_str(old, b",eob: ");
+            let joined = concat_str(&old, b",eob: ");
             wp.w_onebuf_opt.wo_fcs.set_option_cstr(joined.as_c_str());
         }
     }
@@ -167,7 +167,7 @@ pub fn win_set_minimal_style(wp: &WinInfoInfo) {
     if old.is_empty() {
         wp.w_onebuf_opt.wo_winhl.set_option_cstr(c"EndOfBuffer:");
     } else {
-        let joined = concat_str(old, b",EndOfBuffer:");
+        let joined = concat_str(&old, b",EndOfBuffer:");
         wp.w_onebuf_opt.wo_winhl.set_option_cstr(joined.as_c_str());
     }
     parse_winhl_opt(None, Some(wp));
@@ -462,7 +462,7 @@ pub fn win_float_special(
     config.style = K_WIN_STYLE_MINIMAL;
     let mut err = error_init();
     let preview = kind == K_WIN_PREVIEW;
-    if preview && !win_previewpopup_config(opt_vars().p_pvp.as_cstr(), &mut config) {
+    if preview && !win_previewpopup_config(&opt_vars().p_pvp.as_cstr(), &mut config) {
         emsg(gettext(E_INVARG));
         return None;
     }
@@ -534,7 +534,7 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
         wp.w_config.borrow_mut().title_chunks.clear();
         let mut err = error_init();
         parse_bordertext(
-            cstr_as_obj(wp.buf_mut().fname_opt()),
+            cstr_as_obj(wp.buf_mut().fname_opt().as_deref()),
             K_BORDER_TEXT_TITLE,
             &mut wp.w_config.borrow_mut(),
             &mut err,
@@ -552,7 +552,7 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
         .max(0)
         .min(g_st().columns_global.get() - 1);
 
-    let v: OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
+    let v: OptKeyDict_pvp = opt_keyset(&opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
         v.width as i32
     } else {

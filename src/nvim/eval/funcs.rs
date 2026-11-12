@@ -6979,7 +6979,7 @@ pub fn do_searchpair(
             K_OPT_CPOPTIONS,
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(save_cpo.as_cstr()))),
+                data: ObjectData::String(cstr_as_string(Some(&save_cpo.as_cstr()))),
             },
             0,
         );
@@ -7877,7 +7877,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    convert_setup(&mut conv, Some(opt_vars().p_enc.as_cstr()), enc.as_deref());
+    convert_setup(&mut conv, Some(&opt_vars().p_enc.as_cstr()), enc.as_deref());
     let p_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
         string_convert(&conv, p_in.to_bytes(), None)
     } else {
@@ -7894,7 +7894,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
     drop(p_owned);
 
-    convert_setup(&mut conv, enc.as_deref(), Some(opt_vars().p_enc.as_cstr()));
+    convert_setup(&mut conv, enc.as_deref(), Some(&opt_vars().p_enc.as_cstr()));
     if conv.vc_type != CONV_NONE {
         if let Some(conv_bytes) =
             string_convert(&conv, crate::memory::bytes_until_nul(&result_buf), None)
@@ -7924,7 +7924,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    convert_setup(&mut conv, Some(opt_vars().p_enc.as_cstr()), enc.as_deref());
+    convert_setup(&mut conv, Some(&opt_vars().p_enc.as_cstr()), enc.as_deref());
     let fmt_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
         string_convert(&conv, fmt_in.to_bytes(), None)
     } else {

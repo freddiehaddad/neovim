@@ -890,7 +890,7 @@ fn fname2fnum(fm: &Xfmark) {
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
 pub fn fmarks_check_names(buf: &FileBuf) {
-    let Some(name) = buf.ffname_opt().map(CStr::to_owned) else {
+    let Some(name) = buf.ffname_opt().as_deref().map(CStr::to_owned) else {
         return;
     };
 

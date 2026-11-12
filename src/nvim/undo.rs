@@ -989,7 +989,7 @@ pub fn u_write_undo(
     let file_name_cstr: &CStr = if let Some(n) = name {
         n
     } else {
-        f_owned = u_get_undo_file_name(buf.ffname_opt(), false);
+        f_owned = u_get_undo_file_name(buf.ffname_opt().as_deref(), false);
         let Some(ref f) = f_owned else {
             if opt_vars().p_verbose.get() > 0 {
                 verbose_enter();
@@ -1007,7 +1007,7 @@ pub fn u_write_undo(
 
     let mut perm: i32 = 0o600;
     if buf.b_ffname.get().is_some() {
-        perm = os_getperm(buf.ffname_cstr());
+        perm = os_getperm(&buf.ffname_cstr());
         if perm < 0 {
             perm = 0o600;
         }
@@ -1176,7 +1176,7 @@ pub fn u_write_undo(
         }
 
         if buf.b_ffname.get().is_some() {
-            let acl: VimAcl = os_get_acl(buf.ffname_cstr());
+            let acl: VimAcl = os_get_acl(&buf.ffname_cstr());
             os_set_acl(file_name_cstr, acl);
             os_free_acl(acl);
         }
@@ -1213,7 +1213,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
     let file_name_cstr: &CStr = if let Some(n) = name {
         n
     } else {
-        f_owned = u_get_undo_file_name(curbuf_mut().ffname_opt(), true);
+        f_owned = u_get_undo_file_name(curbuf_mut().ffname_opt().as_deref(), true);
         let Some(ref f_cstr) = f_owned else {
             return;
         };
@@ -1554,7 +1554,7 @@ pub fn u_undo(mut count: i32) {
         count = 1;
     }
 
-    if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
+    if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
         undo_st(|st| st.undo_undoes.set(true));
     } else {
         undo_st(|st| st.undo_undoes.set(!st.undo_undoes.get()));
@@ -1564,7 +1564,7 @@ pub fn u_undo(mut count: i32) {
 
 /// Redo `count` times.
 pub fn u_redo(count: i32) {
-    if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
+    if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
         undo_st(|st| st.undo_undoes.set(false));
     }
 
@@ -3105,7 +3105,7 @@ mod tests {
 
             // Write undo file to undodir
             u_write_undo(None, false, &buf, &hash);
-            let ufile_cstr = u_get_undo_file_name(buf.ffname_opt(), false).unwrap();
+            let ufile_cstr = u_get_undo_file_name(buf.ffname_opt().as_deref(), false).unwrap();
             let ufile = ufile_cstr.to_str().unwrap().to_owned();
             assert!(std::path::Path::new(&ufile).exists());
             let _ = std::fs::remove_file(&ufile);

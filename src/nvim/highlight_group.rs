@@ -898,7 +898,7 @@ pub fn load_colors(name: &CStr) -> bool {
     apply_autocmds(
         EVENT_COLORSCHEMEPRE,
         Some(name),
-        curbuf_mut().fname_opt(),
+        curbuf_mut().fname_opt().as_deref(),
         false,
         curbuf_opt_mut().as_deref(),
     );
@@ -910,7 +910,7 @@ pub fn load_colors(name: &CStr) -> bool {
         apply_autocmds(
             EVENT_COLORSCHEME,
             Some(name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             false,
             curbuf_opt_mut().as_deref(),
         );

@@ -691,7 +691,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
 
         let to_parse_bytes = to_parse.to_bytes();
         let do_backslash =
-            !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BSLASH_CONST);
+            !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BSLASH_CONST);
         let mut orig_lhs_len = 0usize;
         while orig_lhs_len < to_parse_bytes.len()
             && (is_unmap || !ascii_iswhite(to_parse_bytes[orig_lhs_len] as i32))
@@ -715,7 +715,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
             &to_parse_bytes[..orig_lhs_len],
             rhs_start,
             LUA_NOREF,
-            opt_vars().p_cpo.as_bytes(),
+            &opt_vars().p_cpo.as_bytes(),
             mapargs,
         ) {
             return 1;
@@ -1276,7 +1276,7 @@ pub fn map_to_exists(str_ptr: &CStr, modechars: &CStr, abbr: bool) -> bool {
         0,
         REPTERM_DO_LT,
         None,
-        opt_vars().p_cpo.as_bytes(),
+        &opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
 
@@ -1526,7 +1526,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
                     continue;
                 }
 
-                let p_cstr = translate_mapping(mp.m_keys.as_bytes(), opt_vars().p_cpo.as_cstr());
+                let p_cstr = translate_mapping(mp.m_keys.as_bytes(), &opt_vars().p_cpo.as_cstr());
 
                 let mut score: i32 = 0;
                 let match_found = if !fuzzy {
@@ -1780,7 +1780,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
             0,
             REPTERM_DO_LT,
             None,
-            opt_vars().p_cpo.as_bytes(),
+            &opt_vars().p_cpo.as_bytes(),
         )
     } else {
         Some(vim_strsave_escape_ks(p.to_bytes()))
@@ -2578,7 +2578,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         0,
                         flags,
                         Some(&mut did_simplify),
-                        opt_vars().p_cpo.as_bytes(),
+                        &opt_vars().p_cpo.as_bytes(),
                     )
                     .unwrap_or_default();
 
@@ -2628,7 +2628,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: i32, buffer: bo
         lhs.to_bytes(),
         rhs.to_bytes(),
         LUA_NOREF,
-        opt_vars().p_cpo.as_bytes(),
+        &opt_vars().p_cpo.as_bytes(),
         &mut args,
     );
     args.buffer = buffer;
@@ -2911,7 +2911,7 @@ pub fn modify_keymap(
             lhs.as_bytes(),
             rhs.as_bytes(),
             lua_funcref,
-            opt_vars().p_cpo.as_bytes(),
+            &opt_vars().p_cpo.as_bytes(),
             &mut parsed_args,
         ) {
             api_set_error!(

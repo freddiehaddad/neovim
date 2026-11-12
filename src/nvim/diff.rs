@@ -1189,7 +1189,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
         tmp_orig,
         tmp_new,
     );
-    append_redir(&mut cmd_vec, opt_vars().p_srr.as_cstr(), tmp_diff);
+    append_redir(&mut cmd_vec, &opt_vars().p_srr.as_cstr(), tmp_diff);
     crate::autocmd::block_autocmds();
     call_shell(
         Some(crate::memory::bytes_as_cstr(&cmd_vec)),
@@ -1303,7 +1303,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             if curbuf_mut().fname_opt().is_some() {
                 let fname_bytes = curbuf_mut().fname_bytes();
                 newname_vec = Vec::with_capacity(fname_bytes.len() + 5);
-                newname_vec.extend_from_slice(fname_bytes);
+                newname_vec.extend_from_slice(&fname_bytes);
                 newname_vec.extend_from_slice(b".new\0");
             }
             g_st().cmdmod.borrow_mut().cmod_tab = 0;
@@ -1460,7 +1460,7 @@ pub fn diff_win_options(wp: &WinInfoInfo, addbuf: bool) {
     wp.w_onebuf_opt.wo_fdl.set(0);
     fold_update_all(wp);
     changed_window_setting(wp);
-    if !crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32) {
+    if !crate::strings::vim_haschr(&opt_vars().p_sbo.as_cstr(), b'h' as i32) {
         do_cmdline_cmd(c"set sbo+=hor");
     }
     wp.w_onebuf_opt.wo_diff_saved.set(true);
@@ -1498,20 +1498,22 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                     wp.w_onebuf_opt.wo_wrap.set(true);
                     wp.w_leftcol.set(0);
                 }
-                wp.w_onebuf_opt.wo_fdm.set_option_cstr(
-                    if !wp.w_onebuf_opt.wo_fdm_save.is_empty() {
-                        wp.w_onebuf_opt.wo_fdm_save.as_cstr()
+                let fdm_save = wp.w_onebuf_opt.wo_fdm_save.as_cstr();
+                wp.w_onebuf_opt
+                    .wo_fdm
+                    .set_option_cstr(if !fdm_save.is_empty() {
+                        &fdm_save
                     } else {
                         c"manual"
-                    },
-                );
-                wp.w_onebuf_opt.wo_fdc.set_option_cstr(
-                    if !wp.w_onebuf_opt.wo_fdc_save.is_empty() {
-                        wp.w_onebuf_opt.wo_fdc_save.as_cstr()
+                    });
+                let fdc_save = wp.w_onebuf_opt.wo_fdc_save.as_cstr();
+                wp.w_onebuf_opt
+                    .wo_fdc
+                    .set_option_cstr(if !fdc_save.is_empty() {
+                        &fdc_save
                     } else {
                         c"0"
-                    },
-                );
+                    });
                 if wp.w_onebuf_opt.wo_fdl.get() == 0 {
                     wp.w_onebuf_opt
                         .wo_fdl
@@ -1542,7 +1544,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         curtab_mut().tp_diff_update.set(0);
         diff_clear(&curtab_mut());
     }
-    if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32) {
+    if !diffwin && crate::strings::vim_haschr(&opt_vars().p_sbo.as_cstr(), b'h' as i32) {
         do_cmdline_cmd(c"set sbo-=hor");
     }
 }
@@ -2343,7 +2345,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v: &OptKeyDict_dip = &opt_keyset(opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
+    let v: &OptKeyDict_dip = &opt_keyset(&opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })
         | (if v.iblank { DIFF_IBLANK } else { 0 })

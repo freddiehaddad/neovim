@@ -1216,7 +1216,7 @@ fn find_buffer(
     }
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ffname.get().is_some() && path_equal(fname, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
+        if buf.b_ffname.get().is_some() && path_equal(fname, &buf.ffname_cstr(), K_PATH_CMP_LITERAL)
         {
             fname_bufs.insert(key.to_vec(), buf.clone());
             return Some(buf);
@@ -2218,7 +2218,11 @@ fn shada_read_when_writing(
                         } else {
                             for buf in for_all_buffers_mut() {
                                 if buf.b_ffname.get().is_some()
-                                    && path_equal(fname_cstr, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
+                                    && path_equal(
+                                        fname_cstr,
+                                        &buf.ffname_cstr(),
+                                        K_PATH_CMP_LITERAL,
+                                    )
                                 {
                                     let mut fm = Fmark::new();
                                     mark_get(
@@ -2323,7 +2327,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<usize>) -> Shada
             }
             buffers.push(BufferListBuffer {
                 pos: buf.b_last_cursor.borrow().mark,
-                fname: Some(buf.ffname_cstr().to_owned()),
+                fname: Some(buf.ffname_cstr().to_owned().as_cstr().to_owned()),
                 additional_data: buf.additional_data.borrow().clone(),
             });
         }
@@ -2440,7 +2444,7 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
 #[inline]
 fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<usize>) {
     for buf in for_all_buffers_ptr() {
-        if buf.b_ffname.get().is_some() && shada_removable(buf.ffname_cstr()) {
+        if buf.b_ffname.get().is_some() && shada_removable(&buf.ffname_cstr()) {
             removable_bufs.insert(buf.addr());
         }
     }
@@ -2601,7 +2605,7 @@ fn shada_write(
             key: static_cstr_as_string(c"encoding"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(opt_vars().p_enc.as_cstr()))),
+                data: ObjectData::String(cstr_as_string(Some(&opt_vars().p_enc.as_cstr()))),
             },
         },
     ];
@@ -2773,7 +2777,7 @@ fn shada_write(
                         }
                         continue;
                     }
-                    buf.ffname_cstr().to_owned()
+                    buf.ffname_cstr().to_owned().as_cstr().to_owned()
                 };
                 let entry = ShadaEntry {
                     can_free_entry: false,
@@ -2827,7 +2831,7 @@ fn shada_write(
                             data: ShadaEntryData::Filemark(ShadaFilemark {
                                 mark: fm.mark,
                                 name,
-                                fname: Some(fname_cstr.clone()),
+                                fname: Some(fname_cstr.clone().as_cstr().to_owned()),
                             }),
                             additional_data: fm.additional_data,
                         };
@@ -2847,7 +2851,7 @@ fn shada_write(
                             data: ShadaEntryData::Filemark(ShadaFilemark {
                                 name: 0,
                                 mark: fm.mark,
-                                fname: Some(fname_cstr.clone()),
+                                fname: Some(fname_cstr.clone().as_cstr().to_owned()),
                             }),
                             additional_data: fm.additional_data.clone(),
                         };
@@ -2882,7 +2886,7 @@ fn shada_write(
                     data: ShadaEntryData::Filemark(ShadaFilemark {
                         mark: curwin_mut().w_cursor.get(),
                         name: b'0',
-                        fname: Some(curbuf_mut().ffname_cstr().to_owned()),
+                        fname: Some(curbuf_mut().ffname_cstr().to_owned().as_cstr().to_owned()),
                     }),
                     additional_data: None,
                 },
@@ -4031,7 +4035,7 @@ fn shada_init_jumps(
         } else if let Some(buf) = buf
             && buf.b_ffname.get().is_some()
         {
-            Some(buf.ffname_cstr().to_owned())
+            Some(buf.ffname_cstr().as_cstr().to_owned())
         } else {
             None
         };

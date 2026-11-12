@@ -2623,7 +2623,7 @@ pub fn win_draw_end(
             }
 
             if (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
-                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
+                && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
             {
                 let width = number_width(wp) + 1;
                 n = grid_line_fill(
@@ -2899,7 +2899,7 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
     } else {
         return false;
     };
-    crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu.as_cstr(), c)
+    crate::strings::vim_haschr(&wp.w_onebuf_opt.wo_cocu.as_cstr(), c)
 }
 
 /// Redraws lines `line1` to `line2` of `wp` and invalidates their heights, after 'concealcursor'
@@ -2938,7 +2938,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
                 .start
                 .lnum
                 .max(curwin_mut().w_cursor.get().lnum)
-        && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu.as_cstr(), i32::from(b'v'))
+        && !crate::strings::vim_haschr(&wp.w_onebuf_opt.wo_cocu.as_cstr(), i32::from(b'v'))
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {

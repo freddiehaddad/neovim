@@ -219,9 +219,10 @@ fn is_pos_in_string_slice(bytes: &[u8], col: Colnr) -> i32 {
 }
 pub fn cin_is_cinword(line: &[u8]) -> bool {
     let line = crate::charset::skipwhite_slice(line);
-    let cinw_len = curbuf_mut().b_p_cinw.as_bytes().len() + 1;
+    let cinw_rc = curbuf_mut().b_p_cinw.as_bytes();
+    let cinw_len = cinw_rc.len() + 1;
     let mut cinw_buf = vec![0u8; cinw_len];
-    let mut cinw = curbuf_mut().b_p_cinw.as_bytes();
+    let mut cinw = cinw_rc.as_slice();
     while !cinw.is_empty() {
         let len = copy_option_part(&mut cinw, &mut cinw_buf, c",");
         if line.starts_with(&cinw_buf[..len])
@@ -494,9 +495,10 @@ fn cin_isdefault_slice(s: &[u8]) -> bool {
 }
 fn cin_isscopedecl_slice(p: &[u8]) -> bool {
     let s = cin_skipcomment_slice(p);
-    let cinsd_len = curbuf_mut().b_p_cinsd.as_bytes().len() + 1;
+    let cinsd_rc = curbuf_mut().b_p_cinsd.as_bytes();
+    let cinsd_len = cinsd_rc.len() + 1;
     let mut cinsd_buf = vec![0u8; cinsd_len];
-    let mut cinsd = curbuf_mut().b_p_cinsd.as_bytes();
+    let mut cinsd = cinsd_rc.as_slice();
     while !cinsd.is_empty() {
         let len = copy_option_part(&mut cinsd, &mut cinsd_buf, c",");
         if s.starts_with(&cinsd_buf[..len]) {
@@ -1324,7 +1326,8 @@ pub fn parse_cino(buf: &FileBuf) {
     buf.b_ind_hash_comment.set(0);
     buf.b_ind_cpp_extern_c.set(0);
     buf.b_ind_pragma.set(0);
-    let mut rem = buf.b_p_cino.as_bytes();
+    let cino_rc = buf.b_p_cino.as_bytes();
+    let mut rem = cino_rc.as_slice();
     while !rem.is_empty() {
         let l0 = rem[0];
         let is_neg = rem.get(1) == Some(&b'-');
@@ -1523,7 +1526,8 @@ pub fn get_c_indent() -> i32 {
                 amount = col;
                 lead_start[0] = 0;
                 lead_middle[0] = 0;
-                let mut p_bytes = curbuf_mut().b_p_com.as_bytes();
+                let com_rc = curbuf_mut().b_p_com.as_bytes();
+                let mut p_bytes = com_rc.as_slice();
                 while !p_bytes.is_empty() {
                     let mut align: i32 = 0;
                     let mut off: i32 = 0;
@@ -2755,7 +2759,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
     } else {
         curbuf_mut().b_p_cink.as_bytes()
     };
-    let mut rem = look_full;
+    let mut rem = look_full.as_slice();
     while !rem.is_empty() {
         let mut try_match = match when as u8 {
             b'*' => rem[0] == b'*',

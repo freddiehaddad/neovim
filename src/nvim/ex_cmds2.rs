@@ -199,7 +199,8 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
     let mut ea: Exarg = Exarg::new();
 
-    let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
+    let fname_rc = buf.fname_opt();
+    let fname = fname_rc.as_deref().unwrap_or_else(|| gettext(c"Untitled"));
     format_to_buf!(&mut buff, gettext(c"Save changes to \"%s\"?"), fname);
     let buff_cstr = crate::memory::bytes_as_cstr(&buff);
     let ret = if checkall {
@@ -214,8 +215,8 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
             buf_set_name(buf.b_fnum.get(), c"Untitled");
         }
 
-        let b_fname = buf.fname_opt().map(CStr::to_owned);
-        let b_ffname = buf.ffname_opt().map(CStr::to_owned);
+        let b_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
+        let b_ffname = buf.ffname_opt().as_deref().map(CStr::to_owned);
         if check_overwrite(&mut ea, buf, b_fname.as_deref(), b_ffname.as_deref(), false)
             && buf_write_all(buf, false)
         {
@@ -237,8 +238,8 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(buf2_ref));
 
-                let b_fname = buf2_ref.fname_opt().map(CStr::to_owned);
-                let b_ffname = buf2_ref.ffname_opt().map(CStr::to_owned);
+                let b_fname = buf2_ref.fname_opt().as_deref().map(CStr::to_owned);
+                let b_ffname = buf2_ref.ffname_opt().as_deref().map(CStr::to_owned);
                 if b_fname.is_some()
                     && check_overwrite(
                         &mut ea,
@@ -268,7 +269,8 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
 pub fn dialog_close_terminal(buf: &FileBuf) -> bool {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
-    let fname = buf.fname_opt().unwrap_or(c"?");
+    let fname_rc = buf.fname_opt();
+    let fname = fname_rc.as_deref().unwrap_or(c"?");
     format_to_buf!(&mut buff, gettext(c"Close \"%s\"?"), fname);
     vim_dialog_yesnocancel(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 1) == VIM_YES
 }
@@ -427,8 +429,8 @@ pub fn check_fname() -> bool {
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &FileBuf, forceit: bool) -> bool {
     let old_curbuf = g_st().curbuf.get();
-    let ffname = buf.ffname_opt().map(CStr::to_owned);
-    let fname = buf.fname_opt().map(CStr::to_owned);
+    let ffname = buf.ffname_opt().as_deref().map(CStr::to_owned);
+    let fname = buf.fname_opt().as_deref().map(CStr::to_owned);
     let line_count = buf.b_ml.ml_line_count.get();
     let retval = buf_write(
         buf,
@@ -696,7 +698,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
                 if buf == g_st().curbuf.get().as_ptr() {
                     let b_p_syn = curbuf_mut().b_p_syn.to_owned();
-                    let b_fname = curbuf_mut().fname_opt().map(CStr::to_owned);
+                    let b_fname = curbuf_mut().fname_opt().as_deref().map(CStr::to_owned);
                     apply_autocmds(
                         EVENT_SYNTAX,
                         Some(&b_p_syn),
@@ -706,7 +708,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     );
                 } else {
                     let b_p_syn = buf_ref.b_p_syn.to_owned();
-                    let b_fname = buf_ref.fname_opt().map(CStr::to_owned);
+                    let b_fname = buf_ref.fname_opt().as_deref().map(CStr::to_owned);
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
                     apply_autocmds(

@@ -417,7 +417,7 @@ pub fn vim_beep(val: u32) {
         }
     }
 
-    if crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b'e' as i32) {
+    if crate::strings::vim_haschr(&opt_vars().p_debug.as_cstr(), b'e' as i32) {
         msg_source(HLF_W);
         msg(gettext(c"Beep!"), HLF_W);
     }
@@ -730,7 +730,7 @@ pub fn ui_check_mouse() {
 }
 
 pub fn ui_mouse_has(mode: i32) -> bool {
-    for &p_byte in opt_vars().p_mouse.as_bytes() {
+    for &p_byte in &opt_vars().p_mouse.as_bytes() {
         if p_byte == b'a' {
             if crate::strings::vim_haschr(MOUSE_A, mode) {
                 return true;

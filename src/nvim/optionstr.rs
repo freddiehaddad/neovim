@@ -241,15 +241,15 @@ impl OptVar {
     }
 
     #[inline]
-    pub fn as_cstr(&self) -> &'static CStr {
+    pub fn as_cstr(&self) -> crate::option_vars::RcCStr {
         match self {
             Self::Str(s) => s.with(|v| v.as_cstr()),
-            _ => c"",
+            _ => crate::option_vars::RcCStr::EMPTY,
         }
     }
 
     #[inline]
-    pub fn opt_cstr(&self) -> Option<&'static CStr> {
+    pub fn opt_cstr(&self) -> Option<crate::option_vars::RcCStr> {
         match self {
             Self::Str(s) => Some(s.with(|v| v.as_cstr())),
             _ => None,
@@ -429,7 +429,7 @@ impl<'a> Optset<'a> {
     }
 
     #[inline]
-    pub fn var_cstr(&self) -> &'static CStr {
+    pub fn var_cstr(&self) -> crate::option_vars::RcCStr {
         self.os_varp.as_cstr()
     }
 
@@ -1234,7 +1234,14 @@ fn check_str_opt<'a>(
     errbuf: Option<&'a mut [u8]>,
 ) -> Option<&'a CStr> {
     let opt = get_option(idx);
-    let val_cstr = var_cstr.unwrap_or_else(|| opt.var().as_cstr());
+    let opt_cstr;
+    let val_cstr = match var_cstr {
+        Some(s) => s,
+        None => {
+            opt_cstr = opt.var().as_cstr();
+            &opt_cstr
+        }
+    };
     let list = (opt.flags() & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
     let mut new_flags = 0u32;
@@ -1260,7 +1267,7 @@ pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::
 
 /// An option that accepts a list of flags is changed.
 pub fn did_set_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    check_str_opt(args.os_idx, Some(args.var_cstr()), args.os_errbuf.take())
+    check_str_opt(args.os_idx, Some(&args.var_cstr()), args.os_errbuf.take())
 }
 
 /// Validate named string values without updating derived flags.
@@ -1486,8 +1493,7 @@ pub fn validate_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
-    let p_bkc = opt_vars().p_bkc.to_owned();
-    let mut bkc = p_bkc.as_c_str();
+    let mut bkc = opt_vars().p_bkc.as_cstr();
     let is_local = (opt_flags & OPT_LOCAL) != 0;
 
     if is_local {
@@ -1501,7 +1507,7 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else {
         let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
-            bkc,
+            &bkc,
             &OPT_BKC_VALUES,
             Some(&mut new_flags),
             true,
@@ -1524,15 +1530,17 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_backupext_or_patchmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let newval_str = args.os_newval.data.string();
     let ov = opt_vars();
+    let ov_bex = ov.p_bex.as_bytes();
+    let ov_pm = ov.p_pm.as_bytes();
     let bex_bytes = if args.os_idx == K_OPT_BACKUPEXT {
         newval_str.as_bytes()
     } else {
-        ov.p_bex.as_bytes()
+        &ov_bex
     };
     let pm_bytes = if args.os_idx == K_OPT_PATCHMODE {
         newval_str.as_bytes()
     } else {
-        ov.p_pm.as_bytes()
+        &ov_pm
     };
     let bex_s = bex_bytes.strip_prefix(b".").unwrap_or(bex_bytes);
     let pm_s = pm_bytes.strip_prefix(b".").unwrap_or(pm_bytes);
@@ -1550,7 +1558,7 @@ pub fn did_set_breakat<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     }
 
     if !opt_vars().p_breakat.is_null() {
-        for &p_byte in opt_vars().p_breakat.as_bytes() {
+        for &p_byte in &opt_vars().p_breakat.as_bytes() {
             opt_vars().breakat_flags[p_byte as usize].set(true);
         }
     }
@@ -1702,7 +1710,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if varp.ptr_eq(&opt_vars().p_lcs) {
         errmsg = did_set_global_chars_option(
             &win,
-            val,
+            &val,
             CharsOption::Listchars,
             args.os_flags,
             args.os_errbuf.take(),
@@ -1710,7 +1718,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else if varp.ptr_eq(&opt_vars().p_fcs) {
         errmsg = did_set_global_chars_option(
             &win,
-            val,
+            &val,
             CharsOption::Fillchars,
             args.os_flags,
             args.os_errbuf.take(),
@@ -1718,7 +1726,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else if varp.ptr_eq(&win.w_onebuf_opt.wo_lcs) {
         errmsg = set_chars_option(
             &win,
-            val,
+            &val,
             CharsOption::Listchars,
             true,
             args.os_errbuf.take(),
@@ -1726,7 +1734,7 @@ pub fn did_set_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else if varp.ptr_eq(&win.w_onebuf_opt.wo_fcs) {
         errmsg = set_chars_option(
             &win,
-            val,
+            &val,
             CharsOption::Fillchars,
             true,
             args.os_errbuf.take(),
@@ -1764,7 +1772,7 @@ pub fn validate_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_cc);
-    check_colorcolumn(Some(args.var_cstr()), is_local.then_some(&win))
+    check_colorcolumn(Some(&args.var_cstr()), is_local.then_some(&win))
 }
 
 /// Validate the 'comments' option.
@@ -1924,8 +1932,7 @@ pub fn did_set_completeitemalign<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> 
 /// The 'completeopt' option is changed.
 pub fn did_set_completeopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf_mut();
-    let p_cot = opt_vars().p_cot.to_owned();
-    let mut cot = p_cot.as_c_str();
+    let mut cot = opt_vars().p_cot.as_cstr();
     let is_local = (args.os_flags & OPT_LOCAL) != 0;
 
     if is_local {
@@ -1936,7 +1943,7 @@ pub fn did_set_completeopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
     let mut new_flags = 0u32;
     let err = opt_strings_flags(
-        cot,
+        &cot,
         &OPT_COT_VALUES,
         Some(&mut new_flags),
         true,
@@ -1960,7 +1967,7 @@ fn opt_flags_is_both(opt_flags: i32) -> bool {
 #[cfg(windows)]
 pub fn did_set_completeslash<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if opt_strings_flags(
-        opt_vars().p_csl.as_cstr(),
+        &opt_vars().p_csl.as_cstr(),
         &OPT_CSL_VALUES,
         None,
         false,
@@ -1969,7 +1976,7 @@ pub fn did_set_completeslash<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     .is_some()
     {
         return opt_strings_flags(
-            opt_vars().p_csl.as_cstr(),
+            &opt_vars().p_csl.as_cstr(),
             &OPT_CSL_VALUES,
             None,
             false,
@@ -1977,7 +1984,7 @@ pub fn did_set_completeslash<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
     }
     opt_strings_flags(
-        args.buf_mut().b_p_csl.as_cstr(),
+        &args.buf_mut().b_p_csl.as_cstr(),
         &OPT_CSL_VALUES,
         None,
         false,
@@ -2404,11 +2411,11 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     g_st().km_stopsel.set(crate::strings::vim_haschr(
-        opt_vars().p_km.as_cstr(),
+        &opt_vars().p_km.as_cstr(),
         b'o' as i32,
     ));
     g_st().km_startsel.set(crate::strings::vim_haschr(
-        opt_vars().p_km.as_cstr(),
+        &opt_vars().p_km.as_cstr(),
         b'a' as i32,
     ));
     None
@@ -2493,7 +2500,7 @@ pub fn validate_mousescroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     let v: OptKeyDict_mousescroll =
-        opt_keyset(opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
+        opt_keyset(&opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     opt_vars().p_mousescroll_hor.set(if has_hor {
@@ -2675,7 +2682,7 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let oldval = args.os_oldval.data.string();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
-    if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&win)) {
+    if !check_signcolumn(Some(&args.var_cstr()), is_local.then_some(&win)) {
         return Some(E_INVARG);
     }
     if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth.get() == SCL_NUM {
@@ -2853,7 +2860,8 @@ fn did_set_statustabline_rulerformat<'a>(
         args.set_var_cstr(def.data.string().as_cstr());
         optval_free_read(args.os_idx, def);
     }
-    let s_bytes = args.var_cstr().to_bytes();
+    let var_cstr = args.var_cstr();
+    let s_bytes = var_cstr.to_bytes();
 
     if is_stl
         && let Some(win) = args.win_opt()
@@ -2892,7 +2900,7 @@ pub fn did_set_tagcase<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let is_local = (opt_flags & OPT_LOCAL) != 0;
 
     let p: &CStr = if is_local {
-        buf.b_p_tc.as_cstr()
+        &buf.b_p_tc.as_cstr()
     } else {
         p_tc.as_c_str()
     };
@@ -2924,7 +2932,7 @@ pub fn did_set_tagcase<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 fn did_set_titleiconstring<'a>(args: &mut Optset<'a>, flagval: i32) -> Option<&'a CStr> {
     let val = args.var_cstr();
 
-    if crate::strings::vim_haschr(val, b'%' as i32)
+    if crate::strings::vim_haschr(&val, b'%' as i32)
         && check_stl_option(val.to_bytes(), None).is_none()
     {
         g_st().stl_syntax.set(g_st().stl_syntax.get() | (flagval));
@@ -2997,8 +3005,7 @@ pub fn did_set_verbosefile<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
 
-    let p_ve = opt_vars().p_ve.to_owned();
-    let mut ve = p_ve.as_c_str();
+    let mut ve = opt_vars().p_ve.as_cstr();
     let is_local = (args.os_flags & OPT_LOCAL) != 0;
 
     if is_local {
@@ -3010,7 +3017,7 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     } else {
         let mut new_flags = 0u32;
         let errmsg = opt_strings_flags(
-            ve,
+            &ve,
             &OPT_VE_VALUES,
             Some(&mut new_flags),
             true,
@@ -3087,7 +3094,7 @@ pub fn validate_border<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_winhighlight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_winhl);
-    if !parse_winhl_opt(Some(args.var_cstr()), is_local.then_some(&win)) {
+    if !parse_winhl_opt(Some(&args.var_cstr()), is_local.then_some(&win)) {
         return Some(E_INVARG);
     }
     None
@@ -3864,7 +3871,7 @@ pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr
 pub fn check_chars_options() -> Option<&'static CStr> {
     if set_chars_option(
         &curwin_mut(),
-        opt_vars().p_lcs.as_cstr(),
+        &opt_vars().p_lcs.as_cstr(),
         CharsOption::Listchars,
         false,
         None,
@@ -3875,7 +3882,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
     }
     if set_chars_option(
         &curwin_mut(),
-        opt_vars().p_fcs.as_cstr(),
+        &opt_vars().p_fcs.as_cstr(),
         CharsOption::Fillchars,
         false,
         None,

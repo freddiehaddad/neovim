@@ -540,7 +540,7 @@ fn next_search_hl(
             }
             if shl.lnum == 0 {
                 matchcol = 0;
-            } else if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
+            } else if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
                 || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;

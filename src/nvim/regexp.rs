@@ -2197,7 +2197,7 @@ pub(super) fn get_coll_element(rem: &mut &[u8]) -> i32 {
 pub(super) fn get_cpo_flags() {
     RE_STATE.with(|s| {
         s.reg_cpo_lit
-            .set((crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL)) as i32)
+            .set((crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL)) as i32)
     });
 }
 
@@ -4088,7 +4088,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     re_s.rex.reg_buf.set(g_st().curbuf.get());
 
     let engine = re_s.regexp_engine.get();
-    let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
+    let cpo_lit = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
     let chartab = curbuf_mut().b_chartab.get();
     let can_cache = g_st().reg_do_extmatch.get() == 0
         && opt_vars().p_verbose.get() == 0

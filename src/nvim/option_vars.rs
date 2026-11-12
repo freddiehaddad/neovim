@@ -30,23 +30,311 @@ pub(crate) fn intern_opt_cstr(s: &std::ffi::CStr) -> &'static std::ffi::CStr {
     })
 }
 
-#[repr(C)]
-#[derive(Clone, Default, PartialEq, Eq, Debug)]
-pub struct OptString(std::cell::Cell<Option<&'static std::ffi::CStr>>);
+#[derive(Clone)]
+pub enum RcCStr {
+    Static(&'static std::ffi::CStr),
+    Shared(std::rc::Rc<std::ffi::CStr>, usize),
+}
 
-impl OptString {
-    pub const fn new() -> Self {
-        Self(std::cell::Cell::new(None))
+impl RcCStr {
+    pub const EMPTY: Self = Self::Static(c"");
+
+    #[inline(always)]
+    pub const fn from_static(s: &'static std::ffi::CStr) -> Self {
+        Self::Static(s)
     }
 
     #[inline(always)]
     pub fn from_cstr(s: &std::ffi::CStr) -> Self {
-        Self(std::cell::Cell::new(Some(intern_opt_cstr(s))))
+        if s.is_empty() {
+            Self::EMPTY
+        } else {
+            Self::Shared(std::rc::Rc::from(s), 0)
+        }
+    }
+
+    #[inline(always)]
+    pub fn from_cstring(s: std::ffi::CString) -> Self {
+        if s.is_empty() {
+            Self::EMPTY
+        } else {
+            Self::Shared(std::rc::Rc::from(s), 0)
+        }
+    }
+
+    #[inline(always)]
+    pub fn slice(&self, offset: usize) -> Self {
+        match self {
+            Self::Static(s) => {
+                let len = s.to_bytes().len();
+                Self::Static(&s[offset.min(len)..])
+            }
+            Self::Shared(rc, start) => {
+                let len = rc.to_bytes().len();
+                Self::Shared(rc.clone(), start.saturating_add(offset).min(len))
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_cstr(&self) -> &std::ffi::CStr {
+        match self {
+            Self::Static(s) => s,
+            Self::Shared(s, start) => {
+                let len = s.to_bytes().len();
+                &s[(*start).min(len)..]
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_bytes_slice(&self) -> RcSlice {
+        RcSlice {
+            cstr: self.clone(),
+            start: 0,
+            with_nul: false,
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_bytes_with_nul_slice(&self) -> RcSlice {
+        RcSlice {
+            cstr: self.clone(),
+            start: 0,
+            with_nul: true,
+        }
+    }
+}
+
+impl Default for RcCStr {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
+impl std::ops::Deref for RcCStr {
+    type Target = std::ffi::CStr;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_cstr()
+    }
+}
+
+impl AsRef<std::ffi::CStr> for RcCStr {
+    #[inline(always)]
+    fn as_ref(&self) -> &std::ffi::CStr {
+        self.as_cstr()
+    }
+}
+
+impl std::borrow::Borrow<std::ffi::CStr> for RcCStr {
+    #[inline(always)]
+    fn borrow(&self) -> &std::ffi::CStr {
+        self.as_cstr()
+    }
+}
+
+impl PartialEq for RcCStr {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_cstr() == other.as_cstr()
+    }
+}
+
+impl Eq for RcCStr {}
+
+impl PartialEq<std::ffi::CStr> for RcCStr {
+    #[inline(always)]
+    fn eq(&self, other: &std::ffi::CStr) -> bool {
+        self.as_cstr() == other
+    }
+}
+
+impl PartialEq<&std::ffi::CStr> for RcCStr {
+    #[inline(always)]
+    fn eq(&self, other: &&std::ffi::CStr) -> bool {
+        self.as_cstr() == *other
+    }
+}
+
+impl PartialEq<RcCStr> for &std::ffi::CStr {
+    #[inline(always)]
+    fn eq(&self, other: &RcCStr) -> bool {
+        *self == other.as_cstr()
+    }
+}
+
+impl PartialOrd for RcCStr {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RcCStr {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_cstr().cmp(other.as_cstr())
+    }
+}
+
+impl std::hash::Hash for RcCStr {
+    #[inline(always)]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_cstr().hash(state);
+    }
+}
+
+impl std::fmt::Debug for RcCStr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.as_cstr(), f)
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct RcSlice {
+    cstr: RcCStr,
+    start: usize,
+    with_nul: bool,
+}
+
+impl RcSlice {
+    #[inline(always)]
+    pub fn as_slice(&self) -> &[u8] {
+        let bytes = if self.with_nul {
+            self.cstr.to_bytes_with_nul()
+        } else {
+            self.cstr.to_bytes()
+        };
+        &bytes[self.start.min(bytes.len())..]
+    }
+
+    #[inline(always)]
+    pub fn slice(mut self, start: usize) -> Self {
+        self.start = self.start.saturating_add(start);
+        self
+    }
+}
+
+impl std::ops::Deref for RcSlice {
+    type Target = [u8];
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl AsRef<[u8]> for RcSlice {
+    #[inline(always)]
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
+impl std::borrow::Borrow<[u8]> for RcSlice {
+    #[inline(always)]
+    fn borrow(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
+impl PartialEq for RcSlice {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for RcSlice {}
+
+impl PartialEq<[u8]> for RcSlice {
+    #[inline(always)]
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_slice() == other
+    }
+}
+
+impl PartialEq<&[u8]> for RcSlice {
+    #[inline(always)]
+    fn eq(&self, other: &&[u8]) -> bool {
+        self.as_slice() == *other
+    }
+}
+
+impl PartialEq<RcSlice> for &[u8] {
+    #[inline(always)]
+    fn eq(&self, other: &RcSlice) -> bool {
+        *self == other.as_slice()
+    }
+}
+
+impl<const N: usize> PartialEq<[u8; N]> for RcSlice {
+    #[inline(always)]
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl<const N: usize> PartialEq<&[u8; N]> for RcSlice {
+    #[inline(always)]
+    fn eq(&self, other: &&[u8; N]) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl<const N: usize> PartialEq<RcSlice> for &[u8; N] {
+    #[inline(always)]
+    fn eq(&self, other: &RcSlice) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl<const N: usize> PartialEq<RcSlice> for [u8; N] {
+    #[inline(always)]
+    fn eq(&self, other: &RcSlice) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl std::fmt::Debug for RcSlice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.as_slice(), f)
+    }
+}
+
+impl<'a> IntoIterator for &'a RcSlice {
+    type Item = &'a u8;
+    type IntoIter = std::slice::Iter<'a, u8>;
+
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Default, PartialEq, Eq, Debug)]
+pub struct OptString(crate::globals::CloneCell<Option<RcCStr>>);
+
+impl OptString {
+    pub const fn new() -> Self {
+        Self(crate::globals::CloneCell::new(None))
+    }
+
+    #[inline(always)]
+    pub fn from_cstr(s: &std::ffi::CStr) -> Self {
+        Self(crate::globals::CloneCell::new(Some(RcCStr::from_cstr(s))))
     }
 
     #[inline(always)]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let bytes = crate::memory::bytes_until_nul(bytes);
+        if bytes.is_empty() {
+            return Self(crate::globals::CloneCell::new(Some(RcCStr::EMPTY)));
+        }
         Self::from_cstr(&crate::memory::bytes_to_cstring(bytes))
     }
 
@@ -57,7 +345,9 @@ impl OptString {
 
     #[inline(always)]
     pub fn replace(&self, other: Self) -> Self {
-        Self(std::cell::Cell::new(self.0.replace(other.0.get())))
+        Self(crate::globals::CloneCell::new(
+            self.0.replace(other.0.get()),
+        ))
     }
 
     #[inline(always)]
@@ -67,13 +357,29 @@ impl OptString {
 
     #[inline(always)]
     pub fn set_option_cstr(&self, s: &std::ffi::CStr) {
-        self.0.set(Some(intern_opt_cstr(s)));
+        if self.0.with(|cur| cur.as_deref() == Some(s)) {
+            return;
+        }
+        self.0.set(Some(RcCStr::from_cstr(s)));
     }
 
     #[inline(always)]
     pub fn set_option_bytes(&self, bytes: &[u8]) {
         let bytes = crate::memory::bytes_until_nul(bytes);
-        self.set_option_cstr(&crate::memory::bytes_to_cstring(bytes));
+        if self
+            .0
+            .with(|cur| cur.as_deref().map(std::ffi::CStr::to_bytes) == Some(bytes))
+        {
+            return;
+        }
+        if bytes.is_empty() {
+            self.0.set(Some(RcCStr::EMPTY));
+            return;
+        }
+        self.0
+            .set(Some(RcCStr::from_cstring(crate::memory::bytes_to_cstring(
+                bytes,
+            ))));
     }
 
     #[inline(always)]
@@ -85,47 +391,52 @@ impl OptString {
     pub const fn check_option_str(&self) {}
 
     #[inline(always)]
-    pub fn as_cstr(&self) -> &'static std::ffi::CStr {
-        self.0.get().unwrap_or(c"")
+    pub fn as_cstr(&self) -> RcCStr {
+        self.0.get().unwrap_or(RcCStr::EMPTY)
     }
 
     #[inline(always)]
-    pub fn as_bytes(&self) -> &'static [u8] {
-        self.as_cstr().to_bytes()
+    pub fn as_bytes(&self) -> RcSlice {
+        self.as_cstr().to_bytes_slice()
+    }
+
+    #[inline(always)]
+    pub fn to_bytes(&self) -> RcSlice {
+        self.as_bytes()
+    }
+
+    #[inline(always)]
+    pub fn to_bytes_with_nul(&self) -> RcSlice {
+        self.as_cstr().to_bytes_with_nul_slice()
     }
 
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
-        self.as_bytes().is_empty()
+        self.0.with(|opt| opt.as_ref().is_none_or(|s| s.is_empty()))
     }
 
     #[inline(always)]
     pub fn is_null(&self) -> bool {
-        self.0.get().is_none()
+        self.0.with(Option::is_none)
     }
 
     #[inline(always)]
     pub fn first_byte(&self) -> u8 {
-        self.as_bytes().first().copied().unwrap_or(0)
+        self.0.with(|opt| {
+            opt.as_ref()
+                .and_then(|s| s.to_bytes().first().copied())
+                .unwrap_or(0)
+        })
     }
 
     #[inline(always)]
     pub fn as_ptr(&self) -> *const std::ffi::c_char {
-        self.as_cstr().as_ptr()
+        self.0.with(|opt| opt.as_deref().unwrap_or(c"").as_ptr())
     }
 
     #[inline(always)]
     pub fn to_owned(&self) -> std::ffi::CString {
-        self.as_cstr().to_owned()
-    }
-}
-
-impl std::ops::Deref for OptString {
-    type Target = std::ffi::CStr;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_cstr()
+        self.0.with(|opt| opt.as_deref().unwrap_or(c"").to_owned())
     }
 }
 

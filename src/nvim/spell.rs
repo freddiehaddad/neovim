@@ -1338,7 +1338,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 && apply_autocmds(
                     EVENT_SPELLFILEMISSING,
                     lang_opt,
-                    curbuf_mut().fname_opt(),
+                    curbuf_mut().fname_opt().as_deref(),
                     false,
                     curbuf_opt_mut().as_deref(),
                 )
@@ -1769,7 +1769,8 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
             }
         }
         let cur_w_s = curwin_mut().w_s_ptr();
-        let mut spf_bytes = cur_w_s.b_p_spf.as_bytes();
+        let spf_rc = cur_w_s.b_p_spf.as_bytes();
+        let mut spf_bytes = spf_rc.as_slice();
         let mut round = 0;
         while round == 0 || !spf_bytes.is_empty() {
             let cur_round = round;

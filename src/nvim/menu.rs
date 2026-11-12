@@ -418,7 +418,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                 0,
                 REPTERM_DO_LT,
                 None,
-                opt_vars().p_cpo.as_bytes(),
+                &opt_vars().p_cpo.as_bytes(),
             );
             match map_buf_owned {
                 Some(ref mb) => Some(mb.as_c_str()),

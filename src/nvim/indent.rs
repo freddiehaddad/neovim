@@ -749,7 +749,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     }
 
     let mut regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(curbuf_mut().b_p_flp.as_cstr(), RE_MAGIC));
+    regmatch.set_prog(vim_regcomp(&curbuf_mut().b_p_flp.as_cstr(), RE_MAGIC));
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
@@ -779,7 +779,7 @@ pub fn briopt_check(wp: Option<&WinInfoInfo>) {
         return;
     }
     let vr: &OptKeyDict_briopt = &opt_keyset(
-        wp.unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
+        &wp.unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );
     wp.unwrap()
@@ -1621,7 +1621,7 @@ pub fn get_expr_indent() -> i32 {
     g_st().state_global.set(save_state);
 
     if g_st().did_throw.get()
-        && (!crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32)
+        && (!crate::strings::vim_haschr(&opt_vars().p_debug.as_cstr(), b't' as i32)
             || g_st().trylevel.get() == 0)
     {
         handle_did_throw();

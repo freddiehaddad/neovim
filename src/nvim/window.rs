@@ -6621,8 +6621,8 @@ fn check_window_scroll_resize(
         }
 
         let eiw = wp.w_onebuf_opt.wo_eiw.as_cstr();
-        let ignore_scroll = event_ignored(EVENT_WINSCROLLED, eiw);
-        let size_changed = !event_ignored(EVENT_WINRESIZED, eiw)
+        let ignore_scroll = event_ignored(EVENT_WINSCROLLED, &eiw);
+        let size_changed = !event_ignored(EVENT_WINRESIZED, &eiw)
             && (wp.w_last_width.get() != wp.w_width.get()
                 || wp.w_last_height.get() != wp.w_height.get());
         if size_changed {

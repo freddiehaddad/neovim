@@ -978,6 +978,50 @@ impl AsMbyteSlice for crate::strings::OwnedSlice {
     }
 }
 
+impl AsMbyteSlice for crate::option_vars::RcSlice {
+    #[inline]
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_slice())
+    }
+    #[inline]
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_slice())
+    }
+}
+
+impl AsMbyteSlice for &crate::option_vars::RcSlice {
+    #[inline]
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_slice())
+    }
+    #[inline]
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_slice())
+    }
+}
+
+impl AsMbyteSlice for crate::option_vars::RcCStr {
+    #[inline]
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
+    }
+    #[inline]
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
+    }
+}
+
+impl AsMbyteSlice for &crate::option_vars::RcCStr {
+    #[inline]
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
+    }
+    #[inline]
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
+    }
+}
+
 impl AsMbyteSlice for &crate::strings::OwnedSlice {
     #[inline]
     fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
@@ -2734,11 +2778,11 @@ pub fn utf_find_illegal() {
     };
     let mut tofree: Option<Vec<u8>> = None;
 
-    if (enc_canon_props(curbuf_mut().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
+    if (enc_canon_props(&curbuf_mut().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
         convert_setup(
             &mut vimconv,
-            Some(opt_vars().p_enc.as_cstr()),
-            Some(curbuf_mut().b_p_fenc.as_cstr()),
+            Some(&opt_vars().p_enc.as_cstr()),
+            Some(&curbuf_mut().b_p_fenc.as_cstr()),
         );
     }
 

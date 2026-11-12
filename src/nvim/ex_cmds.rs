@@ -1676,7 +1676,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
                 if do_in {
                     if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPMARKS) != 0
-                        || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REMMARK)
+                        || !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_REMMARK)
                     {
                         if read_linecount >= linecount {
                             mark_adjust(line1, line2, linecount, 0, K_EXTMARK_NOOP);
@@ -1929,7 +1929,7 @@ pub fn make_filter_cmd(
         }
     }
     if let Some(otmp_s) = otmp {
-        append_redir(&mut buf_vec, opt_vars().p_srr.as_cstr(), otmp_s);
+        append_redir(&mut buf_vec, &opt_vars().p_srr.as_cstr(), otmp_s);
     }
     crate::memory::cstring_until_nul(&buf_vec)
 }
@@ -2078,7 +2078,7 @@ pub fn ex_update(eap: &mut Exarg) {
         || (!bt_nofilename(Some(&crate::globals::curbuf_mut()))
             && curbuf_mut()
                 .ffname_opt()
-                .is_some_and(|f| !os_path_exists(f)))
+                .is_some_and(|f| !os_path_exists(&f)))
     {
         do_write(eap);
     }
@@ -2149,7 +2149,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         }
 
         if other {
-            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTWRITE)
+            if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_ALTWRITE)
                 || eap.cmdidx == Cmdidx::CmdSaveas
             {
                 alt_buf = crate::globals::BufPtr::from(setaltfname(ffname, fname, 1));
@@ -2177,9 +2177,14 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             }
         }
 
+        let curbuf_ffname;
+        let curbuf_fname;
+        let curbuf_sfname;
         if !other {
-            ffname = curbuf_mut().ffname_opt();
-            fname = curbuf_mut().fname_opt();
+            curbuf_ffname = curbuf_mut().ffname_opt();
+            curbuf_fname = curbuf_mut().fname_opt();
+            ffname = curbuf_ffname.as_deref();
+            fname = curbuf_fname.as_deref();
             if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count.get())
                 && !eap.forceit
                 && !eap.append
@@ -2246,7 +2251,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     do_modelines(0);
                 }
 
-                fname = curbuf_mut().sfname_opt();
+                curbuf_sfname = curbuf_mut().sfname_opt();
+                fname = curbuf_sfname.as_deref();
             }
 
             if !handle_mkdir_p_arg(eap, fname) {
@@ -2297,7 +2303,7 @@ pub fn check_overwrite(
         || (!bt_nofilename(Some(buf))
             && ((buf.b_flags.get() & BF_NOTEDITED) != 0
                 || ((buf.b_flags.get() & BF_NEW) != 0
-                    && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
+                    && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
                 || (buf.b_flags.get() & BF_READERR) != 0)))
         && !opt_vars().p_wa.get()
         && os_path_exists(ffname_cstr)
@@ -2423,15 +2429,16 @@ pub fn do_wqall(eap: &mut Exarg) {
             );
             error += 1;
         } else if check_readonly(&mut eap.forceit, b) || {
-            let b_fname = b.fname_opt().map(CStr::to_owned);
-            let b_ffname = b.ffname_opt().map(CStr::to_owned);
+            let b_fname = b.fname_opt().as_deref().map(CStr::to_owned);
+            let b_ffname = b.ffname_opt().as_deref().map(CStr::to_owned);
             !check_overwrite(eap, b, b_fname.as_deref(), b_ffname.as_deref(), false)
         } {
             error += 1;
         } else {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf.opt_mut());
-            if !handle_mkdir_p_arg(eap, b.fname_opt()) || !buf_write_all(b, eap.forceit) {
+            if !handle_mkdir_p_arg(eap, b.fname_opt().as_deref()) || !buf_write_all(b, eap.forceit)
+            {
                 error += 1;
             }
             if !bufref_valid(Some(&bufref)) {
@@ -2469,13 +2476,14 @@ fn not_writing() -> bool {
 fn check_readonly(forceit: &mut bool, buf: &FileBuf) -> bool {
     if !*forceit
         && (buf.b_p_ro.get()
-            || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
+            || (os_path_exists(&buf.ffname_cstr()) && os_file_is_writable(&buf.ffname_cstr()) == 0))
     {
         if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
             && buf.fname_opt().is_some()
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-            let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
+            let fname_rc = buf.fname_opt();
+            let fname = fname_rc.as_deref().unwrap_or_else(|| gettext(c"Untitled"));
             if buf.b_p_ro.get() {
                 format_to_buf!(
                     &mut buff,
@@ -2655,6 +2663,9 @@ pub fn do_ecmd(
     let mut did_inc_redrawing_disabled = false;
     let use_win_so = curwin_mut().w_onebuf_opt.wo_so.get() >= 0;
 
+    let curbuf_ffname;
+    let curbuf_fname;
+
     set_bufref(&mut old_curbuf, g_st().curbuf.get().opt_mut());
 
     'theend: {
@@ -2690,8 +2701,10 @@ pub fn do_ecmd(
                 other_file = false;
             } else {
                 if opt_is_empty(ffname) {
-                    ffname = curbuf_mut().ffname_opt();
-                    sfname = curbuf_mut().fname_opt();
+                    curbuf_ffname = curbuf_mut().ffname_opt();
+                    curbuf_fname = curbuf_mut().fname_opt();
+                    ffname = curbuf_ffname.as_deref();
+                    sfname = curbuf_fname.as_deref();
                 }
                 free_fname = fix_fname(ffname);
                 if let Some(ref ff) = free_fname {
@@ -2817,7 +2830,7 @@ pub fn do_ecmd(
 
             if buf != g_st().curbuf.get().as_ptr() {
                 if let Some(f) = buf.fname_opt() {
-                    new_name = Some(f.to_owned());
+                    new_name = Some(f.to_owned().as_cstr().to_owned());
                 }
                 let save_au_new_curbuf = g_st().au_new_curbuf.get();
                 let mut new_curbuf = save_au_new_curbuf.clone();
@@ -2955,7 +2968,7 @@ pub fn do_ecmd(
                 solcol = curwin_mut().w_cursor.get().col;
             }
             buf = g_st().curbuf.get();
-            new_name = buf.fname_opt().map(CStr::to_owned);
+            new_name = buf.fname_opt().as_deref().map(CStr::to_owned);
             set_bufref(&mut bufref, buf.opt_mut());
 
             if (curbuf_mut().b_flags.get() & BF_NEVERLOADED) == 0
@@ -4174,7 +4187,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             do_check_cursorbind();
                         }
 
-                        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
+                        if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
                             g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
                         }
 
@@ -4301,7 +4314,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         g_st().state_global.set(save_state);
                         setmouse();
-                        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
+                        if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
                             g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
                         }
 

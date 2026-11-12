@@ -233,7 +233,7 @@ pub fn buf_init_isk_chartab(buf: &FileBuf) -> bool {
     if buf.b_p_lisp.get() {
         set_chartab(&mut chartab, b'-' as i32);
     }
-    if !parse_isopt(buf.b_p_isk.as_bytes(), Some(&mut chartab)) {
+    if !parse_isopt(&buf.b_p_isk.as_bytes(), Some(&mut chartab)) {
         return false;
     }
     buf.b_chartab.set(chartab);
@@ -242,7 +242,7 @@ pub fn buf_init_isk_chartab(buf: &FileBuf) -> bool {
 
 pub fn init_isf_chartab() -> bool {
     let mut tab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-    if !parse_isopt(opt_vars().p_isf.as_bytes(), Some(&mut tab)) {
+    if !parse_isopt(&opt_vars().p_isf.as_bytes(), Some(&mut tab)) {
         return false;
     }
     charset_st(|st| st.isf_chartab.set(tab));
@@ -251,7 +251,7 @@ pub fn init_isf_chartab() -> bool {
 
 pub fn init_isi_chartab() -> bool {
     let mut tab = [0; 4];
-    if !parse_isopt(opt_vars().p_isi.as_bytes(), Some(&mut tab)) {
+    if !parse_isopt(&opt_vars().p_isi.as_bytes(), Some(&mut tab)) {
         return false;
     }
     charset_st(|st| st.isi_chartab.set(tab));

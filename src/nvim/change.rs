@@ -457,7 +457,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     changed_common(&curbuf_mut(), lnum, col, lnum + 1, 0);
     if spell_check_window(&curwin_mut())
         && lnum < curbuf_mut().b_ml.ml_line_count.get()
-        && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
+        && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
     {
         redraw_winline(&crate::globals::curwin_mut(), lnum + 1);
     }
@@ -713,7 +713,8 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
             if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list.get();
-                if old_list && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
+                if old_list
+                    && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
                 {
                     curwin_mut().w_onebuf_opt.wo_list.set(false);
                 }
@@ -938,7 +939,7 @@ pub fn open_line(
     let mut extra_len: i32 = 0;
     let mut lead_len: i32;
     let mut comment_start: i32 = 0;
-    let mut lead_flags: Option<&'static CStr> = None;
+    let mut lead_flags: Option<crate::option_vars::RcCStr> = None;
     let mut leader_idx: usize = 0;
     let mut allocated_vec: Vec<u8> = Vec::new();
     let mut saved_char: u8 = 0;
@@ -1175,7 +1176,7 @@ pub fn open_line(
         let mut extra_space = false;
         let mut require_blank = false;
 
-        let lead_flags_bytes = lead_flags.map_or(&[][..], CStr::to_bytes);
+        let lead_flags_bytes = lead_flags.as_deref().map_or(&[][..], CStr::to_bytes);
         let mut p_off: usize = 0;
         while p_off < lead_flags_bytes.len() && lead_flags_bytes[p_off] != b':' {
             let p_byte = lead_flags_bytes[p_off];
@@ -1932,14 +1933,14 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
 /// Returns the length in bytes of the prefix of the given string which introduces a comment.
 pub fn get_leader_len(
     line_bytes: &[u8],
-    mut flags: Option<&mut Option<&'static CStr>>,
+    mut flags: Option<&mut Option<crate::option_vars::RcCStr>>,
     backward: bool,
     include_space: bool,
 ) -> i32 {
     let mut got_com = false;
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut middle_match_len: usize = 0;
-    let mut saved_flags: Option<&'static CStr> = None;
+    let mut saved_flags: Option<crate::option_vars::RcCStr> = None;
 
     let mut result: usize = 0;
     let mut i: usize = 0;
@@ -1953,13 +1954,13 @@ pub fn get_leader_len(
         let mut list = curbuf_mut().b_p_com.as_cstr();
         while !list.to_bytes().is_empty() {
             if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = Some(list);
+                *flags_out = Some(list.clone());
             }
-            let prev_list = list;
+            let prev_list = list.clone();
             let mut list_bytes = list.to_bytes();
             let old_len = list_bytes.len();
             let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
-            list = &list[old_len - list_bytes.len()..];
+            list = list.slice(old_len - list_bytes.len());
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 part_flags_range = 0..part_len;
@@ -2026,7 +2027,7 @@ pub fn get_leader_len(
 
         if middle_match_len != 0 {
             if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = saved_flags;
+                *flags_out = saved_flags.clone();
             }
             i += middle_match_len;
             found_one = true;
@@ -2057,12 +2058,12 @@ pub fn get_leader_len(
 /// Return the offset at which the last comment in `line` starts, or -1 if none.
 pub fn get_last_leader_offset(
     line_bytes: &[u8],
-    mut flags: Option<&mut Option<&'static CStr>>,
+    mut flags: Option<&mut Option<crate::option_vars::RcCStr>>,
 ) -> i32 {
     let mut result: i32 = -1;
     let mut lower_check_bound: i32 = 0;
     let mut com_leader_range: std::ops::Range<usize> = 0..0;
-    let mut com_flags: Option<&'static CStr> = None;
+    let mut com_flags: Option<crate::option_vars::RcCStr> = None;
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
     let mut i = line_bytes.len() as i32;
@@ -2075,11 +2076,11 @@ pub fn get_last_leader_offset(
         let mut part_flags_range: std::ops::Range<usize> = 0..0;
         let mut list = curbuf_mut().b_p_com.as_cstr();
         while !list.to_bytes().is_empty() {
-            let flags_save = list;
+            let flags_save = list.clone();
             let mut list_bytes = list.to_bytes();
             let old_len = list_bytes.len();
             let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
-            list = &list[old_len - list_bytes.len()..];
+            list = list.slice(old_len - list_bytes.len());
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 continue;
@@ -2121,7 +2122,7 @@ pub fn get_last_leader_offset(
 
             found_one = true;
             if let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = Some(flags_save);
+                *flags_out = Some(flags_save.clone());
             }
             com_flags = Some(flags_save);
             break;
@@ -2148,13 +2149,16 @@ pub fn get_last_leader_offset(
 
             let mut list = curbuf_mut().b_p_com.as_cstr();
             while !list.to_bytes().is_empty() {
-                let flags_save = list;
+                let flags_save = list.clone();
                 let mut list_bytes = list.to_bytes();
                 let old_len = list_bytes.len();
                 let part2_len =
                     copy_option_part(&mut list_bytes, &mut part_buf2[..COM_MAX_LEN], c",");
-                list = &list[old_len - list_bytes.len()..];
-                if com_flags.is_some_and(|cf| ptr::eq(flags_save.as_ptr(), cf.as_ptr())) {
+                list = list.slice(old_len - list_bytes.len());
+                if com_flags
+                    .as_ref()
+                    .is_some_and(|cf| ptr::eq(flags_save.as_ptr(), cf.as_ptr()))
+                {
                     continue;
                 }
                 let part2 = &part_buf2[..part2_len];

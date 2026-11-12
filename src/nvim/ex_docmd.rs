@@ -4931,7 +4931,7 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
         && curbuf_mut().b_sfname.get().is_some()
         && !curbuf_mut().sfname_bytes().is_empty()
     {
-        return !path_equal(ffname, curbuf_mut().sfname_cstr(), K_PATH_CMP_LITERAL);
+        return !path_equal(ffname, &curbuf_mut().sfname_cstr(), K_PATH_CMP_LITERAL);
     }
 
     otherfile(Some(ffname))
@@ -8546,7 +8546,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
     let base_addr = eap.arg.addr();
     let cmdidx = eap.cmdidx;
     let argt = eap.argt;
-    let has_cpo_bar = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BAR);
+    let has_cpo_bar = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BAR);
     let mut nextcmd = crate::strings::OwnedSlice::NULL;
 
     {
@@ -10148,7 +10148,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
                     eap.arg.as_bytes(),
                     FNAME_MESS,
                     true,
-                    curbuf_mut().ffname_opt(),
+                    curbuf_mut().ffname_opt().as_deref(),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10319,7 +10319,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             } else {
                 home_replace(
                     wp.buf_opt().as_deref(),
-                    wp.buf_mut().fname_opt(),
+                    wp.buf_mut().fname_opt().as_deref(),
                     &mut *g_st().iobuff_bytes_mut(),
                     true,
                 );
@@ -10584,7 +10584,7 @@ fn ex_find(eap: &mut Exarg) {
             eap.arg.as_bytes(),
             FNAME_MESS,
             true,
-            curbuf_mut().ffname_opt(),
+            curbuf_mut().ffname_opt().as_deref(),
             &mut file_to_find,
             &mut search_ctx,
         );
@@ -10598,7 +10598,7 @@ fn ex_find(eap: &mut Exarg) {
                     &[],
                     FNAME_MESS,
                     false,
-                    curbuf_mut().ffname_opt(),
+                    curbuf_mut().ffname_opt().as_deref(),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10827,9 +10827,11 @@ fn ex_read(eap: &mut Exarg) {
         if !check_fname() {
             return;
         }
+        let ffname_opt = curbuf_mut().ffname_opt();
+        let fname_opt = curbuf_mut().fname_opt();
         readfile(
-            curbuf_mut().ffname_opt(),
-            curbuf_mut().fname_opt(),
+            ffname_opt.as_deref(),
+            fname_opt.as_deref(),
             eap.line2,
             0,
             MAXLNUM,
@@ -10838,7 +10840,7 @@ fn ex_read(eap: &mut Exarg) {
             false,
         )
     } else {
-        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTREAD) {
+        if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_ALTREAD) {
             let arg_opt = eap.arg.as_opt_cstr();
             setaltfname(arg_opt, arg_opt, 1);
         }
@@ -10932,7 +10934,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
     g_st().last_chdir_reason.set(None);
     shorten_fnames(!crate::strings::vim_haschr(
-        opt_vars().p_cpo.as_cstr(),
+        &opt_vars().p_cpo.as_cstr(),
         K_CPO_NOSYMLINKS,
     ));
 
@@ -11359,7 +11361,7 @@ fn ex_at(eap: &mut Exarg) {
     if !do_execreg(
         c,
         true,
-        crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EXECBUF),
+        crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_EXECBUF),
         true,
     ) {
         beep_flush();
@@ -12174,11 +12176,13 @@ pub fn eval_vars(
     } else {
         let mut result_cstr: Option<&CStr> = None;
         let oldfile_cow;
+        let fname_rc;
         match spec_idx {
             SPEC_PERC => {
                 if let Some(f) = curbuf_mut().fname_opt() {
-                    result_cstr = Some(f);
                     tilde_file = f.to_bytes() == b"~";
+                    fname_rc = f;
+                    result_cstr = Some(&fname_rc);
                 } else {
                     result_cstr = Some(c"");
                     valid = 0;
@@ -12234,8 +12238,9 @@ pub fn eval_vars(
                             *lnump = ECMD_LAST;
                         }
                         if let Some(f) = buf.fname_opt() {
-                            result_cstr = Some(f);
                             tilde_file = f.to_bytes() == b"~";
+                            fname_rc = f;
+                            result_cstr = Some(&fname_rc);
                         } else {
                             result_cstr = Some(c"");
                             valid = 0;

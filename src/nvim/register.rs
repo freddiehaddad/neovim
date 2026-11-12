@@ -1176,7 +1176,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
         y_idx += 1;
     }
 
-    let cpo_regappend = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REGAPPEND);
+    let cpo_regappend = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_REGAPPEND);
     reg_idx.with_mut(|curr_reg| {
         if is_append {
             if yank_type == MotionType::MtLineWise {
@@ -2566,10 +2566,10 @@ pub fn ex_display(eap: &mut Exarg) {
     if curbuf_mut().fname_opt().is_some()
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'%')))
         && !g_st().got_int.get()
-        && !message_filtered(curbuf_mut().fname_cstr())
+        && !message_filtered(&curbuf_mut().fname_cstr())
     {
         msg_puts(c"\n  c  \"%   ");
-        dis_msg(curbuf_mut().fname_opt(), false);
+        dis_msg(curbuf_mut().fname_opt().as_deref(), false);
     }
 
     if (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'#')))

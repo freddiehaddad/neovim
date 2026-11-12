@@ -1315,7 +1315,7 @@ pub fn do_in_runtimepath(
         flags = (flags & !DIP_START) | DIP_NORTP;
     }
     if (flags & (DIP_START | DIP_OPT)) != 0 && (!success || (flags & DIP_ALL) != 0) {
-        success |= do_in_path_and_pp(opt_vars().p_rtp.as_cstr(), Some(name), flags, callback);
+        success |= do_in_path_and_pp(&opt_vars().p_rtp.as_cstr(), Some(name), flags, callback);
     }
     success
 }
@@ -1656,7 +1656,7 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
 /// Add all packages in the "start" directory to 'runtimepath'.
 pub fn add_pack_start_dirs() {
     do_in_path(
-        opt_vars().p_pp.as_cstr(),
+        &opt_vars().p_pp.as_cstr(),
         c"",
         None,
         DIP_ALL + DIP_DIR,
@@ -1742,9 +1742,8 @@ pub fn load_plugins() {
             add_pack_start_dirs();
         }
 
-        let rtp_cstr: &CStr = rtp_copy_owned
-            .as_deref()
-            .unwrap_or_else(|| opt_vars().p_rtp.as_cstr());
+        let p_rtp = opt_vars().p_rtp.as_cstr();
+        let rtp_cstr: &CStr = rtp_copy_owned.as_deref().unwrap_or_else(|| p_rtp.as_cstr());
         source_in_path_vim_lua(rtp_cstr, plugin_pattern, DIP_ALL | DIP_NOAFTER);
         if has_time_fd() {
             time_msg(c"loading rtp plugins", None);
@@ -1779,7 +1778,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
     if !g_st().did_source_packages.get() {
         format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
         res = do_in_path(
-            opt_vars().p_pp.as_cstr(),
+            &opt_vars().p_pp.as_cstr(),
             c"",
             Some(crate::memory::bytes_as_cstr(&pat_vec)),
             DIP_ALL + DIP_DIR,
@@ -1789,7 +1788,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
 
     format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"opt", eap.arg);
     do_in_path(
-        opt_vars().p_pp.as_cstr(),
+        &opt_vars().p_pp.as_cstr(),
         c"",
         Some(crate::memory::bytes_as_cstr(&pat_vec)),
         DIP_ALL + DIP_DIR + if !res { DIP_ERR } else { 0 },
@@ -1826,7 +1825,7 @@ fn expand_rtdir_int(
         loop {
             if (flags & DIP_NORTP) == 0 {
                 globpath(
-                    opt_vars().p_rtp.as_cstr(),
+                    &opt_vars().p_rtp.as_cstr(),
                     crate::memory::bytes_as_cstr(&buf_vec),
                     gap,
                     glob_flags,
@@ -1846,7 +1845,7 @@ fn expand_rtdir_int(
                     ext_str,
                 );
                 globpath(
-                    opt_vars().p_pp.as_cstr(),
+                    &opt_vars().p_pp.as_cstr(),
                     crate::memory::bytes_as_cstr(&buf_vec),
                     gap,
                     glob_flags,
@@ -1862,7 +1861,7 @@ fn expand_rtdir_int(
                     ext_str,
                 );
                 globpath(
-                    opt_vars().p_pp.as_cstr(),
+                    &opt_vars().p_pp.as_cstr(),
                     crate::memory::bytes_as_cstr(&buf_vec),
                     gap,
                     glob_flags,
@@ -1880,7 +1879,7 @@ fn expand_rtdir_int(
                     ext_str,
                 );
                 globpath(
-                    opt_vars().p_pp.as_cstr(),
+                    &opt_vars().p_pp.as_cstr(),
                     crate::memory::bytes_as_cstr(&buf_vec),
                     gap,
                     glob_flags,
@@ -1896,7 +1895,7 @@ fn expand_rtdir_int(
                     ext_str,
                 );
                 globpath(
-                    opt_vars().p_pp.as_cstr(),
+                    &opt_vars().p_pp.as_cstr(),
                     crate::memory::bytes_as_cstr(&buf_vec),
                     gap,
                     glob_flags,
@@ -2010,7 +2009,7 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     let mut s_vec = vec![0u8; buflen];
     format_to_buf!(&mut s_vec, c"pack/*/opt/%s*", pat_cstr);
     globpath(
-        opt_vars().p_pp.as_cstr(),
+        &opt_vars().p_pp.as_cstr(),
         crate::memory::bytes_as_cstr(&s_vec),
         file,
         0,
@@ -2018,7 +2017,7 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     );
     format_to_buf!(&mut s_vec, c"opt/%s*", pat_cstr);
     globpath(
-        opt_vars().p_pp.as_cstr(),
+        &opt_vars().p_pp.as_cstr(),
         crate::memory::bytes_as_cstr(&s_vec),
         file,
         0,
@@ -2501,7 +2500,7 @@ fn do_source_buffer_init(
                 curbuf_mut().b_fnum.get(),
             );
         }
-        g_st().iobuff_cstr().to_owned()
+        crate::option_vars::RcCStr::from_cstring(g_st().iobuff_cstr())
     };
 
     sp.buflines.clear();
@@ -2514,7 +2513,7 @@ fn do_source_buffer_init(
     sp.source_from_buf_or_str = true;
     sp.sourcing_lnum = eap.unwrap().line1 - 1;
 
-    Some(fname)
+    Some(fname.as_cstr().to_owned())
 }
 
 fn do_source_str_init(sp: &mut SourceCookie, str_cstr: &std::ffi::CStr) {
@@ -2815,10 +2814,10 @@ fn do_source_ext(
         if fname_opt.is_none()
             && let Some(eap) = eap
             && !ex_lua
-            && !(Some(curbuf_mut().b_p_ft.as_bytes()) == Some(b"lua"))
+            && curbuf_mut().b_p_ft.as_bytes() != b"lua"
             && !curbuf_mut()
                 .fname_opt()
-                .is_some_and(|f| path_with_extension(f, c"lua"))
+                .is_some_and(|f| path_with_extension(&f, c"lua"))
         {
             let mut args_items = [
                 integer_obj(Integer::from(curbuf_mut().b_fnum.get())),
@@ -2847,10 +2846,10 @@ fn do_source_ext(
         if fname_opt.is_none()
             && (ex_lua
                 || ts_lua
-                || (Some(curbuf_mut().b_p_ft.as_bytes()) == Some(b"lua"))
+                || curbuf_mut().b_p_ft.as_bytes() == b"lua"
                 || curbuf_mut()
                     .fname_opt()
-                    .is_some_and(|f| path_with_extension(f, c"lua")))
+                    .is_some_and(|f| path_with_extension(&f, c"lua")))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
         } else if has_si && with_script_item(sid, |si| si.sn_lua) {
@@ -2863,7 +2862,7 @@ fn do_source_ext(
                 convert_setup(
                     &mut cookie.conv,
                     Some(c"utf-8"),
-                    Some(opt_vars().p_enc.as_cstr()),
+                    Some(&opt_vars().p_enc.as_cstr()),
                 );
                 let after_bom = &fl.to_bytes()[3..];
                 firstline = Some(string_convert(&cookie.conv, after_bom, None).map_or_else(
@@ -3222,7 +3221,7 @@ pub fn getsourceline(
 
     if let Some(ref mut buf) = line_vec
         && do_concat
-        && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_CONCAT)
+        && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_CONCAT)
     {
         sp.sourcing_lnum -= 1;
 
@@ -3405,7 +3404,7 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
     convert_setup(
         &mut sp.borrow_mut().conv,
         name_opt,
-        Some(opt_vars().p_enc.as_cstr()),
+        Some(&opt_vars().p_enc.as_cstr()),
     );
 }
 

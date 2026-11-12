@@ -362,7 +362,11 @@ fn arglist_del_files(alist_ga: &[CString]) {
         let mut match_idx: i32 = 0;
         while match_idx < argcount() {
             let entry = arg_entry(match_idx as usize);
-            if vim_regexec(&mut regmatch, alist_name(&entry).unwrap_or(c""), 0) {
+            if vim_regexec(
+                &mut regmatch,
+                alist_name(&entry).as_deref().unwrap_or(c""),
+                0,
+            ) {
                 didone = true;
                 win_alist_rc(&curwin_mut())
                     .al_ga
@@ -395,11 +399,13 @@ fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
         return false;
     }
 
+    let curbuf_fname_bytes;
     if what == AL_ADD && str_bytes.is_empty() {
         if curbuf_mut().b_ffname.get().is_none() {
             return false;
         }
-        str_bytes = curbuf_mut().fname_bytes();
+        curbuf_fname_bytes = curbuf_mut().fname_bytes();
+        str_bytes = &curbuf_fname_bytes;
         arg_escaped = false;
     }
 
@@ -454,8 +460,8 @@ pub fn editing_arg_idx(win: &WinInfoInfo) -> bool {
     }
     win.buf_mut().ffname_opt().is_some_and(|ffname| {
         path_equal(
-            alist_name(&entry).unwrap_or(c""),
-            ffname,
+            alist_name(&entry).as_deref().unwrap_or(c""),
+            &ffname,
             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
         )
     })
@@ -478,8 +484,8 @@ pub fn check_arg_idx(win: &WinInfoInfo) {
             if buf.b_fnum.get() == last_entry.ae_fnum
                 || (buf.b_ffname.get().is_some()
                     && path_equal(
-                        alist_name(&last_entry).unwrap_or(c""),
-                        buf.ffname_cstr(),
+                        alist_name(&last_entry).as_deref().unwrap_or(c""),
+                        &buf.ffname_cstr(),
                         K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                     ))
             {
@@ -524,10 +530,11 @@ pub fn ex_args(eap: &mut Exarg) {
         gotocmdline(true);
 
         let entries = win_alist_rc(&curwin_mut()).al_ga.borrow().clone();
-        let items: Vec<&CStr> = entries[..(count as usize)]
+        let names: Vec<crate::option_vars::RcCStr> = entries[..(count as usize)]
             .iter()
-            .map(|e| alist_name(e).unwrap_or(c""))
+            .map(|e| alist_name(e).unwrap_or(crate::option_vars::RcCStr::EMPTY))
             .collect();
+        let items: Vec<&CStr> = names.iter().map(|s| s.as_cstr()).collect();
         list_in_columns(&items, curwin_mut().w_arg_idx.get());
         return;
     }
@@ -616,7 +623,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         let mut other = true;
         if buf_hide(&curbuf_mut()) {
             let entry = arg_entry(argn as usize);
-            let p = fix_fname(alist_name(&entry));
+            let p = fix_fname(alist_name(&entry).as_deref());
             other = otherfile(p.as_deref());
         }
         if (!buf_hide(&curbuf_mut()) || !other)
@@ -640,7 +647,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
     let cur_entry = arg_entry(curwin_mut().w_arg_idx.get() as usize);
     if !do_ecmd(
         0,
-        alist_name(&cur_entry),
+        alist_name(&cur_entry).as_deref(),
         None,
         Some(&*eap),
         ECMD_LAST,
@@ -817,18 +824,20 @@ pub fn get_arglist_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         return None;
     }
     let entry = arg_entry(idx as usize);
-    xp.xp_item = alist_name(&entry).map(CStr::to_owned);
+    xp.xp_item = alist_name(&entry).as_deref().map(CStr::to_owned);
     xp.xp_item.as_deref()
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-pub fn alist_name(aep: &Aentry) -> Option<&CStr> {
+pub fn alist_name(aep: &Aentry) -> Option<crate::option_vars::RcCStr> {
     if let Some(bp) = buflist_findnr_opt(aep.ae_fnum)
-        && bp.fname_opt().is_some()
+        && let Some(fname) = bp.fname_opt()
     {
-        Some(bp.fname_cstr())
+        Some(fname)
     } else {
-        aep.ae_fname.as_deref()
+        aep.ae_fname
+            .as_deref()
+            .map(crate::option_vars::RcCStr::from_cstr)
     }
 }
 
@@ -883,8 +892,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     if let Some(ref entry) = entry_opt
                         && (entry.ae_fnum == buf.b_fnum.get()
                             || path_equal(
-                                alist_name(entry).unwrap_or(c""),
-                                buf.ffname_cstr(),
+                                alist_name(entry).as_deref().unwrap_or(c""),
+                                &buf.ffname_cstr(),
                                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                             ))
                     {
@@ -1046,7 +1055,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             let entry = aall.alist.al_ga.borrow()[i as usize].clone();
             do_ecmd(
                 0,
-                alist_name(&entry),
+                alist_name(&entry).as_deref(),
                 None,
                 None,
                 ECMD_ONE,
@@ -1225,7 +1234,7 @@ fn get_arglist_as_rettv(entries: Option<&[Aentry]>, rettv: &mut TypVal) {
     tv_list_alloc_ret(&mut *rettv, count as isize);
     if let Some(entries) = entries {
         for entry in entries {
-            tv_list_append_string(rettv.vval.v_list_ref(), alist_name(entry), -1);
+            tv_list_append_string(rettv.vval.v_list_ref(), alist_name(entry).as_deref(), -1);
         }
     }
 }
@@ -1252,7 +1261,7 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         && idx >= 0
         && (idx as usize) < entries.len()
     {
-        tv_set_string(rettv, alist_name(&entries[idx as usize]));
+        tv_set_string(rettv, alist_name(&entries[idx as usize]).as_deref());
     } else if idx == -1 {
         get_arglist_as_rettv(entries.as_deref(), rettv);
     }

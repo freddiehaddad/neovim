@@ -1857,7 +1857,7 @@ fn parse_win_config(
             }
         } else if !opt_vars().p_winborder.is_empty()
             && wp.as_ref().is_none_or(|w| !w.w_floating.get())
-            && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder.as_bytes(), err)
+            && !parse_winborder(Some(&mut *fconfig), &opt_vars().p_winborder.as_bytes(), err)
         {
             break 'fail;
         }

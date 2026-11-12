@@ -883,7 +883,7 @@ fn get_line_number_attr(wp: &WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 }
 
 fn draw_lnum_col(wp: &WinInfoInfo, wlv: &mut Winlinevars) {
-    let has_cpo_n = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL);
+    let has_cpo_n = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL);
 
     if (wp.w_onebuf_opt.wo_nu.get() || wp.w_onebuf_opt.wo_rnu.get())
         && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -3895,7 +3895,7 @@ pub fn win_line(
                 wlv.need_showbreak = true;
             }
             if statuscol.draw
-                && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
+                && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
                 && wlv.row > startrow + wlv.filler_lines
             {
                 statuscol.draw = false;

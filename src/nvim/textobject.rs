@@ -109,7 +109,7 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
 
             // remember the line where the search started
             let startlnum = pos.lnum;
-            let cpo_j = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ENDOFSENT);
+            let cpo_j = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_ENDOFSENT);
 
             loop {
                 c = gchar_pos(&mut pos);
@@ -293,8 +293,8 @@ pub fn start_ps(lnum: Linenr, para: i32, both: bool) -> bool {
     }
     if first == b'.' {
         let rest = &s_bytes[1..];
-        if inmacro(opt_vars().p_sections.as_bytes(), rest)
-            || (para == 0 && inmacro(opt_vars().p_para.as_bytes(), rest))
+        if inmacro(&opt_vars().p_sections.as_bytes(), rest)
+            || (para == 0 && inmacro(&opt_vars().p_para.as_bytes(), rest))
         {
             return true;
         }
@@ -967,7 +967,7 @@ pub fn current_block(
         old_end = g_st().visual_global.borrow().start;
     }
 
-    let new_cpo = if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_MATCHBSL) {
+    let new_cpo = if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_MATCHBSL) {
         OptString::from_cstr(c"%M")
     } else {
         OptString::from_cstr(c"%")
@@ -1654,7 +1654,8 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
         }
     }
 
-    let qe_bytes = Some(curbuf_mut().b_p_qe.as_bytes());
+    let qe_rc = curbuf_mut().b_p_qe.as_bytes();
+    let qe_bytes = Some(qe_rc.as_slice());
     if !vis_empty && byte_at(col_start) == quotechar {
         if vis_bef_curs {
             col_start = find_next_quote(line_bytes, col_start + 1, quotechar, None);

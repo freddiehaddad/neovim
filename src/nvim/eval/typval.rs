@@ -299,10 +299,10 @@ impl Drop for TvPartial {
 pub enum CallbackData {
     #[default]
     None,
-    Funcref(&'static std::ffi::CStr),
+    Funcref(std::rc::Rc<std::ffi::CStr>),
     Partial(PartialId),
     Lua(LuaRef),
-    Expr(&'static std::ffi::CStr),
+    Expr(std::rc::Rc<std::ffi::CStr>),
 }
 
 impl CallbackData {
@@ -310,12 +310,12 @@ impl CallbackData {
 
     #[inline]
     pub fn funcref(funcref: impl AsRef<std::ffi::CStr>) -> Self {
-        Self::Funcref(crate::option_vars::intern_opt_cstr(funcref.as_ref()))
+        Self::Funcref(std::rc::Rc::from(funcref.as_ref()))
     }
 
     #[inline]
     pub fn expr(expr: impl AsRef<std::ffi::CStr>) -> Self {
-        Self::Expr(crate::option_vars::intern_opt_cstr(expr.as_ref()))
+        Self::Expr(std::rc::Rc::from(expr.as_ref()))
     }
 
     #[inline]
@@ -329,9 +329,9 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn as_funcref(&self) -> Option<&'static std::ffi::CStr> {
+    pub fn as_funcref(&self) -> Option<std::rc::Rc<std::ffi::CStr>> {
         match self {
-            Self::Funcref(s) | Self::Expr(s) => Some(*s),
+            Self::Funcref(s) | Self::Expr(s) => Some(s.clone()),
             _ => None,
         }
     }
@@ -355,7 +355,7 @@ impl CallbackData {
 
 impl crate::globals::CloneCell<CallbackData> {
     #[inline]
-    pub fn as_funcref(&self) -> Option<&'static std::ffi::CStr> {
+    pub fn as_funcref(&self) -> Option<std::rc::Rc<std::ffi::CStr>> {
         self.get().as_funcref()
     }
 
@@ -3535,7 +3535,7 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
 pub fn callback_free(callback: &Callback) {
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
-            func_unref(callback.data.as_funcref());
+            func_unref(callback.data.as_funcref().as_deref());
         }
         K_CALLBACK_PARTIAL => {
             partial_unref(callback.data.as_partial().opt());
@@ -3560,7 +3560,7 @@ pub fn callback_put(cb: &Callback, tv: &mut TypVal) {
         }
         K_CALLBACK_FUNCREF => {
             let funcref = cb.data.as_funcref();
-            tv_set_string(&mut *tv, funcref);
+            tv_set_string(&mut *tv, funcref.as_deref());
             tv.v_type = VarType::VarFunc;
             func_ref(tv.vval.v_string_cstr());
         }
@@ -3581,16 +3581,18 @@ pub fn callback_copy(dest: &Callback, src: &Callback) {
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
-            dest.data.set(CallbackData::funcref(funcref.unwrap_or(c"")));
-            func_ref(funcref);
+            dest.data
+                .set(CallbackData::funcref(funcref.as_deref().unwrap_or(c"")));
+            func_ref(funcref.as_deref());
         }
         K_CALLBACK_LUA => {
             let new_ref = api_new_luaref(src.data.as_luaref());
             dest.data.set(CallbackData::lua(new_ref));
         }
         K_CALLBACK_EXPR => {
-            dest.data
-                .set(CallbackData::expr(src.data.as_funcref().unwrap_or(c"")));
+            dest.data.set(CallbackData::expr(
+                src.data.as_funcref().as_deref().unwrap_or(c""),
+            ));
         }
         _ => {
             dest.data.set(CallbackData::NONE);
@@ -3609,7 +3611,8 @@ pub fn callback_to_string(cb: &Callback) -> std::ffi::CString {
 
     match cb.cb_type() {
         K_CALLBACK_FUNCREF => {
-            let s = cb.data.as_funcref().unwrap_or(c"").to_bytes();
+            let funcref = cb.data.as_funcref();
+            let s = funcref.as_deref().unwrap_or(c"").to_bytes();
             let prefix = b"<vim function: ";
             let suffix = b">";
             let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());

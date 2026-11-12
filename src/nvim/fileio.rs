@@ -429,7 +429,7 @@ pub fn readfile(
             if curbuf_mut().b_ffname.get().is_none()
                 && !filtering
                 && fname.is_some()
-                && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMER)
+                && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FNAMER)
                 && (flags & READ_DUMMY) == 0
                 && !set_rw_fname(fname, sfname)
             {
@@ -485,8 +485,8 @@ pub fn readfile(
                         {
                             apply_autocmds(
                                 EVENT_FILETYPE,
-                                Some(curbuf_mut().b_p_ft.as_cstr()),
-                                curbuf_mut().fname_opt(),
+                                Some(&curbuf_mut().b_p_ft.as_cstr()),
+                                curbuf_mut().fname_opt().as_deref(),
                                 true,
                                 curbuf_opt_mut().as_deref(),
                             );
@@ -813,15 +813,15 @@ pub fn readfile(
             curbuf_mut().b_op_start.set_col(0);
 
             let mut try_mac = i32::from(crate::strings::vim_haschr(
-                opt_vars().p_ffs.as_cstr(),
+                &opt_vars().p_ffs.as_cstr(),
                 b'm' as i32,
             ));
             let mut try_dos = i32::from(crate::strings::vim_haschr(
-                opt_vars().p_ffs.as_cstr(),
+                &opt_vars().p_ffs.as_cstr(),
                 b'd' as i32,
             ));
             let mut try_unix = i32::from(crate::strings::vim_haschr(
-                opt_vars().p_ffs.as_cstr(),
+                &opt_vars().p_ffs.as_cstr(),
                 b'x' as i32,
             ));
 
@@ -874,15 +874,15 @@ pub fn readfile(
                 }
 
                 try_mac = i32::from(crate::strings::vim_haschr(
-                    opt_vars().p_ffs.as_cstr(),
+                    &opt_vars().p_ffs.as_cstr(),
                     b'm' as i32,
                 ));
                 try_dos = i32::from(crate::strings::vim_haschr(
-                    opt_vars().p_ffs.as_cstr(),
+                    &opt_vars().p_ffs.as_cstr(),
                     b'd' as i32,
                 ));
                 try_unix = i32::from(crate::strings::vim_haschr(
-                    opt_vars().p_ffs.as_cstr(),
+                    &opt_vars().p_ffs.as_cstr(),
                     b'x' as i32,
                 ));
                 curbuf_mut().b_op_start.set(orig_start);
@@ -967,6 +967,7 @@ pub fn readfile(
                 curbuf_mut().b_bad_char.set(0);
             }
 
+            let fencs_rc;
             let mut fenc_next: &[u8] = b"";
             if let Some(eap) = eap
                 && eap.force_enc != 0
@@ -981,9 +982,10 @@ pub fn readfile(
                 fenc_next = b"latin1";
                 fenc_owned = Some(c"utf-8".to_owned());
             } else if opt_vars().p_fencs.is_empty() {
-                fenc_owned = Some(curbuf_mut().b_p_fenc.as_cstr().to_owned());
+                fenc_owned = Some(curbuf_mut().b_p_fenc.to_owned());
             } else {
-                fenc_next = opt_vars().p_fencs.as_bytes();
+                fencs_rc = opt_vars().p_fencs.as_bytes();
+                fenc_next = &fencs_rc;
                 fenc_owned = Some(next_fenc(&mut fenc_next));
             }
 
@@ -2286,8 +2288,8 @@ pub fn readfile(
                     if !curbuf_mut().b_au_did_filetype.get() && !curbuf_mut().b_p_ft.is_empty() {
                         apply_autocmds(
                             EVENT_FILETYPE,
-                            Some(curbuf_mut().b_p_ft.as_cstr()),
-                            curbuf_mut().fname_opt(),
+                            Some(&curbuf_mut().b_p_ft.as_cstr()),
+                            curbuf_mut().fname_opt().as_deref(),
                             true,
                             curbuf_opt_mut().as_deref(),
                         );
@@ -2371,7 +2373,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     let fenc_bytes = buf.b_p_fenc.as_bytes();
     let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
     cmd_vec.extend_from_slice(b"e ++enc=");
-    cmd_vec.extend_from_slice(fenc_bytes);
+    cmd_vec.extend_from_slice(&fenc_bytes);
     let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
     eap.cmd = crate::strings::OwnedSlice::from_cstr(&cmd_cstr);
     eap.force_enc = 8;
@@ -2741,20 +2743,21 @@ fn check_for_bom(bytes: &[u8], lenp: &mut i32, flags: i32) -> Option<&'static CS
 pub fn shorten_buf_fname(buf: &FileBuf, dirname: &CStr, force: i32) -> bool {
     if buf.fname_opt().is_none()
         || bt_nofilename(Some(buf))
-        || path_with_url(buf.fname_bytes())
-        || !(force != 0 || buf.b_sfname.get().is_none() || path_is_absolute(buf.sfname_bytes()))
+        || path_with_url(&buf.fname_bytes())
+        || !(force != 0 || buf.b_sfname.get().is_none() || path_is_absolute(&buf.sfname_bytes()))
     {
         return false;
     }
 
-    let p = path_shorten_fname(buf.ffname_opt(), dirname);
+    let ffname_opt = buf.ffname_opt();
+    let p = path_shorten_fname(ffname_opt.as_deref(), dirname);
     let shorten = p.is_some_and(|s| !s.to_bytes().is_empty());
-    if shorten && buf.b_sfname.get().is_some() && p == Some(buf.sfname_cstr()) {
+    if shorten && buf.b_sfname.get().is_some() && p == Some(&buf.sfname_cstr()) {
         return false;
     }
 
-    let new_fname = if shorten { p } else { buf.ffname_opt() };
-    let changed = new_fname.is_none() || new_fname != buf.fname_opt();
+    let new_fname = if shorten { p } else { ffname_opt.as_deref() };
+    let changed = new_fname.is_none() || new_fname != buf.fname_opt().as_deref();
 
     buf.set_sfname(shorten.then(|| p.unwrap().to_owned()));
     if shorten {
@@ -3226,7 +3229,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
     if (buf.b_flags.get() & BF_NOTEDITED) == 0
         && buf.b_mtime.get() != 0
         && ({
-            file_info_ok = os_fileinfo(buf.ffname_cstr(), &mut file_info);
+            file_info_ok = os_fileinfo(&buf.ffname_cstr(), &mut file_info);
             !file_info_ok
                 || time_differs(&file_info, buf.b_mtime.get(), buf.b_mtime_ns.get())
                 || (file_info.stat.st_mode as i32) != buf.b_orig_mode.get()
@@ -3244,7 +3247,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
             buf_store_file_info(buf, &mut file_info);
         }
 
-        if os_isdir(buf.fname_cstr()) {
+        if os_isdir(&buf.fname_cstr()) {
             // Don't do anything for a directory.
         } else if buf.b_p_ar.get().unwrap_or(opt_vars().p_ar.get())
             && !buf_is_changed_fn(buf)
@@ -3268,7 +3271,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
             set_vim_var_string(VV_FCS_REASON, Some(reason), reasonlen);
             set_vim_var_string(VV_FCS_CHOICE, Some(c""), 0);
             g_st().allbuf_lock.set(g_st().allbuf_lock.get() + (1));
-            let b_fname = buf.fname_opt().map(CStr::to_owned);
+            let b_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
             let mut n = apply_autocmds(
                 EVENT_FILECHANGEDSHELL,
                 b_fname.as_deref(),
@@ -3327,7 +3330,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
         }
     } else if (buf.b_flags.get() & BF_NEW) != 0
         && (buf.b_flags.get() & BF_NEW_W) == 0
-        && os_path_exists(buf.ffname_cstr())
+        && os_path_exists(&buf.ffname_cstr())
     {
         retval = 1;
         mesg = Some(tr(
@@ -3338,7 +3341,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
     }
 
     if let Some(mesg) = mesg {
-        let path = home_replace_save(Some(buf), buf.fname_opt());
+        let path = home_replace_save(Some(buf), buf.fname_opt().as_deref());
         if !helpmesg {
             mesg2 = c"";
         }
@@ -3410,7 +3413,7 @@ pub fn buf_check_timestamp(buf: &FileBuf) -> i32 {
     }
 
     if bufref_valid(Some(&bufref)) && retval != 0 {
-        let b_fname = buf.fname_opt().map(CStr::to_owned);
+        let b_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
         apply_autocmds(
             EVENT_FILECHANGEDSHELLPOST,
             b_fname.as_deref(),
@@ -3484,14 +3487,16 @@ pub fn buf_reload(buf: &FileBuf, orig_mode: i32, reload_options: bool) {
         }
     }
 
+    let b_fname = buf.fname_opt();
+    let b_ffname = buf.ffname_opt();
     if saved {
         curbuf_mut()
             .b_flags
             .set(curbuf_mut().b_flags.get() | (BF_CHECK_RO));
         curbuf_mut().b_keep_filetype.set(true);
         if readfile(
-            buf.ffname_opt(),
-            buf.fname_opt(),
+            b_ffname.as_deref(),
+            b_fname.as_deref(),
             0,
             0,
             MAXLNUM,

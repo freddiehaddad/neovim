@@ -200,7 +200,7 @@ pub fn vim_findfile_init(
                 .get(1)
                 .is_some_and(|&b| vim_ispathsep(i32::from(b)))
                 || path_bytes.len() == 1)
-            && (!tagfile || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOTTAG))
+            && (!tagfile || !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_DOTTAG))
             && let Some(rel_fname_cstr) = rel_fname
         {
             let len =
@@ -640,7 +640,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         let mut suf_bytes = if search_ctx.ffsc_tagfile {
                             EMPTY_C.to_bytes()
                         } else {
-                            curbuf_mut().b_p_sua.as_bytes()
+                            &curbuf_mut().b_p_sua.as_bytes()
                         };
                         loop {
                             let vis_idx = search_ctx.ffsc_visited_list.unwrap();
@@ -1022,7 +1022,7 @@ pub fn find_directory_in_path(
         ptr,
         options,
         true,
-        opt_vars().p_cdpath.as_cstr(),
+        &opt_vars().p_cdpath.as_cstr(),
         FindFileWhat::Dir,
         rel_fname,
         EMPTY_C,
@@ -1271,7 +1271,7 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
             &vis_bytes[..len.min(vis_bytes.len())],
             options,
             count as i64,
-            curbuf_mut().ffname_opt(),
+            curbuf_mut().ffname_opt().as_deref(),
         )
     } else {
         file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
@@ -1296,7 +1296,7 @@ pub fn file_name_at_cursor(
         curwin_mut().w_cursor.get().col,
         options,
         count,
-        curbuf_mut().ffname_opt(),
+        curbuf_mut().ffname_opt().as_deref(),
         (file_lnum.is_some()).then(|| &mut *file_lnum.unwrap()),
     )
 }
@@ -1638,7 +1638,7 @@ pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
     let Some(dir_name) = find_directory_in_path(
         new_dir.to_bytes(),
         FNAME_MESS,
-        curbuf_mut().ffname_opt(),
+        curbuf_mut().ffname_opt().as_deref(),
         &mut file_to_find,
         &mut search_ctx,
     ) else {

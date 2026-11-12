@@ -170,12 +170,11 @@ impl Memline {
     }
 
     #[inline(always)]
-    pub fn mf_fname_cstr(&self) -> Option<&'static std::ffi::CStr> {
+    pub fn mf_fname_cstr(&self) -> Option<std::ffi::CString> {
         self.ml_mfp
             .borrow()
             .as_ref()
-            .and_then(|m| m.mf_fname.as_deref())
-            .map(crate::option_vars::intern_opt_cstr)
+            .and_then(|m| m.mf_fname.clone())
     }
 
     #[inline(always)]
@@ -1005,7 +1004,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
         let mut uname = [0u8; B0_UNAME_SIZE];
         let flen = home_replace(
             None,
-            buf.ffname_opt(),
+            buf.ffname_opt().as_deref(),
             &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
             true,
         );
@@ -1015,7 +1014,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                 crate::memory::copy_bytes_to_c_buf(
                     &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
-                    buf.ffname_bytes(),
+                    &buf.ffname_bytes(),
                 );
             } else {
                 b0p.b0_fname.copy_within(1..(1 + flen), ulen + 1);
@@ -1023,7 +1022,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
             }
         }
         let mut file_info = FileInfo::new();
-        if os_fileinfo(buf.ffname_cstr(), &mut file_info) {
+        if os_fileinfo(&buf.ffname_cstr(), &mut file_info) {
             buf_store_file_info(buf, &mut file_info);
             long_to_char(buf.b_mtime.get(), &mut b0p.b0_mtime);
             long_to_char(os_fileinfo_inode(&file_info) as i64, &mut b0p.b0_ino);
@@ -1045,7 +1044,10 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
 }
 
 fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &FileBuf) {
-    if same_directory(buf.b_ml.mf_fname_cstr(), buf.ffname_opt()) {
+    if same_directory(
+        buf.b_ml.mf_fname_cstr().as_deref(),
+        buf.ffname_opt().as_deref(),
+    ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
     } else {
         b0p.set_flags(b0p.flags() & !B0_SAME_DIR);
@@ -1059,7 +1061,7 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &FileBuf) {
     if crate::memory::bytes_as_cstr(&b0p.b0_fname).to_bytes().len() + n + 1 > size {
         b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
     } else {
-        b0p.b0_fname[(size - n)..size].copy_from_slice(fenc_bytes);
+        b0p.b0_fname[(size - n)..size].copy_from_slice(&fenc_bytes);
         b0p.b0_fname[size - n - 1] = 0;
         b0p.set_flags(b0p.flags() | B0_HAS_FENC);
     }
@@ -1090,7 +1092,7 @@ pub fn ml_recover(checkext: bool) {
     let called_from_main = curbuf_mut().b_ml.ml_mfp.borrow().is_none();
 
     let fname_opt = curbuf_mut().fname_opt();
-    let fname_cstr = fname_opt.unwrap_or(c"");
+    let fname_cstr = fname_opt.as_deref().unwrap_or(c"");
     let fname_slice = fname_cstr.to_bytes();
     let len = fname_slice.len();
     if checkext
@@ -1165,7 +1167,11 @@ pub fn ml_recover(checkext: bool) {
     let Some(hp_b0) = hp else {
         msg_start();
         msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
-        msg_outtrans(buf.b_ml.mf_fname_cstr().unwrap_or(c""), hl_id, true);
+        msg_outtrans(
+            buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
+            hl_id,
+            true,
+        );
         msg_puts_hl(
             tr(c"\nMaybe no changes were made or Nvim did not update the swap file."),
             hl_id,
@@ -1178,7 +1184,7 @@ pub fn ml_recover(checkext: bool) {
     let mut b0p = ZeroBlock::from_bytes(&buf.b_ml.bhdr(hp_b0).bh_data);
     if b0p.b0_version[..7] == *b"VIM 3.0" {
         msg_start();
-        msg_outtrans(buf.b_ml.mf_fname_cstr().unwrap_or(c""), 0, true);
+        msg_outtrans(buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""), 0, true);
         msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
         msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
         msg_end();
@@ -1188,14 +1194,18 @@ pub fn ml_recover(checkext: bool) {
     if !ml_check_b0_id(&b0p) {
         semsg!(
             tr(c"E307: %s does not look like a Nvim swap file"),
-            buf.b_ml.mf_fname_cstr().unwrap_or(c""),
+            buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
         );
         ml_recover_theend(hp, Some(buf), serious_error, called_from_main);
         return;
     }
     if b0_magic_wrong(&b0p) {
         msg_start();
-        msg_outtrans(buf.b_ml.mf_fname_cstr().unwrap_or(c""), hl_id, true);
+        msg_outtrans(
+            buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
+            hl_id,
+            true,
+        );
         msg_puts_hl(tr(c" cannot be used on this computer.\n"), hl_id, true);
         msg_puts_hl(tr(c"The file was created on "), hl_id, true);
 
@@ -1217,7 +1227,11 @@ pub fn ml_recover(checkext: bool) {
         let new_page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
         if new_page_size < previous_page_size {
             msg_start();
-            msg_outtrans(buf.b_ml.mf_fname_cstr().unwrap_or(c""), hl_id, true);
+            msg_outtrans(
+                buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
+                hl_id,
+                true,
+            );
             msg_puts_hl(
                 tr(c" has been damaged (page size is smaller than minimum value).\n"),
                 hl_id,
@@ -1263,7 +1277,8 @@ pub fn ml_recover(checkext: bool) {
 
     msg_ext_set_kind(c"wmsg");
     g_st().msg_ext_skip_flush.set(true);
-    let mf_fname_cstr = buf.b_ml.mf_fname_cstr().unwrap_or(c"");
+    let mf_fname = buf.b_ml.mf_fname_cstr();
+    let mf_fname_cstr = mf_fname.as_deref().unwrap_or(c"");
     home_replace(
         None,
         Some(mf_fname_cstr),
@@ -1277,7 +1292,7 @@ pub fn ml_recover(checkext: bool) {
     } else {
         home_replace(
             None,
-            curbuf_mut().ffname_opt(),
+            curbuf_mut().ffname_opt().as_deref(),
             &mut *g_st().name_buff_bytes_mut(),
             true,
         );
@@ -1291,9 +1306,11 @@ pub fn ml_recover(checkext: bool) {
     let mut swp_file_info = FileInfo::new();
     let mtime = char_to_long(&b0p.b0_mtime);
     if curbuf_mut().b_ffname.get().is_some()
-        && os_fileinfo(curbuf_mut().ffname_cstr(), &mut org_file_info)
-        && ((os_fileinfo(buf.b_ml.mf_fname_cstr().unwrap_or(c""), &mut swp_file_info)
-            && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
+        && os_fileinfo(&curbuf_mut().ffname_cstr(), &mut org_file_info)
+        && ((os_fileinfo(
+            buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
+            &mut swp_file_info,
+        ) && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
             || mtime != org_file_info.stat.st_mtim.tv_sec as _)
     {
         emsg(tr(c"E308: Warning: Original file may have been changed"));
@@ -1325,7 +1342,7 @@ pub fn ml_recover(checkext: bool) {
 
     if curbuf_mut().b_ffname.get().is_some() {
         orig_file_status = readfile(
-            curbuf_mut().ffname_opt(),
+            curbuf_mut().ffname_opt().as_deref(),
             None,
             0,
             0,
@@ -1369,7 +1386,7 @@ pub fn ml_recover(checkext: bool) {
             if bnum == 1 {
                 semsg!(
                     tr(c"E309: Unable to read block 1 from %s"),
-                    buf.b_ml.mf_fname_cstr().unwrap_or(c""),
+                    buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
                 );
                 ml_recover_theend(None, Some(buf), serious_error, called_from_main);
                 return;
@@ -1443,7 +1460,7 @@ pub fn ml_recover(checkext: bool) {
                         if line_count <= 0
                             || pe_old_lnum < 1
                             || readfile(
-                                curbuf_mut().ffname_opt(),
+                                curbuf_mut().ffname_opt().as_deref(),
                                 None,
                                 lnum,
                                 pe_old_lnum - 1,
@@ -1502,7 +1519,7 @@ pub fn ml_recover(checkext: bool) {
             if bnum == 1 {
                 semsg!(
                     tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
-                    buf.b_ml.mf_fname_cstr().unwrap_or(c""),
+                    buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""),
                 );
                 ml_recover_theend(hp, Some(buf), serious_error, called_from_main);
                 return;
@@ -1723,14 +1740,14 @@ fn ml_recover_theend(
         apply_autocmds(
             EVENT_BUFREADPOST,
             None,
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             false,
             curbuf_opt_mut().as_deref(),
         );
         apply_autocmds(
             EVENT_BUFWINENTER,
             None,
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             false,
             curbuf_opt_mut().as_deref(),
         );
@@ -1807,7 +1824,7 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
             None
         };
 
-        if let Some(cur_p) = cur_mfp_fname {
+        if let Some(ref cur_p) = cur_mfp_fname {
             files.retain(|f| !path_equal(cur_p, f, K_PATH_CMP_FULL));
         }
 
@@ -1817,7 +1834,9 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
             && let Some(f_res) = fname_res
             && let Some(swapname) = modname(Some(f_res), c".swp", true)
             && os_path_exists(&swapname)
-            && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, &swapname, K_PATH_CMP_FULL))
+            && cur_mfp_fname
+                .as_deref()
+                .is_none_or(|cur_p| !path_equal(cur_p, &swapname, K_PATH_CMP_FULL))
         {
             crate::eval::typval::tv_list_append_string(ret_list, Some(swapname.as_c_str()), -1);
         }
@@ -2093,7 +2112,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
             && buf.b_ffname.get().is_some()
         {
             let mut file_info = FileInfo::new();
-            if !os_fileinfo(buf.ffname_cstr(), &mut file_info)
+            if !os_fileinfo(&buf.ffname_cstr(), &mut file_info)
                 || buf.b_mtime_read.get() != file_info.stat.st_mtim.tv_sec as _
                 || buf.b_mtime_read_ns.get() != file_info.stat.st_mtim.tv_nsec as _
                 || os_fileinfo_size(&file_info) != buf.b_orig_size.get()
@@ -3766,10 +3785,10 @@ fn attention_message(buf: &FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u
     msg.extend_from_slice(b"\"\n");
     let swap_mtime = swapfile_info(fname, msg);
     sb_push_cstr(msg, tr(c"While opening file \""));
-    sb_push_cstr(msg, buf_fname_cstr);
+    sb_push_cstr(msg, &buf_fname_cstr);
     msg.extend_from_slice(b"\"\n");
     let mut file_info = FileInfo::new();
-    if !os_fileinfo(buf_fname_cstr, &mut file_info) {
+    if !os_fileinfo(&buf_fname_cstr, &mut file_info) {
         sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
     } else {
         sb_push_cstr(msg, tr(c"             dated: "));
@@ -3792,7 +3811,7 @@ fn attention_message(buf: &FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u
         msg,
         tr(c"    If this is the case, use \":recover\" or \"nvim -r "),
     );
-    sb_push_cstr(msg, buf_fname_cstr);
+    sb_push_cstr(msg, &buf_fname_cstr);
     sb_push_cstr(
         msg,
         tr(c"\"\n    to recover the changes (see \":help recovery\").\n"),
@@ -3810,7 +3829,13 @@ fn do_swapexists(buf: &FileBuf, fname: &CStr) -> SeaChoice {
     set_vim_var_string(VV_SWAPCHOICE, None, -1);
 
     g_st().allbuf_lock.set(g_st().allbuf_lock.get() + (1));
-    apply_autocmds(EVENT_SWAPEXISTS, buf.fname_opt(), None, false, None);
+    apply_autocmds(
+        EVENT_SWAPEXISTS,
+        buf.fname_opt().as_deref(),
+        None,
+        false,
+        None,
+    );
     g_st().allbuf_lock.set(g_st().allbuf_lock.get() - (1));
 
     set_vim_var_string(VV_SWAPNAME, None, -1);
@@ -3837,7 +3862,7 @@ fn findswapname(
     old_fname: Option<&CStr>,
     found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
-    let buf_fname = buf.fname_opt().map(CStr::to_owned);
+    let buf_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
     let dir_len = dirp.len() + 1;
     let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
     copy_option_part(dirp, &mut dir_name_vec, c",");
@@ -3887,14 +3912,14 @@ fn findswapname(
                     let buf_ffname_opt = buf.ffname_opt();
                     if (b0.flags() & B0_SAME_DIR) != 0 {
                         if !path_equal(
-                            path_tail(buf_ffname_opt.unwrap_or(c"")),
+                            path_tail(buf_ffname_opt.as_deref().unwrap_or(c"")),
                             path_tail(b0_fname_cstr),
                             K_PATH_CMP_LITERAL,
-                        ) || !same_directory(Some(fname_cstr), buf_ffname_opt)
+                        ) || !same_directory(Some(fname_cstr), buf_ffname_opt.as_deref())
                         {
                             expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(
-                                buf_ffname_opt,
+                                buf_ffname_opt.as_deref(),
                                 Some(&g_st().name_buff_cstr()),
                                 char_to_long(&b0.b0_ino),
                             ) {
@@ -3904,7 +3929,7 @@ fn findswapname(
                     } else {
                         expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
                         if fnamecmp_ino(
-                            buf_ffname_opt,
+                            buf_ffname_opt.as_deref(),
                             Some(&g_st().name_buff_cstr()),
                             char_to_long(&b0.b0_ino),
                         ) {
@@ -3917,11 +3942,11 @@ fn findswapname(
 
             if !differ
                 && (curbuf_mut().b_flags.get() & BF_RECOVERED) == 0
-                && !crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), K_SHM_ATTENTION)
+                && !crate::strings::vim_haschr(&opt_vars().p_shm.as_cstr(), K_SHM_ATTENTION)
             {
                 let mut choice: SeaChoice = SEA_CHOICE_NONE;
 
-                if os_path_exists(buf.fname_cstr()) && swapfile_unchanged(fname_cstr) {
+                if os_path_exists(&buf.fname_cstr()) && swapfile_unchanged(fname_cstr) {
                     choice = SEA_CHOICE_DELETE;
                     if opt_vars().p_verbose.get() > 0 {
                         verb_msg(tr(c"Found a swap file that is not useful, deleting it"));

@@ -170,7 +170,7 @@ pub fn has_format_option(x: i32) -> bool {
     if opt_vars().p_paste.get() {
         return false;
     }
-    crate::strings::vim_haschr(curbuf_mut().b_p_fo.as_cstr(), x)
+    crate::strings::vim_haschr(&curbuf_mut().b_p_fo.as_cstr(), x)
 }
 
 /// Format text at the current insert position (`internal_format`).
@@ -533,7 +533,7 @@ pub fn internal_format(
 fn fmt_check_par(
     lnum: Linenr,
     leader_len: &mut i32,
-    leader_flags: &mut Option<&'static CStr>,
+    leader_flags: &mut Option<crate::option_vars::RcCStr>,
     do_comments: bool,
 ) -> bool {
     let line_slice = crate::memline::ml_get_slice(lnum);
@@ -547,7 +547,7 @@ fn fmt_check_par(
 
     let mut is_com_end = false;
     if *leader_len > 0
-        && let Some(flags_cstr) = *leader_flags
+        && let Some(ref flags_cstr) = *leader_flags
     {
         let flags_bytes = flags_cstr.to_bytes();
         let idx = flags_bytes
@@ -641,9 +641,9 @@ fn same_leader(
 
 fn paragraph_start(lnum: Linenr) -> bool {
     let mut leader_len: i32 = 0;
-    let mut leader_flags: Option<&CStr> = None;
+    let mut leader_flags: Option<crate::option_vars::RcCStr> = None;
     let mut next_leader_len: i32 = 0;
-    let mut next_leader_flags: Option<&CStr> = None;
+    let mut next_leader_flags: Option<crate::option_vars::RcCStr> = None;
 
     if lnum <= 1 {
         return true;
@@ -674,9 +674,9 @@ fn paragraph_start(lnum: Linenr) -> bool {
     if !same_leader(
         lnum - 1,
         leader_len,
-        leader_flags,
+        leader_flags.as_deref(),
         next_leader_len,
-        next_leader_flags,
+        next_leader_flags.as_deref(),
     ) {
         return true;
     }
@@ -927,8 +927,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let mut next_is_start_par = false;
     let mut leader_len: i32 = 0;
     let mut next_leader_len: i32 = 0;
-    let mut leader_flags: Option<&CStr> = None;
-    let mut next_leader_flags: Option<&CStr> = None;
+    let mut leader_flags: Option<crate::option_vars::RcCStr> = None;
+    let mut next_leader_flags: Option<crate::option_vars::RcCStr> = None;
     let mut advance = true;
     let mut second_indent: i32 = -1;
     let mut first_par_line = true;
@@ -974,7 +974,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
             prev_is_end_par = is_end_par;
             is_not_par = next_is_not_par;
             leader_len = next_leader_len;
-            leader_flags = next_leader_flags;
+            leader_flags = next_leader_flags.clone();
         } else {
             prev_is_end_par = is_end_par;
         }
@@ -1034,11 +1034,13 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 || !same_leader(
                     curwin_mut().w_cursor.get().lnum,
                     leader_len,
-                    leader_flags,
+                    leader_flags.as_deref(),
                     next_leader_len,
-                    next_leader_flags,
+                    next_leader_flags.as_deref(),
                 ))
-                && (!next_leader_flags.is_some_and(|f| f.to_bytes().starts_with(b"://"))
+                && (!next_leader_flags
+                    .as_ref()
+                    .is_some_and(|f| f.to_bytes().starts_with(b"://"))
                     || check_linecomment(crate::cursor::get_cursor_line_slice()) == MAXCOL)
             {
                 is_end_par = true;

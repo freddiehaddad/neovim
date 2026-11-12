@@ -1267,7 +1267,7 @@ pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
     if b.b_ffname.get().is_none() {
         return NvimString::new();
     }
-    cstr_as_string(b.ffname_opt())
+    cstr_as_string(b.ffname_opt().as_deref())
 }
 
 /// Sets the full file name for a buffer, like |:file_f|

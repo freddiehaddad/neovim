@@ -1122,8 +1122,8 @@ pub fn msg_source(hl_id: i32) {
 ///            If "emsg_skip" is set: never do error messages.
 pub fn emsg_not_now() -> bool {
     (g_st().emsg_off.get() > 0
-        && !crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b'm' as i32)
-        && !crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32))
+        && !crate::strings::vim_haschr(&opt_vars().p_debug.as_cstr(), b'm' as i32)
+        && !crate::strings::vim_haschr(&opt_vars().p_debug.as_cstr(), b't' as i32))
         || g_st().emsg_skip.get() > 0
 }
 
@@ -1149,7 +1149,7 @@ pub fn emsg_multiline(
         g_st().emsg_severe.set(false);
 
         if g_st().emsg_off.get() == 0
-            || crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32)
+            || crate::strings::vim_haschr(&opt_vars().p_debug.as_cstr(), b't' as i32)
         {
             if cause_errthrow(
                 s,
@@ -1684,7 +1684,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
-    let v: OptKeyDict_mopt = opt_keyset(opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
+    let v: OptKeyDict_mopt = opt_keyset(&opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
 
     MSG_STATE.with(|s| s.msg_hit_enter.set(v.hit_enter));
     MSG_STATE.with(|s| s.msg_wait.set(v.wait as i32));
@@ -4181,7 +4181,7 @@ pub fn verbose_open() -> bool {
     {
         MSG_STATE.with(|s| s.verbose_did_open.set(true));
 
-        let opened = CFile::open(opt_vars().p_vfile.as_cstr(), c"a");
+        let opened = CFile::open(&opt_vars().p_vfile.as_cstr(), c"a");
         let is_none = opened.is_none();
         with_msg_ext(|ext| *ext.verbose_fd.borrow_mut() = opened);
         if is_none {

@@ -1620,7 +1620,7 @@ pub fn get_foldtext(
 
 fn foldtext_cleanup(str_slice: &mut [u8]) {
     let cms_raw = curbuf_mut().b_p_cms.as_bytes();
-    let mut cms_trimmed = crate::charset::skipwhite_slice(cms_raw);
+    let mut cms_trimmed = crate::charset::skipwhite_slice(&cms_raw);
     while let Some(&last) = cms_trimmed.last()
         && ascii_iswhite(i32::from(last))
     {
@@ -2489,7 +2489,7 @@ fn foldlevel_indent(flp: &mut Fline) {
 
     if s_rem.is_empty()
         || crate::strings::vim_haschr(
-            flp.wp_mut().w_onebuf_opt.wo_fdi.as_cstr(),
+            &flp.wp_mut().w_onebuf_opt.wo_fdi.as_cstr(),
             i32::from(s_rem[0]),
         )
     {

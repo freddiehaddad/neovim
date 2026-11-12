@@ -347,7 +347,8 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         }
         if buf_has_signs(buf_ref) {
             msg_putchar(b'\n' as i32);
-            let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
+            let fname_rc = buf_ref.fname_opt();
+            let fname = fname_rc.as_deref().unwrap_or_else(|| gettext(c"Untitled"));
             format_to_buf!(&mut lbuf[..], gettext(c"Signs for %s:"), fname);
             msg_puts_hl(crate::memory::bytes_as_cstr(&lbuf), HLF_D, false);
         }

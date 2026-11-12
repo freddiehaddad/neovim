@@ -385,7 +385,7 @@ pub fn get_trans_bufname(buf: &FileBuf) {
     } else {
         home_replace(
             Some(buf),
-            buf.fname_opt(),
+            buf.fname_opt().as_deref(),
             &mut *g_st().name_buff_bytes_mut(),
             true,
         );
@@ -540,7 +540,7 @@ fn win_redr_stl_expr(
     }
 
     if wp.is_null() {
-        stl_cstr = opt_vars().p_tal.as_cstr().to_owned();
+        stl_cstr = opt_vars().p_tal.as_cstr().to_owned().as_cstr().to_owned();
         row = 0;
         fillchar = schar_from_ascii(b' ');
         group = HLF_TPF;
@@ -552,9 +552,15 @@ fn win_redr_stl_expr(
         let wp_ref = wp.borrow_mut();
         opt_idx = K_OPT_WINBAR;
         stl_cstr = if !wp_ref.w_onebuf_opt.wo_wbr.is_empty() {
-            wp_ref.w_onebuf_opt.wo_wbr.as_cstr().to_owned()
+            wp_ref
+                .w_onebuf_opt
+                .wo_wbr
+                .as_cstr()
+                .to_owned()
+                .as_cstr()
+                .to_owned()
         } else {
-            opt_vars().p_wbr.as_cstr().to_owned()
+            opt_vars().p_wbr.as_cstr().to_owned().as_cstr().to_owned()
         };
         opt_scope = if !wp_ref.w_onebuf_opt.wo_wbr.is_empty() {
             OPT_LOCAL
@@ -589,7 +595,7 @@ fn win_redr_stl_expr(
         stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut(), maxwidth);
         click_defs_target = ClickDefsTarget::Winbar;
     } else if draw_ruler && ui_event {
-        stl_cstr = opt_vars().p_ruf.as_cstr().to_owned();
+        stl_cstr = opt_vars().p_ruf.as_cstr().to_owned().as_cstr().to_owned();
         opt_idx = K_OPT_RULERFORMAT;
         maxwidth = g_st().columns_global.get() / 2;
         fillchar = schar_from_ascii(b' ');
@@ -597,8 +603,8 @@ fn win_redr_stl_expr(
         attr = hl_attr(group);
         click_defs_target = ClickDefsTarget::None;
     } else if draw_ruler {
-        let ruf_owned = opt_vars().p_ruf.as_cstr().to_owned();
-        let mut stl = ruf_owned.as_c_str();
+        let ruf_owned = opt_vars().p_ruf.as_cstr();
+        let mut stl = ruf_owned.as_cstr();
         opt_idx = K_OPT_RULERFORMAT;
         if stl.to_bytes().first() == Some(&b'%') {
             stl = &stl[1..];
@@ -618,7 +624,7 @@ fn win_redr_stl_expr(
                 stl = &stl[1..];
             }
             if ch != b'(' {
-                stl = ruf_owned.as_c_str();
+                stl = ruf_owned.as_cstr();
             }
         }
         stl_cstr = stl.to_owned();
@@ -634,9 +640,15 @@ fn win_redr_stl_expr(
     } else {
         let wp_ref = wp.borrow_mut();
         stl_cstr = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
-            wp_ref.w_onebuf_opt.wo_stl.as_cstr().to_owned()
+            wp_ref
+                .w_onebuf_opt
+                .wo_stl
+                .as_cstr()
+                .to_owned()
+                .as_cstr()
+                .to_owned()
         } else {
-            opt_vars().p_stl.as_cstr().to_owned()
+            opt_vars().p_stl.as_cstr().to_owned().as_cstr().to_owned()
         };
         opt_idx = K_OPT_STATUSLINE;
         opt_scope = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
@@ -818,7 +830,7 @@ fn win_redr_stl_expr(
             sp_idx += 1;
         }
 
-        if opt_vars().p_sc.get() && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
+        if opt_vars().p_sc.get() && find_option(&opt_vars().p_sloc.as_bytes()) == opt_idx {
             showcmd_update_clear_state();
         }
 
@@ -2029,7 +2041,7 @@ pub fn build_stl_str_hl_slice(
 
                     home_replace(
                         wp.w_buffer.get().opt(),
-                        t,
+                        t.as_deref(),
                         &mut *g_st().name_buff_bytes_mut(),
                         true,
                     );
@@ -2214,7 +2226,7 @@ pub fn build_stl_str_hl_slice(
             STL_SHOWCMD => {
                 if opt_vars().p_sc.get()
                     && (opt_idx == K_OPT_INVALID
-                        || find_option(opt_vars().p_sloc.as_bytes()) == opt_idx)
+                        || find_option(&opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {
                     let sc = *g_st().showcmd_buf.borrow();
                     buf_tmp[..sc.len()].copy_from_slice(&sc);

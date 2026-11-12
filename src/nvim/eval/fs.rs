@@ -683,17 +683,18 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileW
         let mut search_ctx: Option<FfSearchCtx> = None;
 
         loop {
+            let sua_rc = curbuf_mut().b_p_sua.as_cstr();
             fresult = find_file_in_path_option(
                 if first { fname.to_bytes() } else { &[] },
                 0,
                 first,
                 path,
                 find_what,
-                curbuf_mut().ffname_opt(),
+                curbuf_mut().ffname_opt().as_deref(),
                 if find_what == FindFileWhat::Dir {
                     c""
                 } else {
-                    curbuf_mut().b_p_sua.as_cstr()
+                    &sua_rc
                 },
                 &mut file_to_find,
                 &mut search_ctx,

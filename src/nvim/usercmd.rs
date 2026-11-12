@@ -1049,7 +1049,7 @@ pub fn uc_add_command(
     let name_len = name_prefix.len();
     let rep = crate::memory::bytes_until_nul(rep);
     let mut cmp: i32 = 1;
-    let rep_cstr = replace_termcodes(rep, false, 0, 0, None, opt_vars().p_cpo.as_bytes())
+    let rep_cstr = replace_termcodes(rep, false, 0, 0, None, &opt_vars().p_cpo.as_bytes())
         .unwrap_or_else(|| CString::new(rep).unwrap_or_default());
 
     let insert_into = |gap: &mut Vec<Ucmd>| -> bool {

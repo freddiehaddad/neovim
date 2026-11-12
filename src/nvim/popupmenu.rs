@@ -452,10 +452,10 @@ fn pum_compute_horizontal_placement(
 #[inline]
 fn pum_border_width() -> i32 {
     if opt_vars().p_pumborder.is_empty()
-        || (Some(opt_vars().p_pumborder.as_bytes()) == Some(OPT_WINBORDER_VALUES[7].to_bytes()))
+        || opt_vars().p_pumborder.as_bytes() == OPT_WINBORDER_VALUES[7].to_bytes()
     {
         0
-    } else if Some(opt_vars().p_pumborder.as_bytes()) == Some(OPT_WINBORDER_VALUES[3].to_bytes()) {
+    } else if opt_vars().p_pumborder.as_bytes() == OPT_WINBORDER_VALUES[3].to_bytes() {
         1
     } else {
         2
@@ -879,7 +879,7 @@ pub fn pum_redraw() {
         let mut err = Error::new();
         if !parse_winborder(
             Some(&mut fconfig),
-            opt_vars().p_pumborder.as_bytes(),
+            &opt_vars().p_pumborder.as_bytes(),
             &mut err,
         ) {
             if err.err_type != ErrorType::ErrorTypeNone {
@@ -889,7 +889,7 @@ pub fn pum_redraw() {
             return;
         }
 
-        if Some(opt_vars().p_pumborder.as_bytes()) == Some(OPT_WINBORDER_VALUES[3].to_bytes()) {
+        if opt_vars().p_pumborder.as_bytes() == OPT_WINBORDER_VALUES[3].to_bytes() {
             fconfig.shadow = true;
             let blend = syn_check_group(b"PmenuShadow");
             let through = syn_check_group(b"PmenuShadowThrough");

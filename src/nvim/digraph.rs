@@ -2075,7 +2075,8 @@ pub fn keymap_init() -> Option<&'static CStr> {
         keymap_unload();
         do_cmdline_cmd(c"unlet! b:keymap_name");
     } else {
-        let kmap = curbuf_mut().b_p_keymap.as_cstr().to_string_lossy();
+        let kmap_rc = curbuf_mut().b_p_keymap.as_cstr();
+        let kmap = kmap_rc.to_string_lossy();
         let p_enc = opt_vars().p_enc.to_owned();
         let enc = p_enc.to_string_lossy();
         let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
@@ -2212,9 +2213,11 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     g_st().curbuf.set(old_curbuf);
     set_curwin(old_curwin);
+    let kmap_rc;
     if p_cstr.is_empty() {
         if (wp.buf_mut().b_kmap_state.get() & KEYMAP_LOADED) != 0 {
-            p_cstr = wp.buf_mut().b_p_keymap.as_cstr();
+            kmap_rc = wp.buf_mut().b_p_keymap.as_cstr();
+            p_cstr = &kmap_rc;
         } else {
             p_cstr = c"lang";
         }

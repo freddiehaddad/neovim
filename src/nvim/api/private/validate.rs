@@ -22,7 +22,33 @@ impl<T> CloneCell<T> {
     pub fn replace(&self, val: T) -> T {
         self.0.replace(val)
     }
+
+    #[inline]
+    pub fn swap(&self, other: &Self) {
+        self.0.swap(&other.0);
+    }
+
+    #[inline]
+    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        f(&*self.0.borrow())
+    }
 }
+
+impl<T: Default> Default for CloneCell<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
+impl<T: PartialEq> PartialEq for CloneCell<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        *self.0.borrow() == *other.0.borrow()
+    }
+}
+
+impl<T: Eq> Eq for CloneCell<T> {}
 
 impl<T: Clone> CloneCell<T> {
     #[inline]

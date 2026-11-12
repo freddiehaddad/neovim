@@ -515,7 +515,7 @@ fn buf_write_do_autocmds(
                 && b.b_changed.get() != 0
                 && !append
                 && (overwriting
-                    || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
+                    || crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
             {
                 return Some(false);
             }
@@ -549,16 +549,16 @@ fn buf_write_do_autocmds(
     }
 
     if names.buf_ffname {
-        names.ffname = b.b_ffname.get().map(CStr::to_owned);
+        names.ffname = b.b_ffname.get().as_deref().map(CStr::to_owned);
     }
     if names.buf_sfname {
-        names.sfname = b.fname_opt().map(CStr::to_owned);
+        names.sfname = b.fname_opt().as_deref().map(CStr::to_owned);
     }
     if names.buf_fname_f {
-        names.fname = b.b_ffname.get().map(CStr::to_owned);
+        names.fname = b.b_ffname.get().as_deref().map(CStr::to_owned);
     }
     if names.buf_fname_s {
-        names.fname = b.fname_opt().map(CStr::to_owned);
+        names.fname = b.fname_opt().as_deref().map(CStr::to_owned);
     }
     None
 }
@@ -792,7 +792,7 @@ fn get_fileinfo(
         *readonly = os_file_is_writable(fname.unwrap_or(c"")) == 0;
 
         if !forceit && *readonly {
-            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
+            if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1031,7 +1031,7 @@ fn buf_write_make_backup(
         }
         *err = set_err(None);
     } else {
-        if file_readonly && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
+        if file_readonly && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
             *err = set_err_num(
                 c"E504",
                 gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1139,8 +1139,8 @@ pub fn buf_write(
         && buf == g_st().curbuf.get().as_ptr()
         && !bt_nofilename(buf.opt())
         && !filtering
-        && (!append || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEAPP))
-        && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEW)
+        && (!append || crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEAPP))
+        && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEW)
     {
         if !set_rw_fname(fname, sfname) {
             return false;
@@ -1159,7 +1159,7 @@ pub fn buf_write(
 
     let overwriting = buf
         .ffname_opt()
-        .is_some_and(|bf| path_equal(ffname.unwrap_or(c""), bf, K_PATH_CMP_LITERAL));
+        .is_some_and(|bf| path_equal(ffname.unwrap_or(c""), &bf, K_PATH_CMP_LITERAL));
 
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
@@ -1183,10 +1183,10 @@ pub fn buf_write(
         fname: fname.map(CStr::to_owned),
         sfname: sfname.map(CStr::to_owned),
         ffname: ffname.map(CStr::to_owned),
-        buf_ffname: same_cstr_ptr(ffname, buf_ffname_opt),
-        buf_sfname: same_cstr_ptr(sfname, buf_sfname_opt),
-        buf_fname_f: same_cstr_ptr(fname, buf_ffname_opt),
-        buf_fname_s: same_cstr_ptr(fname, buf_sfname_opt),
+        buf_ffname: same_cstr_ptr(ffname, buf_ffname_opt.as_deref()),
+        buf_sfname: same_cstr_ptr(sfname, buf_sfname_opt.as_deref()),
+        buf_fname_f: same_cstr_ptr(fname, buf_ffname_opt.as_deref()),
+        buf_fname_s: same_cstr_ptr(fname, buf_sfname_opt.as_deref()),
     };
     let res = buf_write_do_autocmds(
         &mut bufref,
@@ -1288,7 +1288,7 @@ pub fn buf_write(
                 opt_vars().p_wb.get() || opt_vars().p_bk.get() || !opt_vars().p_pm.is_empty();
             if dobackup
                 && !opt_vars().p_bsk.is_empty()
-                && match_file_list(opt_vars().p_bsk.as_cstr(), sfname, ffname.unwrap_or(c""))
+                && match_file_list(&opt_vars().p_bsk.as_cstr(), sfname, ffname.unwrap_or(c""))
             {
                 dobackup = false;
             }
@@ -1336,7 +1336,7 @@ pub fn buf_write(
 
             if forceit
                 && overwriting
-                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
+                && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
             {
                 buf.b_p_ro.set(false);
                 g_st().need_maketitle.set(true);
@@ -1371,7 +1371,7 @@ pub fn buf_write(
                     {
                         enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr())
                     } else {
-                        buf.b_p_fenc.as_cstr().to_owned()
+                        buf.b_p_fenc.as_cstr().to_owned().as_cstr().to_owned()
                     },
                 );
                 let fenc = fenc_tofree.as_deref().unwrap_or(c"");
@@ -1508,7 +1508,7 @@ pub fn buf_write(
                                     );
                                     if forceit
                                         && !crate::strings::vim_haschr(
-                                            opt_vars().p_cpo.as_cstr(),
+                                            &opt_vars().p_cpo.as_cstr(),
                                             K_CPO_FWRITE,
                                         )
                                         && perm >= 0
@@ -1908,7 +1908,7 @@ pub fn buf_write(
                     && !append
                     && write_info.bw_conv_error == 0
                     && (overwriting
-                        || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
+                        || crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
                     && buf_get_changedtick(buf) == write_tick
                 {
                     unchanged(buf, true, false);
@@ -1930,7 +1930,7 @@ pub fn buf_write(
                 }
 
                 if !opt_vars().p_pm.is_empty() && dobackup {
-                    let org = modname(fname, opt_vars().p_pm.as_cstr(), false);
+                    let org = modname(fname, &opt_vars().p_pm.as_cstr(), false);
                     if let Some(ref bk) = backup {
                         match org {
                             None => {

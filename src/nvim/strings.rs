@@ -1255,73 +1255,85 @@ pub fn parse_fmt_types(num_posarg: &mut i32, fmt: Option<&CStr>, tvs: Option<&[T
 const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
 const TMP_LEN: usize = 350;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum FmtVal<'a> {
     Signed(i64),
     Unsigned(u64),
     Float(f64),
     CStr(Option<&'a CStr>),
     Bytes(Option<&'a [u8]>),
+    RcCStr(Option<crate::option_vars::RcCStr>),
+    RcSlice(crate::option_vars::RcSlice),
 }
 
 impl<'a> FmtVal<'a> {
     #[inline(always)]
-    fn as_i64(self) -> i64 {
+    fn as_i64(&self) -> i64 {
         match self {
-            Self::Signed(v) => v,
-            Self::Unsigned(v) => v as i64,
-            Self::Float(v) => v as i64,
+            Self::Signed(v) => *v,
+            Self::Unsigned(v) => *v as i64,
+            Self::Float(v) => *v as i64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as i64),
             Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize as i64),
+            Self::RcCStr(s) => s.as_deref().map_or(0, |c| c.as_ptr() as usize as i64),
+            Self::RcSlice(b) => b.as_slice().as_ptr() as usize as i64,
         }
     }
 
     #[inline(always)]
-    fn as_u64(self) -> u64 {
+    fn as_u64(&self) -> u64 {
         match self {
-            Self::Signed(v) => v as u64,
-            Self::Unsigned(v) => v,
-            Self::Float(v) => v as u64,
+            Self::Signed(v) => *v as u64,
+            Self::Unsigned(v) => *v,
+            Self::Float(v) => *v as u64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as u64),
             Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize as u64),
+            Self::RcCStr(s) => s.as_deref().map_or(0, |c| c.as_ptr() as usize as u64),
+            Self::RcSlice(b) => b.as_slice().as_ptr() as usize as u64,
         }
     }
 
     #[inline(always)]
-    fn as_f64(self) -> f64 {
+    fn as_f64(&self) -> f64 {
         match self {
-            Self::Float(v) => v,
-            Self::Signed(v) => v as f64,
-            Self::Unsigned(v) => v as f64,
-            Self::CStr(_) | Self::Bytes(_) => 0.0,
+            Self::Float(v) => *v,
+            Self::Signed(v) => *v as f64,
+            Self::Unsigned(v) => *v as f64,
+            Self::CStr(_) | Self::Bytes(_) | Self::RcCStr(_) | Self::RcSlice(_) => 0.0,
         }
     }
 
     #[inline(always)]
-    fn as_addr(self) -> usize {
+    fn as_addr(&self) -> usize {
         match self {
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize),
             Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize),
-            Self::Signed(v) => v as usize,
-            Self::Unsigned(v) => v as usize,
+            Self::RcCStr(s) => s.as_deref().map_or(0, |c| c.as_ptr() as usize),
+            Self::RcSlice(b) => b.as_slice().as_ptr() as usize,
+            Self::Signed(v) => *v as usize,
+            Self::Unsigned(v) => *v as usize,
             Self::Float(_) => 0,
         }
     }
 
     #[inline(always)]
-    pub fn as_cstr(self) -> Option<&'a CStr> {
+    pub fn as_cstr(&self) -> Option<&CStr> {
         match self {
-            Self::CStr(s) => s,
+            Self::CStr(s) => *s,
             Self::Bytes(b) => b.map(crate::memory::bytes_as_cstr),
+            Self::RcCStr(s) => s.as_deref(),
+            Self::RcSlice(b) => Some(crate::memory::bytes_as_cstr(b.as_slice())),
             Self::Signed(_) | Self::Unsigned(_) | Self::Float(_) => None,
         }
     }
 
     #[inline(always)]
-    pub fn as_bytes(self) -> Option<&'a [u8]> {
+    pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
             Self::CStr(s) => s.map(CStr::to_bytes),
             Self::Bytes(b) => b.map(crate::memory::bytes_until_nul),
+            Self::RcCStr(s) => s.as_deref().map(CStr::to_bytes),
+            Self::RcSlice(b) => Some(crate::memory::bytes_until_nul(b.as_slice())),
             Self::Signed(_) | Self::Unsigned(_) | Self::Float(_) => None,
         }
     }
@@ -1406,28 +1418,91 @@ impl<'a, const N: usize> IntoFmtVal<'a> for &&'a InlineCStr<N> {
 impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(self.as_cstr()))
+        FmtVal::RcCStr(Some(self.as_cstr()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a crate::option_vars::OptString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(self.as_cstr()))
+        FmtVal::RcCStr(Some(self.as_cstr()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a mut crate::option_vars::OptString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(self.as_cstr()))
+        FmtVal::RcCStr(Some(self.as_cstr()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a &'a mut crate::option_vars::OptString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::RcCStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for crate::option_vars::RcCStr {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::RcCStr(Some(self))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::RcCStr {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a crate::option_vars::RcCStr {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for Option<crate::option_vars::RcCStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::RcCStr(self)
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a Option<crate::option_vars::RcCStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_deref())
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a Option<crate::option_vars::RcCStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_deref())
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for crate::option_vars::RcSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::RcSlice(self)
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::RcSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::Bytes(Some(self.as_slice()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a crate::option_vars::RcSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::Bytes(Some(self.as_slice()))
     }
 }
 
@@ -1441,7 +1516,7 @@ impl<'a> IntoFmtVal<'a> for FmtVal<'a> {
 impl<'a> IntoFmtVal<'a> for &FmtVal<'a> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        *self
+        self.clone()
     }
 }
 
@@ -1718,10 +1793,11 @@ impl<'a> IntoFmtVal<'a> for &&'a crate::api::private::validate::NvimString {
 }
 
 #[inline(always)]
-fn fmt_arg_val<'a>(args: &[FmtVal<'a>], arg_idx: &mut i32) -> FmtVal<'a> {
+fn fmt_arg_val<'b, 'a>(args: &'b [FmtVal<'a>], arg_idx: &mut i32) -> &'b FmtVal<'a> {
+    const ZERO: FmtVal<'static> = FmtVal::Signed(0);
     let idx = (*arg_idx - 1) as usize;
     *arg_idx += 1;
-    args.get(idx).copied().unwrap_or(FmtVal::Signed(0))
+    args.get(idx).unwrap_or(&ZERO)
 }
 
 fn vim_vsnprintf_typval_inner(

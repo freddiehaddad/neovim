@@ -2798,13 +2798,13 @@ pub fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            if event_ignored(event, opt_vars().p_ei.as_cstr()) {
+            if event_ignored(event, &opt_vars().p_ei.as_cstr()) {
                 break 'bypass_au;
             }
 
             let mut win_ignore = false;
             if buf == g_st().curbuf.get().as_ptr() && EVENT_NAMES[event as usize].event <= 0 {
-                win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
+                win_ignore = event_ignored(event, &curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
                 && buf.b_nwindows.get() > 0
@@ -2813,7 +2813,7 @@ pub fn apply_autocmds_group(
                 for tp in for_all_tabpages_ptr() {
                     for wp in for_all_windows_in_tab_mut(&tp) {
                         if wp.w_buffer.get() == buf
-                            && !event_ignored(event, wp.w_onebuf_opt.wo_eiw.as_cstr())
+                            && !event_ignored(event, &wp.w_onebuf_opt.wo_eiw.as_cstr())
                         {
                             win_ignore = false;
                             break;
@@ -2846,6 +2846,7 @@ pub fn apply_autocmds_group(
             let save_autocmd_busy = g_st().autocmd_busy.get();
             let save_autocmd_nested = AU_STATE.with(|s| s.autocmd_nested.get());
 
+            let buf_ffname_opt;
             let raw_autocmd_fname = if fname_io.is_none() {
                 if event == EVENT_COLORSCHEME
                     || event == EVENT_COLORSCHEMEPRE
@@ -2859,7 +2860,8 @@ pub fn apply_autocmds_group(
                 {
                     fname
                 } else if !buf.is_null() {
-                    buf.ffname_opt()
+                    buf_ffname_opt = buf.ffname_opt();
+                    buf_ffname_opt.as_deref()
                 } else {
                     None
                 }
@@ -2881,16 +2883,20 @@ pub fn apply_autocmds_group(
                 .set(if buf.is_null() { 0 } else { buf.b_fnum.get() });
 
             let mut sfname_owned: Option<CString> = None;
+            let buf_opt_cstr;
             let fname_owned: Option<CString> = if fname.is_none_or(|s| s.to_bytes().is_empty()) {
                 if buf.is_null() {
                     fname = None;
                 } else if event == EVENT_SYNTAX {
-                    fname = Some(buf.b_p_syn.as_cstr());
+                    buf_opt_cstr = Some(buf.b_p_syn.as_cstr());
+                    fname = buf_opt_cstr.as_deref();
                 } else if event == EVENT_FILETYPE {
-                    fname = Some(buf.b_p_ft.as_cstr());
+                    buf_opt_cstr = Some(buf.b_p_ft.as_cstr());
+                    fname = buf_opt_cstr.as_deref();
                 } else {
-                    sfname_owned = buf.b_sfname.get().map(CStr::to_owned);
-                    fname = buf.ffname_opt();
+                    sfname_owned = buf.b_sfname.get().as_deref().map(CStr::to_owned);
+                    buf_opt_cstr = buf.ffname_opt();
+                    fname = buf_opt_cstr.as_deref();
                 }
                 Some(fname.unwrap_or(c"").to_owned())
             } else {
@@ -3891,8 +3897,8 @@ pub fn do_filetype_autocmd(buf: &FileBuf, force: bool) -> bool {
     buf_ptr.b_did_filetype.set(true);
     let ret = apply_autocmds(
         EVENT_FILETYPE,
-        Some(buf_ptr.b_p_ft.as_cstr()),
-        buf_ptr.fname_opt(),
+        Some(&buf_ptr.b_p_ft.as_cstr()),
+        buf_ptr.fname_opt().as_deref(),
         force || AU_STATE.with(|s| s.ft_recursive.get()) == 1,
         buf_ptr.opt_mut(),
     );

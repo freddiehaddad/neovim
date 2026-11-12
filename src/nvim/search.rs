@@ -786,7 +786,7 @@ pub fn searchit(
         }
 
         let search_from_match_end =
-            crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH);
+            crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH);
 
         loop {
             if pos.col == MAXCOL {
@@ -1333,7 +1333,7 @@ pub fn do_search(
     g_st().search_global.cmdlen.set(0);
 
     if with_srch(|s| s.spats[0].off.line)
-        && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LINEOFF)
+        && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LINEOFF)
     {
         with_srch_mut(|s| {
             s.spats[0].off.line = false;
@@ -1841,7 +1841,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         t_cmd = new_t_cmd;
         c = new_c;
 
-        if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SCOLON)
+        if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_SCOLON)
             && count == 1
             && t_cmd
         {
@@ -1944,7 +1944,8 @@ fn find_rawstring_end(line: &[u8], startpos: &CursorPos, endpos: &CursorPos) -> 
 }
 
 fn find_mps_values(initc: &mut i32, findc: &mut i32, backwards: &mut bool, switchit: bool) {
-    let mut rem = curbuf_mut().b_p_mps.as_bytes();
+    let mps_rc = curbuf_mut().b_p_mps.as_bytes();
+    let mut rem = mps_rc.as_slice();
 
     while !rem.is_empty() {
         let first_c = crate::mbyte::utf_slice2char(rem);
@@ -2009,8 +2010,8 @@ pub fn findmatchlimit(
     };
     let mut line = crate::memline::ml_get_slice(pos.lnum);
 
-    let cpo_match = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_MATCH);
-    let cpo_bsl = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_MATCHBSL);
+    let cpo_match = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_MATCH);
+    let cpo_bsl = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_MATCHBSL);
 
     let dir = if (flags & FM_BACKWARD) != 0 {
         BACKWARD
@@ -2505,7 +2506,8 @@ pub fn showmatch(c: i32) {
     let use_win_so = curwin_mut().w_onebuf_opt.wo_so.get() >= 0;
     let use_win_siso = curwin_mut().w_onebuf_opt.wo_siso.get() >= 0;
 
-    let mut p = curbuf_mut().b_p_mps.as_bytes();
+    let mps_rc = curbuf_mut().b_p_mps.as_bytes();
+    let mut p = mps_rc.as_slice();
     while !p.is_empty() {
         if utf_ptr2char(p) == c
             && ((curwin_mut().w_onebuf_opt.wo_rl.get()) ^ (opt_vars().p_ri.get()))
@@ -2588,7 +2590,7 @@ pub fn showmatch(c: i32) {
     ui_flush();
     g_st().dollar_vcol.set(save_dollar_vcol);
 
-    if !vim_strchr(opt_vars().p_cpo.as_cstr(), K_CPO_SHOWMATCH)
+    if !vim_strchr(&opt_vars().p_cpo.as_cstr(), K_CPO_SHOWMATCH)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
         .is_null()
     {
@@ -3246,7 +3248,7 @@ pub fn find_pattern_in_path(
         let mut match_count: i32 = 1;
 
         let mut curr_fname: Option<std::ffi::CString> =
-            curbuf_mut().fname_opt().map(CStr::to_owned);
+            curbuf_mut().fname_opt().as_deref().map(CStr::to_owned);
         let mut prev_fname: Option<std::ffi::CString> = None;
         let mut p_idx: usize;
         let mut define_matched: bool;
@@ -3346,8 +3348,10 @@ pub fn find_pattern_in_path(
         loop {
             let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
             if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line_cstr, 0) {
-                let p_fname_opt = if curr_fname.as_deref() == curbuf_mut().fname_opt() {
-                    curbuf_mut().ffname_opt()
+                let ffname_rc;
+                let p_fname_opt = if curr_fname.as_deref() == curbuf_mut().fname_opt().as_deref() {
+                    ffname_rc = curbuf_mut().ffname_opt();
+                    ffname_rc.as_deref()
                 } else {
                     curr_fname.as_deref()
                 };
@@ -3737,12 +3741,13 @@ pub fn find_pattern_in_path(
 
                                 if !skip_add {
                                     let len_u = i.max(0) as usize;
-                                    let fname_short =
-                                        if curr_fname.as_deref() == curbuf_mut().fname_opt() {
-                                            None
-                                        } else {
-                                            path_try_shorten_fname(curr_fname.as_deref())
-                                        };
+                                    let fname_short = if curr_fname.as_deref()
+                                        == curbuf_mut().fname_opt().as_deref()
+                                    {
+                                        None
+                                    } else {
+                                        path_try_shorten_fname(curr_fname.as_deref())
+                                    };
                                     let add_r = if use_iobuff {
                                         let word = g_st().iobuff.borrow()[..len_u].to_vec();
                                         ins_compl_add_infercase(
@@ -3954,7 +3959,7 @@ pub fn find_pattern_in_path(
                 files[old_files as usize].matched = files[depth as usize].matched;
                 depth -= 1;
                 curr_fname = if depth == -1 {
-                    curbuf_mut().fname_opt().map(CStr::to_owned)
+                    curbuf_mut().fname_opt().as_deref().map(CStr::to_owned)
                 } else {
                     files[depth as usize].name.clone()
                 };

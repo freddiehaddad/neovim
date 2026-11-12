@@ -1587,7 +1587,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             },
         );
         if cap.cmdchar == b'/' as i32 || cap.cmdchar == b'?' as i32 {
-            if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REDO) {
+            if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_REDO) {
                 redo_append_lit(cap.searchbuf_cstr().map_or(&[][..], CStr::to_bytes));
             }
             redo_append_str(b"\n");

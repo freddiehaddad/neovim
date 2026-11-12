@@ -1801,7 +1801,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                     && !convert_setup(
                         &mut spin.si_conv,
                         af_enc_opt,
-                        Some(opt_vars().p_enc.as_cstr()),
+                        Some(&opt_vars().p_enc.as_cstr()),
                     )
                 {
                     smsg!(
@@ -3456,7 +3456,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                             && !convert_setup(
                                 &mut spin.si_conv,
                                 Some(enc.as_c_str()),
-                                Some(opt_vars().p_enc.as_cstr()),
+                                Some(&opt_vars().p_enc.as_cstr()),
                             )
                         {
                             smsg!(
@@ -4768,7 +4768,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     let mut error = false;
     let mut spin = Spellinfo::default();
 
-    spell_check_msm(opt_vars().p_msm.as_bytes(), true);
+    spell_check_msm(&opt_vars().p_msm.as_bytes(), true);
 
     spin.si_verbose = !added_word;
     spin.si_ascii = ascii;
@@ -5019,7 +5019,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             return;
         }
 
-        let mut spf = win_s(&curwin_mut()).b_p_spf.as_bytes();
+        let spf_rc = win_s(&curwin_mut()).b_p_spf.as_bytes();
+        let mut spf = spf_rc.as_slice();
         let mut i: i32 = 1;
         while !spf.is_empty() {
             copy_option_part(&mut spf, &mut fnamebuf_arr[..MAXPATHL], c",");
@@ -5166,7 +5167,7 @@ fn init_spellfile() {
     {
         if vim_ispathsep(spl_bytes[lend_off]) {
             aspath = true;
-            lstart = &spl_cstr[lend_off + 1..];
+            lstart = spl_cstr.slice(lend_off + 1);
         }
         lend_off += 1;
     }

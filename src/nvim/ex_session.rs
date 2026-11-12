@@ -223,10 +223,10 @@ fn ses_arglist(
     for entry in gap {
         if let Some(s_cstr) = alist_name(entry) {
             let s = if fullname {
-                vim_full_name(Some(s_cstr), &mut buf, false);
+                vim_full_name(Some(&s_cstr), &mut buf, false);
                 crate::memory::bytes_as_cstr(&buf)
             } else {
-                s_cstr
+                &s_cstr
             };
             let fname_esc = ses_escape_fname(Some(s));
             if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(&fname_esc))) {
@@ -237,7 +237,10 @@ fn ses_arglist(
     true
 }
 
-fn ses_get_fname<'a>(buf: &'a FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&'a CStr> {
+fn ses_get_fname(
+    buf: &FileBuf,
+    flagp: &std::cell::Cell<u32>,
+) -> Option<crate::option_vars::RcCStr> {
     if buf.b_sfname.get().is_some()
         && ptr::eq(flagp, &opt_vars().ssop_flags)
         && (opt_vars().ssop_flags.get() & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
@@ -251,7 +254,7 @@ fn ses_get_fname<'a>(buf: &'a FileBuf, flagp: &std::cell::Cell<u32>) -> Option<&
 
 fn ses_fname(fd: &CFile, buf: &FileBuf, flagp: &std::cell::Cell<u32>, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
-    if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
+    if !ses_put_fname(fd, name.as_deref(), flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
     }
     true
@@ -321,7 +324,7 @@ fn put_view(
     }
 
     if add_edit && (!did_next || wp.w_arg_idx_invalid.get()) {
-        let fname_esc = ses_escape_fname(ses_get_fname(&(*wp).buf_mut(), flagp));
+        let fname_esc = ses_escape_fname(ses_get_fname(&(*wp).buf_mut(), flagp).as_deref());
         if bt_help(wp.buf_opt().as_deref()) {
             let mut curtag_owned: Option<std::ffi::CString> = None;
             if 0 < wp.w_tagstackidx.get() && wp.w_tagstackidx.get() <= wp.w_tagstacklen.get() {
@@ -643,7 +646,11 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
-                    || fd.puts(ses_get_fname(&b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
+                    || fd.puts(
+                        ses_get_fname(&b, &opt_vars().ssop_flags)
+                            .as_deref()
+                            .unwrap_or(c""),
+                    ) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
                     || fd.puts(&b_localdir) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
@@ -881,7 +888,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 fd,
                 format!(
                     "set shortmess={}\n",
-                    cstr_to_str(opt_vars().p_shm.as_cstr())
+                    cstr_to_str(&opt_vars().p_shm.as_cstr())
                 ),
             ) {
                 return false;
@@ -951,8 +958,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         fname = c".exrc";
     }
 
-    if using_vdir && !os_isdir(opt_vars().p_vdir.as_cstr()) {
-        vim_mkdir_emsg(opt_vars().p_vdir.as_cstr(), 0o755);
+    if using_vdir && !os_isdir(&opt_vars().p_vdir.as_cstr()) {
+        vim_mkdir_emsg(&opt_vars().p_vdir.as_cstr(), 0o755);
     }
 
     if let Some(fd) = open_exfile(fname, eap.forceit, c"wb") {
@@ -1092,7 +1099,7 @@ fn get_view_file(c: u8) -> Option<CString> {
         emsg(gettext(E_NONAME));
         return None;
     }
-    let sname_cstr = home_replace_save(None, curbuf_mut().ffname_opt());
+    let sname_cstr = home_replace_save(None, curbuf_mut().ffname_opt().as_deref());
     let sname_bytes = sname_cstr.as_bytes();
 
     let mut len: usize = 0;

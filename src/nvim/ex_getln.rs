@@ -1867,7 +1867,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         || s.c == K_KENTER
         || (s.c == ESC
             && (!g_st().key_typed.get()
-                || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ESC)))
+                || crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_ESC)))
     {
         s.gotesc = false;
         if ccheck_abbr(s.c + ABBR_OFF) != 0 {
@@ -5062,7 +5062,7 @@ pub fn did_set_cedit(_args: &mut Optset) -> Option<&'static CStr> {
         s.cedit_key.set(if opt_vars().p_cedit.is_empty() {
             -1
         } else {
-            string_to_key(opt_vars().p_cedit.as_bytes())
+            string_to_key(&opt_vars().p_cedit.as_bytes())
         })
     });
     None

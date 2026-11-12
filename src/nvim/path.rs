@@ -787,7 +787,7 @@ fn expand_path_option(curdir: &CStr, path_option: &CStr, gap: &mut Vec<std::ffi:
             }
             let ffname_cstr = curbuf_mut().ffname_cstr();
             let ffname_bytes = ffname_cstr.to_bytes();
-            let p = path_tail(ffname_cstr);
+            let p = path_tail(&ffname_cstr);
             let plen = ffname_bytes.len() - p.to_bytes().len();
             if plen + buflen >= MAXPATHL {
                 continue;
@@ -1234,7 +1234,7 @@ pub fn expand_wildcards_vec(pat: &[&CStr], files: &mut Vec<std::ffi::CString>, f
     if !opt_vars().p_wig.is_empty() {
         files.retain(|fi_cstr| {
             let ffname = FullName_save(Some(fi_cstr.as_c_str()), false).unwrap_or_default();
-            !match_file_list(opt_vars().p_wig.as_cstr(), Some(fi_cstr), &ffname)
+            !match_file_list(&opt_vars().p_wig.as_cstr(), Some(fi_cstr), &ffname)
         });
     }
 

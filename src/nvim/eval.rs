@@ -4900,10 +4900,12 @@ pub fn callback_call(
     }
 
     let partial: crate::eval::typval::PartialId;
+    let funcref_rc: Option<std::rc::Rc<CStr>>;
     let name: &CStr;
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
-            let funcref = callback.data.as_funcref().unwrap_or(c"");
+            funcref_rc = callback.data.as_funcref();
+            let funcref = funcref_rc.as_deref().unwrap_or(c"");
             if funcref.to_bytes().starts_with(b"v:lua.") {
                 name = &funcref[6..];
                 if check_luafunc_name(name, false) == 0 {
@@ -4954,7 +4956,8 @@ pub fn callback_call(
         }
         K_CALLBACK_EXPR => {
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
-            let expr = crate::charset::skipwhite(callback.data.as_funcref().unwrap_or(c""));
+            let funcref_rc = callback.data.as_funcref();
+            let expr = crate::charset::skipwhite(funcref_rc.as_deref().unwrap_or(c""));
             let r = eval0_simple_funccal(expr, rettv, None, &mut Evalarg { eval_flags: 1 });
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
             return r;
@@ -6477,7 +6480,7 @@ pub fn do_string_sub(
     } else if opt_vars().p_cpo.is_empty() {
         let obj = Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(Some(save_cpo.as_cstr()))),
+            data: ObjectData::String(cstr_as_string(Some(&save_cpo.as_cstr()))),
         };
         set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
     }

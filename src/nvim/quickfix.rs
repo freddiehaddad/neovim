@@ -1402,7 +1402,7 @@ fn qf_setup_state(
         convert_setup(
             &mut pstate.vc,
             Some(enc_cstr),
-            Some(opt_vars().p_enc.as_cstr()),
+            Some(&opt_vars().p_enc.as_cstr()),
         );
     }
 
@@ -1483,12 +1483,14 @@ fn qf_init_ext(
         old_count = qfl.qf_items.len();
     }
 
+    let buf_efm;
     let efm = if ptr::eq(errorformat.as_ptr(), opt_vars().p_efm.as_ptr())
         && tv.is_none()
         && let Some(b) = buf
         && !b.b_p_efm.is_empty()
     {
-        b.b_p_efm.as_cstr()
+        buf_efm = b.b_p_efm.as_cstr();
+        buf_efm.as_cstr()
     } else {
         errorformat
     };
@@ -2140,7 +2142,7 @@ fn qf_add_entry(
     if let Some(buf) = buf
         && buf.b_ffname.get().is_some()
         && let Some(ref full) = fullname
-        && !path_equal(full, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
+        && !path_equal(full, &buf.ffname_cstr(), K_PATH_CMP_LITERAL)
         && let Some(p) = path_try_shorten_fname(Some(full))
     {
         qfp.qf_fname = Some(p.to_owned());
@@ -3313,6 +3315,7 @@ fn qf_jump_newwin(qi_opt: Option<&QfInfo>, dir: i32, errornr: i32, forceit: bool
 
 fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     let mut fname: Option<&CStr> = None;
+    let buf_fname_opt;
     if let Some(ref module) = qfp.qf_module
         && !module.as_bytes().is_empty()
     {
@@ -3321,7 +3324,8 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         if qfp.qf_fnum != 0
             && let Some(buf) = buflist_findnr_opt(qfp.qf_fnum)
         {
-            fname = qfp.qf_fname.as_deref().or_else(|| buf.fname_opt());
+            buf_fname_opt = buf.fname_opt();
+            fname = qfp.qf_fname.as_deref().or(buf_fname_opt.as_deref());
             if qfp.qf_type == 1
                 && let Some(f) = fname
             {
@@ -4167,21 +4171,22 @@ fn qf_buf_add_line(
             && errbuf.fname_opt().is_some()
         {
             if qfp.qf_type == 1 {
-                qfga_concat(gap, path_tail(errbuf.fname_cstr()).to_bytes());
+                qfga_concat(gap, path_tail(&errbuf.fname_cstr()).to_bytes());
             } else {
                 if first_bufline
-                    && (errbuf.b_sfname.get().is_none() || path_is_absolute(errbuf.sfname_bytes()))
+                    && (errbuf.b_sfname.get().is_none() || path_is_absolute(&errbuf.sfname_bytes()))
                 {
                     if dirname[0] == 0 {
                         os_dirname(dirname);
                     }
                     shorten_buf_fname(&errbuf, crate::memory::bytes_as_cstr(dirname), 0);
                 }
+                let errbuf_fname = errbuf.fname_bytes();
                 qfga_concat(
                     gap,
                     qfp.qf_fname
                         .as_ref()
-                        .map_or_else(|| errbuf.fname_bytes(), |s| s.as_bytes()),
+                        .map_or_else(|| errbuf_fname.as_slice(), |s| s.as_bytes()),
                 );
             }
         }
@@ -4486,7 +4491,7 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
     );
 
     if !opt_vars().p_sp.is_empty() {
-        append_redir(&mut cmd_vec, opt_vars().p_sp.as_cstr(), fname);
+        append_redir(&mut cmd_vec, &opt_vars().p_sp.as_cstr(), fname);
     }
 
     if g_st().msg_col.get() == 0 {
@@ -4516,7 +4521,7 @@ pub fn ex_make(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         )
@@ -4548,10 +4553,10 @@ pub fn ex_make(eap: &mut Exarg) {
             gefm_owned = curbuf_mut().b_p_gefm.to_owned();
             &gefm_owned
         } else {
-            opt_vars().p_gefm.as_cstr()
+            &opt_vars().p_gefm.as_cstr()
         }
     } else {
-        opt_vars().p_efm.as_cstr()
+        &opt_vars().p_efm.as_cstr()
     };
 
     let newlist = eap.cmdidx != Cmdidx::CmdGrepadd && eap.cmdidx != Cmdidx::CmdLgrepadd;
@@ -4580,7 +4585,7 @@ pub fn ex_make(eap: &mut Exarg) {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 Some(au_name),
-                curbuf_mut().fname_opt(),
+                curbuf_mut().fname_opt().as_deref(),
                 true,
                 curbuf_opt_mut().as_deref(),
             );
@@ -5137,7 +5142,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     let res = qf_init(
         wp.opt_mut(),
         Some(&p_ef),
-        opt_vars().p_efm.as_cstr(),
+        &opt_vars().p_efm.as_cstr(),
         i32::from(eap.cmdidx != Cmdidx::CmdCaddfile && eap.cmdidx != Cmdidx::CmdLaddfile),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
         Some(&enc),
@@ -5563,7 +5568,7 @@ fn vgr_process_files(
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
                     let b_p_ft = buf.b_p_ft.to_owned();
-                    let b_fname = buf.fname_opt().map(CStr::to_owned);
+                    let b_fname = buf.fname_opt().as_deref().map(CStr::to_owned);
                     ctx_switch(&mut aco, None, None, Some(buf), 0);
                     apply_autocmds(
                         EVENT_FILETYPE,
@@ -5597,7 +5602,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         )
@@ -5652,7 +5657,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
                     Some(au_name),
-                    curbuf_mut().fname_opt(),
+                    curbuf_mut().fname_opt().as_deref(),
                     true,
                     curbuf_opt_mut().as_deref(),
                 );
@@ -5940,7 +5945,7 @@ fn qf_get_list_from_lines(what: &TvDict, di: &Dictitem, retdict: &TvDict) -> boo
             return false;
         }
         efm_owned = efm_tv.vval.v_string_owned();
-        errorformat = efm_owned.as_c_str();
+        errorformat = crate::option_vars::RcCStr::from_cstr(efm_owned.as_c_str());
     }
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5961,7 +5966,7 @@ fn qf_get_list_from_lines(what: &TvDict, di: &Dictitem, retdict: &TvDict) -> boo
         None,
         None,
         Some(&mut *di.tv_mut()),
-        errorformat,
+        &errorformat,
         true,
         0,
         0,
@@ -6614,7 +6619,7 @@ fn qf_setprop_items_from_lines(
             return false;
         }
         efm_owned = efm_tv.vval.v_string_owned();
-        errorformat = efm_owned.as_c_str();
+        errorformat = crate::option_vars::RcCStr::from_cstr(efm_owned.as_c_str());
     }
 
     if di.tv().v_type != VarType::VarList || di.tv().vval.v_list().is_null() {
@@ -6630,7 +6635,7 @@ fn qf_setprop_items_from_lines(
         None,
         None,
         Some(&mut *di.tv_mut()),
-        errorformat,
+        &errorformat,
         false,
         0,
         0,
@@ -6961,7 +6966,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         )
@@ -7002,7 +7007,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         None,
         Some(&buf),
         None,
-        opt_vars().p_efm.as_cstr(),
+        &opt_vars().p_efm.as_cstr(),
         eap.cmdidx != Cmdidx::CmdCaddbuffer && eap.cmdidx != Cmdidx::CmdLaddbuffer,
         eap.line1,
         eap.line2,
@@ -7022,7 +7027,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         );
@@ -7058,7 +7063,7 @@ fn trigger_cexpr_autocmd(cmdidx: Cmdidx) -> bool {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         )
@@ -7087,7 +7092,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             None,
             None,
             Some(&mut *tv),
-            opt_vars().p_efm.as_cstr(),
+            &opt_vars().p_efm.as_cstr(),
             eap.cmdidx != Cmdidx::CmdCaddexpr && eap.cmdidx != Cmdidx::CmdLaddexpr,
             0,
             0,
@@ -7106,7 +7111,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 Some(au_name),
-                curbuf_mut().fname_opt(),
+                curbuf_mut().fname_opt().as_deref(),
                 true,
                 curbuf_opt_mut().as_deref(),
             );
@@ -7264,7 +7269,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         )
@@ -7313,7 +7318,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     if opt_vars().p_cpo.is_null() {
         opt_vars().p_cpo.set(save_cpo);
     } else if opt_vars().p_cpo.is_empty() {
-        set_option_value_give_err(K_OPT_CPOPTIONS, cstr_as_obj(Some(save_cpo.as_cstr())), 0);
+        set_option_value_give_err(K_OPT_CPOPTIONS, cstr_as_obj(Some(&save_cpo.as_cstr())), 0);
     }
 
     if updated {
@@ -7325,7 +7330,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
             Some(au_name),
-            curbuf_mut().fname_opt(),
+            curbuf_mut().fname_opt().as_deref(),
             true,
             curbuf_opt_mut().as_deref(),
         );

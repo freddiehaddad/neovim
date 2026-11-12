@@ -545,14 +545,14 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
 /// with an optional command prefixed by 'shellcmdflag' (opt_vars().p_shcf).
 pub fn shell_build_argv(cmd: Option<&CStr>, extra_args: Option<&CStr>) -> Vec<std::ffi::CString> {
     let mut rv: Vec<std::ffi::CString> = Vec::new();
-    tokenize(Some(opt_vars().p_sh.as_cstr()), &mut rv);
+    tokenize(Some(&opt_vars().p_sh.as_cstr()), &mut rv);
 
     if let Some(extra_args) = extra_args {
         rv.push(extra_args.to_owned());
     }
 
     if let Some(cmd) = cmd {
-        tokenize(Some(opt_vars().p_shcf.as_cstr()), &mut rv);
+        tokenize(Some(&opt_vars().p_shcf.as_cstr()), &mut rv);
         rv.push(shell_xescape_xquote(cmd));
     }
 
@@ -1167,7 +1167,7 @@ fn shell_xescape_xquote(cmd: &CStr) -> std::ffi::CString {
     let owned_ecmd = if !opt_vars().p_sxe.is_empty() && sxq_bytes == b"(" {
         Some(vim_strsave_escaped_ext(
             cmd_bytes,
-            opt_vars().p_sxe.as_bytes(),
+            &opt_vars().p_sxe.as_bytes(),
             b'^' as _,
             false,
         ))
