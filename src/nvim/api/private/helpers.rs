@@ -1287,10 +1287,15 @@ pub fn api_keydict_to_dict<T: crate::api::private::validate::KeyDict>(
 }
 
 pub fn api_luarefs_free_object(value: Object) {
+    api_luarefs_free_object_ref(&value);
+}
+
+#[inline]
+pub fn api_luarefs_free_object_ref(value: &Object) {
     match value.obj_type {
         ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
-        ObjectType::ObjectTypeArray => api_luarefs_free_array(value.data.array()),
-        ObjectType::ObjectTypeDict => api_luarefs_free_dict(value.data.dict()),
+        ObjectType::ObjectTypeArray => api_luarefs_free_array_slice(value.data.array_slice()),
+        ObjectType::ObjectTypeDict => api_luarefs_free_dict_slice(value.data.dict_slice()),
         _ => {}
     }
 }
@@ -1299,30 +1304,42 @@ pub fn api_luarefs_free_keydict<T: crate::api::private::validate::KeyDict>(
     dict: &T,
     table: &[KeySetLink<T>],
 ) {
+    if dict.is_set_mask() == 0 && table.first().is_some_and(|f| f.opt_index >= 0) {
+        return;
+    }
     for field in table {
         if field.str.is_none() {
             break;
         }
+        if !field.is_field_set(dict) {
+            continue;
+        }
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         match field_type {
-            ObjectType::ObjectTypeNil => api_luarefs_free_object(field.field_copy::<Object>(dict)),
-            ObjectType::ObjectTypeLuaRef => api_free_luaref(field.field_copy::<LuaRef>(dict)),
-            ObjectType::ObjectTypeDict => api_luarefs_free_dict(field.field_copy::<Dict>(dict)),
+            ObjectType::ObjectTypeNil => {
+                api_luarefs_free_object_ref(field.field_ref::<Object>(dict))
+            }
+            ObjectType::ObjectTypeLuaRef => api_free_luaref(*field.field_ref::<LuaRef>(dict)),
+            ObjectType::ObjectTypeDict => {
+                api_luarefs_free_dict_slice(field.field_ref::<Dict>(dict).as_slice())
+            }
             _ => {}
         }
     }
 }
 
-pub fn api_luarefs_free_array(value: Array) {
-    for item in value.as_slice() {
-        api_luarefs_free_object(item.clone());
+#[inline]
+fn api_luarefs_free_array_slice(slice: &[Object]) {
+    for item in slice {
+        api_luarefs_free_object_ref(item);
     }
 }
 
-pub fn api_luarefs_free_dict(value: Dict) {
-    for item in value.as_slice() {
-        api_luarefs_free_object(item.value.clone());
+#[inline]
+fn api_luarefs_free_dict_slice(slice: &[KeyValuePair]) {
+    for item in slice {
+        api_luarefs_free_object_ref(&item.value);
     }
 }
 

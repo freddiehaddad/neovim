@@ -25,7 +25,6 @@ use crate::eval::typval::{
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
-use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
@@ -236,8 +235,8 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
 pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
     let mut ret = true;
     let initial_size = nlua_gettop(lstate);
-    let mut stack: Vec<TVPopStackItem> = Vec::with_capacity(2);
-    stack.push(TVPopStackItem {
+    let mut stack: Vec<TVPopStackItem> = Vec::new();
+    let mut next_cur = Some(TVPopStackItem {
         tv: TVPopTarget::Root,
         list_len: 0,
         container: false,
@@ -245,7 +244,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
         idx: 0,
     });
 
-    while ret && !stack.is_empty() {
+    while ret && (next_cur.is_some() || !stack.is_empty()) {
         if !lua_checkstack_safe(lstate, 3) {
             semsg!(
                 c"E1502: Lua failed to grow stack to %i",
@@ -254,7 +253,10 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
             ret = false;
             break;
         }
-        let mut cur = stack.pop().unwrap();
+        let mut cur = match next_cur.take() {
+            Some(c) => c,
+            None => stack.pop().unwrap(),
+        };
         if cur.container {
             if cur.special || cur.tv_ref(ret_tv).v_type == VarType::VarDict {
                 let mut next_key_found = false;
@@ -887,7 +889,7 @@ fn lua_convert_one_value(
 
 fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
     let copy_id = get_copy_id();
-    let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
+    let mut mpstack: Vec<MPConvStackVal> = Vec::new();
 
     if !lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) {
         return false;
@@ -912,13 +914,9 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 } else if *todo != dict.dv_hashtab.ht_used.get() {
                     lua_rawset_safe(lstate, -3);
                 }
-                while hashitem_empty(&dict.dv_hashtab.slot(*hi_idx)) {
-                    *hi_idx += 1;
-                }
-                let hi = dict.dv_hashtab.slot(*hi_idx);
-                let di = crate::eval::typval::tv_dict_hi2di(&hi);
+                let (next_idx, di) = dict.dv_hashtab.next_used_di(*hi_idx);
+                *hi_idx = next_idx;
                 *todo -= 1;
-                *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());
                 di.tv().clone()
             }
@@ -1367,7 +1365,7 @@ pub fn nlua_pop_object_opt(
 ) -> Object {
     let mut ret = nil_obj();
     let initial_size = nlua_gettop(lstate);
-    let mut stack: Vec<ObjPopStackItem> = Vec::with_capacity(2);
+    let mut stack: Vec<ObjPopStackItem> = Vec::new();
     let mut need_pop_value = true;
 
     while !error_set(err) && (need_pop_value || !stack.is_empty()) {
@@ -1655,8 +1653,8 @@ pub fn nlua_pop_keydict_opt<T: KeyDict>(
     lua_pushnil_safe(lstate);
     while lua_next_safe(lstate, -2) != 0 {
         let key_bytes = lua_tolstring_bytes(lstate, -2);
-        let key_cstr = lua_tolstring_opt_cstr(lstate, -2);
         let Some(field) = hashy_fn(key_bytes) else {
+            let key_cstr = lua_tolstring_opt_cstr(lstate, -2);
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,

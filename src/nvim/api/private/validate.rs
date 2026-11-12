@@ -909,6 +909,11 @@ impl<T: KeyDict> KeySetLink<T> {
     }
 
     #[inline]
+    pub fn field_ref<'a, F: KeyFieldType<T>>(&self, value: &'a T) -> &'a F {
+        F::get_ref(&self.field, value)
+    }
+
+    #[inline]
     pub fn field_copy<F: KeyFieldType<T>>(&self, value: &T) -> F {
         F::get_ref(&self.field, value).clone()
     }

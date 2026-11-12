@@ -1395,12 +1395,19 @@ impl Dictitem {
 
     #[inline]
     pub fn key_cstr(&self) -> &CStr {
-        CStr::from_bytes_until_nul(&self.di_key).unwrap_or(c"")
+        CStr::from_bytes_with_nul(&self.di_key)
+            .or_else(|_| CStr::from_bytes_until_nul(&self.di_key))
+            .unwrap_or(c"")
     }
 
     #[inline]
     pub fn key_bytes(&self) -> &[u8] {
-        self.key_cstr().to_bytes()
+        let len = self.di_key.len();
+        if len > 0 && self.di_key[len - 1] == 0 {
+            &self.di_key[..len - 1]
+        } else {
+            crate::memory::bytes_until_nul(&self.di_key)
+        }
     }
 }
 
@@ -3775,6 +3782,7 @@ fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> DictitemId {
 
 /// Allocate a dictionary item.
 pub fn tv_dict_item_alloc_len(key: &[u8]) -> DictitemId {
+    let key = crate::memory::bytes_until_nul(key);
     let mut key_vec = Vec::with_capacity(key.len() + 1);
     key_vec.extend_from_slice(key);
     key_vec.push(0);

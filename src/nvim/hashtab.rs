@@ -27,7 +27,14 @@ impl Hashitem {
     pub fn key_cstr(&self) -> Option<&CStr> {
         self.hi_di
             .opt()
-            .and_then(|di| CStr::from_bytes_until_nul(&di.di_key).ok())
+            .map(crate::eval::typval::Dictitem::key_cstr)
+    }
+
+    #[inline]
+    pub fn key_bytes(&self) -> Option<&[u8]> {
+        self.hi_di
+            .opt()
+            .map(crate::eval::typval::Dictitem::key_bytes)
     }
 
     #[inline]
@@ -67,6 +74,25 @@ impl Hashtab {
         } else {
             arr[idx].clone()
         }
+    }
+
+    #[inline]
+    pub fn slot_is_empty(&self, idx: usize) -> bool {
+        let arr = self.ht_array.borrow();
+        if arr.is_empty() {
+            true
+        } else {
+            arr[idx].hi_di.is_null()
+        }
+    }
+
+    #[inline]
+    pub fn next_used_di(&self, mut idx: usize) -> (usize, crate::eval::typval::DictitemId) {
+        let arr = self.ht_array.borrow();
+        while arr[idx].hi_di.is_null() {
+            idx += 1;
+        }
+        (idx + 1, arr[idx].hi_di.clone())
     }
 
     #[inline]
@@ -130,7 +156,7 @@ impl Hashtab {
     #[inline]
     pub fn find_hi_idx(&self, key: &CStr) -> Option<usize> {
         let idx = hash_find_idx(self, key);
-        (!hashitem_empty(&self.slot(idx))).then_some(idx)
+        (!self.slot_is_empty(idx)).then_some(idx)
     }
 
     #[inline]
@@ -166,11 +192,6 @@ pub fn hashitem_empty(hi: &Hashitem) -> bool {
     hi.hi_di.is_null()
 }
 
-#[inline]
-fn key_matches(hi_key: Option<&CStr>, key: &[u8]) -> bool {
-    hi_key.map_or(&b""[..], CStr::to_bytes) == key
-}
-
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
 pub fn hash_clear(ht: &Hashtab) {
     ht.replace(Hashtab::new());
@@ -178,8 +199,7 @@ pub fn hash_clear(ht: &Hashtab) {
 
 /// Find slot index for NUL-terminated `key` in `ht`.
 pub fn hash_find_idx(ht: &Hashtab, key: &CStr) -> usize {
-    let hash = hash_hash(key);
-    hash_lookup_idx(ht, key.to_bytes(), hash)
+    hash_find_len_idx(ht, key.to_bytes())
 }
 
 /// Find slot index for `key` slice in `ht`.
@@ -201,11 +221,10 @@ pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> Hashitem {
 /// Find slot index for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
     let arr_guard = ht.ht_array.borrow();
-    let arr: &[Hashitem] = if arr_guard.is_empty() {
-        &EMPTY_HASHARRAY
-    } else {
-        &arr_guard
-    };
+    if arr_guard.is_empty() {
+        return hash & ht.ht_mask.get();
+    }
+    let arr: &[Hashitem] = &arr_guard;
     let mask = ht.ht_mask.get();
 
     let mut idx = hash & mask;
@@ -216,7 +235,7 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
     let mut free_idx: Option<usize> = None;
     if arr[idx].hi_removed {
         free_idx = Some(idx);
-    } else if arr[idx].hi_hash == hash && key_matches(arr[idx].key_cstr(), key) {
+    } else if arr[idx].hi_hash == hash && arr[idx].key_bytes() == Some(key) {
         return idx;
     }
 
@@ -230,7 +249,7 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
             return free_idx.unwrap_or(slot_idx);
         }
 
-        if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
+        if item.hi_hash == hash && !item.hi_removed && item.key_bytes() == Some(key) {
             return slot_idx;
         }
 
@@ -244,13 +263,13 @@ pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
 
 /// Add dictionary item `di` to hashtable `ht` (`hash_add`).
 pub fn hash_add(ht: &Hashtab, di: &crate::eval::typval::Dictitem) -> bool {
-    let key = di.key_cstr();
-    let hash = hash_hash(key);
-    let idx = hash_lookup_idx(ht, key.to_bytes(), hash);
-    if !hashitem_empty(&ht.slot(idx)) {
+    let key = di.key_bytes();
+    let hash = hash_hash_len(key);
+    let idx = hash_lookup_idx(ht, key, hash);
+    if !ht.slot_is_empty(idx) {
         siemsg!(
             c"E685: Internal error: hash_add(): duplicate key \"%s\"",
-            key,
+            di.key_cstr(),
         );
         return false;
     }
@@ -369,11 +388,6 @@ fn hash_may_resize(ht: &Hashtab, mut minitems: usize) {
     ht.ht_mask.set(newmask);
     ht.ht_filled.set(used);
     ht.ht_changed.set(ht.ht_changed.get() + 1);
-}
-
-/// Compute hash for NUL-terminated `key` (`hash_hash`).
-pub fn hash_hash(key: &CStr) -> HashVal {
-    hash_hash_len(key.to_bytes())
 }
 
 /// Compute hash for `key` slice (`hash_hash_len`).
