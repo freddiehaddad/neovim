@@ -10445,14 +10445,9 @@ fn ex_connect(eap: &mut Exarg) {
             &mut argvars,
             Some(&mut ssh_rettv),
         );
-
-        if ssh_rettv.v_type == VarType::VarSpecial {
-            return; // User declined the prompt, or interrupted (CTRL-C).
-        }
         if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string_is_null() {
-            let _ = emsg(gettext(c"E6101: SSH connection failed"));
             tv_clear(&mut ssh_rettv);
-            return;
+            return; // Declined, interrupted (CTRL-C), or failed (E6101 shown).
         }
 
         addr = crate::strings::OwnedSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
