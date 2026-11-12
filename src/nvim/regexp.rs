@@ -2680,7 +2680,11 @@ pub(super) fn getdecchrs() -> i64 {
         if !c.is_ascii_digit() {
             break;
         }
-        nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
+        if nr <= i64::from(i32::MAX / 10) {
+            nr = nr * 10 + i64::from(c - b'0');
+        } else {
+            nr = i64::from(i32::MAX) + 1;
+        }
         RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
         RE_STATE.with(|s| s.curchr.set(-1));
         i += 1;
