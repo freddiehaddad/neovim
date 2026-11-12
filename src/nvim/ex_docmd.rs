@@ -10412,6 +10412,10 @@ fn ex_connect(eap: &mut Exarg) {
         let _ = emsg(gettext(E_NOUI));
         return;
     }
+    // Abort if this is the last UI and a buffer has unsaved changes.
+    if ui_active() == 1 && check_changed_any(false, false) {
+        return;
+    }
 
     // No address: let the user select from a menu of known servers.
     if addr_bytes.is_empty() {
@@ -10474,7 +10478,7 @@ fn ex_connect(eap: &mut Exarg) {
         }
     }
 
-    let stop_server = if eap.forceit { ui_active() == 1 } else { false };
+    let stop_server = !is_ssh && ui_active() == 1;
 
     let mut err = error_init();
     remote_ui_connect(g_st().current_ui.get(), addr.as_bytes(), &mut err);
