@@ -5,7 +5,7 @@
 use crate::errors::*;
 use crate::eval::typval::{
     TypVal, TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
-    tv_list_extend,
+    tv_list_copy, tv_list_extend,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::message::semsg;
@@ -55,8 +55,9 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if let Some(l1) = tv1.vval.v_list_opt() {
         tv_list_extend(l1, Some(l2), None);
     } else {
-        tv1.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(l2));
-        l2.lv_refcount.set(l2.lv_refcount.get() + 1);
+        // Make a copy, "tv1" must not become the same List as "tv2".
+        let copied = tv_list_copy(None, Some(l2), false, 0);
+        tv1.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(copied));
     }
 
     true
