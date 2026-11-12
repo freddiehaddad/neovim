@@ -1748,7 +1748,9 @@ fn main() -> ExitCode {
             }
             let nvim_bin = if let Some(bin) = custom_nvim_bin.clone() {
                 fs::create_dir_all(&build_dir).unwrap();
-                fs::canonicalize(&bin).unwrap_or(bin)
+                let canon = fs::canonicalize(&bin).unwrap_or(bin);
+                let s = canon.to_string_lossy();
+                PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s))
             } else {
                 let profile_dir = build_cargo_bins(&root, release, prefer_lua);
                 stage_build_dir(&root, &profile_dir, &build_dir)

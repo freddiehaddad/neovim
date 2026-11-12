@@ -186,6 +186,16 @@ fn median_metric(runs: &[BTreeMap<&'static str, f64>], key: &'static str) -> f64
 
 fn build_windows_upstream_c(root: &Path, target_dir: &Path, sha: &str) -> PathBuf {
     let worktree = target_dir.join("bench-upstream-c");
+    let exe_path = worktree.join("build/bin/nvim.exe");
+    if exe_path.exists()
+        && Command::new("git")
+            .current_dir(&worktree)
+            .args(["rev-parse", "--short=10", "HEAD"])
+            .output()
+            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).trim() == sha)
+    {
+        return exe_path;
+    }
     if worktree.exists() {
         let _ = Command::new("git")
             .current_dir(root)
