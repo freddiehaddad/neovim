@@ -189,6 +189,17 @@ pub fn bytes_to_cstring(bytes: &[u8]) -> CString {
     }
 }
 
+/// Convert an owned `Vec<u8>` (truncating at any embedded NUL) into a `CString` without copying.
+#[inline]
+pub fn vec_to_cstring(mut v: Vec<u8>) -> CString {
+    if let Some(pos) = v.iter().position(|&b| b == 0) {
+        v.truncate(pos + 1);
+    } else {
+        v.push(0);
+    }
+    CString::from_vec_with_nul(v).unwrap_or_default()
+}
+
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
 pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
     *arena = Arena::new();

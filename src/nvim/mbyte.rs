@@ -2904,6 +2904,10 @@ pub fn mb_charlen(mut rem: &[u8]) -> i32 {
 
 pub fn mb_unescape(s: &mut &[u8]) -> Option<crate::strings::InlineCStr<6>> {
     let bytes = *s;
+    let &b0 = bytes.first()?;
+    if b0 < 0x80 || (b0 == K_SPECIAL && bytes.get(1) != Some(&KS_SPECIAL)) {
+        return None;
+    }
     let mut buf = crate::strings::InlineCStr::<6>::new();
     let mut buf_idx = 0usize;
     let mut str_idx = 0usize;

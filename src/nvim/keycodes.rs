@@ -2430,15 +2430,13 @@ pub fn find_special_key(
                     bp_idx += 2;
                 }
             }
-        }
-        if bp_idx <= end_idx {
+        } else {
             let end_minus_bp = end_idx - bp_idx;
-            if end_minus_bp > 3 && bytes[bp_idx..].starts_with(b"t_") {
+            if bytes[bp_idx] == b't' && end_minus_bp > 3 && bytes[bp_idx + 1] == b'_' {
                 bp_idx += 3; // skip t_xx, xx may be '-' or '>'
-            } else if end_minus_bp > 4
-                && bytes
-                    .get(bp_idx..bp_idx + 5)
-                    .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
+            } else if (bytes[bp_idx] | 0x20) == b'c'
+                && end_minus_bp > 4
+                && bytes[bp_idx..bp_idx + 5].eq_ignore_ascii_case(b"char-")
             {
                 let mut l: i32 = 0;
                 let num_slice = &bytes[bp_idx + 5..=end_idx];
@@ -2486,9 +2484,10 @@ pub fn find_special_key(
         if bp_idx >= last_dash_idx {
             let after_dash = &bytes[last_dash_idx + 1..];
             let mut key: i32;
-            if after_dash
-                .get(..5)
-                .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
+            if (after_dash[0] | 0x20) == b'c'
+                && after_dash
+                    .get(..5)
+                    .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
                 && after_dash.get(5).is_some_and(u8::is_ascii_digit)
             {
                 // <Char-123> or <Char-033> or <Char-0x33>
@@ -2512,19 +2511,16 @@ pub fn find_special_key(
                 }
                 key = n as i32;
             } else {
-                let off: usize;
-                let l: usize;
+                let off = usize::from(in_string && after_dash.starts_with(b"\\\""));
 
-                // Modifier with single letter, or special key name.
-                if in_string && after_dash.starts_with(b"\\\"") {
-                    // Special case for a double-quoted string
-                    off = 1;
-                    l = 2;
-                } else {
-                    off = 0;
-                    l = utfc_slice2len(after_dash);
-                }
-                if modifiers != 0 && after_dash.get(l) == Some(&b'>') {
+                if modifiers != 0 && {
+                    let l = if off != 0 {
+                        2
+                    } else {
+                        utfc_slice2len(after_dash)
+                    };
+                    after_dash.get(l) == Some(&b'>')
+                } {
                     key = utf_slice2char(&after_dash[off..]);
                 } else {
                     key = get_special_key_code(&after_dash[off..]);
@@ -2569,14 +2565,24 @@ pub fn find_special_key(
     0
 }
 
+const KEY_CODES_NON_ALT: [i32; KEY_NAMES_TABLE.len()] = {
+    let mut arr = [i32::MIN; KEY_NAMES_TABLE.len()];
+    let mut i = 0;
+    while i < KEY_NAMES_TABLE.len() {
+        if !KEY_NAMES_TABLE[i].is_alt {
+            arr[i] = KEY_NAMES_TABLE[i].key;
+        }
+        i += 1;
+    }
+    arr
+};
+
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
 pub fn find_special_key_in_table(c: i32) -> i32 {
-    for (i, entry) in KEY_NAMES_TABLE.iter().enumerate() {
-        if c == entry.key && !entry.is_alt {
-            return i as i32;
-        }
-    }
-    -1
+    KEY_CODES_NON_ALT
+        .iter()
+        .position(|&k| k == c)
+        .map_or(-1, |i| i as i32)
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
@@ -2625,27 +2631,26 @@ pub fn replace_termcodes(
     cpo_val: &[u8],
 ) -> Option<std::ffi::CString> {
     let from_len = from_slice.len();
-    let mut dlen: usize = 0;
 
     // backslash is a special character
     let do_backslash = !cpo_val.contains(&(K_CPO_BSLASH as u8));
     let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
 
-    // Allocate space for the translation. Worst case a single character is
-    // replaced by 6 bytes (shifted special key), plus a NUL at the end.
-    let buf_len: usize = if buf_limit { 128 } else { from_len * 6 + 1 };
-    let mut temp_buf: Vec<u8> = vec![0; buf_len];
+    let buf_len: usize = if buf_limit { 128 } else { from_len + 1 };
+    let mut temp_buf: Vec<u8> = Vec::with_capacity(buf_len);
+    let mut scratch = [0u8; 64];
 
     let mut pos = 0usize;
 
     while pos < from_slice.len() {
-        if buf_limit && dlen + 64 > buf_len {
+        if buf_limit && temp_buf.len() + 64 > buf_len {
             return None;
         }
         let rest = &from_slice[pos..];
 
         // Check for special <> keycodes, like "<C-S-LeftMouse>"
         if do_special
+            && rest[0] == b'<'
             && ((flags & REPTERM_DO_LT) != 0 || (rest.len() >= 4 && &rest[..4] != b"<lt>"))
         {
             // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
@@ -2660,14 +2665,10 @@ pub fn replace_termcodes(
                         g_st().current_sctx.get().sc_sid
                     };
                     pos += 5;
-                    temp_buf[dlen..dlen + 3].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
-                    dlen += 3;
+                    temp_buf.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
                     let sid_str = (sid as i32).to_string();
-                    let sid_bytes = sid_str.as_bytes();
-                    temp_buf[dlen..dlen + sid_bytes.len()].copy_from_slice(sid_bytes);
-                    dlen += sid_bytes.len();
-                    temp_buf[dlen] = b'_';
-                    dlen += 1;
+                    temp_buf.extend_from_slice(sid_str.as_bytes());
+                    temp_buf.push(b'_');
                     continue;
                 }
             }
@@ -2680,18 +2681,18 @@ pub fn replace_termcodes(
                 };
             if let Some((consumed, slen)) = trans_special_slice(
                 rest,
-                &mut temp_buf[dlen..],
+                &mut scratch,
                 fsk_flags,
                 true,
                 did_simplify.as_deref_mut(),
             ) {
                 pos += consumed;
-                dlen += slen;
+                temp_buf.extend_from_slice(&scratch[..slen]);
                 continue;
             }
         }
 
-        if do_special {
+        if do_special && rest[0] == b'<' {
             // Replace <Leader> by the value of "mapleader".
             // Replace <LocalLeader> by the value of "maplocalleader".
             // If "mapleader" or "maplocalleader" isn't set use a backslash.
@@ -2710,8 +2711,7 @@ pub fn replace_termcodes(
                     .map(CStr::to_bytes)
                     .filter(|b| !b.is_empty() && b.len() <= 8 * 6)
                     .unwrap_or(b"\\");
-                temp_buf[dlen..dlen + leader_bytes.len()].copy_from_slice(leader_bytes);
-                dlen += leader_bytes.len();
+                temp_buf.extend_from_slice(leader_bytes);
                 pos += len;
                 continue;
             }
@@ -2726,8 +2726,7 @@ pub fn replace_termcodes(
             pos += 1; // skip CTRL-V or backslash
             if pos >= from_slice.len() {
                 if (flags & REPTERM_FROM_PART) != 0 {
-                    temp_buf[dlen] = key;
-                    dlen += 1;
+                    temp_buf.push(key);
                 }
                 break;
             }
@@ -2738,17 +2737,15 @@ pub fn replace_termcodes(
         let char_len = utfc_slice2len(after_rest).max(1).min(after_rest.len());
         for &b in &after_rest[..char_len] {
             if b == K_SPECIAL {
-                temp_buf[dlen..dlen + 3].copy_from_slice(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]);
-                dlen += 3;
+                temp_buf.extend_from_slice(&[K_SPECIAL, KS_SPECIAL, KE_FILLER]);
             } else {
-                temp_buf[dlen] = b;
-                dlen += 1;
+                temp_buf.push(b);
             }
         }
         pos += char_len;
     }
 
-    Some(crate::memory::bytes_to_cstring(&temp_buf[..dlen]))
+    Some(crate::memory::vec_to_cstring(temp_buf))
 }
 
 /// Add character `c` to buffer `dst`, escaping `K_SPECIAL` (`add_char2buf`).
@@ -2771,21 +2768,24 @@ pub fn add_char2buf(c: i32, dst: &mut [u8]) -> usize {
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
 pub fn vim_strsave_escape_ks(bytes: &[u8]) -> std::ffi::CString {
     let bytes = crate::memory::bytes_until_nul(bytes);
-    let mut res = vec![0u8; bytes.len() * 4 + 1];
-    let mut d = 0usize;
+    let mut res = Vec::with_capacity(bytes.len() + 1);
+    let mut scratch = [0u8; MB_MAXBYTES * 3 + 1];
     let mut s = 0usize;
     while s < bytes.len() {
         let rest = &bytes[s..];
         if rest[0] == K_SPECIAL && rest.len() >= 3 {
-            res[d..d + 3].copy_from_slice(&rest[..3]);
-            d += 3;
+            res.extend_from_slice(&rest[..3]);
             s += 3;
+        } else if rest[0] < 0x80 {
+            res.push(rest[0]);
+            s += 1;
         } else {
-            d += add_char2buf(utf_slice2char(rest), &mut res[d..]);
+            let n = add_char2buf(utf_slice2char(rest), &mut scratch);
+            res.extend_from_slice(&scratch[..n]);
             s += utf_slice2len(rest);
         }
     }
-    crate::memory::bytes_to_cstring(&res[..d])
+    crate::memory::vec_to_cstring(res)
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).

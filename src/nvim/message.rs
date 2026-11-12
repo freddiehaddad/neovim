@@ -2426,13 +2426,13 @@ pub fn str2special_save(
     replace_spaces: bool,
     replace_others: TriState,
 ) -> std::ffi::CString {
-    let mut buf: Vec<u8> = Vec::with_capacity(40);
     let mut rem = crate::memory::bytes_until_nul(str_);
+    let mut buf: Vec<u8> = Vec::with_capacity(rem.len() * 2 + 1);
     while !rem.is_empty() {
         let s = str2special(&mut rem, replace_spaces, replace_others, None);
         buf.extend_from_slice(s.to_bytes());
     }
-    crate::memory::bytes_to_cstring(&buf)
+    crate::memory::vec_to_cstring(buf)
 }
 
 /// Convert character, replacing key with printable representation.
@@ -2442,7 +2442,11 @@ pub fn str2special(
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> SpecialKeyBuf {
-    let str_bytes = crate::memory::bytes_until_nul(sp);
+    let str_bytes = *sp;
+    if str_bytes.first().copied().unwrap_or(0) == 0 {
+        *sp = &[];
+        return SpecialKeyBuf::new();
+    }
     let mut rem = str_bytes;
     if let Some(p) = mb_unescape(&mut rem) {
         *sp = rem;
@@ -2455,17 +2459,17 @@ pub fn str2special(
         return SpecialKeyBuf::from_cstr(&p);
     }
 
-    let mut c = str_bytes.first().copied().unwrap_or(0) as i32;
+    let mut c = str_bytes[0] as i32;
     let mut modifiers = 0;
     let mut special = false;
     let mut str_rem = str_bytes;
-    if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
+    if c == K_SPECIAL as i32 && str_rem.len() >= 3 && str_rem[1] != 0 && str_rem[2] != 0 {
         if str_rem[1] == KS_MODIFIER {
             modifiers = str_rem[2] as i32;
             str_rem = &str_rem[3..];
             c = str_rem.first().copied().unwrap_or(0) as i32;
         }
-        if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
+        if c == K_SPECIAL as i32 && str_rem.len() >= 3 && str_rem[1] != 0 && str_rem[2] != 0 {
             c = to_special(str_rem[1] as i32, str_rem[2] as i32);
             str_rem = &str_rem[2..];
         }
