@@ -434,6 +434,12 @@ impl OptString {
     }
 
     #[inline(always)]
+    pub fn with_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        self.0
+            .with(|opt| f(opt.as_ref().map_or(&b""[..], |s| s.to_bytes())))
+    }
+
+    #[inline(always)]
     pub fn as_ptr(&self) -> *const std::ffi::c_char {
         self.0.with(|opt| opt.as_deref().unwrap_or(c"").as_ptr())
     }

@@ -10,11 +10,10 @@ use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
     api_typename, arena_array, arena_dict, arena_take_arraybuilder, array_obj, boolean_obj,
-    buffer_obj, cbuf_to_string, copy_array, copy_dict, copy_object, copy_string, cstr_to_arena_obj,
-    dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
-    find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark,
-    static_cstr_as_string, string_obj, string_to_array, tabpage_obj, try_enter, try_leave,
-    window_obj,
+    buffer_obj, copy_array, copy_dict, copy_object, copy_string, cstr_to_arena_obj, dict_get_value,
+    dict_obj, dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle,
+    get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark, static_cstr_as_string,
+    string_obj, string_to_array, tabpage_obj, try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -72,8 +71,7 @@ use crate::insexpand::get_cot_flags;
 use crate::keycodes::{
     KE_LEFTDRAG, KE_LEFTMOUSE, KE_LEFTRELEASE, KE_MIDDLEMOUSE, KE_MOUSEDOWN, KE_MOUSELEFT,
     KE_MOUSEMOVE, KE_MOUSERIGHT, KE_MOUSEUP, KE_RIGHTMOUSE, KE_X1MOUSE, KE_X2MOUSE, REPTERM_DO_LT,
-    REPTERM_FROM_PART, REPTERM_NO_SPECIAL, name_to_mod_mask, replace_termcodes,
-    vim_strsave_escape_ks,
+    REPTERM_FROM_PART, REPTERM_NO_SPECIAL, name_to_mod_mask, vim_strsave_escape_ks,
 };
 use crate::lua::converter::{Boolean, Float, LUA_NOREF, LuaRef};
 use crate::lua::executor::{
@@ -777,16 +775,18 @@ pub fn nvim_replace_termcodes(
         flags |= REPTERM_NO_SPECIAL;
     }
 
-    let out = replace_termcodes(
-        str_.as_bytes(),
-        false,
-        0,
-        flags,
-        None,
-        &opt_vars().p_cpo.as_bytes(),
-    )
-    .unwrap_or_default();
-    cbuf_to_string(out.as_bytes())
+    let mut out = opt_vars()
+        .p_cpo
+        .with_bytes(|cpo| {
+            crate::keycodes::replace_termcodes_vec(str_.as_bytes(), false, 0, flags, None, cpo)
+        })
+        .unwrap_or_default();
+    if let Some(nul_pos) = out.iter().position(|&b| b == 0) {
+        out.truncate(nul_pos + 1);
+    } else {
+        out.push(0);
+    }
+    NvimString::from_vec_with_nul(out)
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return

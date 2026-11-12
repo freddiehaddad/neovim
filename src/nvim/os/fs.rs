@@ -1445,35 +1445,30 @@ fn is_executable(name: &CStr, abspath: Option<&mut Option<std::ffi::CString>>) -
 }
 
 #[cfg(windows)]
-fn is_executable_ext(
+fn is_executable_ext_with(
     name_cstr: &CStr,
     mut abspath: Option<&mut Option<std::ffi::CString>>,
+    pathext: &[u8],
+    is_unix_shell: bool,
 ) -> bool {
-    let p_sh = opt_vars().p_sh.to_owned();
-    let sh_tail = path_tail(&p_sh).to_bytes();
-    let has_sub =
-        |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
-    let is_unix_shell =
-        !has_sub(sh_tail, b"powershell") && !has_sub(sh_tail, b"pwsh") && has_sub(sh_tail, b"sh");
-
     let name_bytes = name_cstr.to_bytes();
     let nameext = name_bytes
         .iter()
         .rposition(|&b| b == b'.')
         .map_or(&b""[..], |pos| &name_bytes[pos..]);
 
+    let mut cand_buf = [0u8; MAXPATHL];
     let copied_len =
-        crate::memory::copy_bytes_to_c_buf(&mut *g_st().os_buf_bytes_mut(), name_bytes)
-            .min(MAXPATHL - 1);
-    let mut pathext_buf = [0u8; MAXPATHL];
-    let pathext = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
-        .unwrap_or(c".com;.exe;.bat;.cmd")
-        .to_bytes();
+        crate::memory::copy_bytes_to_c_buf(&mut cand_buf, name_bytes).min(MAXPATHL - 1);
+    let mut checked_plain = false;
     let mut ext_rem = pathext;
     while !ext_rem.is_empty() {
         if ext_rem.first() == Some(&b'.') && ext_rem.get(1).is_none_or(|&b| b == ENV_SEPCHAR) {
-            if is_executable(name_cstr, abspath.as_deref_mut()) {
-                return true;
+            if !checked_plain {
+                checked_plain = true;
+                if is_executable(name_cstr, abspath.as_deref_mut()) {
+                    return true;
+                }
             }
             ext_rem = &ext_rem[1..];
             if !ext_rem.is_empty() {
@@ -1483,23 +1478,45 @@ fn is_executable_ext(
         }
 
         let ext_start = ext_rem;
-        let ext_len = {
-            let g = g_st();
-            let dst = &mut g.os_buf_bytes_mut()[copied_len..MAXPATHL];
-            copy_option_part(&mut ext_rem, dst, ENV_SEPSTR)
-        };
+        let ext_len = copy_option_part(
+            &mut ext_rem,
+            &mut cand_buf[copied_len..MAXPATHL],
+            ENV_SEPSTR,
+        );
         if ext_len != 0 {
             let in_pathext = nameext.len() == ext_len
                 && mb_strnicmp(nameext, &ext_start[..ext_len], ext_len) == 0;
-            let cand_cstr = crate::memory::cstring_until_nul(&*g_st().os_buf_bytes_mut());
-            if ((in_pathext || is_unix_shell) && is_executable(name_cstr, abspath.as_deref_mut()))
-                || is_executable(&cand_cstr, abspath.as_deref_mut())
-            {
+            if (in_pathext || is_unix_shell) && !checked_plain {
+                checked_plain = true;
+                if is_executable(name_cstr, abspath.as_deref_mut()) {
+                    return true;
+                }
+            }
+            let cand_end = (copied_len + ext_len).min(MAXPATHL - 1);
+            cand_buf[cand_end] = 0;
+            let cand_cstr = CStr::from_bytes_with_nul(&cand_buf[..=cand_end])
+                .unwrap_or_else(|_| crate::memory::bytes_as_cstr(&cand_buf[..=cand_end]));
+            if is_executable(cand_cstr, abspath.as_deref_mut()) {
                 return true;
             }
         }
     }
     false
+}
+
+#[cfg(windows)]
+fn is_executable_ext(name_cstr: &CStr, abspath: Option<&mut Option<std::ffi::CString>>) -> bool {
+    let p_sh = opt_vars().p_sh.as_cstr();
+    let sh_tail = path_tail(&p_sh).to_bytes();
+    let has_sub =
+        |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
+    let is_unix_shell =
+        !has_sub(sh_tail, b"powershell") && !has_sub(sh_tail, b"pwsh") && has_sub(sh_tail, b"sh");
+    let mut pathext_buf = [0u8; MAXPATHL];
+    let pathext = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
+        .unwrap_or(c".com;.exe;.bat;.cmd")
+        .to_bytes();
+    is_executable_ext_with(name_cstr, abspath, pathext, is_unix_shell)
 }
 
 #[cfg(not(windows))]
@@ -1517,11 +1534,16 @@ fn is_executable_in_path(
     };
 
     #[cfg(windows)]
-    let path_vec: Vec<u8> = {
-        let p_sh = opt_vars().p_sh.to_owned();
+    let (path_vec, is_unix_shell): (Vec<u8>, bool) = {
+        let p_sh = opt_vars().p_sh.as_cstr();
         let sh_tail = path_tail(&p_sh).to_bytes();
+        let has_sub =
+            |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
+        let unix_sh = !has_sub(sh_tail, b"powershell")
+            && !has_sub(sh_tail, b"pwsh")
+            && has_sub(sh_tail, b"sh");
         let env_bytes = path_env.as_bytes();
-        if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath", false)
+        let v = if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath", false)
             && sh_tail.windows(7).any(|w| w == b"cmd.exe")
         {
             let mut v = Vec::with_capacity(env_bytes.len() + 2);
@@ -1531,8 +1553,15 @@ fn is_executable_in_path(
             v
         } else {
             env_bytes.to_vec()
-        }
+        };
+        (v, unix_sh)
     };
+    #[cfg(windows)]
+    let mut pathext_buf = [0u8; MAXPATHL];
+    #[cfg(windows)]
+    let pathext = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
+        .unwrap_or(c".com;.exe;.bat;.cmd")
+        .to_bytes();
     #[cfg(windows)]
     let path_bytes: &[u8] = &path_vec;
     #[cfg(not(windows))]
@@ -1552,10 +1581,19 @@ fn is_executable_in_path(
         buf_vec[seg_len] = 0;
         let _ = append_path(&mut buf_vec, name_cstr);
 
-        if is_executable_ext(
+        #[cfg(windows)]
+        let found = is_executable_ext_with(
             crate::memory::bytes_as_cstr(&buf_vec),
             abspath.as_deref_mut(),
-        ) {
+            pathext,
+            is_unix_shell,
+        );
+        #[cfg(not(windows))]
+        let found = is_executable_ext(
+            crate::memory::bytes_as_cstr(&buf_vec),
+            abspath.as_deref_mut(),
+        );
+        if found {
             rv = true;
             break;
         }

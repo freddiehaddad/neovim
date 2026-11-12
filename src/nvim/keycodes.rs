@@ -2089,28 +2089,52 @@ pub fn simplify_key(key: i32, modifiers: &mut i32) -> i32 {
     key
 }
 
+const UNSIMPLIFY_COUNT: usize = (MODIFIER_KEYS_TABLE.len() - 1) / MOD_KEYS_ENTRY_SIZE;
+
+const UNSIMPLIFY_SORTED: [(u16, u8, u8, u8); UNSIMPLIFY_COUNT] = {
+    let mut arr = [(u16::MAX, 0u8, 0u8, 0u8); UNSIMPLIFY_COUNT];
+    let mut idx = 0usize;
+    while idx < UNSIMPLIFY_COUNT {
+        let base = idx * MOD_KEYS_ENTRY_SIZE;
+        let mod_mask = MODIFIER_KEYS_TABLE[base];
+        let k0 = MODIFIER_KEYS_TABLE[base + 1];
+        let k1 = MODIFIER_KEYS_TABLE[base + 2];
+        let u0 = MODIFIER_KEYS_TABLE[base + 3];
+        let u1 = MODIFIER_KEYS_TABLE[base + 4];
+        let pair = ((k0 as u16) << 8) | (k1 as u16);
+        arr[idx] = (pair, mod_mask, u0, u1);
+        idx += 1;
+    }
+    let mut i = 1usize;
+    while i < UNSIMPLIFY_COUNT {
+        let cur = arr[i];
+        let mut j = i;
+        while j > 0 && arr[j - 1].0 > cur.0 {
+            arr[j] = arr[j - 1];
+            j -= 1;
+        }
+        arr[j] = cur;
+        i += 1;
+    }
+    arr
+};
+
 /// Inverse of `simplify_key()` (`unsimplify_key`).
 pub fn unsimplify_key(c: i32, modifiers: &mut i32) -> i32 {
     if !is_special(c) {
         return c;
     }
 
-    let key0 = key2termcap0(c);
-    let key1 = key2termcap1(c);
-    let mut i = 0;
-    while MODIFIER_KEYS_TABLE[i] != NUL {
-        if key0 == i32::from(MODIFIER_KEYS_TABLE[i + 1])
-            && key1 == i32::from(MODIFIER_KEYS_TABLE[i + 2])
-        {
-            {
-                *modifiers |= i32::from(MODIFIER_KEYS_TABLE[i]);
-            }
-            return termcap2key(
-                i32::from(MODIFIER_KEYS_TABLE[i + 3]),
-                i32::from(MODIFIER_KEYS_TABLE[i + 4]),
-            );
+    let key0 = key2termcap0(c) as u8;
+    let key1 = key2termcap1(c) as u8;
+    let pair = (u16::from(key0) << 8) | u16::from(key1);
+    if let Ok(mut idx) = UNSIMPLIFY_SORTED.binary_search_by_key(&pair, |&(p, _, _, _)| p) {
+        while idx > 0 && UNSIMPLIFY_SORTED[idx - 1].0 == pair {
+            idx -= 1;
         }
-        i += MOD_KEYS_ENTRY_SIZE;
+        let (_, mod_mask, u0, u1) = UNSIMPLIFY_SORTED[idx];
+        *modifiers |= i32::from(mod_mask);
+        return termcap2key(i32::from(u0), i32::from(u1));
     }
     c
 }
@@ -2565,24 +2589,43 @@ pub fn find_special_key(
     0
 }
 
-const KEY_CODES_NON_ALT: [i32; KEY_NAMES_TABLE.len()] = {
-    let mut arr = [i32::MIN; KEY_NAMES_TABLE.len()];
-    let mut i = 0;
+const KEY_CODES_SORTED: [(i32, i32); KEY_NAMES_TABLE.len()] = {
+    let mut arr = [(i32::MAX, -1i32); KEY_NAMES_TABLE.len()];
+    let mut i = 0usize;
     while i < KEY_NAMES_TABLE.len() {
         if !KEY_NAMES_TABLE[i].is_alt {
-            arr[i] = KEY_NAMES_TABLE[i].key;
+            arr[i] = (KEY_NAMES_TABLE[i].key, i as i32);
         }
         i += 1;
+    }
+    let mut a = 1usize;
+    while a < KEY_NAMES_TABLE.len() {
+        let cur = arr[a];
+        let mut b = a;
+        while b > 0 && (arr[b - 1].0 > cur.0 || (arr[b - 1].0 == cur.0 && arr[b - 1].1 > cur.1)) {
+            arr[b] = arr[b - 1];
+            b -= 1;
+        }
+        arr[b] = cur;
+        a += 1;
     }
     arr
 };
 
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
 pub fn find_special_key_in_table(c: i32) -> i32 {
-    KEY_CODES_NON_ALT
-        .iter()
-        .position(|&k| k == c)
-        .map_or(-1, |i| i as i32)
+    if c == i32::MAX {
+        return -1;
+    }
+    match KEY_CODES_SORTED.binary_search_by_key(&c, |&(k, _)| k) {
+        Ok(mut idx) => {
+            while idx > 0 && KEY_CODES_SORTED[idx - 1].0 == c {
+                idx -= 1;
+            }
+            KEY_CODES_SORTED[idx].1
+        }
+        Err(_) => -1,
+    }
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
@@ -2627,9 +2670,21 @@ pub fn replace_termcodes(
     buf_limit: bool,
     sid_arg: Scid,
     flags: i32,
-    mut did_simplify: Option<&mut bool>,
+    did_simplify: Option<&mut bool>,
     cpo_val: &[u8],
 ) -> Option<std::ffi::CString> {
+    replace_termcodes_vec(from_slice, buf_limit, sid_arg, flags, did_simplify, cpo_val)
+        .map(crate::memory::vec_to_cstring)
+}
+
+pub fn replace_termcodes_vec(
+    from_slice: &[u8],
+    buf_limit: bool,
+    sid_arg: Scid,
+    flags: i32,
+    mut did_simplify: Option<&mut bool>,
+    cpo_val: &[u8],
+) -> Option<Vec<u8>> {
     let from_len = from_slice.len();
 
     // backslash is a special character
@@ -2730,6 +2785,10 @@ pub fn replace_termcodes(
                 }
                 break;
             }
+        } else if key < 0x80 && rest.get(1).is_none_or(|&b| b < 0x80) {
+            temp_buf.push(key);
+            pos += 1;
+            continue;
         }
 
         // skip multibyte char correctly
@@ -2745,7 +2804,7 @@ pub fn replace_termcodes(
         pos += char_len;
     }
 
-    Some(crate::memory::vec_to_cstring(temp_buf))
+    Some(temp_buf)
 }
 
 /// Add character `c` to buffer `dst`, escaping `K_SPECIAL` (`add_char2buf`).
@@ -2836,14 +2895,40 @@ mod tests {
         let unsimplified = unsimplify_key(simplified, &mut mods);
         assert_eq!(unsimplified, K_F1);
         assert_eq!(mods, MOD_MASK_SHIFT as i32);
+
+        for i in 0..UNSIMPLIFY_COUNT {
+            let base = i * MOD_KEYS_ENTRY_SIZE;
+            let k = termcap2key(
+                i32::from(MODIFIER_KEYS_TABLE[base + 1]),
+                i32::from(MODIFIER_KEYS_TABLE[base + 2]),
+            );
+            let expected_u = termcap2key(
+                i32::from(MODIFIER_KEYS_TABLE[base + 3]),
+                i32::from(MODIFIER_KEYS_TABLE[base + 4]),
+            );
+            let mut m = 0;
+            assert_eq!(unsimplify_key(k, &mut m), expected_u);
+            assert_eq!(m, i32::from(MODIFIER_KEYS_TABLE[base]));
+        }
     }
 
     #[test]
     fn key_names_table_hash_resolves_all_entries() {
-        for entry in KEY_NAMES_TABLE {
+        for (i, entry) in KEY_NAMES_TABLE.iter().enumerate() {
             let code = get_special_key_code(entry.name.to_bytes());
             assert_ne!(code, 0);
+            if !entry.is_alt {
+                let first_idx = KEY_NAMES_TABLE
+                    .iter()
+                    .position(|e| !e.is_alt && e.key == entry.key)
+                    .unwrap() as i32;
+                assert_eq!(
+                    find_special_key_in_table(entry.key),
+                    first_idx.min(i as i32)
+                );
+            }
         }
+        assert_eq!(find_special_key_in_table(0), -1);
         assert_eq!(get_special_key_code(b"CR"), CAR);
         assert_eq!(get_special_key_code(b"Esc"), ESC);
         assert_eq!(get_special_key_code(b"NotAKey"), 0);
