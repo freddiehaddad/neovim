@@ -829,7 +829,13 @@ pub fn arena_bytes(_arena: &mut Arena, bytes: &[u8]) -> NvimString {
 }
 
 pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
-    arena_bytes(arena, str_.as_bytes())
+    if str_.data.is_null() || str_.size == 0 {
+        NvimString::empty_cstr()
+    } else if str_.is_nul_terminated() {
+        str_
+    } else {
+        arena_bytes(arena, str_.as_bytes())
+    }
 }
 
 #[inline]
@@ -842,7 +848,10 @@ pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
 
 #[inline]
 pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimString {
-    arena_bytes_opt(arena, str_.as_bytes())
+    match arena {
+        Some(a) => arena_string(a, str_),
+        None => copy_string(str_, None),
+    }
 }
 
 pub fn arena_take_arraybuilder(_arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
@@ -901,7 +910,13 @@ pub fn api_clear_error(value: &mut Error) {
 
 pub fn copy_string(str_: NvimString, _arena: Option<&mut Arena>) -> NvimString {
     if !str_.data.is_null() {
-        NvimString::from_bytes(str_.as_bytes())
+        if str_.size == 0 {
+            NvimString::empty_cstr()
+        } else if str_.is_nul_terminated() {
+            str_
+        } else {
+            NvimString::from_bytes(str_.as_bytes())
+        }
     } else {
         NvimString::new()
     }

@@ -13,7 +13,7 @@ use crate::api::private::validate::{
 };
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, K_OPT_MODIFIED, OPT_NOWIN,
-    apply_autocmds, aucmd_defer_modified, do_filetype_autocmd,
+    apply_autocmds, aucmd_defer_modified, do_filetype_autocmd, has_event,
 };
 use crate::buffer::{
     BCO_ALWAYS, FileBuf, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL, OPT_MODELINE, bt_prompt, buf_is_empty,
@@ -191,7 +191,7 @@ const PREFIX_INV: SetPrefix = 2;
 
 const K_OPT_SCOPE_SIZE: OptScope = 4;
 
-const K_OPT_FLAG_EXPAND: u32 = 1 << 0;
+pub(crate) const K_OPT_FLAG_EXPAND: u32 = 1 << 0;
 const K_OPT_FLAG_NO_DEF_EXP: u32 = 1 << 1;
 const K_OPT_FLAG_NO_DEFAULT: u32 = 1 << 2;
 const K_OPT_FLAG_WAS_SET: u32 = 1 << 3;
@@ -216,7 +216,7 @@ pub(crate) const K_OPT_FLAG_NDNAME: u32 = 1 << 21;
 const K_OPT_FLAG_HLONLY: u32 = 1 << 22;
 const K_OPT_FLAG_MLE: u32 = 1 << 23;
 pub const K_OPT_FLAG_COLON: u32 = 1 << 25;
-const K_OPT_FLAG_EXPR: u32 = 1 << 26;
+pub(crate) const K_OPT_FLAG_EXPR: u32 = 1 << 26;
 
 pub(crate) const K_OPT_ARABIC: OptIndex = 3;
 const K_OPT_AUTOCOMPLETE: OptIndex = 6;
@@ -292,7 +292,7 @@ const K_OPT_INCLUDE: OptIndex = 146;
 const K_OPT_INDENTKEYS: OptIndex = 150;
 const K_OPT_INFERCASE: OptIndex = 151;
 pub(crate) const K_OPT_KEYMAP: OptIndex = 159;
-const K_OPT_KEYWORDPRG: OptIndex = 161;
+pub(crate) const K_OPT_KEYWORDPRG: OptIndex = 161;
 const K_OPT_LHISTORY: OptIndex = 168;
 const K_OPT_LINEBREAK: OptIndex = 169;
 const K_OPT_LINES: OptIndex = 170;
@@ -690,25 +690,6 @@ fn optval_type_name(t: ObjectType) -> &'static std::ffi::CStr {
         ObjectType::ObjectTypeString => c"string",
         _ => std::process::abort(),
     }
-}
-
-#[inline]
-fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
-    if items.is_empty() {
-        return std::ffi::CString::default();
-    }
-    let mut total = sep.len() * (items.len() - 1);
-    for item in items {
-        total += item.to_bytes().len();
-    }
-    let mut out: Vec<u8> = Vec::with_capacity(total);
-    for (i, item) in items.iter().enumerate() {
-        if i > 0 {
-            out.extend_from_slice(sep);
-        }
-        out.extend_from_slice(item.to_bytes());
-    }
-    crate::memory::bytes_to_cstring(&out)
 }
 
 #[inline(always)]
@@ -1558,7 +1539,7 @@ fn stropt_get_newval(
     } else {
         let mut len: usize = 0;
         let mut dup_idx: Option<usize> = None;
-        if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
+        if op != OP_NONE && (op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0) {
             let newval_bytes = crate::memory::bytes_until_nul(&newval_vec);
             len = newval_bytes.len();
             if let Some(orig) = origval {
@@ -2213,25 +2194,32 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<std:
             &var_cstr
         }
     };
-    if val_cstr.to_bytes().len() > MAXPATHL {
+    let val_bytes = val_cstr.to_bytes();
+    if val_bytes.len() > MAXPATHL {
+        return None;
+    }
+    if !val_bytes
+        .first()
+        .is_some_and(|&b| ascii_iswhite(i32::from(b)))
+        && !val_bytes.iter().any(|&b| b == b'$' || b == b'~')
+    {
         return None;
     }
 
     let var = opt.var();
     let esc = var.ptr_eq(&opt_vars().p_tags) || var.ptr_eq(&opt_vars().p_path);
-    expand_env_esc(
+    let len = expand_env_esc(
         val_cstr,
         &mut *g_st().name_buff_bytes_mut(),
         esc.then_some(c" \t"),
         false,
         var.ptr_eq(&opt_vars().p_sps).then_some(c"file:"),
     );
-    let namebuf_cstr = g_st().name_buff_cstr();
-    if namebuf_cstr.to_bytes() == val_cstr.to_bytes() {
+    if &g_st().name_buff_bytes_mut()[..len] == val_bytes {
         return None;
     }
 
-    Some(namebuf_cstr)
+    Some(g_st().name_buff_cstr())
 }
 
 /// After setting various option values: recompute variables that depend on option values.
@@ -2529,7 +2517,10 @@ pub fn apply_optionset_autocmd_now(
     oldval_l: Object,
     newval: Object,
 ) {
-    if starting_val() != 0 || !get_vim_var_str(VV_OPTION_TYPE).is_empty() {
+    if starting_val() != 0
+        || !has_event(EVENT_OPTIONSET)
+        || !get_vim_var_str(VV_OPTION_TYPE).is_empty()
+    {
         return;
     }
 
@@ -5284,74 +5275,109 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
         _ => {}
     }
 
-    let mut str_cstr: std::ffi::CString = if o.obj_type == ObjectType::ObjectTypeString {
-        o.data.string().to_cstring()
-    } else if o.obj_type == ObjectType::ObjectTypeArray {
-        let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
-        for ai in 0..o.data.array().size {
-            let item = o.data.array()[ai].clone();
+    if o.obj_type == ObjectType::ObjectTypeString {
+        if op == OP_REMOVING && is_map && !o.data.cstr_bytes().contains(&b':') {
+            let src = o.data.cstr_bytes();
+            let mut out = Vec::with_capacity(src.len() + 2);
+            out.extend_from_slice(src);
+            out.push(b':');
+            out.push(0);
+            api_free_string(o.data.string());
+            return string_obj(NvimString::from_vec_with_nul(out));
+        }
+        return o;
+    }
+
+    let sep: &[u8] = if is_flaglist && !is_comma { b"" } else { b"," };
+    let mut out: Vec<u8> = if o.obj_type == ObjectType::ObjectTypeArray {
+        let arr = o.data.array();
+        let slice = arr.as_slice();
+        let mut items: Vec<&[u8]> = Vec::with_capacity(slice.len());
+        let mut total_len = 0usize;
+        for item in slice {
             if item.obj_type != ObjectType::ObjectTypeString {
                 *error = true;
                 return nil_obj();
             }
-            let s_cstr = item.data.as_cstr();
-            if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
+            let s_bytes = item.data.cstr_bytes();
+            if !allow_dup && items.contains(&s_bytes) {
                 continue;
             }
-            items.push(s_cstr.to_owned());
+            if !items.is_empty() {
+                total_len += sep.len();
+            }
+            total_len += s_bytes.len();
+            items.push(s_bytes);
         }
-        join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
+        let mut buf = Vec::with_capacity(total_len + 1);
+        for (i, item_bytes) in items.iter().enumerate() {
+            if i > 0 {
+                buf.extend_from_slice(sep);
+            }
+            buf.extend_from_slice(item_bytes);
+        }
+        buf.push(0);
+        buf
     } else {
         let dict = o.data.dict();
-        let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
-        for di in 0..dict.size {
-            let k = &dict[di].key;
-            let v = &dict[di].value;
+        let slice = dict.as_slice();
+        let mut entries: Vec<Vec<u8>> = Vec::with_capacity(slice.len());
+        for kv in slice {
+            let k_bytes = kv.key.cstr_bytes();
+            let v = &kv.value;
             if is_flaglist {
                 if !(v.obj_type == ObjectType::ObjectTypeNil
                     || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
                 {
-                    items.push(k.to_cstring());
+                    entries.push(k_bytes.to_vec());
                 }
             } else if v.obj_type == ObjectType::ObjectTypeString {
-                let k_bytes = k.cstr_bytes();
                 let v_bytes = v.data.cstr_bytes();
-                let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
-                kv.extend_from_slice(k_bytes);
-                kv.push(b':');
-                kv.extend_from_slice(v_bytes);
-                items.push(crate::memory::bytes_to_cstring(&kv));
+                let mut entry = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
+                entry.extend_from_slice(k_bytes);
+                entry.push(b':');
+                entry.extend_from_slice(v_bytes);
+                entries.push(entry);
             } else if v.obj_type == ObjectType::ObjectTypeInteger {
-                let k_bytes = k.cstr_bytes();
-                let num_s = format!(":{}", v.data.integer());
-                let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
-                kv.extend_from_slice(k_bytes);
-                kv.extend_from_slice(num_s.as_bytes());
-                items.push(crate::memory::bytes_to_cstring(&kv));
+                use std::io::Write as _;
+                let mut entry = Vec::with_capacity(k_bytes.len() + 21);
+                entry.extend_from_slice(k_bytes);
+                let _ = write!(&mut entry, ":{}", v.data.integer());
+                entries.push(entry);
             } else if v.obj_type == ObjectType::ObjectTypeBoolean
                 || v.obj_type == ObjectType::ObjectTypeNil
             {
                 if v.obj_type == ObjectType::ObjectTypeBoolean && v.data.boolean() {
-                    items.push(k.to_cstring());
+                    entries.push(k_bytes.to_vec());
                 }
             } else {
                 *error = true;
                 return nil_obj();
             }
         }
-        if !items.is_empty() && (is_map || is_comma) {
-            items.sort_unstable();
+        if !entries.is_empty() && (is_map || is_comma) {
+            entries.sort_unstable();
         }
-        join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
+        let total_len: usize = entries.iter().map(Vec::len).sum::<usize>()
+            + sep.len() * entries.len().saturating_sub(1);
+        let mut buf = Vec::with_capacity(total_len + 2);
+        for (i, entry) in entries.iter().enumerate() {
+            if i > 0 {
+                buf.extend_from_slice(sep);
+            }
+            buf.extend_from_slice(entry);
+        }
+        buf.push(0);
+        buf
     };
 
-    if op == OP_REMOVING && is_map && !str_cstr.as_bytes().contains(&b':') {
-        let mut bytes = str_cstr.into_bytes();
-        bytes.push(b':');
-        str_cstr = std::ffi::CString::new(bytes).unwrap();
+    if op == OP_REMOVING && is_map && !out[..out.len() - 1].contains(&b':') {
+        let last = out.len() - 1;
+        out[last] = b':';
+        out.push(0);
     }
 
-    cstr_to_obj(Some(&*str_cstr))
+    string_obj(NvimString::from_vec_with_nul(out))
 }
 
 /// Check if option is hidden.
@@ -5371,7 +5397,7 @@ pub fn option_has_scope(opt_idx: OptIndex, scope: OptScope) -> bool {
 }
 
 #[inline]
-fn option_is_global_local(opt_idx: OptIndex) -> bool {
+pub(crate) fn option_is_global_local(opt_idx: OptIndex) -> bool {
     if opt_idx == K_OPT_INVALID {
         return false;
     }
@@ -5483,8 +5509,6 @@ fn did_set_option<'a>(
         return errmsg;
     }
 
-    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()));
-
     if set_sid != SID_NONE {
         let script_ctx = if set_sid == 0 {
             g_st().current_sctx.get()
@@ -5512,12 +5536,12 @@ fn did_set_option<'a>(
         } else {
             let varp_global = get_varp_scope(opt, OPT_GLOBAL);
             if varp_global.is_some() && varp_global != varp {
+                let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()));
                 set_option_varp(opt_idx, varp_global, new_value.clone());
+                optval_free(new_value);
             }
         }
     }
-
-    optval_free(new_value);
 
     if direct {
         return errmsg;
@@ -5772,26 +5796,32 @@ fn set_option<'a>(
     let scope_local = (opt_flags & OPT_LOCAL) != 0;
     let scope_global = (opt_flags & OPT_GLOBAL) != 0;
     let scope_both = !scope_local && !scope_global;
-    let is_opt_local_unset = is_option_local_value_unset(opt_idx);
 
     let varp = if scope_both && option_is_global_local(opt_idx) {
         opt.var()
     } else {
         get_varp_scope(opt, opt_flags)
     };
-    let varp_local = get_varp_scope(opt, OPT_LOCAL);
-    let varp_global = get_varp_scope(opt, OPT_GLOBAL);
 
-    let old_value = optval_own(
-        opt_idx,
-        opt_from_varp(opt_idx, varp.clone().clone().clone()),
-    );
+    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()));
+
+    let need_optionset = !direct
+        && starting_val() == 0
+        && opt_idx != K_OPT_MODIFIED
+        && (has_event(EVENT_OPTIONSET)
+            || opt_idx == K_OPT_SYNTAX
+            || opt_idx == K_OPT_FILETYPE
+            || opt_idx == K_OPT_SPELLLANG);
+    let need_ui_option = !direct && (opt.flags() & K_OPT_FLAG_UIOPTION) != 0;
 
     let mut saved_used_value = nil_obj();
     let mut saved_old_global_value = nil_obj();
     let mut saved_old_local_value = nil_obj();
     let mut saved_new_value = nil_obj();
-    if !direct {
+    if need_optionset {
+        let is_opt_local_unset = is_option_local_value_unset(opt_idx);
+        let varp_local = get_varp_scope(opt, OPT_LOCAL);
+        let varp_global = get_varp_scope(opt, OPT_GLOBAL);
         saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
         saved_old_local_value = if is_opt_local_unset {
             copy_object(saved_old_global_value.clone(), None)
@@ -5817,12 +5847,12 @@ fn set_option<'a>(
     }
 
     if varp.is_some() {
-        set_option_varp(opt_idx, varp.clone().clone(), value.clone());
+        set_option_varp(opt_idx, varp.clone(), value.clone());
     }
     if value.obj_type == ObjectType::ObjectTypeUnset {
         value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()));
     }
-    if !direct {
+    if need_optionset || need_ui_option {
         saved_new_value = optval_snapshot(value.clone());
     }
     args.os_varp = varp;
@@ -5837,16 +5867,20 @@ fn set_option<'a>(
 
     if errmsg.is_none() && !direct {
         if starting_val() == 0 {
-            apply_optionset_autocmd(
-                opt_idx,
-                opt_flags,
-                saved_used_value.clone(),
-                saved_old_global_value.clone(),
-                saved_old_local_value.clone(),
-                saved_new_value.clone(),
-            );
+            if opt_idx == K_OPT_MODIFIED {
+                aucmd_defer_modified(&curbuf_mut(), value.data.boolean());
+            } else if need_optionset {
+                apply_optionset_autocmd(
+                    opt_idx,
+                    opt_flags,
+                    saved_used_value.clone(),
+                    saved_old_global_value.clone(),
+                    saved_old_local_value.clone(),
+                    saved_new_value.clone(),
+                );
+            }
         }
-        if (opt.flags() & K_OPT_FLAG_UIOPTION) != 0 {
+        if need_ui_option {
             ui_call_option_set(cstr_as_string(Some(opt.fullname)), saved_new_value.clone());
         }
     }
@@ -7846,12 +7880,15 @@ pub fn escape_option_str_cmdline(var_arg: &[u8]) -> std::ffi::CString {
 
     #[cfg(windows)]
     {
-        let src = buf_cstr.to_bytes();
-        let mut out = Vec::with_capacity(src.len());
         let expand_ok = OPT_STATE.with(|s| s.expand_option_idx.get()) != K_OPT_INVALID
             && (get_option(OPT_STATE.with(|s| s.expand_option_idx.get())).flags()
                 & K_OPT_FLAG_EXPAND)
                 != 0;
+        if !expand_ok {
+            return buf_cstr;
+        }
+        let src = buf_cstr.to_bytes();
+        let mut out = Vec::with_capacity(src.len());
         let mut idx = 0usize;
         while idx < src.len() {
             if expand_ok

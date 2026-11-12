@@ -2291,7 +2291,10 @@ pub fn get_vim_var_dict(idx: VimVarIndex) -> crate::eval::typval::DictId {
 }
 
 pub fn get_vim_var_str(idx: VimVarIndex) -> std::borrow::Cow<'static, CStr> {
-    std::borrow::Cow::Owned(tv_get_string(&get_vim_var_tv(idx).tv()).into_owned())
+    match tv_get_string(&get_vim_var_tv(idx).tv()) {
+        std::borrow::Cow::Borrowed(s) if s.is_empty() => std::borrow::Cow::Borrowed(c""),
+        s => std::borrow::Cow::Owned(s.into_owned()),
+    }
 }
 
 pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<std::rc::Rc<TvPartial>> {

@@ -3,10 +3,9 @@
 
 use crate::api::private::helpers::{
     OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_bytes,
-    arena_dict, arena_string, array_obj, boolean_obj, cbuf_to_arena_str, copy_object,
-    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_tab_by_handle,
-    find_window_by_handle, has_key, put_c, static_cstr_as_obj, string_obj, try_wrap,
-    with_script_context,
+    arena_dict, arena_string, array_obj, boolean_obj, cbuf_to_arena_str, copy_object, dict_obj,
+    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key,
+    integer_obj, put_c, static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
@@ -20,18 +19,20 @@ use crate::buffer::{
     BF_DUMMY, BLN_DUMMY, Bufref, FileBuf, buflist_new, bufref_valid, set_bufref, wipe_buffer,
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
+use crate::eval::vars::K_OPT_FLAG_FUNC;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
 use crate::memory::Arena;
 use crate::option::{
-    K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_FLAG_LIST,
-    K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN,
-    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget,
-    PREFIX_NONE, SetOp, copy_option_part, escape_option_str_cmdline, find_option,
-    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
-    get_varp_from, opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj,
-    optval_own, set_option_direct, set_option_value_for, validate_and_prepare_option_value,
+    K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_EXPAND,
+    K_OPT_FLAG_EXPR, K_OPT_FLAG_FLAG_LIST, K_OPT_INVALID, K_OPT_KEYWORDPRG, K_OPT_SCOPE_BUF,
+    K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN, OP_ADDING, OP_NONE, OP_PREPENDING,
+    OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, PREFIX_NONE, SetOp, copy_option_part,
+    escape_option_str_cmdline, find_option, get_all_options_info, get_option, get_option_info,
+    get_option_newval, get_option_value_for, get_varp_from, opt_from_varp, option_has_scope,
+    option_has_type, optval_free, optval_from_obj, optval_own, set_option_direct,
+    set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::window::close_windows;
 use std::ffi::CStr;
@@ -430,26 +431,7 @@ pub fn nvim_get_option_value(
     value
 }
 
-/// @nodoc
-// DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
-//   FUNC_API_LUA_ONLY;
-pub fn nvim_option_to_object(
-    name: NvimString,
-    value: Object,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
-    let opt_idx = find_option(name.as_bytes());
-    if opt_idx == K_OPT_INVALID {
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeValidation,
-            c"Unknown option '%s'",
-            name,
-        );
-        return OBJECT_NIL;
-    }
-
+fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> Object {
     if value.obj_type != ObjectType::ObjectTypeString {
         return copy_object(value, Some(arena));
     }
@@ -457,11 +439,10 @@ pub fn nvim_option_to_object(
     let option = get_option(opt_idx);
     let flags = option.flags();
     let schema = option.schema;
-    let str_cstr = value.data.as_cstr();
-    let bytes = str_cstr.to_bytes();
+    let bytes = value.data.cstr_bytes();
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
-        string_obj(arena_string(arena, cstr_as_string(Some(str_cstr))))
+        string_obj(arena_string(arena, value.data.string()))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
         let mut d = arena_dict(arena, bytes.len());
         for &b in bytes {
@@ -490,12 +471,17 @@ pub fn nvim_option_to_object(
         };
         let mut p_bytes = bytes;
         let str_len = p_bytes.len();
-        let mut item_buf = vec![0u8; str_len + 1];
+        let mut stack_buf = [0u8; 256];
+        let mut heap_buf: Vec<u8> = Vec::new();
+        let item_buf: &mut [u8] = if str_len < stack_buf.len() {
+            &mut stack_buf[..str_len + 1]
+        } else {
+            heap_buf.resize(str_len + 1, 0);
+            &mut heap_buf
+        };
         while !p_bytes.is_empty() {
-            copy_option_part(&mut p_bytes, &mut item_buf, c",");
-            let item_bytes = CStr::from_bytes_until_nul(&item_buf)
-                .unwrap_or(c"")
-                .to_bytes();
+            let item_len = copy_option_part(&mut p_bytes, item_buf, c",");
+            let item_bytes = &item_buf[..item_len];
             if item_bytes.is_empty() {
                 continue;
             }
@@ -518,6 +504,29 @@ pub fn nvim_option_to_object(
         }
         if as_map { dict_obj(d) } else { array_obj(a) }
     }
+}
+
+/// @nodoc
+// DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
+//   FUNC_API_LUA_ONLY;
+pub fn nvim_option_to_object(
+    name: NvimString,
+    value: Object,
+    arena: &mut Arena,
+    err: &mut Error,
+) -> Object {
+    let opt_idx = find_option(name.as_bytes());
+    if opt_idx == K_OPT_INVALID {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Unknown option '%s'",
+            name,
+        );
+        return OBJECT_NIL;
+    }
+
+    option_to_object_idx(opt_idx, value, arena)
 }
 
 /// Sets the value of an option. The behavior of this function matches that of
@@ -644,6 +653,46 @@ pub fn nvim_set_option_value(
             return OBJECT_NIL;
         }
 
+        if right_type == ObjectType::ObjectTypeInteger {
+            if operation == OP_NONE {
+                merged_val = optval_right;
+            } else {
+                let oldval_num = if i == 0 {
+                    varp.int_val()
+                } else {
+                    merged_val.data.integer()
+                };
+                let rhs = optval_right.data.integer();
+                let res = match operation {
+                    OP_ADDING => oldval_num.wrapping_add(rhs),
+                    OP_PREPENDING => oldval_num.wrapping_mul(rhs),
+                    OP_REMOVING => oldval_num.wrapping_sub(rhs),
+                    _ => rhs,
+                };
+                merged_val = integer_obj(res);
+            }
+            continue;
+        }
+
+        if right_type == ObjectType::ObjectTypeString
+            && operation == OP_NONE
+            && option_has_type(opt_idx, ObjectType::ObjectTypeString)
+            && (option.flags() & (K_OPT_FLAG_FUNC | K_OPT_FLAG_EXPR | K_OPT_FLAG_FLAG_LIST)) == 0
+            && opt_idx != K_OPT_KEYWORDPRG
+            && {
+                let s = optval_right.data.cstr_bytes();
+                optval_right.data.string().size == s.len()
+                    && ((option.flags() & K_OPT_FLAG_EXPAND) == 0
+                        || (!s
+                            .first()
+                            .is_some_and(|&b| crate::charset::ascii_iswhite(i32::from(b)))
+                            && !s.iter().any(|&b| b == b'$' || b == b'~' || b == b'\\')))
+            }
+        {
+            merged_val = optval_right;
+            continue;
+        }
+
         let mut arg_buf: Vec<u8> = Vec::new();
 
         match right_type {
@@ -654,9 +703,6 @@ pub fn nvim_set_option_value(
                 arg_buf.reserve(1 + escaped_bytes.len());
                 arg_buf.push(b'=');
                 arg_buf.extend_from_slice(escaped_bytes);
-            }
-            ObjectType::ObjectTypeInteger => {
-                arg_buf = format!("={}", optval_right.data.integer()).into_bytes();
             }
             ObjectType::ObjectTypeBoolean => {
                 merged_val = optval_right.clone();
@@ -671,8 +717,7 @@ pub fn nvim_set_option_value(
 
         optval_free(optval_right);
 
-        if right_type == ObjectType::ObjectTypeInteger || right_type == ObjectType::ObjectTypeString
-        {
+        if right_type == ObjectType::ObjectTypeString {
             let mut oldval = if i == 0 {
                 optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()))
             } else {
@@ -736,7 +781,7 @@ pub fn nvim_set_option_value(
         });
     }
 
-    let rv = nvim_option_to_object(name, merged_val.clone(), arena, err);
+    let rv = option_to_object_idx(opt_idx, merged_val.clone(), arena);
     optval_free(merged_val);
     rv
 }

@@ -142,12 +142,39 @@ impl NvimString {
 
     #[inline]
     pub fn from_bytes_len(bytes: &[u8], size: usize) -> Self {
+        if size == 0 {
+            return Self::empty_cstr();
+        }
         let copy_len = size.min(bytes.len());
         let mut v = vec![0u8; size + 1];
         v[..copy_len].copy_from_slice(&bytes[..copy_len]);
         Self {
             data: NvimStringData::Owned(Rc::new(v)),
             size,
+        }
+    }
+
+    #[inline]
+    pub fn from_vec_with_nul(mut v: Vec<u8>) -> Self {
+        let size = v.len().saturating_sub(1);
+        if size == 0 {
+            return Self::empty_cstr();
+        }
+        if v.last() != Some(&0) {
+            v.push(0);
+        }
+        Self {
+            data: NvimStringData::Owned(Rc::new(v)),
+            size,
+        }
+    }
+
+    #[inline]
+    pub fn is_nul_terminated(&self) -> bool {
+        match &self.data {
+            NvimStringData::Null => false,
+            NvimStringData::Static(s) => s.get(self.size) == Some(&0),
+            NvimStringData::Owned(v) => v.get(self.size) == Some(&0),
         }
     }
 
