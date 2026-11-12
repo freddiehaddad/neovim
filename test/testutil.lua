@@ -3,7 +3,12 @@ local test_assert = require('test.assert')
 ---@type test.harness
 local harness = require('test.harness')
 local uv = vim.uv
-local Paths = require('test.config.paths')
+local ok, Paths = pcall(require, 'test.config.paths')
+if not ok then
+  -- Out of tree (e.g. external project vendors the test harness without the full Nvim repo).
+  assert(Paths:find("module 'test.config.paths' not found", 1, true), Paths)
+  Paths = { test_build_dir = vim.fs.dirname(vim.fs.dirname(vim.v.progpath)) }
+end
 
 --- Functions executing in the context of the test runner (not the current nvim test session).
 --- @class test.testutil
