@@ -558,6 +558,7 @@ fn spell_load_file_into(fname_cstr: &std::ffi::CStr, lp: &mut Slang, silent: boo
 
     let mut res: i32 = 0;
     let mut check_someerror = false;
+    let mut had_soundfold = false;
     while !fail {
         let n = spell_getc(&fd);
         if n == SN_END {
@@ -604,11 +605,16 @@ fn spell_load_file_into(fname_cstr: &std::ffi::CStr, lp: &mut Slang, silent: boo
             SN_REPSAL => {
                 res = read_rep_section(&fd, &mut lp.sl_repsal, &mut lp.sl_repsal_first);
             }
-            SN_SAL => {
-                res = read_sal_section(&fd, &mut *lp);
-            }
-            SN_SOFO => {
-                res = read_sofo_section(&fd, &mut *lp);
+            SN_SAL | SN_SOFO => {
+                // there should either be a SN_SAL or SN_SOFO section
+                if had_soundfold {
+                    res = SP_FORMERROR;
+                } else if n == SN_SAL {
+                    res = read_sal_section(&fd, &mut *lp);
+                } else {
+                    res = read_sofo_section(&fd, &mut *lp);
+                }
+                had_soundfold = true;
             }
             SN_MAP => {
                 let Some(p) = read_string(&fd, len as usize) else {
