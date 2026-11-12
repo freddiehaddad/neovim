@@ -2616,7 +2616,7 @@ fn find_is_eval_item(
     false
 }
 
-pub fn find_ident_under_cursor(find_type: i32, offset: Option<&mut i32>) -> &'static [u8] {
+pub fn find_ident_under_cursor(find_type: i32, offset: Option<&mut i32>) -> Vec<u8> {
     let mut textcol: i32 = 0;
     let has_offset = offset.is_some();
     let ident = find_ident_at_pos(
@@ -2638,7 +2638,7 @@ pub fn find_ident_at_pos(
     mut startcol: Colnr,
     textcol: Option<&mut i32>,
     find_type: i32,
-) -> &'static [u8] {
+) -> Vec<u8> {
     let mut col: i32 = 0;
     let mut this_class: i32 = 0;
     let mut prev_class: i32;
@@ -2702,7 +2702,7 @@ pub fn find_ident_at_pos(
         } else {
             emsg(tr(E_NOIDENT));
         }
-        return &[];
+        return Vec::new();
     }
     let ptr_bytes = &line_bytes[col as usize..];
     if let Some(textcol) = textcol {
@@ -2726,7 +2726,7 @@ pub fn find_ident_at_pos(
     }
 
     assert!(col >= 0);
-    &ptr_bytes[..(col as usize).min(ptr_bytes.len())]
+    ptr_bytes[..(col as usize).min(ptr_bytes.len())].to_vec()
 }
 
 fn prep_redo_cmd(cap: &mut Cmdarg) {
@@ -3282,7 +3282,7 @@ fn nv_page(cap: &mut Cmdarg) {
 
 fn nv_gd(oap: &mut Oparg, nchar: i32, thisblock: i32) {
     let ident = find_ident_under_cursor(FIND_IDENT, None);
-    if ident.is_empty() || !find_decl(ident, nchar == b'd' as i32, thisblock != 0, SEARCH_START) {
+    if ident.is_empty() || !find_decl(&ident, nchar == b'd' as i32, thisblock != 0, SEARCH_START) {
         clearopbeep(&mut *oap);
         return;
     }
@@ -3370,7 +3370,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
         } else {
             par_pos = curwin_mut().w_cursor.get();
             while curwin_mut().w_cursor.get().lnum > 1
-                && !crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice())
+                && !crate::charset::skipwhite_slice(&crate::cursor::get_cursor_line_slice())
                     .is_empty()
             {
                 curwin_mut().w_cursor.sub_lnum(1);
@@ -3417,13 +3417,13 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
                 }
                 break;
             }
-            if get_leader_len(crate::cursor::get_cursor_line_slice(), None, false, true) > 0 {
+            if get_leader_len(&crate::cursor::get_cursor_line_slice(), None, false, true) > 0 {
                 curwin_mut().w_cursor.add_lnum(1);
                 curwin_mut().w_cursor.set_col(0);
                 continue;
             }
             let valid = is_ident(
-                crate::cursor::get_cursor_line_slice(),
+                &crate::cursor::get_cursor_line_slice(),
                 curwin_mut().w_cursor.get().col,
             );
 
@@ -3573,7 +3573,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
             virtcol -= vim_strsize(&get_showbreak_value(&curwin_mut()));
         }
 
-        let c = crate::mbyte::utf_slice2char(crate::cursor::get_cursor_pos_slice());
+        let c = crate::mbyte::utf_slice2char(&crate::cursor::get_cursor_pos_slice());
         if dir == FORWARD && virtcol < want && want <= width1 && !vim_isprintc(c) && c > 255 {
             oneright();
         }
@@ -3669,12 +3669,12 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     if checkclearop(&mut cap.oap) {
         return true;
     }
-    let mut word_opt: Option<(&[u8], usize)> = None;
+    let mut word_opt: Option<(crate::option_vars::RcSlice, usize)> = None;
     if g_st().visual_global.borrow().active {
         let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
             return false;
         };
-        word_opt = Some((vis_cstr.to_bytes_with_nul(), vis_len));
+        word_opt = Some((vis_cstr.to_bytes_with_nul_slice(), vis_len));
     }
     if word_opt.is_none() {
         let pos = curwin_mut().w_cursor.get();
@@ -3684,21 +3684,22 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
         g_st().emsg_off.set(g_st().emsg_off.get() - (1));
         if len != 0 && curwin_mut().w_cursor.get().col <= pos.col {
             word_opt = Some((
-                ml_get_pos(&curwin_mut().w_cursor.get()).to_bytes_with_nul(),
+                ml_get_pos(&curwin_mut().w_cursor.get()).to_bytes_with_nul_slice(),
                 len,
             ));
         }
         curwin_mut().w_cursor.set(pos);
     }
 
-    let (word_buf, len) = if let Some(wl) = word_opt {
-        wl
+    let ident;
+    let (word_buf, len): (&[u8], usize) = if let Some((ref wl, l)) = word_opt {
+        (wl.as_slice(), l)
     } else {
-        let ident = find_ident_under_cursor(FIND_IDENT, None);
+        ident = find_ident_under_cursor(FIND_IDENT, None);
         if ident.is_empty() {
             return false;
         }
-        (ident, ident.len())
+        (ident.as_slice(), ident.len())
     };
     assert!(len <= i32::MAX as usize);
     spell_add_word(
@@ -4312,12 +4313,15 @@ fn nv_ident(cap: &mut Cmdarg) {
         cmdchar = b'#' as i32;
     }
 
+    let vis_cstr;
+    let ident;
     let mut visual_sel = false;
     if cmdchar == b']' as i32 || cmdchar == CTRL_RSB_CONST || cmdchar == b'K' as i32 {
         if g_st().visual_global.borrow().active {
-            let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
+            let Some((vc, vis_len)) = get_visual_text(Some(cap)) else {
                 return;
             };
+            vis_cstr = vc;
             ident_slice = &vis_cstr.to_bytes()[..vis_len.min(vis_cstr.to_bytes().len())];
             has_ident = true;
         }
@@ -4329,7 +4333,7 @@ fn nv_ident(cap: &mut Cmdarg) {
 
     let mut ident_offset: i32 = 0;
     if !has_ident {
-        let ident = find_ident_under_cursor(
+        ident = find_ident_under_cursor(
             if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
                 FIND_IDENT | FIND_STRING
             } else {
@@ -4341,7 +4345,7 @@ fn nv_ident(cap: &mut Cmdarg) {
             clearop(&mut cap.oap);
             return;
         }
-        ident_slice = ident;
+        ident_slice = &ident;
     }
 
     let kp_owned = if curbuf_mut().b_p_kp.is_empty() {
@@ -4514,7 +4518,7 @@ fn nv_ident(cap: &mut Cmdarg) {
     }
 }
 
-pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize)> {
+pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(crate::option_vars::RcCStr, usize)> {
     if g_st().visual_global.borrow().mode != b'V' as i32 {
         unadjust_for_sel();
     }
@@ -4716,7 +4720,7 @@ fn nv_right(cap: &mut Cmdarg) {
                 oneright();
             } else {
                 curwin_mut().w_cursor.add_col(crate::mbyte::utfc_slice2len(
-                    crate::cursor::get_cursor_pos_slice(),
+                    &crate::cursor::get_cursor_pos_slice(),
                 ) as Colnr);
             }
         }
@@ -4764,7 +4768,7 @@ fn nv_left(cap: &mut Cmdarg) {
                     if !cp.is_empty() {
                         curwin_mut()
                             .w_cursor
-                            .add_col(crate::mbyte::utfc_slice2len(cp) as Colnr);
+                            .add_col(crate::mbyte::utfc_slice2len(&cp) as Colnr);
                     }
                     cap.retval |= CA_NO_ADJ_OP_END;
                 }
@@ -5208,7 +5212,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             let is_upper = (cap.nchar as u8).is_ascii_uppercase();
             let is_lower = (cap.nchar as u8).is_ascii_lowercase();
             find_pattern_in_path(
-                ident,
+                &ident,
                 0,
                 true,
                 if cap.count0 == 0 { !is_upper } else { false },
@@ -5471,7 +5475,7 @@ fn nv_percent(cap: &mut Cmdarg) {
         if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_MATCH)
             && buf_has_cstyle_comments()
         {
-            let comment_col = check_linecomment(crate::cursor::get_cursor_line_slice());
+            let comment_col = check_linecomment(&crate::cursor::get_cursor_line_slice());
             if comment_col == MAXCOL || curwin_mut().w_cursor.get().col < comment_col {
                 flags = FM_SKIPCOMM;
             }
@@ -5627,7 +5631,7 @@ fn nv_replace(cap: &mut Cmdarg) {
     }
 
     if (get_cursor_pos_len() as usize) < (cap.count1 as u32 as usize)
-        || mb_charlen(crate::cursor::get_cursor_pos_slice()) < cap.count1
+        || mb_charlen(&crate::cursor::get_cursor_pos_slice()) < cap.count1
     {
         clearopbeep(&mut cap.oap);
         return;
@@ -6351,7 +6355,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         );
         loop {
             i = gchar_cursor();
-            csarg.line = get_cursor_line_ptr();
+            csarg.line = crate::plines::CsLine::Rc(get_cursor_line_ptr());
             if !(i != i32::from(NUL)
                 && ascii_iswhite_or_nul(conceal_disp_byte(&csarg, curwin_mut().w_cursor.get().col))
                 && oneright())

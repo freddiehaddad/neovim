@@ -12172,7 +12172,7 @@ pub fn eval_vars(
             *errormsg = Some(std::borrow::Cow::Borrowed(c""));
             return None;
         }
-        return Some(bytes_to_cstring(ident));
+        return Some(bytes_to_cstring(&ident));
     } else {
         let mut result_cstr: Option<&CStr> = None;
         let oldfile_cow;

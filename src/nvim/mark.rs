@@ -986,7 +986,8 @@ fn mark_line(mp: &CursorPos, lead_len: i32) -> std::ffi::CString {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global.get() >= 0);
-    let line = crate::charset::skipwhite_slice(ml_get(mp.lnum).to_bytes());
+    let ml_line = ml_get(mp.lnum);
+    let line = crate::charset::skipwhite_slice(ml_line.to_bytes());
     let max_bytes = line.len().min((g_st().columns_global.get() as usize) * 5);
 
     let mut len: i32 = 0;
@@ -2014,7 +2015,7 @@ pub fn mark_mb_adjustpos(buf: &FileBuf, lp: &mut CursorPos) {
         if line_slice.is_empty() || (line_slice.len() as Colnr) < lp.col {
             lp.col = 0;
         } else {
-            lp.col -= crate::mbyte::utf_head_off_slice(line_slice, lp.col as usize);
+            lp.col -= crate::mbyte::utf_head_off_slice(&line_slice, lp.col as usize);
         }
         let rem = line_slice.get(lp.col as usize..).unwrap_or(&[]);
         if lp.coladd == 1

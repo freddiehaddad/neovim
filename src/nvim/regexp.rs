@@ -1782,7 +1782,8 @@ impl RegexecState {
     }
     #[inline(always)]
     pub fn load_line(&self, lnum: Linenr) {
-        self.line.set(reg_line_from_opt_cstr(reg_getline(lnum)));
+        self.line
+            .set(reg_line_from_opt_cstr(reg_getline(lnum).as_deref()));
     }
     #[inline(always)]
     pub fn input_col(&self) -> Colnr {
@@ -2785,14 +2786,14 @@ fn reg_getline_bounds(lnum: Linenr, submatch: bool) -> (Linenr, Linenr) {
     })
 }
 
-pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
+pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcCStr> {
     RE_STATE.with(|s| {
         let firstlnum = s.rex.reg_firstlnum.get() + lnum;
         if firstlnum < 1 {
             return None;
         }
         if lnum > s.rex.reg_maxline.get() {
-            return Some(c"");
+            return Some(crate::option_vars::RcCStr::EMPTY);
         }
         Some(ml_get_buf(&s.rex.buf_mut(), firstlnum))
     })
@@ -3681,7 +3682,7 @@ fn vim_regsub_both(
                     if clnum < 0 || epos.lnum < 0 {
                         s = REG_LINE_NULL;
                     } else {
-                        let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum));
+                        let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum).as_deref());
                         s = line_ptr.wrapping_add(spos.col as usize);
                         if epos.lnum == clnum {
                             len = epos.col - spos.col;
@@ -3716,7 +3717,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 1;
                                 clnum += 1;
-                                s = reg_line_from_opt_cstr(reg_getline(clnum));
+                                s = reg_line_from_opt_cstr(reg_getline(clnum).as_deref());
                                 if epos.lnum == clnum {
                                     len = epos.col;
                                 } else {
@@ -3782,13 +3783,13 @@ fn vim_regsub_both(
     (dst_off + 1) as i32
 }
 
-fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
+fn reg_getline_submatch_slice(lnum: Linenr) -> Option<crate::option_vars::RcSlice> {
     let (firstlnum, maxline) = reg_getline_bounds(lnum, true);
     if firstlnum < 1 {
         return None;
     }
     if lnum > maxline {
-        return Some(b"");
+        return Some(crate::option_vars::RcSlice::default());
     }
     let _ = ml_get_buf_len;
     Some(crate::memline::ml_get_buf_slice(
@@ -3822,12 +3823,12 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
             buf.push(b'\n');
             lnum += 1;
             while lnum < end_lnum {
-                let line = reg_getline_submatch_slice(lnum).unwrap_or(b"");
-                buf.extend_from_slice(line);
+                let line = reg_getline_submatch_slice(lnum).unwrap_or_default();
+                buf.extend_from_slice(&line);
                 buf.push(b'\n');
                 lnum += 1;
             }
-            let src = reg_getline_submatch_slice(lnum).unwrap_or(b"");
+            let src = reg_getline_submatch_slice(lnum).unwrap_or_default();
             buf.extend_from_slice(&src[..ecol.min(src.len())]);
         }
         Some(crate::memory::bytes_to_cstring(&buf))
@@ -3862,7 +3863,7 @@ pub fn reg_submatch_list(no: i32) -> Option<crate::eval::typval::ListId> {
 
         list = tv_list_alloc((elnum - slnum + 1) as isize);
 
-        let first_line = reg_getline_submatch_slice(slnum).unwrap_or_else(|| c"".to_bytes());
+        let first_line = reg_getline_submatch_slice(slnum).unwrap_or_default();
         let s = &first_line[(scol as usize).min(first_line.len())..];
         if slnum == elnum {
             crate::eval::typval::tv_list_append_bytes(
@@ -3873,10 +3874,10 @@ pub fn reg_submatch_list(no: i32) -> Option<crate::eval::typval::ListId> {
             let max_lnum = elnum - slnum;
             crate::eval::typval::tv_list_append_bytes(&list, s);
             for i in 1..max_lnum {
-                let line = reg_getline_submatch_slice(slnum + i).unwrap_or_else(|| c"".to_bytes());
-                crate::eval::typval::tv_list_append_bytes(&list, line);
+                let line = reg_getline_submatch_slice(slnum + i).unwrap_or_default();
+                crate::eval::typval::tv_list_append_bytes(&list, &line);
             }
-            let last_line = reg_getline_submatch_slice(elnum).unwrap_or_else(|| c"".to_bytes());
+            let last_line = reg_getline_submatch_slice(elnum).unwrap_or_default();
             crate::eval::typval::tv_list_append_bytes(
                 &list,
                 &last_line[..(ecol as usize).min(last_line.len())],

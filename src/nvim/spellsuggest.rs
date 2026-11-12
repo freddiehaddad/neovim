@@ -707,7 +707,7 @@ pub fn spell_suggest(count: i32) {
             let curline_bytes = get_cursor_line_slice();
             let mut p_idx = (curwin_mut().w_cursor.get().col as usize).min(curline_bytes.len());
             while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin_mut()) {
-                crate::mbyte::mb_idx_back(curline_bytes, &mut p_idx);
+                crate::mbyte::mb_idx_back(&curline_bytes, &mut p_idx);
             }
             while p_idx < curline_bytes.len()
                 && !spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin_mut())

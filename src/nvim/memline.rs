@@ -77,7 +77,7 @@ pub struct Memline {
     pub ml_line_lnum: std::cell::Cell<i32>,
     pub ml_line_start: std::cell::Cell<usize>,
     pub ml_line_buf: std::cell::RefCell<Vec<u8>>,
-    pub ml_line_cstr: std::cell::Cell<Option<&'static std::ffi::CStr>>,
+    pub ml_line_cstr: crate::globals::CloneCell<Option<crate::option_vars::RcCStr>>,
     pub ml_line_offset: std::cell::Cell<usize>,
     pub ml_line_offset_ff: std::cell::Cell<i32>,
     pub ml_locked: std::cell::Cell<Option<BhdrId>>,
@@ -100,7 +100,7 @@ impl Memline {
             ml_line_lnum: std::cell::Cell::new(0),
             ml_line_start: std::cell::Cell::new(0),
             ml_line_buf: std::cell::RefCell::new(Vec::new()),
-            ml_line_cstr: std::cell::Cell::new(None),
+            ml_line_cstr: crate::globals::CloneCell::new(None),
             ml_line_offset: std::cell::Cell::new(0),
             ml_line_offset_ff: std::cell::Cell::new(0),
             ml_locked: std::cell::Cell::new(None),
@@ -146,15 +146,15 @@ impl Memline {
     }
 
     #[inline(always)]
-    pub fn current_line_slice(&self) -> &'static [u8] {
+    pub fn current_line_slice(&self) -> crate::option_vars::RcSlice {
         if let Some(cstr) = self.ml_line_cstr.get() {
-            return cstr.to_bytes_with_nul();
+            return cstr.to_bytes_with_nul_slice();
         }
         let cstr = self.with_current_line_slice(|s| {
-            crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(s))
+            crate::option_vars::RcCStr::from_cstr(crate::memory::bytes_as_cstr(s))
         });
-        self.ml_line_cstr.set(Some(cstr));
-        cstr.to_bytes_with_nul()
+        self.ml_line_cstr.set(Some(cstr.clone()));
+        cstr.to_bytes_with_nul_slice()
     }
 
     #[inline(always)]
@@ -2197,34 +2197,54 @@ pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
     }
 }
 
+/// Borrow the bytes (excluding NUL) of line `lnum` in `buf` directly from `Memline`.
+#[inline(always)]
+pub fn with_ml_buf_line<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&[u8]) -> R) -> R {
+    if !ml_load_line(buf, lnum, false) {
+        return f(&[]);
+    }
+    buf.b_ml.with_current_line_slice(|s| {
+        let len = s.len().saturating_sub(1);
+        f(&s[..len])
+    })
+}
+
+/// Borrow the `CStr` of line `lnum` in `buf` directly from `Memline`.
+#[inline(always)]
+pub fn with_ml_buf_cstr<R>(buf: &FileBuf, lnum: Linenr, f: impl FnOnce(&CStr) -> R) -> R {
+    if !ml_load_line(buf, lnum, false) {
+        return f(c"");
+    }
+    buf.b_ml
+        .with_current_line_slice(|s| f(crate::memory::bytes_as_cstr(s)))
+}
+
 /// Return a reference to a (read-only copy of a) line in `curbuf`.
-pub fn ml_get(lnum: Linenr) -> &'static CStr {
+pub fn ml_get(lnum: Linenr) -> crate::option_vars::RcCStr {
     ml_get_buf_impl(&curbuf_mut(), lnum, false)
 }
 
 /// Return a reference to a (read-only copy of a) line in `buf`.
-pub fn ml_get_buf(buf: &FileBuf, lnum: Linenr) -> &'static CStr {
+pub fn ml_get_buf(buf: &FileBuf, lnum: Linenr) -> crate::option_vars::RcCStr {
     ml_get_buf_impl(buf, lnum, false)
 }
 
 /// Return the bytes (excluding NUL) of a line in `curbuf`.
 #[inline(always)]
-pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
+pub fn ml_get_slice(lnum: Linenr) -> crate::option_vars::RcSlice {
     ml_get_buf_slice(&curbuf_mut(), lnum)
 }
 
 /// Return the bytes (excluding NUL) of a line in `buf`.
 #[inline(always)]
-pub fn ml_get_buf_slice(buf: &FileBuf, lnum: Linenr) -> &'static [u8] {
-    ml_get_buf(buf, lnum).to_bytes()
+pub fn ml_get_buf_slice(buf: &FileBuf, lnum: Linenr) -> crate::option_vars::RcSlice {
+    ml_get_buf(buf, lnum).to_bytes_slice()
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
 #[inline(always)]
-pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
-    let line = ml_get_buf_slice(&curbuf_mut(), pos.lnum);
-    let col = (pos.col.max(0) as usize).min(line.len());
-    &line[col..]
+pub fn ml_get_pos_slice(pos: &CursorPos) -> crate::option_vars::RcSlice {
+    ml_get_buf_slice(&curbuf_mut(), pos.lnum).slice(pos.col.max(0) as usize)
 }
 
 /// Mutate the byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
@@ -2234,7 +2254,7 @@ pub fn with_ml_get_buf_mut_slice<R>(
     lnum: Linenr,
     f: impl FnOnce(&mut [u8]) -> R,
 ) -> R {
-    if ml_get_buf_impl(buf, lnum, true).is_empty() {
+    if !ml_load_line(buf, lnum, true) || buf.b_ml.ml_line_textlen.get() <= 1 {
         return f(&mut []);
     }
     assert!(buf.b_ml.ml_line_textlen.get() > 0);
@@ -2262,10 +2282,9 @@ pub fn with_ml_get_buf_mut_slice<R>(
 }
 
 /// Return reference to CStr starting at position `pos`.
-pub fn ml_get_pos(pos: &CursorPos) -> &'static CStr {
+pub fn ml_get_pos(pos: &CursorPos) -> crate::option_vars::RcCStr {
     let line = ml_get_buf(&crate::globals::curbuf_mut(), pos.lnum);
-    let col = (pos.col.max(0) as usize).min(line.to_bytes().len());
-    &line[col..]
+    line.slice(pos.col.max(0) as usize)
 }
 
 /// Return length (excluding NUL) of the given line.
@@ -2280,26 +2299,30 @@ pub fn ml_get_pos_len(pos: &mut CursorPos) -> Colnr {
 
 /// Return length (excluding NUL) of the given line in `buf`.
 pub fn ml_get_buf_len(buf: &FileBuf, lnum: Linenr) -> Colnr {
-    ml_get_buf_slice(buf, lnum).len() as Colnr
+    if buf.b_ml.ml_line_lnum.get() != lnum && !ml_load_line(buf, lnum, false) {
+        return 0;
+    }
+    (buf.b_ml.ml_line_textlen.get() - 1).max(0)
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
 pub fn ml_region_text(buf: &FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
     let mut sb = Vec::<u8>::new();
     for lnum in start.lnum..=end.lnum {
-        let line = ml_get_buf_slice(buf, lnum);
-        let len = line.len() as Colnr;
-        let from = if lnum == start.lnum {
-            start.col.min(len).max(0)
-        } else {
-            0
-        };
-        let to = if lnum == end.lnum {
-            end.col.min(len).max(from)
-        } else {
-            len
-        };
-        sb.extend_from_slice(&line[from as usize..to as usize]);
+        with_ml_buf_line(buf, lnum, |line| {
+            let len = line.len() as Colnr;
+            let from = if lnum == start.lnum {
+                start.col.min(len).max(0)
+            } else {
+                0
+            };
+            let to = if lnum == end.lnum {
+                end.col.min(len).max(from)
+            } else {
+                len
+            };
+            sb.extend_from_slice(&line[from as usize..to as usize]);
+        });
         if lnum < end.lnum {
             sb.push(NL as u8);
         }
@@ -2309,16 +2332,22 @@ pub fn ml_region_text(buf: &FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8
 
 /// Return codepoint at `pos`.
 pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
-    if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
+    let buf = curbuf_mut();
+    if pos.col == MAXCOL || pos.col > ml_get_buf_len(&buf, pos.lnum) {
         return i32::from(NUL);
     }
-    crate::mbyte::utf_slice2char(ml_get_pos_slice(pos))
+    let col = pos.col.max(0) as usize;
+    buf.b_ml.with_current_line_slice(|s| {
+        let line = &s[..s.len().saturating_sub(1)];
+        crate::mbyte::utf_slice2char(line.get(col..).unwrap_or(&[]))
+    })
 }
 
-fn ml_get_buf_impl(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> &'static CStr {
+fn ml_load_line(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> bool {
     if buf.b_ml.ml_mfp.borrow().is_none() {
         buf.b_ml.ml_line_textlen.set(1);
-        return c"";
+        buf.b_ml.ml_line_lnum.set(0);
+        return false;
     }
 
     if lnum > buf.b_ml.ml_line_count.get() {
@@ -2333,7 +2362,8 @@ fn ml_get_buf_impl(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> &'stat
             ml_st(|st| st.ml_get_recursive.set(st.ml_get_recursive.get() - 1));
         }
         ml_flush_line(buf, false);
-        return ml_get_errorret(buf, lnum);
+        ml_set_errorret(buf, lnum);
+        return true;
     }
     lnum = lnum.max(1);
 
@@ -2358,7 +2388,8 @@ fn ml_get_buf_impl(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> &'stat
                 );
                 ml_st(|st| st.ml_get_recursive.set(st.ml_get_recursive.get() - 1));
             }
-            return ml_get_errorret(buf, lnum);
+            ml_set_errorret(buf, lnum);
+            return true;
         };
         let idx = (lnum - buf.b_ml.ml_locked_low.get()) as usize;
         let (start, end) = {
@@ -2405,25 +2436,34 @@ fn ml_get_buf_impl(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> &'stat
                 buf.deleted_codeunits.set(cu + 1);
             }
         }
-    } else if let Some(cstr) = buf.b_ml.ml_line_cstr.get() {
+    }
+    true
+}
+
+fn ml_get_buf_impl(buf: &FileBuf, lnum: Linenr, will_change: bool) -> crate::option_vars::RcCStr {
+    if !ml_load_line(buf, lnum, will_change) {
+        return crate::option_vars::RcCStr::EMPTY;
+    }
+    if !will_change && let Some(cstr) = buf.b_ml.ml_line_cstr.get() {
         return cstr;
     }
 
     let cstr = buf.b_ml.with_current_line_slice(|s| {
-        crate::option_vars::intern_opt_cstr(crate::memory::bytes_as_cstr(s))
+        crate::option_vars::RcCStr::from_cstr(crate::memory::bytes_as_cstr(s))
     });
     if !will_change {
-        buf.b_ml.ml_line_cstr.set(Some(cstr));
+        buf.b_ml.ml_line_cstr.set(Some(cstr.clone()));
     }
     cstr
 }
 
-fn ml_get_errorret(buf: &FileBuf, lnum: Linenr) -> &'static CStr {
+fn ml_set_errorret(buf: &FileBuf, lnum: Linenr) {
     buf.b_ml.ml_line_start.set(usize::MAX);
     buf.b_ml.ml_line_textlen.set(4);
     buf.b_ml.ml_line_lnum.set(lnum);
-    buf.b_ml.ml_line_cstr.set(Some(c"???"));
-    c"???"
+    buf.b_ml
+        .ml_line_cstr
+        .set(Some(crate::option_vars::RcCStr::from_static(c"???")));
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
@@ -4509,7 +4549,7 @@ pub fn inc(lp: &mut CursorPos) -> i32 {
     if lp.col != MAXCOL {
         let p = ml_get_pos_slice(lp);
         if !p.is_empty() {
-            let l = crate::mbyte::utfc_slice2len(p) as i32;
+            let l = crate::mbyte::utfc_slice2len(&p) as i32;
             lp.col += l;
             return if p.len() > l as usize { 0 } else { 2 };
         }
@@ -4538,21 +4578,21 @@ pub fn dec(lp: &mut CursorPos) -> i32 {
     if lp.col == MAXCOL {
         let line = ml_get_slice(lp.lnum);
         lp.col = line.len() as Colnr;
-        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
+        lp.col -= crate::mbyte::utf_head_off_slice(&line, lp.col as usize);
         return 0;
     }
 
     if lp.col > 0 {
         lp.col -= 1;
         let line = ml_get_slice(lp.lnum);
-        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
+        lp.col -= crate::mbyte::utf_head_off_slice(&line, lp.col as usize);
         return 0;
     }
     if lp.lnum > 1 {
         lp.lnum -= 1;
         let line = ml_get_slice(lp.lnum);
         lp.col = line.len() as Colnr;
-        lp.col -= crate::mbyte::utf_head_off_slice(line, lp.col as usize);
+        lp.col -= crate::mbyte::utf_head_off_slice(&line, lp.col as usize);
         return 1;
     }
 

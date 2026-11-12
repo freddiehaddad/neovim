@@ -789,14 +789,14 @@ pub fn fuzzy_match_str_in_line(
 }
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
-pub fn search_for_fuzzy_match<'a>(
-    buf: &'a FileBuf,
+pub fn search_for_fuzzy_match(
+    buf: &FileBuf,
     pos: &mut CursorPos,
     pattern: Option<&[u8]>,
     dir: i32,
     start_pos: &CursorPos,
     len: &mut i32,
-    out_line: &mut &'a [u8],
+    out_line: &mut crate::option_vars::RcSlice,
     score: &mut i32,
 ) -> bool {
     let mut current_pos = *pos;
@@ -837,7 +837,7 @@ pub fn search_for_fuzzy_match<'a>(
             let mut candidate_line = if !whole_line {
                 &full_line[(current_pos.col as usize).min(full_len)..]
             } else {
-                full_line
+                &full_line
             };
 
             if !candidate_line.is_empty() {
@@ -900,7 +900,7 @@ pub fn search_for_fuzzy_match<'a>(
 
     if let Some((lnum, off)) = matched_line {
         let full_line = crate::memline::ml_get_buf_slice(buf, lnum);
-        *out_line = &full_line[off.min(full_line.len())..];
+        *out_line = full_line.slice(off.min(full_line.len()));
     }
 
     found_new_match

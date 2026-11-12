@@ -2607,7 +2607,7 @@ fn syn_add_end_off(
         } else {
             while off < 0 && col_idx > 0 {
                 off += 1;
-                crate::mbyte::mb_idx_back(line, &mut col_idx);
+                crate::mbyte::mb_idx_back(&line, &mut col_idx);
             }
         }
         col = col_idx as i32;
@@ -2663,7 +2663,7 @@ fn syn_add_start_off(
         } else {
             while off < 0 && col_idx > 0 {
                 off += 1;
-                crate::mbyte::mb_idx_back(line, &mut col_idx);
+                crate::mbyte::mb_idx_back(&line, &mut col_idx);
             }
         }
         col = col_idx as i32;

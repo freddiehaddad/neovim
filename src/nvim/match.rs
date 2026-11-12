@@ -746,7 +746,8 @@ pub fn prepare_search_hl_line(
                 (shl.startcol, shl.endcol)
             };
             if startcol == endcol {
-                let line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
+                let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
+                let line_bytes = line_cstr.to_bytes();
                 let end_off = endcol as usize;
                 let step = if end_off < line_bytes.len() {
                     utfc_ptr2len(&line_bytes[end_off..])
@@ -782,7 +783,7 @@ pub fn update_search_hl(
     on_last_col: &mut bool,
     search_attr_from_match: &mut bool,
 ) -> i32 {
-    let mut line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
+    let mut line_bytes = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
     let mut idx = 0usize;
     let len = wp.w_match_head.borrow().len();
     let mut shl_flag = false;
@@ -838,7 +839,7 @@ pub fn update_search_hl(
                 pos_inprogress =
                     match_idx.is_some_and(|m_idx| wp.w_match_head.borrow()[m_idx].mit_pos_cur != 0);
 
-                line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
+                line_bytes = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
 
                 if get_shl(wp, search_hl, match_idx).lnum == lnum {
                     {

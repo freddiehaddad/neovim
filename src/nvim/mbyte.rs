@@ -2390,7 +2390,7 @@ pub fn mb_stricmp(s1: &CStr, s2: &CStr) -> i32 {
 
 pub fn show_utf8() {
     let line = crate::cursor::get_cursor_pos_slice();
-    let len = utfc_slice2len(line);
+    let len = utfc_slice2len(&line);
     if len == 0 {
         msg(c"NUL", 0);
         return;
@@ -2797,7 +2797,7 @@ pub fn utf_find_illegal() {
             let nul_pos = tf.iter().position(|&b| b == 0).unwrap_or(tf.len());
             &tf[..nul_pos]
         } else {
-            cursor_slice
+            &cursor_slice
         };
 
         let mut idx = 0usize;
@@ -2872,7 +2872,7 @@ pub fn mb_check_adjust_col(win: &WinInfoInfo) {
                 win.w_cursor.set_col(len - 1);
             }
             win.w_cursor
-                .sub_col(utf_head_off_slice(line, win.w_cursor.get().col as usize) as Colnr);
+                .sub_col(utf_head_off_slice(&line, win.w_cursor.get().col as usize) as Colnr);
         }
 
         let cur_col = win.w_cursor.get().col as usize;

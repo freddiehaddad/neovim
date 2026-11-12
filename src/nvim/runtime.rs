@@ -2506,7 +2506,7 @@ fn do_source_buffer_init(
     sp.buflines.clear();
     for curr_lnum in eap.unwrap().line1..=eap.unwrap().line2 {
         sp.buflines.push(crate::memory::bytes_to_cstring(
-            crate::memline::ml_get_slice(curr_lnum),
+            &crate::memline::ml_get_slice(curr_lnum),
         ));
     }
     sp.buf_lnum = 0;

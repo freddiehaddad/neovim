@@ -1308,7 +1308,7 @@ fn virtcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
         if idx == 0 {
             return 0;
         }
-        idx -= crate::mbyte::utf_head_off_slice(line, idx - 1) as usize + 1;
+        idx -= crate::mbyte::utf_head_off_slice(&line, idx - 1) as usize + 1;
     }
     idx as i32 + 1
 }

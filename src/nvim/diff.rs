@@ -623,7 +623,7 @@ fn diff_check_unchanged(tp: &TabPageInfo, dp_idx: usize) {
                 off_org = tp.tp_diffs.borrow()[dp_idx].df_count[i_org] - 1;
             }
             let lnum_org = tp.tp_diffs.borrow()[dp_idx].df_lnum[i_org] + off_org;
-            let line_org = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
+            let line_org = crate::memory::bytes_to_cstring(&crate::memline::ml_get_buf_slice(
                 &tp.diffbuf_mut(i_org),
                 lnum_org,
             ));
@@ -642,7 +642,7 @@ fn diff_check_unchanged(tp: &TabPageInfo, dp_idx: usize) {
                 let lnum_new = tp.tp_diffs.borrow()[dp_idx].df_lnum[i_new] + off_new;
                 if diff_cmp(
                     line_org.to_bytes(),
-                    crate::memline::ml_get_buf_slice(&tp.diffbuf_mut(i_new), lnum_new),
+                    &crate::memline::ml_get_buf_slice(&tp.diffbuf_mut(i_new), lnum_new),
                 ) != 0
                 {
                     break;
@@ -748,7 +748,8 @@ fn diff_write_buffer(buf: &FileBuf, backing: &mut Vec<u8>, start: Linenr, mut en
     *backing = vec![0u8; len];
     len = 0;
     for lnum in start..=end {
-        let mut s = ml_get_buf(buf, lnum).to_bytes();
+        let line_cstr = ml_get_buf(buf, lnum);
+        let mut s = line_cstr.to_bytes();
         if (diff_flags() & DIFF_ICASE) != 0 {
             while !s.is_empty() {
                 let c: i32;
@@ -2095,13 +2096,16 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
         return false;
     }
     for i in 0..dp.df_count[idx1] {
-        let line = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
+        let line = crate::memory::bytes_to_cstring(&crate::memline::ml_get_buf_slice(
             &curtab_mut().diffbuf_mut(idx1),
             dp.df_lnum[idx1] + i,
         ));
         let cmp = diff_cmp(
             line.to_bytes(),
-            crate::memline::ml_get_buf_slice(&curtab_mut().diffbuf_mut(idx2), dp.df_lnum[idx2] + i),
+            &crate::memline::ml_get_buf_slice(
+                &curtab_mut().diffbuf_mut(idx2),
+                dp.df_lnum[idx2] + i,
+            ),
         );
         if cmp != 0 {
             return false;
@@ -2499,7 +2503,7 @@ fn diff_find_change_simple(
         None
     } else {
         Some(crate::memory::bytes_to_cstring(
-            crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum),
+            &crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum),
         ))
     };
     let mut added = true;
@@ -2705,8 +2709,9 @@ fn diff_refine_inline_word_highlight(
                 di += 1;
                 continue;
             }
-            let line_bytes =
-                ml_get_buf(&curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff).to_bytes();
+            let line_cstr =
+                ml_get_buf(&curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff);
+            let line_bytes = line_cstr.to_bytes();
             let gap_text = line_bytes.get(gap_start as usize..).unwrap_or(&[]);
             let mut only_non_word = true;
             let mut has_content = false;
@@ -2815,8 +2820,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             let mut numlines: Linenr = 0;
             curstr.clear();
             for off in 0..dp_count[i] {
-                let curline_bytes =
-                    ml_get_buf(&curtab_mut().diffbuf_mut(i), dp_lnum[i] + off).to_bytes();
+                let curline_cstr = ml_get_buf(&curtab_mut().diffbuf_mut(i), dp_lnum[i] + off);
+                let curline_bytes = curline_cstr.to_bytes();
                 let mut in_keyword = false;
                 let mut last_white = false;
                 let mut eol_ga_len: i32 = -1;
@@ -3405,7 +3410,7 @@ fn diffgetput(
                 if nr > from_buf.b_ml.ml_line_count.get() {
                     break;
                 }
-                let p = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
+                let p = crate::memory::bytes_to_cstring(&crate::memline::ml_get_buf_slice(
                     &from_buf, nr,
                 ));
                 let _ = ml_append(lnum + i - 1, p.to_bytes(), 0, false);

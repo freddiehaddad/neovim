@@ -1292,7 +1292,7 @@ pub fn file_name_at_cursor(
     file_lnum: Option<&mut Linenr>,
 ) -> Option<std::ffi::CString> {
     file_name_in_line(
-        crate::cursor::get_cursor_line_slice(),
+        &crate::cursor::get_cursor_line_slice(),
         curwin_mut().w_cursor.get().col,
         options,
         count,

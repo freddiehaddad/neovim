@@ -4714,7 +4714,7 @@ fn nfa_regmatch(
                         {
                             re_s.rex
                                 .line
-                                .set(crate::regexp::reg_line_from_cstr(next_line));
+                                .set(crate::regexp::reg_line_from_cstr(&next_line));
                             re_s.rex.input.set(re_s.rex.line.get());
                             re_s.rex.lnum.set(re_s.rex.lnum.get() + (1));
                         }
@@ -4933,7 +4933,7 @@ fn nfa_regexec_both(
         let mut col = startcol;
 
         if !re_s.rex.has_match.get() {
-            line = crate::regexp::reg_line_from_opt_cstr(reg_getline(0));
+            line = crate::regexp::reg_line_from_opt_cstr(reg_getline(0).as_deref());
         }
         if line.is_null() {
             iemsg(tr(E_NULL));

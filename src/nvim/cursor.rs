@@ -280,8 +280,8 @@ fn coladvance2(
         let line_cstr = ml_get_buf(&wp.buf_mut(), pos.lnum);
         let linelen = ml_get_buf_len(&wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, line_cstr);
-        let mut ci = utf_ptr2_str_char_info(line_cstr);
+        let cstype: CSType = init_charsize_arg(&mut csarg, wp, pos.lnum, &line_cstr);
+        let mut ci = utf_ptr2_str_char_info(&line_cstr);
         col = 0;
         while col <= wcol && !ci.ptr.is_empty() {
             let cli = utf_cluster_info(ci);
@@ -292,7 +292,7 @@ fn coladvance2(
             col += cs.width;
             ci = cli.next;
         }
-        idx = ci.offset_from(line_cstr) as i32;
+        idx = ci.offset_from(&line_cstr) as i32;
 
         if col > wcol || (!virtual_active(wp) && one_more == 0) {
             idx -= 1;
@@ -578,19 +578,25 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
 }
 
 pub fn gchar_cursor() -> i32 {
-    crate::mbyte::utf_slice2char(get_cursor_pos_slice())
+    let cursor = curwin_mut().w_cursor.get();
+    let col = cursor.col.max(0) as usize;
+    crate::memline::with_ml_buf_line(&curbuf_mut(), cursor.lnum, |line| {
+        crate::mbyte::utf_slice2char(line.get(col..).unwrap_or(&[]))
+    })
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
 pub fn char_before_cursor() -> i32 {
-    let col = curwin_mut().w_cursor.get().col as usize;
+    let cursor = curwin_mut().w_cursor.get();
+    let col = cursor.col as usize;
     if col == 0 {
         return -1;
     }
 
-    let line = get_cursor_line_slice();
-    let prev_len = crate::mbyte::utf_head_off_slice(line, col - 1) as usize + 1;
-    crate::mbyte::utf_slice2char(&line[col - prev_len..])
+    crate::memline::with_ml_buf_line(&curbuf_mut(), cursor.lnum, |line| {
+        let prev_len = crate::mbyte::utf_head_off_slice(line, col - 1) as usize + 1;
+        crate::mbyte::utf_slice2char(&line[col - prev_len..])
+    })
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).
@@ -600,22 +606,21 @@ pub fn pchar_cursor(c: u8) {
 }
 
 /// Return the cursor line as a CStr (`get_cursor_line_ptr`).
-pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
+pub fn get_cursor_line_ptr() -> crate::option_vars::RcCStr {
     let lnum = curwin_mut().w_cursor.get().lnum;
     ml_get_buf(&crate::globals::curbuf_mut(), lnum)
 }
 
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
-pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
+pub fn get_cursor_pos_ptr() -> crate::option_vars::RcCStr {
     let cursor = curwin_mut().w_cursor.get();
     let line = ml_get_buf(&crate::globals::curbuf_mut(), cursor.lnum);
-    let col = (cursor.col.max(0) as usize).min(line.to_bytes().len());
-    &line[col..]
+    line.slice(cursor.col.max(0) as usize)
 }
 
 /// Return the bytes (excluding the NUL) of the cursor line.
 #[inline]
-pub fn get_cursor_line_slice() -> &'static [u8] {
+pub fn get_cursor_line_slice() -> crate::option_vars::RcSlice {
     ml_get_buf_slice(
         &crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
@@ -634,7 +639,7 @@ pub fn with_cursor_line_mut_slice<R>(f: impl FnOnce(&mut [u8]) -> R) -> R {
 
 /// Return the bytes (excluding the NUL) starting at the cursor position.
 #[inline]
-pub fn get_cursor_pos_slice() -> &'static [u8] {
+pub fn get_cursor_pos_slice() -> crate::option_vars::RcSlice {
     let cursor = curwin_mut().w_cursor.get();
     ml_get_pos_slice(&cursor)
 }

@@ -230,7 +230,7 @@ fn find_start_of_word(pos: &mut CursorPos) {
 
     while pos.col > 0 {
         let mut col = pos.col - 1;
-        col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
+        col -= crate::mbyte::utf_head_off_slice(&line_bytes, col as usize);
         if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
             break;
         }
@@ -244,7 +244,7 @@ fn find_end_of_word(pos: &mut CursorPos) {
     let line_bytes = crate::memline::ml_get_slice(pos.lnum);
     if opt_vars().p_sel.first_byte() == b'e' && pos.col > 0 {
         pos.col -= 1;
-        pos.col -= crate::mbyte::utf_head_off_slice(line_bytes, pos.col as usize);
+        pos.col -= crate::mbyte::utf_head_off_slice(&line_bytes, pos.col as usize);
     }
     let cclass = get_mouse_class(line_bytes.get(pos.col as usize..).unwrap_or(&[]));
     while (pos.col as usize) < line_bytes.len() {
@@ -1187,7 +1187,7 @@ pub fn do_mouse(
                     if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
                         curwin_mut()
                             .w_cursor
-                            .add_col(crate::mbyte::utfc_slice2len(cur_pos_slice) as i32);
+                            .add_col(crate::mbyte::utfc_slice2len(&cur_pos_slice) as i32);
                     }
                     curwin_mut().w_cursor.update_mut(find_end_of_word);
                 }
@@ -2093,8 +2093,8 @@ fn mouse_find_grid_win(
 pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mut Colnr>) -> Colnr {
     let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
     let mut csarg = CharsizeArg::new();
-    let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_cstr);
-    let mut ci = utf_ptr2_str_char_info(line_cstr);
+    let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, &line_cstr);
+    let mut ci = utf_ptr2_str_char_info(&line_cstr);
     let mut cur_vcol: i32 = 0;
     while cur_vcol < vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
@@ -2118,7 +2118,7 @@ pub fn vcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: Colnr, coladdp: Option<&mu
     if let Some(coladdp) = coladdp {
         *coladdp = vcol - cur_vcol;
     }
-    ci.offset_from(line_cstr) as Colnr
+    ci.offset_from(&line_cstr) as Colnr
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.
@@ -2137,7 +2137,8 @@ fn set_mouse_topline(wp: &WinInfoInfo) {
 /// Return length of line "lnum" for horizontal scrolling.
 fn scroll_line_len(lnum: Linenr) -> Colnr {
     let mut col: Colnr = 0;
-    let mut line = crate::memline::ml_get_slice(lnum);
+    let line_rc = crate::memline::ml_get_slice(lnum);
+    let mut line = line_rc.as_slice();
     if !line.is_empty() {
         loop {
             let numchar = win_chartabsize(&curwin_mut(), line, col);

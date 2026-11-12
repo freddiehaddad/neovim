@@ -765,7 +765,8 @@ pub fn buf_get_text(
         return rv;
     }
 
-    let bufstr = ml_get_buf(buf, lnum as Linenr).to_bytes_with_nul();
+    let bufstr_cstr = ml_get_buf(buf, lnum as Linenr);
+    let bufstr = bufstr_cstr.to_bytes_with_nul();
     let line_length = (bufstr.len() - 1) as i64;
 
     if start_col < 0 {

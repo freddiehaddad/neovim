@@ -2634,7 +2634,7 @@ pub fn ins_compl_bs() -> i32 {
 
     let line_slice = get_cursor_line_slice();
     let mut p_idx = (curwin_mut().w_cursor.get().col as usize).min(line_slice.len());
-    crate::mbyte::mb_idx_back(line_slice, &mut p_idx);
+    crate::mbyte::mb_idx_back(&line_slice, &mut p_idx);
     let p_off = p_idx as isize;
 
     if (p_off as i32) - INSEXPAND.with(|s| s.compl_col.get()) < 0
@@ -4666,14 +4666,15 @@ fn ins_compl_get_next_word_or_line<'a>(
         if cur_match_pos.lnum >= line_count {
             return None;
         }
-        let mut res_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
+        let res_rc = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
+        let mut res_slice = res_rc.as_slice();
         if !opt_vars().p_paste.get() {
             res_slice = crate::charset::skipwhite_slice(res_slice);
         }
         let len = res_slice.len() as i32;
         *match_len = len;
-        return Some(std::borrow::Cow::Borrowed(
-            &res_slice[..(len.max(0) as usize).min(res_slice.len())],
+        return Some(std::borrow::Cow::Owned(
+            res_slice[..(len.max(0) as usize).min(res_slice.len())].to_vec(),
         ));
     }
 
@@ -4716,7 +4717,7 @@ fn ins_compl_get_next_word_or_line<'a>(
         if cur_match_pos.lnum < line_count {
             let iobuff = &mut *g_st().iobuff_bytes_mut();
             let next_line = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
-            let next_s = crate::charset::skipwhite_slice(next_line);
+            let next_s = crate::charset::skipwhite_slice(&next_line);
             let wstart = find_word_start(next_s);
             let wend = find_word_end(wstart);
             let next_wlen = next_s.len() - wend.len();
@@ -4750,9 +4751,10 @@ fn ins_compl_get_next_word_or_line<'a>(
     }
 
     *match_len = len;
-    let res_slice = &crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum)[col_u..];
-    Some(std::borrow::Cow::Borrowed(
-        &res_slice[..(len.max(0) as usize).min(res_slice.len())],
+    let res_rc = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum);
+    let res_slice = &res_rc[col_u..];
+    Some(std::borrow::Cow::Owned(
+        res_slice[..(len.max(0) as usize).min(res_slice.len())].to_vec(),
     ))
 }
 
@@ -4787,7 +4789,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         g_st().msg_silent.set(g_st().msg_silent.get() + (1));
 
         if in_fuzzy_collect {
-            let mut matched_line: &[u8] = &[];
+            let mut matched_line = crate::option_vars::RcSlice::default();
             found_new_match = search_for_fuzzy_match(
                 &ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
@@ -4798,7 +4800,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 &mut matched_line,
                 &mut score,
             );
-            matched_slice = Some(std::borrow::Cow::Borrowed(matched_line));
+            matched_slice = Some(std::borrow::Cow::Owned(matched_line.to_vec()));
         } else if ctrl_x_mode_whole_line()
             || ctrl_x_mode_eval()
             || (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_SOL) != 0
@@ -5504,7 +5506,7 @@ pub fn ins_compl_delete(new_leader: bool) {
         if curwin_mut().w_cursor.get().col < get_cursor_line_len() {
             let rem = get_cursor_pos_slice();
             let mut v = Vec::with_capacity(rem.len() + 1);
-            v.extend_from_slice(rem);
+            v.extend_from_slice(&rem);
             v.push(0);
             remaining_vec = Some(v);
         }
@@ -6644,7 +6646,7 @@ fn ins_compl_start() -> bool {
     if (INSEXPAND.with(|s| s.compl_cont_status.get()) & CONT_INTRPT) == CONT_INTRPT
         && INSEXPAND.with(|s| s.compl_cont_mode.get()) == INSEXPAND.with(|s| s.ctrl_x_mode.get())
     {
-        ins_compl_continue_search(line_cstr);
+        ins_compl_continue_search(&line_cstr);
     } else {
         INSEXPAND.with(|s| {
             s.compl_cont_status
@@ -6671,7 +6673,7 @@ fn ins_compl_start() -> bool {
     }
 
     let mut line_invalid = false;
-    if !compl_get_info(line_cstr, startcol, curs_col, &mut line_invalid) {
+    if !compl_get_info(&line_cstr, startcol, curs_col, &mut line_invalid) {
         if ctrl_x_mode_function()
             || ctrl_x_mode_omni()
             || thesaurus_func_complete(INSEXPAND.with(|s| s.ctrl_x_mode.get()))

@@ -1114,7 +1114,8 @@ fn qf_get_next_buf_line(
         return QfStatus::EndOfInput;
     }
     let buf_ptr = crate::globals::BufPtr::from(buf);
-    let p_buf = ml_get_buf(buf, buflnum).to_bytes();
+    let p_cstr = ml_get_buf(buf, buflnum);
+    let p_buf = p_cstr.to_bytes();
     let len = p_buf.len();
     state.source = QfInputSource::Buf {
         buf: buf_ptr,
@@ -3010,7 +3011,8 @@ fn qf_jump_edit_buffer(
     retval
 }
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
-    let line = get_cursor_line_ptr().to_bytes();
+    let line_cstr = get_cursor_line_ptr();
+    let line = line_cstr.to_bytes();
     let mut off = 0usize;
     let mut col: Colnr = 0;
 
@@ -5294,7 +5296,7 @@ fn vgr_match_buflines(
                     fname,
                     None,
                     entry_fnum,
-                    mesg_cstr,
+                    &mesg_cstr,
                     regmatch.startpos[0].lnum + lnum,
                     regmatch.endpos[0].lnum + lnum,
                     regmatch.startpos[0].col + 1,
@@ -5348,7 +5350,7 @@ fn vgr_match_buflines(
                     fname,
                     None,
                     entry_fnum,
-                    str_cstr,
+                    &str_cstr,
                     lnum,
                     0,
                     matches[0] as Colnr + col + 1,

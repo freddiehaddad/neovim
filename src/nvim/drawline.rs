@@ -3,8 +3,6 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
-use std::ffi::CStr;
-
 #[cfg(debug_assertions)]
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
@@ -1083,7 +1081,7 @@ fn handle_breakindent(wp: &WinInfoInfo, wlv: &mut Winlinevars, gap_decor_attr: i
         let mut num = if wlv.breakindent < 0 {
             wlv.breakindent = get_breakindent_win(
                 wp,
-                crate::memline::ml_get_buf_slice(&wp.buf_mut(), wlv.lnum),
+                &crate::memline::ml_get_buf_slice(&wp.buf_mut(), wlv.lnum),
             );
             wlv.breakindent
         } else {
@@ -1394,7 +1392,7 @@ fn win_line_skip_columns(
     let init_line = if draw_text {
         ml_get_buf(&wp.buf_mut(), wlv.lnum)
     } else {
-        c""
+        crate::option_vars::RcCStr::EMPTY
     };
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
@@ -1410,20 +1408,21 @@ fn win_line_skip_columns(
     let mut cs = CharSize::default();
 
     let mut vcol = wlv.vcol;
-    let mut ci = utf_ptr2_str_char_info(csarg.line);
+    let line_cstr = csarg.line.clone();
+    let mut ci = utf_ptr2_str_char_info(&line_cstr);
     while vcol - csarg.extconceal_off < start_vcol {
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
         prev_ptr = ci.ptr.as_ptr().cast();
-        let prev_idx = ci.offset_from(csarg.line);
+        let prev_idx = ci.offset_from(&line_cstr);
         if ci.is_empty() {
             break;
         }
         ci = cli.next;
         if wp.w_onebuf_opt.wo_list.get() {
-            let ci_off = ci.offset_from(csarg.line);
-            let line_bytes = csarg.line.to_bytes();
+            let ci_off = ci.offset_from(&line_cstr);
+            let line_bytes = line_cstr.to_bytes();
             *in_multispace = line_bytes.get(prev_idx) == Some(&b' ')
                 && (ci.first_byte() == b' '
                     || (prev_idx > 0 && line_bytes.get(prev_idx - 1) == Some(&b' ')));
@@ -1917,10 +1916,10 @@ pub fn win_line(
         nextline[SPWORDLEN] = 0;
         if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
             let line = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum + 1);
-            spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], line);
+            spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], &line);
         }
         let line_slice = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
-        let rem_sw = crate::charset::skipwhite_slice(line_slice);
+        let rem_sw = crate::charset::skipwhite_slice(&line_slice);
         if rem_sw.is_empty() {
             spv.spv_cap_col = 0;
             spv.spv_capcol_lnum = lnum + 1;
@@ -1936,7 +1935,7 @@ pub fn win_line(
             let line_len = line_slice.len() as i32;
             if (line_len as usize) < SPWORDLEN {
                 nextlinecol = 0;
-                nextline[..line_len as usize].copy_from_slice(line_slice);
+                nextline[..line_len as usize].copy_from_slice(&line_slice);
                 let tail_len = crate::memory::bytes_as_cstr(&nextline[SPWORDLEN..])
                     .to_bytes()
                     .len();
@@ -1952,10 +1951,10 @@ pub fn win_line(
         }
     }
 
-    let mut line_cstr: &'static CStr = if draw_text {
+    let mut line_cstr: crate::option_vars::RcCStr = if draw_text {
         ml_get_buf(&wp.buf_mut(), lnum)
     } else {
-        c""
+        crate::option_vars::RcCStr::EMPTY
     };
     let mut line = line_cstr.as_ptr().cast_mut();
     let mut ptr = line.cast_const();
@@ -2868,7 +2867,7 @@ pub fn win_line(
                         if has_conceal || !vim_isbreak(i32::from(ptr_byte!(ptr))) {
                             let mut csarg = CharsizeArg::new();
                             let mut cstype =
-                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line_cstr);
+                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, &line_cstr);
                             if has_conceal {
                                 csarg.extconceal = Some(conceal_spans.clone());
                                 csarg.extconceal_off = wlv.extconceal_off;
@@ -4010,7 +4009,8 @@ fn decor_providers_setup(
 }
 
 fn invoke_range_next(wp: &WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_off: Colnr) -> i32 {
-    let line_bytes = ml_get_buf(&wp.buf_mut(), lnum).to_bytes();
+    let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
+    let line_bytes = line_cstr.to_bytes();
     let line_len = ml_get_buf_len(&wp.buf_mut(), lnum);
     col_off = col_off.max(1);
 

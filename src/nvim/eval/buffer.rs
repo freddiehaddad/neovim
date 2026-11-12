@@ -422,7 +422,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         let text = if lnum > 0 {
             ml_get_buf(buf.borrow_mut(), lnum)
         } else {
-            c""
+            crate::option_vars::RcCStr::EMPTY
         };
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
@@ -814,14 +814,14 @@ fn get_buffer_lines(
         while start <= end {
             crate::eval::typval::tv_list_append_bytes(
                 rettv.vval.v_list_ref(),
-                crate::memline::ml_get_buf_slice(buf.unwrap(), start),
+                &crate::memline::ml_get_buf_slice(buf.unwrap(), start),
             );
             start += 1;
         }
     } else if start >= 1 && start <= buf.unwrap().b_ml.ml_line_count.get() {
         crate::eval::typval::tv_set_string_len(
             &mut *rettv,
-            Some(crate::memline::ml_get_buf_slice(buf.unwrap(), start)),
+            Some(&crate::memline::ml_get_buf_slice(buf.unwrap(), start)),
         );
     } else {
         rettv.v_type = VarType::VarString;

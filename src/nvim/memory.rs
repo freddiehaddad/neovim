@@ -107,6 +107,20 @@ impl<'a> CStrSubslice<'a> for &&'a CStr {
     }
 }
 
+impl<'a> CStrSubslice<'a> for &'a crate::option_vars::RcCStr {
+    #[inline(always)]
+    fn advance(self, n: usize) -> &'a CStr {
+        self.as_cstr().advance(n)
+    }
+}
+
+impl<'a> CStrSubslice<'a> for &&'a crate::option_vars::RcCStr {
+    #[inline(always)]
+    fn advance(self, n: usize) -> &'a CStr {
+        self.as_cstr().advance(n)
+    }
+}
+
 impl<'a> CStrSubslice<'a> for &mut &'a CStr {
     #[inline(always)]
     fn advance(self, n: usize) -> &'a CStr {

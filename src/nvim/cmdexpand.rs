@@ -6071,7 +6071,7 @@ fn copy_substring_from_pos(
         let mut lnum = start.lnum + 1;
         while lnum < end.lnum {
             let line = crate::memline::ml_get_slice(lnum);
-            ga.extend_from_slice(line);
+            ga.extend_from_slice(&line);
             if exacttext {
                 ga.extend_from_slice(b"\\n");
             } else {

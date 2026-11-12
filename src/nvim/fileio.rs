@@ -1165,8 +1165,9 @@ pub fn readfile(
                                 } else {
                                     let mut tlen: isize = 0;
                                     loop {
-                                        let line_bytes = &ml_get(read_buf_lnum).to_bytes()
-                                            [read_buf_col as usize..];
+                                        let line_cstr = ml_get(read_buf_lnum);
+                                        let line_bytes =
+                                            &line_cstr.to_bytes()[read_buf_col as usize..];
                                         let mut n =
                                             (ml_get_len(read_buf_lnum) - read_buf_col) as isize;
                                         if tlen + n + 1 > size {

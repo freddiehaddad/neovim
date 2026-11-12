@@ -406,7 +406,7 @@ fn insert_enter(s: &mut InsertState) {
     }
 
     g_st().ins_global.borrow_mut().start_textlen =
-        linetabsize_str(crate::cursor::get_cursor_line_slice());
+        linetabsize_str(&crate::cursor::get_cursor_line_slice());
     g_st().ins_global.borrow_mut().start_blank_vcol = MAXCOL;
 
     if !g_st().ins_global.borrow().did_ai {
@@ -508,7 +508,7 @@ fn insert_enter(s: &mut InsertState) {
                 if pos_slice.len() == 1 {
                     curwin_mut().w_cursor.add_col(1);
                 } else {
-                    s.i = crate::mbyte::utfc_slice2len(pos_slice) as i32;
+                    s.i = crate::mbyte::utfc_slice2len(&pos_slice) as i32;
                     if pos_slice[s.i as usize..].is_empty() {
                         curwin_mut().w_cursor.add_col(s.i);
                     }
@@ -1725,7 +1725,7 @@ pub fn display_dollar(col_arg: Colnr) {
     let line_slice = crate::cursor::get_cursor_line_slice();
     curwin_mut()
         .w_cursor
-        .sub_col(crate::mbyte::utf_head_off_slice(line_slice, col as usize));
+        .sub_col(crate::mbyte::utf_head_off_slice(&line_slice, col as usize));
     curs_columns(&curwin_mut(), false);
     if curwin_mut().w_wcol.get() < curwin_mut().w_view_width.get() {
         edit_putchar(b'$' as i32, false);
@@ -1775,7 +1775,7 @@ fn del_char_after_col(limit_col: i32) -> bool {
         let ecol = curwin_mut().w_cursor.get().col + 1;
         mb_adjust_cursor();
         while curwin_mut().w_cursor.get().col < limit_col {
-            let l = crate::mbyte::utf_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
+            let l = crate::mbyte::utf_slice2len(&crate::cursor::get_cursor_pos_slice()) as Colnr;
             if l == 0 {
                 break;
             }
@@ -1950,9 +1950,10 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
     if g_st().ins_global.borrow().did_ai && c == g_st().ins_global.borrow().end_comment_pending {
         let mut lead_end = [0u8; COM_MAX_LEN];
         let mut flags_opt: Option<crate::option_vars::RcCStr> = None;
-        let line_bytes = get_cursor_line_ptr().to_bytes_with_nul();
+        let line_cstr = get_cursor_line_ptr();
+        let line_bytes = line_cstr.to_bytes_with_nul();
         let mut i = get_leader_len(
-            crate::cursor::get_cursor_line_slice(),
+            &crate::cursor::get_cursor_line_slice(),
             Some(&mut flags_opt),
             false,
             true,
@@ -2131,7 +2132,7 @@ pub fn stop_arrow() -> bool {
             g_st().ins_global.borrow_mut().update_start_orig = false;
         }
         g_st().ins_global.borrow_mut().start_textlen =
-            linetabsize_str(crate::cursor::get_cursor_line_slice());
+            linetabsize_str(&crate::cursor::get_cursor_line_slice());
 
         let jumped = g_st().ins_global.borrow().moved == K_INS_JUMP;
         if u_save_cursor() {
@@ -2169,7 +2170,7 @@ pub fn stop_arrow() -> bool {
         ) {
             g_st().ins_global.borrow_mut().start = curwin_mut().w_cursor.get();
             g_st().ins_global.borrow_mut().start_textlen =
-                linetabsize_str(crate::cursor::get_cursor_line_slice());
+                linetabsize_str(&crate::cursor::get_cursor_line_slice());
         }
         g_st().ins_global.borrow_mut().need_undo = false;
     }
@@ -2333,7 +2334,8 @@ pub fn beginline(flags: i32) {
         curwin_mut().w_cursor.set_coladd(0);
 
         if (flags & (BL_WHITE | BL_SOL)) != 0 {
-            let mut rem = crate::cursor::get_cursor_line_slice();
+            let rem_rc = crate::cursor::get_cursor_line_slice();
+            let mut rem = rem_rc.as_slice();
             while let Some(&b0) = rem.first()
                 && ascii_iswhite(i32::from(b0))
                 && !((flags & BL_FIX) != 0 && rem.len() == 1)
@@ -2352,9 +2354,9 @@ pub fn oneright() -> bool {
         let prevpos = curwin_mut().w_cursor.get();
         let ptr_slice = crate::cursor::get_cursor_pos_slice();
         let step = if ptr_slice.first().copied().unwrap_or(0) != TAB as u8
-            && vim_isprintc(utf_ptr2char(ptr_slice))
+            && vim_isprintc(utf_ptr2char(&ptr_slice))
         {
-            ptr2cells(ptr_slice)
+            ptr2cells(&ptr_slice)
         } else {
             1
         };
@@ -2369,7 +2371,7 @@ pub fn oneright() -> bool {
         return false;
     }
 
-    let l = utfc_ptr2len(ptr_slice);
+    let l = utfc_ptr2len(&ptr_slice);
     if ptr_slice.len() <= l as usize && (get_ve_flags(&curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0 {
         return false;
     }
@@ -2397,8 +2399,8 @@ pub fn oneleft() -> bool {
         if curwin_mut().w_cursor.get().coladd == 1 {
             let ptr_slice = crate::cursor::get_cursor_pos_slice();
             if ptr_slice.first().copied().unwrap_or(0) != TAB as u8
-                && vim_isprintc(utf_ptr2char(ptr_slice))
-                && ptr2cells(ptr_slice) > 1
+                && vim_isprintc(utf_ptr2char(&ptr_slice))
+                && ptr2cells(&ptr_slice) > 1
             {
                 curwin_mut().w_cursor.set_coladd(0);
             }
@@ -2584,7 +2586,7 @@ fn echeck_abbr(c: i32) -> bool {
     }
     check_abbr(
         c,
-        get_cursor_line_ptr(),
+        &get_cursor_line_ptr(),
         curwin_mut().w_cursor.get().col,
         if curwin_mut().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum {
             g_st().ins_global.borrow().start.col
@@ -3082,7 +3084,7 @@ fn ins_shift(c: i32, lastc: i32) {
     }
 
     if g_st().ins_global.borrow().did_ai
-        && !crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice()).is_empty()
+        && !crate::charset::skipwhite_slice(&crate::cursor::get_cursor_line_slice()).is_empty()
     {
         g_st().ins_global.borrow_mut().did_ai = false;
     }
@@ -3272,11 +3274,11 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
             let mut vcol: Colnr = 0;
             let mut space_vcol: Colnr = 0;
-            let mut sci = utf_ptr2_str_char_info(line_cstr);
+            let mut sci = utf_ptr2_str_char_info(&line_cstr);
             let mut space_sci = sci;
             let mut prev_space = false;
 
-            while sci.offset_from(line_cstr) < cursor_col {
+            while sci.offset_from(&line_cstr) < cursor_col {
                 let cur_space = ascii_iswhite(sci.chr.value);
                 if !prev_space && cur_space {
                     space_sci = sci;
@@ -3314,7 +3316,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 space_vcol += size;
                 space_sci = cli.next;
             }
-            let want_col = space_sci.offset_from(line_cstr) as Colnr;
+            let want_col = space_sci.offset_from(&line_cstr) as Colnr;
 
             while curwin_mut().w_cursor.get().col > want_col {
                 dec_cursor();
@@ -3347,14 +3349,14 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 space_vcol += 1;
             }
         } else {
-            let mut cclass = mb_get_class(crate::cursor::get_cursor_pos_slice());
+            let mut cclass = mb_get_class(&crate::cursor::get_cursor_pos_slice());
             loop {
                 if !g_st().ins_global.borrow().revins_on {
                     dec_cursor();
                 }
                 cc = gchar_cursor();
                 let prev_cclass = cclass;
-                cclass = mb_get_class(crate::cursor::get_cursor_pos_slice());
+                cclass = mb_get_class(&crate::cursor::get_cursor_pos_slice());
                 if mode == BACKSPACE_WORD && !ascii_isspace(cc) {
                     mode = BACKSPACE_WORD_NOT_SPACE;
                     temp = i32::from(vim_iswordc(cc));
@@ -3376,8 +3378,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     let mut has_composing = false;
                     if opt_vars().p_deco.get() {
                         let p0_slice = crate::cursor::get_cursor_pos_slice();
-                        let len0 = (utf_ptr2len(p0_slice) as usize).min(p0_slice.len());
-                        has_composing = utf_composinglike(p0_slice, &p0_slice[len0..], None);
+                        let len0 = (utf_ptr2len(&p0_slice) as usize).min(p0_slice.len());
+                        has_composing = utf_composinglike(&p0_slice, &p0_slice[len0..], None);
                     }
                     del_char(false);
                     if has_composing {
@@ -3535,7 +3537,7 @@ fn ins_right() {
             oneright();
         } else {
             curwin_mut().w_cursor.add_col(crate::mbyte::utfc_slice2len(
-                crate::cursor::get_cursor_pos_slice(),
+                &crate::cursor::get_cursor_pos_slice(),
             ) as Colnr);
         }
 
@@ -3771,10 +3773,7 @@ fn ins_tab() -> bool {
             } else {
                 curbuf_mut()
                     .b_ml
-                    .current_line_slice()
-                    .get(col)
-                    .copied()
-                    .unwrap_or(0)
+                    .with_current_line_slice(|s| s.get(col).copied().unwrap_or(0))
             }
         };
         while fpos.col > 0 && ascii_iswhite(byte_at(&saved_line_vec, (fpos.col - 1) as usize)) {
@@ -3835,10 +3834,12 @@ fn ins_tab() -> bool {
 
         if change_col >= 0 {
             let mut repl_off: i32 = 0;
+            let cursor_line_rc;
             let ptr_cstr = if is_vreplace {
                 crate::memory::bytes_as_cstr(&saved_line_vec[fpos.col as usize..])
             } else {
-                crate::memory::CStrSubslice::advance(get_cursor_line_ptr(), fpos.col as usize)
+                cursor_line_rc = get_cursor_line_ptr();
+                crate::memory::CStrSubslice::advance(&cursor_line_rc, fpos.col as usize)
             };
             cstype = init_charsize_arg(&mut csarg, &curwin_mut(), 0, ptr_cstr);
             while vcol < want_vcol
@@ -3857,14 +3858,16 @@ fn ins_tab() -> bool {
             if i > 0 {
                 if !is_vreplace {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen.get() - i) as usize;
-                    let line_slice = curbuf_mut().b_ml.current_line_slice();
                     let col = fpos.col as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
-                    let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
-                    new_line.extend_from_slice(&line_slice[..col]);
-                    new_line.extend_from_slice(
-                        &line_slice[col + i as usize..col + i as usize + tail_len],
-                    );
+                    let new_line = curbuf_mut().b_ml.with_current_line_slice(|line_slice| {
+                        let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
+                        new_line.extend_from_slice(&line_slice[..col]);
+                        new_line.extend_from_slice(
+                            &line_slice[col + i as usize..col + i as usize + tail_len],
+                        );
+                        new_line
+                    });
                     ml_replace_dirty_line(&curbuf_mut(), &new_line, true);
                     inserted_bytes(
                         fpos.lnum,
@@ -4012,8 +4015,8 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     let line_cstr = ml_get(lnum);
 
     let mut csarg = CharsizeArg::new();
-    let cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, line_cstr);
-    let mut ci = utf_ptr2_str_char_info(line_cstr);
+    let cstype = init_charsize_arg(&mut csarg, &curwin_mut(), lnum, &line_cstr);
+    let mut ci = utf_ptr2_str_char_info(&line_cstr);
     let mut vcol: i32 = 0;
     while vcol < end_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);

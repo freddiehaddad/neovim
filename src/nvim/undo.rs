@@ -570,7 +570,7 @@ pub fn u_compute_hash(buf: &FileBuf, hash: &mut [u8; UNDO_HASH_SIZE]) {
     let mut ctx = ContextSha256::new();
     for lnum in 1..=buf.b_ml.ml_line_count.get() {
         let slice = crate::memline::ml_get_buf_slice(buf, lnum);
-        ctx.update(slice);
+        ctx.update(&slice);
         ctx.update(&[0]);
     }
     ctx.finish_into(hash);
@@ -2847,7 +2847,7 @@ fn u_save_line(lnum: Linenr) -> std::ffi::CString {
 }
 
 fn u_save_line_buf(buf: &FileBuf, lnum: Linenr) -> std::ffi::CString {
-    crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(buf, lnum))
+    crate::memory::bytes_to_cstring(&crate::memline::ml_get_buf_slice(buf, lnum))
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.

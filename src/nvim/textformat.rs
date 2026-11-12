@@ -226,9 +226,9 @@ pub fn internal_format(
 
         if do_comments {
             let line = crate::cursor::get_cursor_line_slice();
-            leader_len = get_leader_len(line, None, false, true);
+            leader_len = get_leader_len(&line, None, false, true);
             if leader_len == 0 && curbuf_mut().b_p_cin.get() {
-                let comment_start = check_linecomment(line);
+                let comment_start = check_linecomment(&line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
                         &line[(comment_start as usize).min(line.len())..],
@@ -539,7 +539,7 @@ fn fmt_check_par(
     let line_slice = crate::memline::ml_get_slice(lnum);
     if do_comments {
         *leader_flags = None;
-        *leader_len = get_leader_len(line_slice, Some(leader_flags), false, true);
+        *leader_len = get_leader_len(&line_slice, Some(leader_flags), false, true);
     } else {
         *leader_len = 0;
         *leader_flags = None;
@@ -727,7 +727,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     if has_format_option(K_FO_WRAP_COMS)
         && !has_format_option(K_FO_WRAP)
-        && get_leader_len(crate::cursor::get_cursor_line_slice(), None, false, true) == 0
+        && get_leader_len(&crate::cursor::get_cursor_line_slice(), None, false, true) == 0
     {
         return;
     }
@@ -761,7 +761,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         let len = get_cursor_line_len();
         if curwin_mut().w_cursor.get().col == len {
             let mut pline = Vec::with_capacity(len as usize + 2);
-            pline.extend_from_slice(get_cursor_line_slice());
+            pline.extend_from_slice(&get_cursor_line_slice());
             pline.push(b' ');
             pline.push(0);
             ml_replace(
@@ -1041,7 +1041,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 && (!next_leader_flags
                     .as_ref()
                     .is_some_and(|f| f.to_bytes().starts_with(b"://"))
-                    || check_linecomment(crate::cursor::get_cursor_line_slice()) == MAXCOL)
+                    || check_linecomment(&crate::cursor::get_cursor_line_slice()) == MAXCOL)
             {
                 is_end_par = true;
             }

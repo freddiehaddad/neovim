@@ -1155,7 +1155,7 @@ pub fn spell_move_to(
             if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
                 let cur_len = line_bytes.len() - 1;
                 let next_line = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum + 1);
-                spell_cat_line(&mut buf_vec[cur_len..cur_len + MAXWLEN], next_line);
+                spell_cat_line(&mut buf_vec[cur_len..cur_len + MAXWLEN], &next_line);
             }
             let mut p_off = skip.max(0) as usize;
             let end_off = len;
@@ -2188,16 +2188,18 @@ pub fn check_need_cap(wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         return false;
     }
     let mut need_cap = false;
-    let mut line_cstr: Option<&CStr> = (col != 0).then(|| ml_get_buf(&wp.buf_mut(), lnum));
+    let init_line = (col != 0).then(|| ml_get_buf(&wp.buf_mut(), lnum));
+    let prev_cstr;
+    let mut line_cstr: Option<&CStr> = init_line.as_deref();
     let mut line_copy: Option<std::ffi::CString> = None;
     let mut endcol: Colnr = 0;
     if col == 0 || (getwhitecols(line_cstr.unwrap_or(c"").to_bytes()) as Colnr) >= col {
         if lnum == 1 {
             need_cap = true;
         } else {
-            let prev_cstr = ml_get_buf(&wp.buf_mut(), lnum - 1);
+            prev_cstr = ml_get_buf(&wp.buf_mut(), lnum - 1);
             let prev_slice = prev_cstr.to_bytes();
-            line_cstr = Some(prev_cstr);
+            line_cstr = Some(&prev_cstr);
             if crate::charset::skipwhite_slice(prev_slice).is_empty() {
                 need_cap = true;
             } else {
@@ -3099,7 +3101,7 @@ pub fn spell_word_start(startcol: i32) -> i32 {
     let line_bytes = get_cursor_line_slice();
     let mut p_idx = (startcol as usize).min(line_bytes.len());
     while p_idx > 0 {
-        crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
+        crate::mbyte::mb_idx_back(&line_bytes, &mut p_idx);
         if spell_iswordp_nmw(&line_bytes[p_idx..], &curwin_mut()) {
             break;
         }
@@ -3107,7 +3109,7 @@ pub fn spell_word_start(startcol: i32) -> i32 {
     let mut col: i32 = 0;
     while p_idx > 0 {
         col = p_idx as i32;
-        crate::mbyte::mb_idx_back(line_bytes, &mut p_idx);
+        crate::mbyte::mb_idx_back(&line_bytes, &mut p_idx);
         if !spell_iswordp(&line_bytes[p_idx..], &curwin_mut()) {
             break;
         }

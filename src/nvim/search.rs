@@ -876,9 +876,9 @@ pub fn searchit(
                         matchpos = regmatch.startpos[0];
                         endpos = regmatch.endpos[0];
                         submatch = first_submatch(&regmatch);
-                        let mut ptr_line_cstr: &CStr =
+                        let mut ptr_line_cstr: crate::option_vars::RcCStr =
                             if lnum + matchpos.lnum > buf.b_ml.ml_line_count.get() {
-                                c""
+                                crate::option_vars::RcCStr::EMPTY
                             } else {
                                 ml_get_buf(buf, lnum + matchpos.lnum)
                             };
@@ -1049,7 +1049,8 @@ pub fn searchit(
                             } else {
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count.get() {
-                                    let line_bytes = ml_get_buf(buf, pos.lnum).to_bytes();
+                                    let line_cstr = ml_get_buf(buf, pos.lnum);
+                                    let line_bytes = line_cstr.to_bytes();
                                     pos.col -= crate::mbyte::utf_head_off_slice(
                                         line_bytes,
                                         pos.col as usize,
@@ -1775,7 +1776,7 @@ pub fn search_for_exact_line(
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(
                     opt_vars().p_ic.get(),
-                    crate::memory::CStrSubslice::advance(line_cstr, skip_len),
+                    crate::memory::CStrSubslice::advance(&line_cstr, skip_len),
                     pat,
                 ) == 0
                 {
@@ -1869,7 +1870,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 if col == 0 {
                     return false;
                 }
-                col -= crate::mbyte::utf_head_off_slice(p_bytes, (col - 1) as usize) + 1;
+                col -= crate::mbyte::utf_head_off_slice(&p_bytes, (col - 1) as usize) + 1;
             }
             let rem = p_bytes.get(col as usize..).unwrap_or(&[]);
             if lastc_bytelen <= 1 {
@@ -1888,7 +1889,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         if dir < 0 {
             col += lastc_bytelen - 1;
         } else {
-            col -= crate::mbyte::utf_head_off_slice(p_bytes, col as usize);
+            col -= crate::mbyte::utf_head_off_slice(&p_bytes, col as usize);
         }
     }
     curwin_mut().w_cursor.set_col(col);
@@ -2042,7 +2043,7 @@ pub fn findmatchlimit(
             hash_dir = dir;
         } else {
             if !cpo_match {
-                let trim = crate::charset::skipwhite_slice(line);
+                let trim = crate::charset::skipwhite_slice(&line);
                 let col_u = pos.col as usize;
                 if trim.first() == Some(&b'#') && col_u <= line.len() - trim.len() {
                     let after_hash = crate::charset::skipwhite_slice(&trim[1..]);
@@ -2091,7 +2092,7 @@ pub fn findmatchlimit(
                     pos.col += crate::mbyte::utfc_slice2len(&line[col_u..]) as Colnr;
                 }
                 if findc == 0 {
-                    if !cpo_match && crate::charset::skipwhite_slice(line).first() == Some(&b'#') {
+                    if !cpo_match && crate::charset::skipwhite_slice(&line).first() == Some(&b'#') {
                         hash_dir = 1;
                     } else {
                         return None;
@@ -2099,7 +2100,7 @@ pub fn findmatchlimit(
                 } else if !cpo_bsl {
                     let mut bslcnt = 0;
                     let mut col = pos.col;
-                    while check_prevcol(line, col, b'\\' as i32, Some(&mut col)) {
+                    while check_prevcol(&line, col, b'\\' as i32, Some(&mut col)) {
                         bslcnt += 1;
                     }
                     match_escaped = bslcnt & 1;
@@ -2111,7 +2112,7 @@ pub fn findmatchlimit(
                 oap.motion_type = MT_LINE_WISE;
             }
             if initc != b'#' as i32 {
-                let trim = crate::charset::skipwhite_slice(line);
+                let trim = crate::charset::skipwhite_slice(&line);
                 let after_hash = crate::charset::skipwhite_slice(&trim[1.min(trim.len())..]);
                 if after_hash.starts_with(b"if") || after_hash.starts_with(b"el") {
                     hash_dir = 1;
@@ -2133,7 +2134,7 @@ pub fn findmatchlimit(
                 pos.lnum += hash_dir;
                 line = crate::memline::ml_get_slice(pos.lnum);
                 line_breakcheck();
-                let trim = crate::charset::skipwhite_slice(line);
+                let trim = crate::charset::skipwhite_slice(&line);
                 if trim.first() != Some(&b'#') {
                     continue;
                 }
@@ -2184,7 +2185,7 @@ pub fn findmatchlimit(
 
     if (backwards && comment_dir != 0) || lisp || skip_comments {
         line = crate::memline::ml_get_slice(pos.lnum);
-        comment_col = check_linecomment(line);
+        comment_col = check_linecomment(&line);
     }
     if lisp && comment_col != MAXCOL && pos.col > comment_col {
         lispcomm = true;
@@ -2220,7 +2221,7 @@ pub fn findmatchlimit(
                 line_breakcheck();
 
                 if comment_dir != 0 || lisp || skip_comments {
-                    comment_col = check_linecomment(line);
+                    comment_col = check_linecomment(&line);
                 }
                 if (lisp || (skip_comments && !in_block_comment && pos.col > comment_col))
                     && comment_col != MAXCOL
@@ -2229,7 +2230,7 @@ pub fn findmatchlimit(
                 }
             } else {
                 pos.col -= 1;
-                pos.col -= crate::mbyte::utf_head_off_slice(line, pos.col as usize);
+                pos.col -= crate::mbyte::utf_head_off_slice(&line, pos.col as usize);
             }
         } else if (pos.col as usize) >= line.len()
             || (lisp && comment_col != MAXCOL && pos.col == comment_col)
@@ -2250,7 +2251,7 @@ pub fn findmatchlimit(
             do_quotes = -1;
             line_breakcheck();
             if lisp || skip_comments {
-                comment_col = check_linecomment(line);
+                comment_col = check_linecomment(&line);
             }
         } else {
             let col_u = (pos.col as usize).min(line.len());
@@ -2314,7 +2315,7 @@ pub fn findmatchlimit(
                 {
                     let cur_pos = curwin_mut().w_cursor.get();
                     if !find_rawstring_end(
-                        line,
+                        &line,
                         &pos,
                         if count > 0 { &match_pos } else { &cur_pos },
                     ) {
@@ -2459,8 +2460,8 @@ pub fn findmatchlimit(
                 if curbuf_mut().b_p_lisp.get()
                     && matches!(c as u8, b'(' | b')' | b'{' | b'}' | b'[' | b']')
                     && pos.col > 1
-                    && check_prevcol(line, pos.col, b'\\' as i32, None)
-                    && check_prevcol(line, pos.col - 1, b'#' as i32, None)
+                    && check_prevcol(&line, pos.col, b'\\' as i32, None)
+                    && check_prevcol(&line, pos.col - 1, b'#' as i32, None)
                 {
                     continue;
                 }
@@ -2476,7 +2477,7 @@ pub fn findmatchlimit(
 
                     if !cpo_bsl {
                         let mut col = pos.col;
-                        while check_prevcol(line, col, b'\\' as i32, Some(&mut col)) {
+                        while check_prevcol(&line, col, b'\\' as i32, Some(&mut col)) {
                             bslcnt += 1;
                         }
                     }
@@ -2876,7 +2877,7 @@ fn is_zero_width(
 }
 
 pub fn linewhite(lnum: Linenr) -> bool {
-    crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum)).is_empty()
+    crate::charset::skipwhite_slice(&crate::memline::ml_get_slice(lnum)).is_empty()
 }
 
 fn cmdline_search_stat(
@@ -4046,10 +4047,12 @@ fn show_pat_in_path(
             }
             line_buf[linelen] = 0;
         }
+        let ml_line;
         let cur_bytes = if use_line_buf {
             &line_buf[..linelen]
         } else {
-            &ml_get(*lnum).to_bytes()[..linelen]
+            ml_line = ml_get(*lnum);
+            &ml_line.to_bytes()[..linelen]
         };
         let has_trailing_bsl = cur_bytes.last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {

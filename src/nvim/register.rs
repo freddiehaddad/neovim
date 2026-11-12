@@ -142,12 +142,12 @@ const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =
     c"E883: Register '%c' cannot contain multiple lines";
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct BlockDef {
     pub startspaces: i32,
     pub endspaces: i32,
     pub textlen: i32,
-    pub textstart: &'static std::ffi::CStr,
+    pub textstart: crate::option_vars::RcCStr,
     pub textcol: Colnr,
     pub start_vcol: Colnr,
     pub end_vcol: Colnr,
@@ -172,7 +172,7 @@ impl BlockDef {
             startspaces: 0,
             endspaces: 0,
             textlen: 0,
-            textstart: c"",
+            textstart: crate::option_vars::RcCStr::EMPTY,
             textcol: 0,
             start_vcol: 0,
             end_vcol: 0,
@@ -1001,7 +1001,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
                 None,
             );
             if !ident.is_empty() {
-                Some(cstr_to_vec(Some(crate::memory::bytes_to_cstring(ident))))
+                Some(cstr_to_vec(Some(crate::memory::bytes_to_cstring(&ident))))
             } else {
                 Some(None)
             }
@@ -1159,7 +1159,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_idx: RegIdx, append: bool
             MotionType::MtLineWise => {
                 let line_slice = crate::memline::ml_get_slice(lnum);
 
-                newreg.y_array[y_idx] = cbuf_to_string(line_slice);
+                newreg.y_array[y_idx] = cbuf_to_string(&line_slice);
             }
             MotionType::MtCharWise => {
                 charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
@@ -1580,7 +1580,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let one_past_line = cursor_pos.is_empty();
                 let mut eol = false;
                 if !one_past_line {
-                    let clen = crate::mbyte::utfc_slice2len(cursor_pos);
+                    let clen = crate::mbyte::utfc_slice2len(&cursor_pos);
                     eol = cursor_pos[clen..].is_empty();
                 }
 
@@ -1710,7 +1710,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let p_slice = p_cstr.to_bytes();
                 let plen = get_cursor_pos_len() as usize;
                 let adv = if dir == FORWARD && plen > 0 {
-                    utfc_ptr2len(p_cstr) as usize
+                    utfc_ptr2len(&p_cstr) as usize
                 } else {
                     0
                 };
@@ -1840,7 +1840,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 }
                 curwin_mut().w_cursor.set(cursor);
                 curwin_mut().w_cursor.add_col(crate::mbyte::utfc_slice2len(
-                    crate::cursor::get_cursor_pos_slice(),
+                    &crate::cursor::get_cursor_pos_slice(),
                 ) as Colnr);
                 col += 1;
             } else {
@@ -1904,9 +1904,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     &mut csarg,
                     &curwin_mut(),
                     curwin_mut().w_cursor.get().lnum,
-                    oldp_cstr,
+                    &oldp_cstr,
                 );
-                let mut ci = utf_ptr2_str_char_info(oldp_cstr);
+                let mut ci = utf_ptr2_str_char_info(&oldp_cstr);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
                     let cli = utf_cluster_info(ci);
@@ -1916,7 +1916,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     vcol += incr;
                     ci = cli.next;
                 }
-                let text_off = ci.offset_from(oldp_cstr);
+                let text_off = ci.offset_from(&oldp_cstr);
                 bd.textcol = text_off as Colnr;
 
                 let shortline = (vcol < col)
@@ -2058,8 +2058,9 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
 
             if y_type == MotionType::MtCharWise {
                 if dir == FORWARD && gchar_cursor() != 0 {
-                    let bytelen = crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice())
-                        as Colnr;
+                    let bytelen =
+                        crate::mbyte::utfc_slice2len(&crate::cursor::get_cursor_pos_slice())
+                            as Colnr;
                     col += bytelen;
                     if yanklen != 0 {
                         curwin_mut().w_cursor.add_col(bytelen);
@@ -2102,7 +2103,8 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     let y_bytes = y_array[0].as_bytes();
                     let y_len = yanklen as usize;
                     loop {
-                        let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
+                        let oldp_cstr = ml_get(lnum);
+                        let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
                         let oldlen = ml_get_len(lnum);
                         if lnum > start_lnum {
                             let mut pos = CursorPos {

@@ -852,7 +852,7 @@ pub fn skipwhite_len(bytes: &[u8]) -> usize {
 }
 
 pub fn getwhitecols_curline() -> isize {
-    getwhitecols(crate::cursor::get_cursor_line_slice())
+    getwhitecols(&crate::cursor::get_cursor_line_slice())
 }
 
 pub fn getwhitecols(bytes: &[u8]) -> isize {

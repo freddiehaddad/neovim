@@ -3874,8 +3874,9 @@ fn regmatch_inner(
                                             reg_getline_len(re_s.rex.lnum.get());
                                     }
                                 } else {
+                                    let line_opt = reg_getline(rp_pos.lnum);
                                     let line_bytes =
-                                        reg_getline(rp_pos.lnum).map_or(&[][..], CStr::to_bytes);
+                                        line_opt.as_deref().map_or(&[][..], CStr::to_bytes);
                                     rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
                                         crate::mbyte::utf_head_off_slice(
                                             line_bytes,
@@ -4133,7 +4134,7 @@ fn bt_regexec_both(
         });
 
         if !re_s.rex.has_match.get() {
-            line = reg_line_from_opt_cstr(reg_getline(0));
+            line = reg_line_from_opt_cstr(reg_getline(0).as_deref());
         }
         if line.is_null() {
             iemsg(tr(E_NULL));

@@ -1807,7 +1807,7 @@ pub fn buf_collect_lines(
         push_linestr(
             lstate,
             l,
-            line_bytes,
+            &line_bytes,
             start_idx + (i as i32),
             replace_nl,
             arena,

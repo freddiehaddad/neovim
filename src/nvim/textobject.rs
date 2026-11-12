@@ -254,7 +254,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
             curwin_mut()
                 .w_cursor
                 .sub_col(crate::mbyte::utf_head_off_slice(
-                    line_slice,
+                    &line_slice,
                     curwin_mut().w_cursor.get().col as usize,
                 ));
             *pincl = true;
@@ -730,11 +730,11 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let line_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
-    let start_idx = crate::charset::skipwhite_len(line_bytes);
+    let start_idx = crate::charset::skipwhite_len(&line_bytes);
     let mut end_idx = line_bytes.len();
     while end_idx > start_idx {
         let prev_idx =
-            end_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, end_idx - 1) as usize;
+            end_idx - 1 - crate::mbyte::utf_head_off_slice(&line_bytes, end_idx - 1) as usize;
         if !ascii_iswhite(i32::from(line_bytes.get(prev_idx).copied().unwrap_or(0))) {
             break;
         }
@@ -750,7 +750,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
 
     let mut end_pos = curwin_mut().w_cursor.get();
     let end_prev_idx = if end_idx > 0 {
-        end_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, end_idx - 1) as usize
+        end_idx - 1 - crate::mbyte::utf_head_off_slice(&line_bytes, end_idx - 1) as usize
     } else {
         0
     };
@@ -1083,7 +1083,8 @@ pub fn current_block(
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
-    let line_bytes = get_cursor_line_ptr().to_bytes_with_nul();
+    let line_cstr = get_cursor_line_ptr();
+    let line_bytes = line_cstr.to_bytes_with_nul();
     let mut idx =
         (curwin_mut().w_cursor.get().col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);
@@ -1658,21 +1659,21 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     let qe_bytes = Some(qe_rc.as_slice());
     if !vis_empty && byte_at(col_start) == quotechar {
         if vis_bef_curs {
-            col_start = find_next_quote(line_bytes, col_start + 1, quotechar, None);
+            col_start = find_next_quote(&line_bytes, col_start + 1, quotechar, None);
             if col_start < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
+            col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
             if col_end < 0 {
                 col_end = col_start;
                 col_start = curwin_mut().w_cursor.get().col;
             }
         } else {
-            col_end = find_prev_quote(line_bytes, col_start, quotechar, None);
+            col_end = find_prev_quote(&line_bytes, col_start, quotechar, None);
             if byte_at(col_end) != quotechar {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_start = find_prev_quote(line_bytes, col_end, quotechar, qe_bytes);
+            col_start = find_prev_quote(&line_bytes, col_end, quotechar, qe_bytes);
             if byte_at(col_start) != quotechar {
                 col_start = col_end;
                 col_end = curwin_mut().w_cursor.get().col;
@@ -1683,18 +1684,18 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
 
         if !vis_empty {
             if vis_bef_curs {
-                first_col = find_next_quote(line_bytes, col_start, quotechar, None);
+                first_col = find_next_quote(&line_bytes, col_start, quotechar, None);
             } else {
-                first_col = find_prev_quote(line_bytes, col_start, quotechar, None);
+                first_col = find_prev_quote(&line_bytes, col_start, quotechar, None);
             }
         }
         col_start = 0;
         loop {
-            col_start = find_next_quote(line_bytes, col_start, quotechar, None);
+            col_start = find_next_quote(&line_bytes, col_start, quotechar, None);
             if col_start < 0 || col_start > first_col {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
+            col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
             if col_end < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
@@ -1704,15 +1705,15 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
             col_start = col_end + 1;
         }
     } else {
-        col_start = find_prev_quote(line_bytes, col_start, quotechar, qe_bytes);
+        col_start = find_prev_quote(&line_bytes, col_start, quotechar, qe_bytes);
         if byte_at(col_start) != quotechar {
-            col_start = find_next_quote(line_bytes, col_start, quotechar, None);
+            col_start = find_next_quote(&line_bytes, col_start, quotechar, None);
             if col_start < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
         }
 
-        col_end = find_next_quote(line_bytes, col_start + 1, quotechar, qe_bytes);
+        col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
         if col_end < 0 {
             return abort_search(did_exclusive_adj, restore_vis_bef);
         }

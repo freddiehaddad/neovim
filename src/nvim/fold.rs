@@ -1384,12 +1384,12 @@ fn fold_add_marker(buf: &FileBuf, pos: CursorPos, marker: &[u8]) {
         return;
     }
 
-    skip_comment(line, false, false, &mut line_is_comment);
+    skip_comment(&line, false, false, &mut line_is_comment);
     let line = crate::memline::ml_get_buf_slice(buf, lnum);
     let line_len = line.len();
     let cms_len = cms_bytes.len();
     let mut newline_vec = Vec::with_capacity(line_len + markerlen + cms_len + 1);
-    newline_vec.extend_from_slice(line);
+    newline_vec.extend_from_slice(&line);
     let added = match p_off_opt {
         Some(p_off) if !line_is_comment => {
             newline_vec.extend_from_slice(&cms_bytes[..p_off]);
@@ -2485,7 +2485,8 @@ fn fold_merge(gap: &mut Vec<FoldEntry>, idx1: usize) {
 fn foldlevel_indent(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
     let buf = flp.wp_mut().buf_mut();
-    let s_rem = crate::charset::skipwhite_slice(crate::memline::ml_get_buf_slice(&buf, lnum));
+    let line = crate::memline::ml_get_buf_slice(&buf, lnum);
+    let s_rem = crate::charset::skipwhite_slice(&line);
 
     if s_rem.is_empty()
         || crate::strings::vim_haschr(
@@ -2616,7 +2617,8 @@ fn foldlevel_marker(flp: &mut Fline) {
     flp.start = 0;
     flp.lvl_next = flp.lvl;
 
-    let mut rem = crate::memline::ml_get_buf_slice(&flp.wp_mut().buf_mut(), flp.lnum + flp.off);
+    let rem_rc = crate::memline::ml_get_buf_slice(&flp.wp_mut().buf_mut(), flp.lnum + flp.off);
+    let mut rem = rem_rc.as_slice();
     while let Some((&s_b, rem_bytes)) = rem.split_first() {
         if s_b == cstart && rem_bytes.starts_with(start_rest) {
             rem = &rem[start_len..];
@@ -2810,12 +2812,15 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s = crate::charset::skipwhite(ml_get(lnum));
+        let line1 = ml_get(lnum);
+        let line2;
+        let mut s = crate::charset::skipwhite(&line1);
         let s_bytes = s.to_bytes();
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
             s = crate::charset::skipwhite(&s[2..]);
             if crate::charset::skipwhite(s).is_empty() && lnum + 1 < foldend {
-                s = crate::charset::skipwhite(ml_get(lnum + 1));
+                line2 = ml_get(lnum + 1);
+                s = crate::charset::skipwhite(&line2);
                 if s.to_bytes().first() == Some(&b'*') {
                     s = crate::charset::skipwhite(&s[1..]);
                 }

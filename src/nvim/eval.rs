@@ -5208,7 +5208,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
 
         let mut ret = Vec::with_capacity(total_len);
         for lnum in 1..=buf.b_ml.ml_line_count.get() {
-            for &p_byte in crate::memline::ml_get_buf_slice(&buf, lnum) {
+            for &p_byte in &crate::memline::ml_get_buf_slice(&buf, lnum) {
                 ret.push(if p_byte == b'\n' { 0 } else { p_byte });
             }
             ret.push(b'\n');
@@ -5346,7 +5346,7 @@ pub fn var2fpos(
             return None;
         }
         let len = if charcol {
-            mb_charlen(crate::memline::ml_get_buf_slice(bp.borrow_mut(), pos.lnum))
+            mb_charlen(&crate::memline::ml_get_buf_slice(bp.borrow_mut(), pos.lnum))
         } else {
             ml_get_buf_len(bp.borrow_mut(), pos.lnum)
         };
@@ -5447,7 +5447,7 @@ pub fn var2fpos(
         } else {
             pos.lnum = wp.w_cursor.get().lnum;
             pos.col = if charcol {
-                mb_charlen(crate::memline::ml_get_buf_slice(
+                mb_charlen(&crate::memline::ml_get_buf_slice(
                     bp.borrow_mut(),
                     wp.w_cursor.get().lnum,
                 ))
@@ -6747,7 +6747,8 @@ pub fn prompt_get_input(buf: &FileBuf) -> Option<std::ffi::CString> {
     let mark_col = buf.b_prompt_start.borrow().mark.col;
     let lnum_last = buf.b_ml.ml_line_count.get();
 
-    let mut text = crate::memline::ml_get_buf_slice(buf, lnum_start);
+    let text_rc = crate::memline::ml_get_buf_slice(buf, lnum_start);
+    let mut text = text_rc.as_slice();
     if mark_col >= 0 && (text.len() as i32) >= mark_col {
         text = &text[mark_col as usize..];
     }
@@ -6755,7 +6756,7 @@ pub fn prompt_get_input(buf: &FileBuf) -> Option<std::ffi::CString> {
     let mut bytes = text.to_vec();
     for i in (lnum_start + 1)..=lnum_last {
         bytes.push(b'\n');
-        bytes.extend_from_slice(crate::memline::ml_get_buf_slice(buf, i));
+        bytes.extend_from_slice(&crate::memline::ml_get_buf_slice(buf, i));
     }
     Some(std::ffi::CString::new(bytes).unwrap_or_default())
 }

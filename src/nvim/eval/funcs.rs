@@ -3179,7 +3179,7 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else if region_type == MT_LINE_WISE || (p1.lnum < lnum && lnum < p2.lnum) {
             crate::eval::typval::tv_list_append_bytes(
                 rettv.vval.v_list_ref(),
-                crate::memline::ml_get_slice(lnum),
+                &crate::memline::ml_get_slice(lnum),
             );
         } else {
             let mut bd = BlockDef::new();
@@ -5325,7 +5325,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         while slnum <= elnum {
             let str_cstr = ml_get_buf(buf.borrow_mut(), slnum);
 
-            get_matches_in_str(str_cstr, &mut regmatch, &retlist, slnum, submatches, true);
+            get_matches_in_str(&str_cstr, &mut regmatch, &retlist, slnum, submatches, true);
 
             slnum += 1;
         }
@@ -5690,7 +5690,7 @@ pub fn f_nextnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             lnum = 0;
             break;
         }
-        if !crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum)).is_empty() {
+        if !crate::charset::skipwhite_slice(&crate::memline::ml_get_slice(lnum)).is_empty() {
             break;
         }
         lnum += 1;
@@ -5754,7 +5754,7 @@ pub fn f_prevnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         lnum = 0;
     } else {
         while lnum >= 1
-            && crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum)).is_empty()
+            && crate::charset::skipwhite_slice(&crate::memline::ml_get_slice(lnum)).is_empty()
         {
             lnum -= 1;
         }
@@ -7609,12 +7609,14 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     let mut word = c"";
     let str_cow;
+    let cursor_pos_rc;
     let mut attr: Hlf = HLF_COUNT;
     let mut len: usize = 0;
     if argvars[0].v_type == VarType::VarUnknown {
         len = spell_move_to(&curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
-            word = get_cursor_pos_ptr();
+            cursor_pos_rc = get_cursor_pos_ptr();
+            word = &cursor_pos_rc;
             curwin_mut().w_set_curswant.set(true);
         }
     } else if !curbuf_mut().b_s.b_p_spl.is_empty() {

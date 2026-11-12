@@ -554,7 +554,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
     if line_bytes.is_empty() {
         return 0;
     }
-    let first_off = crate::charset::skipwhite_len(line_bytes);
+    let first_off = crate::charset::skipwhite_len(&line_bytes);
     let mut last_off = line_bytes.len();
     while last_off > first_off && ascii_iswhite(i32::from(line_bytes[last_off - 1])) {
         last_off -= 1;
@@ -776,12 +776,12 @@ pub fn ex_sort(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, &s_cstr, 0) {
                 if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
-                    start_col = regmatch.start_offset(0, s_cstr) as Colnr;
-                    end_col = regmatch.end_offset(0, s_cstr) as Colnr;
+                    start_col = regmatch.start_offset(0, &s_cstr) as Colnr;
+                    end_col = regmatch.end_offset(0, &s_cstr) as Colnr;
                 } else {
-                    start_col = regmatch.end_offset(0, s_cstr) as Colnr;
+                    start_col = regmatch.end_offset(0, &s_cstr) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -884,7 +884,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             old_count += bytelen as Bcount;
             if !unique
                 || i == 0
-                || string_compare(s_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) != 0
+                || string_compare(&s_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) != 0
             {
                 let s_bytes = s_cstr.to_bytes_with_nul();
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
@@ -1072,12 +1072,12 @@ pub fn ex_uniq(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, &s_cstr, 0) {
                 if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
-                    start_col = regmatch.start_offset(0, s_cstr) as Colnr;
-                    end_col = regmatch.end_offset(0, s_cstr) as Colnr;
+                    start_col = regmatch.start_offset(0, &s_cstr) as Colnr;
+                    end_col = regmatch.end_offset(0, &s_cstr) as Colnr;
                 } else {
-                    start_col = regmatch.end_offset(0, s_cstr) as Colnr;
+                    start_col = regmatch.end_offset(0, &s_cstr) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -1211,7 +1211,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
     let mut extra: Linenr = 0;
     for l in line1..=line2 {
-        let str_cstr = bytes_to_cstring(crate::memline::ml_get_slice(l + extra));
+        let str_cstr = bytes_to_cstring(&crate::memline::ml_get_slice(l + extra));
         ml_append(dest + l - line1, str_cstr.to_bytes(), 0, false);
         if dest < line1 {
             extra += 1;
@@ -1361,7 +1361,7 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
 
     curwin_mut().w_cursor.set_lnum(n);
     while line1 <= line2 {
-        let p = bytes_to_cstring(crate::memline::ml_get_slice(line1));
+        let p = bytes_to_cstring(&crate::memline::ml_get_slice(line1));
         ml_append(curwin_mut().w_cursor.get().lnum, p.to_bytes(), 0, false);
 
         if line1 == n {
@@ -1969,14 +1969,14 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
         format_to_buf!(&mut numbuf, c"%*d ", number_width(&curwin_mut()), lnum);
         msg_puts_hl(crate::memory::bytes_as_cstr(&numbuf), HLF_N + 1, false);
     }
-    msg_prt_line(crate::memline::ml_get_slice(lnum), list);
+    msg_prt_line(&crate::memline::ml_get_slice(lnum), list);
 }
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
 pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
     let save_silent = g_st().silent_mode.get();
 
-    if message_filtered(ml_get(lnum)) {
+    if message_filtered(&ml_get(lnum)) {
         return;
     }
 
@@ -3078,7 +3078,7 @@ pub fn do_ecmd(
             if !equalpos(curwin_mut().w_cursor.get(), orig_pos) {
                 let text_bytes = crate::cursor::get_cursor_line_slice();
                 let first_nonwhite =
-                    (text_bytes.len() - crate::charset::skipwhite_slice(text_bytes).len()) as i32;
+                    (text_bytes.len() - crate::charset::skipwhite_slice(&text_bytes).len()) as i32;
 
                 if curwin_mut().w_cursor.get().lnum != orig_pos.lnum
                     || curwin_mut().w_cursor.get().col != first_nonwhite
@@ -4134,7 +4134,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 }
                 if sub_firstline.is_null() {
                     let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                    sub_firstline = SubBuf::from_cbuf(sub_slice);
+                    sub_firstline = SubBuf::from_cbuf(&sub_slice);
                 }
 
                 curwin_mut().w_cursor.set_lnum(lnum);
@@ -4205,7 +4205,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                             if !new_start.is_null() {
                                 let lnum_slice = crate::memline::ml_get_slice(lnum);
-                                orig_line = SubBuf::from_cbuf(lnum_slice);
+                                orig_line = SubBuf::from_cbuf(&lnum_slice);
                                 let sub_rem = crate::memory::bytes_until_nul(
                                     &sub_firstline.as_slice()[copycol as usize..],
                                 );
@@ -4351,7 +4351,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
                             let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                            sub_firstline = SubBuf::from_cbuf(sub_slice);
+                            sub_firstline = SubBuf::from_cbuf(&sub_slice);
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -4415,7 +4415,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         } else {
                             let lastlnum = sub_firstlnum + nmatch - 1;
                             let last_slice = crate::memline::ml_get_slice(lastlnum);
-                            tmp = cstrn_as_string(last_slice);
+                            tmp = cstrn_as_string(&last_slice);
                             nmatch_tl += nmatch - 1;
                         }
                         let copy_len = (regmatch.startpos[0].col - copycol) as usize;
@@ -4469,7 +4469,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
                             let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                            sub_firstline = SubBuf::from_cbuf(sub_slice);
+                            sub_firstline = SubBuf::from_cbuf(&sub_slice);
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -5229,7 +5229,7 @@ fn show_sub(
                     if (line_size as usize) > str_buf.len() {
                         str_buf.resize(line_size as usize, 0);
                     }
-                    ml_get_buf(&curbuf_mut(), next_linenr)
+                    &ml_get_buf(&curbuf_mut(), next_linenr)
                 };
                 format_to_buf!(
                     &mut str_buf[..line_size as usize],

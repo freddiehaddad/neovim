@@ -379,7 +379,7 @@ pub fn get_sts_value() -> i32 {
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
 pub fn get_indent() -> i32 {
     indent_size_ts(
-        crate::cursor::get_cursor_line_slice(),
+        &crate::cursor::get_cursor_line_slice(),
         curbuf_mut().b_p_ts.get(),
         &curbuf_mut().b_p_vts_array.borrow(),
     )
@@ -388,7 +388,7 @@ pub fn get_indent() -> i32 {
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
 pub fn get_indent_lnum(lnum: Linenr) -> i32 {
     indent_size_ts(
-        crate::memline::ml_get_slice(lnum),
+        &crate::memline::ml_get_slice(lnum),
         curbuf_mut().b_p_ts.get(),
         &curbuf_mut().b_p_vts_array.borrow(),
     )
@@ -398,7 +398,7 @@ pub fn get_indent_lnum(lnum: Linenr) -> i32 {
 pub fn get_indent_buf(buf: &FileBuf, lnum: Linenr) -> i32 {
     let p_ts = buf.b_p_ts.get();
     let vts = buf.b_p_vts_array.borrow().clone();
-    indent_size_ts(crate::memline::ml_get_buf_slice(buf, lnum), p_ts, &vts)
+    indent_size_ts(&crate::memline::ml_get_buf_slice(buf, lnum), p_ts, &vts)
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
@@ -486,7 +486,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut todo = size;
     let mut ind_len: i32 = 0;
-    let oldline_with_nul = get_cursor_line_ptr().to_bytes_with_nul();
+    let oldline_cstr = get_cursor_line_ptr();
+    let oldline_with_nul = oldline_cstr.to_bytes_with_nul();
     let oldline_bytes = &oldline_with_nul[..oldline_with_nul.len() - 1];
     let mut p_idx = 0usize;
     let mut p_off: usize;
@@ -745,7 +746,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     let mut lead_len: i32 = 0;
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
-        lead_len = get_leader_len(crate::memline::ml_get_slice(lnum), None, false, true);
+        lead_len = get_leader_len(&crate::memline::ml_get_slice(lnum), None, false, true);
     }
 
     let mut regmatch = Regmatch::new();
@@ -753,13 +754,14 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
+        let line = ml_get(lnum);
         if vim_regexec(
             &mut regmatch,
-            crate::memory::CStrSubslice::advance(ml_get(lnum), lead_len as usize),
+            crate::memory::CStrSubslice::advance(&line, lead_len as usize),
             0,
         ) {
             pos.lnum = lnum;
-            pos.col = regmatch.end_offset(0, ml_get(lnum)) as Colnr;
+            pos.col = regmatch.end_offset(0, &line) as Colnr;
             pos.coladd = 0;
         }
         regmatch.free_prog();
@@ -922,7 +924,7 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
 pub fn inindent(extra: i32) -> bool {
     let line_slice = crate::cursor::get_cursor_line_slice();
-    let col = (line_slice.len() - crate::charset::skipwhite_slice(line_slice).len()) as Colnr;
+    let col = (line_slice.len() - crate::charset::skipwhite_slice(&line_slice).len()) as Colnr;
     col >= curwin_mut().w_cursor.get().col + extra
 }
 
@@ -983,7 +985,8 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 || oap.line_count == 1
                 || !std::ptr::fn_addr_eq(how, get_lisp_indent as Indenter)
             {
-                let rem = crate::charset::skipwhite_slice(crate::cursor::get_cursor_line_slice());
+                let cur_line = crate::cursor::get_cursor_line_slice();
+                let rem = crate::charset::skipwhite_slice(&cur_line);
                 let amount = if rem.is_empty() { 0 } else { how() };
                 if amount >= 0 && set_indent(amount, 0) {
                     if first_changed == 0 {
@@ -1110,9 +1113,8 @@ pub fn ins_try_si(c: i32) {
                 let i = get_indent();
                 while curwin_mut().w_cursor.get().lnum > 1 {
                     curwin_mut().w_cursor.sub_lnum(1);
-                    let rem = crate::charset::skipwhite_slice(crate::memline::ml_get_slice(
-                        curwin_mut().w_cursor.get().lnum,
-                    ));
+                    let cur_line = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                    let rem = crate::charset::skipwhite_slice(&cur_line);
                     if !rem.is_empty() && rem[0] != b'#' {
                         break;
                     }
@@ -1211,8 +1213,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         vcol = 0;
         if !line_cstr.to_bytes().is_empty() {
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), 0, line_cstr);
-            let mut ci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), 0, &line_cstr);
+            let mut ci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1227,7 +1229,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                     break;
                 }
             }
-            new_cursor_col = ci.offset_from(line_cstr) as i32;
+            new_cursor_col = ci.offset_from(&line_cstr) as i32;
         }
 
         if vcol != curwin_mut().w_virtcol.get() {
@@ -1374,7 +1376,7 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
     }
 
     let ind_len = line_vec.len() as i32;
-    line_vec.extend_from_slice(crate::cursor::get_cursor_line_slice());
+    line_vec.extend_from_slice(&crate::cursor::get_cursor_line_slice());
     line_vec.push(0);
 
     ml_replace(
@@ -1437,7 +1439,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut lnum = eap.line1;
     while !g_st().got_int.get() && lnum <= eap.line2 {
-        let mut ptr_slice: &[u8] = ml_get(lnum).to_bytes_with_nul();
+        let mut ptr_slice = ml_get(lnum).to_bytes_with_nul_slice();
         let mut old_len = ml_get_len(lnum);
         let mut col: i32 = 0;
         let mut vcol: i64 = 0;
@@ -1718,9 +1720,9 @@ pub fn get_lisp_indent() -> i32 {
 
             let line_cstr = get_cursor_line_ptr();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), pos.lnum, line_cstr);
+            let cstype: CSType = init_charsize_arg(&mut csarg, &curwin_mut(), pos.lnum, &line_cstr);
 
-            let mut sci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
+            let mut sci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
             amount = 0;
             while !sci.is_empty() && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);

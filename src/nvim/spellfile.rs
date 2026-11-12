@@ -4734,7 +4734,8 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     let mut write_err = false;
     let mut memtot_add = 0;
     for lnum in 1..=wcount {
-        let line_slice = ml_get_buf(spellbuf, lnum).to_bytes_with_nul();
+        let line_cstr = ml_get_buf(spellbuf, lnum);
+        let line_slice = line_cstr.to_bytes_with_nul();
         let len = line_slice.len() as i32;
         if spell_write(line_slice, &fd) == 0 {
             emsg(gettext(E_WRITE));

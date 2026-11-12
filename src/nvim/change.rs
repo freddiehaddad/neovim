@@ -703,7 +703,8 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
 
         let col = curwin_mut().w_cursor.get().col as usize;
         let lnum = curwin_mut().w_cursor.get().lnum;
-        let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
+        let oldp_cstr = ml_get(lnum);
+        let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
         let oldp_bytes = &oldp_with_nul[..oldp_with_nul.len() - 1];
         let linelen = ml_get_len(lnum) as usize + 1;
 
@@ -808,7 +809,8 @@ pub fn del_char(fixpos: bool) -> bool {
 /// Like `del_bytes()`, but delete characters instead of bytes.
 pub fn del_chars(count: i32, fixpos: i32) -> bool {
     let mut bytes: Colnr = 0;
-    let mut rem = crate::cursor::get_cursor_pos_slice();
+    let rem_rc = crate::cursor::get_cursor_pos_slice();
+    let mut rem = rem_rc.as_slice();
     let mut i: i32 = 0;
     while i < count && !rem.is_empty() {
         let l = crate::mbyte::utfc_slice2len(rem);
@@ -824,7 +826,8 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     let lnum = curwin_mut().w_cursor.get().lnum;
     let mut col = curwin_mut().w_cursor.get().col;
     let mut fixpos = fixpos_arg;
-    let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
+    let oldp_cstr = ml_get(lnum);
+    let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
     let oldp_bytes = &oldp_with_nul[..oldp_with_nul.len() - 1];
     let oldlen = ml_get_len(lnum);
 
@@ -1014,6 +1017,7 @@ pub fn open_line(
             && (p_extra_idx.is_none() || first_char != b'{' as i32)
         {
             let old_cursor = curwin_mut().w_cursor.get();
+            let mut ptr_rc: Option<crate::option_vars::RcSlice> = None;
             let mut ptr_bytes = saved_line_bytes;
             if (flags & OPENLINE_DO_COM) != 0 {
                 lead_len = get_leader_len(ptr_bytes, None, false, true);
@@ -1024,7 +1028,11 @@ pub fn open_line(
                 if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
                     while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.get().lnum > 1 {
                         curwin_mut().w_cursor.sub_lnum(1);
-                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                        ptr_bytes = ptr_rc
+                            .insert(crate::memline::ml_get_slice(
+                                curwin_mut().w_cursor.get().lnum,
+                            ))
+                            .as_slice();
                     }
                     newindent = get_indent();
                 }
@@ -1049,8 +1057,11 @@ pub fn open_line(
                                     newindent = get_indent();
                                     break;
                                 }
-                                ptr_bytes =
-                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                                ptr_bytes = ptr_rc
+                                    .insert(crate::memline::ml_get_slice(
+                                        curwin_mut().w_cursor.get().lnum,
+                                    ))
+                                    .as_slice();
                                 idx =
                                     (curwin_mut().w_cursor.get().col as usize).min(ptr_bytes.len());
                             }
@@ -1076,7 +1087,9 @@ pub fn open_line(
                             curwin_mut().w_cursor.set_lnum(pos.lnum);
 
                             newindent = get_indent();
-                            ptr_bytes = crate::cursor::get_cursor_line_slice();
+                            ptr_bytes = ptr_rc
+                                .insert(crate::cursor::get_cursor_line_slice())
+                                .as_slice();
                         }
                     }
                     if last_char == b'{' {
@@ -1095,7 +1108,11 @@ pub fn open_line(
                     {
                         was_backslashed = ptr_bytes.last() == Some(&b'\\');
                         curwin_mut().w_cursor.add_lnum(1);
-                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                        ptr_bytes = ptr_rc
+                            .insert(crate::memline::ml_get_slice(
+                                curwin_mut().w_cursor.get().lnum,
+                            ))
+                            .as_slice();
                     }
                     if was_backslashed {
                         newindent = 0;

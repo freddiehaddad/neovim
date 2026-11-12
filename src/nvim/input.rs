@@ -2692,7 +2692,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         if curwin_mut().w_wcol.get() > 0 {
                             if g_st().ins_global.borrow().did_ai
                                 && crate::charset::skipwhite_slice(
-                                    crate::cursor::get_cursor_pos_slice(),
+                                    &crate::cursor::get_cursor_pos_slice(),
                                 )
                                 .is_empty()
                             {
@@ -2705,11 +2705,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     &mut csarg,
                                     &curwin_mut(),
                                     curwin_mut().w_cursor.get().lnum,
-                                    ptr_cstr,
+                                    &ptr_cstr,
                                 );
-                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr_cstr);
+                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(&ptr_cstr);
                                 let mut vcol: i32 = 0;
-                                while ci.offset_from(ptr_cstr) < end_off {
+                                while ci.offset_from(&ptr_cstr) < end_off {
                                     if !ascii_iswhite(ci.chr.value) {
                                         curwin_mut().w_wcol.set(vcol);
                                     }
@@ -2751,7 +2751,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         }
                         if col > 0 && curwin_mut().w_wcol.get() > 0 {
                             let line_slice = crate::cursor::get_cursor_line_slice();
-                            col -= crate::mbyte::utf_head_off_slice(line_slice, col as usize);
+                            col -= crate::mbyte::utf_head_off_slice(&line_slice, col as usize);
                             if utf_ptr2cells(&line_slice[(col as usize).min(line_slice.len())..])
                                 > 1
                             {

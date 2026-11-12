@@ -930,11 +930,11 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             }
             // add any composing characters
             if utf_char2len(*c)
-                != crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as i32
+                != crate::mbyte::utfc_slice2len(&crate::cursor::get_cursor_pos_slice()) as i32
             {
                 let save_c = *c;
                 while utf_char2len(*c)
-                    != crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as i32
+                    != crate::mbyte::utfc_slice2len(&crate::cursor::get_cursor_pos_slice()) as i32
                 {
                     curwin_mut().w_cursor.add_col(utf_char2len(*c));
                     *c = gchar_cursor();

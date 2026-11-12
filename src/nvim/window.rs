@@ -1422,7 +1422,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                 return;
             }
             find_pattern_in_path(
-                ident,
+                &ident,
                 0,
                 true,
                 prenum == 0,

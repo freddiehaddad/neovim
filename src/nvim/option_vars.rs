@@ -8,28 +8,6 @@ use crate::regexp::Regprog;
 use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
-thread_local! {
-    static INTERNED_OPT_CSTRS: std::cell::RefCell<
-        std::collections::HashSet<&'static std::ffi::CStr>,
-    > = std::cell::RefCell::new(std::collections::HashSet::new());
-}
-
-#[inline]
-pub(crate) fn intern_opt_cstr(s: &std::ffi::CStr) -> &'static std::ffi::CStr {
-    if s.is_empty() {
-        return c"";
-    }
-    INTERNED_OPT_CSTRS.with(|set| {
-        let mut set = set.borrow_mut();
-        if let Some(&existing) = set.get(s) {
-            return existing;
-        }
-        let leaked: &'static std::ffi::CStr = Box::leak(s.to_owned().into_boxed_c_str());
-        set.insert(leaked);
-        leaked
-    })
-}
-
 #[derive(Clone)]
 pub enum RcCStr {
     Static(&'static std::ffi::CStr),
@@ -212,9 +190,25 @@ impl RcSlice {
     }
 
     #[inline(always)]
-    pub fn slice(mut self, start: usize) -> Self {
-        self.start = self.start.saturating_add(start);
-        self
+    pub fn slice(&self, start: usize) -> Self {
+        let mut res = self.clone();
+        res.start = res.start.saturating_add(start);
+        res
+    }
+
+    #[inline(always)]
+    pub fn slice_from(&self, subslice: &[u8]) -> Self {
+        let base = self.as_slice();
+        let off = if subslice.is_empty() {
+            base.len()
+        } else {
+            (subslice.as_ptr() as usize)
+                .saturating_sub(base.as_ptr() as usize)
+                .min(base.len())
+        };
+        let mut res = self.clone();
+        res.start = res.start.saturating_add(off);
+        res
     }
 }
 
