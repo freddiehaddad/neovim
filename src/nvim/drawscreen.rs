@@ -90,8 +90,9 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_set_screen_valid;
 use crate::version::{intro_message, may_show_intro};
 use crate::window::{
-    Frame, MIN_COLUMNS, WinInfoInfo, frame2win, global_stl_height, last_stl_height, min_rows,
-    min_rows_for_all_tabpages, win_fdccol_count, win_new_screensize, win_ui_flush,
+    Frame, MIN_COLUMNS, WinInfoInfo, frame2win, global_stl_height, last_stl_height,
+    min_cols_for_all_tabpages, min_rows, min_rows_for_all_tabpages, win_fdccol_count,
+    win_new_screensize, win_ui_flush,
 };
 use std::ffi::CStr;
 use std::ptr;
@@ -536,9 +537,14 @@ pub fn check_screensize() {
             .max(min_rows_for_all_tabpages())
             .min(1000),
     );
-    g_st()
-        .columns_global
-        .set(g_st().columns_global.get().clamp(MIN_COLUMNS, 10000));
+    g_st().columns_global.set(
+        g_st()
+            .columns_global
+            .get()
+            .max(MIN_COLUMNS)
+            .max(min_cols_for_all_tabpages())
+            .min(10000),
+    );
 }
 
 pub fn redrawing() -> bool {

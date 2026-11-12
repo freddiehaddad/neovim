@@ -4754,13 +4754,14 @@ fn frame_new_width(topfrp: &Frame, mut width: i32, leftfirst: bool, wfw: bool) {
         let mut extra_cols = width - topfrp.fr_width.get();
         if extra_cols < 0 {
             while !frp.is_null() {
-                let w = frame_minwidth(frp.borrow(), crate::globals::WinPtr::NULL);
-                if frp.fr_width.get() + extra_cols < w {
-                    extra_cols += frp.fr_width.get() - w;
-                    frame_new_width(frp.borrow(), w, leftfirst, wfw);
-                } else {
-                    let new_w = frp.fr_width.get() + extra_cols;
-                    frame_new_width(frp.borrow(), new_w, leftfirst, wfw);
+                let old_width = frp.fr_width.get();
+                let new_w = (old_width + extra_cols)
+                    .max(frame_minwidth(frp.borrow(), crate::globals::WinPtr::NULL));
+                frame_new_width(frp.borrow(), new_w, leftfirst, wfw);
+                // Take the rest from the next frame. Count the width actually taken: a frame may stay wider
+                // than requested, e.g. if it contains a 'winfixwidth' window.
+                extra_cols += old_width - frp.fr_width.get();
+                if extra_cols >= 0 {
                     break;
                 }
                 if leftfirst {
@@ -8060,6 +8061,22 @@ pub fn min_rows_for_all_tabpages() -> i32 {
         total = total.max(n);
     }
     total += tabline_height() + global_stl_height();
+    total
+}
+
+/// Minimum number of screen-columns needed to display the current windows for all tabpages.
+pub fn min_cols_for_all_tabpages() -> i32 {
+    if g_st().firstwin.get().is_null() {
+        return MIN_COLUMNS;
+    }
+
+    let mut total: i32 = 0;
+    for tp in for_all_tabpages_ptr() {
+        total = total.max(frame_minwidth(
+            &tp.topframe_mut(),
+            crate::globals::WinPtr::NULL,
+        ));
+    }
     total
 }
 
