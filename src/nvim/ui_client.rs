@@ -53,6 +53,7 @@ struct UiClientState {
     tui_width: std::cell::Cell<i32>,
     tui_height: std::cell::Cell<i32>,
     tui_rgb: std::cell::Cell<bool>,
+    detached_addr: std::cell::RefCell<Option<std::ffi::CString>>,
     restart_args: crate::api::private::validate::CloneCell<Array>,
     restart_pending: std::cell::Cell<bool>,
     restart_args_after_crash_exit: crate::api::private::validate::CloneCell<Array>,
@@ -65,6 +66,7 @@ impl UiClientState {
             tui_width: std::cell::Cell::new(0),
             tui_height: std::cell::Cell::new(0),
             tui_rgb: std::cell::Cell::new(false),
+            detached_addr: std::cell::RefCell::new(None),
             restart_args: crate::api::private::validate::CloneCell::new(ARRAY_INIT),
             restart_pending: std::cell::Cell::new(false),
             restart_args_after_crash_exit: crate::api::private::validate::CloneCell::new(
@@ -319,6 +321,12 @@ pub fn ui_client_stop() {
     if !with_tui(tui_is_stopped) {
         tui_stop();
     }
+    if let Some(addr) = UIC_STATE.with(|s| s.detached_addr.borrow_mut().take()) {
+        let addr_lossy = addr.to_string_lossy();
+        eprintln!(
+            "Detached from {addr_lossy}\nTo reattach: nvim --remote-ui --server \"{addr_lossy}\""
+        );
+    }
 }
 
 pub fn ui_client_set_size(width: i32, height: i32) {
@@ -481,6 +489,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
         os_exit(1);
     }
 
+    UIC_STATE.with(|s| *s.detached_addr.borrow_mut() = None); // Attached to the new server instead.
     g_st().ui_client_channel_id.set(chan);
     set_chan_addr(&server_addr);
     let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
@@ -645,11 +654,21 @@ pub fn ui_client_event_error_exit(args: Array) {
     g_st()
         .ui_client_error_exit
         .set(args[0].data.integer() as i32);
+    let detached_addr = if args.size > 1
+        && args[1].obj_type == ObjectType::ObjectTypeString
+        && args[1].data.string().size > 0
+    {
+        Some(args[1].data.string().to_cstring())
+    } else {
+        None
+    };
+    UIC_STATE.with(|s| *s.detached_addr.borrow_mut() = detached_addr);
 }
 
 pub fn ui_client_free_all_mem() {
     let tui = UIC_STATE.with(|s| s.tui.borrow_mut().take());
     tui_free_all_mem(tui);
+    UIC_STATE.with(|s| *s.detached_addr.borrow_mut() = None);
     *g_st().grid_line_buf_char.borrow_mut() = Vec::new();
     *g_st().grid_line_buf_attr.borrow_mut() = Vec::new();
 }

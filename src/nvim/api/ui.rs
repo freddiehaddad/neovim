@@ -118,8 +118,14 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
         return;
     };
     if send_error_exit {
-        let mut args_items: [Object; 1] = [integer_obj(0)];
-        let args = Array::from_slice(&mut args_items[..1]);
+        let send_srv = crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_SEND_SERVER);
+        let chan_opt = find_channel_opt(channel_id);
+        // Client may reattach via this address.
+        let addr: &CStr = chan_opt
+            .and_then(|chan| chan.addr.as_deref())
+            .unwrap_or(send_srv.as_ref());
+        let mut args_items: [Object; 2] = [integer_obj(0), cstr_as_obj(Some(addr))];
+        let args = Array::from_slice(&mut args_items[..2]);
         let mut ui = ui_rc.borrow_mut();
         push_call(&mut ui, c"error_exit", args);
         ui_flush_buf(&mut ui, false);
@@ -1594,9 +1600,9 @@ pub fn remote_ui_win_viewport_margins(
     push_call(ui, c"win_viewport_margins", args);
 }
 
-pub fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer) {
-    let mut items = [integer_obj(status)];
-    let args = Array::from_slice(&mut items[..1]);
+pub fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer, addr: NvimString) {
+    let mut items = [integer_obj(status), string_obj(addr)];
+    let args = Array::from_slice(&mut items[..2]);
     push_call(ui, c"error_exit", args);
 }
 

@@ -9241,7 +9241,10 @@ fn ex_quit(eap: &mut Exarg) {
 
 fn ex_cquit(eap: &mut Exarg) {
     let status = if eap.addr_count > 0 { eap.line2 } else { 1 };
-    ui_call_error_exit(Integer::from(status));
+    ui_call_error_exit(
+        Integer::from(status),
+        crate::api::private::validate::NvimString::new(),
+    );
     getout(status);
 }
 

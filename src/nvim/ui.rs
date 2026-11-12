@@ -1621,8 +1621,10 @@ pub fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
     );
 }
 
-pub fn ui_call_error_exit(status: Integer) {
-    ui_call_loop!(true, c"error_exit", |ui| remote_ui_error_exit(ui, status));
+pub fn ui_call_error_exit(status: Integer, addr: NvimString) {
+    ui_call_loop!(true, c"error_exit", |ui| {
+        remote_ui_error_exit(ui, status, addr.clone())
+    });
 }
 
 pub fn ui_call_set_restart_on_crash_exit(progpath: NvimString, argv: Array) {

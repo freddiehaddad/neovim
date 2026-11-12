@@ -4011,7 +4011,11 @@ static API_UI_EVENTS: [ApiUiEventMeta; 69] = [
         6,
         &[("Array", "entries"), ("Boolean", "prev_cmd")],
     ),
-    api_ui_ev("error_exit", 12, &[("Integer", "status")]),
+    api_ui_ev(
+        "error_exit",
+        12,
+        &[("Integer", "status"), ("String", "addr")],
+    ),
 ];
 
 static API_UI_OPTIONS: [&str; 10] = [

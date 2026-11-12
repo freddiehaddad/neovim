@@ -1891,7 +1891,7 @@ fn handle_tag(tagname: Option<&CStr>) {
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit.get() {
-            ui_call_error_exit(1);
+            ui_call_error_exit(1, NvimString::new());
             getout(1);
         }
     }
@@ -2019,7 +2019,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if g_st().swap_exists_action.get() == SEA_QUIT {
                     if g_st().got_int.get() || only_one_window() {
                         g_st().did_emsg.set(0);
-                        ui_call_error_exit(1);
+                        ui_call_error_exit(1, NvimString::new());
                         getout(1);
                     }
                     setfname(&curbuf_mut(), None, None, false);
@@ -2124,7 +2124,7 @@ fn edit_buffers(parmp: &mut Mparm) {
             if g_st().swap_exists_did_quit.get() {
                 if g_st().got_int.get() || only_one_window() {
                     g_st().did_emsg.set(0);
-                    ui_call_error_exit(1);
+                    ui_call_error_exit(1, NvimString::new());
                     getout(1);
                 }
                 win_close(&curwin_mut(), true, false);
@@ -2548,7 +2548,7 @@ fn usage() {
 
 fn check_swap_exists_action() {
     if g_st().swap_exists_action.get() == SEA_QUIT {
-        ui_call_error_exit(1);
+        ui_call_error_exit(1, NvimString::new());
         getout(1);
     }
     handle_swap_exists(None);
