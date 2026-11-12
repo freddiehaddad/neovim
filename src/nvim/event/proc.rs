@@ -25,7 +25,7 @@ use std::ptr;
 const KILL_TIMEOUT_MS: u64 = 2000;
 
 use crate::channel::{K_PROC_TYPE_PTY, K_PROC_TYPE_UV};
-use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
+use crate::os::signal::{SIGHUP, SIGINT, SIGKILL, SIGTERM};
 
 #[repr(C)]
 pub struct Proc {
@@ -47,6 +47,7 @@ pub struct Proc {
     pub detach: bool,
     pub overlapped: bool,
     pub fwd_err: bool,
+    pub interrupt: bool,
     pub stdio_noinherit: bool,
     pub events: MultiQueue,
     pub width: u16,
@@ -84,6 +85,7 @@ impl Proc {
             detach: false,
             overlapped: false,
             fwd_err: false,
+            interrupt: false,
             stdio_noinherit: false,
             events: MultiQueue::NULL,
             width: 0,
@@ -320,7 +322,10 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
                 loop_process_events(main_loop_ptr(), events.opt_mut(), 0);
             }
 
-            (*proc_).status = -2;
+            if !(*proc_).interrupt {
+                // An `interrupt` child may handle SIGINT, keep its status (not -2).
+                (*proc_).status = -2;
+            }
         }
 
         if ptr::read_volatile(&raw const (*proc_).refcount) == 1 {
@@ -348,8 +353,13 @@ pub fn proc_stop(proc_in: &mut Proc) {
 
         match (*proc_).r#type {
             K_PROC_TYPE_UV => {
-                (*proc_).exit_signal = SIGTERM as u8;
-                os_proc_tree_kill((*proc_).pid, SIGTERM);
+                let sig = if !cfg!(windows) && (*proc_).interrupt {
+                    SIGINT
+                } else {
+                    SIGTERM
+                };
+                (*proc_).exit_signal = sig as u8;
+                os_proc_tree_kill((*proc_).pid, sig);
             }
             K_PROC_TYPE_PTY => {
                 (*proc_).exit_signal = SIGHUP as u8;
@@ -381,7 +391,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
                 continue;
             }
             let term_sent = (*proc_).stopped_time == u64::MAX;
-            if (*proc_).r#type != K_PROC_TYPE_PTY || term_sent {
+            if ((*proc_).r#type != K_PROC_TYPE_PTY && !(*proc_).interrupt) || term_sent {
                 (*proc_).exit_signal = SIGKILL as u8;
                 os_proc_tree_kill((*proc_).pid, SIGKILL);
             } else {

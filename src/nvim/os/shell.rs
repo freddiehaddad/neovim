@@ -812,6 +812,7 @@ fn do_os_system(
     let events = multiqueue_new_child(qc.events);
     proc_.events = events;
     proc_.argv = argv;
+    proc_.interrupt = true; // Send CTRL-C as SIGINT to the child. #8678
 
     'end: {
         let status = proc_spawn(proc_, has_input, true, true);

@@ -137,7 +137,7 @@ fn os_proc_tree_kill_rec(proc_handle_addr: usize, sig: i32) -> bool {
 
 /// Kill process `pid` and its process group / descendants (`os_proc_tree_kill`).
 pub fn os_proc_tree_kill(pid: i32, sig: i32) -> bool {
-    assert!(sig == SIGTERM_NUM || sig == SIGKILL_NUM);
+    assert!(sig == crate::os::signal::SIGINT || sig == SIGTERM_NUM || sig == SIGKILL_NUM);
     #[cfg(target_os = "windows")]
     {
         if pid > 0 {
