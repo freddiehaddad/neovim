@@ -25,9 +25,7 @@ use crate::eval::{
     func_equal, get_copy_id, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
 use crate::globals::*;
-use crate::hashtab::{
-    Hashitem, hash_add, hash_clear, hash_lock, hash_remove, hash_unlock, hashitem_empty,
-};
+use crate::hashtab::{Hashitem, hash_add, hash_lock, hash_remove, hash_unlock};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len};
@@ -1278,28 +1276,28 @@ impl From<Option<DictitemId>> for DictitemId {
 impl From<&Dictitem> for DictitemId {
     #[inline(always)]
     fn from(di: &Dictitem) -> Self {
-        Self(di.self_weak.upgrade())
+        Self(di.self_weak.borrow().upgrade())
     }
 }
 
 impl From<&mut Dictitem> for DictitemId {
     #[inline(always)]
     fn from(di: &mut Dictitem) -> Self {
-        Self(di.self_weak.upgrade())
+        Self(di.self_weak.borrow().upgrade())
     }
 }
 
 impl From<Option<&Dictitem>> for DictitemId {
     #[inline(always)]
     fn from(opt: Option<&Dictitem>) -> Self {
-        Self(opt.and_then(|di| di.self_weak.upgrade()))
+        Self(opt.and_then(|di| di.self_weak.borrow().upgrade()))
     }
 }
 
 impl From<Option<&mut Dictitem>> for DictitemId {
     #[inline(always)]
     fn from(opt: Option<&mut Dictitem>) -> Self {
-        Self(opt.and_then(|di| di.self_weak.upgrade()))
+        Self(opt.and_then(|di| di.self_weak.borrow().upgrade()))
     }
 }
 
@@ -1348,7 +1346,7 @@ impl std::ops::Deref for DictitemId {
 
 #[repr(C)]
 pub struct Dictitem {
-    pub self_weak: std::rc::Weak<Self>,
+    pub self_weak: std::cell::RefCell<std::rc::Weak<Self>>,
     pub di_tv: std::cell::RefCell<TypVal>,
     pub di_flags: std::cell::Cell<u8>,
     pub di_key: Vec<u8>,
@@ -1357,7 +1355,7 @@ pub struct Dictitem {
 impl Dictitem {
     pub fn new_rc(key_vec: Vec<u8>, flags: u8) -> std::rc::Rc<Self> {
         std::rc::Rc::new_cyclic(|weak| Self {
-            self_weak: weak.clone(),
+            self_weak: std::cell::RefCell::new(weak.clone()),
             di_tv: std::cell::RefCell::new(tv_initial_value()),
             di_flags: std::cell::Cell::new(flags),
             di_key: key_vec,
@@ -2070,9 +2068,108 @@ pub const fn tv_initial_value() -> TypVal {
     }
 }
 
+const LISTITEM_POOL_CAP: usize = 65536;
+const TVLIST_POOL_CAP: usize = 16384;
+const TVDICT_POOL_CAP: usize = 4096;
+const DICTITEM_POOL_CAP: usize = 16384;
+
+thread_local! {
+    static LISTITEM_POOL: std::cell::RefCell<Vec<std::rc::Rc<Listitem>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static TVLIST_POOL: std::cell::RefCell<Vec<std::rc::Rc<TvList>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static TVDICT_POOL: std::cell::RefCell<Vec<std::rc::Rc<TvDict>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static DICTITEM_POOL: std::cell::RefCell<Vec<std::rc::Rc<Dictitem>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+#[inline]
+fn recycle_listitem(item: ListitemId) {
+    if let Some(rc) = item.0
+        && std::rc::Rc::strong_count(&rc) == 1
+        && std::rc::Rc::weak_count(&rc) == 1
+    {
+        let _ = LISTITEM_POOL.try_with(|pool| {
+            if let Ok(mut p) = pool.try_borrow_mut()
+                && p.len() < LISTITEM_POOL_CAP
+            {
+                p.push(rc);
+            }
+        });
+    }
+}
+
+#[inline]
+fn recycle_tvlist(list: ListId) {
+    if let Some(rc) = list.0
+        && std::rc::Rc::strong_count(&rc) == 1
+        && std::rc::Rc::weak_count(&rc) == 1
+    {
+        rc.lv_refcount.set(0);
+        rc.lv_len.set(0);
+        rc.lv_idx.set(0);
+        rc.lv_copy_id.set(0);
+        rc.lv_lock.set(0);
+        let _ = TVLIST_POOL.try_with(|pool| {
+            if let Ok(mut p) = pool.try_borrow_mut()
+                && p.len() < TVLIST_POOL_CAP
+            {
+                p.push(rc);
+            }
+        });
+    }
+}
+
+#[inline]
+fn recycle_tvdict(dict: DictId) {
+    if let Some(rc) = dict.0
+        && std::rc::Rc::strong_count(&rc) == 1
+        && std::rc::Rc::weak_count(&rc) == 1
+    {
+        rc.dv_lock.set(VAR_UNLOCKED);
+        rc.dv_scope.set(VAR_NO_SCOPE);
+        rc.dv_refcount.set(0);
+        rc.dv_copy_id.set(0);
+        let _ = TVDICT_POOL.try_with(|pool| {
+            if let Ok(mut p) = pool.try_borrow_mut()
+                && p.len() < TVDICT_POOL_CAP
+            {
+                p.push(rc);
+            }
+        });
+    }
+}
+
+#[inline]
+fn recycle_dictitem(item: DictitemId) {
+    if let Some(rc) = item.0
+        && std::rc::Rc::strong_count(&rc) == 1
+        && std::rc::Rc::weak_count(&rc) == 1
+    {
+        *rc.self_weak.borrow_mut() = std::rc::Weak::new();
+        let _ = DICTITEM_POOL.try_with(|pool| {
+            if let Ok(mut p) = pool.try_borrow_mut()
+                && p.len() < DICTITEM_POOL_CAP
+            {
+                p.push(rc);
+            }
+        });
+    }
+}
+
 /// Allocate a list item.
 pub(crate) fn tv_list_item_alloc() -> ListitemId {
-    ListitemId::from(Listitem::new_rc())
+    let rc = LISTITEM_POOL
+        .try_with(|pool| pool.borrow_mut().pop())
+        .ok()
+        .flatten()
+        .unwrap_or_else(Listitem::new_rc);
+    ListitemId(Some(rc))
 }
 
 #[inline]
@@ -2080,6 +2177,9 @@ fn free_listitem_slot(item: &Listitem) {
     item.li_next.set(ListitemId::NULL);
     item.li_prev.set(ListitemId::NULL);
     item.clear_tv();
+    let mut tv = item.li_tv.borrow_mut();
+    tv.v_type = VarType::VarUnknown;
+    tv.v_lock = VAR_UNLOCKED;
 }
 
 /// Remove a list item from a List and free it.
@@ -2121,7 +2221,12 @@ fn tv_list_watch_fix(l: &TvList, item: &Listitem) {
 
 /// Allocate an empty list.
 pub fn tv_list_alloc(_len: isize) -> ListId {
-    let list = ListId::from(TvList::new_rc(0));
+    let rc = TVLIST_POOL
+        .try_with(|pool| pool.borrow_mut().pop())
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| TvList::new_rc(0));
+    let list = ListId::from(rc);
     gc_register_list(&list);
     list
 }
@@ -2169,16 +2274,20 @@ pub fn tv_list_init_static10(l: &TvList) {
 
 /// Free items contained in a list.
 pub fn tv_list_free_contents(l: &TvList) {
-    let mut item = l.lv_first.get();
+    l.lv_idx_item.set(ListitemId::NULL);
+    l.lv_last.set(ListitemId::NULL);
+    let mut item = l.lv_first.take();
     while !item.is_null() {
-        let next = item.li_next.get();
+        let next = item.li_next.take();
+        if !next.is_null() {
+            next.li_prev.set(ListitemId::NULL);
+        }
         l.lv_first.set(next.clone());
         free_listitem_slot(&item);
+        recycle_listitem(item);
         item = next;
     }
     l.lv_len.set(0);
-    l.lv_idx_item.set(ListitemId::NULL);
-    l.lv_last.set(ListitemId::NULL);
     debug_assert!(l.lv_watch.borrow().is_empty());
 }
 
@@ -2187,13 +2296,14 @@ pub fn tv_list_free(l: Option<&TvList>) {
     let Some(l_ref) = l else {
         return;
     };
-    let _hold = ListId::from(l_ref);
+    let hold = ListId::from(l_ref);
     if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && l_ref.lv_gc_idx.get().is_some() {
         return;
     }
 
     tv_list_free_contents(l_ref);
     tv_list_free_slot(l_ref);
+    recycle_tvlist(hold);
 }
 
 #[allow(unsafe_code)]
@@ -3783,6 +3893,22 @@ fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> DictitemId {
 /// Allocate a dictionary item.
 pub fn tv_dict_item_alloc_len(key: &[u8]) -> DictitemId {
     let key = crate::memory::bytes_until_nul(key);
+    if let Some(mut rc) = DICTITEM_POOL
+        .try_with(|pool| pool.borrow_mut().pop())
+        .ok()
+        .flatten()
+        && let Some(di) = std::rc::Rc::get_mut(&mut rc)
+    {
+        di.di_key.clear();
+        di.di_key.reserve(key.len() + 1);
+        di.di_key.extend_from_slice(key);
+        di.di_key.push(0);
+        di.di_flags.set(DI_FLAGS_ALLOC);
+        *di.di_tv.get_mut() = tv_initial_value();
+        let weak = std::rc::Rc::downgrade(&rc);
+        *rc.self_weak.borrow_mut() = weak;
+        return DictitemId(Some(rc));
+    }
     let mut key_vec = Vec::with_capacity(key.len() + 1);
     key_vec.extend_from_slice(key);
     key_vec.push(0);
@@ -3832,7 +3958,12 @@ pub fn tv_dict_item_remove(dict: &TvDict, item: &Dictitem) {
 }
 
 fn tv_dict_alloc_slot() -> DictId {
-    DictId::from(TvDict::new_rc())
+    let rc = TVDICT_POOL
+        .try_with(|pool| pool.borrow_mut().pop())
+        .ok()
+        .flatten()
+        .unwrap_or_else(TvDict::new_rc);
+    DictId::from(rc)
 }
 
 /// Allocate an empty dictionary.
@@ -3865,26 +3996,29 @@ pub fn tv_dict_free_contents(d: &TvDict) {
         if d.dv_hashtab.ht_used.get() == 0 {
             break;
         }
-        let di_id = d.dv_hashtab.slot(i).hi_di;
-        if let Some(di) = di_id.opt() {
-            d.dv_hashtab.remove_at(i);
-            tv_dict_item_free(di);
+        if let Some(di_id) = d.dv_hashtab.take_di_for_clear(i) {
+            tv_dict_item_free(&di_id);
+            if (di_id.di_flags.get() & DI_FLAGS_ALLOC) != 0 {
+                recycle_dictitem(di_id);
+            }
         }
     }
 
     d.watchers.borrow_mut().clear();
     d.dv_copydict.set(DictId::NULL);
 
-    hash_clear(&d.dv_hashtab);
+    d.dv_hashtab.reset_for_pool();
 }
 
 /// Free a dictionary, including all items it contains.
 pub fn tv_dict_free(d_in: &TvDict) {
+    let hold = DictId::from(d_in);
     if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && d_in.dv_gc_idx.get().is_some() {
         return;
     }
     tv_list_dict_free_dict_inner(d_in);
     tv_dict_free_slot(d_in);
+    recycle_tvdict(hold);
 }
 
 #[inline]
@@ -4839,23 +4973,20 @@ fn nothing_convert_one_value(
     tv: &mut TypVal,
     copy_id: i32,
 ) -> bool {
+    tv.v_lock = VAR_UNLOCKED;
     match tv.v_type {
         VarType::VarString => {
             let _ = tv_take_string(tv);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarNumber => {
             tv.vval = crate::eval::typval::TypvalVval::Number(0);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarFloat => {
             tv.vval = crate::eval::typval::TypvalVval::Float(0.0);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarBlob => {
             tv_blob_unref(tv.vval.v_blob_opt());
             tv.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarFunc => {
             let _ = nothing_conv_func_start(tv);
@@ -4879,7 +5010,6 @@ fn nothing_convert_one_value(
             if list.is_null() || tv_list_len_inline(list.opt()) == 0 {
                 tv_list_unref(list.opt());
                 tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
-                tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
             let saved_copy_id = list.lv_copy_id.get();
@@ -4887,7 +5017,6 @@ fn nothing_convert_one_value(
                 return true;
             }
 
-            tv.v_lock = VAR_UNLOCKED;
             tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
             if list.lv_refcount.get() > 1 {
                 list.lv_refcount.set(list.lv_refcount.get() - 1);
@@ -4905,18 +5034,15 @@ fn nothing_convert_one_value(
         }
         VarType::VarBool => {
             tv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarSpecial => {
             tv.vval = crate::eval::typval::TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST);
-            tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarDict => {
             let dict = tv.vval.v_dict();
             if dict.is_null() || dict.dv_hashtab.ht_used.get() == 0 {
                 tv_dict_unref(dict.opt());
                 tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
-                tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
             let saved_copy_id = dict.dv_copy_id.get();
@@ -4924,7 +5050,6 @@ fn nothing_convert_one_value(
                 return true;
             }
 
-            tv.v_lock = VAR_UNLOCKED;
             tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
             if dict.dv_refcount.get() > 1 {
                 dict.dv_refcount.set(dict.dv_refcount.get() - 1);
@@ -4955,7 +5080,7 @@ fn nothing_convert_one_value(
 fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
     let copy_id = get_copy_id();
 
-    let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
+    let mut mpstack: Vec<MPConvStackVal> = Vec::new();
     if !nothing_convert_one_value(&mut mpstack, top_tv, copy_id) {
         return false;
     }
@@ -4977,13 +5102,9 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     tv_dict_unref(dict_cl.opt());
                     continue;
                 }
-                while hashitem_empty(&dict.dv_hashtab.slot(*hi_idx)) {
-                    *hi_idx += 1;
-                }
-                let hi = dict.dv_hashtab.slot(*hi_idx);
-                let di = hi.hi_di;
+                let (next_idx, di) = dict.dv_hashtab.next_used_di(*hi_idx);
+                *hi_idx = next_idx;
                 *todo -= 1;
-                *hi_idx += 1;
                 let mut item_tv = std::mem::replace(
                     &mut *di.tv_mut(),
                     TypVal {
@@ -5121,8 +5242,34 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
 
 /// Free memory for a variable value and set the value to NULL or 0.
 pub fn tv_clear(tv: &mut TypVal) {
-    if tv.v_type == VarType::VarUnknown {
-        return;
+    match tv.v_type {
+        VarType::VarUnknown => return,
+        VarType::VarNumber => {
+            tv.vval = TypvalVval::Number(0);
+            tv.v_lock = VAR_UNLOCKED;
+            return;
+        }
+        VarType::VarFloat => {
+            tv.vval = TypvalVval::Float(0.0);
+            tv.v_lock = VAR_UNLOCKED;
+            return;
+        }
+        VarType::VarBool => {
+            tv.vval = TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
+            tv.v_lock = VAR_UNLOCKED;
+            return;
+        }
+        VarType::VarSpecial => {
+            tv.vval = TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST);
+            tv.v_lock = VAR_UNLOCKED;
+            return;
+        }
+        VarType::VarString => {
+            let _ = tv_take_string(tv);
+            tv.v_lock = VAR_UNLOCKED;
+            return;
+        }
+        _ => {}
     }
     let evn_ret = encode_vim_to_nothing(tv);
     debug_assert!(evn_ret);

@@ -171,6 +171,38 @@ impl Hashtab {
         }
         hash_may_resize(self, 0);
     }
+
+    #[inline]
+    pub fn take_di_for_clear(&self, idx: usize) -> Option<crate::eval::typval::DictitemId> {
+        let mut arr = self.ht_array.borrow_mut();
+        let hi = &mut arr[idx];
+        if hi.hi_di.is_null() {
+            None
+        } else {
+            self.ht_used.set(self.ht_used.get() - 1);
+            self.ht_changed.set(self.ht_changed.get() + 1);
+            hi.hi_removed = true;
+            Some(std::mem::take(&mut hi.hi_di))
+        }
+    }
+    #[inline]
+    pub fn reset_for_pool(&self) {
+        self.ht_mask.set(HT_INIT_SIZE - 1);
+        self.ht_used.set(0);
+        self.ht_filled.set(0);
+        self.ht_changed.set(0);
+        self.ht_locked.set(0);
+        let mut arr = self.ht_array.borrow_mut();
+        if arr.len() == HT_INIT_SIZE {
+            for hi in arr.iter_mut() {
+                hi.hi_hash = 0;
+                hi.hi_removed = false;
+                hi.hi_di = crate::eval::typval::DictitemId::NULL;
+            }
+        } else {
+            *arr = Vec::new();
+        }
+    }
 }
 
 impl Default for Hashtab {

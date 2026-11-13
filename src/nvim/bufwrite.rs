@@ -38,7 +38,9 @@ use crate::fileio::{getgid, getuid};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
-use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
+use crate::memline::{
+    get_file_in_dir, make_percent_swname, ml_preserve, ml_timestamp, with_ml_buf_bytes_with_nul,
+};
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
@@ -1565,31 +1567,34 @@ pub fn buf_write(
                     let mut s_idx = 0usize;
                     lnum = start;
                     while lnum <= end {
-                        let line_cstr = ml_get_buf(buf, lnum);
-                        if write_undo_file {
-                            sha_ctx.update(line_cstr.to_bytes_with_nul());
-                        }
-                        for &c in line_cstr.to_bytes() {
-                            write_info.bw_buf[s_idx] = if c == NL_CHAR {
-                                0
-                            } else if c == CAR_CHAR && fileformat == EOL_MAC {
-                                NL_CHAR
-                            } else {
-                                c
-                            };
-                            s_idx += 1;
-                            write_info.bw_len += 1;
-                            if write_info.bw_len != bufsize {
-                                continue;
+                        with_ml_buf_bytes_with_nul(buf, lnum, |line_with_nul| {
+                            if write_undo_file {
+                                sha_ctx.update(line_with_nul);
                             }
-                            if !buf_write_bytes(&mut write_info) {
-                                end = 0;
-                                break;
+                            let line_bytes =
+                                &line_with_nul[..line_with_nul.len().saturating_sub(1)];
+                            for &c in line_bytes {
+                                write_info.bw_buf[s_idx] = if c == NL_CHAR {
+                                    0
+                                } else if c == CAR_CHAR && fileformat == EOL_MAC {
+                                    NL_CHAR
+                                } else {
+                                    c
+                                };
+                                s_idx += 1;
+                                write_info.bw_len += 1;
+                                if write_info.bw_len != bufsize {
+                                    continue;
+                                }
+                                if !buf_write_bytes(&mut write_info) {
+                                    end = 0;
+                                    break;
+                                }
+                                nchars += i64::from(bufsize - write_info.bw_len);
+                                s_idx = write_info.bw_len as usize;
+                                write_info.bw_start_lnum = lnum;
                             }
-                            nchars += i64::from(bufsize - write_info.bw_len);
-                            s_idx = write_info.bw_len as usize;
-                            write_info.bw_start_lnum = lnum;
-                        }
+                        });
                         if end == 0
                             || (lnum == end
                                 && (write_bin || !buf.b_p_fixeol.get())

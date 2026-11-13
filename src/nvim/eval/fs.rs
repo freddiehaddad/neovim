@@ -1515,6 +1515,25 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         while (readlen > 0 && p_idx < readlen as usize)
             || (readlen <= 0 && (!prev.is_empty() || binary))
         {
+            if readlen > 0 {
+                let end = readlen as usize;
+                if binary {
+                    while p_idx < end && buf[p_idx] != b'\n' && buf[p_idx] != 0 {
+                        p_idx += 1;
+                    }
+                } else {
+                    while p_idx < end
+                        && buf[p_idx] != b'\n'
+                        && buf[p_idx] != 0
+                        && buf[p_idx] != 0xbf
+                    {
+                        p_idx += 1;
+                    }
+                }
+                if p_idx >= end {
+                    break;
+                }
+            }
             if readlen <= 0 || buf[p_idx] == b'\n' {
                 let mut len = p_idx.saturating_sub(start_idx);
 
@@ -1882,32 +1901,31 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
     let mut error: i32 = 0;
     let mut li = tv_list_first(list);
     'outer: while let Some(cur_li) = li {
-        let Some(s_cstr) = tv_get_string_chk(&cur_li.tv()).map(std::borrow::Cow::into_owned) else {
+        let li_tv = cur_li.tv();
+        let Some(s_cstr) = tv_get_string_chk(&li_tv) else {
             return false;
         };
-        let s_bytes = s_cstr.to_bytes();
-        let mut hunk_start = 0usize;
-        for i in 0..=s_bytes.len() {
-            let b = s_bytes.get(i).copied().unwrap_or(0);
-            if b == 0 || b == NL as u8 {
-                if i != hunk_start {
-                    let hunk = &s_bytes[hunk_start..i];
-                    let written = file_write(fp, hunk);
-                    if written < 0 {
-                        error = written as i32;
-                        break 'outer;
-                    }
+        let mut rem = s_cstr.to_bytes();
+        while let Some(nl_pos) = rem.iter().position(|&b| b == NL as u8) {
+            if nl_pos > 0 {
+                let written = file_write(fp, &rem[..nl_pos]);
+                if written < 0 {
+                    error = written as i32;
+                    break 'outer;
                 }
-                if b == 0 {
-                    break;
-                } else {
-                    hunk_start = i + 1;
-                    let written = file_write(fp, &[0]);
-                    if written < 0 {
-                        error = written as i32;
-                        break;
-                    }
-                }
+            }
+            let written = file_write(fp, &[0]);
+            if written < 0 {
+                error = written as i32;
+                break 'outer;
+            }
+            rem = &rem[nl_pos + 1..];
+        }
+        if !rem.is_empty() {
+            let written = file_write(fp, rem);
+            if written < 0 {
+                error = written as i32;
+                break 'outer;
             }
         }
         if !binary || !cur_li.li_next.get().is_null() {
