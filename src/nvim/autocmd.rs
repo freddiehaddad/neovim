@@ -3574,34 +3574,41 @@ fn has_autocmd_ext(
     let tail = path_tail(sfname.unwrap_or(c""));
     let mut retval = false;
 
-    let fname = if is_full {
-        sfname.map(CStr::to_owned)
-    } else {
-        FullName_save(sfname, false)
-    };
-    let Some(fname) = fname else {
+    if sfname.is_none() {
         return false;
-    };
+    }
+    let mut fname: Option<std::ffi::CString> = None;
 
     AUTOCMDS.with(|a| {
         for ac in a[event as usize].borrow().iter() {
-            if let Some(ref ap) = ac.pat {
-                let matched = if ap.buflocal_nr == 0 {
-                    match_file_pat(
-                        None,
-                        ap.reg_prog.as_deref(),
-                        Some(&fname),
-                        sfname,
-                        tail,
-                        i32::from(ap.allow_dirs),
-                    )
+            let Some(ref ap) = ac.pat else {
+                continue;
+            };
+
+            // Only patterns containing a directory need the full file name.
+            if ap.buflocal_nr == 0 && ap.allow_dirs != 0 && fname.is_none() {
+                fname = if is_full {
+                    sfname.map(CStr::to_owned)
                 } else {
-                    buf.is_some_and(|b| ap.buflocal_nr == b.b_fnum.get())
+                    FullName_save(sfname, false)
                 };
-                if matched {
-                    retval = true;
-                    break;
-                }
+                debug_assert!(fname.is_some());
+            }
+            let matched = if ap.buflocal_nr == 0 {
+                match_file_pat(
+                    None,
+                    ap.reg_prog.as_deref(),
+                    fname.as_deref(),
+                    sfname,
+                    tail,
+                    i32::from(ap.allow_dirs),
+                )
+            } else {
+                buf.is_some_and(|b| ap.buflocal_nr == b.b_fnum.get())
+            };
+            if matched {
+                retval = true;
+                break;
             }
         }
     });
