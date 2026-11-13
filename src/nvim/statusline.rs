@@ -379,18 +379,13 @@ pub fn win_redr_status(wp: &WinInfoInfo) {
     with_stl_state(|st| st.redr_status_busy.set(false));
 }
 
-pub fn get_trans_bufname(buf: &FileBuf) {
+pub fn get_trans_bufname(buf: &FileBuf, name_buff: &mut [u8; MAXPATHL]) {
     if let Some(sp) = buf_spname(buf) {
-        crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), sp.to_bytes());
+        crate::memory::copy_bytes_to_c_buf(name_buff, sp.to_bytes());
     } else {
-        home_replace(
-            Some(buf),
-            buf.fname_opt().as_deref(),
-            &mut *g_st().name_buff_bytes_mut(),
-            true,
-        );
+        home_replace(Some(buf), buf.fname_opt().as_deref(), name_buff, true);
     }
-    trans_characters(&mut *g_st().name_buff_bytes_mut());
+    trans_characters(name_buff);
 }
 
 /// Return true if the status line of window `wp` is connected to the status
@@ -941,7 +936,8 @@ fn ui_ext_tabline_update() {
             tp.tp_curwin.get()
         };
 
-        get_trans_bufname(&cwp.borrow_mut().buf_mut());
+        let mut name_buff = [0u8; MAXPATHL];
+        get_trans_bufname(&cwp.borrow_mut().buf_mut(), &mut name_buff);
 
         put_c(
             &mut tab_info,
@@ -950,7 +946,7 @@ fn ui_ext_tabline_update() {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(arena_string(
                     &mut arena,
-                    cstr_as_string(Some(&g_st().name_buff_cstr())),
+                    cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
                 )),
             },
         );
@@ -991,7 +987,8 @@ fn ui_ext_tabline_update() {
                 },
             );
 
-            get_trans_bufname(b);
+            let mut name_buff = [0u8; MAXPATHL];
+            get_trans_bufname(b, &mut name_buff);
 
             put_c(
                 &mut buffer_info,
@@ -1000,7 +997,7 @@ fn ui_ext_tabline_update() {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(arena_string(
                         &mut arena,
-                        cstr_as_string(Some(&g_st().name_buff_cstr())),
+                        cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
                     )),
                 },
             );
@@ -1117,14 +1114,15 @@ pub fn draw_tabline() {
 
             if modified || wincount > 1 {
                 if wincount > 1 {
-                    let len = format_to_buf!(&mut *g_st().name_buff_bytes_mut(), c"%d", wincount);
+                    let mut name_buff = [0u8; MAXPATHL];
+                    let len = format_to_buf!(&mut name_buff, c"%d", wincount);
                     if col + len >= g_st().columns_global.get() - 3 {
                         break;
                     }
 
                     grid_line_puts(
                         col,
-                        &g_st().name_buff_cstr(),
+                        crate::memory::bytes_as_cstr(&name_buff),
                         len,
                         hl_combine_attr(attr, win_hl_attr(cwp.borrow_mut(), HLF_T)),
                     );
@@ -1141,12 +1139,13 @@ pub fn draw_tabline() {
 
             let room = scol - col + tabwidth - 1;
             if room > 0 {
-                get_trans_bufname(&cwp.borrow_mut().buf_mut());
+                let mut name_buff = [0u8; MAXPATHL];
+                get_trans_bufname(&cwp.borrow_mut().buf_mut(), &mut name_buff);
 
-                shorten_dir(&mut *g_st().name_buff_bytes_mut());
-                let name_cstr = g_st().name_buff_cstr();
-                let mut len = vim_strsize(&name_cstr);
-                let mut p_cstr: &CStr = &name_cstr;
+                shorten_dir(&mut name_buff);
+                let name_cstr = crate::memory::bytes_as_cstr(&name_buff);
+                let mut len = vim_strsize(name_cstr);
+                let mut p_cstr: &CStr = name_cstr;
                 while len > room {
                     let b = p_cstr.to_bytes();
                     len -= ptr2cells(b);
@@ -2027,11 +2026,9 @@ pub fn build_stl_str_hl_slice(
         match opt {
             STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                 fillable = false;
+                let mut name_buff = [0u8; MAXPATHL];
                 if let Some(name) = buf_spname(&wp.w_buffer.get()) {
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut *g_st().name_buff_bytes_mut(),
-                        name.to_bytes(),
-                    );
+                    crate::memory::copy_bytes_to_c_buf(&mut name_buff, name.to_bytes());
                 } else {
                     let t = if opt == STL_FULLPATH {
                         (*wp).buf_mut().ffname_opt()
@@ -2039,15 +2036,10 @@ pub fn build_stl_str_hl_slice(
                         (*wp).buf_mut().fname_opt()
                     };
 
-                    home_replace(
-                        wp.w_buffer.get().opt(),
-                        t.as_deref(),
-                        &mut *g_st().name_buff_bytes_mut(),
-                        true,
-                    );
+                    home_replace(wp.w_buffer.get().opt(), t.as_deref(), &mut name_buff, true);
                 }
-                trans_characters(&mut *g_st().name_buff_bytes_mut());
-                owned_str = Some(g_st().name_buff_cstr());
+                trans_characters(&mut name_buff);
+                owned_str = Some(crate::memory::cstring_until_nul(&name_buff));
                 let nb_cstr = owned_str.as_deref().unwrap();
                 if opt != STL_FILENAME {
                     str_slice = Some(nb_cstr.to_bytes_with_nul());

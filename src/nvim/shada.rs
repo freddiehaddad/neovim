@@ -1671,10 +1671,9 @@ fn shada_filename(file_arg: Option<&CStr>) -> Option<std::ffi::CString> {
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
-            let len = expand_env(file.unwrap_or(c""), &mut *g_st().name_buff_bytes_mut());
-            return Some(
-                std::ffi::CString::new(&g_st().name_buff.borrow()[..len]).unwrap_or_default(),
-            );
+            let mut name_buff = [0u8; MAXPATHL];
+            let len = expand_env(file.unwrap_or(c""), &mut name_buff);
+            return Some(std::ffi::CString::new(&name_buff[..len]).unwrap_or_default());
         }
     }
     Some(file.unwrap_or(c"").to_owned())
@@ -3975,13 +3974,19 @@ fn shada_removable(name: &CStr) -> bool {
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
+            let mut name_buff = [0u8; MAXPATHL];
             let n = home_replace(
                 None,
                 Some(crate::memory::bytes_as_cstr(&part[1..])),
-                &mut *g_st().name_buff_bytes_mut(),
+                &mut name_buff,
                 true,
             );
-            if mb_strnicmp(g_st().name_buff_cstr().to_bytes(), new_name.as_bytes(), n) == 0 {
+            if mb_strnicmp(
+                crate::memory::bytes_until_nul(&name_buff),
+                new_name.as_bytes(),
+                n,
+            ) == 0
+            {
                 retval = true;
                 break;
             }

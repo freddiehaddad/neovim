@@ -2038,24 +2038,22 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                 }
 
                 if let Some(errmsg) = errmsg {
-                    {
-                        let iobuf = &mut *g_st().iobuff_bytes_mut();
-                        let msg_bytes = tr(errmsg).to_bytes();
-                        let mut pos = msg_bytes.len().min(IOSIZE - 1);
-                        iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
-                        let arg_len = startarg.len() - arg.len();
-                        if pos + 2 + arg_len < IOSIZE {
-                            iobuf[pos..pos + 2].copy_from_slice(b": ");
-                            pos += 2;
-                            iobuf[pos..pos + arg_len].copy_from_slice(&startarg[..arg_len]);
-                            pos += arg_len;
-                        }
-                        iobuf[pos] = 0;
-                        trans_characters(iobuf);
+                    let mut iobuf = [0u8; IOSIZE];
+                    let msg_bytes = tr(errmsg).to_bytes();
+                    let mut pos = msg_bytes.len().min(IOSIZE - 1);
+                    iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
+                    let arg_len = startarg.len() - arg.len();
+                    if pos + 2 + arg_len < IOSIZE {
+                        iobuf[pos..pos + 2].copy_from_slice(b": ");
+                        pos += 2;
+                        iobuf[pos..pos + arg_len].copy_from_slice(&startarg[..arg_len]);
+                        pos += arg_len;
                     }
+                    iobuf[pos] = 0;
+                    trans_characters(&mut iobuf);
 
                     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-                    emsg(&g_st().iobuff_cstr());
+                    emsg(crate::memory::bytes_as_cstr(&iobuf));
                     g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
 
                     return false;
@@ -2208,18 +2206,19 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<std:
 
     let var = opt.var();
     let esc = var.ptr_eq(&opt_vars().p_tags) || var.ptr_eq(&opt_vars().p_path);
+    let mut name_buff = [0u8; MAXPATHL];
     let len = expand_env_esc(
         val_cstr,
-        &mut *g_st().name_buff_bytes_mut(),
+        &mut name_buff,
         esc.then_some(c" \t"),
         false,
         var.ptr_eq(&opt_vars().p_sps).then_some(c"file:"),
     );
-    if &g_st().name_buff_bytes_mut()[..len] == val_bytes {
+    if &name_buff[..len] == val_bytes {
         return None;
     }
 
-    Some(g_st().name_buff_cstr())
+    Some(crate::memory::cstring_until_nul(&name_buff))
 }
 
 /// After setting various option values: recompute variables that depend on option values.
@@ -6191,10 +6190,8 @@ fn showoptions(all: bool, opt_flags: i32) {
                 } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
                     1
                 } else {
-                    optval_fmt(opt_idx, opt_flags);
-                    (opt.fullname.to_bytes().len() as i32)
-                        + vim_strsize(&g_st().name_buff_cstr())
-                        + 1
+                    let formatted = optval_fmt(opt_idx, opt_flags);
+                    (opt.fullname.to_bytes().len() as i32) + vim_strsize(&formatted) + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
                     items.push(opt);
@@ -6293,8 +6290,7 @@ fn showoneopt(opt: &Vimoption, opt_flags: i32) {
     msg_puts(opt.fullname);
     if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         msg_putchar(b'=' as i32);
-        optval_fmt(opt_idx, opt_flags);
-        let namebuf_cstr = g_st().name_buff_cstr();
+        let namebuf_cstr = optval_fmt(opt_idx, opt_flags);
         if !namebuf_cstr.to_bytes().is_empty() {
             msg_outtrans(&namebuf_cstr, 0, false);
         }
@@ -7937,11 +7933,10 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
         if is_luafn {
             return true;
         }
-        optval_fmt(
+        nb_cstr = optval_fmt(
             OPT_STATE.with(|s| s.expand_option_idx.get()),
             OPT_STATE.with(|s| s.expand_option_flags.get()),
         );
-        nb_cstr = g_st().name_buff_cstr();
         nb_cstr.to_bytes()
     } else {
         b""
@@ -7968,11 +7963,11 @@ pub fn expand_string_setting(
     let set_arg = xp
         .xp_line
         .wrapping_add(OPT_STATE.with(|s| s.expand_option_start_col.get()) as usize);
-    optval_fmt(
+    let formatted = optval_fmt(
         OPT_STATE.with(|s| s.expand_option_idx.get()),
         OPT_STATE.with(|s| s.expand_option_flags.get()),
     );
-    let buf = escape_option_str_cmdline(&*g_st().name_buff_bytes_mut());
+    let buf = escape_option_str_cmdline(formatted.to_bytes());
     let mut args = Optexpand {
         oe_idx: OPT_STATE.with(|s| s.expand_option_idx.get()),
         oe_opt_value: buf.as_c_str(),
@@ -8075,43 +8070,31 @@ pub fn expand_setting_subtract(
     expand_old_setting(matches)
 }
 
-fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
+fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) -> std::ffi::CString {
     let opt = get_option(opt_idx);
     let vp = get_varp_scope(opt, opt_flags);
     assert!(vp.is_some());
 
     let mut wc: OptInt = 0;
     if wc_use_keyname(vp.clone(), &mut wc) != 0 {
-        crate::memory::copy_bytes_to_c_buf(
-            &mut *g_st().name_buff_bytes_mut(),
-            get_special_key_name(wc as i32, 0).to_bytes(),
-        );
-        return;
+        return get_special_key_name(wc as i32, 0).as_cstr().to_owned();
     }
     if wc != 0 {
-        crate::memory::copy_bytes_to_c_buf(
-            &mut *g_st().name_buff_bytes_mut(),
-            transchar(wc as i32).to_bytes(),
-        );
-        return;
+        return transchar(wc as i32).as_cstr().to_owned();
     }
     if (opt.flags() & K_OPT_FLAG_EXPAND) != 0
         && !is_callback_option(opt_idx)
         && option_has_type(opt_idx, ObjectType::ObjectTypeString)
     {
-        home_replace(
-            None,
-            Some(&vp.as_cstr()),
-            &mut *g_st().name_buff_bytes_mut(),
-            false,
-        );
-        return;
+        let mut name_buff = [0u8; MAXPATHL];
+        home_replace(None, Some(&vp.as_cstr()), &mut name_buff, false);
+        return crate::memory::cstring_until_nul(&name_buff);
     }
 
     let o = opt_from_varp(opt_idx, vp);
     let s = optval_to_cstr(o.clone(), false);
-    crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
+    s
 }
 
 fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> i32 {

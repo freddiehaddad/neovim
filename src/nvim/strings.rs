@@ -62,7 +62,6 @@ const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s"
 pub use crate::os::lang::{strcoll, strerror};
 
 pub type RawCChar = c_char;
-pub type RawCCharPtr = *const c_char;
 
 pub trait SliceBaseAddr {
     fn base_addr(self) -> usize;

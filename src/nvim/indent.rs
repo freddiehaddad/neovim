@@ -981,15 +981,12 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                 let bytes = msg_str.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
-                {
-                    let iobuff = &mut *g_st().iobuff_bytes_mut();
-                    iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
-                    iobuff[copy_len] = 0;
-                }
+                let mut iob = [0u8; IOSIZE];
+                iob[..copy_len].copy_from_slice(&bytes[..copy_len]);
+                iob[copy_len] = 0;
 
                 let save_lnum = curwin_mut().w_cursor.get().lnum;
                 curwin_mut().w_cursor.set_lnum(start_lnum);
-                let mut iob = *g_st().iobuff.borrow();
                 msg_progress(
                     Some(&mut iob),
                     c"nvim.indent",
@@ -1000,7 +997,6 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     false,
                     false,
                 );
-                *g_st().iobuff.borrow_mut() = iob;
                 curwin_mut().w_cursor.set_lnum(save_lnum);
             }
 
@@ -1051,12 +1047,9 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
         let bytes = msg_str.as_bytes();
         let copy_len = bytes.len().min(IOSIZE - 1);
-        {
-            let iobuff = &mut *g_st().iobuff_bytes_mut();
-            iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
-            iobuff[copy_len] = 0;
-        }
-        let mut iob = *g_st().iobuff.borrow();
+        let mut iob = [0u8; IOSIZE];
+        iob[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        iob[copy_len] = 0;
         msg_progress(
             Some(&mut iob),
             c"nvim.indent",
@@ -1067,7 +1060,6 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
             false,
             false,
         );
-        *g_st().iobuff.borrow_mut() = iob;
     }
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
         curbuf_mut().b_op_start.set(oap.start);

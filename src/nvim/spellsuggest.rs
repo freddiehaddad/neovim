@@ -769,14 +769,15 @@ pub fn spell_suggest(count: i32) {
                 let bad_off = (sug.su_badlen as usize).min(badptr_bytes.len());
                 let from = Some(crate::memory::bytes_to_cstring(&badptr_bytes[..bad_off]));
                 let tail_cstr = &sug.su_badptr.as_c_str()[org_off..];
+                let mut iobuff = [0u8; IOSIZE];
                 format_to_buf!(
-                    &mut *g_st().iobuff_bytes_mut(),
+                    &mut iobuff,
                     c"%s%.*s",
                     &stp.st_word,
                     sug.su_badlen - stp.st_orglen,
                     tail_cstr,
                 );
-                let to = Some(g_st().iobuff_cstr().to_owned());
+                let to = Some(crate::memory::cstring_until_nul(&iobuff));
                 with_spell_ext(|ext| {
                     *ext.repl_from.borrow_mut() = from;
                     *ext.repl_to.borrow_mut() = to;

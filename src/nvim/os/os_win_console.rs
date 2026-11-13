@@ -1,13 +1,11 @@
 //! Windows console management (`src/nvim/os/os_win_console.c`).
 
 #[cfg(windows)]
-use crate::globals::*;
-#[cfg(windows)]
 use crate::log::{LOGLVL_INF, LOGLVL_WRN, logmsg};
 #[cfg(windows)]
 use crate::os::env::{os_getenv_buf, os_getenv_cstr};
 #[cfg(windows)]
-use crate::os::fs::os_path_exists;
+use crate::os::fs::{MAXPATHL, os_path_exists};
 #[cfg(windows)]
 use crate::strings::format_to_buf;
 #[cfg(windows)]
@@ -337,14 +335,10 @@ pub fn os_icon_init() {
     }
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-        let namebuff = g_st().name_buff.borrow().as_ptr();
-        format_to_buf!(
-            &mut *g_st().name_buff.borrow_mut(),
-            c"%s/neovim.ico",
-            &vimruntime
-        );
-        let namebuff_cstr = g_st().name_buff_cstr();
-        if !os_path_exists(&namebuff_cstr) {
+        let mut name_buff = [0u8; MAXPATHL];
+        format_to_buf!(&mut name_buff, c"%s/neovim.ico", &vimruntime);
+        let namebuff_cstr = crate::memory::bytes_as_cstr(&name_buff);
+        if !os_path_exists(namebuff_cstr) {
             logmsg!(
                 LOGLVL_WRN,
                 None,
@@ -358,7 +352,7 @@ pub fn os_icon_init() {
             let h_vim_icon = unsafe {
                 LoadImageA(
                     std::ptr::null_mut(),
-                    namebuff.cast(),
+                    name_buff.as_ptr().cast(),
                     IMAGE_ICON,
                     64,
                     64,

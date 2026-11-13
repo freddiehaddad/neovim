@@ -307,14 +307,15 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             c"%lld lines %sed %d times",
             amount as u64,
         );
+        let mut iobuff = [0u8; IOSIZE];
         format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
+            &mut iobuff,
             ngettext(msg_line_single, msg_line_plural, oap.line_count as u64),
             i64::from(oap.line_count),
             op,
             amount,
         );
-        msg_keep(&g_st().iobuff_cstr(), 0, true, false);
+        msg_keep(crate::memory::bytes_as_cstr(&iobuff), 0, true, false);
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -3181,7 +3182,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
             byte_count -= Varnumber::from(eol_size);
         }
 
-        let _iobuff_ptr = g_st().iobuff.borrow_mut().as_mut_ptr();
+        let mut iobuff = [0u8; IOSIZE];
         if dict.is_none() {
             if l_visual_active {
                 if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant.get() < MAXCOL {
@@ -3206,7 +3207,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     format_to_buf!(
-                        &mut *g_st().iobuff.borrow_mut(),
+                        &mut iobuff,
                         tr(
                             c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
                         ),
@@ -3220,7 +3221,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     );
                 } else {
                     format_to_buf!(
-                        &mut *g_st().iobuff.borrow_mut(),
+                        &mut iobuff,
                         tr(
                             c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
                         ),
@@ -3252,7 +3253,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
 
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     format_to_buf!(
-                        &mut *g_st().iobuff.borrow_mut(),
+                        &mut iobuff,
                         tr(
                             c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld",
                         ),
@@ -3267,7 +3268,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                     );
                 } else {
                     format_to_buf!(
-                        &mut *g_st().iobuff.borrow_mut(),
+                        &mut iobuff,
                         tr(
                             c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld",
                         ),
@@ -3288,12 +3289,8 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
 
         bom_count = Varnumber::from(bomb_size());
         if dict.is_none() && bom_count > 0 {
-            let len = g_st().iobuff_cstr().to_bytes().len();
-            format_to_buf!(
-                &mut g_st().iobuff.borrow_mut()[len..],
-                tr(c"(+%lld for BOM)"),
-                bom_count as i64,
-            );
+            let len = crate::memory::bytes_until_nul(&iobuff).len();
+            format_to_buf!(&mut iobuff[len..], tr(c"(+%lld for BOM)"), bom_count as i64,);
         }
         if dict.is_none() {
             let p = opt_vars().p_shm.take();
@@ -3301,7 +3298,7 @@ pub fn cursor_pos_info(dict: Option<&TvDict>) {
                 msg_start();
                 g_st().msg_scroll.set(1);
             }
-            msg(&g_st().iobuff_cstr(), 0);
+            msg(crate::memory::bytes_as_cstr(&iobuff), 0);
             opt_vars().p_shm.set(p);
         }
     }

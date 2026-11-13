@@ -2,14 +2,13 @@
 #![forbid(unsafe_code)]
 
 use crate::fileio::vim_gettempdir;
-use crate::globals::*;
 use crate::memory::bytes_to_cstring;
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
 use crate::os::env::{expand_env_save, os_getenv_buf, os_getenv_cstr};
-use crate::os::fs::{ENV_SEPCHAR, PATHSEP};
 #[cfg(windows)]
-use crate::os::fs::{MAXPATHL, os_realpath_cstr};
+use crate::os::fs::os_realpath_cstr;
+use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{K_PATH_CMP_LITERAL, concat_fnames_cstr, path_equal, path_is_absolute};
@@ -73,14 +72,13 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> std::borrow::Cow<'static, CStr> {
-    let mut name_buff = g_st().name_buff_bytes_mut();
-    let env_val = os_getenv_buf(c"NVIM_APPNAME", &mut *name_buff);
+    let mut name_buff = [0u8; MAXPATHL];
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", &mut name_buff);
     if env_val.is_none() {
-        name_buff[..5].copy_from_slice(b"nvim\0");
         return std::borrow::Cow::Borrowed(c"nvim");
     }
     #[cfg(windows)]
-    path_to_slash(&mut *name_buff);
+    path_to_slash(&mut name_buff);
     if namelike {
         for b in name_buff.iter_mut() {
             if *b == 0 {
@@ -91,7 +89,7 @@ pub fn get_appname(namelike: bool) -> std::borrow::Cow<'static, CStr> {
             }
         }
     }
-    let c = CStr::from_bytes_until_nul(&*name_buff).unwrap_or(c"nvim");
+    let c = CStr::from_bytes_until_nul(&name_buff).unwrap_or(c"nvim");
     std::borrow::Cow::Owned(c.to_owned())
 }
 

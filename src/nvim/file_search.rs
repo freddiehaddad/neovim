@@ -1086,15 +1086,11 @@ pub fn find_file_in_path_option(
             }
 
             let ptr_cstr = std::ffi::CString::new(ptr_slice).unwrap_or_default();
-            ff_opt.file_to_findlen = expand_env_esc(
-                ptr_cstr.as_c_str(),
-                &mut *g_st().name_buff_bytes_mut(),
-                None,
-                true,
-                None,
-            );
+            let mut name_buff = [0u8; MAXPATHL];
+            ff_opt.file_to_findlen =
+                expand_env_esc(ptr_cstr.as_c_str(), &mut name_buff, None, true, None);
 
-            let mut ftf_bytes = g_st().name_buff_bytes_mut()[..ff_opt.file_to_findlen].to_vec();
+            let mut ftf_bytes = name_buff[..ff_opt.file_to_findlen].to_vec();
             if (options & FNAME_UNESC) != 0 {
                 let mut i = 0;
                 while i + 1 < ftf_bytes.len() {
@@ -1135,6 +1131,7 @@ pub fn find_file_in_path_option(
                 let rel_fnamelen = rel_fname_opt.map_or(0, |s| s.to_bytes().len());
 
                 let mut run = 1;
+                let mut name_buff = [0u8; MAXPATHL];
                 while run <= 2 {
                     let mut l = ff_opt.file_to_findlen;
                     if run == 1
@@ -1146,32 +1143,23 @@ pub fn find_file_in_path_option(
                         let tail_off = (path_tail(rel_fname).as_ptr() as usize
                             - rel_fname.as_ptr() as usize)
                             as i32;
-                        l = format_to_buf!(
-                            &mut *g_st().name_buff.borrow_mut(),
-                            c"%.*s%s",
-                            tail_off,
-                            rel_fname,
-                            ftf_cstr,
-                        ) as usize;
+                        l = format_to_buf!(&mut name_buff, c"%.*s%s", tail_off, rel_fname, ftf_cstr,)
+                            as usize;
                     } else {
-                        crate::memory::copy_bytes_to_c_buf(
-                            &mut *g_st().name_buff_bytes_mut(),
-                            ftf_bytes,
-                        );
+                        crate::memory::copy_bytes_to_c_buf(&mut name_buff, ftf_bytes);
                         run = 2;
                     }
 
                     let mut suf_bytes = suffixes_cstr.to_bytes();
                     loop {
-                        let nb_cstr = g_st().name_buff_cstr();
-                        if os_path_exists(&nb_cstr)
+                        let nb_cstr = crate::memory::bytes_as_cstr(&name_buff);
+                        if os_path_exists(nb_cstr)
                             && (find_what == FindFileWhat::Both
-                                || ((find_what == FindFileWhat::Dir) == os_isdir(&nb_cstr)))
+                                || ((find_what == FindFileWhat::Dir) == os_isdir(nb_cstr)))
                         {
-                            let slen = simplify_filename(&mut *g_st().name_buff_bytes_mut());
+                            let slen = simplify_filename(&mut name_buff);
                             let res = Some(
-                                std::ffi::CString::new(&g_st().name_buff.borrow()[..slen])
-                                    .unwrap_or_default(),
+                                std::ffi::CString::new(&name_buff[..slen]).unwrap_or_default(),
                             );
                             FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
                             return res;
@@ -1179,11 +1167,7 @@ pub fn find_file_in_path_option(
                         if suf_bytes.is_empty() {
                             break;
                         }
-                        copy_option_part(
-                            &mut suf_bytes,
-                            &mut g_st().name_buff_bytes_mut()[l..MAXPATHL],
-                            c",",
-                        );
+                        copy_option_part(&mut suf_bytes, &mut name_buff[l..MAXPATHL], c",");
                     }
                     run += 1;
                 }
@@ -1601,13 +1585,14 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         let tail_off = path_tail_with_sep(dir_cstr).as_ptr() as usize - dir_cstr.as_ptr() as usize;
         dir[tail_off] = NUL as u8;
 
-        if !os_dirname(&mut *g_st().name_buff_bytes_mut()) {
-            g_st().name_buff.borrow_mut()[0] = 0;
+        let mut name_buff = [0u8; MAXPATHL];
+        if !os_dirname(&mut name_buff) {
+            name_buff[0] = 0;
         }
 
         if path_equal(
             crate::memory::bytes_as_cstr(&dir),
-            &g_st().name_buff_cstr(),
+            crate::memory::bytes_as_cstr(&name_buff),
             K_PATH_CMP_LITERAL,
         ) {
             return true;

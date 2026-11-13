@@ -492,7 +492,6 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 
     if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level.get() > 0 {
         let save_msg_silent = g_st().msg_silent.get();
-        let saved_iobuff = g_st().iobuff_cstr().to_owned();
         if g_st().debug_break_level.get() > 0 {
             g_st().msg_silent.set(0);
         } else {
@@ -518,10 +517,6 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         } else {
             verbose_leave();
         }
-        crate::memory::copy_bytes_to_c_buf(
-            &mut *g_st().iobuff_bytes_mut(),
-            saved_iobuff.as_bytes(),
-        );
     }
     drop(excp);
 }
@@ -539,19 +534,20 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
     set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
     set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt());
     if !excp.throw_name.as_bytes().is_empty() {
+        let mut iobuff = [0u8; IOSIZE];
         let iobufflen = if excp.throw_lnum != 0 {
             format_to_buf_safelen!(
-                &mut *g_st().iobuff.borrow_mut(),
+                &mut iobuff,
                 gettext(c"%s, line %lld"),
                 &excp.throw_name,
                 i64::from(excp.throw_lnum),
             )
         } else {
-            format_to_buf_safelen!(&mut *g_st().iobuff.borrow_mut(), c"%s", &excp.throw_name)
+            format_to_buf_safelen!(&mut iobuff, c"%s", &excp.throw_name)
         };
         set_vim_var_string(
             VV_THROWPOINT,
-            Some(&g_st().iobuff_cstr()),
+            Some(crate::memory::bytes_as_cstr(&iobuff)),
             iobufflen as isize,
         );
     } else {
@@ -599,19 +595,20 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
         set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
         set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt());
         if !top.throw_name.as_bytes().is_empty() {
+            let mut iobuff = [0u8; IOSIZE];
             let iobufflen = if top.throw_lnum != 0 {
                 format_to_buf_safelen!(
-                    &mut *g_st().iobuff.borrow_mut(),
+                    &mut iobuff,
                     gettext(c"%s, line %lld"),
                     &top.throw_name,
                     i64::from(top.throw_lnum),
                 )
             } else {
-                format_to_buf_safelen!(&mut *g_st().iobuff.borrow_mut(), c"%s", &top.throw_name)
+                format_to_buf_safelen!(&mut iobuff, c"%s", &top.throw_name)
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                Some(&g_st().iobuff_cstr()),
+                Some(crate::memory::bytes_as_cstr(&iobuff)),
                 iobufflen as isize,
             );
         } else {
@@ -685,12 +682,9 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
                     _ => None,
                 };
                 let excp = excp_hold.as_ref().unwrap();
-                format_to_buf!(
-                    &mut *g_st().iobuff.borrow_mut(),
-                    mesg,
-                    gettext(c"Exception")
-                );
-                mesg_owned = Some(concat_str(&*g_st().iobuff_bytes(), b": %s"));
+                let mut iobuff = [0u8; IOSIZE];
+                format_to_buf!(&mut iobuff, mesg, gettext(c"Exception"));
+                mesg_owned = Some(concat_str(&iobuff, b": %s"));
                 mesg = mesg_owned.as_deref().unwrap_or(c"");
                 excp.value.as_c_str()
             } else if (pending & CSTP_ERROR) != 0 && (pending & CSTP_INTERRUPT) != 0 {

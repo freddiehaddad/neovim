@@ -511,13 +511,13 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
     assert!(g_st().ui_client_channel_id.get() == 0 && !use_builtin_ui);
 
-    if !server_init(params.listen_addr.as_deref()) {
+    if let Err(err) = server_init(params.listen_addr.as_deref()) {
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
             dup2(startup_stderr_fd, STDERR_FILENO);
             close(startup_stderr_fd);
         }
-        mainerr(&g_st().iobuff_cstr(), None, None);
+        mainerr(&err, None, None);
     }
 
     #[cfg(windows)]
@@ -1629,13 +1629,14 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     b's' => {
                         if parmp.scriptin.is_some() {
+                            let mut iobuff = [0u8; IOSIZE];
                             format_to_buf!(
-                                &mut *g_st().iobuff.borrow_mut(),
+                                &mut iobuff,
                                 gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                 prev_arg,
                                 cur_cstr_opt.as_deref().unwrap_or(c""),
                             );
-                            fprintf!(log_get_stderr(), c"%s", &*g_st().iobuff.borrow(),);
+                            fprintf!(log_get_stderr(), c"%s", &iobuff);
                             os_exit(2);
                         }
                         parmp.scriptin = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1662,13 +1663,14 @@ fn command_line_scan(parmp: &mut Mparm) {
                             argv_idx = -1;
                         } else {
                             if parmp.scriptout.is_some() {
+                                let mut iobuff = [0u8; IOSIZE];
                                 format_to_buf!(
-                                    &mut *g_st().iobuff.borrow_mut(),
+                                    &mut iobuff,
                                     gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                     prev_arg,
                                     cur_cstr_opt.as_deref().unwrap_or(c""),
                                 );
-                                fprintf!(log_get_stderr(), c"%s", &*g_st().iobuff.borrow(),);
+                                fprintf!(log_get_stderr(), c"%s", &iobuff);
                                 os_exit(2);
                             }
                             parmp.scriptout = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1769,11 +1771,12 @@ fn command_line_scan(parmp: &mut Mparm) {
 fn set_argf_var() {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let count = gargcount();
+    let mut name_buff = [0u8; MAXPATHL];
     for i in 0..count {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
-            let _ = vim_full_name(Some(&fname), &mut *g_st().name_buff_bytes_mut(), false);
-            tv_list_append_string(&list, Some(&g_st().name_buff_cstr()), -1);
+            let _ = vim_full_name(Some(&fname), &mut name_buff, false);
+            tv_list_append_string(&list, Some(crate::memory::bytes_as_cstr(&name_buff)), -1);
         }
     }
     tv_list_set_lock(Some(&list), VAR_FIXED);
@@ -1863,17 +1866,14 @@ fn handle_quickfix(paramp: &mut Mparm) {
         if let Some(ref use_ef) = paramp.use_ef {
             set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(Some(use_ef)), 0, SID_CARG);
         }
-        format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
-            c"cfile %s",
-            &opt_vars().p_ef
-        );
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, c"cfile %s", &opt_vars().p_ef);
         if qf_init(
             None,
             Some(&opt_vars().p_ef.as_cstr()),
             &opt_vars().p_efm.as_cstr(),
             1,
-            Some(&g_st().iobuff_cstr()),
+            Some(crate::memory::bytes_as_cstr(&iobuff)),
             Some(&opt_vars().p_menc.as_cstr()),
         ) < 0
         {
@@ -1887,8 +1887,9 @@ fn handle_quickfix(paramp: &mut Mparm) {
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
         g_st().swap_exists_did_quit.set(false);
-        format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"ta %s", tagname);
-        do_cmdline_cmd(&g_st().iobuff_cstr());
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, c"ta %s", tagname);
+        do_cmdline_cmd(crate::memory::bytes_as_cstr(&iobuff));
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit.get() {

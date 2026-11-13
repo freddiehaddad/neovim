@@ -2157,13 +2157,14 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         OPTSTR_STATE.with(|s| s.expand_eiw.get()),
     )?;
 
+    let mut iobuff = [0u8; IOSIZE];
     format_to_buf!(
-        &mut *g_st().iobuff.borrow_mut(),
+        &mut iobuff,
         c"%s%s",
         if subtract { c"-" } else { c"" },
         name,
     );
-    let item = crate::memory::cstring_until_nul(&*g_st().iobuff.borrow());
+    let item = crate::memory::cstring_until_nul(&iobuff);
     Some(xp.set_item(item))
 }
 

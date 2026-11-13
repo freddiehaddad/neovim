@@ -1155,12 +1155,9 @@ extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     time_push(&mut rel_time, &mut start_time);
     let status = lua_pcall_safe(lstate, 1, 1, 0);
     if status == 0 {
-        format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
-            c"require('%s')",
-            name_cstr
-        );
-        time_msg(&g_st().iobuff_cstr(), Some(&start_time));
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, c"require('%s')", name_cstr);
+        time_msg(crate::memory::bytes_as_cstr(&iobuff), Some(&start_time));
     }
     time_pop(rel_time);
 
@@ -1190,12 +1187,13 @@ extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
         get_user_input(&input_args, &mut input, false, false);
 
         if ui_has(K_UICMDLINE) {
+            let mut iobuff = [0u8; IOSIZE];
             format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
+                &mut iobuff,
                 c"lua_debug> %s",
                 input.vval.v_string_cstr_or_empty(),
             );
-            ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
+            ui_ext_cmdline_block_append(0, crate::memory::bytes_until_nul(&iobuff));
         } else {
             msg_putchar(b'\n' as i32);
         }
@@ -1236,13 +1234,14 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     let name_len = name_bytes.len();
     let name_cstr = crate::memory::bytes_as_cstr(name_with_nul);
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
+        let mut iobuff = [0u8; IOSIZE];
         let length = name_len.min(100) + 22;
         format_to_buf!(
-            &mut g_st().iobuff.borrow_mut()[..length],
+            &mut iobuff[..length],
             c"Vimscript function \"%s\"",
             name_cstr,
         );
-        return nlua_fast_api_disabled_error(lstate, &g_st().iobuff_cstr());
+        return nlua_fast_api_disabled_error(lstate, crate::memory::bytes_as_cstr(&iobuff));
     }
 
     let nargs = nlua_gettop(lstate) - 1;

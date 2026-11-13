@@ -861,31 +861,28 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> Optio
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
 fn fname2fnum(fm: &Xfmark) {
+    let Some(ref fname_cstr) = fm.fname else {
+        return;
+    };
+    let fname_bytes = fname_cstr.to_bytes();
+    let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+    if fname_bytes.first() == Some(&b'~')
+        && fname_bytes
+            .get(1)
+            .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
     {
-        let Some(ref fname_cstr) = fm.fname else {
-            return;
-        };
-        let fname_bytes = fname_cstr.to_bytes();
-        if fname_bytes.first() == Some(&b'~')
-            && fname_bytes
-                .get(1)
-                .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
-        {
-            let len = expand_env(c"~/", &mut *g_st().name_buff_bytes_mut());
-            crate::memory::copy_bytes_to_c_buf(
-                &mut g_st().name_buff_bytes_mut()[len..],
-                &fname_bytes[2..],
-            );
-        } else {
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), fname_bytes);
-        }
+        let len = expand_env(c"~/", &mut name_buff);
+        crate::memory::copy_bytes_to_c_buf(&mut name_buff[len..], &fname_bytes[2..]);
+    } else {
+        crate::memory::copy_bytes_to_c_buf(&mut name_buff, fname_bytes);
     }
 
-    os_dirname(&mut *g_st().iobuff_bytes_mut());
-    let nb = g_st().name_buff_cstr();
-    let p = path_shorten_fname(Some(&nb), &g_st().iobuff_cstr());
+    let mut iobuff = [0u8; IOSIZE];
+    os_dirname(&mut iobuff);
+    let nb = crate::memory::bytes_as_cstr(&name_buff);
+    let p = path_shorten_fname(Some(nb), crate::memory::bytes_as_cstr(&iobuff));
 
-    let _ = buflist_new(Some(&nb), p, 1, 0);
+    let _ = buflist_new(Some(nb), p, 1, 0);
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
@@ -1192,9 +1189,10 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let lnum = curwin_mut().w_jumplist.borrow()[idx].fmark.mark.lnum;
             let col = curwin_mut().w_jumplist.borrow()[idx].fmark.mark.col;
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.as_bytes());
+            let mut iobuff = [0u8; IOSIZE];
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff, s.as_bytes());
 
-            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), 0, false);
             msg_outtrans(
                 &name_cstr,
                 if curwin_mut().w_jumplist.borrow()[idx].fmark.fnum == curbuf_mut().b_fnum.get() {
@@ -1241,9 +1239,10 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let lnum = curbuf_mut().b_changelist.borrow()[idx].mark.lnum;
             let col = curbuf_mut().b_changelist.borrow()[idx].mark.col;
             let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), s.as_bytes());
+            let mut iobuff = [0u8; IOSIZE];
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff, s.as_bytes());
 
-            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), 0, false);
             let mark = curbuf_mut().b_changelist.borrow()[idx].mark;
             let name = mark_line(&mark, 17);
             msg_outtrans(&name, HLF_D, false);

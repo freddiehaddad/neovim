@@ -236,56 +236,44 @@ fn with_msg_ext<R>(f: impl FnOnce(&MessageExtState) -> R) -> R {
     MSG_EXT.with(f)
 }
 
+#[inline(never)]
+pub fn smsg_fmt(hl_id: i32, fmt: Option<&std::ffi::CStr>, args: &[crate::strings::FmtVal]) -> bool {
+    let mut buf = [0u8; IOSIZE];
+    crate::strings::format_to_buf_fmt(&mut buf, fmt, args);
+    msg(crate::memory::bytes_as_cstr(&buf), hl_id)
+}
+
 #[macro_export]
 macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let hl = $hl_id;
-        {
-            match (
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
-                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            ) {
-                (ref fmt_val, ref args_val) => {
-                    $crate::strings::format_to_buf_fmt(
-                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
-                        fmt_val.as_cstr(),
-                        args_val,
-                    );
-                }
-            }
-            $crate::message::msg(
-                &$crate::globals::g_st().iobuff_cstr(),
-                hl,
-            )
-        }
+        $crate::message::smsg_fmt(
+            $hl_id,
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        )
     }};
 }
 pub use smsg;
 
+#[inline(never)]
+pub fn smsg_keep_fmt(
+    hl_id: i32,
+    fmt: Option<&std::ffi::CStr>,
+    args: &[crate::strings::FmtVal],
+) -> bool {
+    let mut buf = [0u8; IOSIZE];
+    crate::strings::format_to_buf_fmt(&mut buf, fmt, args);
+    msg_keep(crate::memory::bytes_as_cstr(&buf), hl_id, true, false)
+}
+
 #[macro_export]
 macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let hl = $hl_id;
-        {
-            match (
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
-                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            ) {
-                (ref fmt_val, ref args_val) => {
-                    $crate::strings::format_to_buf_fmt(
-                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
-                        fmt_val.as_cstr(),
-                        args_val,
-                    );
-                }
-            }
-            $crate::message::msg_keep(
-                &$crate::globals::g_st().iobuff_cstr(),
-                hl,
-                true,
-                false,
-            )
-        }
+        $crate::message::smsg_keep_fmt(
+            $hl_id,
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        )
     }};
 }
 pub use smsg_keep;
@@ -345,77 +333,60 @@ macro_rules! siemsg {
 }
 pub use siemsg;
 
+#[inline(never)]
+pub fn msg_schedule_semsg_fmt(fmt: Option<&std::ffi::CStr>, args: &[crate::strings::FmtVal]) {
+    let mut buf = [0u8; IOSIZE];
+    crate::strings::format_to_buf_fmt(&mut buf, fmt, args);
+    msg_schedule_semsg_cstr(crate::memory::bytes_as_cstr(&buf));
+}
+
 #[macro_export]
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        {
-            match (
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
-                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            ) {
-                (ref fmt_val, ref args_val) => {
-                    $crate::strings::format_to_buf_fmt(
-                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
-                        fmt_val.as_cstr(),
-                        args_val,
-                    );
-                }
-            }
-            $crate::message::msg_schedule_semsg_cstr(
-                &$crate::globals::g_st().iobuff_cstr(),
-            );
-        }
+        $crate::message::msg_schedule_semsg_fmt(
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        );
     }};
 }
 pub use msg_schedule_semsg;
 
+#[inline(never)]
+pub fn msg_schedule_semsg_multiline_fmt(
+    fmt: Option<&std::ffi::CStr>,
+    args: &[crate::strings::FmtVal],
+) {
+    let mut buf = [0u8; IOSIZE];
+    crate::strings::format_to_buf_fmt(&mut buf, fmt, args);
+    msg_schedule_semsg_multiline_cstr(crate::memory::bytes_as_cstr(&buf));
+}
+
 #[macro_export]
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        {
-            match (
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
-                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            ) {
-                (ref fmt_val, ref args_val) => {
-                    $crate::strings::format_to_buf_fmt(
-                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
-                        fmt_val.as_cstr(),
-                        args_val,
-                    );
-                }
-            }
-            $crate::message::msg_schedule_semsg_multiline_cstr(
-                &$crate::globals::g_st().iobuff_cstr(),
-            );
-        }
+        $crate::message::msg_schedule_semsg_multiline_fmt(
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        );
     }};
 }
 pub use msg_schedule_semsg_multiline;
 
+#[inline(never)]
+pub fn swmsg_fmt(hl: bool, fmt: Option<&std::ffi::CStr>, args: &[crate::strings::FmtVal]) {
+    let mut buf = [0u8; IOSIZE];
+    crate::strings::format_to_buf_fmt(&mut buf, fmt, args);
+    give_warning(crate::memory::bytes_as_cstr(&buf), hl, true);
+}
+
 #[macro_export]
 macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let hl_val: bool = $hl;
-        {
-            match (
-                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt),
-                [$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
-            ) {
-                (ref fmt_val, ref args_val) => {
-                    $crate::strings::format_to_buf_fmt(
-                        (&mut *$crate::globals::g_st().iobuff_bytes_mut()),
-                        fmt_val.as_cstr(),
-                        args_val,
-                    );
-                }
-            }
-            $crate::message::give_warning(
-                &$crate::globals::g_st().iobuff_cstr(),
-                hl_val,
-                true,
-            );
-        }
+        $crate::message::swmsg_fmt(
+            $hl,
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
+        );
     }};
 }
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -2096,28 +2067,29 @@ pub fn msgmore(n: i32) {
     let pn = n.abs();
 
     if i64::from(pn) > opt_vars().p_report.get() {
+        let mut msg_buf = [0u8; crate::eval::userfunc::MSG_BUF_LEN];
         if n > 0 {
             format_to_buf!(
-                &mut *g_st().msg_buf.borrow_mut(),
+                &mut msg_buf,
                 ngettext(c"%d more line", c"%d more lines", pn as u64),
                 pn,
             );
         } else {
             format_to_buf!(
-                &mut *g_st().msg_buf.borrow_mut(),
+                &mut msg_buf,
                 ngettext(c"%d line less", c"%d fewer lines", pn as u64),
                 pn,
             );
         }
         if g_st().got_int.get() {
             crate::memory::append_bytes_to_c_buf(
-                &mut *g_st().msg_buf_bytes_mut(),
+                &mut msg_buf,
                 gettext(c" (Interrupted)").to_bytes(),
             );
         }
-        let msg_cstr = g_st().msg_buf_cstr();
-        if msg(&msg_cstr, 0) {
-            set_keep_msg(Some(&msg_cstr), 0);
+        let msg_cstr = crate::memory::bytes_as_cstr(&msg_buf);
+        if msg(msg_cstr, 0) {
+            set_keep_msg(Some(msg_cstr), 0);
             MSG_STATE.with(|s| s.keep_msg_more.set(true));
         }
     }

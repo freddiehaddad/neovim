@@ -3575,14 +3575,13 @@ pub fn find_pattern_in_path(
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
                             g_st().msg_hist_off.set(true);
+                            let mut iob = [0u8; IOSIZE];
                             format_to_buf!(
-                                &mut *g_st().iobuff_bytes_mut(),
+                                &mut iob,
                                 tr(c"Scanning included file: %s"),
                                 curr_fname.as_deref().unwrap_or(c""),
                             );
-                            let mut iob = *g_st().iobuff.borrow();
                             msg_trunc(&mut iob, true, HLF_R);
-                            *g_st().iobuff.borrow_mut() = iob;
                         } else if opt_vars().p_verbose.get() >= 5 {
                             verbose_enter();
                             smsg!(
@@ -3714,12 +3713,13 @@ pub fn find_pattern_in_path(
                                 p_idx = line_bytes.len() - rem.len();
                                 i = (p_idx as isize - aux_idx as isize) as i32;
                                 let mut use_iobuff = false;
+                                let mut iobuff = [0u8; IOSIZE];
 
                                 if compl_status_adding() && i == ins_compl_len() {
                                     let i_u = i as usize;
-                                    g_st().iobuff.borrow_mut()[..i_u]
+                                    iobuff[..i_u]
                                         .copy_from_slice(&file_line_vec[aux_idx..aux_idx + i_u]);
-                                    g_st().iobuff.borrow_mut()[i_u] = 0;
+                                    iobuff[i_u] = 0;
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3746,20 +3746,19 @@ pub fn find_pattern_in_path(
                                         p_idx = next_bytes.len() - rem2.len();
                                         if p_idx > aux_idx {
                                             if file_line_vec[aux_idx] != b')'
-                                                && g_st().iobuff.borrow()[(i - 1) as usize] != TAB
+                                                && iobuff[(i - 1) as usize] != TAB
                                             {
-                                                if g_st().iobuff.borrow()[(i - 1) as usize] != b' '
-                                                {
-                                                    g_st().iobuff.borrow_mut()[i as usize] = b' ';
+                                                if iobuff[(i - 1) as usize] != b' ' {
+                                                    iobuff[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                                 if opt_vars().p_js.get()
                                                     && matches!(
-                                                        g_st().iobuff.borrow()[(i - 2) as usize],
+                                                        iobuff[(i - 2) as usize],
                                                         b'.' | b'?' | b'!'
                                                     )
                                                 {
-                                                    g_st().iobuff.borrow_mut()[i as usize] = b' ';
+                                                    iobuff[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                             }
@@ -3768,15 +3767,14 @@ pub fn find_pattern_in_path(
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
                                             let dst_start = i as usize;
-                                            g_st().iobuff.borrow_mut()
-                                                [dst_start..dst_start + copy_len]
+                                            iobuff[dst_start..dst_start + copy_len]
                                                 .copy_from_slice(
                                                     &file_line_vec[aux_idx..aux_idx + copy_len],
                                                 );
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }
-                                        g_st().iobuff.borrow_mut()[i as usize] = 0;
+                                        iobuff[i as usize] = 0;
                                         use_iobuff = true;
 
                                         if i == ins_compl_len() {
@@ -3795,9 +3793,8 @@ pub fn find_pattern_in_path(
                                         path_try_shorten_fname(curr_fname.as_deref())
                                     };
                                     let add_r = if use_iobuff {
-                                        let word = g_st().iobuff.borrow()[..len_u].to_vec();
                                         ins_compl_add_infercase(
-                                            &word,
+                                            &iobuff[..len_u],
                                             i,
                                             opt_vars().p_ic.get(),
                                             fname_short,
@@ -4101,10 +4098,11 @@ fn show_pat_in_path(
         };
         let has_trailing_bsl = cur_bytes.last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
-            format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%3d: ", count);
-            msg_puts(&g_st().iobuff_cstr());
-            format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"%4d", *lnum);
-            msg_puts_hl(&g_st().iobuff_cstr(), HLF_N, false);
+            let mut iobuff = [0u8; IOSIZE];
+            format_to_buf!(&mut iobuff, c"%3d: ", count);
+            msg_puts(crate::memory::bytes_as_cstr(&iobuff));
+            format_to_buf!(&mut iobuff, c"%4d", *lnum);
+            msg_puts_hl(crate::memory::bytes_as_cstr(&iobuff), HLF_N, false);
             msg_puts(c" ");
         }
         if use_line_buf {

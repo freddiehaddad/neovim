@@ -2379,12 +2379,8 @@ fn ins_compl_files(
             && !shortmess(K_SHM_COMPLETIONSCAN)
             && !INSEXPAND.with(|s| s.compl_autocomplete.get())
         {
-            format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
-                gettext(c"Scanning dictionary: %s"),
-                file_cstr,
-            );
-            let mut iob = *g_st().iobuff.borrow();
+            let mut iob = [0u8; IOSIZE];
+            format_to_buf!(&mut iob, gettext(c"Scanning dictionary: %s"), file_cstr);
             msg_progress(
                 Some(&mut iob),
                 c"nvim.completion",
@@ -2395,7 +2391,6 @@ fn ins_compl_files(
                 true,
                 false,
             );
-            *g_st().iobuff.borrow_mut() = iob;
         }
 
         let Some(fp) = fp else {
@@ -4171,12 +4166,8 @@ fn process_next_cpt_value(
                 buf_name = ins_buf.sfname_opt();
                 buf_name.as_deref()
             };
-            format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
-                gettext(c"Scanning: %s"),
-                name.unwrap_or(c"")
-            );
-            let mut iob = *g_st().iobuff.borrow();
+            let mut iob = [0u8; IOSIZE];
+            format_to_buf!(&mut iob, gettext(c"Scanning: %s"), name.unwrap_or(c""));
             msg_progress(
                 Some(&mut iob),
                 c"nvim.completion",
@@ -4187,7 +4178,6 @@ fn process_next_cpt_value(
                 true,
                 false,
             );
-            *g_st().iobuff.borrow_mut() = iob;
         }
     } else if st.e_cpt_char() == 0 {
         status = INS_COMPL_CPT_END;
@@ -4226,12 +4216,8 @@ fn process_next_cpt_value(
                 if !shortmess(K_SHM_COMPLETIONSCAN)
                     && !INSEXPAND.with(|s| s.compl_autocomplete.get())
                 {
-                    format_to_buf!(
-                        &mut *g_st().iobuff.borrow_mut(),
-                        c"%s",
-                        gettext(c"Scanning tags.")
-                    );
-                    let mut iob = *g_st().iobuff.borrow();
+                    let mut iob = [0u8; IOSIZE];
+                    format_to_buf!(&mut iob, c"%s", gettext(c"Scanning tags."));
                     msg_progress(
                         Some(&mut iob),
                         c"nvim.completion",
@@ -4242,7 +4228,6 @@ fn process_next_cpt_value(
                         true,
                         false,
                     );
-                    *g_st().iobuff.borrow_mut() = iob;
                 }
             }
         }
@@ -4250,7 +4235,8 @@ fn process_next_cpt_value(
         let cpt_cstr = st.e_cpt_cstr();
         let mut cpt_bytes = cpt_cstr.to_bytes();
         let old_len = cpt_bytes.len();
-        copy_option_part(&mut cpt_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
+        let mut iobuff = [0u8; IOSIZE];
+        copy_option_part(&mut cpt_bytes, &mut iobuff, c",");
         let consumed = old_len - cpt_bytes.len();
         st.e_cpt_idx += consumed;
         *advance_cpt_idx = may_advance_cpt_index(st.e_cpt_cstr());
@@ -4684,6 +4670,7 @@ fn ins_compl_get_next_word_or_line<'a>(
         ));
     }
 
+    let mut iobuff = [0u8; IOSIZE];
     let (col_u, mut len) = {
         let line_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum);
         let col_u = (cur_match_pos.col.max(0) as usize).min(line_slice.len());
@@ -4706,7 +4693,6 @@ fn ins_compl_get_next_word_or_line<'a>(
                 && len == INSEXPAND.with(|s| s.compl_length.get())
                 && cur_match_pos.lnum < line_count
             {
-                let iobuff = &mut *g_st().iobuff_bytes_mut();
                 let len_usize = len as usize;
                 let n = len_usize.min(res_slice.len());
                 iobuff[..n].copy_from_slice(&res_slice[..n]);
@@ -4721,7 +4707,6 @@ fn ins_compl_get_next_word_or_line<'a>(
         && len == INSEXPAND.with(|s| s.compl_length.get())
     {
         if cur_match_pos.lnum < line_count {
-            let iobuff = &mut *g_st().iobuff_bytes_mut();
             let next_line = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
             let next_s = crate::charset::skipwhite_slice(&next_line);
             let wstart = find_word_start(next_s);
@@ -5207,7 +5192,8 @@ fn prepare_cpt_compl_funcs() {
 
         let mut p_bytes = p_cstr.to_bytes();
         let old_len = p_bytes.len();
-        let _ = copy_option_part(&mut p_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
+        let mut iobuff = [0u8; IOSIZE];
+        let _ = copy_option_part(&mut p_bytes, &mut iobuff, c",");
         p_cstr = crate::memory::CStrSubslice::advance(p_cstr, old_len - p_bytes.len());
         idx += 1;
     }
@@ -5781,8 +5767,9 @@ fn ins_compl_show_filename() {
     }
     if !INSEXPAND.with(|s| s.compl_autocomplete.get()) {
         g_st().msg_hist_off.set(true);
+        let mut iobuff = [0u8; IOSIZE];
         format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
+            &mut iobuff,
             c"%s %s%s",
             lead,
             if (s.as_ptr() as usize) > (fname_cstr.as_ptr() as usize) {
@@ -5792,7 +5779,7 @@ fn ins_compl_show_filename() {
             },
             s,
         );
-        msg(&g_st().iobuff_cstr(), 0);
+        msg(crate::memory::bytes_as_cstr(&iobuff), 0);
         g_st().msg_hist_off.set(false);
         g_st().redraw_cmdline.set(false);
     }
@@ -7324,7 +7311,8 @@ fn cpt_compl_refresh() {
 
         let mut p_bytes = p_cstr.to_bytes();
         let old_len = p_bytes.len();
-        let _ = copy_option_part(&mut p_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
+        let mut iobuff = [0u8; IOSIZE];
+        let _ = copy_option_part(&mut p_bytes, &mut iobuff, c",");
         p_cstr = crate::memory::CStrSubslice::advance(p_cstr, old_len - p_bytes.len());
         if may_advance_cpt_index(p_cstr) {
             let _ = advance_cpt_sources_index_safe();

@@ -2764,12 +2764,13 @@ pub fn spell_dump_compl(
         && let Some(ref rn) = region_names
         && pat.is_none()
     {
+        let mut iobuff = [0u8; IOSIZE];
         format_to_buf!(
-            &mut *g_st().iobuff_bytes_mut(),
+            &mut iobuff,
             c"/regions=%s",
             crate::memory::bytes_as_cstr(rn),
         );
-        let _ = ml_append(lnum, &*g_st().iobuff_bytes(), 0, false);
+        let _ = ml_append(lnum, &iobuff, 0, false);
         lnum += 1;
     } else {
         do_region = false;
@@ -2781,12 +2782,13 @@ pub fn spell_dump_compl(
             continue;
         }
         if pat.is_none() {
+            let mut iobuff = [0u8; IOSIZE];
             format_to_buf!(
-                &mut *g_st().iobuff_bytes_mut(),
+                &mut iobuff,
                 c"# file: %s",
                 slang.sl_fname.as_deref().unwrap_or(c""),
             );
-            let _ = ml_append(lnum, &*g_st().iobuff_bytes(), 0, false);
+            let _ = ml_append(lnum, &iobuff, 0, false);
             lnum += 1;
         }
         let patlen: isize = if let Some(pat_cstr) = pat
@@ -2968,13 +2970,9 @@ fn dump_word(
         if (dumpflags & DUMPFLAG_COUNT) != 0
             && let Some(&wc_count) = slang.sl_wordcount.borrow().get(tw_cstr.to_bytes())
         {
-            format_to_buf!(
-                &mut *g_st().iobuff_bytes_mut(),
-                c"%s\t%d",
-                tw_cstr,
-                wc_count as i32,
-            );
-            iob_owned = g_st().iobuff_cstr();
+            let mut iobuff = [0u8; IOSIZE];
+            format_to_buf!(&mut iobuff, c"%s\t%d", tw_cstr, wc_count as i32,);
+            iob_owned = crate::memory::cstring_until_nul(&iobuff);
             p_cstr = &iob_owned;
         }
         let _ = ml_append(lnum, p_cstr.to_bytes(), 0, false);

@@ -16,7 +16,6 @@ use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::drawscreen::WinExtmark;
 use crate::eval::CallerScope;
 use crate::eval::typval::Callback;
-use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{Except, Msglist};
 use crate::ex_getln::{Disptick, Hlf};
@@ -30,7 +29,7 @@ use crate::menu::Vimmenu;
 use crate::mouse::StlClickDefinition;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::VisualState;
-use crate::os::fs::{MAXPATHL, NvimStats};
+use crate::os::fs::NvimStats;
 use crate::popupmenu::PumWant;
 use crate::regexp::RegExtmatch;
 use crate::runtime::Sctx;
@@ -212,10 +211,6 @@ pub struct EditorState {
     pub in_assert_fails: std::cell::Cell<bool>,
     pub swap_exists_action: std::cell::Cell<i32>,
     pub swap_exists_did_quit: std::cell::Cell<bool>,
-    pub iobuff: std::cell::RefCell<[u8; IOSIZE]>,
-    pub name_buff: std::cell::RefCell<[u8; MAXPATHL]>,
-    pub msg_buf: std::cell::RefCell<[u8; MSG_BUF_LEN]>,
-    pub os_buf: std::cell::RefCell<[u8; MAXPATHL]>,
     pub redrawing_disabled: std::cell::Cell<i32>,
     pub readonlymode: std::cell::Cell<bool>,
     pub recoverymode: std::cell::Cell<bool>,
@@ -640,10 +635,6 @@ impl EditorState {
             in_assert_fails: std::cell::Cell::new(false),
             swap_exists_action: std::cell::Cell::new(SEA_NONE),
             swap_exists_did_quit: std::cell::Cell::new(false),
-            iobuff: std::cell::RefCell::new([0; IOSIZE]),
-            name_buff: std::cell::RefCell::new([0; MAXPATHL]),
-            msg_buf: std::cell::RefCell::new([0; MSG_BUF_LEN]),
-            os_buf: std::cell::RefCell::new([0; MAXPATHL]),
             redrawing_disabled: std::cell::Cell::new(0),
             readonlymode: std::cell::Cell::new(false),
             recoverymode: std::cell::Cell::new(false),
@@ -841,55 +832,6 @@ impl EditorState {
             ui_client_forward_stdin: std::cell::Cell::new(false),
             tabpage_move_disallowed: std::cell::Cell::new(0),
         }
-    }
-
-    #[inline(always)]
-    pub fn iobuff_bytes(&self) -> std::cell::Ref<'_, [u8; IOSIZE]> {
-        self.iobuff.borrow()
-    }
-
-    #[inline(always)]
-    pub fn iobuff_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; IOSIZE]> {
-        self.iobuff.borrow_mut()
-    }
-
-    #[inline(always)]
-    pub fn iobuff_cstr(&self) -> std::ffi::CString {
-        let b = self.iobuff.borrow();
-        std::ffi::CStr::from_bytes_until_nul(&*b)
-            .unwrap_or(c"")
-            .to_owned()
-    }
-
-    #[inline(always)]
-    pub fn name_buff_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MAXPATHL]> {
-        self.name_buff.borrow_mut()
-    }
-
-    #[inline(always)]
-    pub fn name_buff_cstr(&self) -> std::ffi::CString {
-        let b = self.name_buff.borrow();
-        std::ffi::CStr::from_bytes_until_nul(&*b)
-            .unwrap_or(c"")
-            .to_owned()
-    }
-
-    #[inline(always)]
-    pub fn os_buf_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MAXPATHL]> {
-        self.os_buf.borrow_mut()
-    }
-
-    #[inline(always)]
-    pub fn msg_buf_bytes_mut(&self) -> std::cell::RefMut<'_, [u8; MSG_BUF_LEN]> {
-        self.msg_buf.borrow_mut()
-    }
-
-    #[inline(always)]
-    pub fn msg_buf_cstr(&self) -> std::ffi::CString {
-        let b = self.msg_buf.borrow();
-        std::ffi::CStr::from_bytes_until_nul(&*b)
-            .unwrap_or(c"")
-            .to_owned()
     }
 }
 

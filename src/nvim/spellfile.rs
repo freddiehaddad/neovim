@@ -1691,12 +1691,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         return None;
     };
 
-    format_to_buf!(
-        &mut *g_st().iobuff_bytes_mut(),
-        gettext(c"Reading affix file %s..."),
-        fname,
-    );
-    spell_message(&*spin, &g_st().iobuff_cstr());
+    let mut iobuff = [0u8; IOSIZE];
+    format_to_buf!(&mut iobuff, gettext(c"Reading affix file %s..."), fname,);
+    spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
 
     let do_rep = spin.si_rep.is_empty();
     let do_repsal = spin.si_repsal.is_empty();
@@ -2793,12 +2790,13 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         return false;
     };
 
+    let mut iobuff = [0u8; IOSIZE];
     format_to_buf!(
-        &mut *g_st().iobuff_bytes_mut(),
+        &mut iobuff,
         gettext(c"Reading dictionary file %s..."),
         fname,
     );
-    spell_message(&*spin, &g_st().iobuff_cstr());
+    spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
 
     spin.si_msg_count = 999999;
 
@@ -3385,12 +3383,9 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             return false;
         };
 
-        format_to_buf!(
-            &mut *g_st().iobuff_bytes_mut(),
-            gettext(c"Reading word file %s..."),
-            fname,
-        );
-        spell_message(&*spin, &g_st().iobuff_cstr());
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, gettext(c"Reading word file %s..."), fname,);
+        spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
 
         while !vim_fgets(&mut rline, &fd) && !g_st().got_int.get() {
             line_breakcheck();
@@ -3574,12 +3569,13 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
         spell_close(fd);
 
         if spin.si_ascii && non_ascii > 0 {
+            let mut iobuff = [0u8; IOSIZE];
             format_to_buf!(
-                &mut *g_st().iobuff_bytes_mut(),
+                &mut iobuff,
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, &g_st().iobuff_cstr());
+            spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
         }
 
         retval
@@ -3885,8 +3881,9 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
         } else {
             ((tot - n) * 100 / tot) as i64
         };
+        let mut iobuff = [0u8; IOSIZE];
         format_to_buf!(
-            &mut *g_st().iobuff_bytes_mut(),
+            &mut iobuff,
             gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
             name,
             n,
@@ -3894,7 +3891,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             tot - n,
             perc,
         );
-        spell_message(&*spin, &g_st().iobuff_cstr());
+        spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
     }
 }
 
@@ -4700,12 +4697,13 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         return;
     };
 
+    let mut iobuff = [0u8; IOSIZE];
     format_to_buf!(
-        &mut *g_st().iobuff_bytes_mut(),
+        &mut iobuff,
         gettext(c"Writing suggestion file %s..."),
         fname_cstr,
     );
-    spell_message(&*spin, &g_st().iobuff_cstr());
+    spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
 
     if spell_write(&VIMSUGMAGIC[..VIMSUGMAGICL], &fd) != 1 {
         emsg(gettext(E_WRITE));
@@ -4752,11 +4750,11 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         }
 
         format_to_buf!(
-            &mut *g_st().iobuff_bytes_mut(),
+            &mut iobuff,
             gettext(c"Estimated runtime memory use: %d bytes"),
             spin.si_memtot,
         );
-        spell_message(&*spin, &g_st().iobuff_cstr());
+        spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
     }
 
     spell_close(fd);
@@ -4914,22 +4912,23 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             }
 
             if !error && !g_st().got_int.get() {
+                let mut iobuff = [0u8; IOSIZE];
                 format_to_buf!(
-                    &mut *g_st().iobuff_bytes_mut(),
+                    &mut iobuff,
                     gettext(c"Writing spell file %s..."),
                     wfname_cstr,
                 );
-                spell_message(&spin, &g_st().iobuff_cstr());
+                spell_message(&spin, crate::memory::bytes_as_cstr(&iobuff));
 
                 error = !write_vim_spell(&mut spin, crate::memory::bytes_as_cstr(&wfname_buf));
 
                 spell_message(&spin, gettext(c"Done!"));
                 format_to_buf!(
-                    &mut *g_st().iobuff_bytes_mut(),
+                    &mut iobuff,
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
-                spell_message(&spin, &g_st().iobuff_cstr());
+                spell_message(&spin, crate::memory::bytes_as_cstr(&iobuff));
 
                 if !error {
                     spell_reload_one(crate::memory::bytes_as_cstr(&wfname_buf), added_word);
@@ -5077,14 +5076,15 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 if rw_fd.seek(fpos, SEEK_SET) == 0 {
                     rw_fd.putc(b'#' as i32);
                     if undo {
-                        home_replace(None, fname_opt, &mut *g_st().name_buff_bytes_mut(), true);
+                        let mut name_buff = [0u8; MAXPATHL];
+                        home_replace(None, fname_opt, &mut name_buff, true);
                         let word_cstr = crate::memory::bytes_to_cstring(word_bytes);
                         smsg!(
                             0,
                             gettext(c"Word '%.*s' removed from %s"),
                             ulen as i32,
                             &word_cstr,
-                            &*g_st().name_buff.borrow(),
+                            &name_buff,
                         );
                     }
                 }
@@ -5127,14 +5127,15 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             }
             drop(fd);
 
-            home_replace(None, fname_opt, &mut *g_st().name_buff_bytes_mut(), true);
+            let mut name_buff = [0u8; MAXPATHL];
+            home_replace(None, fname_opt, &mut name_buff, true);
             let word_cstr = crate::memory::bytes_to_cstring(word_bytes);
             smsg!(
                 0,
                 gettext(c"Word '%.*s' added to %s"),
                 word_bytes.len() as i32,
                 &word_cstr,
-                &*g_st().name_buff.borrow(),
+                &name_buff,
             );
         } else {
             semsg!(gettext(E_NOTOPEN), fname_cstr);

@@ -335,10 +335,8 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         tv_clear(&mut rettv);
         return false;
     }
-    crate::memory::copy_bytes_to_c_buf(
-        &mut *g_st().iobuff_bytes_mut(),
-        rettv.vval.v_string_bytes(),
-    );
+    let mut iobuff = [0u8; IOSIZE];
+    crate::memory::copy_bytes_to_c_buf(&mut iobuff, rettv.vval.v_string_bytes());
     tv_clear(&mut rettv);
 
     matches.clear();
@@ -348,7 +346,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
     }
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
-        &g_st().iobuff_cstr(),
+        crate::memory::bytes_as_cstr(&iobuff),
         &mut raw_matches,
         flags,
         crate::regexp::MAXCOL,

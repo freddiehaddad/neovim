@@ -4225,10 +4225,9 @@ pub fn create_environment(
             let name_owned: Option<std::ffi::CString> = {
                 let name_b = item_name.to_bytes();
                 if name_b.len() < MAXPATHL / MB_MAXBYTES {
-                    mb_strup_buf(name_b, &mut *g_st().name_buff_bytes_mut());
-                    Some(crate::memory::cstring_until_nul(
-                        &*g_st().name_buff_bytes_mut(),
-                    ))
+                    let mut name_buff = [0u8; MAXPATHL];
+                    mb_strup_buf(name_b, &mut name_buff);
+                    Some(crate::memory::cstring_until_nul(&name_buff))
                 } else {
                     None
                 }
@@ -4278,10 +4277,9 @@ pub fn create_environment(
                     let mut namelen = key_b.len();
                     let name_owned: Option<std::ffi::CString> = if namelen < MAXPATHL / MB_MAXBYTES
                     {
-                        namelen = mb_strup_buf(key_b, &mut *g_st().name_buff_bytes_mut());
-                        Some(crate::memory::cstring_until_nul(
-                            &*g_st().name_buff_bytes_mut(),
-                        ))
+                        let mut name_buff = [0u8; MAXPATHL];
+                        namelen = mb_strup_buf(key_b, &mut name_buff);
+                        Some(crate::memory::cstring_until_nul(&name_buff))
                     } else {
                         None
                     };
@@ -4533,32 +4531,23 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            vim_full_name(cwd_opt, &mut *g_st().name_buff_bytes_mut(), false);
-            let namebuff_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
-            let len = home_replace(
-                None,
-                Some(namebuff_cstr.as_c_str()),
-                &mut *g_st().iobuff_bytes_mut(),
-                true,
-            );
-            if len > 1 && matches!(g_st().iobuff.borrow()[len - 1], b'\\' | b'/') {
-                g_st().iobuff.borrow_mut()[len - 1] = 0;
+            let mut name_buff = [0u8; MAXPATHL];
+            vim_full_name(cwd_opt, &mut name_buff, false);
+            let namebuff_cstr = crate::memory::cstring_until_nul(&name_buff);
+            let mut iobuff = [0u8; IOSIZE];
+            let len = home_replace(None, Some(namebuff_cstr.as_c_str()), &mut iobuff, true);
+            if len > 1 && matches!(iobuff[len - 1], b'\\' | b'/') {
+                iobuff[len - 1] = 0;
             }
-            if len == 1 && g_st().iobuff.borrow()[0] == b'/' {
-                g_st().iobuff.borrow_mut()[1] = b'.';
-                g_st().iobuff.borrow_mut()[2] = 0;
+            if len == 1 && iobuff[0] == b'/' {
+                iobuff[1] = b'.';
+                iobuff[2] = 0;
             }
 
-            let iobuff_cstr = g_st().iobuff_cstr().to_owned();
-            format_to_buf!(
-                &mut *g_st().name_buff.borrow_mut(),
-                c"term://%s//%d:%s",
-                &iobuff_cstr,
-                pid,
-                &cmd,
-            );
+            let iobuff_cstr = crate::memory::bytes_as_cstr(&iobuff);
+            format_to_buf!(&mut name_buff, c"term://%s//%d:%s", iobuff_cstr, pid, &cmd);
 
-            let fname_cstr = crate::memory::cstring_until_nul(&*g_st().name_buff_bytes_mut());
+            let fname_cstr = crate::memory::cstring_until_nul(&name_buff);
             setfname(&buf, Some(fname_cstr.as_c_str()), None, true);
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&buf));
 

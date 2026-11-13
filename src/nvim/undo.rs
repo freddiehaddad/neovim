@@ -2399,21 +2399,17 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_time = uhp_ref(&curbuf_mut(), uh).uh_time;
         let uh_save_nr = uhp_ref(&curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
-            format_to_buf!(
-                &mut *g_st().iobuff_bytes_mut(),
-                c"%6d %7d  ",
-                uh_seq,
-                changes
-            );
-            let cur_len = g_st().iobuff_cstr().to_bytes().len();
-            undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
+            let mut iobuff = [0u8; IOSIZE];
+            format_to_buf!(&mut iobuff, c"%6d %7d  ", uh_seq, changes);
+            let cur_len = crate::memory::bytes_until_nul(&iobuff).len();
+            undo_fmt_time(&mut iobuff[cur_len..], uh_time);
             if uh_save_nr > 0 {
-                while g_st().iobuff_cstr().to_bytes().len() < 33 {
-                    crate::memory::append_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), b" ");
+                while crate::memory::bytes_until_nul(&iobuff).len() < 33 {
+                    crate::memory::append_bytes_to_c_buf(&mut iobuff, b" ");
                 }
-                format_to_buf_add!(&mut *g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
+                format_to_buf_add!(&mut iobuff, c"  %3d", uh_save_nr);
             }
-            lines.push(g_st().iobuff_cstr().to_owned());
+            lines.push(crate::memory::cstring_until_nul(&iobuff));
         }
 
         uhp_mut(&curbuf_mut(), uh).uh_walk = mark;

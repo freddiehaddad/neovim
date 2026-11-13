@@ -3620,14 +3620,15 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
             return Some(c"");
         }
 
-        let len = cat_func_name(&mut *g_st().iobuff_bytes_mut(), &fp);
+        let mut iobuff = [0u8; IOSIZE];
+        let len = cat_func_name(&mut iobuff, &fp);
         if xp.xp_context != EXPAND_USER_FUNC && fp.uf_namelen + 4 < IOSIZE {
-            crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff[len..], b"(");
             if fp.uf_varargs.get() == 0 && fp.uf_args.borrow().is_empty() {
-                crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len + 1..], b")");
+                crate::memory::copy_bytes_to_c_buf(&mut iobuff[len + 1..], b")");
             }
         }
-        let item = crate::memory::cstring_until_nul(&*g_st().iobuff.borrow());
+        let item = crate::memory::cstring_until_nul(&iobuff);
         return Some(xp.set_item(item));
     }
     None
@@ -4214,15 +4215,16 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
     let s_bytes = tofree.as_ref().map_or(&[][..], |tf| tf.as_bytes());
     let slen = s_bytes.len();
 
-    crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), b":return ");
-    crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[8..], s_bytes);
+    let mut iobuff = [0u8; IOSIZE];
+    crate::memory::copy_bytes_to_c_buf(&mut iobuff, b":return ");
+    crate::memory::copy_bytes_to_c_buf(&mut iobuff[8..], s_bytes);
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
-        crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[IOSIZE - 4..], b"...");
+        crate::memory::copy_bytes_to_c_buf(&mut iobuff[IOSIZE - 4..], b"...");
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);
-    bytes_to_cstring(&g_st().iobuff_bytes_mut()[..iobuff_len])
+    bytes_to_cstring(&iobuff[..iobuff_len])
 }
 
 /// Get next function line.

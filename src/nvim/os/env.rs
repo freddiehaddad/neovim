@@ -392,15 +392,11 @@ pub fn init_homedir() {
             if let Some(ref hd) = homedrive
                 && hd.as_bytes().len() + homepath_bytes.len() < MAXPATHL
             {
-                crate::memory::copy_bytes_to_c_buf(&mut *g_st().os_buf_bytes_mut(), hd.as_bytes());
-                crate::memory::append_bytes_to_c_buf(
-                    &mut *g_st().os_buf_bytes_mut(),
-                    homepath_bytes,
-                );
-                if g_st().os_buf.borrow()[0] != 0 {
-                    var = Some(crate::memory::cstring_until_nul(
-                        &*g_st().os_buf_bytes_mut(),
-                    ));
+                let mut os_buf = [0u8; MAXPATHL];
+                crate::memory::copy_bytes_to_c_buf(&mut os_buf, hd.as_bytes());
+                crate::memory::append_bytes_to_c_buf(&mut os_buf, homepath_bytes);
+                if os_buf[0] != 0 {
+                    var = Some(crate::memory::cstring_until_nul(&os_buf));
                 }
             }
         }
@@ -420,17 +416,10 @@ pub fn init_homedir() {
                     && !exp.as_bytes().is_empty()
                     && exp.as_bytes().len() + 1 + tail_bytes.len() < MAXPATHL
                 {
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut *g_st().os_buf_bytes_mut(),
-                        exp.as_bytes(),
-                    );
-                    crate::memory::append_bytes_to_c_buf(
-                        &mut *g_st().os_buf_bytes_mut(),
-                        &tail_bytes,
-                    );
-                    var = Some(crate::memory::cstring_until_nul(
-                        &*g_st().os_buf_bytes_mut(),
-                    ));
+                    let mut os_buf = [0u8; MAXPATHL];
+                    crate::memory::copy_bytes_to_c_buf(&mut os_buf, exp.as_bytes());
+                    crate::memory::append_bytes_to_c_buf(&mut os_buf, &tail_bytes);
+                    var = Some(crate::memory::cstring_until_nul(&os_buf));
                 }
             }
         }
@@ -446,16 +435,15 @@ pub fn init_homedir() {
             var = os_uv_homedir();
         }
 
+        let mut path_buf = [0u8; MAXPATHL];
         if let Some(ref cur_var) = var
-            && os_realpath(cur_var, &mut *g_st().iobuff_bytes_mut()).is_some()
+            && os_realpath(cur_var, &mut path_buf).is_some()
         {
-            var = Some(g_st().iobuff_cstr().to_owned());
+            var = Some(crate::memory::cstring_until_nul(&path_buf));
         }
 
-        if var.as_ref().is_none_or(|s| s.as_bytes().is_empty())
-            && os_dirname(&mut *g_st().os_buf_bytes_mut())
-        {
-            var = Some(crate::memory::cstring_until_nul(&*g_st().os_buf.borrow()));
+        if var.as_ref().is_none_or(|s| s.as_bytes().is_empty()) && os_dirname(&mut path_buf) {
+            var = Some(crate::memory::cstring_until_nul(&path_buf));
         }
     }
 
@@ -1070,10 +1058,6 @@ pub fn os_setenv_append_path(fname_cstr: &CStr) -> bool {
     let tail = path_tail_with_sep(fname_cstr).as_ptr();
     let dirlen = (tail as usize) - (fname_cstr.as_ptr() as usize);
     assert!((tail as usize) >= (fname_cstr.as_ptr() as usize) && dirlen + 1 < MAXPATHL);
-    for (i, &b) in fname_bytes[..dirlen].iter().enumerate() {
-        g_st().os_buf.borrow_mut()[i] = b;
-    }
-    g_st().os_buf.borrow_mut()[dirlen] = 0;
     let path_cstr = os_getenv_cstr(c"PATH");
     let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
     let newlen = pathlen + dirlen + 2;

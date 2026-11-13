@@ -222,8 +222,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    RawCCharPtr, del_trailing_spaces, format_to_buf, gettext, ngettext, strrep, vim_strchr,
-    vim_strsave_escaped,
+    del_trailing_spaces, format_to_buf, gettext, ngettext, strrep, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -5500,12 +5499,13 @@ pub fn handle_did_throw() {
 
     match excp.r#type {
         ET_USER => {
+            let mut iobuff = [0u8; IOSIZE];
             let _ = format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
+                &mut iobuff,
                 gettext(c"E605: Exception not caught: %s"),
                 &excp.value,
             );
-            p = Some(g_st().iobuff_cstr().to_owned());
+            p = Some(crate::memory::cstring_until_nul(&iobuff));
         }
         ET_ERROR => {
             messages = excp.messages.clone();
@@ -5988,8 +5988,9 @@ pub fn parse_cmdline(
         }
 
         if eap.cmdidx == Cmdidx::CmdSize {
+            let mut iobuff = [0u8; IOSIZE];
             crate::memory::copy_bytes_to_c_buf(
-                &mut *g_st().iobuff_bytes_mut(),
+                &mut iobuff,
                 gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
             );
             let cmdname = if !after_modifier.is_null() {
@@ -5997,8 +5998,10 @@ pub fn parse_cmdline(
             } else {
                 orig_cmd
             };
-            append_command((cmdname).as_cstr());
-            *errormsg = Some(std::borrow::Cow::Owned(g_st().iobuff_cstr()));
+            append_command(&mut iobuff, (cmdname).as_cstr());
+            *errormsg = Some(std::borrow::Cow::Owned(crate::memory::cstring_until_nul(
+                &iobuff,
+            )));
             break 'end;
         }
 
@@ -6514,8 +6517,9 @@ fn do_one_cmd(
 
         if ea.cmdidx == Cmdidx::CmdSize {
             if !ea.skip {
+                let mut iobuff = [0u8; IOSIZE];
                 crate::memory::copy_bytes_to_c_buf(
-                    &mut *g_st().iobuff_bytes_mut(),
+                    &mut iobuff,
                     gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
                 );
                 let cmdname = if !after_modifier.is_null() {
@@ -6524,9 +6528,11 @@ fn do_one_cmd(
                     ea.cmdline_cstr()
                 };
                 if (flags & DOCMD_VERBOSE) == 0 {
-                    append_command(cmdname);
+                    append_command(&mut iobuff, cmdname);
                 }
-                errormsg = Some(std::borrow::Cow::Owned(g_st().iobuff_cstr()));
+                errormsg = Some(std::borrow::Cow::Owned(crate::memory::cstring_until_nul(
+                    &iobuff,
+                )));
                 g_st().did_emsg_syntax.set(true);
                 verify_command(cmdname.to_bytes());
             }
@@ -6763,12 +6769,10 @@ fn do_one_cmd(
         && g_st().did_emsg.get() == 0
     {
         if (flags & DOCMD_VERBOSE) != 0 {
-            let iobuf_ptr: RawCCharPtr = g_st().iobuff.borrow().as_ptr().cast();
-            if !ptr::eq(msg.as_ptr(), iobuf_ptr) {
-                crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), msg.to_bytes());
-            }
-            append_command(ea.cmdline_cstr());
-            msg = std::borrow::Cow::Owned(g_st().iobuff_cstr().to_owned());
+            let mut iobuff = [0u8; IOSIZE];
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff, msg.to_bytes());
+            append_command(&mut iobuff, ea.cmdline_cstr());
+            msg = std::borrow::Cow::Owned(crate::memory::cstring_until_nul(&iobuff));
         }
         let _ = emsg(&msg);
     }
@@ -7449,8 +7453,7 @@ pub fn checkforcmd(p_bytes: &[u8], cmd_bytes: &[u8], len: usize) -> Option<usize
     None
 }
 
-fn append_command(cmd: &CStr) {
-    let iobuf = &mut *g_st().iobuff_bytes_mut();
+fn append_command(iobuf: &mut [u8; IOSIZE], cmd: &CStr) {
     let mut d = iobuf.iter().position(|&b| b == 0).unwrap_or(IOSIZE);
     if d > IOSIZE - 100 {
         d = IOSIZE - 100;
@@ -8446,14 +8449,15 @@ pub fn expand_filename(
             let esc_wildcards = c" \t*?[";
             #[cfg(not(windows))]
             let esc_wildcards = c" \t*?[{";
+            let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
             expand_env_esc(
                 eap.arg.as_cstr(),
-                &mut *g_st().name_buff_bytes_mut(),
+                &mut name_buff,
                 Some(esc_wildcards),
                 true,
                 None,
             );
-            let expanded = g_st().name_buff_cstr().to_owned();
+            let expanded = crate::memory::cstring_until_nul(&name_buff);
             has_wildcards = path_has_wildcard(expanded.to_bytes(), true);
             repl_cmdline(eap, 0, eap.arg.len(), &expanded);
         }
@@ -10289,12 +10293,9 @@ fn ex_tabs(_eap: &mut Exarg) {
         if g_st().msg_col.get() > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let _ = format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
-            gettext(c"Tab page %d"),
-            tabcount
-        );
-        let _ = msg_outtrans(&g_st().iobuff_cstr(), HLF_T, false);
+        let mut iobuff = [0u8; IOSIZE];
+        let _ = format_to_buf!(&mut iobuff, gettext(c"Tab page %d"), tabcount);
+        let _ = msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), HLF_T, false);
         os_breakcheck();
 
         for wp in for_all_windows_in_tab_ptr(&tp) {
@@ -10321,19 +10322,16 @@ fn ex_tabs(_eap: &mut Exarg) {
             });
             msg_putchar(b' ' as i32);
             if let Some(spname) = buf_spname(&wp.buf_mut()) {
-                crate::memory::copy_bytes_to_c_buf(
-                    &mut *g_st().iobuff_bytes_mut(),
-                    spname.to_bytes(),
-                );
+                crate::memory::copy_bytes_to_c_buf(&mut iobuff, spname.to_bytes());
             } else {
                 home_replace(
                     wp.buf_opt().as_deref(),
                     wp.buf_mut().fname_opt().as_deref(),
-                    &mut *g_st().iobuff_bytes_mut(),
+                    &mut iobuff,
                     true,
                 );
             }
-            let _ = msg_outtrans(&g_st().iobuff_cstr(), 0, false);
+            let _ = msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), 0, false);
             os_breakcheck();
         }
     }
@@ -10976,16 +10974,17 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir_cstr = prev_dir_cstr.as_deref().unwrap();
     }
 
-    let pdir = if os_dirname(&mut *g_st().name_buff_bytes_mut()) {
-        Some(g_st().name_buff_cstr().to_owned())
+    let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+    let pdir = if os_dirname(&mut name_buff) {
+        Some(crate::memory::cstring_until_nul(&name_buff))
     } else {
         None
     };
 
     let home_dir_cstr: Option<std::ffi::CString>;
     if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh.get() {
-        expand_env(c"$HOME", &mut *g_st().name_buff_bytes_mut());
-        home_dir_cstr = Some(g_st().name_buff_cstr());
+        expand_env(c"$HOME", &mut name_buff);
+        home_dir_cstr = Some(crate::memory::cstring_until_nul(&name_buff));
         new_dir_cstr = home_dir_cstr.as_deref().unwrap();
     }
 
@@ -11074,9 +11073,10 @@ pub fn ex_cd(eap: &mut Exarg) {
 }
 
 fn ex_pwd(_eap: &mut Exarg) {
-    if os_dirname(&mut *g_st().name_buff_bytes_mut()) {
+    let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+    if os_dirname(&mut name_buff) {
         #[cfg(windows)]
-        slash_adjust(&mut *g_st().name_buff_bytes_mut());
+        slash_adjust(&mut name_buff);
         if opt_vars().p_verbose.get() > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason.get() {
                 reason
@@ -11089,9 +11089,9 @@ fn ex_pwd(_eap: &mut Exarg) {
             } else {
                 c"global"
             };
-            let _ = smsg!(0, c"[%s] %s", context, &*g_st().name_buff.borrow());
+            let _ = smsg!(0, c"[%s] %s", context, &name_buff);
         } else {
-            let _ = msg(&g_st().name_buff_cstr(), 0);
+            let _ = msg(crate::memory::bytes_as_cstr(&name_buff), 0);
         }
     } else {
         let _ = emsg(gettext(c"E187: Unknown"));

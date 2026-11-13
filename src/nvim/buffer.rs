@@ -3826,18 +3826,14 @@ pub fn buflist_list(eap: &mut Exarg) {
             continue;
         }
 
+        let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
         if let Some(name) = buf_spname(buf) {
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), name.to_bytes());
+            crate::memory::copy_bytes_to_c_buf(&mut name_buff, name.to_bytes());
         } else {
-            home_replace(
-                Some(buf),
-                buf.fname_opt().as_deref(),
-                &mut *g_st().name_buff_bytes_mut(),
-                true,
-            );
+            home_replace(Some(buf), buf.fname_opt().as_deref(), &mut name_buff, true);
         }
 
-        if message_filtered(&g_st().name_buff_cstr()) {
+        if message_filtered(crate::memory::bytes_as_cstr(&name_buff)) {
             continue;
         }
 
@@ -3866,8 +3862,9 @@ pub fn buflist_list(eap: &mut Exarg) {
         if !ui_has(K_UIMESSAGES) || g_st().msg_col.get() > 0 {
             msg_putchar(b'\n' as i32);
         }
+        let mut iobuff = [0u8; IOSIZE];
         let mut len = format_to_buf_safelen!(
-            &mut g_st().iobuff.borrow_mut()[..IOSIZE - 20],
+            &mut iobuff[..IOSIZE - 20],
             c"%3d%c%c%c%c%c \"%s\"",
             buf.b_fnum.get(),
             if buf.b_p_bl.get() {
@@ -3891,13 +3888,13 @@ pub fn buflist_list(eap: &mut Exarg) {
             },
             ro_char,
             changed_char,
-            g_st().name_buff_cstr(),
+            crate::memory::bytes_as_cstr(&name_buff),
         )
         .min(IOSIZE - 20);
 
-        let mut i = 40 - vim_strsize(&g_st().iobuff_cstr());
+        let mut i = 40 - vim_strsize(crate::memory::bytes_as_cstr(&iobuff));
         loop {
-            g_st().iobuff_bytes_mut()[len] = b' ';
+            iobuff[len] = b' ';
             len += 1;
             i -= 1;
             if i <= 0 || len >= IOSIZE - 18 {
@@ -3906,13 +3903,10 @@ pub fn buflist_list(eap: &mut Exarg) {
         }
         if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buf.b_last_used.get() != 0
         {
-            undo_fmt_time(
-                &mut g_st().iobuff_bytes_mut()[len..IOSIZE],
-                buf.b_last_used.get(),
-            );
+            undo_fmt_time(&mut iobuff[len..IOSIZE], buf.b_last_used.get());
         } else {
             format_to_buf!(
-                &mut g_st().iobuff.borrow_mut()[len..IOSIZE],
+                &mut iobuff[len..IOSIZE],
                 gettext(c"line %lld"),
                 if g_st().curbuf.get() == buf {
                     i64::from(curwin_mut().w_cursor.get().lnum)
@@ -3922,7 +3916,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             );
         }
 
-        msg_outtrans(&g_st().iobuff_cstr(), 0, false);
+        msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), 0, false);
         line_breakcheck();
     }
 }

@@ -1263,12 +1263,10 @@ pub fn ml_recover(checkext: bool) {
         #[cfg(windows)]
         path_to_slash(&mut b0p.b0_fname);
 
-        expand_env(
-            crate::memory::bytes_as_cstr(&b0p.b0_fname),
-            &mut *g_st().name_buff_bytes_mut(),
-        );
+        let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+        expand_env(crate::memory::bytes_as_cstr(&b0p.b0_fname), &mut name_buff);
 
-        let namebuff_cstr = g_st().name_buff_cstr().to_owned();
+        let namebuff_cstr = crate::memory::cstring_until_nul(&name_buff);
         if !setfname(&curbuf_mut(), Some(&namebuff_cstr), None, true) {
             ml_recover_theend(hp, Some(buf), serious_error, called_from_main);
             return;
@@ -1279,26 +1277,22 @@ pub fn ml_recover(checkext: bool) {
     g_st().msg_ext_skip_flush.set(true);
     let mf_fname = buf.b_ml.mf_fname_cstr();
     let mf_fname_cstr = mf_fname.as_deref().unwrap_or(c"");
-    home_replace(
-        None,
-        Some(mf_fname_cstr),
-        &mut *g_st().name_buff_bytes_mut(),
-        true,
-    );
-    smsg!(0, tr(c"Using swap file \"%s\""), g_st().name_buff_cstr());
+    let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+    home_replace(None, Some(mf_fname_cstr), &mut name_buff, true);
+    smsg!(0, tr(c"Using swap file \"%s\""), &name_buff);
 
     if let Some(sp) = buf_spname(&curbuf_mut()) {
-        crate::memory::copy_bytes_to_c_buf(&mut *g_st().name_buff_bytes_mut(), sp.to_bytes());
+        crate::memory::copy_bytes_to_c_buf(&mut name_buff, sp.to_bytes());
     } else {
         home_replace(
             None,
             curbuf_mut().ffname_opt().as_deref(),
-            &mut *g_st().name_buff_bytes_mut(),
+            &mut name_buff,
             true,
         );
     }
     msg_putchar(b'\n' as i32);
-    smsg!(0, tr(c"Original file \"%s\""), g_st().name_buff_cstr());
+    smsg!(0, tr(c"Original file \"%s\""), &name_buff);
     msg_putchar(b'\n' as i32);
     g_st().msg_ext_skip_flush.set(false);
 
@@ -2389,13 +2383,14 @@ fn ml_load_line(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> bool {
                 }
                 r == 0
             }) {
-                get_trans_bufname(buf);
-                shorten_dir(&mut *g_st().name_buff_bytes_mut());
+                let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+                get_trans_bufname(buf, &mut name_buff);
+                shorten_dir(&mut name_buff);
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
                     buf.b_fnum.get(),
-                    &*g_st().name_buff.borrow(),
+                    &name_buff,
                 );
                 ml_st(|st| st.ml_get_recursive.set(st.ml_get_recursive.get() - 1));
             }
@@ -3974,20 +3969,22 @@ fn findswapname(
                             K_PATH_CMP_LITERAL,
                         ) || !same_directory(Some(fname_cstr), buf_ffname_opt.as_deref())
                         {
-                            expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
+                            let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+                            expand_env(b0_fname_cstr, &mut name_buff);
                             if fnamecmp_ino(
                                 buf_ffname_opt.as_deref(),
-                                Some(&g_st().name_buff_cstr()),
+                                Some(crate::memory::bytes_as_cstr(&name_buff)),
                                 char_to_long(&b0.b0_ino),
                             ) {
                                 differ = true;
                             }
                         }
                     } else {
-                        expand_env(b0_fname_cstr, &mut *g_st().name_buff_bytes_mut());
+                        let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+                        expand_env(b0_fname_cstr, &mut name_buff);
                         if fnamecmp_ino(
                             buf_ffname_opt.as_deref(),
-                            Some(&g_st().name_buff_cstr()),
+                            Some(crate::memory::bytes_as_cstr(&name_buff)),
                             char_to_long(&b0.b0_ino),
                         ) {
                             differ = true;

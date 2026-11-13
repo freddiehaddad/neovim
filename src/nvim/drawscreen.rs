@@ -1083,13 +1083,11 @@ pub fn showmode() -> i32 {
                 if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
                     if curwin_mut().w_onebuf_opt.wo_arab.get() {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
-                    } else if get_keymap_str(
-                        &curwin_mut(),
-                        c" (%s)",
-                        &mut *g_st().name_buff_bytes_mut(),
-                    ) > 0
-                    {
-                        msg_puts_hl(&g_st().name_buff_cstr(), hl_id, false);
+                    } else {
+                        let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+                        if get_keymap_str(&curwin_mut(), c" (%s)", &mut name_buff) > 0 {
+                            msg_puts_hl(crate::memory::bytes_as_cstr(&name_buff), hl_id, false);
+                        }
                     }
                 }
                 if (g_st().state_global.get() & MODE_INSERT) != 0 && opt_vars().p_paste.get() {

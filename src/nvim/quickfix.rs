@@ -3123,15 +3123,16 @@ fn qf_jump_print_msg(
     } else {
         c""
     };
+    let mut iobuff = [0u8; IOSIZE];
     let iobufflen = format_to_buf_safelen!(
-        &mut *g_st().iobuff.borrow_mut(),
+        &mut iobuff,
         gettext(c"(%d of %d)%s%s: "),
         qf_index,
         qf_get_curlist(qi).borrow().count(),
         deleted_str,
         qf_types(i32::from(qf_ptr.qf_type), qf_ptr.qf_nr).as_c_str(),
     );
-    qfga_concat(gap, &(&*g_st().iobuff_bytes())[..iobufflen]);
+    qfga_concat(gap, &iobuff[..iobufflen]);
     qf_fmt_text(
         gap,
         crate::charset::skipwhite_slice(qf_ptr.qf_text.as_bytes()),
@@ -3349,10 +3350,11 @@ fn qf_jump_newwin(qi_opt: Option<&QfInfo>, dir: i32, errornr: i32, forceit: bool
 fn qf_list_entry(qfp: &Qfline, qf_idx: i32, cursel: bool) {
     let mut fname: Option<&CStr> = None;
     let buf_fname_opt;
+    let mut iobuff = [0u8; IOSIZE];
     if let Some(ref module) = qfp.qf_module
         && !module.as_bytes().is_empty()
     {
-        format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"%2d %s", qf_idx, module);
+        format_to_buf!(&mut iobuff, c"%2d %s", qf_idx, module);
     } else {
         if qfp.qf_fnum != 0
             && let Some(buf) = buflist_findnr_opt(qfp.qf_fnum)
@@ -3366,9 +3368,9 @@ fn qf_list_entry(qfp: &Qfline, qf_idx: i32, cursel: bool) {
             }
         }
         if let Some(f) = fname {
-            format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"%2d %s", qf_idx, f);
+            format_to_buf!(&mut iobuff, c"%2d %s", qf_idx, f);
         } else {
-            format_to_buf!(&mut *g_st().iobuff.borrow_mut(), c"%2d", qf_idx);
+            format_to_buf!(&mut iobuff, c"%2d", qf_idx);
         }
     }
 
@@ -3395,7 +3397,7 @@ fn qf_list_entry(qfp: &Qfline, qf_idx: i32, cursel: bool) {
         msg_putchar(b'\n' as i32);
     }
     msg_outtrans(
-        &g_st().iobuff_cstr(),
+        crate::memory::bytes_as_cstr(&iobuff),
         if cursel {
             HLF_QFL
         } else {
@@ -3539,30 +3541,19 @@ fn qf_fmt_text(gap: &mut Vec<u8>, text: &[u8]) {
 }
 
 fn qf_range_text(gap: &mut Vec<u8>, qfp: &Qfline) {
-    let mut buf_size = format_to_buf_safelen!(&mut *g_st().iobuff.borrow_mut(), c"%d", qfp.qf_lnum);
+    let mut iobuff = [0u8; IOSIZE];
+    let mut buf_size = format_to_buf_safelen!(&mut iobuff, c"%d", qfp.qf_lnum);
 
     if qfp.qf_end_lnum > 0 && qfp.qf_lnum != qfp.qf_end_lnum {
-        buf_size += format_to_buf_safelen!(
-            &mut g_st().iobuff.borrow_mut()[buf_size..],
-            c"-%d",
-            qfp.qf_end_lnum
-        );
+        buf_size += format_to_buf_safelen!(&mut iobuff[buf_size..], c"-%d", qfp.qf_end_lnum);
     }
     if qfp.qf_col > 0 {
-        buf_size += format_to_buf_safelen!(
-            &mut g_st().iobuff.borrow_mut()[buf_size..],
-            c" col %d",
-            qfp.qf_col
-        );
+        buf_size += format_to_buf_safelen!(&mut iobuff[buf_size..], c" col %d", qfp.qf_col);
         if qfp.qf_end_col > 0 && qfp.qf_col != qfp.qf_end_col {
-            buf_size += format_to_buf_safelen!(
-                &mut g_st().iobuff.borrow_mut()[buf_size..],
-                c"-%d",
-                qfp.qf_end_col
-            );
+            buf_size += format_to_buf_safelen!(&mut iobuff[buf_size..], c"-%d", qfp.qf_end_col);
         }
     }
-    qfga_concat(gap, &(&*g_st().iobuff_bytes())[..buf_size]);
+    qfga_concat(gap, &iobuff[..buf_size]);
 }
 
 fn qf_msg(qi: &QfInfo, which: i32, lead: &CStr) {
@@ -7026,13 +7017,9 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
 
     let mut qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
     if let Some(buf_sfname) = buf.sfname_opt() {
-        format_to_buf!(
-            &mut *g_st().iobuff.borrow_mut(),
-            c"%s (%s)",
-            &qf_title_cstr,
-            buf_sfname
-        );
-        qf_title_cstr = g_st().iobuff_cstr();
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, c"%s (%s)", &qf_title_cstr, buf_sfname);
+        qf_title_cstr = crate::memory::cstring_until_nul(&iobuff);
     }
     let qf_title: &CStr = &qf_title_cstr;
 
@@ -7204,17 +7191,18 @@ fn hgr_search_file(qfl_rc: &QfListRc, fname: &CStr, p_regmatch: &mut Regmatch) {
     };
 
     let mut lnum: Linenr = 1;
-    while !vim_fgets(&mut *g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int.get() {
-        let orig_cstr = g_st().iobuff_cstr();
-        if vim_regexec(p_regmatch, &orig_cstr, 0) {
-            let start_off = p_regmatch.start_offset(0, &orig_cstr);
-            let end_off = p_regmatch.end_offset(0, &orig_cstr);
+    let mut iobuff = [0u8; IOSIZE];
+    while !vim_fgets(&mut iobuff, &fd) && !g_st().got_int.get() {
+        let orig_cstr = crate::memory::bytes_as_cstr(&iobuff);
+        if vim_regexec(p_regmatch, orig_cstr, 0) {
+            let start_off = p_regmatch.start_offset(0, orig_cstr);
+            let end_off = p_regmatch.end_offset(0, orig_cstr);
             let mut l = orig_cstr.to_bytes().len();
-            while l > 0 && g_st().iobuff.borrow()[l - 1] <= b' ' {
+            while l > 0 && iobuff[l - 1] <= b' ' {
                 l -= 1;
-                g_st().iobuff.borrow_mut()[l] = 0;
+                iobuff[l] = 0;
             }
-            let line_cstr = g_st().iobuff_cstr();
+            let line_cstr = crate::memory::bytes_as_cstr(&iobuff);
 
             if qf_add_entry(
                 qfl_rc,
@@ -7222,7 +7210,7 @@ fn hgr_search_file(qfl_rc: &QfListRc, fname: &CStr, p_regmatch: &mut Regmatch) {
                 Some(fname),
                 None,
                 0,
-                &line_cstr,
+                line_cstr,
                 lnum,
                 0,
                 (start_off as i32) + 1,
@@ -7289,11 +7277,10 @@ fn hgr_search_files_in_dir(
 fn hgr_search_in_rtp(qfl_rc: &QfListRc, p_regmatch: &mut Regmatch, lang: Option<&CStr>) {
     let p_rtp = opt_vars().p_rtp.to_owned();
     let mut p = p_rtp.as_bytes();
+    let mut name_buf = [0u8; MAXPATHL];
     while !p.is_empty() && !g_st().got_int.get() {
-        copy_option_part(&mut p, &mut *g_st().name_buff_bytes_mut(), c",");
-        let mut name_buf = *g_st().name_buff.borrow();
+        copy_option_part(&mut p, &mut name_buf, c",");
         hgr_search_files_in_dir(qfl_rc, &mut name_buf, p_regmatch, lang);
-        *g_st().name_buff.borrow_mut() = name_buf;
     }
 }
 

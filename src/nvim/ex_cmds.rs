@@ -371,9 +371,10 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
         let buf2: [u8; 20] = [0; 20];
 
+        let mut iobuff = [0u8; IOSIZE];
         if let Some(dig) = get_digraph_for_char(cval) {
             format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
+                &mut iobuff,
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s"),
                 transchar(c),
                 &buf1,
@@ -385,7 +386,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
             );
         } else {
             format_to_buf!(
-                &mut *g_st().iobuff.borrow_mut(),
+                &mut iobuff,
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o"),
                 transchar(c),
                 &buf1,
@@ -397,7 +398,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
 
         msg_multiline(
-            cstr_as_string(Some(&g_st().iobuff_cstr())),
+            cstr_as_string(Some(crate::memory::bytes_as_cstr(&iobuff))),
             0,
             true,
             false,
@@ -410,21 +411,19 @@ pub fn do_ascii(_eap: &mut Exarg) {
     while off < len {
         c = utf_ptr2char(&data_bytes[off..]);
 
+        let mut iobuff = [0u8; IOSIZE];
         let mut iobuff_len: usize = 0;
         if off > 0 {
-            g_st().iobuff_bytes_mut()[iobuff_len] = b' ';
+            iobuff[iobuff_len] = b' ';
             iobuff_len += 1;
         }
-        g_st().iobuff_bytes_mut()[iobuff_len] = b'<';
+        iobuff[iobuff_len] = b'<';
         iobuff_len += 1;
         if utf_iscomposing_first(c) {
-            g_st().iobuff_bytes_mut()[iobuff_len] = b' ';
+            iobuff[iobuff_len] = b' ';
             iobuff_len += 1;
         }
-        iobuff_len += utf_char2bytes(
-            c,
-            &mut g_st().iobuff_bytes_mut()[iobuff_len..iobuff_len + 6],
-        ) as usize;
+        iobuff_len += utf_char2bytes(c, &mut iobuff[iobuff_len..iobuff_len + 6]) as usize;
 
         if let Some(dig) = get_digraph_for_char(c) {
             let fmt = if c < 0x10000 {
@@ -432,25 +431,18 @@ pub fn do_ascii(_eap: &mut Exarg) {
             } else {
                 gettext(c"> %d, Hex %08x, Oct %o, Digr %s")
             };
-            format_to_buf!(
-                &mut g_st().iobuff.borrow_mut()[iobuff_len..],
-                fmt,
-                c,
-                c,
-                c,
-                &dig,
-            );
+            format_to_buf!(&mut iobuff[iobuff_len..], fmt, c, c, c, &dig);
         } else {
             let fmt = if c < 0x10000 {
                 gettext(c"> %d, Hex %04x, Octal %o")
             } else {
                 gettext(c"> %d, Hex %08x, Octal %o")
             };
-            format_to_buf!(&mut g_st().iobuff.borrow_mut()[iobuff_len..], fmt, c, c, c);
+            format_to_buf!(&mut iobuff[iobuff_len..], fmt, c, c, c);
         }
 
         msg_multiline(
-            cstr_as_string(Some(&g_st().iobuff_cstr())),
+            cstr_as_string(Some(crate::memory::bytes_as_cstr(&iobuff))),
             0,
             true,
             false,
@@ -1723,14 +1715,15 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
                 if (linecount as OptInt) > opt_vars().p_report.get() {
                     if do_in {
+                        let mut msg_buf = [0u8; crate::eval::userfunc::MSG_BUF_LEN];
                         format_to_buf!(
-                            &mut *g_st().msg_buf.borrow_mut(),
+                            &mut msg_buf,
                             gettext(c"%lld lines filtered"),
                             linecount as i64,
                         );
-                        let msg_cstr = g_st().msg_buf_cstr();
-                        if msg(&msg_cstr, 0) && g_st().msg_scroll.get() == 0 {
-                            set_keep_msg(Some(&msg_cstr), 0);
+                        let msg_cstr = crate::memory::bytes_as_cstr(&msg_buf);
+                        if msg(msg_cstr, 0) && g_st().msg_scroll.get() == 0 {
+                            set_keep_msg(Some(msg_cstr), 0);
                         }
                     } else {
                         msgmore(linecount);
@@ -4251,12 +4244,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             let p_fmt = gettext(
                                 c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                             );
-                            format_to_buf!(
-                                &mut *g_st().iobuff.borrow_mut(),
-                                p_fmt,
-                                sub_owned.as_deref().unwrap_or(c""),
-                            );
-                            let p = g_st().iobuff_cstr().to_owned();
+                            let mut iobuff = [0u8; IOSIZE];
+                            format_to_buf!(&mut iobuff, p_fmt, sub_owned.as_deref().unwrap_or(c""),);
+                            let p = crate::memory::cstring_until_nul(&iobuff);
                             typed = prompt_for_input(Some(p.as_c_str()), HLF_R, true, None);
                             g_st().search_global.hl_match.set(false);
                             drop(p);
@@ -4826,13 +4816,9 @@ pub fn do_sub_msg(count_only: bool) -> bool {
         || count_only)
         && messaging()
     {
+        let mut msg_buf = [0u8; crate::eval::userfunc::MSG_BUF_LEN];
         if g_st().got_int.get() {
-            crate::memory::copy_bytes_to_c_buf(
-                &mut *g_st().msg_buf_bytes_mut(),
-                gettext(c"(Interrupted) ").to_bytes(),
-            );
-        } else {
-            g_st().msg_buf.borrow_mut()[0] = 0;
+            crate::memory::copy_bytes_to_c_buf(&mut msg_buf, gettext(c"(Interrupted) ").to_bytes());
         }
 
         let msg_single = if count_only {
@@ -4862,14 +4848,14 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             )
         };
         format_to_buf_add!(
-            &mut *g_st().msg_buf.borrow_mut(),
+            &mut msg_buf,
             ngettext(msg_single, msg_plural, g_st().sub_nlines.get() as u64),
             g_st().sub_nsubs.get() as i64,
             g_st().sub_nlines.get() as i64,
         );
-        let msg_cstr = g_st().msg_buf_cstr();
-        if msg(&msg_cstr, 0) {
-            set_keep_msg(Some(&msg_cstr), 0);
+        let msg_cstr = crate::memory::bytes_as_cstr(&msg_buf);
+        if msg(msg_cstr, 0) {
+            set_keep_msg(Some(msg_cstr), 0);
         }
         return true;
     }

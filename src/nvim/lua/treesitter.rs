@@ -193,21 +193,23 @@ fn load_language_from_object(
     match os_dlopen_ts_language(path, symbol_cstr) {
         Ok(lang) => lang,
         Err(DlLoadError::OpenFailed(err_msg)) => {
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), err_msg.as_bytes());
+            let mut iobuff = [0u8; IOSIZE];
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff, err_msg.as_bytes());
             let msg = format!(
                 "Failed to load parser for language '{}': uv_dlopen: {}",
                 lang_name.to_string_lossy(),
-                g_st().iobuff_cstr().to_string_lossy()
+                crate::memory::bytes_as_cstr(&iobuff).to_string_lossy()
             );
             luaL_error_str(lstate, &msg);
             ptr::null()
         }
         Err(DlLoadError::SymFailed(err_msg)) => {
-            crate::memory::copy_bytes_to_c_buf(&mut *g_st().iobuff_bytes_mut(), err_msg.as_bytes());
+            let mut iobuff = [0u8; IOSIZE];
+            crate::memory::copy_bytes_to_c_buf(&mut iobuff, err_msg.as_bytes());
             luaL_error_cstr_arg(
                 lstate,
                 c"Failed to load parser: uv_dlsym: %s",
-                &g_st().iobuff_cstr(),
+                crate::memory::bytes_as_cstr(&iobuff),
             );
             ptr::null()
         }

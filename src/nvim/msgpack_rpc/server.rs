@@ -45,8 +45,8 @@ std::thread_local! {
     static SERVER_STATE: RpcServerState = const { RpcServerState::new() };
 }
 
-pub fn server_init(listen_addr: Option<&CStr>) -> bool {
-    let mut ok = true;
+pub fn server_init(listen_addr: Option<&CStr>) -> Result<(), std::ffi::CString> {
+    let mut err: Option<std::ffi::CString> = None;
     let mut owned_addr: Option<std::ffi::CString> = None;
     let mut user_arg: TriState = K_TRUE;
     SERVER_STATE.with(|st| st.watchers.borrow_mut().clear());
@@ -91,15 +91,19 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
         } else {
             c"?"
         };
-        format_to_buf!(&mut *g_st().iobuff.borrow_mut(), fmt, reason, listen_addr);
-        ok = false;
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, fmt, reason, listen_addr);
+        err = Some(crate::memory::cstring_until_nul(&iobuff));
     }
 
     if os_env_exists(ENV_LISTEN, false) {
         os_unsetenv(ENV_LISTEN);
     }
 
-    ok
+    match err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 fn set_vservername() {
@@ -129,8 +133,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 
     #[cfg(windows)]
     let r = {
-        get_appname(true);
-        let nb = g_st().name_buff_cstr();
+        let nb = get_appname(true);
         let app = name.unwrap_or(&nb);
         format_to_buf!(
             &mut fmt,
@@ -144,9 +147,8 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     #[cfg(not(windows))]
     let r = {
         let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
-        get_appname(true);
-        let name_buff = &*g_st().name_buff.borrow();
-        let app = name.unwrap_or_else(|| crate::memory::bytes_as_cstr(name_buff));
+        let nb = get_appname(true);
+        let app = name.unwrap_or(&nb);
         format_to_buf!(
             &mut fmt,
             c"%s/%s.%llu.%u",

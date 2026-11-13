@@ -648,7 +648,7 @@ fn set_err_arg(msg: &CStr, arg: i32) -> BwError {
     }
 }
 
-fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
+fn emit_err(e: &mut BwError, iobuff: &[u8], msg_id: Option<&CStr>) {
     let mut errmsg = [0u8; IOSIZE];
     let msg_cstr = e.msg.as_deref().unwrap_or(c"");
     if let Some(num) = e.num {
@@ -657,18 +657,12 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
                 &mut errmsg,
                 c"%s: %s%s: %s",
                 num,
-                &*g_st().iobuff.borrow(),
+                iobuff,
                 msg_cstr,
                 uv_strerror(e.arg),
             );
         } else {
-            let _ = format_to_buf!(
-                &mut errmsg,
-                c"%s: %s%s",
-                num,
-                &*g_st().iobuff.borrow(),
-                msg_cstr
-            );
+            let _ = format_to_buf!(&mut errmsg, c"%s: %s%s", num, iobuff, msg_cstr);
         }
     } else if e.arg != 0 {
         let _ = format_to_buf!(&mut errmsg, msg_cstr, uv_strerror(e.arg));
@@ -822,11 +816,13 @@ pub fn buf_get_backup_name(
     let mut backup: Option<std::ffi::CString> = None;
     let mut dirp_bytes = dirp.to_bytes();
     let old_len = dirp_bytes.len();
-    let dir_len = copy_option_part(&mut dirp_bytes, &mut *g_st().iobuff_bytes_mut(), c",");
+    let mut iobuff = [0u8; IOSIZE];
+    let dir_len = copy_option_part(&mut dirp_bytes, &mut iobuff, c",");
     *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
-    if dirp.to_bytes().is_empty() && !os_isdir(&g_st().iobuff_cstr()) {
+    let iobuff_cstr = crate::memory::bytes_as_cstr(&iobuff);
+    if dirp.to_bytes().is_empty() && !os_isdir(iobuff_cstr) {
         let mut failed_dir: Option<std::ffi::CString> = None;
-        let ret = os_mkdir_recurse(&g_st().iobuff_cstr(), 0o755, &mut failed_dir, None);
+        let ret = os_mkdir_recurse(iobuff_cstr, 0o755, &mut failed_dir, None);
         if ret != 0 {
             let _ = semsg!(
                 gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
@@ -836,14 +832,14 @@ pub fn buf_get_backup_name(
         }
     }
     if dir_len > 1
-        && after_pathsep(&g_st().iobuff.borrow()[..dir_len]) != 0
-        && g_st().iobuff.borrow()[dir_len - 1] == g_st().iobuff.borrow()[dir_len - 2]
-        && let Some(swname) = make_percent_swname(&g_st().iobuff.borrow()[..dir_len - 1], fname_opt)
+        && after_pathsep(&iobuff[..dir_len]) != 0
+        && iobuff[dir_len - 1] == iobuff[dir_len - 2]
+        && let Some(swname) = make_percent_swname(&iobuff[..dir_len - 1], fname_opt)
     {
         backup = modname(Some(&swname), backup_ext, no_prepend_dot);
     }
     if backup.is_none()
-        && let Some(rootname) = get_file_in_dir(fname_opt, &g_st().iobuff_cstr())
+        && let Some(rootname) = get_file_in_dir(fname_opt, iobuff_cstr)
     {
         backup = modname(Some(&rootname), backup_ext, no_prepend_dot);
     }
@@ -1650,12 +1646,8 @@ pub fn buf_write(
                                 && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())
                             {
                                 progress = percent;
-                                add_quoted_fname(
-                                    &mut *g_st().iobuff_bytes_mut(),
-                                    Some(buf),
-                                    msgname_opt,
-                                );
-                                let mut iob = *g_st().iobuff.borrow();
+                                let mut iob = [0u8; IOSIZE];
+                                add_quoted_fname(&mut iob, Some(buf), msgname_opt);
                                 let _ = msg_progress(
                                     Some(&mut iob),
                                     crate::memory::bytes_as_cstr(&msg_id),
@@ -1666,7 +1658,6 @@ pub fn buf_write(
                                     true,
                                     false,
                                 );
-                                *g_st().iobuff.borrow_mut() = iob;
                                 if buf_get_changedtick(buf) != write_tick {
                                     err = set_err(Some(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY)));
                                     end = 0;
@@ -1825,62 +1816,82 @@ pub fn buf_write(
                     fname = sfname;
                 }
                 if !filtering {
-                    let iobuf_append = |src: &std::ffi::CStr| {
-                        crate::memory::append_bytes_to_c_buf(
-                            &mut *g_st().iobuff_bytes_mut(),
-                            src.to_bytes(),
-                        );
-                    };
-                    add_quoted_fname(&mut *g_st().iobuff_bytes_mut(), Some(buf), fname);
+                    let mut iob = [0u8; IOSIZE];
+                    add_quoted_fname(&mut iob, Some(buf), fname);
                     let mut insert_space = false;
                     if write_info.bw_conv_error != 0 {
-                        iobuf_append(gettext(c" CONVERSION ERROR"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c" CONVERSION ERROR").to_bytes(),
+                        );
                         insert_space = true;
                         if write_info.bw_conv_error_lnum != 0 {
                             let _ = format_to_buf_add!(
-                                &mut *g_st().iobuff.borrow_mut(),
+                                &mut iob,
                                 gettext(c" in line %lld;"),
                                 i64::from(write_info.bw_conv_error_lnum),
                             );
                         }
                     } else if notconverted {
-                        iobuf_append(gettext(c"[NOT converted]"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c"[NOT converted]").to_bytes(),
+                        );
                         insert_space = true;
                     } else if converted {
-                        iobuf_append(gettext(c"[converted]"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c"[converted]").to_bytes(),
+                        );
                         insert_space = true;
                     }
                     if device {
-                        iobuf_append(gettext(c"[Device]"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c"[Device]").to_bytes(),
+                        );
                         insert_space = true;
                     } else if newfile {
-                        iobuf_append(gettext(c"[New]"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c"[New]").to_bytes(),
+                        );
                         insert_space = true;
                     }
                     if no_eol {
-                        iobuf_append(gettext(c"[noeol]"));
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut iob,
+                            gettext(c"[noeol]").to_bytes(),
+                        );
                         insert_space = true;
                     }
-                    if msg_add_fileformat(fileformat) {
+                    if msg_add_fileformat(&mut iob, fileformat) {
                         insert_space = true;
                     }
-                    msg_add_lines(i32::from(insert_space), lnum, nchars);
+                    msg_add_lines(&mut iob, i32::from(insert_space), lnum, nchars);
                     if !shortmess(K_SHM_WRITE) {
                         if append {
-                            iobuf_append(if shortmess(K_SHM_WRI) {
-                                gettext(c" [a]")
-                            } else {
-                                gettext(c" appended")
-                            });
+                            crate::memory::append_bytes_to_c_buf(
+                                &mut iob,
+                                if shortmess(K_SHM_WRI) {
+                                    gettext(c" [a]")
+                                } else {
+                                    gettext(c" appended")
+                                }
+                                .to_bytes(),
+                            );
                         } else {
-                            iobuf_append(if shortmess(K_SHM_WRI) {
-                                gettext(c" [w]")
-                            } else {
-                                gettext(c" written")
-                            });
+                            crate::memory::append_bytes_to_c_buf(
+                                &mut iob,
+                                if shortmess(K_SHM_WRI) {
+                                    gettext(c" [w]")
+                                } else {
+                                    gettext(c" written")
+                                }
+                                .to_bytes(),
+                            );
                         }
                     }
-                    let mut iob = *g_st().iobuff.borrow();
                     let keep = if progress >= 0 {
                         msg_progress(
                             Some(&mut iob),
@@ -1905,7 +1916,6 @@ pub fn buf_write(
                         )
                     };
                     set_keep_msg(keep, 0);
-                    *g_st().iobuff.borrow_mut() = iob;
                 }
 
                 if reset_changed
@@ -2021,13 +2031,11 @@ pub fn buf_write(
     os_free_acl(acl);
 
     if err.msg.is_some() {
-        add_quoted_fname(
-            &mut g_st().iobuff_bytes_mut()[..IOSIZE - 100],
-            Some(buf),
-            msgname_opt,
-        );
+        let mut iobuff = [0u8; IOSIZE];
+        add_quoted_fname(&mut iobuff[..IOSIZE - 100], Some(buf), msgname_opt);
         emit_err(
             &mut err,
+            &iobuff,
             (progress >= 0).then(|| crate::memory::bytes_as_cstr(&msg_id)),
         );
 

@@ -2889,13 +2889,9 @@ fn showmatches_oneline(
             if showtail {
                 p_cstr = show_match(matches, j as usize, showtail);
             } else {
-                home_replace(
-                    None,
-                    Some(match_j),
-                    &mut *g_st().name_buff_bytes_mut(),
-                    true,
-                );
-                nb_owned = g_st().name_buff_cstr();
+                let mut name_buff = [0u8; MAXPATHL];
+                home_replace(None, Some(match_j), &mut name_buff, true);
+                nb_owned = crate::memory::cstring_until_nul(&name_buff);
                 p_cstr = &nb_owned;
             }
         } else {
@@ -2996,13 +2992,9 @@ pub fn showmatches(
                     || xp.xp_context == EXPAND_SHELLCMD
                     || xp.xp_context == EXPAND_BUFFERS)
             {
-                home_replace(
-                    None,
-                    Some(match_i.as_c_str()),
-                    &mut *g_st().name_buff_bytes_mut(),
-                    true,
-                );
-                vim_strsize(&g_st().name_buff_cstr())
+                let mut name_buff = [0u8; MAXPATHL];
+                home_replace(None, Some(match_i.as_c_str()), &mut name_buff, true);
+                vim_strsize(crate::memory::bytes_as_cstr(&name_buff))
             } else {
                 vim_strsize(show_match(matches, i, showtail))
             };
@@ -4547,13 +4539,9 @@ fn get_scriptnames_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     }
 
     let sname = script_item_name(idx + 1);
-    home_replace(
-        None,
-        sname.as_deref(),
-        &mut *g_st().name_buff_bytes_mut(),
-        true,
-    );
-    let item = crate::memory::cstring_until_nul(&*g_st().name_buff.borrow());
+    let mut name_buff = [0u8; MAXPATHL];
+    home_replace(None, sname.as_deref(), &mut name_buff, true);
+    let item = crate::memory::cstring_until_nul(&name_buff);
     Some(xp.set_item(item))
 }
 

@@ -1438,12 +1438,13 @@ pub fn openscript(name: &CStr, directly: bool) {
         }
 
         INP_STATE.with(|s| s.curscript.set(s.curscript.get() + (1)));
-        expand_env(name, &mut *g_st().name_buff_bytes_mut());
+        let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
+        expand_env(name, &mut name_buff);
         let cur_idx = INP_STATE.with(|s| s.curscript.get()) as usize;
         let error = with_inp_ext(|ext| {
             file_open(
                 &mut ext.scriptin.borrow_mut()[cur_idx],
-                Some(&g_st().name_buff_cstr()),
+                Some(crate::memory::bytes_as_cstr(&name_buff)),
                 K_FILE_READ_ONLY,
                 0,
             )

@@ -856,8 +856,9 @@ pub fn do_tag(
                         } else {
                             c""
                         };
+                        let mut iobuff = [0u8; IOSIZE];
                         format_to_buf!(
-                            &mut *g_st().iobuff_bytes_mut(),
+                            &mut iobuff,
                             gettext(c"tag %d of %d%s"),
                             cur_match + 1,
                             do_tag_num_matches,
@@ -865,32 +866,29 @@ pub fn do_tag(
                         );
                         if ic {
                             crate::memory::append_bytes_to_c_buf(
-                                &mut *g_st().iobuff_bytes_mut(),
+                                &mut iobuff,
                                 gettext(c"  Using tag with different case!").to_bytes(),
                             );
                         }
-                        let iobuf_cstr = g_st().iobuff_cstr();
+                        let iobuf_cstr = crate::memory::bytes_as_cstr(&iobuff);
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
                         {
-                            msg(&iobuf_cstr, if ic { HLF_W } else { 0 });
+                            msg(iobuf_cstr, if ic { HLF_W } else { 0 });
                             g_st().msg_scroll.set(1);
                         } else {
-                            give_warning(&iobuf_cstr, ic, true);
+                            give_warning(iobuf_cstr, ic, true);
                         }
                         if ic && g_st().msg_scrolled.get() == 0 && g_st().msg_silent.get() == 0 {
                             msg_delay(1007, true);
                         }
                     }
 
-                    let iobufflen = format_to_buf_safelen!(
-                        &mut *g_st().iobuff_bytes_mut(),
-                        c":ta %s\r",
-                        name_cstr,
-                    );
+                    let mut iobuff = [0u8; IOSIZE];
+                    let iobufflen = format_to_buf_safelen!(&mut iobuff, c":ta %s\r", name_cstr);
                     set_vim_var_string(
                         VV_SWAPCOMMAND,
-                        Some(&g_st().iobuff_cstr()),
+                        Some(crate::memory::bytes_as_cstr(&iobuff)),
                         iobufflen as isize,
                     );
 
@@ -1112,12 +1110,13 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
         }
 
-        format_to_buf!(&mut *g_st().iobuff_bytes_mut(), c"ltag %s", tag);
+        let mut iobuff = [0u8; IOSIZE];
+        format_to_buf!(&mut iobuff, c"ltag %s", tag);
         set_errorlist(
             Some(&curwin_mut()),
             Some(&list),
             b' ' as i32,
-            Some(&g_st().iobuff_cstr()),
+            Some(crate::memory::bytes_as_cstr(&iobuff)),
             None,
         );
 
@@ -1139,17 +1138,24 @@ pub fn do_tags(_eap: &mut Exarg) {
 
     msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
     for i in 0..tagstacklen {
-        let cw = curwin_mut();
-        let ts_borrow = cw.w_tagstack.borrow();
-        let entry = &ts_borrow[i as usize];
-        if let Some(ref tagname) = entry.tagname {
-            let Some(name) = fm_getname(&entry.fmark, 30) else {
+        let entry_opt = {
+            let cw = curwin_mut();
+            let ts_borrow = cw.w_tagstack.borrow();
+            let entry = &ts_borrow[i as usize];
+            entry
+                .tagname
+                .as_ref()
+                .map(|tn| (tn.clone(), entry.fmark.clone(), entry.cur_match))
+        };
+        if let Some((tagname, fmark, cur_match)) = entry_opt {
+            let Some(name) = fm_getname(&fmark, 30) else {
                 continue;
             };
 
             msg_putchar(b'\n' as i32);
+            let mut iobuff = [0u8; IOSIZE];
             format_to_buf!(
-                &mut *g_st().iobuff_bytes_mut(),
+                &mut iobuff,
                 c"%c%2d %2d %-15s %5d  ",
                 if i == tagstackidx {
                     b'>' as i32
@@ -1157,14 +1163,14 @@ pub fn do_tags(_eap: &mut Exarg) {
                     b' ' as i32
                 },
                 i + 1,
-                entry.cur_match + 1,
-                tagname,
-                entry.fmark.mark.lnum,
+                cur_match + 1,
+                &tagname,
+                fmark.mark.lnum,
             );
-            msg_outtrans(&g_st().iobuff_cstr(), 0, false);
+            msg_outtrans(crate::memory::bytes_as_cstr(&iobuff), 0, false);
             msg_outtrans(
                 &name,
-                if entry.fmark.fnum == curbuf_mut().b_fnum.get() {
+                if fmark.fnum == curbuf_mut().b_fnum.get() {
                     HLF_D
                 } else {
                     0

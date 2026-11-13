@@ -261,8 +261,9 @@ fn deadly_signal(signum: i32) -> ! {
     set_vim_var_nr(VV_DYING, 1);
     g_st().v_dying.set(1);
 
+    let mut iobuff = [0u8; crate::globals::IOSIZE];
     format_to_buf!(
-        &mut *g_st().iobuff.borrow_mut(),
+        &mut iobuff,
         c"Nvim: Caught deadly signal '%s'\n",
         signal_name(signum),
     );
@@ -272,7 +273,7 @@ fn deadly_signal(signum: i32) -> ! {
     }
 
     // Preserve files and exit.
-    preserve_exit(Some(&g_st().iobuff_cstr()));
+    preserve_exit(Some(crate::memory::bytes_as_cstr(&iobuff)));
 }
 
 pub(crate) fn on_signal(signum: i32) {
