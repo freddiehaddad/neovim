@@ -596,40 +596,65 @@ impl RegLineSlice {
 }
 
 #[inline(always)]
-pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
+fn reg_line_from_bytes_inner(
+    fnum: i32,
+    tick: u64,
+    firstlnum: Linenr,
+    bytes: &[u8],
+) -> RegLineSlice {
     let len = bytes.len();
     let addr = bytes.as_ptr() as usize;
     let mut b = [0u8; 8];
     let copy_len = len.min(8);
     b[..copy_len].copy_from_slice(&bytes[..copy_len]);
-    let slot = LINE_SLOTS.with(|cell| {
+    let (slot, evicted) = LINE_SLOTS.with(|cell| {
         let mut st = cell.borrow_mut();
         let cur_gen = st.cur_gen;
         let cur = st.cur_line_slot;
-        for step in 0..4 {
+        for step in 0..8 {
             let idx = (cur + REG_LINE_SLOTS - step) % REG_LINE_SLOTS;
             if st.line_slot_addrs[idx] == addr
                 && st.line_slots[idx].len() == len
-                && (st.line_slot_gens[idx] == cur_gen || st.line_slots[idx].as_slice() == bytes)
+                && (st.line_slot_gens[idx] == cur_gen
+                    || (fnum > 0
+                        && st.line_slot_fnums[idx] == fnum
+                        && st.line_slot_ticks[idx] == tick
+                        && st.line_slot_lnums[idx] == firstlnum)
+                    || st.line_slots[idx].as_slice() == bytes)
             {
                 st.line_slot_gens[idx] = cur_gen;
-                return idx as u8;
+                return (idx as u8, false);
             }
         }
         let next = (cur + 1) % REG_LINE_SLOTS;
         st.cur_line_slot = next;
         st.line_slot_gens[next] = cur_gen;
         st.line_slot_addrs[next] = addr;
+        st.line_slot_fnums[next] = fnum;
+        st.line_slot_ticks[next] = tick;
+        st.line_slot_lnums[next] = firstlnum;
         st.line_slots[next].clear();
         st.line_slots[next].extend_from_slice(bytes);
-        next as u8
+        (next as u8, true)
     });
+    if evicted {
+        RE_STATE.with(|s| {
+            if s.rex.chunk.get().slot == slot {
+                s.rex.chunk.set(RegLineChunk::new());
+            }
+        });
+    }
     RegLineSlice {
         slot,
         valid: 8,
         off: 0,
         b,
     }
+}
+
+#[inline(always)]
+pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
+    reg_line_from_bytes_inner(0, 0, 0, bytes)
 }
 
 #[inline(always)]
@@ -1613,6 +1638,9 @@ struct RegLineSlots {
     line_slots: [Vec<u8>; REG_LINE_SLOTS],
     line_slot_addrs: [usize; REG_LINE_SLOTS],
     line_slot_gens: [u64; REG_LINE_SLOTS],
+    line_slot_fnums: [i32; REG_LINE_SLOTS],
+    line_slot_ticks: [u64; REG_LINE_SLOTS],
+    line_slot_lnums: [Linenr; REG_LINE_SLOTS],
     cur_line_slot: usize,
     cur_gen: u64,
 }
@@ -1623,6 +1651,9 @@ impl RegLineSlots {
             line_slots: [const { Vec::new() }; REG_LINE_SLOTS],
             line_slot_addrs: [0; REG_LINE_SLOTS],
             line_slot_gens: [0; REG_LINE_SLOTS],
+            line_slot_fnums: [0; REG_LINE_SLOTS],
+            line_slot_ticks: [0; REG_LINE_SLOTS],
+            line_slot_lnums: [0; REG_LINE_SLOTS],
             cur_line_slot: 0,
             cur_gen: 1,
         }
@@ -1669,6 +1700,7 @@ pub(super) struct RegexecState {
     pub line: std::cell::Cell<RegLineSlice>,
     pub input: std::cell::Cell<RegLineSlice>,
     pub chunk: std::cell::Cell<RegLineChunk>,
+    pub cached_lines: std::cell::Cell<[(Linenr, RegLineSlice); 2]>,
     pub need_clear_subexpr: std::cell::Cell<bool>,
     pub need_clear_zsubexpr: std::cell::Cell<bool>,
     pub reg_ic: std::cell::Cell<bool>,
@@ -1706,6 +1738,7 @@ impl RegexecState {
             line: std::cell::Cell::new(REG_LINE_NULL),
             input: std::cell::Cell::new(REG_LINE_NULL),
             chunk: std::cell::Cell::new(RegLineChunk::new()),
+            cached_lines: std::cell::Cell::new([(Linenr::MIN, REG_LINE_NULL); 2]),
             need_clear_subexpr: std::cell::Cell::new(false),
             need_clear_zsubexpr: std::cell::Cell::new(false),
             reg_ic: std::cell::Cell::new(false),
@@ -1746,6 +1779,7 @@ impl RegexecState {
         self.has_match.set(true);
         self.has_mmatch.set(false);
         self.rm_matchcol.set(rmp.rm_matchcol);
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
 
     #[inline(always)]
@@ -1757,6 +1791,7 @@ impl RegexecState {
             self.rm_endp[i].set(rmp.endp[i]);
         }
         self.rm_matchcol.set(rmp.rm_matchcol);
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
 
     #[inline(always)]
@@ -1773,6 +1808,7 @@ impl RegexecState {
         self.has_match.set(false);
         self.has_mmatch.set(true);
         self.rmm_matchcol.set(rmp.rmm_matchcol);
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
 
     #[inline(always)]
@@ -1784,6 +1820,7 @@ impl RegexecState {
             self.rmm_endpos[i].set(rmp.endpos[i]);
         }
         self.rmm_matchcol.set(rmp.rmm_matchcol);
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
 
     #[inline(always)]
@@ -1852,6 +1889,7 @@ impl RegexecState {
         self.line.set(snap.line);
         self.input.set(snap.input);
         self.chunk.set(RegLineChunk::new());
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
         self.need_clear_subexpr.set(snap.need_clear_subexpr);
         self.need_clear_zsubexpr.set(snap.need_clear_zsubexpr);
         self.reg_ic.set(snap.reg_ic);
@@ -1872,6 +1910,7 @@ impl RegexecState {
             self.reg_chartab.set(buf.b_chartab.get());
         }
         self.reg_buf.set(buf);
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
     #[inline(always)]
     pub fn buf_mut(&self) -> crate::globals::BufPtr {
@@ -1896,11 +1935,24 @@ impl RegexecState {
     #[inline(always)]
     pub fn set_line(&self, line: RegLineSlice) {
         self.line.set(line);
-        self.chunk.set(RegLineChunk::new());
+    }
+    #[inline(always)]
+    pub fn get_line_slice(&self, lnum: Linenr) -> RegLineSlice {
+        let cached = self.cached_lines.get();
+        if cached[0].0 == lnum {
+            return cached[0].1;
+        }
+        if cached[1].0 == lnum {
+            self.cached_lines.set([cached[1], cached[0]]);
+            return cached[1].1;
+        }
+        let slice = reg_load_line_slice(lnum);
+        self.cached_lines.set([(lnum, slice), cached[0]]);
+        slice
     }
     #[inline(always)]
     pub fn load_line(&self, lnum: Linenr) {
-        self.set_line(reg_load_line_slice(lnum));
+        self.line.set(self.get_line_slice(lnum));
     }
     #[inline(always)]
     pub fn line_at(&self, off: usize) -> RegLineSlice {
@@ -3050,7 +3102,11 @@ pub(super) fn reg_load_line_slice(lnum: Linenr) -> RegLineSlice {
             return reg_line_from_bytes_with_nul(b"\0");
         }
         s.rex.with_buf(|buf| {
-            crate::memline::with_ml_buf_bytes_with_nul(buf, firstlnum, reg_line_from_bytes_with_nul)
+            let fnum = buf.b_fnum.get();
+            let tick = crate::buffer::buf_get_changedtick(buf) as u64;
+            crate::memline::with_ml_buf_bytes_with_nul(buf, firstlnum, |bytes| {
+                reg_line_from_bytes_inner(fnum, tick, firstlnum, bytes)
+            })
         })
     })
 }
