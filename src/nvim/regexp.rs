@@ -652,10 +652,11 @@ pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
         let cur = st.cur_line_slot;
         for step in 0..4 {
             let idx = (cur + REG_LINE_SLOTS - step) % REG_LINE_SLOTS;
-            if st.line_slot_gens[idx] == cur_gen
-                && st.line_slot_addrs[idx] == addr
+            if st.line_slot_addrs[idx] == addr
                 && st.line_slots[idx].len() == len
+                && (st.line_slot_gens[idx] == cur_gen || st.line_slots[idx].as_slice() == bytes)
             {
+                st.line_slot_gens[idx] = cur_gen;
                 return idx as u8;
             }
         }
@@ -1021,16 +1022,84 @@ pub(super) struct Regbehind {
     pub save_end: [SaveSe; NSUBEXP],
 }
 
+pub(super) struct FragOut {
+    inline: [NfaOutSlot; 2],
+    len: usize,
+    overflow: Vec<NfaOutSlot>,
+}
+
+impl FragOut {
+    #[inline(always)]
+    pub(super) const fn new() -> Self {
+        Self {
+            inline: [NfaOutSlot::Out(0); 2],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    #[inline(always)]
+    pub(super) const fn from_one(slot: NfaOutSlot) -> Self {
+        Self {
+            inline: [slot, NfaOutSlot::Out(0)],
+            len: 1,
+            overflow: Vec::new(),
+        }
+    }
+
+    #[inline(always)]
+    pub(super) const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline(always)]
+    pub(super) fn push(&mut self, slot: NfaOutSlot) {
+        if self.len < 2 {
+            self.inline[self.len] = slot;
+        } else {
+            self.overflow.push(slot);
+        }
+        self.len += 1;
+    }
+
+    #[inline(always)]
+    pub(super) fn extend(&mut self, other: Self) {
+        for &slot in &other.inline[..other.len.min(2)] {
+            self.push(slot);
+        }
+        if !other.overflow.is_empty() {
+            if self.len < 2 {
+                for slot in other.overflow {
+                    self.push(slot);
+                }
+            } else {
+                self.len += other.overflow.len();
+                self.overflow.extend(other.overflow);
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub(super) fn patch(self, states: &mut [NfaState], target: Option<usize>) {
+        for &slot in &self.inline[..self.len.min(2)] {
+            slot.set(states, target);
+        }
+        for slot in self.overflow {
+            slot.set(states, target);
+        }
+    }
+}
+
 pub(super) struct Frag {
     pub start: Option<usize>,
-    pub out: Vec<NfaOutSlot>,
+    pub out: FragOut,
 }
 
 impl Frag {
     pub(super) const fn new() -> Self {
         Self {
             start: None,
-            out: Vec::new(),
+            out: FragOut::new(),
         }
     }
 }
@@ -1087,72 +1156,87 @@ impl Default for LinePos {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct RegSubList {
-    multi_arr: [MultiPos; NSUBEXP],
-    line_arr: [LinePos; NSUBEXP],
+pub(super) enum RegSubList {
+    Multi([MultiPos; NSUBEXP]),
+    Line([LinePos; NSUBEXP]),
 }
 
 impl RegSubList {
     #[inline(always)]
     pub(super) const fn new() -> Self {
-        Self {
-            multi_arr: [MultiPos::new(); NSUBEXP],
-            line_arr: [LinePos::new(); NSUBEXP],
-        }
+        Self::Multi([MultiPos::new(); NSUBEXP])
     }
 
     #[inline(always)]
     pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
-        &self.multi_arr
+        match self {
+            Self::Multi(a) => a,
+            Self::Line(_) => const { &[MultiPos::new(); NSUBEXP] },
+        }
     }
 
     #[inline(always)]
     pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
-        &mut self.multi_arr
+        if !matches!(self, Self::Multi(_)) {
+            *self = Self::Multi([MultiPos::new(); NSUBEXP]);
+        }
+        match self {
+            Self::Multi(a) => a,
+            Self::Line(_) => unreachable!(),
+        }
     }
 
     #[inline(always)]
     pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
-        &self.line_arr
+        match self {
+            Self::Line(a) => a,
+            Self::Multi(_) => const { &[LinePos::new(); NSUBEXP] },
+        }
     }
 
     #[inline(always)]
     pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
-        &mut self.line_arr
+        if !matches!(self, Self::Line(_)) {
+            *self = Self::Line([LinePos::new(); NSUBEXP]);
+        }
+        match self {
+            Self::Line(a) => a,
+            Self::Multi(_) => unreachable!(),
+        }
     }
 
     #[inline(always)]
     pub(super) fn copy_first_multi(&mut self, other: &Self) {
-        self.multi_arr[0] = other.multi_arr[0];
+        self.multi_mut()[0] = other.multi()[0];
     }
 
     #[inline(always)]
     pub(super) fn copy_first_line(&mut self, other: &Self) {
-        self.line_arr[0] = other.line_arr[0];
+        self.line_mut()[0] = other.line()[0];
     }
 
     #[inline(always)]
     pub(super) fn copy_n_multi(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.multi_arr[..n].copy_from_slice(&other.multi_arr[..n]);
+        self.multi_mut()[..n].copy_from_slice(&other.multi()[..n]);
     }
 
     #[inline(always)]
     pub(super) fn copy_n_line(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.line_arr[..n].copy_from_slice(&other.line_arr[..n]);
+        self.line_mut()[..n].copy_from_slice(&other.line()[..n]);
     }
 
     #[inline(always)]
     pub(super) fn copy_range_from_1_multi(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.multi_arr[1..n].copy_from_slice(&other.multi_arr[1..n]);
+        self.multi_mut()[1..n].copy_from_slice(&other.multi()[1..n]);
     }
 
     #[inline(always)]
     pub(super) fn copy_range_from_1_line(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.line_arr[1..n].copy_from_slice(&other.line_arr[1..n]);
+        self.line_mut()[1..n].copy_from_slice(&other.line()[1..n]);
     }
 }
 
@@ -1783,6 +1867,13 @@ impl RegexecState {
     }
 
     #[inline(always)]
+    pub fn init_match(&self, rmp: &Regmatch) {
+        self.has_match.set(true);
+        self.has_mmatch.set(false);
+        self.rm_matchcol.set(rmp.rm_matchcol);
+    }
+
+    #[inline(always)]
     pub fn load_match(&self, rmp: &Regmatch) {
         self.has_match.set(true);
         self.has_mmatch.set(false);
@@ -1800,6 +1891,13 @@ impl RegexecState {
             rmp.endp[i] = self.rm_endp[i].get();
         }
         rmp.rm_matchcol = self.rm_matchcol.get();
+    }
+
+    #[inline(always)]
+    pub fn init_mmatch(&self, rmp: &Regmmatch) {
+        self.has_match.set(false);
+        self.has_mmatch.set(true);
+        self.rmm_matchcol.set(rmp.rmm_matchcol);
     }
 
     #[inline(always)]
@@ -4070,7 +4168,7 @@ pub(super) fn init_regexec_multi(
     let win_cursor = win.map(|wp| wp.w_cursor.get());
     let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     RE_STATE.with(|s| {
-        s.rex.load_mmatch(rmp);
+        s.rex.init_mmatch(rmp);
         s.rex.reg_buf.set(buf_ptr);
         s.rex.reg_win.set(win_ptr);
         s.rex.reg_win_cursor.set(win_cursor);
@@ -4223,6 +4321,54 @@ pub fn vim_regcomp_had_eol() -> bool {
     RE_STATE.with(|s| s.had_eol.get())
 }
 
+#[inline]
+pub fn vim_regcomp_cached(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+    if g_st().reg_do_extmatch.get() != 0 || opt_vars().p_verbose.get() != 0 {
+        return None;
+    }
+    let mut expr_bytes = expr_arg.to_bytes();
+    let mut engine = opt_vars().p_re.get() as i32;
+    if expr_bytes.starts_with(b"\\%#=") {
+        let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
+        if newengine == AUTOMATIC_ENGINE
+            || newengine == BACKTRACKING_ENGINE
+            || newengine == NFA_ENGINE
+        {
+            engine = newengine;
+            expr_bytes = &expr_bytes[5..];
+        } else {
+            return None;
+        }
+    }
+    if expr_bytes.contains(&b'~') || expr_bytes.windows(2).any(|w| w == b"[:") {
+        return None;
+    }
+    let cpo_lit = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
+    let chartab = curbuf_mut().b_chartab.get();
+    let cached = LAST_REGPROG.with(|cell| {
+        let borrow = cell.borrow();
+        if let Some(ref c) = *borrow
+            && std::rc::Rc::strong_count(&c.prog.0) == 1
+            && c.re_flags == re_flags
+            && c.engine == engine
+            && c.cpo_lit == cpo_lit
+            && c.chartab == chartab
+            && c.expr.as_slice() == expr_bytes
+        {
+            Some((c.prog.clone(), c.had_eol))
+        } else {
+            None
+        }
+    });
+    let (prog, had_eol) = cached?;
+    RE_STATE.with(|re_s| {
+        re_s.regexp_engine.set(engine);
+        re_s.rex.reg_buf.set(g_st().curbuf.get());
+        re_s.had_eol.set(had_eol);
+    });
+    Some(Box::new(prog))
+}
+
 /// Compile a regular expression into internal code.
 pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     RE_STATE.with(|re_s| {
@@ -4254,7 +4400,8 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     let chartab = curbuf_mut().b_chartab.get();
     let can_cache = g_st().reg_do_extmatch.get() == 0
         && opt_vars().p_verbose.get() == 0
-        && !expr.to_bytes().contains(&b'[');
+        && !expr.to_bytes().contains(&b'~')
+        && !expr.to_bytes().windows(2).any(|w| w == b"[:");
     if can_cache {
         let cached = LAST_REGPROG.with(|cell| {
             let borrow = cell.borrow();
@@ -4400,7 +4547,6 @@ fn exec_regmmatch_multi(
 }
 
 fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> bool {
-    let mut rex_save = Regexec::new();
     let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
     if rmp.regprog.re_in_use() {
@@ -4409,9 +4555,7 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
     rmp.regprog.set_re_in_use(true);
 
-    if RE_STATE.with(|s| s.rex_in_use.get()) {
-        rex_save = RE_STATE.with(|s| s.rex.snapshot());
-    }
+    let rex_save = rex_in_use_save.then(|| RE_STATE.with(|s| s.rex.snapshot()));
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
     let mut result = exec_regmatch_nl(rmp, line, col, nl);
@@ -4435,8 +4579,8 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
 
     RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
-    if RE_STATE.with(|s| s.rex_in_use.get()) {
-        RE_STATE.with(|s| s.rex.restore(&rex_save));
+    if let Some(ref rex_save) = rex_save {
+        RE_STATE.with(|s| s.rex.restore(rex_save));
     }
 
     result > 0
@@ -4473,7 +4617,6 @@ pub fn vim_regexec_multi(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
-    let mut rex_save = Regexec::new();
     let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
     if rmp.regprog.re_in_use() {
@@ -4482,9 +4625,7 @@ pub fn vim_regexec_multi(
     }
     rmp.regprog.set_re_in_use(true);
 
-    if RE_STATE.with(|s| s.rex_in_use.get()) {
-        rex_save = RE_STATE.with(|s| s.rex.snapshot());
-    }
+    let rex_save = rex_in_use_save.then(|| RE_STATE.with(|s| s.rex.snapshot()));
     RE_STATE.with(|s| s.rex_in_use.set(true));
 
     let mut result = exec_regmmatch_multi(rmp, win, buf, lnum, col, tm, timed_out.as_deref_mut());
@@ -4514,8 +4655,8 @@ pub fn vim_regexec_multi(
     }
 
     RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
-    if RE_STATE.with(|s| s.rex_in_use.get()) {
-        RE_STATE.with(|s| s.rex.restore(&rex_save));
+    if let Some(ref rex_save) = rex_save {
+        RE_STATE.with(|s| s.rex.restore(rex_save));
     }
 
     if result <= 0 { 0 } else { result }

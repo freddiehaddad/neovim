@@ -4357,7 +4357,7 @@ pub(super) fn bt_regexec_nl(
     line_lbr: bool,
 ) -> i32 {
     RE_STATE.with(|s| {
-        s.rex.load_match(rmp);
+        s.rex.init_match(rmp);
         s.rex.reg_maxline.set(0);
         s.rex.reg_line_lbr.set(line_lbr);
         s.rex.reg_buf.set(g_st().curbuf.get());
@@ -4372,7 +4372,13 @@ pub(super) fn bt_regexec_nl(
     });
 
     let res = bt_regexec_both(prog, line, col, None, None);
-    RE_STATE.with(|s| s.rex.save_match(rmp));
+    RE_STATE.with(|s| {
+        if res > 0 {
+            s.rex.save_match(rmp);
+        } else {
+            rmp.rm_matchcol = s.rex.rm_matchcol.get();
+        }
+    });
     res
 }
 
@@ -4388,7 +4394,13 @@ pub(super) fn bt_regexec_multi(
 ) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
     let res = bt_regexec_both(prog, None, col, tm, timed_out);
-    RE_STATE.with(|s| s.rex.save_mmatch(rmp));
+    RE_STATE.with(|s| {
+        if res > 0 {
+            s.rex.save_mmatch(rmp);
+        } else {
+            rmp.rmm_matchcol = s.rex.rmm_matchcol.get();
+        }
+    });
     res
 }
 

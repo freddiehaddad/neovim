@@ -49,7 +49,7 @@ use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_iscomposing_first, utf_ptr2char,
     utfc_ptr2len,
 };
-use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
+use crate::memline::{decl, inc, incl, ml_get, ml_get_buf_len, ml_get_len};
 use crate::message::{
     emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
     msg_home_replace, msg_outtrans, msg_outtrans_len, msg_prt_line, msg_putchar, msg_puts,
@@ -353,6 +353,41 @@ pub fn search_regcomp(
     let mut pat_ref = pat_cstr;
     {
         g_st().rc_did_emsg.set(false);
+
+        if pat_cstr.is_empty()
+            && used_pat.is_none()
+            && ((options & SEARCH_KEEP) != 0
+                || (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0)
+            && !(curwin_mut().w_onebuf_opt.wo_rl.get()
+                && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's')
+        {
+            let fast_hit = with_srch_mut(|s| {
+                let i = if pat_use == RE_LAST {
+                    s.last_idx
+                } else {
+                    pat_use
+                } as usize;
+                let spat_cstr = s.spats[i].pat.as_deref()?;
+                let pmagic = s.spats[i].magic;
+                let no_scs = s.spats[i].no_scs;
+                g_st().search_global.no_smartcase.set(no_scs);
+                let prog = crate::regexp::vim_regcomp_cached(
+                    spat_cstr,
+                    if pmagic { RE_MAGIC } else { 0 },
+                )?;
+                let ic = ignorecase(spat_cstr);
+                if s.mr_pattern.as_deref() != Some(spat_cstr) {
+                    s.mr_pattern = Some(spat_cstr.to_owned());
+                }
+                Some((prog, ic))
+            });
+            if let Some((prog, ic)) = fast_hit {
+                regmatch.rmm_ic = ic;
+                regmatch.rmm_maxcol = 0;
+                regmatch.set_prog(Some(prog));
+                return true;
+            }
+        }
 
         if pat_cstr.is_empty() {
             let (spat_idx, has_pat, cloned_pat, plen, pmagic, no_scs) = with_srch(|s| {
@@ -731,6 +766,21 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
 }
 
+#[inline]
+fn buf_line_char_step(buf: &FileBuf, lnum: Linenr, col: Colnr) -> (bool, Colnr) {
+    if lnum > buf.b_ml.ml_line_count.get() {
+        return (true, 0);
+    }
+    crate::memline::with_ml_buf_line(buf, lnum, |line| {
+        let idx = col.max(0) as usize;
+        if idx >= line.len() {
+            (true, 0)
+        } else {
+            (false, crate::mbyte::utfc_slice2len(&line[idx..]) as Colnr)
+        }
+    })
+}
+
 pub fn searchit(
     win: Option<&WinInfoInfo>,
     buf: &FileBuf,
@@ -795,13 +845,13 @@ pub fn searchit(
                 && pos.lnum <= buf.b_ml.ml_line_count.get()
                 && pos.col < MAXCOL - 2
             {
-                let line_slice = crate::memline::ml_get_buf_slice(buf, pos.lnum);
-                if (line_slice.len() as Colnr) <= pos.col {
-                    start_char_len = 1;
-                } else {
-                    start_char_len =
-                        crate::mbyte::utfc_slice2len(&line_slice[pos.col as usize..]) as i32;
-                }
+                start_char_len = crate::memline::with_ml_buf_line(buf, pos.lnum, |line_slice| {
+                    if (line_slice.len() as Colnr) <= pos.col {
+                        1
+                    } else {
+                        crate::mbyte::utfc_slice2len(&line_slice[pos.col as usize..]) as i32
+                    }
+                });
             } else {
                 start_char_len = 1;
             }
@@ -876,12 +926,6 @@ pub fn searchit(
                         matchpos = regmatch.startpos[0];
                         endpos = regmatch.endpos[0];
                         submatch = first_submatch(&regmatch);
-                        let mut ptr_line_cstr: crate::option_vars::RcCStr =
-                            if lnum + matchpos.lnum > buf.b_ml.ml_line_count.get() {
-                                crate::option_vars::RcCStr::EMPTY
-                            } else {
-                                ml_get_buf(buf, lnum + matchpos.lnum)
-                            };
                         if dir == FORWARD && at_first_line {
                             match_ok = true;
 
@@ -889,13 +933,9 @@ pub fn searchit(
                                 && (if (options & SEARCH_END) != 0 && first_match {
                                     nmatched == 1 && endpos.col - 1 < start_pos.col + extra_col
                                 } else {
-                                    matchpos.col
-                                        - i32::from(
-                                            ptr_line_cstr.to_bytes_with_nul()
-                                                [matchpos.col as usize]
-                                                == 0,
-                                        )
-                                        < start_pos.col + extra_col
+                                    let (at_eol, _) =
+                                        buf_line_char_step(buf, lnum + matchpos.lnum, matchpos.col);
+                                    matchpos.col - i32::from(at_eol) < start_pos.col + extra_col
                                 })
                             {
                                 if search_from_match_end {
@@ -904,27 +944,25 @@ pub fn searchit(
                                         break;
                                     }
                                     matchcol = endpos.col;
-                                    if matchcol == matchpos.col
-                                        && ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0
-                                    {
-                                        matchcol += utfc_ptr2len(
-                                            &ptr_line_cstr[(matchcol as usize)
-                                                .min(ptr_line_cstr.to_bytes().len())..],
-                                        );
+                                    if matchcol == matchpos.col {
+                                        let (at_eol, step) =
+                                            buf_line_char_step(buf, lnum + matchpos.lnum, matchcol);
+                                        if !at_eol {
+                                            matchcol += step;
+                                        }
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
-                                    if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0 {
-                                        matchcol += utfc_ptr2len(
-                                            &ptr_line_cstr[(matchcol as usize)
-                                                .min(ptr_line_cstr.to_bytes().len())..],
-                                        );
+                                    let (at_eol, step) =
+                                        buf_line_char_step(buf, lnum + matchpos.lnum, matchcol);
+                                    if !at_eol {
+                                        matchcol += step;
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
                                     break;
                                 }
-                                if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] == 0 || {
+                                if buf_line_char_step(buf, lnum + matchpos.lnum, matchcol).0 || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win.opt_mut(),
@@ -949,7 +987,6 @@ pub fn searchit(
                                 if matchpos.lnum != 0 {
                                     break;
                                 }
-                                ptr_line_cstr = ml_get_buf(buf, lnum);
                             }
                             if !match_ok {
                                 lnum += dir;
@@ -985,27 +1022,25 @@ pub fn searchit(
                                         break;
                                     }
                                     matchcol = endpos.col;
-                                    if matchcol == matchpos.col
-                                        && ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0
-                                    {
-                                        matchcol += utfc_ptr2len(
-                                            &ptr_line_cstr[(matchcol as usize)
-                                                .min(ptr_line_cstr.to_bytes().len())..],
-                                        );
+                                    if matchcol == matchpos.col {
+                                        let (at_eol, step) =
+                                            buf_line_char_step(buf, lnum + matchpos.lnum, matchcol);
+                                        if !at_eol {
+                                            matchcol += step;
+                                        }
                                     }
                                 } else {
                                     if matchpos.lnum > 0 {
                                         break;
                                     }
                                     matchcol = matchpos.col;
-                                    if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] != 0 {
-                                        matchcol += utfc_ptr2len(
-                                            &ptr_line_cstr[(matchcol as usize)
-                                                .min(ptr_line_cstr.to_bytes().len())..],
-                                        );
+                                    let (at_eol, step) =
+                                        buf_line_char_step(buf, lnum + matchpos.lnum, matchcol);
+                                    if !at_eol {
+                                        matchcol += step;
                                     }
                                 }
-                                if ptr_line_cstr.to_bytes_with_nul()[matchcol as usize] == 0 || {
+                                if buf_line_char_step(buf, lnum + matchpos.lnum, matchcol).0 || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
                                         win.opt_mut(),
@@ -1025,7 +1060,6 @@ pub fn searchit(
                                 if regmatch.regprog.is_null() {
                                     break;
                                 }
-                                ptr_line_cstr = ml_get_buf(buf, lnum + matchpos.lnum);
                             }
 
                             if !match_ok {
@@ -1049,12 +1083,10 @@ pub fn searchit(
                             } else {
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count.get() {
-                                    let line_cstr = ml_get_buf(buf, pos.lnum);
-                                    let line_bytes = line_cstr.to_bytes();
-                                    pos.col -= crate::mbyte::utf_head_off_slice(
-                                        line_bytes,
-                                        pos.col as usize,
-                                    );
+                                    pos.col -=
+                                        crate::memline::with_ml_buf_line(buf, pos.lnum, |line| {
+                                            crate::mbyte::utf_head_off_slice(line, pos.col as usize)
+                                        });
                                 }
                             }
                             if let Some(end_pos) = end_pos.as_deref_mut() {

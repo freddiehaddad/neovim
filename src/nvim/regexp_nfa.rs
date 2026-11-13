@@ -1917,22 +1917,22 @@ fn alloc_state(
 }
 
 #[inline(always)]
-fn frag(start: Option<usize>, out: Vec<NfaOutSlot>) -> Frag {
+fn frag(start: Option<usize>, out: crate::regexp::FragOut) -> Frag {
     Frag { start, out }
 }
 
 #[inline(always)]
-fn list1(slot: NfaOutSlot) -> Vec<NfaOutSlot> {
-    vec![slot]
+fn list1(slot: NfaOutSlot) -> crate::regexp::FragOut {
+    crate::regexp::FragOut::from_one(slot)
 }
 
-fn patch(states: &mut [NfaState], l: Vec<NfaOutSlot>, s: Option<usize>) {
-    for slot in l {
-        slot.set(states, s);
-    }
+#[inline(always)]
+fn patch(states: &mut [NfaState], l: crate::regexp::FragOut, s: Option<usize>) {
+    l.patch(states, s);
 }
 
-fn append(mut l1: Vec<NfaOutSlot>, l2: Vec<NfaOutSlot>) -> Vec<NfaOutSlot> {
+#[inline(always)]
+fn append(mut l1: crate::regexp::FragOut, l2: crate::regexp::FragOut) -> crate::regexp::FragOut {
     l1.extend(l2);
     l1
 }
@@ -3483,55 +3483,74 @@ fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
 
 fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i32 {
     let mut col = *startcol;
-    loop {
-        let mut matched = true;
-        let mut s1 = match_text;
-        let regstart_len2 = utf_ptr2len(
-            RE_STATE
-                .with(|s| s.rex.line.get())
-                .wrapping_add(col as usize),
-        );
-        let mut s2 = RE_STATE
-            .with(|s| s.rex.line.get())
-            .wrapping_add((col + regstart_len2) as usize);
-        while !s1.is_empty() {
-            let c1_len = crate::mbyte::utf_slice2len(s1);
-            let c1 = crate::mbyte::utf_slice2char(s1);
-            let c2_len = utf_ptr2len(s2) as usize;
-            let c2 = utf_ptr2char(s2);
-            if c1 != c2 && (!RE_STATE.with(|s| s.rex.reg_ic.get()) || utf_fold(c1) != utf_fold(c2))
-            {
-                matched = false;
-                break;
-            }
-            s1 = &s1[c1_len..];
-            s2 = s2.wrapping_add(c2_len);
-        }
-        if matched && !utf_iscomposing_legacy(utf_ptr2char(s2)) {
-            cleanup_subexpr();
-            if reg_multi() {
-                RE_STATE.with(|s| {
-                    let lnum = s.rex.lnum.get();
-                    s.rex.rmm_startpos[0].set(Lpos { lnum, col });
-                    s.rex.rmm_endpos[0].set(Lpos {
-                        lnum,
-                        col: s2.offset_from(s.rex.line.get()) as Colnr,
-                    });
-                });
+    let (line_slice, reg_ic) = RE_STATE.with(|s| (s.rex.line.get(), s.rex.reg_ic.get()));
+    let found_end_col = line_slice.with_bytes(|line_bytes| {
+        loop {
+            let mut matched = true;
+            let mut s1 = match_text;
+            let cur_off = (col as usize).min(line_bytes.len());
+            let regstart_len2 = crate::mbyte::utf_slice2len(&line_bytes[cur_off..]);
+            let mut s2_off = (cur_off + regstart_len2).min(line_bytes.len());
+            if !reg_ic {
+                if let Some(rest) = line_bytes.get(s2_off..)
+                    && rest.starts_with(match_text)
+                {
+                    s2_off += match_text.len();
+                } else {
+                    matched = false;
+                }
             } else {
-                RE_STATE.with(|s| {
-                    s.rex.rm_startp[0].set(s.rex.line.get().wrapping_add(col as usize));
-                    s.rex.rm_endp[0].set(s2);
-                });
+                while !s1.is_empty() {
+                    let c1_len = crate::mbyte::utf_slice2len(s1);
+                    let c1 = crate::mbyte::utf_slice2char(s1);
+                    let rem = &line_bytes[s2_off..];
+                    if rem.is_empty() {
+                        matched = false;
+                        break;
+                    }
+                    let c2_len = crate::mbyte::utf_slice2len(rem);
+                    let c2 = crate::mbyte::utf_slice2char(rem);
+                    if c1 != c2 && utf_fold(c1) != utf_fold(c2) {
+                        matched = false;
+                        break;
+                    }
+                    s1 = &s1[c1_len..];
+                    s2_off += c2_len;
+                }
             }
-            *startcol = col;
-            return 1;
-        }
+            if matched {
+                let next_c = line_bytes
+                    .get(s2_off..)
+                    .filter(|s| !s.is_empty())
+                    .map_or(0, crate::mbyte::utf_slice2char);
+                if !utf_iscomposing_legacy(next_c) {
+                    return Some(s2_off as Colnr);
+                }
+            }
 
-        col += regstart_len2;
-        if !skip_to_start(regstart, &mut col) {
-            break;
+            col += regstart_len2 as Colnr;
+            let next_off = (col as usize).min(line_bytes.len());
+            let off = cstrchr(&line_bytes[next_off..], regstart)?;
+            col += off as Colnr;
         }
+    });
+    if let Some(end_col) = found_end_col {
+        cleanup_subexpr();
+        if reg_multi() {
+            RE_STATE.with(|s| {
+                let lnum = s.rex.lnum.get();
+                s.rex.rmm_startpos[0].set(Lpos { lnum, col });
+                s.rex.rmm_endpos[0].set(Lpos { lnum, col: end_col });
+            });
+        } else {
+            RE_STATE.with(|s| {
+                let line = s.rex.line.get();
+                s.rex.rm_startp[0].set(line.wrapping_add(col as usize));
+                s.rex.rm_endp[0].set(line.wrapping_add(end_col as usize));
+            });
+        }
+        *startcol = col;
+        return 1;
     }
     *startcol = col;
     0
@@ -4537,7 +4556,6 @@ fn nfa_regmatch(
 
                     if let Some(add_state_idx) = add_state {
                         let mut has_pim = thislist.t[t_idx].pim.result != NFA_PIM_UNUSED;
-                        let mut pim_copy = NfaPim::new();
 
                         if has_pim && (clen == 0 || match_follows(&prog.state, add_state, 0)) {
                             let pim_state_idx = thislist.t[t_idx].pim.state.unwrap();
@@ -4600,9 +4618,11 @@ fn nfa_regmatch(
                             has_pim = false;
                         }
 
-                        if has_pim {
-                            copy_pim(re_s, &mut pim_copy, &mut thislist.t[t_idx].pim);
-                        }
+                        let mut pim_copy = has_pim.then(|| {
+                            let mut pc = NfaPim::new();
+                            copy_pim(re_s, &mut pc, &mut thislist.t[t_idx].pim);
+                            pc
+                        });
 
                         let r = if add_here {
                             addstate_here(
@@ -4610,7 +4630,7 @@ fn nfa_regmatch(
                                 &mut prog.state,
                                 &mut *thislist,
                                 add_state,
-                                has_pim.then_some(&mut pim_copy),
+                                pim_copy.as_mut(),
                                 &mut listidx,
                             )
                         } else {
@@ -4620,7 +4640,7 @@ fn nfa_regmatch(
                                 &mut *nextlist,
                                 add_state_idx,
                                 &mut thislist.t[t_idx].subs,
-                                has_pim.then_some(&mut pim_copy),
+                                pim_copy.as_mut(),
                                 add_off,
                                 0,
                             );
@@ -5107,7 +5127,7 @@ pub(super) fn nfa_regexec_nl(
     line_lbr: bool,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        re_s.rex.load_match(rmp);
+        re_s.rex.init_match(rmp);
         re_s.rex.reg_maxline.set(0);
         re_s.rex.reg_line_lbr.set(line_lbr);
         re_s.rex.reg_buf.set(g_st().curbuf.get());
@@ -5120,7 +5140,11 @@ pub(super) fn nfa_regexec_nl(
             .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0);
         re_s.rex.reg_maxcol.set(0);
         let res = nfa_regexec_both(prog, line, col, None, None);
-        re_s.rex.save_match(rmp);
+        if res > 0 {
+            re_s.rex.save_match(rmp);
+        } else {
+            rmp.rm_matchcol = re_s.rex.rm_matchcol.get();
+        }
         res
     })
 }
@@ -5137,6 +5161,12 @@ pub(super) fn nfa_regexec_multi(
 ) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
     let res = nfa_regexec_both(prog, None, col, tm, timed_out);
-    RE_STATE.with(|s| s.rex.save_mmatch(rmp));
+    RE_STATE.with(|s| {
+        if res > 0 {
+            s.rex.save_mmatch(rmp);
+        } else {
+            rmp.rmm_matchcol = s.rex.rmm_matchcol.get();
+        }
+    });
     res
 }
