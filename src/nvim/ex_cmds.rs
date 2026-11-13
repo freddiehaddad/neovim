@@ -2865,6 +2865,9 @@ pub fn do_ecmd(
                         buf_copy_options(buf.borrow_mut(), BCO_ENTER);
                     }
 
+                    // The window-local syntax does not apply to the new buffer.
+                    crate::syntax::reset_synblock(&curwin_mut());
+
                     u_sync(false);
                     close_buffer(
                         curwin_ptr().opt_mut(),
