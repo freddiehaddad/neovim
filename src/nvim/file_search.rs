@@ -640,7 +640,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         let mut suf_bytes = if search_ctx.ffsc_tagfile {
                             EMPTY_C.to_bytes()
                         } else {
-                            &curbuf_mut().b_p_sua.as_bytes()
+                            &curbuf().b_p_sua.as_bytes()
                         };
                         loop {
                             let vis_idx = search_ctx.ffsc_visited_list.unwrap();
@@ -989,12 +989,12 @@ pub fn find_file_in_path(
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> {
-    let path_opt = if curbuf_mut().b_p_path.is_empty() {
+    let path_opt = if curbuf().b_p_path.is_empty() {
         opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.to_owned()
+        curbuf().b_p_path.to_owned()
     };
-    let sua_opt = curbuf_mut().b_p_sua.to_owned();
+    let sua_opt = curbuf().b_p_sua.to_owned();
     find_file_in_path_option(
         ptr,
         options,
@@ -1255,7 +1255,7 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
             &vis_bytes[..len.min(vis_bytes.len())],
             options,
             count as i64,
-            curbuf_mut().ffname_opt().as_deref(),
+            curbuf().ffname_opt().as_deref(),
         )
     } else {
         file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
@@ -1277,10 +1277,10 @@ pub fn file_name_at_cursor(
 ) -> Option<std::ffi::CString> {
     file_name_in_line(
         &crate::cursor::get_cursor_line_slice(),
-        curwin_mut().w_cursor.get().col,
+        curwin().w_cursor.get().col,
         options,
         count,
-        curbuf_mut().ffname_opt().as_deref(),
+        curbuf().ffname_opt().as_deref(),
         (file_lnum.is_some()).then(|| &mut *file_lnum.unwrap()),
     )
 }
@@ -1397,16 +1397,16 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         );
         g_st()
             .current_sctx
-            .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get());
+            .set(curbuf().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get());
 
         let use_sandbox = was_set_insecurely(
-            Some(&crate::globals::curwin_mut()),
+            Some(&crate::globals::curwin()),
             K_OPT_INCLUDEEXPR,
             OPT_LOCAL,
         ) != 0;
         let mut tv: TypVal = TypVal::new();
         let mut res = None;
-        if eval_expr_option_tv(&curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
+        if eval_expr_option_tv(&curbuf().b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
             res = Some((*s).to_owned());
             tv_clear(&mut tv);
@@ -1446,7 +1446,7 @@ pub fn find_file_name_in_path(
             ptr_slice = &ptr_slice[off..];
         }
 
-        if (options & FNAME_INCL) != 0 && curbuf_mut().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST {
+        if (options & FNAME_INCL) != 0 && curbuf().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST {
             tofree = eval_includeexpr(ptr_slice);
             if let Some(ref tf) = tofree {
                 ptr_slice = tf.as_bytes();
@@ -1469,7 +1469,7 @@ pub fn find_file_name_in_path(
 
             if file_name.is_none()
                 && (options & FNAME_INCL) == 0
-                && curbuf_mut().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST
+                && curbuf().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST
                 && let Some(tf) = eval_includeexpr(ptr_slice)
             {
                 tofree = Some(tf);
@@ -1566,7 +1566,7 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
             Some(crate::memory::bytes_as_cstr(&buf)),
             new_dir_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
         );
 
         restore_v_event(&dict, &mut save_v_event);
@@ -1623,7 +1623,7 @@ pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
     let Some(dir_name) = find_directory_in_path(
         new_dir.to_bytes(),
         FNAME_MESS,
-        curbuf_mut().ffname_opt().as_deref(),
+        curbuf().ffname_opt().as_deref(),
         &mut file_to_find,
         &mut search_ctx,
     ) else {

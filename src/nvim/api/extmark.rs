@@ -382,7 +382,7 @@ pub fn nvim_buf_get_extmark_by_id(
     err: &mut Error,
 ) -> Array {
     let rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return rv;
     };
 
@@ -476,7 +476,7 @@ pub fn nvim_buf_get_extmarks(
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return rv;
     };
 
@@ -732,7 +732,7 @@ pub fn nvim_buf_set_extmark(
     let mut has_hl_multiple = false;
 
     'error: {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
             break 'error;
         };
 
@@ -1321,7 +1321,7 @@ pub fn nvim_buf_set_extmark(
 // DLLEXPORT Boolean nvim_buf_del_extmark(Buffer buf, Integer ns_id, Integer id, Error *err)
 //   FUNC_API_SINCE(7);
 pub fn nvim_buf_del_extmark(buf: Buffer, ns_id: Integer, id: Integer, err: &mut Error) -> Boolean {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return false;
     };
     if !ns_initialized(ns_id as u32) {
@@ -1353,7 +1353,7 @@ pub fn nvim_buf_clear_namespace(
     mut line_end: Integer,
     err: &mut Error,
 ) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
 
@@ -1487,7 +1487,7 @@ pub fn nvim_set_decoration_provider(
 // DLLEXPORT void nvim__buf_set_conceal_provider(Buffer buf, Boolean enabled, Error *err)
 //   FUNC_API_LUA_ONLY;
 pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
     let count = b.b_conceal_providers.get() + if enabled { 1 } else { -1 };
@@ -1506,7 +1506,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     }
     let b_ptr = b;
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(if g_st().curtab.get() == tp {
+        for wp in win_iter_ptr(if g_st().curtab.get() == tp {
             g_st().firstwin.get()
         } else {
             tp.tp_firstwin.get()
@@ -1668,7 +1668,7 @@ pub fn nvim_buf_debug_extmarks(
     dot: Boolean,
     err: &mut Error,
 ) -> NvimString {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return NvimString::new();
     };
     mt_inspect(&b.b_marktree.borrow(), keys, dot)
@@ -1710,7 +1710,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                 if windows.contains(&wp.as_ptr())
                     && wp.w_ns_set.borrow_mut().insert(ns_id as u32)
                     && (*wp)
-                        .buf_mut()
+                        .buf()
                         .b_extmark_ns
                         .borrow()
                         .contains_key(&(ns_id as u32))
@@ -1721,7 +1721,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                 if !windows.contains(&wp.as_ptr())
                     && wp.w_ns_set.borrow_mut().remove(&(ns_id as u32))
                     && (*wp)
-                        .buf_mut()
+                        .buf()
                         .b_extmark_ns
                         .borrow()
                         .contains_key(&(ns_id as u32))
@@ -1744,13 +1744,8 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                 .remove(&(ns_id as u32)))
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&tp) {
-                if wp
-                    .buf_mut()
-                    .b_extmark_ns
-                    .borrow()
-                    .contains_key(&(ns_id as u32))
-                {
+            for wp in for_all_windows_in_tab_ptr(&tp) {
+                if wp.buf().b_extmark_ns.borrow().contains_key(&(ns_id as u32)) {
                     changed_window_setting(&wp);
                 }
             }
@@ -1783,8 +1778,8 @@ pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDict_ns_opts {
     }
 
     let mut count = 0usize;
-    for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(&tp) {
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             if wp.w_ns_set.borrow().contains(&(ns_id as u32)) {
                 count += 1;
             }
@@ -1793,8 +1788,8 @@ pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDict_ns_opts {
 
     let mut windows = Array::with_capacity(count);
 
-    for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(&tp) {
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             if wp.w_ns_set.borrow().contains(&(ns_id as u32)) {
                 windows.push(integer_obj(i64::from(wp.handle)));
             }

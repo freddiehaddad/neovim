@@ -132,7 +132,7 @@ impl VTermOut for VTermStateFull {
 
 impl VTermStateFull {
     #[inline]
-    pub fn vt_mut(&self) -> &std::cell::Cell<VTermOutput> {
+    pub fn vt(&self) -> &std::cell::Cell<VTermOutput> {
         &self.out
     }
 

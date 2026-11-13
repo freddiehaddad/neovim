@@ -201,11 +201,11 @@ pub fn remote_ui_wait_for_attach() {
     while ui_active() == 0 {
         let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
         if !multiqueue_empty(events.borrow()) {
-            multiqueue_process_events(events.borrow_mut());
+            multiqueue_process_events(events);
         } else {
             loop_poll_events(crate::event::r#loop::main_loop_ptr(), -1);
 
-            multiqueue_process_events(events.borrow_mut());
+            multiqueue_process_events(events);
         }
     }
 }

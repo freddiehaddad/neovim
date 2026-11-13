@@ -155,7 +155,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if !bt_help(curwin_mut().buf_opt().as_deref()) || g_st().cmdmod.borrow().cmod_tab != 0 {
+    if !bt_help(curwin().buf_opt().as_deref()) || g_st().cmdmod.borrow().cmod_tab != 0 {
         if g_st().cmdmod.borrow().cmod_tab != 0 {
             wp = None;
         } else {
@@ -168,7 +168,7 @@ pub fn ex_help(eap: &mut Exarg) {
             }
         }
         if let Some(wp) = wp
-            && wp.buf_mut().b_nwindows.get() > 0
+            && wp.buf().b_nwindows.get() > 0
         {
             win_enter(&wp, true);
         } else if CFile::open(&opt_vars().p_hf.as_cstr(), c"rb").is_none() {
@@ -177,8 +177,8 @@ pub fn ex_help(eap: &mut Exarg) {
         } else {
             let mut n = WSP_HELP;
             if g_st().cmdmod.borrow().cmod_split == 0
-                && curwin_mut().w_width.get() != g_st().columns_global.get()
-                && curwin_mut().w_width.get() < 80
+                && curwin().w_width.get() != g_st().columns_global.get()
+                && curwin().w_width.get() < 80
             {
                 n |= if opt_vars().p_sb.get() {
                     WSP_BOT
@@ -189,11 +189,11 @@ pub fn ex_help(eap: &mut Exarg) {
             if !win_split(0, n) {
                 early_ret = true;
             } else {
-                if (curwin_mut().w_height.get() as OptInt) < opt_vars().p_hh.get() {
+                if (curwin().w_height.get() as OptInt) < opt_vars().p_hh.get() {
                     win_setheight(opt_vars().p_hh.get() as i32);
                 }
 
-                alt_fnum = curbuf_mut().b_fnum.get();
+                alt_fnum = curbuf().b_fnum.get();
                 do_ecmd(
                     0,
                     None,
@@ -205,9 +205,9 @@ pub fn ex_help(eap: &mut Exarg) {
                 );
 
                 if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0 {
-                    curwin_mut().w_alt_fnum.set(alt_fnum);
+                    curwin().w_alt_fnum.set(alt_fnum);
                 }
-                empty_fnum = curbuf_mut().b_fnum.get();
+                empty_fnum = curbuf().b_fnum.get();
             }
         }
     }
@@ -219,7 +219,7 @@ pub fn ex_help(eap: &mut Exarg) {
         do_tag(None, &tag, DT_HELP, 1, false, true);
 
         if empty_fnum != 0
-            && curbuf_mut().b_fnum.get() != empty_fnum
+            && curbuf().b_fnum.get() != empty_fnum
             && let Some(buf) = buflist_findnr_opt(empty_fnum)
             && buf.b_nwindows.get() == 0
         {
@@ -227,10 +227,10 @@ pub fn ex_help(eap: &mut Exarg) {
         }
 
         if alt_fnum != 0
-            && curwin_mut().w_alt_fnum.get() == empty_fnum
+            && curwin().w_alt_fnum.get() == empty_fnum
             && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
         {
-            curwin_mut().w_alt_fnum.set(alt_fnum);
+            curwin().w_alt_fnum.set(alt_fnum);
         }
     }
     drop(allocated_arg);
@@ -414,32 +414,32 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
-    curbuf_mut().b_help.set(true);
+    curbuf().b_help.set(true);
     set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(Some(c"help")), OPT_LOCAL, 0);
 
     let p = c"!-~,^*,^|,^\",192-255";
-    if curbuf_mut().b_p_isk.as_bytes() != p.to_bytes() {
+    if curbuf().b_p_isk.as_bytes() != p.to_bytes() {
         set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(Some(p)), OPT_LOCAL, 0);
-        check_buf_options(&curbuf_mut());
-        buf_init_isk_chartab(&curbuf_mut());
+        check_buf_options(&curbuf());
+        buf_init_isk_chartab(&curbuf());
     }
 
     set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);
 
-    curbuf_mut().b_p_ts.set(8);
-    curwin_mut().w_onebuf_opt.wo_list.set(false);
+    curbuf().b_p_ts.set(8);
+    curwin().w_onebuf_opt.wo_list.set(false);
 
-    curbuf_mut().b_p_ma.set(false);
-    curbuf_mut().b_p_bin.set(false);
-    curwin_mut().w_onebuf_opt.wo_nu.set(false);
-    curwin_mut().w_onebuf_opt.wo_rnu.set(false);
-    curwin_mut().w_onebuf_opt.wo_scb.set(false);
-    curwin_mut().w_onebuf_opt.wo_crb.set(false);
-    curwin_mut().w_onebuf_opt.wo_arab.set(false);
-    curwin_mut().w_onebuf_opt.wo_rl.set(false);
-    curwin_mut().w_onebuf_opt.wo_fen.set(false);
-    curwin_mut().w_onebuf_opt.wo_diff.set(false);
-    curwin_mut().w_onebuf_opt.wo_spell.set(false);
+    curbuf().b_p_ma.set(false);
+    curbuf().b_p_bin.set(false);
+    curwin().w_onebuf_opt.wo_nu.set(false);
+    curwin().w_onebuf_opt.wo_rnu.set(false);
+    curwin().w_onebuf_opt.wo_scb.set(false);
+    curwin().w_onebuf_opt.wo_crb.set(false);
+    curwin().w_onebuf_opt.wo_arab.set(false);
+    curwin().w_onebuf_opt.wo_rl.set(false);
+    curwin().w_onebuf_opt.wo_fen.set(false);
+    curwin().w_onebuf_opt.wo_diff.set(false);
+    curwin().w_onebuf_opt.wo_spell.set(false);
 
     set_buflisted(0);
 }

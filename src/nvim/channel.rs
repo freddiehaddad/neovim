@@ -298,7 +298,7 @@ pub fn channel_close(
                 api_free_luaref(internal.cb);
                 internal.cb = LUA_NOREF;
                 internal.closed = true;
-                terminal_close(chan.term.borrow_mut(), 0);
+                terminal_close(chan.term, 0);
                 chan.exit_status = 0;
             } else {
                 channel_decref(&mut *chan);
@@ -385,7 +385,7 @@ pub fn channel_decref(chan: &mut Channel) {
     chan.refcount -= 1;
     if chan.refcount == 0 {
         let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
-        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.id));
+        multiqueue_put_event(qc.events, Event::ChannelFree(chan.id));
     }
 }
 
@@ -421,7 +421,7 @@ fn channel_destroy_early(chan: &mut Channel) {
     }
 
     let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
-    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFreeBox(boxed));
+    multiqueue_put_event(qc.events, Event::ChannelFreeBox(boxed));
 }
 
 /// Starts a job and returns the associated channel.
@@ -720,7 +720,7 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
             *error = Some(gettext(c"Can't send data to closed stream"));
             return 0;
         }
-        terminal_receive(chan.term_mut(), &data);
+        terminal_receive(chan.term(), &data);
         return len;
     }
 
@@ -765,7 +765,7 @@ pub fn on_job_stderr(buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
 fn on_channel_output(chan: &mut Channel, buf: &[u8], eof: bool, is_stderr: bool) -> usize {
     let count = buf.len();
     if !chan.term.is_null() {
-        terminal_receive(chan.term_mut(), buf);
+        terminal_receive(chan.term(), buf);
     }
 
     let reader = if is_stderr {
@@ -797,7 +797,7 @@ fn on_channel_output(chan: &mut Channel, buf: &[u8], eof: bool, is_stderr: bool)
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(chan.id));
+            multiqueue_put_event(chan.events(), Event::ChannelCallback(chan.id));
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
@@ -818,7 +818,7 @@ pub fn on_channel_event(chan: &mut Channel) {
 
     chan.callback_busy = false;
     if chan.callback_scheduled {
-        multiqueue_put_event(chan.events.borrow_mut(), Event::ChannelCallback(chan.id));
+        multiqueue_put_event(chan.events, Event::ChannelCallback(chan.id));
         channel_incref(chan);
     }
 
@@ -868,7 +868,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
 
 pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
     if !chan.term.is_null() {
-        terminal_close(chan.term.borrow_mut(), status);
+        terminal_close(chan.term, status);
     }
 
     if !g_st().exiting.get() && g_st().ui_client_channel_id.get() == chan.id {
@@ -895,7 +895,7 @@ pub(crate) fn channel_proc_state_cb(
     suspended: bool,
     chan: &mut Channel,
 ) {
-    if let Some(term) = chan.term.opt_mut() {
+    if let Some(term) = chan.term.opt() {
         terminal_set_state(term, suspended);
     }
 }
@@ -1022,10 +1022,7 @@ pub fn channel_term_resume(chan: &mut Channel) {
 pub fn term_delayed_free(chan: &mut Channel) {
     let proc_ptr = &mut chan.uv.proc_;
     if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
-        multiqueue_put_event(
-            chan.events.borrow_mut(),
-            Event::ChannelTermDelayedFree(chan.id),
-        );
+        multiqueue_put_event(chan.events, Event::ChannelTermDelayedFree(chan.id));
         return;
     }
 
@@ -1045,10 +1042,7 @@ pub fn channel_term_close(chan: &mut Channel) {
         return;
     }
     proc_stop(&mut chan.uv.proc_);
-    multiqueue_put_event(
-        chan.events.borrow_mut(),
-        Event::ChannelTermDelayedFree(chan.id),
-    );
+    multiqueue_put_event(chan.events, Event::ChannelTermDelayedFree(chan.id));
 }
 
 pub fn channel_event(chan: &mut Channel, event: AuEvent) {
@@ -1056,7 +1050,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         channel_incref(chan);
         let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
         multiqueue_put_event(
-            qc.events.borrow_mut(),
+            qc.events,
             Event::ChannelSetInfo {
                 chan_id: chan.id,
                 event,
@@ -1082,7 +1076,7 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());
     tv_dict_set_keys_readonly(&dict);
 
-    let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut().as_deref());
+    let _ = apply_autocmds(event, None, None, true, curbuf_opt().as_deref());
 
     restore_v_event(&dict, &mut save_v_event);
     channel_decref(chan);

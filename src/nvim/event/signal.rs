@@ -78,7 +78,7 @@ unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: i32) {
         (*watcher).signum = signum;
         let is_tui = (*watcher).is_tui;
         let events = (*watcher).events;
-        if let Some(events) = events.opt_mut() {
+        if let Some(events) = events.opt() {
             multiqueue_put_event(events, Event::Signal { signum, is_tui });
         } else {
             signal_event(signum, is_tui);

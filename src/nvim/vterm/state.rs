@@ -1073,18 +1073,18 @@ fn request_dec_mode(state: &mut VTermStateFull, num: i32) {
         2031 => (state.mode & MODE_THEME_UPDATES) != 0,
         _ => {
             let s = format!("?{num};0$y");
-            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+            vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s.as_bytes());
             return;
         }
     };
 
     let s = format!("?{num};{}$y", if reply { 1 } else { 2 });
-    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+    vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s.as_bytes());
 }
 
 fn request_version_string(state: &mut VTermStateFull) {
     let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
-    vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+    vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
 }
 
 fn request_key_encoding_flags(state: &mut VTermStateFull) {
@@ -1115,7 +1115,7 @@ fn request_key_encoding_flags(state: &mut VTermStateFull) {
     }
 
     let s = format!("?{reply}u");
-    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+    vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s.as_bytes());
 }
 
 fn set_key_encoding_flags(state: &mut VTermStateFull, arg: i32, mode: i32) {
@@ -1565,12 +1565,12 @@ fn on_csi(
                 buf.push(b'?');
                 buf.extend_from_slice(attr);
                 buf.push(b'c');
-                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &buf);
+                vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, &buf);
             }
         }
         CMD_DA2 => {
             // DEC secondary Device Attributes
-            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b">0;100;0c");
+            vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, b">0;100;0c");
         }
         0x64 => {
             // VPA - ECMA-48 8.3.158
@@ -1682,11 +1682,11 @@ fn on_csi(
                 0..=4 => {}
                 5 => {
                     let s = format!("{qmark}0n");
-                    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+                    vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s.as_bytes());
                 }
                 6 => {
                     let s = format!("{qmark}{};{}R", state.pos.row + 1, state.pos.col + 1);
-                    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+                    vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s.as_bytes());
                 }
                 996 => {
                     if let Some(callbacks) = state.callbacks
@@ -1694,7 +1694,7 @@ fn on_csi(
                         && cb(&mut dark, state.screen_opt()) != 0
                     {
                         let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
-                        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s);
+                        vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, s);
                     }
                 }
                 _ => {}
@@ -2210,7 +2210,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
                 let _ = write!(s, "{}{sep}", csi_arg(args[argi]));
             }
             s.push('m');
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
         }
         KEY_R => {
             // Query DECSTBM
@@ -2219,7 +2219,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
                 state.scrollregion_top + 1,
                 scrollregion_bottom(state)
             );
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
         }
         KEY_S => {
             // Query DECSLRM
@@ -2228,7 +2228,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
                 scrollregion_left(state) + 1,
                 scrollregion_right(state)
             );
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
         }
         KEY_SP_Q => {
             // Query DECSCUSR
@@ -2242,16 +2242,16 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
                 reply -= 1;
             }
             let s = format!("1$r{reply} q");
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
         }
         KEY_QT_Q => {
             // Query DECSCA
             let reply: i32 = if state.protected_cell != 0 { 1 } else { 2 };
             let s = format!("1$r{reply}\"q");
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, s.as_bytes());
         }
         _ => {
-            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, b"0$r");
+            vterm_push_output_str_bytes(state.vt(), C1_DCS, true, b"0$r");
         }
     }
 }
@@ -2597,13 +2597,13 @@ pub fn vterm_state_set_termprop(
 
 pub fn vterm_state_focus_in(state: &mut VTermStateFull) {
     if (state.mode & MODE_REPORT_FOCUS) != 0 {
-        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"I");
+        vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, b"I");
     }
 }
 
 pub fn vterm_state_focus_out(state: &mut VTermStateFull) {
     if (state.mode & MODE_REPORT_FOCUS) != 0 {
-        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"O");
+        vterm_push_output_ctrl_bytes(state.vt(), C1_CSI, b"O");
     }
 }
 

@@ -1307,7 +1307,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             }
                             if c == b'l' as i32 {
                                 if cur {
-                                    n = crate::globals::curwin_mut().w_cursor.get().lnum as u32;
+                                    n = crate::globals::curwin().w_cursor.get().lnum as u32;
                                 }
                                 ret = regnode(RE_LNUM);
                                 if save_prev_at_start != 0 {
@@ -1315,22 +1315,22 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                                 }
                             } else if c == b'c' as i32 {
                                 if cur {
-                                    n = crate::globals::curwin_mut().w_cursor.get().col as u32 + 1;
+                                    n = crate::globals::curwin().w_cursor.get().col as u32 + 1;
                                 }
                                 ret = regnode(RE_COL);
                             } else {
                                 if cur {
                                     let mut vcol: Colnr = 0;
-                                    let mut cursor = crate::globals::curwin_mut().w_cursor.get();
+                                    let mut cursor = crate::globals::curwin().w_cursor.get();
                                     getvvcol(
-                                        &crate::globals::curwin_mut(),
+                                        &crate::globals::curwin(),
                                         &mut cursor,
                                         None,
                                         None,
                                         Some(&mut vcol),
                                         0,
                                     );
-                                    crate::globals::curwin_mut().w_cursor.set(cursor);
+                                    crate::globals::curwin().w_cursor.set(cursor);
                                     vcol += 1;
                                     n = vcol as u32;
                                 }
@@ -2971,8 +2971,8 @@ fn regmatch_inner(
                                 0
                             };
                             let fm = mark_get(
-                                &re_s.rex.buf_mut(),
-                                &crate::globals::curwin_mut(),
+                                &re_s.rex.buf(),
+                                &crate::globals::curwin(),
                                 None,
                                 K_MARK_BUF_LOCAL,
                                 mark,
@@ -3042,9 +3042,9 @@ fn regmatch_inner(
                         }
                         RE_VCOL => {
                             let wp = if re_s.rex.reg_win.get().is_null() {
-                                crate::globals::curwin_mut()
+                                crate::globals::curwin()
                             } else {
-                                re_s.rex.win_mut()
+                                re_s.rex.win()
                             };
                             let mut lnum = if !re_s.rex.has_match.get() {
                                 re_s.rex.reg_firstlnum.get() + re_s.rex.lnum.get()
@@ -3052,7 +3052,7 @@ fn regmatch_inner(
                                 1
                             };
                             if !re_s.rex.has_match.get()
-                                && (lnum <= 0 || lnum > wp.buf_mut().b_ml.ml_line_count.get())
+                                && (lnum <= 0 || lnum > wp.buf().b_ml.ml_line_count.get())
                             {
                                 lnum = 1;
                             }

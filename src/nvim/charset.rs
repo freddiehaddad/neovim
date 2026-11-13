@@ -552,7 +552,7 @@ pub fn str_foldcase(src: &[u8], mut buf: Option<&mut [u8]>) -> Option<CString> {
 pub type TransCharBuf = crate::strings::InlineCStr<11>;
 
 pub fn transchar(c: i32) -> TransCharBuf {
-    transchar_buf(Some(&crate::globals::curbuf_mut()), c)
+    transchar_buf(Some(&crate::globals::curbuf()), c)
 }
 
 pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> TransCharBuf {
@@ -577,7 +577,7 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> TransCharBuf {
 }
 
 pub fn transchar_byte<C: AsciiInt>(c: C) -> TransCharBuf {
-    transchar_byte_buf(Some(&crate::globals::curbuf_mut()), c.into_ascii_int())
+    transchar_byte_buf(Some(&crate::globals::curbuf()), c.into_ascii_int())
 }
 
 pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> TransCharBuf {
@@ -674,7 +674,7 @@ pub fn vim_is_idc(c: i32) -> bool {
 }
 
 pub fn vim_iswordc(c: i32) -> bool {
-    vim_iswordc_buf(c, &curbuf_mut())
+    vim_iswordc_buf(c, &curbuf())
 }
 
 pub fn vim_iswordc_tab(c: i32, chartab: &[u64; 4]) -> bool {
@@ -690,7 +690,7 @@ pub fn vim_iswordc_buf(c: i32, buf: &FileBuf) -> bool {
 }
 
 pub fn vim_iswordp(bytes: &[u8]) -> bool {
-    vim_iswordp_buf(bytes, &crate::globals::curbuf_mut())
+    vim_iswordp_buf(bytes, &crate::globals::curbuf())
 }
 
 pub fn vim_iswordp_buf(bytes: &[u8], buf: &FileBuf) -> bool {

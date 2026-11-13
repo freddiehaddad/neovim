@@ -115,8 +115,8 @@ pub fn win_new_float(
                 tp.opt()
             });
         }
-        let wp = win_alloc(tp_last.opt_mut(), false);
-        win_init(&wp, &curwin_mut(), 0);
+        let wp = win_alloc(tp_last.opt(), false);
+        win_init(&wp, &curwin(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             wp.w_onebuf_opt.wo_wbr.clear_option_str();
         }
@@ -225,11 +225,11 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
     wp.w_height.set(fconfig.height.max(1));
 
     if fconfig.relative == K_FLOAT_RELATIVE_CURSOR {
-        validate_cursor(&curwin_mut());
+        validate_cursor(&curwin());
         fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
-        fconfig.row += curwin_mut().w_wrow.get() as f64;
-        fconfig.col += curwin_mut().w_wcol.get() as f64;
-        fconfig.window = curwin_mut().handle;
+        fconfig.row += curwin().w_wrow.get() as f64;
+        fconfig.col += curwin().w_wcol.get() as f64;
+        fconfig.window = curwin().handle;
     } else if fconfig.relative == K_FLOAT_RELATIVE_MOUSE {
         let mut row = g_st().mouse_row.get();
         let mut col = g_st().mouse_col.get();
@@ -284,14 +284,14 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
         let mut col = wp.w_config.borrow().col as i32;
         let mut dummy = error_init();
         let parent = find_window_by_handle(wp.w_config.borrow().window, &mut dummy);
-        if let Some(parent) = parent.opt_mut() {
+        if let Some(parent) = parent.opt() {
             row += parent.w_winrow.get();
             col += parent.w_wincol.get();
             let _ = crate::grid::grid_adjust_opt(&parent.w_grid, &mut row, &mut col);
             if wp.w_config.borrow().bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
                     lnum: (wp.w_config.borrow().bufpos.lnum + 1)
-                        .min((*parent).buf_mut().b_ml.ml_line_count.get()),
+                        .min((*parent).buf().b_ml.ml_line_count.get()),
                     col: wp.w_config.borrow().bufpos.col,
                     coladd: 0,
                 };
@@ -367,7 +367,7 @@ pub fn win_float_update_statusline() {
 }
 
 pub fn win_float_anchor_laststatus() {
-    for win in for_all_windows_mut() {
+    for win in for_all_windows_ptr() {
         if win.w_config.borrow().relative == K_FLOAT_RELATIVE_LASTSTATUS {
             win.w_pos_changed.set(true);
         }
@@ -401,7 +401,7 @@ pub fn win_float_find_altwin(
         {
             wp
         } else {
-            firstwin_mut()
+            firstwin()
         };
     };
 
@@ -439,9 +439,9 @@ fn win_float_special_fail(
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
 pub fn win_float_anchor_preview(wp: &WinInfoInfo) {
     wp.w_wantline
-        .set(curwin_mut().w_winrow.get() + curwin_mut().w_wrow.get());
+        .set(curwin().w_winrow.get() + curwin().w_wrow.get());
     wp.w_wantcol
-        .set(curwin_mut().w_wincol.get() + curwin_mut().w_wcol.get());
+        .set(curwin().w_wincol.get() + curwin().w_wcol.get());
 }
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
@@ -451,8 +451,8 @@ pub fn win_float_special(
     kind: WinKind,
 ) -> Option<crate::globals::WinPtr> {
     let mut config = WIN_CONFIG_INIT;
-    config.col = curwin_mut().w_wcol.get() as f64;
-    config.row = curwin_mut().w_wrow.get() as f64;
+    config.col = curwin().w_wcol.get() as f64;
+    config.row = curwin().w_wrow.get() as f64;
     config.relative = K_FLOAT_RELATIVE_EDITOR;
     config.focusable = false;
     config.mouse = true;
@@ -477,7 +477,7 @@ pub fn win_float_special(
         if b == 0 {
             return win_float_special_fail(Some(&wp), &mut err);
         }
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(b, &mut err) else {
             return win_float_special_fail(Some(&wp), &mut err);
         };
         buf.b_p_bl.set(false); // unlist
@@ -526,15 +526,15 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
     }
 
     // Title is the previewed file's name, only known once it is loaded.
-    if wp.w_config.borrow().border && wp.buf_mut().fname_opt().is_some() {
+    if wp.w_config.borrow().border && wp.buf().fname_opt().is_some() {
         let mut dirname = [0u8; MAXPATHL];
         os_dirname(&mut dirname);
-        shorten_buf_fname(&wp.buf_mut(), crate::memory::bytes_as_cstr(&dirname), 0);
+        shorten_buf_fname(&wp.buf(), crate::memory::bytes_as_cstr(&dirname), 0);
 
         wp.w_config.borrow_mut().title_chunks.clear();
         let mut err = error_init();
         parse_bordertext(
-            cstr_as_obj(wp.buf_mut().fname_opt().as_deref()),
+            cstr_as_obj(wp.buf().fname_opt().as_deref()),
             K_BORDER_TEXT_TITLE,
             &mut wp.w_config.borrow_mut(),
             &mut err,
@@ -565,7 +565,7 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
     };
 
     // If a dimension is not given in 'previewpopup', autosize to the content.
-    let last: Linenr = wp.buf_mut().b_ml.ml_line_count.get();
+    let last: Linenr = wp.buf().b_ml.ml_line_count.get();
     if want_w == 0 {
         want_w = win_max_displaywidth(wp, 1, last, g_st().columns_global.get()).max(1);
     }

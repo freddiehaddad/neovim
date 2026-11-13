@@ -208,18 +208,8 @@ impl MultiQueue {
     }
 
     #[inline(always)]
-    pub const fn borrow_mut(self) -> Self {
-        self
-    }
-
-    #[inline(always)]
     pub const fn opt(self) -> Option<Self> {
         if self.0 == 0 { None } else { Some(self) }
-    }
-
-    #[inline(always)]
-    pub const fn opt_mut(self) -> Option<Self> {
-        self.opt()
     }
 }
 

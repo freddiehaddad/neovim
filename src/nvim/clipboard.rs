@@ -195,7 +195,7 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
     let lines_len = lines.map_or(0, |l| l.lv_len.get().max(0) as usize);
     let mut y_array = Vec::with_capacity(lines_len);
 
-    for li in crate::eval::typval::list_iter_mut(lines.and_then(|l| l.first_opt())) {
+    for li in crate::eval::typval::list_iter_ptr(lines.and_then(|l| l.first_opt())) {
         let li_tv = li.tv();
         if li_tv.v_type != VarType::VarString {
             for mut s in y_array {

@@ -194,7 +194,7 @@ pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
-    multiqueue_put_event(loop_.events.borrow_mut(), event);
+    multiqueue_put_event(loop_.events, event);
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {
@@ -264,10 +264,10 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
         }
     }
     let qc = loop_queues(loop_);
-    multiqueue_free(qc.fast_events.borrow_mut());
+    multiqueue_free(qc.fast_events);
     qc.fast_events = MultiQueue::NULL;
     qc.thread_events = VecDeque::new();
-    multiqueue_free(qc.events.borrow_mut());
+    multiqueue_free(qc.events);
     qc.events = MultiQueue::NULL;
     qc.children = Vec::new();
     rv
@@ -279,7 +279,7 @@ pub fn loop_purge(loop_: &mut Loop) {
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
         qc.thread_events.clear();
-        multiqueue_purge_events(qc.fast_events.borrow_mut());
+        multiqueue_purge_events(qc.fast_events);
         uv_mutex_unlock(mutex);
     }
 }

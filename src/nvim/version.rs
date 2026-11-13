@@ -4185,11 +4185,11 @@ pub fn list_version() {
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
-    buf_is_empty(&curbuf_mut())
-        && curbuf_mut().fname_opt().is_none()
-        && curbuf_mut().b_fnum.get() == 1
-        && curwin_mut().handle == LOWEST_WIN_ID
-        && one_window(&curwin_mut(), None)
+    buf_is_empty(&curbuf())
+        && curbuf().fname_opt().is_none()
+        && curbuf().b_fnum.get() == 1
+        && curwin().handle == LOWEST_WIN_ID
+        && one_window(&curwin(), None)
         && !crate::strings::vim_haschr(&opt_vars().p_shm.as_cstr(), K_SHM_INTRO)
 }
 
@@ -4219,7 +4219,7 @@ pub fn intro_message(colon: bool) {
     let lines_size = lines.len() as i32;
     let mut blanklines = g_st().rows_global.get() - (lines_size - 1);
     if opt_vars().p_ls.get() > 1 {
-        blanklines -= g_st().rows_global.get() - crate::globals::topframe_mut().fr_height.get();
+        blanklines -= g_st().rows_global.get() - crate::globals::topframe().fr_height.get();
     }
     if blanklines < 0 {
         blanklines = 0;
@@ -4268,7 +4268,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let grid = if !colon && ui_has(K_UIMULTIGRID) {
-            &crate::globals::firstwin_mut().w_grid
+            &crate::globals::firstwin().w_grid
         } else {
             &g_st().default_gridview
         };

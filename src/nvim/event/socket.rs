@@ -440,7 +440,7 @@ pub fn connection_event(watcher: &mut SocketWatcher, status: i32) {
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
-        if let Some(events) = (*watcher).events.opt_mut() {
+        if let Some(events) = (*watcher).events.opt() {
             multiqueue_put_event(events, Event::SocketConnection { watcher, status });
         } else {
             connection_event(&mut *watcher, status);

@@ -330,7 +330,7 @@ fn event_teardown() -> bool {
         return true;
     }
 
-    multiqueue_process_events(queues.events.borrow_mut());
+    multiqueue_process_events(queues.events);
     loop_poll_events(crate::event::r#loop::main_loop_ptr(), 0);
     server_teardown();
     channel_teardown();
@@ -540,7 +540,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     win_init_size();
     if params.diff_mode != 0 {
-        diff_win_options(&firstwin_mut(), false);
+        diff_win_options(&firstwin(), false);
     }
 
     assert!(
@@ -578,9 +578,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         time_msg_if_enabled(c"waiting for UI");
         remote_ui_wait_for_attach();
         time_msg_if_enabled(c"done waiting for UI");
-        firstwin_mut()
-            .w_prev_height
-            .set(firstwin_mut().w_height.get());
+        firstwin().w_prev_height.set(firstwin().w_height.get());
     }
 
     set_starting(NO_BUFFERS);
@@ -683,7 +681,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     setmouse();
 
-    redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
+    redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
 
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
@@ -693,18 +691,12 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
     if params.exmode {
-        curwin_mut()
+        curwin()
             .w_cursor
-            .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
+            .set_lnum(curbuf().b_ml.ml_line_count.get());
     }
 
-    apply_autocmds(
-        EVENT_BUFENTER,
-        None,
-        None,
-        false,
-        curbuf_opt_mut().as_deref(),
-    );
+    apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt().as_deref());
     time_msg_if_enabled(c"BufEnter autocommands");
     setpcmark();
 
@@ -716,7 +708,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     edit_buffers(&mut params);
 
     if params.diff_mode != 0 {
-        for wp in win_iter_ptr(curtab_mut().tp_firstwin.get()) {
+        for wp in win_iter_ptr(curtab().tp_firstwin.get()) {
             if !wp.w_arg_idx_invalid.get() {
                 diff_win_options(&wp, true);
             }
@@ -740,13 +732,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     do_autochdir();
 
     set_vim_var_nr(VV_VIM_DID_ENTER, 1);
-    apply_autocmds(
-        EVENT_VIMENTER,
-        None,
-        None,
-        false,
-        curbuf_opt_mut().as_deref(),
-    );
+    apply_autocmds(EVENT_VIMENTER, None, None, false, curbuf_opt().as_deref());
     time_msg_if_enabled(c"VimEnter autocommands");
     if use_remote_ui {
         do_autocmd_uienter_all();
@@ -763,8 +749,8 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     set_reg_var(get_default_register_name());
 
-    if curwin_mut().w_onebuf_opt.wo_diff.get() && curwin_mut().w_onebuf_opt.wo_scb.get() {
-        update_topline(&curwin_mut());
+    if curwin().w_onebuf_opt.wo_diff.get() && curwin().w_onebuf_opt.wo_scb.get() {
+        update_topline(&curwin());
         check_scrollbind(0, 0);
         time_msg_if_enabled(c"diff scrollbinding");
     }
@@ -920,22 +906,22 @@ pub fn getout(mut exitval: i32) -> ! {
             } else {
                 tp.tp_firstwin.get()
             };
-            for wp in win_iter_mut(first_wp) {
+            for wp in win_iter_ptr(first_wp) {
                 if !buf_valid(wp.buf_opt().as_deref()) {
                     continue;
                 }
-                let buf = wp.buf_mut();
+                let buf = wp.buf();
                 let buf_ptr = buf.clone();
                 if buf_get_changedtick(&buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, buf_ptr.opt_mut());
+                    set_bufref(&mut bufref, buf_ptr.opt());
                     let b_fname = buf.fname_opt();
                     apply_autocmds(
                         EVENT_BUFWINLEAVE,
                         b_fname.as_deref(),
                         b_fname.as_deref(),
                         false,
-                        buf_ptr.opt_mut(),
+                        buf_ptr.opt(),
                     );
                     if let Some(buf_now) = bufref.buf_opt().filter(|_| bufref_valid(Some(&bufref)))
                     {
@@ -977,7 +963,7 @@ pub fn getout(mut exitval: i32) -> ! {
             None,
             None,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
         );
         if unblock != 0 {
             block_autocmds();
@@ -994,13 +980,7 @@ pub fn getout(mut exitval: i32) -> ! {
             unblock_autocmds();
             unblock += 1;
         }
-        apply_autocmds(
-            EVENT_VIMLEAVE,
-            None,
-            None,
-            false,
-            curbuf_opt_mut().as_deref(),
-        );
+        apply_autocmds(EVENT_VIMLEAVE, None, None, false, curbuf_opt().as_deref());
         if unblock != 0 {
             block_autocmds();
         }
@@ -1065,7 +1045,7 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
 
     ml_close_notmod();
 
-    for buf in for_all_buffers_mut() {
+    for buf in for_all_buffers_ptr() {
         let has_fname = buf
             .b_ml
             .ml_mfp
@@ -1387,8 +1367,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     set_option_value_give_err(K_OPT_ARABIC, boolean_obj(true), 0);
                 }
                 b'b' => {
-                    set_options_bin(i32::from(curbuf_mut().b_p_bin.get()), 1, 0);
-                    curbuf_mut().b_p_bin.set(true);
+                    set_options_bin(i32::from(curbuf().b_p_bin.get()), 1, 0);
+                    curbuf().b_p_bin.set(true);
                 }
                 b'D' => {
                     parmp.use_debug_break_level = 9999;
@@ -1449,7 +1429,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                 }
                 b'R' => {
                     g_st().readonlymode.set(true);
-                    curbuf_mut().b_p_ro.set(true);
+                    curbuf().b_p_ro.set(true);
                     opt_vars().p_uc.set(10000);
                 }
                 b'r' | b'L' => {
@@ -1904,19 +1884,19 @@ fn read_stdin() {
     g_st().no_wait_return.set(1);
     let save_msg_didany = g_st().msg_didany.get();
 
-    if curbuf_mut().b_ffname.get().is_some() {
+    if curbuf().b_ffname.get().is_some() {
         let Some(stdin_buf_ref) = buflist_new(None, None, 0, BLN_LISTED) else {
             semsg!(c"Failed to create buffer for stdin");
             return;
         };
         let stdin_buf = stdin_buf_ref;
 
-        let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
-        set_curbuf(stdin_buf.borrow_mut(), 0, false);
+        let initial_buf_handle: ObjHandle = curbuf().b_fnum.get();
+        set_curbuf(stdin_buf.borrow(), 0, false);
         readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
         let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum.get();
-        let stdin_buf_empty = buf_is_empty(&curbuf_mut());
+        let stdin_buf_empty = buf_is_empty(&curbuf());
 
         let mut buf = [0u8; 100];
         format_to_buf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
@@ -1929,7 +1909,7 @@ fn read_stdin() {
     } else {
         set_buflisted(1);
         open_buffer(true, None, 0);
-        if buf_is_empty(&curbuf_mut()) && !curbuf_mut().b_next.get().is_null() {
+        if buf_is_empty(&curbuf()) && !curbuf().b_next.get().is_null() {
             do_cmdline_cmd(c"silent! bnext");
             do_cmdline_cmd(c"silent! bwipeout 1");
         }
@@ -1955,10 +1935,7 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             parmp.window_count = make_tabpages(parmp.window_count);
             time_msg_if_enabled(c"making tab pages");
-        } else if firstwin_mut()
-            .next_opt()
-            .is_none_or(|nw| nw.w_floating.get())
-        {
+        } else if firstwin().next_opt().is_none_or(|nw| nw.w_floating.get()) {
             parmp.window_count = make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
             time_msg_if_enabled(c"making windows");
         } else {
@@ -1971,7 +1948,7 @@ fn create_windows(parmp: &mut Mparm) {
     if g_st().recoverymode.get() {
         g_st().msg_scroll.set(1);
         ml_recover(true);
-        if curbuf_mut().b_ml.ml_mfp.borrow().is_none() {
+        if curbuf().b_ml.ml_mfp.borrow().is_none() {
             getout(1);
         }
         do_modelines(0);
@@ -1994,24 +1971,21 @@ fn create_windows(parmp: &mut Mparm) {
                     set_curwin(g_st().firstwin.get());
                 }
             } else if parmp.window_layout == WIN_TABS {
-                if curtab_mut().tp_next.get().is_null() {
+                if curtab().tp_next.get().is_null() {
                     break;
                 }
                 goto_tabpage(0);
             } else {
-                if curwin_mut().w_next.get().is_null() {
+                if curwin().w_next.get().is_null() {
                     break;
                 }
-                set_curwin(curwin_mut().w_next.get());
+                set_curwin(curwin().w_next.get());
             }
             dorewind = false;
-            g_st().curbuf.set(curwin_mut().w_buffer.get());
-            if curbuf_mut().b_ml.ml_mfp.borrow().is_none() {
+            g_st().curbuf.set(curwin().w_buffer.get());
+            if curbuf().b_ml.ml_mfp.borrow().is_none() {
                 if opt_vars().p_fdls.get() >= 0 {
-                    curwin_mut()
-                        .w_onebuf_opt
-                        .wo_fdl
-                        .set(opt_vars().p_fdls.get());
+                    curwin().w_onebuf_opt.wo_fdl.set(opt_vars().p_fdls.get());
                 }
                 g_st().swap_exists_action.set(SEA_DIALOG);
                 set_buflisted(1);
@@ -2024,8 +1998,8 @@ fn create_windows(parmp: &mut Mparm) {
                         ui_call_error_exit(1, NvimString::new());
                         getout(1);
                     }
-                    setfname(&curbuf_mut(), None, None, false);
-                    curwin_mut().w_arg_idx.set(-1);
+                    setfname(&curbuf(), None, None, false);
+                    curwin().w_arg_idx.set(-1);
                     g_st().swap_exists_action.set(SEA_NONE);
                 } else {
                     handle_swap_exists(None);
@@ -2045,7 +2019,7 @@ fn create_windows(parmp: &mut Mparm) {
         } else {
             set_curwin(startup_curwin);
         }
-        g_st().curbuf.set(curwin_mut().w_buffer.get());
+        g_st().curbuf.set(curwin().w_buffer.get());
         g_st()
             .autocmd_no_enter
             .set(g_st().autocmd_no_enter.get() - (1));
@@ -2066,23 +2040,23 @@ fn edit_buffers(parmp: &mut Mparm) {
         .autocmd_no_leave
         .set(g_st().autocmd_no_leave.get() + (1));
 
-    if curwin_mut().w_arg_idx.get() == -1 {
-        win_close(&curwin_mut(), true, false);
+    if curwin().w_arg_idx.get() == -1 {
+        win_close(&curwin(), true, false);
         advance = false;
     }
 
     let mut arg_idx: i32 = 1;
     for i in 1..parmp.window_count {
-        if curwin_mut().w_arg_idx.get() == -1 {
+        if curwin().w_arg_idx.get() == -1 {
             arg_idx += 1;
-            win_close(&curwin_mut(), true, false);
+            win_close(&curwin(), true, false);
             advance = false;
             continue;
         }
 
         if advance {
             if parmp.window_layout == WIN_TABS {
-                if curtab_mut().tp_next.get().is_null() {
+                if curtab().tp_next.get().is_null() {
                     break;
                 }
                 goto_tabpage(0);
@@ -2097,20 +2071,20 @@ fn edit_buffers(parmp: &mut Mparm) {
                     );
                 }
             } else {
-                if curwin_mut().w_next.get().is_null() {
+                if curwin().w_next.get().is_null() {
                     break;
                 }
-                win_enter(curwin_mut().w_next.get().borrow_mut(), false);
+                win_enter(curwin().w_next.get().borrow(), false);
             }
         }
         advance = true;
 
         if ptr::eq(
             g_st().curbuf.get().as_ptr(),
-            firstwin_mut().w_buffer.get().as_ptr(),
-        ) || curbuf_mut().b_ffname.get().is_none()
+            firstwin().w_buffer.get().as_ptr(),
+        ) || curbuf().b_ffname.get().is_none()
         {
-            curwin_mut().w_arg_idx.set(arg_idx);
+            curwin().w_arg_idx.set(arg_idx);
             g_st().swap_exists_did_quit.set(false);
             let entry_opt = (arg_idx < gargcount()).then(|| garg_entry(arg_idx as usize));
             let fname = entry_opt.as_ref().and_then(alist_name);
@@ -2121,7 +2095,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 None,
                 ECMD_LASTL,
                 ECMD_HIDE,
-                Some(&curwin_mut()),
+                Some(&curwin()),
             );
             if g_st().swap_exists_did_quit.get() {
                 if g_st().got_int.get() || only_one_window() {
@@ -2129,7 +2103,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                     ui_call_error_exit(1, NvimString::new());
                     getout(1);
                 }
-                win_close(&curwin_mut(), true, false);
+                win_close(&curwin(), true, false);
                 advance = false;
             }
             if arg_idx == gargcount() - 1 {
@@ -2167,14 +2141,14 @@ fn edit_buffers(parmp: &mut Mparm) {
             break;
         }
     }
-    win_enter(win.borrow_mut(), false);
+    win_enter(win.borrow(), false);
 
     g_st()
         .autocmd_no_leave
         .set(g_st().autocmd_no_leave.get() - (1));
     time_msg_if_enabled(c"editing files in windows");
     if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
-        win_equal(Some(&curwin_mut()), false, b'b' as i32);
+        win_equal(Some(&curwin()), false, b'b' as i32);
     }
 }
 
@@ -2183,7 +2157,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
         return;
     }
 
-    curwin_mut().w_cursor.set_lnum(0);
+    curwin().w_cursor.set_lnum(0);
     estack_push(ETYPE_ARGS, Some(gettext(c"pre-vimrc command line")), 0);
     {
         let mut v = g_st().current_sctx.get();
@@ -2204,8 +2178,8 @@ fn exe_pre_commands(parmp: &mut Mparm) {
 
 fn exe_commands(parmp: &mut Mparm) {
     g_st().msg_scroll.set(1);
-    if parmp.tagname.is_none() && curwin_mut().w_cursor.get().lnum <= 1 {
-        curwin_mut().w_cursor.set_lnum(0);
+    if parmp.tagname.is_none() && curwin().w_cursor.get().lnum <= 1 {
+        curwin().w_cursor.set_lnum(0);
     }
     estack_push(ETYPE_ARGS, Some(c"command line"), 0);
     {
@@ -2228,8 +2202,8 @@ fn exe_commands(parmp: &mut Mparm) {
         v.sc_sid = 0;
         g_st().current_sctx.set(v);
     }
-    if curwin_mut().w_cursor.get().lnum == 0 {
-        curwin_mut().w_cursor.set_lnum(1);
+    if curwin().w_cursor.get().lnum == 0 {
+        curwin().w_cursor.set_lnum(1);
     }
 
     g_st().msg_scroll.set(0);

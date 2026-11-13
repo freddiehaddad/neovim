@@ -120,7 +120,7 @@ use crate::state::MODE_INSERT;
 /// Ensures that a buffer is loaded.
 // DLLEXPORT FileBuf *api_buf_ensure_loaded(Buffer buf, Error *err);
 pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<crate::globals::BufPtr> {
-    let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err)?;
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf, err)?;
 
     if b.b_ml.ml_mfp.borrow().is_none() && !buf_ensure_loaded(&b) {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to load buffer",);
@@ -138,7 +138,7 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<crate::glob
 // DLLEXPORT Integer nvim_buf_line_count(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return 0;
     };
     if b.b_ml.ml_mfp.borrow().is_none() {
@@ -229,7 +229,7 @@ pub fn nvim_buf_attach(
     opts: &mut KeyDict_buf_attach,
     err: &mut Error,
 ) -> Boolean {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return false;
     };
 
@@ -285,7 +285,7 @@ pub fn nvim_buf_attach(
 // DLLEXPORT Boolean nvim_buf_detach(uint64_t channel_id, Buffer buf, Error *err)
 //   FUNC_API_SINCE(4) FUNC_API_REMOTE_ONLY;
 pub fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: &mut Error) -> Boolean {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return false;
     };
     buf_updates_unregister(&b, channel_id);
@@ -324,7 +324,7 @@ pub fn nvim_buf_get_lines(
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return rv;
     };
 
@@ -599,7 +599,7 @@ pub fn nvim_buf_set_lines(
         changed_lines(&b, start as Linenr, 0, end as Linenr, extra as Linenr, true);
 
         for tp in for_all_tabpages_ptr() {
-            for win in for_all_windows_in_tab_mut(&tp) {
+            for win in for_all_windows_in_tab_ptr(&tp) {
                 if win.w_buffer.get() == b {
                     fix_cursor(&win, start as Linenr, end as Linenr, extra as Linenr);
                 }
@@ -942,7 +942,7 @@ pub fn nvim_buf_set_text(
         );
 
         for tp in for_all_tabpages_ptr() {
-            for win in for_all_windows_in_tab_mut(&tp) {
+            for win in for_all_windows_in_tab_ptr(&tp) {
                 if win.w_buffer.get() == b_ptr {
                     if i64::from(win.w_cursor.get().lnum) >= start_row
                         && i64::from(win.w_cursor.get().lnum) <= end_row
@@ -1003,7 +1003,7 @@ pub fn nvim_buf_get_text(
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return rv;
     };
 
@@ -1106,7 +1106,7 @@ pub fn nvim_buf_get_text(
 // DLLEXPORT Integer nvim_buf_get_offset(Buffer buf, Integer index, Error *err)
 //   FUNC_API_SINCE(5);
 pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Integer {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return 0;
     };
 
@@ -1141,7 +1141,7 @@ pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Inte
 // DLLEXPORT Object nvim_buf_get_var(Buffer buf, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_var(buf: Buffer, name: NvimString, err: &mut Error) -> Object {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return OBJECT_NIL;
     };
     dict_get_value(Some(&*b.b_vars()), name, err)
@@ -1156,7 +1156,7 @@ pub fn nvim_buf_get_var(buf: Buffer, name: NvimString, err: &mut Error) -> Objec
 // DLLEXPORT Integer nvim_buf_get_changedtick(Buffer buf, Error *err)
 //   FUNC_API_SINCE(2);
 pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return -1;
     };
     b.changedtick_di.tv().vval.v_number()
@@ -1173,7 +1173,7 @@ pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
 //                                                           Error *err)
 //   FUNC_API_SINCE(3);
 pub fn nvim_buf_get_keymap(buf: Buffer, mode: NvimString, err: &mut Error) -> Array {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return Array::new();
     };
     keymap_array(mode, Some(&b))
@@ -1246,7 +1246,7 @@ pub fn nvim_buf_del_keymap(
 // DLLEXPORT void nvim_buf_set_var(Buffer buf, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_set_var(buf: Buffer, name: NvimString, value: Object, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
     dict_set_var(&b.b_vars(), name, value, false, false, err);
@@ -1260,7 +1260,7 @@ pub fn nvim_buf_set_var(buf: Buffer, name: NvimString, value: Object, err: &mut 
 // DLLEXPORT void nvim_buf_del_var(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
     dict_set_var(&b.b_vars(), name, OBJECT_NIL, true, false, err);
@@ -1277,7 +1277,7 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
 // DLLEXPORT String nvim_buf_get_name(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return NvimString::new();
     };
     if b.b_ffname.get().is_none() {
@@ -1301,7 +1301,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
     let mut ren_ret = true;
     try_wrap(err, || {
-        let is_curbuf = b_fnum == curbuf_mut().b_fnum.get();
+        let is_curbuf = b_fnum == curbuf().b_fnum.get();
         let save_acd = opt_vars().p_acd.get();
         if !is_curbuf {
             g_st()
@@ -1345,7 +1345,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 //   FUNC_API_SINCE(5);
 pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
     let mut stub = Error::new();
-    let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, &mut stub);
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf, &mut stub);
     api_clear_error(&mut stub);
     b.is_some_and(|b| b.b_ml.ml_mfp.borrow().is_some())
 }
@@ -1366,7 +1366,7 @@ pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
 pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
 
@@ -1419,7 +1419,7 @@ pub fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
 //   FUNC_API_SINCE(8);
 pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Boolean {
     let mut res = false;
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return res;
     };
 
@@ -1436,7 +1436,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
 
     let Some(fm) = mark_get(
         &b,
-        &curwin_mut(),
+        &curwin(),
         None,
         K_MARK_ALL_NO_RESOLVE,
         i32::from(name.as_bytes()[0]),
@@ -1513,7 +1513,7 @@ pub fn nvim_buf_set_mark(
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Array {
     let mut rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return rv;
     };
 
@@ -1529,7 +1529,7 @@ pub fn nvim_buf_get_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Arra
     }
 
     let mark = i32::from(name.as_bytes()[0]);
-    let Some(fm) = mark_get(&b, &curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark) else {
+    let Some(fm) = mark_get(&b, &curwin(), None, K_MARK_ALL_NO_RESOLVE, mark) else {
         api_err_invalid(err, c"mark name", name.as_opt_cstr(), 0, true);
         return rv;
     };
@@ -1586,7 +1586,7 @@ pub fn nvim_buf_call(buf: Buffer, fn_ref: LuaRef, err: &mut Error) -> Object {
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
 pub fn nvim_buf_stats(buf: Buffer, err: &mut Error) -> Dict {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return Dict::new();
     };
 
@@ -1725,7 +1725,7 @@ fn fix_cursor_cols(
     };
     win.w_cursor.update_mut(|c| {
         fix_pos_col(
-            &win.buf_mut(),
+            &win.buf(),
             c,
             start_row,
             start_col,

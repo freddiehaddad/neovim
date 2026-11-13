@@ -236,7 +236,7 @@ pub fn encode_read_from_list(
 /// Convert `readfile()`-style list to a `Vec<u8>` buffer (`encode_vim_list_to_buf`).
 pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
     let mut len = 0usize;
-    for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
+    for li in crate::eval::typval::list_iter_ptr(tv_list_first(list)) {
         let tv = li.tv();
         if tv.v_type != VarType::VarString {
             return None;
@@ -289,7 +289,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     let Some(val_list) = val_list.opt() else {
         return true;
     };
-    for li in crate::eval::typval::list_iter_mut(val_list.first_opt()) {
+    for li in crate::eval::typval::list_iter_ptr(val_list.first_opt()) {
         if li.tv().v_type != VarType::VarString {
             return false;
         }

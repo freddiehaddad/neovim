@@ -263,7 +263,7 @@ pub fn tabstop_fromto(
     let mut tabcol: Colnr = 0;
     let mut padding: i32 = 0;
     let ts = if ts_arg == 0 {
-        curbuf_mut().b_p_ts.get() as i32
+        curbuf().b_p_ts.get() as i32
     } else {
         ts_arg
     };
@@ -344,16 +344,16 @@ pub fn get_sw_value(buf: &FileBuf) -> i32 {
 }
 
 fn get_sw_value_pos(buf: &FileBuf, pos: &CursorPos, left: bool) -> i32 {
-    let save_cursor = curwin_mut().w_cursor.get();
-    curwin_mut().w_cursor.set(*pos);
+    let save_cursor = curwin().w_cursor.get();
+    curwin().w_cursor.set(*pos);
     let sw_value = get_sw_value_col(buf, get_nolist_virtcol(), left);
-    curwin_mut().w_cursor.set(save_cursor);
+    curwin().w_cursor.set(save_cursor);
     sw_value
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
 pub fn get_sw_value_indent(buf: &FileBuf, left: bool) -> i32 {
-    let mut pos = curwin_mut().w_cursor.get();
+    let mut pos = curwin().w_cursor.get();
     pos.col = getwhitecols_curline() as Colnr;
     get_sw_value_pos(buf, &pos, left)
 }
@@ -369,17 +369,17 @@ pub fn get_sw_value_col(buf: &FileBuf, col: Colnr, left: bool) -> i32 {
 
 /// Return the effective softtabstop value for the current buffer (`get_sts_value`).
 pub fn get_sts_value() -> i32 {
-    if curbuf_mut().b_p_sts.get() < 0 {
-        get_sw_value(&curbuf_mut())
+    if curbuf().b_p_sts.get() < 0 {
+        get_sw_value(&curbuf())
     } else {
-        curbuf_mut().b_p_sts.get() as i32
+        curbuf().b_p_sts.get() as i32
     }
 }
 
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
 pub fn get_indent() -> i32 {
-    let curbuf = curbuf_mut();
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let curbuf = curbuf();
+    let lnum = curwin().w_cursor.get().lnum;
     crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
         indent_size_ts(line, curbuf.b_p_ts.get(), &curbuf.b_p_vts_array.borrow())
     })
@@ -387,7 +387,7 @@ pub fn get_indent() -> i32 {
 
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
 pub fn get_indent_lnum(lnum: Linenr) -> i32 {
-    let curbuf = curbuf_mut();
+    let curbuf = curbuf();
     crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
         indent_size_ts(line, curbuf.b_p_ts.get(), &curbuf.b_p_vts_array.borrow())
     })
@@ -492,9 +492,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     let mut p_off: usize;
     let mut line_len = get_cursor_line_len() + 1;
 
-    if !curbuf_mut().b_p_et.get() || ((flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi.get()) {
+    if !curbuf().b_p_et.get() || ((flags & SIN_INSERT) == 0 && curbuf().b_p_pi.get()) {
         let mut ind_col: i32 = 0;
-        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi.get() {
+        if (flags & SIN_INSERT) == 0 && curbuf().b_p_pi.get() {
             ind_done = 0;
 
             while todo > 0
@@ -505,8 +505,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 if oldline_bytes[p_idx] == TAB {
                     tab_pad = tabstop_padding(
                         ind_done,
-                        curbuf_mut().b_p_ts.get(),
-                        &curbuf_mut().b_p_vts_array.borrow(),
+                        curbuf().b_p_ts.get(),
+                        &curbuf().b_p_vts_array.borrow(),
                     );
                     if todo < tab_pad {
                         break;
@@ -523,13 +523,13 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             }
 
             ind_col = ind_done;
-            if curbuf_mut().b_p_et.get() {
+            if curbuf().b_p_et.get() {
                 orig_char_len = ind_len;
             }
             tab_pad = tabstop_padding(
                 ind_done,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo >= tab_pad && orig_char_len == -1 {
                 doit = true;
@@ -542,8 +542,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         loop {
             tab_pad = tabstop_padding(
                 ind_col,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo < tab_pad {
                 break;
@@ -619,8 +619,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         newline_vec = vec![0u8; newline_size];
     }
 
-    if !curbuf_mut().b_p_et.get() {
-        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi.get() {
+    if !curbuf().b_p_et.get() {
+        if (flags & SIN_INSERT) == 0 && curbuf().b_p_pi.get() {
             p_off = 0;
             ind_done = 0;
 
@@ -628,8 +628,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 if oldline_bytes[p_off] == TAB {
                     tab_pad = tabstop_padding(
                         ind_done,
-                        curbuf_mut().b_p_ts.get(),
-                        &curbuf_mut().b_p_vts_array.borrow(),
+                        curbuf().b_p_ts.get(),
+                        &curbuf().b_p_vts_array.borrow(),
                     );
                     if todo < tab_pad {
                         break;
@@ -648,8 +648,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
             tab_pad = tabstop_padding(
                 ind_done,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo >= tab_pad {
                 newline_vec[s_idx] = TAB;
@@ -663,8 +663,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         loop {
             tab_pad = tabstop_padding(
                 ind_done,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo < tab_pad {
                 break;
@@ -685,19 +685,19 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     newline_vec[s_idx..s_idx + line_usize]
         .copy_from_slice(&oldline_with_nul[p_off..p_off + line_usize]);
 
-    if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.get().lnum) {
+    if (flags & SIN_UNDO) == 0 || u_savesub(curwin().w_cursor.get().lnum) {
         let old_offset = p_off as Colnr;
         let new_offset = s_idx as Colnr;
 
         ml_replace(
-            curwin_mut().w_cursor.get().lnum,
+            curwin().w_cursor.get().lnum,
             crate::memory::bytes_until_nul(&newline_vec),
             true,
         );
         if (flags & SIN_NOMARK) == 0 {
             extmark_splice_cols(
-                &curbuf_mut(),
-                curwin_mut().w_cursor.get().lnum - 1,
+                &curbuf(),
+                curwin().w_cursor.get().lnum - 1,
                 skipcols,
                 old_offset - skipcols,
                 new_offset - skipcols,
@@ -706,10 +706,10 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         }
 
         if (flags & SIN_CHANGED) != 0 {
-            changed_bytes(curwin_mut().w_cursor.get().lnum, 0);
+            changed_bytes(curwin().w_cursor.get().lnum, 0);
         }
 
-        if g_st().saved_cursor.get().lnum == curwin_mut().w_cursor.get().lnum {
+        if g_st().saved_cursor.get().lnum == curwin().w_cursor.get().lnum {
             if g_st().saved_cursor.get().col >= old_offset {
                 {
                     let mut v = g_st().saved_cursor.get();
@@ -727,13 +727,13 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         retval = true;
     }
     drop(newline_vec);
-    curwin_mut().w_cursor.set_col(ind_len);
+    curwin().w_cursor.set_col(ind_len);
     retval
 }
 
 /// Return the indent of the current line after a number (`get_number_indent`).
 pub fn get_number_indent(lnum: Linenr) -> i32 {
-    if lnum > curbuf_mut().b_ml.ml_line_count.get() {
+    if lnum > curbuf().b_ml.ml_line_count.get() {
         return -1;
     }
 
@@ -745,14 +745,14 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     let mut lead_len: i32 = 0;
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
-        let curbuf = curbuf_mut();
+        let curbuf = curbuf();
         lead_len = crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
             get_leader_len(line, None, false, true)
         });
     }
 
     let mut regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(&curbuf_mut().b_p_flp.as_cstr(), RE_MAGIC));
+    regmatch.set_prog(vim_regcomp(&curbuf().b_p_flp.as_cstr(), RE_MAGIC));
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
@@ -770,7 +770,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     }
 
     if pos.lnum == 0
-        || crate::memline::with_ml_buf_line(&curbuf_mut(), pos.lnum, |line| {
+        || crate::memline::with_ml_buf_line(&curbuf(), pos.lnum, |line| {
             line.get(pos.col.max(0) as usize..)
                 .unwrap_or(&[])
                 .is_empty()
@@ -779,7 +779,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         return -1;
     }
     let mut col: Colnr = 0;
-    getvcol(&curwin_mut(), &mut pos, Some(&mut col), None, None, 0);
+    getvcol(&curwin(), &mut pos, Some(&mut col), None, None, 0);
     col as i32
 }
 
@@ -948,7 +948,7 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
 pub fn inindent(extra: i32) -> bool {
     let line_slice = crate::cursor::get_cursor_line_slice();
     let col = (line_slice.len() - crate::charset::skipwhite_slice(&line_slice).len()) as Colnr;
-    col >= curwin_mut().w_cursor.get().col + extra
+    col >= curwin().w_cursor.get().col + extra
 }
 
 /// Handle reindenting a block of lines (`op_reindent`).
@@ -956,15 +956,15 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
     let mut i: i32 = 0;
     let mut first_changed: Linenr = 0;
     let mut last_changed: Linenr = 0;
-    let start_lnum = curwin_mut().w_cursor.get().lnum;
+    let start_lnum = curwin().w_cursor.get().lnum;
 
-    if !modifiable(&curbuf_mut()) {
+    if !modifiable(&curbuf()) {
         emsg(gettext(E_MODIFIABLE));
         return;
     }
 
     if u_savecommon(
-        &curbuf_mut(),
+        &curbuf(),
         start_lnum - 1,
         start_lnum + oap.line_count,
         start_lnum + oap.line_count,
@@ -985,8 +985,8 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 iob[..copy_len].copy_from_slice(&bytes[..copy_len]);
                 iob[copy_len] = 0;
 
-                let save_lnum = curwin_mut().w_cursor.get().lnum;
-                curwin_mut().w_cursor.set_lnum(start_lnum);
+                let save_lnum = curwin().w_cursor.get().lnum;
+                curwin().w_cursor.set_lnum(start_lnum);
                 msg_progress(
                     Some(&mut iob),
                     c"nvim.indent",
@@ -997,7 +997,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                     false,
                     false,
                 );
-                curwin_mut().w_cursor.set_lnum(save_lnum);
+                curwin().w_cursor.set_lnum(save_lnum);
             }
 
             if i != oap.line_count - 1
@@ -1009,23 +1009,23 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let amount = if rem.is_empty() { 0 } else { how() };
                 if amount >= 0 && set_indent(amount, 0) {
                     if first_changed == 0 {
-                        first_changed = curwin_mut().w_cursor.get().lnum;
+                        first_changed = curwin().w_cursor.get().lnum;
                     }
-                    last_changed = curwin_mut().w_cursor.get().lnum;
+                    last_changed = curwin().w_cursor.get().lnum;
                 }
             }
-            curwin_mut().w_cursor.add_lnum(1);
-            curwin_mut().w_cursor.set_col(0);
+            curwin().w_cursor.add_lnum(1);
+            curwin().w_cursor.set_col(0);
             i -= 1;
         }
     }
 
-    curwin_mut().w_cursor.set_lnum(start_lnum);
+    curwin().w_cursor.set_lnum(start_lnum);
     beginline(BL_SOL | BL_FIX);
 
     if last_changed != 0 {
         changed_lines(
-            &curbuf_mut(),
+            &curbuf(),
             first_changed,
             0,
             if oap.is_visual {
@@ -1062,24 +1062,24 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         );
     }
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_start.set(oap.start);
-        curbuf_mut().b_op_end.set(oap.end);
+        curbuf().b_op_start.set(oap.start);
+        curbuf().b_op_end.set(oap.end);
     }
 }
 
 /// Return true if lines starting with `#` should be left aligned (`preprocs_left`).
 pub fn preprocs_left() -> bool {
-    (curbuf_mut().b_p_si.get() && !curbuf_mut().b_p_cin.get())
-        || (curbuf_mut().b_p_cin.get()
+    (curbuf().b_p_si.get() && !curbuf().b_p_cin.get())
+        || (curbuf().b_p_cin.get()
             && in_cinkeys(b'#' as i32, b' ' as i32, true)
-            && curbuf_mut().b_ind_hash_comment.get() == 0)
+            && curbuf().b_ind_hash_comment.get() == 0)
 }
 
 /// Return true if the conditions are OK for smart indenting (`may_do_si`).
 pub fn may_do_si() -> bool {
-    curbuf_mut().b_p_si.get()
-        && !curbuf_mut().b_p_cin.get()
-        && curbuf_mut().b_p_inde.cb_type() == K_CALLBACK_NONE_CONST
+    curbuf().b_p_si.get()
+        && !curbuf().b_p_cin.get()
+        && curbuf().b_p_inde.cb_type() == K_CALLBACK_NONE_CONST
         && !opt_vars().p_paste.get()
 }
 
@@ -1095,7 +1095,7 @@ pub fn ins_try_si(c: i32) {
             None
         };
         if let Some(pos) = pos {
-            let old_pos = curwin_mut().w_cursor.get();
+            let old_pos = curwin().w_cursor.get();
             let ptr_bytes = crate::memline::ml_get_slice(pos.lnum);
             let mut i = pos.col;
             if i > 0 {
@@ -1104,31 +1104,31 @@ pub fn ins_try_si(c: i32) {
                     i > 0 && ptr_bytes.get(i as usize).is_some_and(|&b| ascii_iswhite(b))
                 } {}
             }
-            curwin_mut().w_cursor.set_lnum(pos.lnum);
-            curwin_mut().w_cursor.set_col(i);
+            curwin().w_cursor.set_lnum(pos.lnum);
+            curwin().w_cursor.set_col(i);
             if ptr_bytes.get(i as usize) == Some(&b')')
                 && let Some(p2) = findmatch(None, b'(' as i32)
             {
-                curwin_mut().w_cursor.set(p2);
+                curwin().w_cursor.set(p2);
             }
             let ind = get_indent();
-            curwin_mut().w_cursor.set(old_pos);
+            curwin().w_cursor.set(old_pos);
             if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
                 change_indent(INDENT_SET, ind, 0, true);
             } else {
                 set_indent(ind, SIN_CHANGED);
             }
-        } else if curwin_mut().w_cursor.get().col > 0 {
+        } else if curwin().w_cursor.get().col > 0 {
             let mut temp = true;
             if c == b'{' as i32
                 && g_st().ins_global.borrow().can_si_back
-                && curwin_mut().w_cursor.get().lnum > 1
+                && curwin().w_cursor.get().lnum > 1
             {
-                let old_pos = curwin_mut().w_cursor.get();
+                let old_pos = curwin().w_cursor.get();
                 let i = get_indent();
-                while curwin_mut().w_cursor.get().lnum > 1 {
-                    curwin_mut().w_cursor.sub_lnum(1);
-                    let cur_line = crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum);
+                while curwin().w_cursor.get().lnum > 1 {
+                    curwin().w_cursor.sub_lnum(1);
+                    let cur_line = crate::memline::ml_get_slice(curwin().w_cursor.get().lnum);
                     let rem = crate::charset::skipwhite_slice(&cur_line);
                     if !rem.is_empty() && rem[0] != b'#' {
                         break;
@@ -1137,7 +1137,7 @@ pub fn ins_try_si(c: i32) {
                 if get_indent() >= i {
                     temp = false;
                 }
-                curwin_mut().w_cursor.set(old_pos);
+                curwin().w_cursor.set(old_pos);
             }
             if temp {
                 shift_line(true, false, 1, 1);
@@ -1145,7 +1145,7 @@ pub fn ins_try_si(c: i32) {
         }
     }
 
-    if curwin_mut().w_cursor.get().col > 0
+    if curwin().w_cursor.get().col > 0
         && g_st().ins_global.borrow().can_si
         && c == b'#' as i32
         && inindent(0)
@@ -1158,7 +1158,7 @@ pub fn ins_try_si(c: i32) {
         .ins_global
         .borrow()
         .ai_col
-        .min(curwin_mut().w_cursor.get().col);
+        .min(curwin().w_cursor.get().col);
     g_st().ins_global.borrow_mut().ai_col = ai_col;
 }
 
@@ -1170,21 +1170,21 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
         orig_line = get_cursor_line_slice().to_vec();
         orig_line.push(0);
-        orig_col = curwin_mut().w_cursor.get().col;
+        orig_col = curwin().w_cursor.get().col;
     }
 
-    let save_p_list = curwin_mut().w_onebuf_opt.wo_list.get();
-    curwin_mut().w_onebuf_opt.wo_list.set(false);
-    let vc = curwin_mut().w_cursor.update_mut(getvcol_nolist);
+    let save_p_list = curwin().w_onebuf_opt.wo_list.get();
+    curwin().w_onebuf_opt.wo_list.set(false);
+    let vc = curwin().w_cursor.update_mut(getvcol_nolist);
     let mut vcol: i32 = vc;
 
-    let mut start_col: i32 = curwin_mut().w_cursor.get().col;
+    let mut start_col: i32 = curwin().w_cursor.get().col;
 
-    let mut new_cursor_col: i32 = curwin_mut().w_cursor.get().col;
+    let mut new_cursor_col: i32 = curwin().w_cursor.get().col;
     beginline(BL_WHITE);
-    new_cursor_col -= curwin_mut().w_cursor.get().col;
+    new_cursor_col -= curwin().w_cursor.get().col;
 
-    let mut insstart_less: i32 = curwin_mut().w_cursor.get().col;
+    let mut insstart_less: i32 = curwin().w_cursor.get().col;
 
     if new_cursor_col < 0 {
         vcol = get_indent() - vcol;
@@ -1209,25 +1209,25 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         );
         g_st().state_global.set(save_state);
     }
-    insstart_less -= curwin_mut().w_cursor.get().col;
+    insstart_less -= curwin().w_cursor.get().col;
 
     if new_cursor_col >= 0 {
         if new_cursor_col == 0 {
             insstart_less = MAXCOL;
         }
-        new_cursor_col += curwin_mut().w_cursor.get().col;
+        new_cursor_col += curwin().w_cursor.get().col;
     } else if (g_st().state_global.get() & MODE_INSERT) == 0 {
-        new_cursor_col = curwin_mut().w_cursor.get().col;
+        new_cursor_col = curwin().w_cursor.get().col;
     } else {
         vcol = get_indent() - vcol;
         let end_vcol: Colnr = vcol.max(0);
-        curwin_mut().w_virtcol.set(end_vcol);
+        curwin().w_virtcol.set(end_vcol);
 
         new_cursor_col = 0;
         let line_cstr = get_cursor_line_ptr();
         vcol = 0;
         if !line_cstr.to_bytes().is_empty() {
-            let wp = curwin_mut();
+            let wp = curwin();
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg, &wp, 0, &line_cstr);
             let mut ci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
@@ -1248,9 +1248,9 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             new_cursor_col = ci.offset_from(&line_cstr) as i32;
         }
 
-        if vcol != curwin_mut().w_virtcol.get() {
-            curwin_mut().w_cursor.set_col(new_cursor_col);
-            let ptrlen = (curwin_mut().w_virtcol.get() - vcol) as usize;
+        if vcol != curwin().w_virtcol.get() {
+            curwin().w_cursor.set_col(new_cursor_col);
+            let ptrlen = (curwin().w_virtcol.get() - vcol) as usize;
             let mut ptr_vec = vec![b' '; ptrlen + 1];
             ptr_vec[ptrlen] = 0;
             new_cursor_col += ptrlen as i32;
@@ -1260,13 +1260,13 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         insstart_less = MAXCOL;
     }
 
-    curwin_mut().w_onebuf_opt.wo_list.set(save_p_list);
-    curwin_mut().w_cursor.set_col(new_cursor_col.max(0));
-    curwin_mut().w_set_curswant.set(true);
-    changed_cline_bef_curs(&curwin_mut());
+    curwin().w_onebuf_opt.wo_list.set(save_p_list);
+    curwin().w_cursor.set_col(new_cursor_col.max(0));
+    curwin().w_set_curswant.set(true);
+    changed_cline_bef_curs(&curwin());
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 {
-        if curwin_mut().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
+        if curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
             && g_st().ins_global.borrow().start.col != 0
         {
             if g_st().ins_global.borrow().start.col <= insstart_less {
@@ -1283,27 +1283,27 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     }
 
     if replace_normal(g_st().state_global.get()) && start_col >= 0 {
-        while start_col > curwin_mut().w_cursor.get().col {
+        while start_col > curwin().w_cursor.get().col {
             replace_join(0);
             start_col -= 1;
         }
-        while start_col < curwin_mut().w_cursor.get().col {
+        while start_col < curwin().w_cursor.get().col {
             replace_push_nul();
             start_col += 1;
         }
     }
 
     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-        let new_col = curwin_mut().w_cursor.get().col;
+        let new_col = curwin().w_cursor.get().col;
         let mut new_line = get_cursor_line_slice()[..new_col as usize].to_vec();
         new_line.push(0);
 
         ml_replace(
-            curwin_mut().w_cursor.get().lnum,
+            curwin().w_cursor.get().lnum,
             crate::memory::bytes_until_nul(&orig_line),
             true,
         );
-        curwin_mut().w_cursor.set_col(orig_col);
+        curwin().w_cursor.set_col(orig_col);
 
         g_st()
             .curbuf_splice_pending
@@ -1318,8 +1318,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
         let delta = orig_col - new_col;
         extmark_splice_cols(
-            &curbuf_mut(),
-            curwin_mut().w_cursor.get().lnum - 1,
+            &curbuf(),
+            curwin().w_cursor.get().lnum - 1,
             new_col,
             if delta < 0 { -delta } else { 0 },
             if delta > 0 { delta } else { 0 },
@@ -1343,8 +1343,8 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
         if b == TAB {
             tab_pad = tabstop_padding(
                 ind_done,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo < tab_pad {
                 break;
@@ -1362,21 +1362,21 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
 
     tab_pad = tabstop_padding(
         ind_done,
-        curbuf_mut().b_p_ts.get(),
-        &curbuf_mut().b_p_vts_array.borrow(),
+        curbuf().b_p_ts.get(),
+        &curbuf().b_p_vts_array.borrow(),
     );
-    if todo >= tab_pad && !curbuf_mut().b_p_et.get() {
+    if todo >= tab_pad && !curbuf().b_p_et.get() {
         todo -= tab_pad;
         ind_col += tab_pad;
         line_vec.push(TAB);
     }
 
-    if !curbuf_mut().b_p_et.get() {
+    if !curbuf().b_p_et.get() {
         loop {
             tab_pad = tabstop_padding(
                 ind_col,
-                curbuf_mut().b_p_ts.get(),
-                &curbuf_mut().b_p_vts_array.borrow(),
+                curbuf().b_p_ts.get(),
+                &curbuf().b_p_vts_array.borrow(),
             );
             if todo < tab_pad {
                 break;
@@ -1396,12 +1396,12 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
     line_vec.push(0);
 
     ml_replace(
-        curwin_mut().w_cursor.get().lnum,
+        curwin().w_cursor.get().lnum,
         crate::memory::bytes_until_nul(&line_vec),
         true,
     );
     drop(line_vec);
-    curwin_mut().w_cursor.set_col(ind_len);
+    curwin().w_cursor.set_col(ind_len);
     true
 }
 
@@ -1444,14 +1444,14 @@ pub fn ex_retab(eap: &mut Exarg) {
         .count();
 
     let new_ts_str = if new_vts_array.is_empty() {
-        new_vts_array = curbuf_mut().b_p_vts_array.borrow().clone();
+        new_vts_array = curbuf().b_p_vts_array.borrow().clone();
         None
     } else {
         Some(std::ffi::CString::new(&ts_start[..ts_len]).unwrap_or_default())
     };
 
-    let save_list = curwin_mut().w_onebuf_opt.wo_list.get();
-    curwin_mut().w_onebuf_opt.wo_list.set(false);
+    let save_list = curwin().w_onebuf_opt.wo_list.get();
+    curwin().w_onebuf_opt.wo_list.set(false);
 
     let mut lnum = eap.line1;
     while !g_st().got_int.get() && lnum <= eap.line2 {
@@ -1478,13 +1478,13 @@ pub fn ex_retab(eap: &mut Exarg) {
                     num_spaces = (vcol - start_vcol) as i32;
                     let mut len = num_spaces;
                     let mut num_tabs: i32 = 0;
-                    if !curbuf_mut().b_p_et.get() {
+                    if !curbuf().b_p_et.get() {
                         let mut t: i32 = 0;
                         let mut s: i32 = 0;
                         tabstop_fromto(
                             start_vcol as Colnr,
                             vcol as Colnr,
-                            curbuf_mut().b_p_ts.get() as i32,
+                            curbuf().b_p_ts.get() as i32,
                             &new_vts_array,
                             &mut t,
                             &mut s,
@@ -1492,7 +1492,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         num_tabs = t;
                         num_spaces = s;
                     }
-                    if curbuf_mut().b_p_et.get() || got_tab || (num_spaces + num_tabs < len) {
+                    if curbuf().b_p_et.get() || got_tab || (num_spaces + num_tabs < len) {
                         if !did_undo {
                             did_undo = true;
                             if !u_save(lnum - 1, lnum + 1) {
@@ -1521,9 +1521,9 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
 
                         if ml_replace(lnum, &new_line_vec[..(new_len - 1) as usize], true) {
-                            ptr_slice = curbuf_mut().b_ml.current_line_slice();
+                            ptr_slice = curbuf().b_ml.current_line_slice();
                             extmark_splice_cols(
-                                &curbuf_mut(),
+                                &curbuf(),
                                 lnum - 1,
                                 0,
                                 old_len,
@@ -1552,7 +1552,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             if rem_slice.is_empty() {
                 break;
             }
-            vcol += i64::from(win_chartabsize(&curwin_mut(), rem_slice, vcol as Colnr));
+            vcol += i64::from(win_chartabsize(&curwin(), rem_slice, vcol as Colnr));
             if vcol >= i64::from(MAXCOL) {
                 emsg_text_too_long();
                 break;
@@ -1570,18 +1570,17 @@ pub fn ex_retab(eap: &mut Exarg) {
     }
 
     if first_line != 0 {
-        changed_lines(&curbuf_mut(), first_line, 0, last_line + 1, 0, true);
+        changed_lines(&curbuf(), first_line, 0, last_line + 1, 0, true);
     }
 
-    curwin_mut().w_onebuf_opt.wo_list.set(save_list);
-    u_clearline(&curbuf_mut());
+    curwin().w_onebuf_opt.wo_list.set(save_list);
+    u_clearline(&curbuf());
 
     if let Some(ref ts_cstr) = new_ts_str {
-        let win_handle: ObjHandle = curwin_mut().handle;
-        let buf_handle: ObjHandle = curbuf_mut().b_fnum.get();
+        let win_handle: ObjHandle = curwin().handle;
+        let buf_handle: ObjHandle = curbuf().b_fnum.get();
 
-        if tabstop_count(&curbuf_mut().b_p_vts_array.borrow()) > 0
-            || tabstop_count(&new_vts_array) > 1
+        if tabstop_count(&curbuf().b_p_vts_array.borrow()) > 0 || tabstop_count(&new_vts_array) > 1
         {
             set_option_value(
                 K_OPT_VARTABSTOP,
@@ -1599,43 +1598,40 @@ pub fn ex_retab(eap: &mut Exarg) {
                 None,
             );
         }
-        if curwin_mut().handle != win_handle || curbuf_mut().b_fnum.get() != buf_handle {
+        if curwin().handle != win_handle || curbuf().b_fnum.get() != buf_handle {
             return;
         }
     }
-    coladvance(&curwin_mut(), curwin_mut().w_curswant.get());
+    coladvance(&curwin(), curwin().w_curswant.get());
 }
 
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
 pub fn get_expr_indent() -> i32 {
-    let use_sandbox = was_set_insecurely(
-        Some(&crate::globals::curwin_mut()),
-        K_OPT_INDENTEXPR,
-        OPT_LOCAL,
-    ) != 0;
+    let use_sandbox =
+        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_INDENTEXPR, OPT_LOCAL) != 0;
     let save_sctx = g_st().current_sctx.get();
 
-    let save_pos = curwin_mut().w_cursor.get();
-    let save_curswant = curwin_mut().w_curswant.get();
-    let save_set_curswant = curwin_mut().w_set_curswant.get();
-    set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.get().lnum));
+    let save_pos = curwin().w_cursor.get();
+    let save_curswant = curwin().w_curswant.get();
+    let save_set_curswant = curwin().w_set_curswant.get();
+    set_vim_var_nr(VV_LNUM, i64::from(curwin().w_cursor.get().lnum));
 
     g_st().textlock.set(g_st().textlock.get() + (1));
     g_st()
         .current_sctx
-        .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_INDENTEXPR].get());
+        .set(curbuf().b_p_script_ctx[K_BUF_OPT_INDENTEXPR].get());
 
-    let mut indent = eval_expr_option_number(&curbuf_mut().b_p_inde, use_sandbox);
+    let mut indent = eval_expr_option_number(&curbuf().b_p_inde, use_sandbox);
 
     g_st().textlock.set(g_st().textlock.get() - (1));
     g_st().current_sctx.set(save_sctx);
 
     let save_state = g_st().state_global.get();
     g_st().state_global.set(MODE_INSERT);
-    curwin_mut().w_cursor.set(save_pos);
-    curwin_mut().w_curswant.set(save_curswant);
-    curwin_mut().w_set_curswant.set(save_set_curswant);
-    check_cursor(&curwin_mut());
+    curwin().w_cursor.set(save_pos);
+    curwin().w_curswant.set(save_curswant);
+    curwin().w_set_curswant.set(save_set_curswant);
+    check_cursor(&curwin());
     g_st().state_global.set(save_state);
 
     if g_st().did_throw.get()
@@ -1657,8 +1653,8 @@ pub fn get_expr_indent() -> i32 {
 pub fn get_lisp_indent() -> i32 {
     let mut amount: i32;
 
-    let realpos = curwin_mut().w_cursor.get();
-    curwin_mut().w_cursor.set_col(0);
+    let realpos = curwin().w_cursor.get();
+    curwin().w_cursor.set_col(0);
 
     let mut pos = findmatch(None, b'(' as i32);
     if let Some(paren) = pos {
@@ -1675,10 +1671,10 @@ pub fn get_lisp_indent() -> i32 {
         let mut parencount: i32 = 0;
 
         while {
-            curwin_mut().w_cursor.sub_lnum(1);
-            curwin_mut().w_cursor.get().lnum >= pos.lnum
+            curwin().w_cursor.sub_lnum(1);
+            curwin().w_cursor.get().lnum >= pos.lnum
         } {
-            if linewhite(curwin_mut().w_cursor.get().lnum) {
+            if linewhite(curwin().w_cursor.get().lnum) {
                 continue;
             }
 
@@ -1730,12 +1726,12 @@ pub fn get_lisp_indent() -> i32 {
         }
 
         if amount == -1 {
-            curwin_mut().w_cursor.set_lnum(pos.lnum);
-            curwin_mut().w_cursor.set_col(pos.col);
+            curwin().w_cursor.set_lnum(pos.lnum);
+            curwin().w_cursor.set_col(pos.col);
             let mut col = pos.col;
 
             let line_cstr = get_cursor_line_ptr();
-            let wp = curwin_mut();
+            let wp = curwin();
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg, &wp, pos.lnum, &line_cstr);
 
@@ -1862,15 +1858,15 @@ pub fn get_lisp_indent() -> i32 {
     } else {
         amount = 0;
     }
-    curwin_mut().w_cursor.set(realpos);
+    curwin().w_cursor.set(realpos);
 
     amount
 }
 
 fn lisp_match(p_bytes: &[u8]) -> bool {
     let mut buf = [0u8; 512];
-    let lw_owned = if !curbuf_mut().b_p_lw.is_empty() {
-        curbuf_mut().b_p_lw.to_owned()
+    let lw_owned = if !curbuf().b_p_lw.is_empty() {
+        curbuf().b_p_lw.to_owned()
     } else {
         opt_vars().p_lispwords.to_owned()
     };
@@ -1895,16 +1891,16 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
     }
 
     change_indent(INDENT_SET, amount, 0, true);
-    if linewhite(curwin_mut().w_cursor.get().lnum) {
+    if linewhite(curwin().w_cursor.get().lnum) {
         g_st().ins_global.borrow_mut().did_ai = true;
     }
 }
 
 /// Return true if `'indentexpr'` should be used for Lisp indenting (`use_indentexpr_for_lisp`).
 pub fn use_indentexpr_for_lisp() -> bool {
-    curbuf_mut().b_p_lisp.get()
-        && curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST
-        && (curbuf_mut().b_p_lop.as_bytes() == b"expr:1")
+    curbuf().b_p_lisp.get()
+        && curbuf().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST
+        && (curbuf().b_p_lop.as_bytes() == b"expr:1")
 }
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
@@ -1912,7 +1908,7 @@ pub fn fix_indent() {
     if opt_vars().p_paste.get() {
         return;
     }
-    if curbuf_mut().b_p_lisp.get() && curbuf_mut().b_p_ai.get() {
+    if curbuf().b_p_lisp.get() && curbuf().b_p_ai.get() {
         if use_indentexpr_for_lisp() {
             do_c_expr_indent();
         } else {
@@ -1926,7 +1922,7 @@ pub fn fix_indent() {
 /// `indent()` function (`f_indent`).
 pub fn f_indent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
+    if lnum >= 1 && lnum <= curbuf().b_ml.ml_line_count.get() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_indent_lnum(lnum)));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1935,12 +1931,12 @@ pub fn f_indent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// `lispindent(lnum)` function (`f_lispindent`).
 pub fn f_lispindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let pos = curwin_mut().w_cursor.get();
+    let pos = curwin().w_cursor.get();
     let lnum = tv_get_lnum(&argvars[0]);
-    if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count.get() {
-        curwin_mut().w_cursor.set_lnum(lnum);
+    if lnum >= 1 && lnum <= curbuf().b_ml.ml_line_count.get() {
+        curwin().w_cursor.set_lnum(lnum);
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(get_lisp_indent()));
-        curwin_mut().w_cursor.set(pos);
+        curwin().w_cursor.set(pos);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     }

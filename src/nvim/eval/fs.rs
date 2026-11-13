@@ -503,11 +503,11 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             semsg!(gettext(E_INVARG_NVAL), c"scope", s);
             return;
         }
-    } else if curbuf_mut().b_localdir.get().is_some() {
+    } else if curbuf().b_localdir.get().is_some() {
         scope = K_CD_SCOPE_BUFFER;
-    } else if curwin_mut().w_localdir.get().is_some() {
+    } else if curwin().w_localdir.get().is_some() {
         scope = K_CD_SCOPE_WINDOW;
-    } else if curtab_mut().tp_localdir.get().is_some() {
+    } else if curtab().tp_localdir.get().is_some() {
         scope = K_CD_SCOPE_TABPAGE;
     }
 
@@ -644,10 +644,10 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileWhat) {
     let mut fresult: Option<std::ffi::CString> = None;
-    let path_owned = if curbuf_mut().b_p_path.is_empty() {
+    let path_owned = if curbuf().b_p_path.is_empty() {
         opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.to_owned()
+        curbuf().b_p_path.to_owned()
     };
     let mut path = path_owned.as_c_str();
     let mut count: i32 = 1;
@@ -683,14 +683,14 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileW
         let mut search_ctx: Option<FfSearchCtx> = None;
 
         loop {
-            let sua_rc = curbuf_mut().b_p_sua.as_cstr();
+            let sua_rc = curbuf().b_p_sua.as_cstr();
             fresult = find_file_in_path_option(
                 if first { fname.to_bytes() } else { &[] },
                 0,
                 first,
                 path,
                 find_what,
-                curbuf_mut().ffname_opt().as_deref(),
+                curbuf().ffname_opt().as_deref(),
                 if find_what == FindFileWhat::Dir {
                     c""
                 } else {
@@ -790,9 +790,9 @@ fn getcwd_scope_args(
     let mut argc: usize = 0;
 
     *scope = default_scope;
-    *win = Some(curwin_mut());
-    *tp = Some(curtab_mut());
-    *buf = Some(curbuf_mut());
+    *win = Some(curwin());
+    *tp = Some(curtab());
+    *buf = Some(curbuf());
 
     while argc < 3 {
         // If there is no argument there are no more scopes after it, break out.
@@ -1986,7 +1986,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     if argvars[0].v_type == VarType::VarList {
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
+        for li in crate::eval::typval::list_iter_ptr(tv_list_first(argvars[0].vval.v_list_opt())) {
             if !tv_check_str_or_nr(&li.tv()) {
                 return;
             }

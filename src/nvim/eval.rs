@@ -329,7 +329,7 @@ impl Drop for VimTimer {
         if crate::globals::g_st().exiting.get() {
             return;
         }
-        if let Some(events) = self.watcher.get_mut().events.opt_mut() {
+        if let Some(events) = self.watcher.get_mut().events.opt() {
             multiqueue_free(events);
         }
         callback_free(&self.callback);
@@ -838,7 +838,7 @@ pub fn call_vim_function(
     }
 
     rettv.v_type = VarType::VarUnknown;
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -2009,7 +2009,7 @@ fn eval_func(
 
     let s_cstr = bytes_to_cstring(&deref_bytes[..(len as usize).min(deref_bytes.len())]);
 
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -2980,7 +2980,7 @@ fn call_func_rettv(
         funcname = c"";
     }
 
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -4110,7 +4110,7 @@ pub fn garbage_collect(testing: bool) -> bool {
     abort = abort || garbage_collect_scriptvars(copy_id);
 
     {
-        for buf in for_all_buffers_mut() {
+        for buf in for_all_buffers_ptr() {
             let mut b_tv = buf.b_bufvar.tv().clone();
             abort = abort || set_ref_in_item(&mut b_tv, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_prompt_callback, copy_id, None, None);
@@ -4136,14 +4136,14 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&tp) {
+            for wp in for_all_windows_in_tab_ptr(&tp) {
                 let mut w_tv = wp.w_winvar.tv().clone();
                 abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
             }
         }
 
         for cw in &*g_st().ctx_win_vec.borrow() {
-            if let Some(cw_win) = cw.cw_win.opt_mut() {
+            if let Some(cw_win) = cw.cw_win.opt() {
                 let mut w_tv = cw_win.w_winvar.tv().clone();
                 abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
             }
@@ -4151,7 +4151,7 @@ pub fn garbage_collect(testing: bool) -> bool {
     }
 
     {
-        for tp in for_all_tabpages_mut() {
+        for tp in for_all_tabpages_ptr() {
             let mut tp_tv = tp.tp_winvar.get().tv().clone();
             abort = abort || set_ref_in_item(&mut tp_tv, copy_id, None, None);
         }
@@ -4294,7 +4294,7 @@ pub fn set_ref_in_list_items(
     let mut cur_l = crate::eval::typval::ListId::from(l);
     loop {
         if let Some(cur_l_ref) = cur_l.opt() {
-            for li in crate::eval::typval::list_iter_mut(cur_l_ref.first_opt()) {
+            for li in crate::eval::typval::list_iter_ptr(cur_l_ref.first_opt()) {
                 if abort {
                     break;
                 }
@@ -4703,7 +4703,7 @@ pub fn tv_to_argv(
     let exe_cstr = exe_resolved.unwrap();
 
     let mut argv = Vec::with_capacity(argc as usize);
-    for (i, arg) in crate::eval::typval::list_iter_mut(argl.first_opt()).enumerate() {
+    for (i, arg) in crate::eval::typval::list_iter_ptr(argl.first_opt()).enumerate() {
         let Some(a) = tv_get_string_chk(&arg.tv()).map(std::borrow::Cow::into_owned) else {
             return Vec::new();
         };
@@ -4959,7 +4959,7 @@ pub fn callback_call(
         }
     }
 
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -5214,7 +5214,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     };
     let sep_len = if crlf { 2usize } else { 1usize };
     let mut total_len: usize = 0;
-    for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
+    for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
         total_len += tv_get_string(&li.tv()).to_bytes().len() + sep_len;
     }
 
@@ -5223,7 +5223,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     }
 
     let mut ret = Vec::with_capacity(total_len);
-    for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
+    for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
         {
             let li_tv = li.tv();
             let s = tv_get_string(&li_tv);
@@ -5338,9 +5338,9 @@ pub fn var2fpos(
             return None;
         }
         let len = if charcol {
-            mb_charlen(&crate::memline::ml_get_buf_slice(bp.borrow_mut(), pos.lnum))
+            mb_charlen(&crate::memline::ml_get_buf_slice(bp.borrow(), pos.lnum))
         } else {
-            ml_get_buf_len(bp.borrow_mut(), pos.lnum)
+            ml_get_buf_len(bp.borrow(), pos.lnum)
         };
 
         if let Some(li) = tv_list_find(l.opt(), 1)
@@ -5391,7 +5391,7 @@ pub fn var2fpos(
     } else if name_bytes.first() == Some(&b'\'') {
         let mname_b = name_bytes.get(1).copied().unwrap_or(0);
         let mname = i32::from(mname_b);
-        let fm = mark_get(bp.borrow_mut(), wp, None, K_MARK_ALL, mname)?;
+        let fm = mark_get(bp.borrow(), wp, None, K_MARK_ALL, mname)?;
         if fm.mark.lnum <= 0 {
             return None;
         }
@@ -5404,7 +5404,7 @@ pub fn var2fpos(
     }
     if pos.lnum != 0 {
         if charcol {
-            pos.col = buf_byteidx_to_charidx(bp.opt_mut(), pos.lnum, pos.col);
+            pos.col = buf_byteidx_to_charidx(bp.opt(), pos.lnum, pos.col);
         }
         return Some(pos);
     }
@@ -5440,11 +5440,11 @@ pub fn var2fpos(
             pos.lnum = wp.w_cursor.get().lnum;
             pos.col = if charcol {
                 mb_charlen(&crate::memline::ml_get_buf_slice(
-                    bp.borrow_mut(),
+                    bp.borrow(),
                     wp.w_cursor.get().lnum,
                 ))
             } else {
-                ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.get().lnum)
+                ml_get_buf_len(bp.borrow(), wp.w_cursor.get().lnum)
             };
         }
         return Some(pos);
@@ -5481,7 +5481,7 @@ pub fn list2fpos(
             return false;
         }
         if n == 0 {
-            n = curbuf_mut().b_fnum.get();
+            n = curbuf().b_fnum.get();
         }
         *fnump.as_deref_mut().unwrap() = n;
     }
@@ -5504,14 +5504,14 @@ pub fn list2fpos(
         let Some(buf) = buflist_findnr(if let Some(fnump) = fnump {
             *fnump
         } else {
-            curbuf_mut().b_fnum.get()
+            curbuf().b_fnum.get()
         }) else {
             return false;
         };
         if buf.b_ml.ml_mfp.borrow().is_none() {
             return false;
         }
-        let cur_lnum = curwin_mut().w_cursor.get().lnum;
+        let cur_lnum = curwin().w_cursor.get().lnum;
 
         n = buf_charidx_to_byteidx(
             Some(&buf),
@@ -6608,7 +6608,7 @@ pub fn eval_call_provider(
     let mut rettv = tv_initial_value();
     tv_list_ref(Some(arguments));
 
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,
@@ -6954,12 +6954,12 @@ impl Lval {
     }
 
     #[inline]
-    pub fn li_mut(&self) -> &Listitem {
+    pub fn li(&self) -> &Listitem {
         &self.ll_li
     }
 
     #[inline]
-    pub fn di_mut(&self) -> &Dictitem {
+    pub fn di(&self) -> &Dictitem {
         &self.ll_di
     }
 }

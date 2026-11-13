@@ -227,7 +227,7 @@ pub fn free_all_mem() {
 
         opt_vars().p_ea.set(false);
         if !g_st().first_tabpage.get().is_null()
-            && !crate::globals::first_tabpage_mut().tp_next.get().is_null()
+            && !crate::globals::first_tabpage().tp_next.get().is_null()
         {
             do_cmdline_cmd(c"tabonly!");
         }
@@ -240,8 +240,8 @@ pub fn free_all_mem() {
             do_cmdline_cmd(c"tlunmenu *");
             do_cmdline_cmd(c"menutranslate clear");
 
-            map_clear_mode(&curbuf_mut(), MAP_ALL_MODES, false, false);
-            map_clear_mode(&curbuf_mut(), MAP_ALL_MODES, false, true);
+            map_clear_mode(&curbuf(), MAP_ALL_MODES, false, false);
+            map_clear_mode(&curbuf(), MAP_ALL_MODES, false, true);
             do_cmdline_cmd(c"breakdel *");
             do_cmdline_cmd(c"profdel *");
             do_cmdline_cmd(c"set keymap=");
@@ -266,7 +266,7 @@ pub fn free_all_mem() {
         free_signs();
         set_expr_line(None);
         if !g_st().curtab.get().is_null() {
-            diff_clear(&curtab_mut());
+            diff_clear(&curtab());
         }
         clear_sb_text(true);
 
@@ -294,12 +294,12 @@ pub fn free_all_mem() {
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
-            set_bufref(&mut bufref, buf.opt_mut());
+            set_bufref(&mut bufref, buf.opt());
             let nextbuf = buf.b_next.get();
             buf.b_nwindows.set(0);
 
-            buf_free_callbacks(buf.borrow_mut());
-            close_buffer(None, buf.opt_mut(), DOBUF_WIPE, false, false, false);
+            buf_free_callbacks(buf.borrow());
+            close_buffer(None, buf.opt(), DOBUF_WIPE, false, false, false);
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {

@@ -332,7 +332,7 @@ pub fn nvim_open_win(
     config: &mut KeyDict_win_config,
     err: &mut Error,
 ) -> Window {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return 0;
     };
 
@@ -413,7 +413,7 @@ pub fn nvim_open_win(
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     let result = ctx_switch(
                         &mut switchwin,
-                        parent.opt_mut(),
+                        parent.opt(),
                         tp.opt(),
                         None,
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -427,14 +427,14 @@ pub fn nvim_open_win(
                 *wp.w_config.borrow_mut() = fconfig.clone();
                 if size > 0 {
                     if (flags & WSP_VERT) != 0 && wp.w_width.get() != size {
-                        win_setwidth_win(size, wp.borrow_mut(), true);
+                        win_setwidth_win(size, wp.borrow(), true);
                     } else if (flags & WSP_VERT) == 0 && wp.w_height.get() != size {
-                        win_setheight_win(size, wp.borrow_mut(), true);
+                        win_setheight_win(size, wp.borrow(), true);
                     }
                 }
             }
         } else {
-            if curwin_mut().buf_mut().b_locked_split.get() != 0 {
+            if curwin().buf().b_locked_split.get() != 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -467,20 +467,14 @@ pub fn nvim_open_win(
         set_bufref(&mut bufref, Some(&b));
         if !fconfig.noautocmd {
             let mut switchwin: CtxSwitch = CtxSwitch::new();
-            let result = ctx_switch(
-                &mut switchwin,
-                wp.opt_mut(),
-                tp.opt(),
-                None,
-                K_CTX_NO_DISPLAY,
-            );
+            let result = ctx_switch(&mut switchwin, wp.opt(), tp.opt(), None, K_CTX_NO_DISPLAY);
             assert!(result);
             if apply_autocmds_win(
                 EVENT_WINNEW,
                 None,
                 None,
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
                 wp.opt(),
             ) {
                 tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
@@ -488,7 +482,7 @@ pub fn nvim_open_win(
             ctx_restore(&mut switchwin);
         }
         if !tp.is_null() && enter {
-            goto_tabpage_win(tp.borrow(), wp.borrow_mut());
+            goto_tabpage_win(tp.borrow(), wp.borrow());
             tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
         }
         if !tp.is_null() && bufref_valid(Some(&bufref)) && b != wp.w_buffer.get() {
@@ -501,7 +495,7 @@ pub fn nvim_open_win(
                     .autocmd_no_leave
                     .set(g_st().autocmd_no_leave.get() + (1));
             }
-            win_set_buf(wp.borrow_mut(), &b, err);
+            win_set_buf(wp.borrow(), &b, err);
             if !fconfig.noautocmd {
                 tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
             }
@@ -525,9 +519,9 @@ pub fn nvim_open_win(
         }
 
         if fconfig.style == K_WIN_STYLE_MINIMAL {
-            win_set_minimal_style(wp.borrow_mut());
-            didset_window_options(wp.borrow_mut(), true);
-            changed_window_setting(wp.borrow_mut());
+            win_set_minimal_style(wp.borrow());
+            didset_window_options(wp.borrow(), true);
+            changed_window_setting(wp.borrow());
         }
         rv = wp.handle;
     }
@@ -539,18 +533,18 @@ pub fn nvim_open_win(
 }
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
-    if win.w_frame.get().is_null() || win.frame_mut().fr_parent.get().is_null() {
+    if win.w_frame.get().is_null() || win.frame().fr_parent.get().is_null() {
         return K_WIN_SPLIT_LEFT;
     }
 
-    let layout = win.frame_mut().parent_opt().unwrap().fr_layout.get();
+    let layout = win.frame().parent_opt().unwrap().fr_layout.get();
     if layout == FR_COL {
-        if !win.frame_mut().fr_next.get().is_null() {
+        if !win.frame().fr_next.get().is_null() {
             K_WIN_SPLIT_ABOVE
         } else {
             K_WIN_SPLIT_BELOW
         }
-    } else if !win.frame_mut().fr_next.get().is_null() {
+    } else if !win.frame().fr_next.get().is_null() {
         K_WIN_SPLIT_LEFT
     } else {
         K_WIN_SPLIT_RIGHT
@@ -705,7 +699,7 @@ fn win_config_split(
             if curwin_moving_tp {
                 let altwin = crate::globals::WinPtr::from(win_find_altwin(win, win_tp.borrow()));
                 assert!(!altwin.is_null());
-                win_goto(altwin.borrow_mut());
+                win_goto(altwin.borrow());
 
                 if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
@@ -740,7 +734,7 @@ fn win_config_split(
             let altwin: crate::globals::WinPtr;
 
             if was_split {
-                if win.frame_mut().fr_parent.get().is_null() {
+                if win.frame().fr_parent.get().is_null() {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -749,14 +743,14 @@ fn win_config_split(
                     break 'restore_curwin;
                 } else if !parent.is_null() && parent.handle == win.handle {
                     let mut n_frames = 0;
-                    for _fr in frame_iter_mut(win.frame_mut().fr_parent.get().fr_child.get()) {
+                    for _fr in frame_iter_ptr(win.frame().fr_parent.get().fr_child.get()) {
                         n_frames += 1;
                     }
 
                     let mut neighbor = crate::globals::WinPtr::NULL;
 
                     if n_frames > 2 {
-                        let frame = win.frame_mut().fr_parent.get();
+                        let frame = win.frame().fr_parent.get();
                         if !frame.fr_parent.get().is_null() {
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
@@ -843,7 +837,7 @@ fn win_config_split(
                 if need_switch {
                     let result = ctx_switch(
                         &mut switchwin,
-                        parent.opt_mut(),
+                        parent.opt(),
                         parent_tp.opt(),
                         None,
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -851,11 +845,11 @@ fn win_config_split(
                     assert!(result);
                 }
                 to_split_ok =
-                    win_split_ins(0, flags, win_ptr.opt_mut(), 0, unflat_altfr.opt()).is_some();
+                    win_split_ins(0, flags, win_ptr.opt(), 0, unflat_altfr.opt()).is_some();
                 if !to_split_ok {
                     win_append(
-                        win_ptr.w_prev.get().opt_mut(),
-                        win_ptr.borrow_mut(),
+                        win_ptr.w_prev.get().opt(),
+                        win_ptr.borrow(),
                         if win_tp == g_st().curtab.get() {
                             None
                         } else {
@@ -938,7 +932,7 @@ fn win_config_float_tp(
 
             if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                 curwin_moving_tp = true;
-                win_goto(altwin.borrow_mut());
+                win_goto(altwin.borrow());
 
                 if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
@@ -1037,7 +1031,7 @@ fn win_config_float_tp(
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return;
     };
 
@@ -1144,7 +1138,7 @@ pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDict_win_config {
 
     let mut rv = KeyDict_win_config::default();
 
-    let Some(wp) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+    let Some(wp) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return rv;
     };
 
@@ -1747,7 +1741,7 @@ fn parse_win_config(
                 && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
         {
             let Some(target_win) =
-                crate::api::private::helpers::find_window_by_handle_mut(config.win, err)
+                crate::api::private::helpers::find_window_by_handle_opt(config.win, err)
             else {
                 break 'fail;
             };
@@ -1769,7 +1763,7 @@ fn parse_win_config(
                 fconfig.window = config.win;
             }
             if fconfig.window == 0 {
-                fconfig.window = curwin_mut().handle;
+                fconfig.window = curwin().handle;
             }
         }
 

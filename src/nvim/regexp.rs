@@ -1913,7 +1913,7 @@ impl RegexecState {
         self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
     #[inline(always)]
-    pub fn buf_mut(&self) -> crate::globals::BufPtr {
+    pub fn buf(&self) -> crate::globals::BufPtr {
         self.reg_buf.get()
     }
     #[inline(always)]
@@ -1921,7 +1921,7 @@ impl RegexecState {
         self.reg_buf.with(|b| f(b))
     }
     #[inline(always)]
-    pub fn win_mut(&self) -> crate::globals::WinPtr {
+    pub fn win(&self) -> crate::globals::WinPtr {
         self.reg_win.get()
     }
     #[inline(always)]
@@ -3183,27 +3183,27 @@ pub(super) fn reg_match_visual() -> bool {
         )
     } else {
         let (t, mut b) = if lt(
-            curbuf_mut().b_visual.borrow().vi_start,
-            curbuf_mut().b_visual.borrow().vi_end,
+            curbuf().b_visual.borrow().vi_start,
+            curbuf().b_visual.borrow().vi_end,
         ) {
             (
-                curbuf_mut().b_visual.borrow().vi_start,
-                curbuf_mut().b_visual.borrow().vi_end,
+                curbuf().b_visual.borrow().vi_start,
+                curbuf().b_visual.borrow().vi_end,
             )
         } else {
             (
-                curbuf_mut().b_visual.borrow().vi_end,
-                curbuf_mut().b_visual.borrow().vi_start,
+                curbuf().b_visual.borrow().vi_end,
+                curbuf().b_visual.borrow().vi_start,
             )
         };
-        if b.lnum > curbuf_mut().b_ml.ml_line_count.get() {
-            b.lnum = curbuf_mut().b_ml.ml_line_count.get();
+        if b.lnum > curbuf().b_ml.ml_line_count.get() {
+            b.lnum = curbuf().b_ml.ml_line_count.get();
         }
         (
             t,
             b,
-            curbuf_mut().b_visual.borrow().vi_mode,
-            curbuf_mut().b_visual.borrow().vi_curswant,
+            curbuf().b_visual.borrow().vi_mode,
+            curbuf().b_visual.borrow().vi_curswant,
         )
     };
 
@@ -3265,7 +3265,7 @@ pub(super) fn reg_match_visual() -> bool {
 
         let cols = RE_STATE.with(|s| {
             s.rex.line.get().win_linetabsize(
-                wp.borrow_mut(),
+                wp.borrow(),
                 s.rex.reg_firstlnum.get() + s.rex.lnum.get(),
                 col,
             )
@@ -3696,7 +3696,7 @@ pub fn vim_regsub_multi(
     RE_STATE.with(|s| {
         s.rex
             .reg_maxline
-            .set(curbuf_mut().b_ml.ml_line_count.get() - lnum)
+            .set(curbuf().b_ml.ml_line_count.get() - lnum)
     });
     RE_STATE.with(|s| s.rex.reg_line_lbr.set(false));
     let result = vim_regsub_both(Some(source), None, dest, flags);
@@ -4121,7 +4121,7 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<crate::option_vars::RcSlic
     }
     let _ = ml_get_buf_len;
     Some(crate::memline::ml_get_buf_slice(
-        &RE_STATE.with(|s| s.rex.buf_mut()),
+        &RE_STATE.with(|s| s.rex.buf()),
         firstlnum,
     ))
 }
@@ -4415,7 +4415,7 @@ pub fn vim_regcomp_cached(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>
         return None;
     }
     let cpo_lit = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
-    let chartab = curbuf_mut().b_chartab.get();
+    let chartab = curbuf().b_chartab.get();
     let cached = LAST_REGPROG.with(|cell| {
         let borrow = cell.borrow();
         if let Some(ref c) = *borrow

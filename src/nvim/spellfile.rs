@@ -768,8 +768,8 @@ pub fn suggest_load_files() {
     let mut ga: Vec<u8> = Vec::new();
 
     let mut lpi: usize = 0;
-    while lpi < win_s(&curwin_mut()).b_langp.borrow().len() {
-        let lp_slang_id = win_s(&curwin_mut()).b_langp.borrow()[lpi].lp_slang;
+    while lpi < win_s(&curwin()).b_langp.borrow().len() {
+        let lp_slang_id = win_s(&curwin()).b_langp.borrow()[lpi].lp_slang;
         let idx = (lp_slang_id.0.unwrap().get() - 1) as usize;
         let need_load = lp_slang_id.rc().sl_sugtime != 0 && !lp_slang_id.rc().sl_sugloaded;
         if need_load {
@@ -1618,7 +1618,7 @@ fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
     }
 
     if added_word && !didit {
-        parse_spelllang(&curwin_mut());
+        parse_spelllang(&curwin());
     }
 }
 
@@ -2758,13 +2758,9 @@ fn aff_check_string(
 
 fn add_fromto(gap: &mut Vec<Fromto>, from: &[u8], to: &[u8]) {
     let mut word = [0u8; MAXWLEN];
-    spell_casefold(
-        &curwin_mut(),
-        crate::memory::bytes_until_nul(from),
-        &mut word,
-    );
+    spell_casefold(&curwin(), crate::memory::bytes_until_nul(from), &mut word);
     let ft_from = crate::memory::bytes_as_cstr(&word).to_owned();
-    spell_casefold(&curwin_mut(), crate::memory::bytes_until_nul(to), &mut word);
+    spell_casefold(&curwin(), crate::memory::bytes_until_nul(to), &mut word);
     let ft_to = crate::memory::bytes_as_cstr(&word).to_owned();
     gap.push(Fromto { ft_from, ft_to });
 }
@@ -3618,7 +3614,7 @@ fn store_word(
         return false;
     }
 
-    spell_casefold(&curwin_mut(), word_bytes, &mut foldword);
+    spell_casefold(&curwin(), word_bytes, &mut foldword);
     let mut p = pfx_bytes;
     while res {
         if !need_affix || !p.is_empty() {
@@ -5009,17 +5005,17 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         };
         wl.as_c_str()
     } else {
-        if win_s(&curwin_mut()).b_p_spf.is_empty() {
+        if win_s(&curwin()).b_p_spf.is_empty() {
             init_spellfile();
             new_spf = true;
         }
 
-        if win_s(&curwin_mut()).b_p_spf.is_empty() {
+        if win_s(&curwin()).b_p_spf.is_empty() {
             semsg!(gettext(E_NOTSET), c"spellfile");
             return;
         }
 
-        let spf_rc = win_s(&curwin_mut()).b_p_spf.as_bytes();
+        let spf_rc = win_s(&curwin()).b_p_spf.as_bytes();
         let mut spf = spf_rc.as_slice();
         let mut i: i32 = 1;
         while !spf.is_empty() {
@@ -5039,7 +5035,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         if !buf.is_null() && buf.b_ml.ml_mfp.borrow().is_none() {
             buf = crate::globals::BufPtr::NULL;
         }
-        if !buf.is_null() && buf_is_changed_fn(buf.borrow_mut()) {
+        if !buf.is_null() && buf_is_changed_fn(buf.borrow()) {
             emsg(gettext(E_BUFLOADED));
             return;
         }
@@ -5147,7 +5143,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
 
         if !buf.is_null() {
             let orig_mode = buf.b_orig_mode.get();
-            buf_reload(buf.borrow_mut(), orig_mode, false);
+            buf_reload(buf.borrow(), orig_mode, false);
         }
 
         redraw_all_later(UPD_SOME_VALID);
@@ -5156,13 +5152,13 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
 
 fn init_spellfile() {
     let mut aspath = false;
-    let mut lstart = curbuf_mut().b_s.b_p_spl.as_cstr();
+    let mut lstart = curbuf().b_s.b_p_spl.as_cstr();
 
-    if win_s(&curwin_mut()).b_p_spl.is_empty() || win_s(&curwin_mut()).b_langp.borrow().is_empty() {
+    if win_s(&curwin()).b_p_spl.is_empty() || win_s(&curwin()).b_langp.borrow().is_empty() {
         return;
     }
 
-    let spl_cstr = win_s(&curwin_mut()).b_p_spl.as_cstr();
+    let spl_cstr = win_s(&curwin()).b_p_spl.as_cstr();
     let spl_bytes = spl_cstr.to_bytes();
     let mut lend_off = 0usize;
     while lend_off < spl_bytes.len() && vim_strchr(c",._", i32::from(spl_bytes[lend_off])).is_none()
@@ -5194,11 +5190,11 @@ fn init_spellfile() {
         }
     } else {
         let plen = (spl_cstr.as_ptr().wrapping_add(lend_off) as usize)
-            - (curbuf_mut().b_s.b_p_spl.as_ptr() as usize);
+            - (curbuf().b_s.b_p_spl.as_ptr() as usize);
         if plen >= buf_len {
             return;
         }
-        buf_arr[..plen].copy_from_slice(&curbuf_mut().b_s.b_p_spl.as_bytes()[..plen]);
+        buf_arr[..plen].copy_from_slice(&curbuf().b_s.b_p_spl.as_bytes()[..plen]);
         buf_arr[plen] = 0;
     }
 
@@ -5207,7 +5203,7 @@ fn init_spellfile() {
         ((spl_cstr.as_ptr().wrapping_add(lend_off) as isize) - (lstart.as_ptr() as isize)) as i32;
     format_to_buf!(&mut buf_arr[cur_len..], c"/%.*s", lstart_len, lstart);
 
-    let slang0 = win_s(&curwin_mut()).b_langp.borrow()[0].slang();
+    let slang0 = win_s(&curwin()).b_langp.borrow()[0].slang();
     let fname_opt = slang0.sl_fname.as_deref();
     let sp_enc = spell_enc();
     let enc_suffix =

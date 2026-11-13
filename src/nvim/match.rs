@@ -8,7 +8,7 @@ use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_rang
 use crate::errors::*;
 use crate::eval::funcs::get_optional_window;
 use crate::eval::typval::{
-    EvalFuncData, TvList, TypVal, VarType, Varnumber, list_iter_mut, tv_dict_add_list,
+    EvalFuncData, TvList, TypVal, VarType, Varnumber, list_iter_ptr, tv_dict_add_list,
     tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find_opt,
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_number,
     tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret,
@@ -544,7 +544,7 @@ fn next_search_hl(
                 || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;
-                let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow_mut(), lnum);
+                let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow(), lnum);
                 if (matchcol as usize) >= line_slice.len() {
                     shl.lnum = 0;
                     break;
@@ -755,7 +755,7 @@ pub fn prepare_search_hl_line(
                 (shl.startcol, shl.endcol)
             };
             if startcol == endcol {
-                let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
+                let line_cstr = ml_get_buf(&wp.buf(), lnum);
                 let line_bytes = line_cstr.to_bytes();
                 let end_off = endcol as usize;
                 let step = if end_off < line_bytes.len() {
@@ -1090,7 +1090,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     };
 
-    for (li_idx, li) in (0_i32..).zip(list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt()))) {
+    for (li_idx, li) in (0_i32..).zip(list_iter_ptr(tv_list_first(argvars[0].vval.v_list_opt()))) {
         let li_tv = li.tv();
         let Some(d) = li_tv
             .vval
@@ -1119,7 +1119,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     clear_matches(&win);
     let mut match_add_failed = false;
-    for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
+    for li in list_iter_ptr(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
         let d_id = li.tv().vval.v_dict();
         let d = d_id.borrow();
@@ -1203,7 +1203,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut id: i32 = -1;
     let mut error = false;
     let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
-    let mut win = curwin_mut();
+    let mut win = curwin();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1263,7 +1263,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut prio: i32 = 10;
     let mut id: i32 = -1;
     let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
-    let mut win = curwin_mut();
+    let mut win = curwin();
 
     if argvars[2].v_type != VarType::VarUnknown {
         prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
@@ -1304,7 +1304,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
     if (1..=3).contains(&id) {
-        if let Some((mit_hlg_id, mit_pattern)) = get_match(&curwin_mut(), id) {
+        if let Some((mit_hlg_id, mit_pattern)) = get_match(&curwin(), id) {
             let group_name = syn_id2name(mit_hlg_id);
             tv_list_append_string(rettv.vval.v_list_ref(), Some(&group_name), -1);
             tv_list_append_string(rettv.vval.v_list_ref(), mit_pattern.as_deref(), -1);
@@ -1338,7 +1338,7 @@ pub fn ex_match(eap: &mut Exarg) {
     };
 
     if !eap.skip {
-        match_delete(&curwin_mut(), id, false);
+        match_delete(&curwin(), id, false);
     }
 
     let arg_slice = eap.arg.clone();
@@ -1387,7 +1387,7 @@ pub fn ex_match(eap: &mut Exarg) {
                 let pat_len = (end.as_ptr() as usize).wrapping_sub(p_next.as_ptr() as usize);
                 let pat_cstr = crate::memory::bytes_to_cstring(&p_next.to_bytes()[..pat_len]);
                 match_add(
-                    &curwin_mut(),
+                    &curwin(),
                     g.as_deref(),
                     Some(pat_cstr.as_c_str()),
                     10,

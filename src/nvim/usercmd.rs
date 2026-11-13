@@ -254,7 +254,7 @@ pub fn find_ucmd(
     let cmd_all = eap.cmd.as_bytes();
     let cmd_bytes = &cmd_all[..(len.max(0) as usize).min(cmd_all.len())];
     with_ucmds(|global_ucmds| {
-        let pbuf = prevwin_curwin().buf_mut();
+        let pbuf = prevwin_curwin().buf();
         let ucmds_borrow = pbuf.b_ucmds.borrow();
         let mut gap: &[Ucmd] = &ucmds_borrow;
         loop {
@@ -443,7 +443,7 @@ pub fn expand_user_command_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
 pub fn get_user_commands(xp: &mut ExpandCtx, mut idx: i32) -> Option<&CStr> {
-    let buf = prevwin_curwin().buf_mut();
+    let buf = prevwin_curwin().buf();
     let b_len = buf.b_ucmds.borrow().len() as i32;
 
     if idx < b_len {
@@ -473,7 +473,7 @@ pub fn get_user_command_name(idx: i32, cmdidx: Cmdidx) -> Option<CString> {
         return with_ucmds(|u| u.get(idx as usize).map(|c| c.uc_name.clone()));
     }
     if cmdidx == Cmdidx::CmdUserBuf {
-        let buf = prevwin_curwin().buf_mut();
+        let buf = prevwin_curwin().buf();
         if idx >= 0 && (idx as usize) < buf.b_ucmds.borrow().len() {
             return Some(buf.b_ucmds.borrow()[idx as usize].uc_name.clone());
         }
@@ -607,7 +607,7 @@ fn uc_list(name_prefix: &[u8]) {
     let mut found = false;
 
     msg_ext_set_kind(c"list_cmd");
-    let pbuf = prevwin_curwin().buf_mut();
+    let pbuf = prevwin_curwin().buf();
     for is_global in [false, true] {
         let mut i: usize = 0;
         loop {
@@ -1143,7 +1143,7 @@ pub fn uc_add_command(
     };
 
     if (flags & UC_BUFFER) != 0 {
-        insert_into(&mut curbuf_mut().b_ucmds.borrow_mut())
+        insert_into(&mut curbuf().b_ucmds.borrow_mut())
     } else {
         with_ucmds_mut(insert_into)
     }
@@ -1223,7 +1223,7 @@ pub fn ex_command(eap: &mut Exarg) {
 pub fn ex_comclear(_eap: &mut Exarg) {
     with_ucmds_mut(Vec::clear);
     if !g_st().curbuf.get().is_null() {
-        curbuf_mut().b_ucmds.borrow_mut().clear();
+        curbuf().b_ucmds.borrow_mut().clear();
     }
 }
 
@@ -1253,7 +1253,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
         }
     };
 
-    if find_and_remove(&mut curbuf_mut().b_ucmds.borrow_mut()) {
+    if find_and_remove(&mut curbuf().b_ucmds.borrow_mut()) {
         return;
     }
     if !buffer_only && with_ucmds_mut(find_and_remove) {
@@ -1684,7 +1684,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
                 )
             })
         } else {
-            let pbuf = prevwin_curwin().buf_mut();
+            let pbuf = prevwin_curwin().buf();
             let ucmds_borrow = pbuf.b_ucmds.borrow();
             let c = &ucmds_borrow[eap.useridx as usize];
             (

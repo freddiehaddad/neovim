@@ -316,7 +316,7 @@ impl Funcdict {
     }
 
     #[inline]
-    pub fn di_mut(&self) -> &Dictitem {
+    pub fn di(&self) -> &Dictitem {
         &self.fd_di
     }
 }
@@ -1255,7 +1255,7 @@ fn cleanup_function_call(fc: &Funccall) {
     }
 
     if may_free_fc && fc.fc_l_varlist.get().lv_refcount.get() == DO_NOT_FREE_CNT {
-        for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.get().first_opt()) {
+        for li in crate::eval::typval::list_iter_ptr(fc.fc_l_varlist.get().first_opt()) {
             li.set_tv(TypVal::new());
         }
         tv_list_free_contents(&fc.fc_l_varlist.get());
@@ -1263,7 +1263,7 @@ fn cleanup_function_call(fc: &Funccall) {
         free_fc = false;
 
         {
-            for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.get().first_opt()) {
+            for li in crate::eval::typval::list_iter_ptr(fc.fc_l_varlist.get().first_opt()) {
                 let src_tv = li.tv().clone();
                 tv_copy(&src_tv, &mut li.tv_mut());
             }
@@ -2014,7 +2014,7 @@ pub fn func_call(
             .map_or(0, |pt| pt.pt_argv.borrow().len() as i32);
     let mut skip_call = false;
     if let Some(list) = args.vval.v_list_opt() {
-        for item in crate::eval::typval::list_iter_mut(list.first_opt()) {
+        for item in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             if argc == max_argc {
                 emsg(gettext(c"E699: Too many arguments"));
                 skip_call = true;
@@ -2027,8 +2027,8 @@ pub fn func_call(
 
     if !skip_call {
         let mut funcexe = Funcexe::new();
-        funcexe.fe_firstline = curwin_mut().w_cursor.get().lnum;
-        funcexe.fe_lastline = curwin_mut().w_cursor.get().lnum;
+        funcexe.fe_firstline = curwin().w_cursor.get().lnum;
+        funcexe.fe_lastline = curwin().w_cursor.get().lnum;
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = crate::eval::typval::PartialId::from(partial);
         funcexe.fe_selfdict = DictId::from(selfdict);
@@ -3701,7 +3701,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         }
 
         if let Some(dict) = fudi.dict_opt() {
-            tv_dict_item_remove(dict, fudi.di_mut());
+            tv_dict_item_remove(dict, fudi.di());
         } else {
             let threshold = if func_name_refcount(uf2hikey(&fp_ref)) {
                 0
@@ -3848,13 +3848,13 @@ fn ex_call_inner<'a>(
 
     for lnum in eap.line1..=eap.line2 {
         if eap.addr_count > 0 {
-            if lnum > curbuf_mut().b_ml.ml_line_count.get() {
+            if lnum > curbuf().b_ml.ml_line_count.get() {
                 emsg(gettext(E_INVRANGE));
                 break;
             }
-            curwin_mut().w_cursor.set_lnum(lnum);
-            curwin_mut().w_cursor.set_col(0);
-            curwin_mut().w_cursor.set_coladd(0);
+            curwin().w_cursor.set_lnum(lnum);
+            curwin().w_cursor.set_col(0);
+            curwin().w_cursor.set_coladd(0);
         }
 
         *arg = startarg;

@@ -462,30 +462,30 @@ fn trigger_cmd_autocmd(typechar: i32, evt: AuEvent) {
         Some(typestr_cstr),
         Some(typestr_cstr),
         false,
-        curbuf_opt_mut().as_deref(),
+        curbuf_opt().as_deref(),
     );
 }
 
 fn init_incsearch_state(s: &mut IncsearchState) {
-    s.winid = curwin_mut().handle;
-    s.match_start = curwin_mut().w_cursor.get();
+    s.winid = curwin().handle;
+    s.match_start = curwin().w_cursor.get();
     s.did_incsearch = false;
     s.incsearch_postponed = false;
     clearpos(&mut s.match_end);
-    s.save_cursor = curwin_mut().w_cursor.get();
-    s.search_start = curwin_mut().w_cursor.get();
-    save_viewstate(&curwin_mut(), &mut s.init_viewstate);
-    save_viewstate(&curwin_mut(), &mut s.old_viewstate);
+    s.save_cursor = curwin().w_cursor.get();
+    s.search_start = curwin().w_cursor.get();
+    save_viewstate(&curwin(), &mut s.init_viewstate);
+    save_viewstate(&curwin(), &mut s.old_viewstate);
 }
 
 fn set_search_match(t: &mut CursorPos) {
     t.lnum += g_st().search_global.match_lines.get();
     t.col = g_st().search_global.match_endcol.get();
-    if t.lnum > curbuf_mut().b_ml.ml_line_count.get() {
-        t.lnum = curbuf_mut().b_ml.ml_line_count.get();
-        curwin_mut().w_cursor.set(*t);
-        coladvance(&curwin_mut(), MAXCOL);
-        *t = curwin_mut().w_cursor.get();
+    if t.lnum > curbuf().b_ml.ml_line_count.get() {
+        t.lnum = curbuf().b_ml.ml_line_count.get();
+        curwin().w_cursor.set(*t);
+        coladvance(&curwin(), MAXCOL);
+        *t = curwin().w_cursor.get();
     }
 }
 
@@ -618,8 +618,8 @@ pub fn parse_pattern_and_range(
     *patlen = end.offset_from(&p) as i32;
 
     // Parse the address range
-    let save_cursor = curwin_mut().w_cursor.get();
-    curwin_mut().w_cursor.set(*incsearch_start);
+    let save_cursor = curwin().w_cursor.get();
+    curwin().w_cursor.set(*incsearch_start);
 
     parse_cmd_address(&mut ea, &mut dummy, true);
 
@@ -632,14 +632,14 @@ pub fn parse_pattern_and_range(
         g_st()
             .search_global
             .first_line
-            .set(curwin_mut().w_cursor.get().lnum);
+            .set(curwin().w_cursor.get().lnum);
         g_st()
             .search_global
             .last_line
-            .set(curwin_mut().w_cursor.get().lnum);
+            .set(curwin().w_cursor.get().lnum);
     }
 
-    curwin_mut().w_cursor.set(save_cursor);
+    curwin().w_cursor.set(save_cursor);
     true
 }
 
@@ -733,19 +733,19 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     if g_st().search_global.first_line.get() == 0 {
         // start at the original cursor position
-        curwin_mut().w_cursor.set(s.search_start);
-    } else if g_st().search_global.first_line.get() > curbuf_mut().b_ml.ml_line_count.get() {
+        curwin().w_cursor.set(s.search_start);
+    } else if g_st().search_global.first_line.get() > curbuf().b_ml.ml_line_count.get() {
         // start after the last line
-        curwin_mut()
+        curwin()
             .w_cursor
-            .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
-        curwin_mut().w_cursor.set_col(MAXCOL);
+            .set_lnum(curbuf().b_ml.ml_line_count.get());
+        curwin().w_cursor.set_col(MAXCOL);
     } else {
         // start at the first line in the range
-        curwin_mut()
+        curwin()
             .w_cursor
             .set_lnum(g_st().search_global.first_line.get());
-        curwin_mut().w_cursor.set_col(0);
+        curwin().w_cursor.set_col(0);
     }
 
     let mut found: i32 = 0; // do_search() result
@@ -785,12 +785,12 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         );
         g_st().emsg_off.set(g_st().emsg_off.get() - (1));
         get_cmdline_info().cmdbuff_vec.borrow_mut()[end_idx] = next_char;
-        if curwin_mut().w_cursor.get().lnum < g_st().search_global.first_line.get()
-            || curwin_mut().w_cursor.get().lnum > g_st().search_global.last_line.get()
+        if curwin().w_cursor.get().lnum < g_st().search_global.first_line.get()
+            || curwin().w_cursor.get().lnum > g_st().search_global.last_line.get()
         {
             // match outside of address range
             found = 0;
-            curwin_mut().w_cursor.set(s.search_start);
+            curwin().w_cursor.set(s.search_start);
         }
 
         // if interrupted while searching, behave like it failed
@@ -812,19 +812,19 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     // first restore the old curwin values, so the screen is
     // positioned in the same way as the actual search command
-    restore_viewstate(&curwin_mut(), &s.old_viewstate);
-    changed_cline_bef_curs(&curwin_mut());
-    update_topline(&curwin_mut());
+    restore_viewstate(&curwin(), &s.old_viewstate);
+    changed_cline_bef_curs(&curwin());
+    update_topline(&curwin());
 
-    let mut end_pos = curwin_mut().w_cursor.get();
+    let mut end_pos = curwin().w_cursor.get();
     if found != 0 {
-        s.match_start = curwin_mut().w_cursor.get();
-        let mut match_pos = curwin_mut().w_cursor.get();
+        s.match_start = curwin().w_cursor.get();
+        let mut match_pos = curwin().w_cursor.get();
         set_search_match(&mut match_pos);
-        curwin_mut().w_cursor.set(match_pos);
-        validate_cursor(&curwin_mut());
-        s.match_end = curwin_mut().w_cursor.get();
-        curwin_mut().w_cursor.set(end_pos);
+        curwin().w_cursor.set(match_pos);
+        validate_cursor(&curwin());
+        s.match_end = curwin().w_cursor.get();
+        curwin().w_cursor.set(end_pos);
         end_pos = s.match_end;
     }
 
@@ -840,15 +840,14 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         }
     }
 
-    validate_cursor(&curwin_mut());
+    validate_cursor(&curwin());
 
     // May redraw the status line to show the cursor position.
-    if opt_vars().p_ru.get() && (curwin_mut().w_status_height.get() > 0 || global_stl_height() > 0)
-    {
-        curwin_mut().w_redr_status.set(true);
+    if opt_vars().p_ru.get() && (curwin().w_status_height.get() > 0 || global_stl_height() > 0) {
+        curwin().w_redr_status.set(true);
     }
 
-    redraw_later(Some(&crate::globals::curwin_mut()), UPD_SOME_VALID);
+    redraw_later(Some(&crate::globals::curwin()), UPD_SOME_VALID);
     update_screen();
     g_st().search_global.hl_match.set(false);
     restore_last_search_pattern();
@@ -860,11 +859,11 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
         .wrapping_add((skiplen + patlen) as usize)
         .is_empty()
     {
-        curwin_mut().w_cursor.set(s.search_start);
+        curwin().w_cursor.set(s.search_start);
     } else if found != 0 {
-        curwin_mut().w_cursor.set(end_pos);
-        curwin_mut().w_valid_cursor.set(end_pos); // mark as valid for cmdline_show redraw
-        crate::r#move::set_topline_valid(&curwin_mut());
+        curwin().w_cursor.set(end_pos);
+        curwin().w_valid_cursor.set(end_pos); // mark as valid for cmdline_show redraw
+        crate::r#move::set_topline_valid(&curwin());
     }
 
     msg_starthere();
@@ -903,7 +902,7 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
     restore_last_search_pattern();
 
     if s.did_incsearch {
-        curwin_mut().w_cursor.set(s.match_end);
+        curwin().w_cursor.set(s.match_end);
         *c = gchar_cursor();
         if *c != NUL as i32 {
             // If 'ignorecase' and 'smartcase' are set and the
@@ -935,7 +934,7 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
                 while utf_char2len(*c)
                     != crate::mbyte::utfc_slice2len(&crate::cursor::get_cursor_pos_slice()) as i32
                 {
-                    curwin_mut().w_cursor.add_col(utf_char2len(*c));
+                    curwin().w_cursor.add_col(utf_char2len(*c));
                     *c = gchar_cursor();
                     stuffchar_readbuff(*c);
                 }
@@ -954,23 +953,23 @@ fn finish_incsearch_highlighting(gotesc: bool, s: &mut IncsearchState, call_upda
 
     s.did_incsearch = false;
     if gotesc {
-        curwin_mut().w_cursor.set(s.save_cursor);
+        curwin().w_cursor.set(s.save_cursor);
     } else {
         if !equalpos(s.save_cursor, s.search_start) {
             // put the '" mark at the original position
-            curwin_mut().w_cursor.set(s.save_cursor);
+            curwin().w_cursor.set(s.save_cursor);
             setpcmark();
         }
-        curwin_mut().w_cursor.set(s.search_start);
+        curwin().w_cursor.set(s.search_start);
     }
-    restore_viewstate(&curwin_mut(), &s.old_viewstate);
+    restore_viewstate(&curwin(), &s.old_viewstate);
     g_st().search_global.hl_match.set(false);
 
     // by default search all lines
     g_st().search_global.first_line.set(0);
     g_st().search_global.last_line.set(MAXLNUM);
 
-    validate_cursor(&curwin_mut()); // needed for TAB
+    validate_cursor(&curwin()); // needed for TAB
     status_redraw_all();
     redraw_all_later(UPD_SOME_VALID);
     if call_update_screen {
@@ -1077,8 +1076,8 @@ fn command_line_enter(
         clear_cmdline_orig();
 
         g_st().cmdmsg_rl.set(
-            curwin_mut().w_onebuf_opt.wo_rl.get()
-                && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
+            curwin().w_onebuf_opt.wo_rl.get()
+                && curwin().w_onebuf_opt.wo_rlc.first_byte() == b's'
                 && (s.firstc == b'/' as i32 || s.firstc == b'?' as i32),
         );
 
@@ -1109,10 +1108,10 @@ fn command_line_enter(
         g_st().state_global.set(MODE_CMDLINE);
 
         if s.firstc == b'/' as i32 || s.firstc == b'?' as i32 || s.firstc == b'@' as i32 {
-            let (use_insert, im_val) = if curbuf_mut().b_p_imsearch.get() == B_IMODE_USE_INSERT {
-                (true, curbuf_mut().b_p_iminsert.get())
+            let (use_insert, im_val) = if curbuf().b_p_imsearch.get() == B_IMODE_USE_INSERT {
+                (true, curbuf().b_p_iminsert.get())
             } else {
-                (false, curbuf_mut().b_p_imsearch.get())
+                (false, curbuf().b_p_imsearch.get())
             };
             s.b_im_use_insert = Some(use_insert);
             s.b_im_ptr_buf = g_st().curbuf.get();
@@ -1148,7 +1147,7 @@ fn command_line_enter(
                 Some(firstc_cstr),
                 Some(firstc_cstr),
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
             );
             restore_v_event(&dict, &mut save_v_event);
             try_leave(&tstate, &mut err);
@@ -1178,7 +1177,7 @@ fn command_line_enter(
         if !g_st().cmd_silent.get() {
             let mut found_one = false;
 
-            for wp in for_all_windows_mut() {
+            for wp in for_all_windows_ptr() {
                 if !opt_vars().p_stl.is_empty()
                     || !wp.w_onebuf_opt.wo_stl.is_empty()
                     || !opt_vars().p_wbr.is_empty()
@@ -1243,7 +1242,7 @@ fn command_line_enter(
                 Some(firstc_cstr),
                 Some(firstc_cstr),
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
             );
             try_leave(&tstate, &mut err);
             if tv_dict_get_number(Some(&dict), c"abort") != 0 {
@@ -1678,7 +1677,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         return -1; // get another key
     }
 
-    let display_tick_saved: Disptick = curwin_mut().w_display_tick.get();
+    let display_tick_saved: Disptick = curwin().w_display_tick.get();
     s.c = key;
 
     if get_cmdline_info().cmdbuff_replaced.get() && with_ccline_xpc(|xpc| xpc.xp_numfiles > 0) {
@@ -1699,10 +1698,10 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         } else {
             map_execute_lua(false, false);
         }
-        if s.is_state.winid != curwin_mut().handle {
+        if s.is_state.winid != curwin().handle {
             init_incsearch_state(&mut s.is_state);
         }
-        if curwin_mut().w_display_tick.get() > display_tick_saved && s.is_state.did_incsearch {
+        if curwin().w_display_tick.get() > display_tick_saved && s.is_state.did_incsearch {
             may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
         }
         if get_cmdline_info().cmdbuff_replaced.get() {
@@ -1941,7 +1940,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
     s.do_abbr = true;
 
     if wild_type == WILD_CANCEL || wild_type == WILD_APPLY {
-        if s.is_state.winid != curwin_mut().handle {
+        if s.is_state.winid != curwin().handle {
             init_incsearch_state(&mut s.is_state);
         }
         if g_st().key_typed.get() || vpeekc() == NUL as i32 {
@@ -2025,8 +2024,8 @@ fn may_do_command_line_next_incsearch(
     }
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     let found = searchit(
-        Some(&curwin_mut()),
-        &curbuf_mut(),
+        Some(&curwin()),
+        &curbuf(),
         &mut t,
         None,
         if next_match { FORWARD } else { BACKWARD },
@@ -2083,17 +2082,17 @@ fn may_do_command_line_next_incsearch(
         }
 
         set_search_match(&mut s.match_end);
-        curwin_mut().w_cursor.set(s.match_start);
-        changed_cline_bef_curs(&curwin_mut());
-        update_topline(&curwin_mut());
-        validate_cursor(&curwin_mut());
+        curwin().w_cursor.set(s.match_start);
+        changed_cline_bef_curs(&curwin());
+        update_topline(&curwin());
+        validate_cursor(&curwin());
         g_st().search_global.hl_match.set(true);
-        save_viewstate(&curwin_mut(), &mut s.old_viewstate);
-        redraw_later(Some(&crate::globals::curwin_mut()), UPD_NOT_VALID);
+        save_viewstate(&curwin(), &mut s.old_viewstate);
+        redraw_later(Some(&crate::globals::curwin()), UPD_NOT_VALID);
         update_screen();
         g_st().search_global.hl_match.set(false);
         redrawcmdline();
-        curwin_mut().w_cursor.set(s.match_end);
+        curwin().w_cursor.set(s.match_end);
     } else {
         vim_beep(K_OPT_BO_FLAG_ERROR);
     }
@@ -2211,7 +2210,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
             } else {
                 B_IMODE_NONE
             };
-            let buf = s.b_im_ptr_buf.borrow_mut();
+            let buf = s.b_im_ptr_buf.borrow();
             if use_insert {
                 buf.b_p_iminsert.set(val);
             } else {
@@ -2222,9 +2221,9 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
 
     if let Some(use_insert) = use_insert_opt {
         if use_insert && s.b_im_ptr_buf == g_st().curbuf.get() {
-            set_iminsert_global(&curbuf_mut());
+            set_iminsert_global(&curbuf());
         } else {
-            set_imsearch_global(&curbuf_mut());
+            set_imsearch_global(&curbuf());
         }
     }
     ui_cursor_shape();
@@ -3011,13 +3010,7 @@ fn cmdpreview_open_buf() -> Option<crate::globals::BufPtr> {
     }
 
     let mut aco: CtxSwitch = CtxSwitch::new();
-    ctx_switch(
-        &mut aco,
-        None,
-        None,
-        cmdpreview_buf.opt_mut(),
-        K_CTX_KEEP_DIRS,
-    );
+    ctx_switch(&mut aco, None, None, cmdpreview_buf.opt(), K_CTX_KEEP_DIRS);
     let retv = rename_buffer(Some(c"[Preview]"));
     ctx_restore(&mut aco);
 
@@ -3025,17 +3018,11 @@ fn cmdpreview_open_buf() -> Option<crate::globals::BufPtr> {
         return None;
     }
 
-    ctx_switch(
-        &mut aco,
-        None,
-        None,
-        cmdpreview_buf.opt_mut(),
-        K_CTX_KEEP_DIRS,
-    );
+    ctx_switch(&mut aco, None, None, cmdpreview_buf.opt(), K_CTX_KEEP_DIRS);
     buf_clear();
-    curbuf_mut().b_p_ma.set(true);
-    curbuf_mut().b_p_ul.set(-1);
-    curbuf_mut().b_p_tw.set(0);
+    curbuf().b_p_ma.set(true);
+    curbuf().b_p_ul.set(-1);
+    curbuf().b_p_tw.set(0);
     ctx_restore(&mut aco);
     if cmdpreview_buf.is_null() {
         return None;
@@ -3071,12 +3058,12 @@ fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<crate::globals::WinPt
         return None;
     }
 
-    curwin_mut().w_onebuf_opt.wo_cul.set(false);
-    curwin_mut().w_onebuf_opt.wo_cuc.set(false);
-    curwin_mut().w_onebuf_opt.wo_spell.set(false);
-    curwin_mut().w_onebuf_opt.wo_fen.set(false);
+    curwin().w_onebuf_opt.wo_cul.set(false);
+    curwin().w_onebuf_opt.wo_cuc.set(false);
+    curwin().w_onebuf_opt.wo_spell.set(false);
+    curwin().w_onebuf_opt.wo_fen.set(false);
 
-    win_enter(save_curwin.borrow_mut(), false);
+    win_enter(save_curwin.borrow(), false);
     (!preview_win.is_null()).then_some(preview_win)
 }
 
@@ -3147,7 +3134,7 @@ fn cmdpreview_prepare() -> CpInfo {
 /// Restore the state of buffers and windows for command preview.
 fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
-        let buf = cp_bufinfo.buf.borrow_mut();
+        let buf = cp_bufinfo.buf.borrow();
 
         buf.b_changed.set(cp_bufinfo.save_b_changed);
 
@@ -3168,7 +3155,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     }
 
     for cp_wininfo in cpinfo.win_info.drain(..) {
-        let win = cp_wininfo.win.borrow_mut();
+        let win = cp_wininfo.win.borrow();
 
         win.w_cursor.set(cp_wininfo.save_w_cursor);
         restore_viewstate(win, &cp_wininfo.save_viewstate);
@@ -3252,8 +3239,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     if icm_split && cmdpreview_type == 2 {
-        cmdpreview_win =
-            crate::globals::WinPtr::from(cmdpreview_open_win(cmdpreview_buf.borrow_mut()));
+        cmdpreview_win = crate::globals::WinPtr::from(cmdpreview_open_win(cmdpreview_buf.borrow()));
         if cmdpreview_win.is_null() {
             cmdpreview_type = 1;
         }
@@ -3304,7 +3290,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
             Some(firstc_cstr),
             Some(firstc_cstr),
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
         );
         restore_v_event(&dict, &mut save_v_event);
         try_leave(&tstate, &mut err);
@@ -3523,7 +3509,7 @@ pub fn text_or_buf_locked() -> bool {
 
 /// Check if `curbuf->b_ro_locked` or `allbuf_lock` is set.
 pub fn curbuf_locked() -> bool {
-    if curbuf_mut().b_ro_locked.get() > 0 {
+    if curbuf().b_ro_locked.get() > 0 {
         emsg(gettext(E_CANNOT_EDIT_OTHER_BUF));
         return true;
     }

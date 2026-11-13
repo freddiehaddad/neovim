@@ -618,25 +618,9 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
 }
 
 #[inline]
-pub fn find_buffer_by_handle_mut(
-    buffer: Buffer,
-    err: &mut Error,
-) -> Option<crate::globals::BufPtr> {
-    find_buffer_by_handle(buffer, err)
-}
-
-#[inline]
-pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<WinPtr> {
+pub fn find_window_by_handle_opt(window: Window, err: &mut Error) -> Option<WinPtr> {
     let w = find_window_by_handle(window, err);
     (!w.is_null()).then_some(w)
-}
-
-#[inline]
-pub fn find_tab_by_handle_mut(
-    tabpage: Tabpage,
-    err: &mut Error,
-) -> Option<crate::globals::TabpagePtr> {
-    find_tab_by_handle(tabpage, err)
 }
 
 pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
@@ -1288,7 +1272,7 @@ pub fn set_mark(
 ) -> bool {
     let buf: &FileBuf = match buf {
         Some(b) => b,
-        None => &curbuf_mut(),
+        None => &curbuf(),
     };
     let mut deleting = false;
     if line == 0 {

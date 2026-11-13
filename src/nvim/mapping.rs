@@ -421,7 +421,7 @@ pub fn map_luaid_get(n: i32) -> LuaRef {
         map_luaid_scan(&t.maphash, n)
             .or_else(|| map_luaid_scan(std::slice::from_ref(&t.first_abbr), n))
     });
-    for fb in for_all_buffers_mut() {
+    for fb in for_all_buffers_ptr() {
         if luaref.is_none() {
             luaref = map_luaid_scan(&*fb.b_maphash.borrow(), n);
         }
@@ -1226,7 +1226,7 @@ pub fn do_map(maptype: i32, arg: &CStr, mode: i32, is_abbrev: bool) -> i32 {
     let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
     match result {
         0 => {
-            result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, &curbuf_mut());
+            result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, &curbuf());
         }
         1 => {}
         _ => {
@@ -1282,7 +1282,7 @@ fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: bool, abbr: bool) {
     }
 
     let mode = get_map_mode(&mut cmd_bytes, forceit);
-    map_clear_mode(&curbuf_mut(), mode, local, abbr);
+    map_clear_mode(&curbuf(), mode, local, abbr);
 }
 
 /// Clear all mappings in "mode".
@@ -1689,7 +1689,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         let mp_opt: Option<MatchedMap> = MAP_TABLES.with(|cell| {
             let tables = cell.borrow();
             let first_abbr_slice = tables.first_abbr.as_slice();
-            for cand in curbuf_mut()
+            for cand in curbuf()
                 .b_first_abbr
                 .borrow()
                 .iter()
@@ -1796,7 +1796,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
 
     g_st().expr_map_lock.set(g_st().expr_map_lock.get() + (1));
     set_vim_var_char(c);
-    let save_cursor = curwin_mut().w_cursor.get();
+    let save_cursor = curwin().w_cursor.get();
     let save_msg_col = g_st().msg_col.get();
     let save_msg_row = g_st().msg_row.get();
     if luaref != LUA_NOREF {
@@ -1815,7 +1815,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
         p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
     }
     g_st().expr_map_lock.set(g_st().expr_map_lock.get() - (1));
-    curwin_mut().w_cursor.set(save_cursor);
+    curwin().w_cursor.set(save_cursor);
     g_st().msg_col.set(save_msg_col);
     g_st().msg_row.set(save_msg_row);
 
@@ -2568,7 +2568,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         &mut unmap_args,
         mode,
         is_abbr != 0,
-        &curbuf_mut(),
+        &curbuf(),
     );
 
     let alt = lhsrawalt.is_some().then(|| {
@@ -2577,7 +2577,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         })
     });
     map_add(
-        &curbuf_mut(),
+        &curbuf(),
         buffer,
         lhsraw.as_c_str(),
         &args,
@@ -2591,7 +2591,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     );
     if let Some(ref lhsrawalt) = lhsrawalt {
         map_add(
-            &curbuf_mut(),
+            &curbuf(),
             buffer,
             lhsrawalt.as_c_str(),
             &args,
@@ -2684,7 +2684,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: i32, buffer: bo
     );
     args.buffer = buffer;
 
-    buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, &curbuf_mut());
+    buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, &curbuf());
 }
 
 fn langmap_set_entry(from: i32, to: i32) {
@@ -2833,7 +2833,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
         &mut parsed_args,
     );
     match result {
-        0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &curbuf_mut()) {
+        0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &curbuf()) {
             1 => {
                 emsg(gettext(E_INVARG));
             }
@@ -2922,8 +2922,7 @@ pub fn modify_keymap(
     if global {
         buffer = 0;
     }
-    let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err)
-    else {
+    let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return;
     };
 

@@ -116,7 +116,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
         if (*watcher).blockable && !multiqueue_empty((*watcher).events.borrow()) {
             return;
         }
-        if let Some(events) = (*watcher).events.opt_mut() {
+        if let Some(events) = (*watcher).events.opt() {
             multiqueue_put_event(events, Event::TimeWatcher(watcher));
         } else {
             time_event(&mut *watcher);
@@ -141,7 +141,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             (*watcher).data,
             TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
         ) {
-            if let Some(events) = (*watcher).events.opt_mut() {
+            if let Some(events) = (*watcher).events.opt() {
                 multiqueue_put_event(events, Event::TimeWatcherClose(watcher));
             } else {
                 close_event(&mut *watcher);

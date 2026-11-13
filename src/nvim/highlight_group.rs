@@ -896,9 +896,9 @@ pub fn load_colors(name: &CStr) -> bool {
     apply_autocmds(
         EVENT_COLORSCHEMEPRE,
         Some(name),
-        curbuf_mut().fname_opt().as_deref(),
+        curbuf().fname_opt().as_deref(),
         false,
-        curbuf_opt_mut().as_deref(),
+        curbuf_opt().as_deref(),
     );
     buf.extend_from_slice(b"colors/");
     buf.extend_from_slice(name_bytes);
@@ -908,9 +908,9 @@ pub fn load_colors(name: &CStr) -> bool {
         apply_autocmds(
             EVENT_COLORSCHEME,
             Some(name),
-            curbuf_mut().fname_opt().as_deref(),
+            curbuf().fname_opt().as_deref(),
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
         );
     }
 
@@ -2247,7 +2247,7 @@ pub fn syn_ns_id2attr(mut ns_id: i32, mut hl_id: i32, optional: &mut bool) -> i3
 }
 
 pub fn syn_get_final_id(mut hl_id: i32) -> i32 {
-    let mut ns_id = curwin_mut().w_ns_hl_active.get();
+    let mut ns_id = curwin().w_ns_hl_active.get();
     syn_ns_get_final_id(&mut ns_id, &mut hl_id);
     hl_id
 }

@@ -2387,8 +2387,8 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     }
 
     let mut group: Hlf = 0;
-    let fillchar = fillchar_status(&mut group, &curwin_mut());
-    let attr = win_hl_attr(&curwin_mut(), group);
+    let fillchar = fillchar_status(&mut group, &curwin());
+    let attr = win_hl_attr(&curwin(), group);
 
     let mut len: usize;
     if CMDEXP_STATE.with(|s| s.first_match.get()) == 0 {
@@ -2478,7 +2478,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                 }
                 g_st().wild_menu_showing.set(WM_SCROLLED);
             } else {
-                if lastwin_mut().w_status_height.get() == 0 && global_stl_height() == 0 {
+                if lastwin().w_status_height.get() == 0 && global_stl_height() == 0 {
                     g_st().save_p_ls.set(opt_vars().p_ls.get() as i32);
                     g_st().save_p_wmh.set(opt_vars().p_wmh.get() as i32);
                     opt_vars().p_ls.set(2);
@@ -2516,7 +2516,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         grid_line_flush();
     }
 
-    win_redraw_last_status(&topframe_mut());
+    win_redraw_last_status(&topframe());
 }
 
 /// Get the next or prev cmdline completion match.
@@ -5816,7 +5816,7 @@ pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
         g_st().save_p_ls.set(-1);
         g_st().wild_menu_showing.set(0);
     } else {
-        win_redraw_last_status(&topframe_mut());
+        win_redraw_last_status(&topframe());
         g_st().wild_menu_showing.set(0);
         redraw_statuslines();
     }
@@ -6180,7 +6180,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         g_st().msg_silent.set(g_st().msg_silent.get() + (1));
         let found_new_match = searchit(
             None,
-            &curbuf_mut(),
+            &curbuf(),
             &mut cur_match_pos,
             Some(&mut end_match_pos),
             dir,
@@ -6229,7 +6229,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
             return false;
         }
 
-        if end_match_pos.lnum > curbuf_mut().b_ml.ml_line_count.get() {
+        if end_match_pos.lnum > curbuf().b_ml.ml_line_count.get() {
             cur_match_pos.lnum = 1;
             cur_match_pos.col = 0;
             cur_match_pos.coladd = 0;

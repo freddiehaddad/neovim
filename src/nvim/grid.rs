@@ -108,18 +108,8 @@ impl GridTarget {
     }
 
     #[inline]
-    pub fn opt_mut(self) -> Option<GridRef> {
-        self.opt()
-    }
-
-    #[inline]
     pub fn borrow(self) -> GridRef {
         self.opt().expect("null GridTarget")
-    }
-
-    #[inline]
-    pub fn borrow_mut(self) -> GridRef {
-        self.borrow()
     }
 }
 
@@ -311,7 +301,7 @@ fn strnlen_4(bytes: &[u8; 4]) -> usize {
 pub fn grid_adjust_opt(grid: &GridView, row_off: &mut i32, col_off: &mut i32) -> Option<GridRef> {
     *row_off += grid.row_offset.get();
     *col_off += grid.col_offset.get();
-    grid.target.get().opt_mut()
+    grid.target.get().opt()
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
@@ -877,7 +867,7 @@ pub fn grid_line_flush() {
     }
 
     grid_put_linebuf(
-        &grid.borrow_mut(),
+        &grid.borrow(),
         row,
         coloff,
         first,

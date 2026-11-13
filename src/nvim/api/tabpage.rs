@@ -49,10 +49,10 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, err: &mut Error) -> Array {
     } else {
         tab.tp_firstwin.get()
     };
-    let n = win_iter_mut(&first).count();
+    let n = win_iter_ptr(&first).count();
 
     rv = Array::with_capacity(n);
-    for wp in win_iter_mut(first) {
+    for wp in win_iter_ptr(first) {
         *rv.next_slot_mut() = window_obj(wp.handle);
         rv.size += 1;
     }
@@ -69,7 +69,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, err: &mut Error) -> Array {
 // DLLEXPORT Object nvim_tabpage_get_var(Tabpage tabpage, String name, Arena *arena,
 //                                       Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_get_var(tabpage: Tabpage, name: NvimString, err: &mut Error) -> Object {
-    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return nil_obj();
     };
     dict_get_value(Some(&*tab.tp_vars()), name, err)
@@ -84,7 +84,7 @@ pub fn nvim_tabpage_get_var(tabpage: Tabpage, name: NvimString, err: &mut Error)
 // DLLEXPORT void nvim_tabpage_set_var(Tabpage tabpage, String name, Object value,
 //                                     Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_set_var(tabpage: Tabpage, name: NvimString, value: Object, err: &mut Error) {
-    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return;
     };
     dict_set_var(&tab.tp_vars(), name, value, false, false, err);
@@ -97,7 +97,7 @@ pub fn nvim_tabpage_set_var(tabpage: Tabpage, name: NvimString, value: Object, e
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_del_var(Tabpage tabpage, String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) {
-    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return;
     };
     dict_set_var(&tab.tp_vars(), name, nil_obj(), true, false, err);
@@ -134,7 +134,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_set_win(Tabpage tabpage, Window win, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
-    let Some(tp) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tp) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return;
     };
     let wp = find_window_by_handle(win, err);
@@ -153,7 +153,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if tp == g_st().curtab.get() {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        win_goto(wp.borrow_mut());
+        win_goto(wp.borrow());
         try_leave(&tstate, err);
     } else if tp.tp_curwin.get() != wp {
         tp.tp_prevwin.set(tp.tp_curwin.get());
@@ -204,7 +204,7 @@ pub fn nvim_open_tabpage(
     config: &mut KeyDict_tabpage_config,
     err: &mut Error,
 ) -> Tabpage {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return 0;
     };
 
@@ -259,7 +259,7 @@ pub fn nvim_open_tabpage(
                 .autocmd_no_leave
                 .set(g_st().autocmd_no_leave.get() + (1));
         }
-        win_set_buf(wp.borrow_mut(), &b, err);
+        win_set_buf(wp.borrow(), &b, err);
         if au_no_enter_leave {
             g_st()
                 .autocmd_no_enter

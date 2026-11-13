@@ -1522,7 +1522,7 @@ pub fn show_popupmenu() {
         Some(mode_cstr),
         None,
         false,
-        curbuf_opt_mut().as_deref(),
+        curbuf_opt().as_deref(),
     );
 
     let mut found_idx: Option<usize> = None;
@@ -1566,21 +1566,19 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
             idx = MENU_INDEX_VISUAL;
 
             let tpos: CursorPos;
-            if curbuf_mut().b_visual.borrow().vi_start.lnum == eap.line1
-                && curbuf_mut().b_visual.borrow().vi_end.lnum == eap.line2
+            if curbuf().b_visual.borrow().vi_start.lnum == eap.line1
+                && curbuf().b_visual.borrow().vi_end.lnum == eap.line2
             {
-                g_st().visual_global.borrow_mut().mode = curbuf_mut().b_visual.borrow().vi_mode;
-                tpos = curbuf_mut().b_visual.borrow().vi_end;
-                curwin_mut()
-                    .w_cursor
-                    .set(curbuf_mut().b_visual.borrow().vi_start);
-                curwin_mut()
+                g_st().visual_global.borrow_mut().mode = curbuf().b_visual.borrow().vi_mode;
+                tpos = curbuf().b_visual.borrow().vi_end;
+                curwin().w_cursor.set(curbuf().b_visual.borrow().vi_start);
+                curwin()
                     .w_curswant
-                    .set(curbuf_mut().b_visual.borrow().vi_curswant);
+                    .set(curbuf().b_visual.borrow().vi_curswant);
             } else {
                 g_st().visual_global.borrow_mut().mode = b'V' as i32;
-                curwin_mut().w_cursor.set_lnum(eap.line1);
-                curwin_mut().w_cursor.set_col(1);
+                curwin().w_cursor.set_lnum(eap.line1);
+                curwin().w_cursor.set_col(1);
                 tpos = CursorPos {
                     lnum: eap.line2,
                     col: MAXCOL,
@@ -1590,14 +1588,14 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
 
             g_st().visual_global.borrow_mut().active = true;
             g_st().visual_global.borrow_mut().reselect = 1;
-            check_cursor(&curwin_mut());
-            g_st().visual_global.borrow_mut().start = curwin_mut().w_cursor.get();
-            curwin_mut().w_cursor.set(tpos);
+            check_cursor(&curwin());
+            g_st().visual_global.borrow_mut().start = curwin().w_cursor.get();
+            curwin().w_cursor.set(tpos);
 
-            check_cursor(&curwin_mut());
+            check_cursor(&curwin());
 
             if opt_vars().p_sel.first_byte() == b'e' && gchar_cursor() != i32::from(NUL) {
-                curwin_mut().w_cursor.add_col(1);
+                curwin().w_cursor.add_col(1);
             }
         }
     }

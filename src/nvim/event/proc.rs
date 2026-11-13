@@ -268,7 +268,7 @@ pub fn proc_teardown(loop_in: &mut Loop) {
         for proc_ in children {
             if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
                 if !(*qc).events.is_null() {
-                    multiqueue_put_event((*qc).events.borrow_mut(), Event::ProcCloseHandles(proc_));
+                    multiqueue_put_event((*qc).events, Event::ProcCloseHandles(proc_));
                 } else {
                     proc_close_handles(&mut *proc_);
                 }
@@ -277,7 +277,7 @@ pub fn proc_teardown(loop_in: &mut Loop) {
             }
         }
 
-        loop_process_events_until(&mut *loop_, (*qc).events.opt_mut(), -1, || {
+        loop_process_events_until(&mut *loop_, (*qc).events.opt(), -1, || {
             std::mem::ManuallyDrop::new(ptr::read_volatile(&raw const (*qc).children)).is_empty()
                 && multiqueue_empty((*qc).events.borrow())
         });
@@ -298,7 +298,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
-            loop_process_events(main_loop_ptr(), (*proc_).events.opt_mut(), 0);
+            loop_process_events(main_loop_ptr(), (*proc_).events.opt(), 0);
             return status;
         }
 
@@ -307,7 +307,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
         }
 
         (*proc_).refcount += 1;
-        loop_process_events_until(main_loop_ptr(), events.opt_mut(), i64::from(ms), || {
+        loop_process_events_until(main_loop_ptr(), events.opt(), i64::from(ms), || {
             g_st().got_int.get() || ptr::read_volatile(&raw const (*proc_).refcount) == 1
         });
 
@@ -315,11 +315,11 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
             g_st().got_int.set(false);
             proc_stop(&mut *proc_);
             if ms == -1 {
-                loop_process_events_until(main_loop_ptr(), events.opt_mut(), -1, || {
+                loop_process_events_until(main_loop_ptr(), events.opt(), -1, || {
                     ptr::read_volatile(&raw const (*proc_).refcount) == 1
                 });
             } else {
-                loop_process_events(main_loop_ptr(), events.opt_mut(), 0);
+                loop_process_events(main_loop_ptr(), events.opt(), 0);
             }
 
             if !(*proc_).interrupt {
@@ -331,7 +331,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
         if ptr::read_volatile(&raw const (*proc_).refcount) == 1 {
             proc_decref(&mut *proc_);
             if !(*proc_).events.is_null() {
-                multiqueue_process_events((*proc_).events.borrow_mut());
+                multiqueue_process_events((*proc_).events);
             }
         } else {
             (*proc_).refcount -= 1;
@@ -429,7 +429,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
     let idx = qc.children.iter().position(|&p| p == proc_ptr).unwrap();
     qc.children.remove(idx);
     if !proc_.events.is_null() {
-        multiqueue_put_event(proc_.events.borrow_mut(), Event::ProcClose(proc_ptr));
+        multiqueue_put_event(proc_.events, Event::ProcClose(proc_ptr));
     } else {
         proc_close_event(proc_);
     }
@@ -497,7 +497,7 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
             }
             loop_poll_events(main_loop_ptr(), 0);
             if !(*stream).s.events.is_null() {
-                multiqueue_process_events((*stream).s.events.borrow_mut());
+                multiqueue_process_events((*stream).s.events);
             }
 
             if num_bytes == ptr::read_volatile(&raw const (*stream).num_bytes) {
@@ -527,7 +527,7 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         uv_timer_stop(exit_timer);
         let qc = loop_queues(&mut *mloop);
         let status = proc_st(|st| st.exit_delay_status.get());
-        multiqueue_put_event(qc.fast_events.borrow_mut(), Event::ProcExit(status));
+        multiqueue_put_event(qc.fast_events, Event::ProcExit(status));
     }
 }
 
@@ -554,7 +554,7 @@ pub fn exit_event(status: i32) {
 /// Performs self-exit because the primary RPC channel was closed.
 pub fn exit_on_closed_chan(status: i32) {
     let qc = loop_queues(main_loop_ptr());
-    multiqueue_put_event(qc.fast_events.borrow_mut(), Event::ProcExit(status));
+    multiqueue_put_event(qc.fast_events, Event::ProcExit(status));
 }
 
 pub(crate) fn on_proc_exit(proc_: &mut Proc) {

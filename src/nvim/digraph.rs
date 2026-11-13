@@ -2067,15 +2067,15 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> Option<&'static CStr> {
-    curbuf_mut()
+    curbuf()
         .b_kmap_state
-        .set(curbuf_mut().b_kmap_state.get() & (!KEYMAP_INIT));
+        .set(curbuf().b_kmap_state.get() & (!KEYMAP_INIT));
 
-    if curbuf_mut().b_p_keymap.is_empty() {
+    if curbuf().b_p_keymap.is_empty() {
         keymap_unload();
         do_cmdline_cmd(c"unlet! b:keymap_name");
     } else {
-        let kmap_rc = curbuf_mut().b_p_keymap.as_cstr();
+        let kmap_rc = curbuf().b_p_keymap.as_cstr();
         let kmap = kmap_rc.to_string_lossy();
         let p_enc = opt_vars().p_enc.to_owned();
         let enc = p_enc.to_string_lossy();
@@ -2108,8 +2108,8 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     keymap_unload();
 
-    curbuf_mut().b_kmap_state.set(0);
-    curbuf_mut().b_kmap_ga.borrow_mut().clear();
+    curbuf().b_kmap_state.set(0);
+    curbuf().b_kmap_ga.borrow_mut().clear();
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
@@ -2132,15 +2132,15 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
                 std::ffi::CString::new(from_slice),
                 std::ffi::CString::new(to_slice),
             ) {
-                curbuf_mut().b_kmap_ga.borrow_mut().push(Kmap { from, to });
+                curbuf().b_kmap_ga.borrow_mut().push(Kmap { from, to });
             }
         }
     }
 
-    let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
+    let kmap_len = curbuf().b_kmap_ga.borrow().len();
     for idx in 0..kmap_len {
         {
-            let cb = curbuf_mut();
+            let cb = curbuf();
             let kmaps = cb.b_kmap_ga.borrow();
             let kp = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
@@ -2155,9 +2155,9 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     opt_vars().p_cpo.set(save_cpo);
 
-    curbuf_mut()
+    curbuf()
         .b_kmap_state
-        .set(curbuf_mut().b_kmap_state.get() | (KEYMAP_LOADED));
+        .set(curbuf().b_kmap_state.get() | (KEYMAP_LOADED));
     status_redraw_curbuf();
 }
 
@@ -2165,16 +2165,16 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 fn keymap_unload() {
     let mut buf = [0u8; KMAP_MAXLEN + 10];
 
-    if (curbuf_mut().b_kmap_state.get() & KEYMAP_LOADED) == 0 {
+    if (curbuf().b_kmap_state.get() & KEYMAP_LOADED) == 0 {
         return;
     }
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
-    let kmap_len = curbuf_mut().b_kmap_ga.borrow().len();
+    let kmap_len = curbuf().b_kmap_ga.borrow().len();
     for idx in 0..kmap_len {
         {
-            let cb = curbuf_mut();
+            let cb = curbuf();
             let kmaps = cb.b_kmap_ga.borrow();
             let entry = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
@@ -2186,19 +2186,19 @@ fn keymap_unload() {
             false,
         );
     }
-    curbuf_mut().b_kmap_ga.borrow_mut().clear();
+    curbuf().b_kmap_ga.borrow_mut().clear();
 
     opt_vars().p_cpo.set(save_cpo);
 
-    curbuf_mut()
+    curbuf()
         .b_kmap_state
-        .set(curbuf_mut().b_kmap_state.get() & (!KEYMAP_LOADED));
+        .set(curbuf().b_kmap_state.get() & (!KEYMAP_LOADED));
     status_redraw_curbuf();
 }
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
 pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
-    if wp.buf_mut().b_p_iminsert.get() != crate::ex_cmds::B_IMODE_LMAP {
+    if wp.buf().b_p_iminsert.get() != crate::ex_cmds::B_IMODE_LMAP {
         return 0;
     }
 
@@ -2215,8 +2215,8 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     set_curwin(old_curwin);
     let kmap_rc;
     if p_cstr.is_empty() {
-        if (wp.buf_mut().b_kmap_state.get() & KEYMAP_LOADED) != 0 {
-            kmap_rc = wp.buf_mut().b_p_keymap.as_cstr();
+        if (wp.buf().b_kmap_state.get() & KEYMAP_LOADED) != 0 {
+            kmap_rc = wp.buf().b_p_keymap.as_cstr();
             p_cstr = &kmap_rc;
         } else {
             p_cstr = c"lang";

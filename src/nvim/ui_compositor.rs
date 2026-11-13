@@ -53,7 +53,7 @@ struct UiCompositorState {
 impl UiCompositorState {
     #[inline]
     fn curgrid_mut(&self) -> crate::grid::GridRef {
-        self.curgrid.get().borrow_mut()
+        self.curgrid.get().borrow()
     }
 
     const fn new() -> Self {
@@ -89,7 +89,7 @@ fn with_comp<R>(f: impl FnOnce(&UiCompositorState) -> R) -> R {
 
 #[inline]
 fn layer_mut(idx: usize) -> crate::grid::GridRef {
-    with_comp(|c| c.layers.borrow()[idx]).borrow_mut()
+    with_comp(|c| c.layers.borrow()[idx]).borrow()
 }
 
 #[inline]
@@ -238,7 +238,7 @@ pub fn ui_comp_put_grid(
 
         if !(curwin_ptr()).is_null()
             && with_comp(|c| {
-                c.layers.borrow()[insert_at - 1] == curwin_mut().w_grid_alloc.target_kind.get()
+                c.layers.borrow()[insert_at - 1] == curwin().w_grid_alloc.target_kind.get()
             })
             && layer_mut(insert_at - 1).zindex == grid.zindex
             && !on_top
@@ -382,7 +382,7 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<crate::grid::GridRef> {
         }
     }
     if ui_has(K_UIMULTIGRID) {
-        for wp in for_all_windows_mut() {
+        for wp in for_all_windows_ptr() {
             let grid = &wp.w_grid_alloc;
             if grid.mouse_enabled.get()
                 && row >= wp.w_winrow.get()
@@ -415,7 +415,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> crate::grid::GridRef {
         }
     }
 
-    for wp in for_all_windows_mut() {
+    for wp in for_all_windows_ptr() {
         let grid = &wp.w_grid_alloc;
         if row >= grid.comp_row.get()
             && row < grid.comp_row.get() + grid.rows.get()

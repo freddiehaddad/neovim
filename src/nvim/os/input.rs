@@ -146,7 +146,7 @@ pub fn cursorhold_event() {
     } else {
         EVENT_CURSORHOLD
     };
-    apply_autocmds(event, None, None, false, curbuf_opt_mut().as_deref());
+    apply_autocmds(event, None, None, false, curbuf_opt().as_deref());
     g_st().did_cursorhold.set(true);
 }
 
@@ -194,7 +194,7 @@ pub fn input_get(
     }
 
     // No risk of a UI flood, so disable CTRL-C "interrupt" behavior if it's mapped.
-    if ((g_st().mapped_ctrl_c.get() | curbuf_mut().b_mapped_ctrl_c.get()) & get_real_state()) != 0 {
+    if ((g_st().mapped_ctrl_c.get() | curbuf().b_mapped_ctrl_c.get()) & get_real_state()) != 0 {
         g_st().ctrl_c_interrupts.set(false);
     }
 

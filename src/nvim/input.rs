@@ -2263,7 +2263,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
 
         mp = None;
         with_maphash_list(local_state, tb_b1, |global_list| {
-            let cb = curbuf_mut();
+            let cb = curbuf();
             let buf_maphash = cb.b_maphash.borrow();
             let buf_list = buf_maphash[map_hash(local_state, tb_b1 as u8)].as_slice();
             for cand in buf_list.iter().chain(global_list) {
@@ -2596,7 +2596,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                 if g_st().typebuf.tb_maplen.get() != 0 {
                     line_breakcheck();
                 } else {
-                    if ((g_st().mapped_ctrl_c.get() | curbuf_mut().b_mapped_ctrl_c.get())
+                    if ((g_st().mapped_ctrl_c.get() | curbuf().b_mapped_ctrl_c.get())
                         & get_real_state())
                         != 0
                     {
@@ -2659,8 +2659,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                 }
 
                 c = 0;
-                let mut new_wcol = curwin_mut().w_wcol.get();
-                let mut new_wrow = curwin_mut().w_wrow.get();
+                let mut new_wcol = curwin().w_wcol.get();
+                let mut new_wrow = curwin().w_wrow.get();
                 if advance
                     && g_st().typebuf.tb_len.get() == 1
                     && g_st().typebuf.tb_buf.borrow()[g_st().typebuf.tb_off.get() as usize]
@@ -2684,24 +2684,24 @@ fn vgetorpeek(advance: bool) -> i32 {
                         unshowmode(true);
                         mode_deleted = true;
                     }
-                    validate_cursor(&curwin_mut());
-                    let old_wcol = curwin_mut().w_wcol.get();
-                    let old_wrow = curwin_mut().w_wrow.get();
+                    validate_cursor(&curwin());
+                    let old_wcol = curwin().w_wcol.get();
+                    let old_wrow = curwin().w_wrow.get();
 
-                    if curwin_mut().w_cursor.get().col != 0 {
+                    if curwin().w_cursor.get().col != 0 {
                         let mut col: Colnr = 0;
-                        if curwin_mut().w_wcol.get() > 0 {
+                        if curwin().w_wcol.get() > 0 {
                             if g_st().ins_global.borrow().did_ai
                                 && crate::charset::skipwhite_slice(
                                     &crate::cursor::get_cursor_pos_slice(),
                                 )
                                 .is_empty()
                             {
-                                curwin_mut().w_wcol.set(0);
+                                curwin().w_wcol.set(0);
                                 let ptr_cstr = get_cursor_line_ptr();
-                                let end_off = curwin_mut().w_cursor.get().col as usize;
+                                let end_off = curwin().w_cursor.get().col as usize;
 
-                                let wp = curwin_mut();
+                                let wp = curwin();
                                 let mut csarg = CharsizeArg::new();
                                 let cstype: CSType = init_charsize_arg(
                                     &mut csarg,
@@ -2713,7 +2713,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 let mut vcol: i32 = 0;
                                 while ci.offset_from(&ptr_cstr) < end_off {
                                     if !ascii_iswhite(ci.chr.value) {
-                                        curwin_mut().w_wcol.set(vcol);
+                                        curwin().w_wcol.set(vcol);
                                     }
                                     let cli: ClusterInfo = utf_cluster_info(ci);
                                     vcol += win_charsize(
@@ -2728,45 +2728,43 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     ci = cli.next;
                                 }
 
-                                curwin_mut().w_wrow.set(
-                                    curwin_mut().w_cline_row.get()
-                                        + curwin_mut().w_wcol.get()
-                                            / curwin_mut().w_view_width.get(),
+                                curwin().w_wrow.set(
+                                    curwin().w_cline_row.get()
+                                        + curwin().w_wcol.get() / curwin().w_view_width.get(),
                                 );
-                                curwin_mut().w_wcol.set(
-                                    curwin_mut().w_wcol.get() % curwin_mut().w_view_width.get(),
-                                );
-                                curwin_mut()
+                                curwin()
                                     .w_wcol
-                                    .set(curwin_mut().w_wcol.get() + (win_col_off(&curwin_mut())));
+                                    .set(curwin().w_wcol.get() % curwin().w_view_width.get());
+                                curwin()
+                                    .w_wcol
+                                    .set(curwin().w_wcol.get() + (win_col_off(&curwin())));
                                 col = 0;
                             } else {
-                                curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() - (1));
-                                col = curwin_mut().w_cursor.get().col - 1;
+                                curwin().w_wcol.set(curwin().w_wcol.get() - (1));
+                                col = curwin().w_cursor.get().col - 1;
                             }
-                        } else if curwin_mut().w_onebuf_opt.wo_wrap.get()
-                            && curwin_mut().w_wrow.get() != 0
+                        } else if curwin().w_onebuf_opt.wo_wrap.get() && curwin().w_wrow.get() != 0
                         {
-                            curwin_mut().w_wrow.set(curwin_mut().w_wrow.get() - (1));
-                            curwin_mut().w_wcol.set(curwin_mut().w_view_width.get() - 1);
-                            col = curwin_mut().w_cursor.get().col - 1;
+                            curwin().w_wrow.set(curwin().w_wrow.get() - (1));
+                            curwin().w_wcol.set(curwin().w_view_width.get() - 1);
+                            col = curwin().w_cursor.get().col - 1;
                         }
-                        if col > 0 && curwin_mut().w_wcol.get() > 0 {
+                        if col > 0 && curwin().w_wcol.get() > 0 {
                             let line_slice = crate::cursor::get_cursor_line_slice();
                             col -= crate::mbyte::utf_head_off_slice(&line_slice, col as usize);
                             if utf_ptr2cells(&line_slice[(col as usize).min(line_slice.len())..])
                                 > 1
                             {
-                                curwin_mut().w_wcol.set(curwin_mut().w_wcol.get() - (1));
+                                curwin().w_wcol.set(curwin().w_wcol.get() - (1));
                             }
                         }
                     }
                     setcursor();
                     ui_flush();
-                    new_wcol = curwin_mut().w_wcol.get();
-                    new_wrow = curwin_mut().w_wrow.get();
-                    curwin_mut().w_wcol.set(old_wcol);
-                    curwin_mut().w_wrow.set(old_wrow);
+                    new_wcol = curwin().w_wcol.get();
+                    new_wrow = curwin().w_wrow.get();
+                    curwin().w_wcol.set(old_wcol);
+                    curwin().w_wrow.set(old_wrow);
                 }
                 if c < 0 {
                     continue;
@@ -2836,10 +2834,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                             setcursor();
                             showing_partial = true;
                         }
-                        let old_wcol = curwin_mut().w_wcol.get();
-                        let old_wrow = curwin_mut().w_wrow.get();
-                        curwin_mut().w_wcol.set(new_wcol);
-                        curwin_mut().w_wrow.set(new_wrow);
+                        let old_wcol = curwin().w_wcol.get();
+                        let old_wrow = curwin().w_wrow.get();
+                        curwin().w_wcol.set(new_wcol);
+                        curwin().w_wrow.set(new_wrow);
                         push_showcmd();
                         if g_st().typebuf.tb_len.get() > SHOWCMD_COLS {
                             showcmd_idx = g_st().typebuf.tb_len.get() - SHOWCMD_COLS;
@@ -2849,8 +2847,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                             add_byte_to_showcmd(g_st().typebuf.tb_buf.borrow()[idx]);
                             showcmd_idx += 1;
                         }
-                        curwin_mut().w_wcol.set(old_wcol);
-                        curwin_mut().w_wrow.set(old_wrow);
+                        curwin().w_wcol.set(old_wcol);
+                        curwin().w_wrow.set(old_wrow);
                     }
 
                     if (g_st().state_global.get() & MODE_CMDLINE) != 0

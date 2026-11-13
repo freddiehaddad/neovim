@@ -193,7 +193,7 @@ pub fn decor_providers_invoke_spell(
         if let Some(spell_nav) = spell_nav {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
-                integer_obj(wp.buf_mut().b_fnum.get() as Integer),
+                integer_obj(wp.buf().b_fnum.get() as Integer),
                 integer_obj(start_row as Integer),
                 integer_obj(start_col as Integer),
                 integer_obj(end_row as Integer),
@@ -211,7 +211,7 @@ pub fn decor_providers_invoke_conceal(wp: &WinInfoInfo, row: i32, lines: bool) {
     if !lines
         && (row < 0
             || wp.w_onebuf_opt.wo_cole.get() < 1
-            || wp.buf_mut().b_conceal_providers.get() == 0
+            || wp.buf().b_conceal_providers.get() == 0
             || (!wp.w_onebuf_opt.wo_wrap.get()
                 && !crate::decoration::decor_row_has_conceal(wp, row)))
     {
@@ -234,7 +234,7 @@ pub fn decor_providers_invoke_conceal(wp: &WinInfoInfo, row: i32, lines: bool) {
         if let Some(ref_) = ref_opt {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
-                integer_obj(wp.buf_mut().b_fnum.get() as Integer),
+                integer_obj(wp.buf().b_fnum.get() as Integer),
                 integer_obj(row as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..3]);
@@ -294,10 +294,7 @@ pub fn decor_providers_invoke_win(wp: &WinInfoInfo) {
     if providers_len() > 0 {
         validate_botline_win(wp);
     }
-    let botline: Linenr = wp
-        .w_botline
-        .get()
-        .min(wp.buf_mut().b_ml.ml_line_count.get());
+    let botline: Linenr = wp.w_botline.get().min(wp.buf().b_ml.ml_line_count.get());
 
     let mut i = 0usize;
     while i < providers_len() {
@@ -317,7 +314,7 @@ pub fn decor_providers_invoke_win(wp: &WinInfoInfo) {
         if let Some(redraw_win) = redraw_win {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum.get()),
+                buffer_obj(wp.buf().b_fnum.get()),
                 integer_obj((wp.w_topline.get() - 1) as Integer),
                 integer_obj((botline - 1) as Integer),
             ];
@@ -348,7 +345,7 @@ pub fn decor_providers_invoke_line(wp: &WinInfoInfo, row: i32) {
         if let Some(redraw_line) = redraw_line {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum.get()),
+                buffer_obj(wp.buf().b_fnum.get()),
                 integer_obj(row as Integer),
             ];
             let args = Array::from_slice(&mut args_buf[..3]);
@@ -392,7 +389,7 @@ pub fn decor_providers_invoke_range(
         if let Some(redraw_range) = redraw_range {
             let mut args_buf = [
                 window_obj(wp.handle),
-                buffer_obj(wp.buf_mut().b_fnum.get()),
+                buffer_obj(wp.buf().b_fnum.get()),
                 integer_obj(start_row as Integer),
                 integer_obj(start_col as Integer),
                 integer_obj(end_row as Integer),

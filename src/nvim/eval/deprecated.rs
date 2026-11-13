@@ -210,7 +210,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if arg1.v_type == VarType::VarList {
         args = arg1.vval.v_list_opt();
         argsl = args.map_or(0, |a| a.lv_len.get());
-        for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(
+        for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(
             args.and_then(|a| a.first_opt()),
         )) {
             if li.tv().v_type != VarType::VarString {
@@ -234,7 +234,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if argsl > 0
         && let Some(args) = args
     {
-        for li in crate::eval::typval::list_iter_mut(args.first_opt()) {
+        for li in crate::eval::typval::list_iter_ptr(args.first_opt()) {
             argv.push(tv_get_string(&li.tv()).into_owned());
         }
     }
@@ -292,7 +292,7 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
 pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
-    for buf in for_all_buffers_mut() {
+    for buf in for_all_buffers_ptr() {
         if n < buf.b_fnum.get() {
             n = buf.b_fnum.get();
         }

@@ -593,7 +593,7 @@ pub fn decor_redraw_sh(buf: &FileBuf, row1: i32, row2: i32, sh: DecorSignHighlig
         }
     }
     if (sh.flags & K_SHCONCEAL_LINES) != 0 {
-        for wp in for_all_windows_mut() {
+        for wp in for_all_windows_ptr() {
             if wp.w_buffer.get() == buf {
                 changed_window_setting(&wp);
             }
@@ -695,7 +695,7 @@ pub fn buf_put_decor(buf: &FileBuf, decor: DecorInline, row: i32, mut row2: i32)
 
 fn may_force_numberwidth_recompute(buf: &FileBuf, unplace: bool) {
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(if g_st().curtab.get() == tp {
+        for wp in win_iter_ptr(if g_st().curtab.get() == tp {
             g_st().firstwin.get()
         } else {
             tp.tp_firstwin.get()
@@ -1461,7 +1461,7 @@ pub fn decor_redraw_col_impl(
 }
 
 fn decor_row_has_mark(wp: &WinInfoInfo, row: i32, meta: usize, flag: u32) -> bool {
-    if buf_meta_total(&(*wp).buf_mut(), meta) == 0 {
+    if buf_meta_total(&(*wp).buf(), meta) == 0 {
         return false;
     }
     let mut filter = [0u32; K_MTMETA_COUNT];
@@ -1469,7 +1469,7 @@ fn decor_row_has_mark(wp: &WinInfoInfo, row: i32, meta: usize, flag: u32) -> boo
 
     let mut pair: MTPair = MTPair::new();
     let mut itr = MarkTreeIter::new();
-    let wp_buf = (*wp).buf_mut();
+    let wp_buf = (*wp).buf();
     let b = &wp_buf.b_marktree.borrow();
     marktree_itr_get_overlap(b, row, 0, &mut itr);
     while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
@@ -1768,7 +1768,7 @@ pub fn decor_virt_line_rows(
         return 1;
     }
     let vt: &[VirtTextChunk] = &vl.line;
-    let buf = wp.buf_mut();
+    let buf = wp.buf();
     let mut vcol: i32 = 0;
     let mut row_cells: i32 = 0;
     let mut row: i32 = 0;

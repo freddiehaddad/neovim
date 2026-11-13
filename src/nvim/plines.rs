@@ -165,7 +165,7 @@ impl<'a> CharsizeArg<'a> {
     }
 
     #[inline(always)]
-    pub fn win_mut(&self) -> &'a WinInfoInfo {
+    pub fn win(&self) -> &'a WinInfoInfo {
         self.win.expect("CharsizeArg::win is None")
     }
 
@@ -277,7 +277,7 @@ pub fn win_chartabsize(wp: &WinInfoInfo, p: impl crate::mbyte::AsMbyteSlice, col
 }
 
 pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
-    let wp = curwin_mut();
+    let wp = curwin();
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, &wp, 0, s.to_bytes());
     if csarg.can_use_fast_loop(cstype) {
@@ -619,7 +619,7 @@ pub fn charsize_regular(
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;
 
-        let wp = csarg.win_mut();
+        let wp = csarg.win();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
@@ -1012,7 +1012,7 @@ pub fn charsize_fast(
     mb_width: i32,
 ) -> CharSize {
     charsize_fast_impl(
-        csarg.win_mut(),
+        csarg.win(),
         csarg.use_tabstop,
         csarg.has_vts,
         csarg.b_p_ts,
@@ -1254,7 +1254,7 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
     let b_p_ts = csarg.b_p_ts;
     let line_bytes = csarg.line.to_bytes();
     let mut vcol = i64::from(vcol_arg);
-    let wp = csarg.win_mut();
+    let wp = csarg.win();
 
     let mut ci = utf_slice2_str_char_info(line_bytes);
     while (ci.offset_from_bytes(line_bytes) as Colnr) < len && !ci.ptr.is_empty() {
@@ -1446,18 +1446,18 @@ pub fn getvcol(
 }
 
 pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
-    let list_save = curwin_mut().w_onebuf_opt.wo_list.get();
+    let list_save = curwin().w_onebuf_opt.wo_list.get();
     let mut vcol: Colnr = 0;
     let mut pos = *posp;
 
-    curwin_mut().w_onebuf_opt.wo_list.set(false);
+    curwin().w_onebuf_opt.wo_list.set(false);
     if pos.coladd != 0 {
-        getvvcol(&curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
+        getvvcol(&curwin(), &mut pos, None, Some(&mut vcol), None, 0);
     } else {
-        getvcol(&curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
+        getvcol(&curwin(), &mut pos, None, Some(&mut vcol), None, 0);
     }
     *posp = pos;
-    curwin_mut().w_onebuf_opt.wo_list.set(list_save);
+    curwin().w_onebuf_opt.wo_list.set(list_save);
     vcol
 }
 

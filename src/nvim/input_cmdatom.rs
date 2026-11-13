@@ -487,13 +487,13 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
 fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
         win: crate::globals::curwin_ptr(),
-        pos: curwin_mut().w_cursor.get(),
-        tick: buf_get_changedtick(&curbuf_mut()),
+        pos: curwin().w_cursor.get(),
+        tick: buf_get_changedtick(&curbuf()),
         maptick: g_st().maptick.get(),
-        mcursor: mc_mark_at(&curbuf_mut(), curwin_mut().w_cursor.get(), 0),
+        mcursor: mc_mark_at(&curbuf(), curwin().w_cursor.get(), 0),
         ..CmdOrigin::default()
     };
-    set_bufref(&mut origin.buf, g_st().curbuf.get().opt_mut());
+    set_bufref(&mut origin.buf, g_st().curbuf.get().opt());
     origin
 }
 
@@ -533,7 +533,7 @@ pub fn atom_origin_pos(buf: &FileBuf) -> CursorPos {
     {
         return o.pos;
     }
-    curwin_mut().w_cursor.get()
+    curwin().w_cursor.get()
 }
 
 fn atom_redo_keys(spec: &CmdSpec) -> std::ffi::CString {
@@ -740,7 +740,7 @@ fn atom_emit(atom: &CmdAtom) {
         }
         dict_put(&mut data, c"atoms", array_obj(atoms));
     }
-    let cb = curbuf_mut();
+    let cb = curbuf();
     let buf = atom.origin.buf.buf_opt().unwrap_or(&cb);
     let mut obj = dict_obj(data.clone());
     aucmd_defer(
@@ -822,7 +822,7 @@ fn atom_push(cascade: bool, atom: &mut CmdAtom) {
         *atom = CmdAtom::new();
         return;
     }
-    atom_push_raw(cascade && mc_buf_has_cursors(&curbuf_mut()), &mut *atom);
+    atom_push_raw(cascade && mc_buf_has_cursors(&curbuf()), &mut *atom);
 }
 
 fn atom_stage_set(atom: &mut CmdAtom) {
@@ -1008,7 +1008,7 @@ fn atom_capturable(consumers: bool, keytyped: bool) -> bool {
 
 #[inline]
 fn atom_buf_has_consumers() -> bool {
-    mc_buf_has_cursors(&curbuf_mut()) || has_event(EVENT_CMDATOM)
+    mc_buf_has_cursors(&curbuf()) || has_event(EVENT_CMDATOM)
 }
 
 pub fn atom_key_class(cmd: i32, arg: i32, arg2: i32) -> u32 {
@@ -1365,7 +1365,7 @@ fn atom_visual_span_flush() {
     if with_atom(|st| st.vatom.done.get() >= st.vatom.atoms.borrow().len())
         || !atom_visual_replayable()
         || !atom_visual_typed()
-        || !mc_buf_has_cursors(&curbuf_mut())
+        || !mc_buf_has_cursors(&curbuf())
     {
         return;
     }
@@ -1714,7 +1714,7 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
         session.vsel = None;
         return;
     }
-    atom_ins_push(session, mc_buf_has_cursors(&curbuf_mut()));
+    atom_ins_push(session, mc_buf_has_cursors(&curbuf()));
     session.vsel = None;
 }
 

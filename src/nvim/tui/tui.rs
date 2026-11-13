@@ -1048,7 +1048,7 @@ pub fn tui_stop() {
     }) && !expired
     {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
-            multiqueue_process_events(events.borrow_mut());
+            multiqueue_process_events(events);
         } else {
             loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }

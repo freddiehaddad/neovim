@@ -300,9 +300,9 @@ pub(crate) fn on_signal(signum: i32) {
             apply_autocmds(
                 EVENT_SIGNAL,
                 Some(c"SIGUSR1"),
-                crate::globals::curbuf_mut().fname_opt().as_deref(),
+                crate::globals::curbuf().fname_opt().as_deref(),
                 true,
-                crate::globals::curbuf_opt_mut().as_deref(),
+                crate::globals::curbuf_opt().as_deref(),
             );
             return;
         }
@@ -323,9 +323,9 @@ pub(crate) fn on_signal(signum: i32) {
                 apply_autocmds(
                     EVENT_SIGNAL,
                     Some(c"SIGWINCH"),
-                    crate::globals::curbuf_mut().fname_opt().as_deref(),
+                    crate::globals::curbuf().fname_opt().as_deref(),
                     true,
-                    crate::globals::curbuf_opt_mut().as_deref(),
+                    crate::globals::curbuf_opt().as_deref(),
                 );
             }
             _ => {

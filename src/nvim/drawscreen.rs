@@ -231,15 +231,15 @@ pub fn conceal_redraw_cursor_line(wp: &WinInfoInfo) {
 pub fn conceal_check_cursor_line() {
     conceal_check_visual();
 
-    let should_conceal = conceal_cursor_line(&curwin_mut());
-    if curwin_mut().w_onebuf_opt.wo_cole.get() <= 0
+    let should_conceal = conceal_cursor_line(&curwin());
+    if curwin().w_onebuf_opt.wo_cole.get() <= 0
         || ds_st(|st| st.conceal_cursor_used.get()) == should_conceal
     {
         return;
     }
 
-    conceal_redraw_cursor_line(&crate::globals::curwin_mut());
-    curs_columns(&curwin_mut(), true);
+    conceal_redraw_cursor_line(&crate::globals::curwin());
+    curs_columns(&curwin(), true);
 }
 
 /// Redraws the lines that entered or left the Visual area since the last check: 'concealcursor'
@@ -252,13 +252,13 @@ pub fn conceal_check_visual() {
                 .borrow()
                 .start
                 .lnum
-                .min(curwin_mut().w_cursor.get().lnum),
+                .min(curwin().w_cursor.get().lnum),
             g_st()
                 .visual_global
                 .borrow()
                 .start
                 .lnum
-                .max(curwin_mut().w_cursor.get().lnum),
+                .max(curwin().w_cursor.get().lnum),
         ]
     } else {
         [0, 0]
@@ -269,7 +269,7 @@ pub fn conceal_check_visual() {
         return;
     }
     for tp in for_all_tabpages_ptr() {
-        for wp in for_all_windows_in_tab_mut(&tp) {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             if g_st().curbuf.get() != wp.w_buffer.get() {
                 continue;
             }
@@ -363,7 +363,7 @@ pub fn screenclear() {
     ds_st(|st| st.redraw_popupmenu.set(true));
     pum_invalidate();
 
-    for wp in for_all_windows_mut() {
+    for wp in for_all_windows_ptr() {
         if wp.w_floating.get() {
             wp.w_redr_type.set(UPD_CLEAR);
         }
@@ -415,10 +415,10 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
     g_st().columns_global.set(width);
     check_screensize();
     if !ui_has(K_UIMESSAGES) {
-        let max_p_ch = OptInt::from(g_st().rows_global.get() - min_rows(&curtab_mut()) + 1);
+        let max_p_ch = OptInt::from(g_st().rows_global.get() - min_rows(&curtab()) + 1);
         if opt_vars().p_ch.get() > 0 && opt_vars().p_ch.get() > max_p_ch {
             opt_vars().p_ch.set(max_p_ch.max(1));
-            curtab_mut().tp_ch_used.set(opt_vars().p_ch.get());
+            curtab().tp_ch_used.set(opt_vars().p_ch.get());
         }
         for tp in for_all_tabpages_ptr() {
             if g_st().curtab.get() != tp {
@@ -465,13 +465,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             break;
         }
 
-        apply_autocmds(
-            EVENT_VIMRESIZED,
-            None,
-            None,
-            false,
-            curbuf_opt_mut().as_deref(),
-        );
+        apply_autocmds(EVENT_VIMRESIZED, None, None, false, curbuf_opt().as_deref());
     }
 
     ds_st(|st| st.resizing_autocmd.set(false));
@@ -485,7 +479,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
         maketitle();
 
         changed_line_abv_curs();
-        invalidate_botline_win(&curwin_mut());
+        invalidate_botline_win(&curwin());
 
         if g_st().state_global.get() == MODE_ASKMORE
             || g_st().state_global.get() == MODE_EXTERNCMD
@@ -500,7 +494,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             ui_comp_set_screen_valid(true);
             repeat_message();
         } else {
-            if curwin_mut().w_onebuf_opt.wo_scb.get() {
+            if curwin().w_onebuf_opt.wo_scb.get() {
                 do_check_scrollbind(true);
             }
             if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
@@ -511,7 +505,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
                     cmdline_pum_display(false);
                 }
             } else {
-                update_topline(&curwin_mut());
+                update_topline(&curwin());
                 if pum_drawn() {
                     ds_st(|st| st.redraw_popupmenu.set(false));
                     ins_compl_show_pum();
@@ -557,7 +551,7 @@ pub fn redrawing() -> bool {
 
 pub fn update_screen() -> bool {
     if ds_st(|st| st.still_may_intro.get()) && !may_show_intro() {
-        redraw_later(Some(&crate::globals::firstwin_mut()), UPD_NOT_VALID);
+        redraw_later(Some(&crate::globals::firstwin()), UPD_NOT_VALID);
         ds_st(|st| st.still_may_intro.set(false));
     }
 
@@ -588,7 +582,7 @@ pub fn update_screen() -> bool {
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf.set(curwin_mut().w_buffer.get());
+        g_st().curbuf.set(curwin().w_buffer.get());
     }
 
     let mut type_ = g_st().must_redraw.get();
@@ -641,7 +635,7 @@ pub fn update_screen() -> bool {
                 );
                 i += 1;
             }
-            for wp in for_all_windows_mut() {
+            for wp in for_all_windows_ptr() {
                 if !wp.w_floating.get() {
                     if w_endrow(&wp) > valid {
                         wp.w_redr_type.set(wp.w_redr_type.get().max(UPD_NOT_VALID));
@@ -654,7 +648,7 @@ pub fn update_screen() -> bool {
             if is_stl_global
                 && g_st().rows_global.get() - (opt_vars().p_ch.get() as i32) - 1 > valid
             {
-                curwin_mut().w_redr_status.set(true);
+                curwin().w_redr_status.set(true);
             }
         }
         msg_grid_set_pos(
@@ -717,29 +711,29 @@ pub fn update_screen() -> bool {
         msg_check_for_delay(false);
     }
 
-    if curwin_mut().w_redr_type.get() < UPD_NOT_VALID {
-        let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu.get()
-            || curwin_mut().w_onebuf_opt.wo_rnu.get()
-            || !curwin_mut().w_onebuf_opt.wo_stc.is_empty()
+    if curwin().w_redr_type.get() < UPD_NOT_VALID {
+        let curwin_nrw = if curwin().w_onebuf_opt.wo_nu.get()
+            || curwin().w_onebuf_opt.wo_rnu.get()
+            || !curwin().w_onebuf_opt.wo_stc.is_empty()
         {
-            number_width(&curwin_mut())
+            number_width(&curwin())
         } else {
             0
         };
-        if curwin_mut().w_nrwidth.get() != curwin_nrw {
-            curwin_mut().w_redr_type.set(UPD_NOT_VALID);
+        if curwin().w_nrwidth.get() != curwin_nrw {
+            curwin().w_redr_type.set(UPD_NOT_VALID);
         }
     }
 
-    if curwin_mut().w_redr_type.get() == UPD_INVERTED {
+    if curwin().w_redr_type.get() == UPD_INVERTED {
         update_curswant();
     }
 
     if g_st().redraw_tabline.get() || type_ >= UPD_NOT_VALID {
-        update_window_hl(&curwin_mut(), type_ >= UPD_NOT_VALID);
+        update_window_hl(&curwin(), type_ >= UPD_NOT_VALID);
         for tp in for_all_tabpages_ptr() {
             if g_st().curtab.get() != tp {
-                update_window_hl(&tp.curwin_mut(), type_ >= UPD_NOT_VALID);
+                update_window_hl(&tp.curwin(), type_ >= UPD_NOT_VALID);
             }
         }
         draw_tabline();
@@ -749,7 +743,7 @@ pub fn update_screen() -> bool {
         if !(wp.w_config.borrow().hide && !wp.w_grid_alloc.chars.borrow().is_empty()) {
             update_window_hl(&wp, type_ >= UPD_NOT_VALID || hl_changed);
 
-            let buf = wp.buf_mut();
+            let buf = wp.buf();
             if buf.b_mod_set.get() {
                 if buf.b_mod_tick_syn.get() < display_tick_val() && syntax_present(&wp) {
                     syn_stack_apply_changes(&buf);
@@ -821,7 +815,7 @@ pub fn update_screen() -> bool {
     end_search_hl();
 
     if pum_drawn() && g_st().must_redraw_pum.get() {
-        win_check_ns_hl(Some(&crate::globals::curwin_mut()));
+        win_check_ns_hl(Some(&crate::globals::curwin()));
         pum_redraw();
     } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
         pum_check_clear();
@@ -830,7 +824,7 @@ pub fn update_screen() -> bool {
     win_check_ns_hl(None);
 
     for wp in for_all_windows_ptr() {
-        wp.buf_mut().b_mod_set.set(false);
+        wp.buf().b_mod_set.set(false);
     }
 
     g_st().updating_screen.set(false);
@@ -856,7 +850,7 @@ pub fn update_screen() -> bool {
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        g_st().curbuf.set(curwin_mut().w_buffer.get());
+        g_st().curbuf.set(curwin().w_buffer.get());
     }
 
     true
@@ -877,7 +871,7 @@ pub fn end_search_hl() {
 }
 
 pub fn setcursor() {
-    setcursor_mayforce(&curwin_mut(), false);
+    setcursor_mayforce(&curwin(), false);
 }
 
 pub fn setcursor_mayforce(wp: &WinInfoInfo, force: bool) {
@@ -887,9 +881,8 @@ pub fn setcursor_mayforce(wp: &WinInfoInfo, force: bool) {
         let mut row = wp.w_wrow.get();
         let mut col = wp.w_wcol.get();
         if wp.w_onebuf_opt.wo_rl.get() {
-            let cur_slice =
-                &crate::memline::ml_get_buf_slice(&wp.buf_mut(), wp.w_cursor.get().lnum)
-                    [wp.w_cursor.get().col as usize..];
+            let cur_slice = &crate::memline::ml_get_buf_slice(&wp.buf(), wp.w_cursor.get().lnum)
+                [wp.w_cursor.get().col as usize..];
             let wide = crate::mbyte::utf_slice2cells(cur_slice) == 2
                 && vim_isprintc(crate::mbyte::utf_slice2char(cur_slice));
             col = wp.w_view_width.get() - wp.w_wcol.get() - if wide { 2 } else { 1 };
@@ -914,61 +907,57 @@ pub fn redraw_custom_title_later() -> bool {
 pub fn show_cursor_info_later(force: bool) {
     let state = get_real_state();
     let empty_line = (g_st().state_global.get() & MODE_INSERT) == 0
-        && crate::memline::ml_get_buf_slice(
-            &curwin_mut().buf_mut(),
-            curwin_mut().w_cursor.get().lnum,
-        )
-        .is_empty();
+        && crate::memline::ml_get_buf_slice(&curwin().buf(), curwin().w_cursor.get().lnum)
+            .is_empty();
 
-    validate_virtcol(&curwin_mut());
+    validate_virtcol(&curwin());
     if force
-        || curwin_mut().w_cursor.get().lnum != curwin_mut().w_stl_cursor.get().lnum
-        || curwin_mut().w_cursor.get().col != curwin_mut().w_stl_cursor.get().col
-        || curwin_mut().w_virtcol.get() != curwin_mut().w_stl_virtcol.get()
-        || curwin_mut().w_cursor.get().coladd != curwin_mut().w_stl_cursor.get().coladd
-        || curwin_mut().w_topline.get() != curwin_mut().w_stl_topline.get()
-        || curwin_mut().buf_mut().b_ml.ml_line_count.get() != curwin_mut().w_stl_line_count.get()
-        || curwin_mut().w_topfill.get() != curwin_mut().w_stl_topfill.get()
-        || empty_line != curwin_mut().w_stl_empty.get()
-        || g_st().reg_recording.get() != curwin_mut().w_stl_recording.get()
-        || state != curwin_mut().w_stl_state.get()
+        || curwin().w_cursor.get().lnum != curwin().w_stl_cursor.get().lnum
+        || curwin().w_cursor.get().col != curwin().w_stl_cursor.get().col
+        || curwin().w_virtcol.get() != curwin().w_stl_virtcol.get()
+        || curwin().w_cursor.get().coladd != curwin().w_stl_cursor.get().coladd
+        || curwin().w_topline.get() != curwin().w_stl_topline.get()
+        || curwin().buf().b_ml.ml_line_count.get() != curwin().w_stl_line_count.get()
+        || curwin().w_topfill.get() != curwin().w_stl_topfill.get()
+        || empty_line != curwin().w_stl_empty.get()
+        || g_st().reg_recording.get() != curwin().w_stl_recording.get()
+        || state != curwin().w_stl_state.get()
         || (g_st().visual_global.borrow().active
-            && (g_st().visual_global.borrow().mode != curwin_mut().w_stl_visual_mode.get()
+            && (g_st().visual_global.borrow().mode != curwin().w_stl_visual_mode.get()
                 || g_st().visual_global.borrow().start.lnum
-                    != curwin_mut().w_stl_visual_pos.get().lnum
-                || g_st().visual_global.borrow().start.col
-                    != curwin_mut().w_stl_visual_pos.get().col
+                    != curwin().w_stl_visual_pos.get().lnum
+                || g_st().visual_global.borrow().start.col != curwin().w_stl_visual_pos.get().col
                 || g_st().visual_global.borrow().start.coladd
-                    != curwin_mut().w_stl_visual_pos.get().coladd))
+                    != curwin().w_stl_visual_pos.get().coladd))
     {
-        if curwin_mut().w_status_height.get() != 0 || global_stl_height() != 0 {
-            curwin_mut().w_redr_status.set(true);
+        if curwin().w_status_height.get() != 0 || global_stl_height() != 0 {
+            curwin().w_redr_status.set(true);
         } else {
             g_st().redraw_cmdline.set(true);
         }
 
-        if !opt_vars().p_wbr.is_empty() || !curwin_mut().w_onebuf_opt.wo_wbr.is_empty() {
-            curwin_mut().w_redr_status.set(true);
+        if !opt_vars().p_wbr.is_empty() || !curwin().w_onebuf_opt.wo_wbr.is_empty() {
+            curwin().w_redr_status.set(true);
         }
 
         redraw_custom_title_later();
     }
 
-    curwin_mut().w_stl_cursor.set(curwin_mut().w_cursor.get());
-    curwin_mut().w_stl_virtcol.set(curwin_mut().w_virtcol.get());
-    curwin_mut().w_stl_empty.set(empty_line);
-    curwin_mut().w_stl_topline.set(curwin_mut().w_topline.get());
-    curwin_mut()
+    curwin().w_stl_cursor.set(curwin().w_cursor.get());
+    curwin().w_stl_virtcol.set(curwin().w_virtcol.get());
+    curwin().w_stl_empty.set(empty_line);
+    curwin().w_stl_topline.set(curwin().w_topline.get());
+    curwin()
         .w_stl_line_count
-        .set(curwin_mut().buf_mut().b_ml.ml_line_count.get());
-    curwin_mut().w_stl_topfill.set(curwin_mut().w_topfill.get());
-    curwin_mut().w_stl_recording.set(g_st().reg_recording.get());
-    curwin_mut().w_stl_state.set(state);
+        .set(curwin().buf().b_ml.ml_line_count.get());
+    curwin().w_stl_topfill.set(curwin().w_topfill.get());
+    curwin().w_stl_recording.set(g_st().reg_recording.get());
+    curwin().w_stl_state.set(state);
     if g_st().visual_global.borrow().active {
-        curwin_mut()
+        curwin()
             .w_stl_visual_mode
             .set(g_st().visual_global.borrow().mode);
-        curwin_mut()
+        curwin()
             .w_stl_visual_pos
             .set(g_st().visual_global.borrow().start);
     }
@@ -1070,7 +1059,7 @@ pub fn showmode() -> i32 {
                     || g_st().restart_edit.get() == i32::from(b'a')
                     || g_st().restart_edit.get() == i32::from(b'A')
                 {
-                    if !curbuf_mut().terminal.get().is_null() {
+                    if !curbuf().terminal.get().is_null() {
                         msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
                     } else {
                         msg_puts_hl(gettext(c" (insert)"), hl_id, false);
@@ -1081,11 +1070,11 @@ pub fn showmode() -> i32 {
                     msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                 }
                 if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
-                    if curwin_mut().w_onebuf_opt.wo_arab.get() {
+                    if curwin().w_onebuf_opt.wo_arab.get() {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                     } else {
                         let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
-                        if get_keymap_str(&curwin_mut(), c" (%s)", &mut name_buff) > 0 {
+                        if get_keymap_str(&curwin(), c" (%s)", &mut name_buff) > 0 {
                             msg_puts_hl(crate::memory::bytes_as_cstr(&name_buff), hl_id, false);
                         }
                     }
@@ -1241,7 +1230,7 @@ pub fn comp_col() {
 }
 
 fn win_redraw_signcols(wp: &WinInfoInfo) -> bool {
-    let buf = wp.buf_mut();
+    let buf = wp.buf();
 
     if !buf.b_signcols.autom.get()
         && (!wp.w_onebuf_opt.wo_stc.is_empty()
@@ -1280,10 +1269,10 @@ fn hsep_connected(wp: &WinInfoInfo, corner: WindowCorner) -> bool {
     } else {
         w_endrow(wp)
     };
-    let mut fr = wp.frame_mut();
+    let mut fr = wp.frame();
 
     while !fr.fr_parent.get().is_null() {
-        if fr.parent_mut().fr_layout.get() == FR_ROW
+        if fr.parent().fr_layout.get() == FR_ROW
             && !(if before {
                 fr.fr_prev.get()
             } else {
@@ -1291,30 +1280,30 @@ fn hsep_connected(wp: &WinInfoInfo, corner: WindowCorner) -> bool {
             })
             .is_null()
         {
-            fr = if before { fr.prev_mut() } else { fr.next_mut() };
+            fr = if before { fr.prev() } else { fr.next() };
             break;
         }
-        fr = fr.parent_mut();
+        fr = fr.parent();
     }
     if fr.fr_parent.get().is_null() {
         return false;
     }
     while fr.fr_layout.get() != FR_LEAF {
-        fr = fr.child_mut();
-        if fr.parent_mut().fr_layout.get() == FR_ROW && before {
+        fr = fr.child();
+        if fr.parent().fr_layout.get() == FR_ROW && before {
             while !fr.fr_next.get().is_null() {
-                fr = fr.next_mut();
+                fr = fr.next();
             }
         } else {
             while !fr.fr_next.get().is_null()
                 && frame2win(&fr).w_winrow.get() + fr.fr_height.get() < sep_row
             {
-                fr = fr.next_mut();
+                fr = fr.next();
             }
         }
     }
 
-    sep_row == fr.win_mut().w_winrow.get() - 1 || sep_row == w_endrow(&fr.win_mut())
+    sep_row == fr.win().w_winrow.get() - 1 || sep_row == w_endrow(&fr.win())
 }
 
 fn vsep_connected(wp: &WinInfoInfo, corner: WindowCorner) -> bool {
@@ -1324,10 +1313,10 @@ fn vsep_connected(wp: &WinInfoInfo, corner: WindowCorner) -> bool {
     } else {
         w_endcol(wp)
     };
-    let mut fr = wp.frame_mut();
+    let mut fr = wp.frame();
 
     while !fr.fr_parent.get().is_null() {
-        if fr.parent_mut().fr_layout.get() == FR_COL
+        if fr.parent().fr_layout.get() == FR_COL
             && !(if before {
                 fr.fr_prev.get()
             } else {
@@ -1335,30 +1324,30 @@ fn vsep_connected(wp: &WinInfoInfo, corner: WindowCorner) -> bool {
             })
             .is_null()
         {
-            fr = if before { fr.prev_mut() } else { fr.next_mut() };
+            fr = if before { fr.prev() } else { fr.next() };
             break;
         }
-        fr = fr.parent_mut();
+        fr = fr.parent();
     }
     if fr.fr_parent.get().is_null() {
         return false;
     }
     while fr.fr_layout.get() != FR_LEAF {
-        fr = fr.child_mut();
-        if fr.parent_mut().fr_layout.get() == FR_COL && before {
+        fr = fr.child();
+        if fr.parent().fr_layout.get() == FR_COL && before {
             while !fr.fr_next.get().is_null() {
-                fr = fr.next_mut();
+                fr = fr.next();
             }
         } else {
             while !fr.fr_next.get().is_null()
                 && frame2win(&fr).w_wincol.get() + fr.fr_width.get() < sep_col
             {
-                fr = fr.next_mut();
+                fr = fr.next();
             }
         }
     }
 
-    sep_col == fr.win_mut().w_wincol.get() - 1 || sep_col == w_endcol(&fr.win_mut())
+    sep_col == fr.win().w_wincol.get() - 1 || sep_col == w_endcol(&fr.win())
 }
 
 fn draw_vsep_win(wp: &WinInfoInfo) {
@@ -1418,21 +1407,21 @@ fn draw_sep_connectors_win(wp: &WinInfoInfo) {
     let win_at_bottom = wp.w_hsep_height.get() == 0;
     let win_at_right = wp.w_vsep_width.get() == 0;
 
-    let mut frp = wp.frame_mut();
+    let mut frp = wp.frame();
     while !frp.fr_parent.get().is_null() {
-        if frp.parent_mut().fr_layout.get() == FR_COL && !frp.fr_prev.get().is_null() {
+        if frp.parent().fr_layout.get() == FR_COL && !frp.fr_prev.get().is_null() {
             break;
         }
-        frp = frp.parent_mut();
+        frp = frp.parent();
     }
     let win_at_top = frp.fr_parent.get().is_null();
 
-    frp = wp.frame_mut();
+    frp = wp.frame();
     while !frp.fr_parent.get().is_null() {
-        if frp.parent_mut().fr_layout.get() == FR_ROW && !frp.fr_prev.get().is_null() {
+        if frp.parent().fr_layout.get() == FR_ROW && !frp.fr_prev.get().is_null() {
             break;
         }
-        frp = frp.parent_mut();
+        frp = frp.parent();
     }
     let win_at_left = frp.fr_parent.get().is_null();
 
@@ -1520,7 +1509,7 @@ fn win_update(wp: &WinInfoInfo) {
         return;
     }
 
-    let buf = wp.buf_mut();
+    let buf = wp.buf();
 
     let save_got_int = g_st().got_int.get();
     g_st().got_int.set(false);
@@ -1863,7 +1852,7 @@ fn win_update(wp: &WinInfoInfo) {
         type_ = UPD_NOT_VALID;
     }
 
-    if (g_st().visual_global.borrow().active && curwin_mut().w_buffer.get() == buf)
+    if (g_st().visual_global.borrow().active && curwin().w_buffer.get() == buf)
         || (wp.w_old_cursor_lnum.get() != 0 && type_ != UPD_NOT_VALID)
     {
         let mut from: Linenr;
@@ -1873,12 +1862,12 @@ fn win_update(wp: &WinInfoInfo) {
             if g_st().visual_global.borrow().mode != i32::from(wp.w_old_visual_mode.get())
                 || type_ == UPD_INVERTED_ALL
             {
-                if curwin_mut().w_cursor.get().lnum < g_st().visual_global.borrow().start.lnum {
-                    from = curwin_mut().w_cursor.get().lnum;
+                if curwin().w_cursor.get().lnum < g_st().visual_global.borrow().start.lnum {
+                    from = curwin().w_cursor.get().lnum;
                     to = g_st().visual_global.borrow().start.lnum;
                 } else {
                     from = g_st().visual_global.borrow().start.lnum;
-                    to = curwin_mut().w_cursor.get().lnum;
+                    to = curwin().w_cursor.get().lnum;
                 }
                 from = from
                     .min(wp.w_old_cursor_lnum.get())
@@ -1887,12 +1876,12 @@ fn win_update(wp: &WinInfoInfo) {
                     .max(wp.w_old_cursor_lnum.get())
                     .max(wp.w_old_visual_lnum.get());
             } else {
-                if curwin_mut().w_cursor.get().lnum < wp.w_old_cursor_lnum.get() {
-                    from = curwin_mut().w_cursor.get().lnum;
+                if curwin().w_cursor.get().lnum < wp.w_old_cursor_lnum.get() {
+                    from = curwin().w_cursor.get().lnum;
                     to = wp.w_old_cursor_lnum.get();
                 } else {
                     from = wp.w_old_cursor_lnum.get();
-                    to = curwin_mut().w_cursor.get().lnum;
+                    to = curwin().w_cursor.get().lnum;
                     if from == 0 {
                         from = to;
                     }
@@ -1914,7 +1903,7 @@ fn win_update(wp: &WinInfoInfo) {
             if g_st().visual_global.borrow().mode == CTRL_V_CONST {
                 let mut fromc: Colnr = 0;
                 let mut toc: Colnr = 0;
-                let mut cursor = curwin_mut().w_cursor.get();
+                let mut cursor = curwin().w_cursor.get();
                 let mut vstart = g_st().visual_global.borrow().start;
                 getvcols(
                     wp,
@@ -1925,15 +1914,15 @@ fn win_update(wp: &WinInfoInfo) {
                     GETVCOL_END_EXCL_LBR,
                 );
                 g_st().visual_global.borrow_mut().start = vstart;
-                curwin_mut().w_cursor.set(cursor);
+                curwin().w_cursor.set(cursor);
                 toc += 1;
-                if curwin_mut().w_curswant.get() == MAXCOL {
-                    if (get_ve_flags(&curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
-                        let cursor_above = curwin_mut().w_cursor.get().lnum
-                            < g_st().visual_global.borrow().start.lnum;
+                if curwin().w_curswant.get() == MAXCOL {
+                    if (get_ve_flags(&curwin()) & K_OPT_VE_FLAG_BLOCK) != 0 {
+                        let cursor_above =
+                            curwin().w_cursor.get().lnum < g_st().visual_global.borrow().start.lnum;
                         toc = 0;
                         let mut pos = CursorPos {
-                            lnum: curwin_mut().w_cursor.get().lnum,
+                            lnum: curwin().w_cursor.get().lnum,
                             col: 0,
                             coladd: 0,
                         };
@@ -1943,7 +1932,7 @@ fn win_update(wp: &WinInfoInfo) {
                             pos.lnum >= g_st().visual_global.borrow().start.lnum
                         } {
                             let mut t: Colnr = 0;
-                            pos.col = ml_get_buf_len(&wp.buf_mut(), pos.lnum);
+                            pos.col = ml_get_buf_len(&wp.buf(), pos.lnum);
                             getvvcol(wp, &mut pos, None, None, Some(&mut t), 0);
                             toc = toc.max(t);
                             pos.lnum += if cursor_above { 1 } else { -1 };
@@ -2009,15 +1998,15 @@ fn win_update(wp: &WinInfoInfo) {
         }
     }
 
-    if g_st().visual_global.borrow().active && curwin_mut().w_buffer.get() == buf {
+    if g_st().visual_global.borrow().active && curwin().w_buffer.get() == buf {
         wp.w_old_visual_mode
             .set(g_st().visual_global.borrow().mode as u8);
-        wp.w_old_cursor_lnum.set(curwin_mut().w_cursor.get().lnum);
+        wp.w_old_cursor_lnum.set(curwin().w_cursor.get().lnum);
         wp.w_old_visual_lnum
             .set(g_st().visual_global.borrow().start.lnum);
         wp.w_old_visual_col
             .set(g_st().visual_global.borrow().start.col);
-        wp.w_old_curswant.set(curwin_mut().w_curswant.get());
+        wp.w_old_curswant.set(curwin().w_curswant.get());
     } else {
         wp.w_old_visual_mode.set(0);
         wp.w_old_cursor_lnum.set(0);
@@ -2028,7 +2017,7 @@ fn win_update(wp: &WinInfoInfo) {
     let mut cursorline_fi = Foldinfo::new();
     win_update_cursorline(wp, &mut cursorline_fi);
     if wp == curwin_ptr() {
-        let used = conceal_cursor_line(&curwin_mut());
+        let used = conceal_cursor_line(&curwin());
         ds_st(|st| st.conceal_cursor_used.set(used));
     }
 
@@ -2520,24 +2509,24 @@ fn win_update(wp: &WinInfoInfo) {
                 && wp.w_botline.get() != old_botline
                 && !ds_st(|st| st.win_update_recursive.replace(true))
             {
-                curwin_mut()
+                curwin()
                     .w_valid
-                    .set(curwin_mut().w_valid.get() & (!VALID_TOPLINE));
-                update_topline(&curwin_mut());
+                    .set(curwin().w_valid.get() & (!VALID_TOPLINE));
+                update_topline(&curwin());
                 if g_st().must_redraw.get() != 0 {
-                    let mod_set = curbuf_mut().b_mod_set.get();
-                    curbuf_mut().b_mod_set.set(false);
-                    curs_columns(&curwin_mut(), true);
-                    win_update(&curwin_mut());
+                    let mod_set = curbuf().b_mod_set.get();
+                    curbuf().b_mod_set.set(false);
+                    curs_columns(&curwin(), true);
+                    win_update(&curwin());
                     g_st().must_redraw.set(0);
-                    curbuf_mut().b_mod_set.set(mod_set);
+                    curbuf().b_mod_set.set(mod_set);
                 }
                 ds_st(|st| st.win_update_recursive.set(false));
             }
         }
 
         if nrwidth_before != wp.w_nrwidth.get()
-            && let Some(term) = buf.terminal.get().opt_mut()
+            && let Some(term) = buf.terminal.get().opt()
         {
             terminal_check_size(term);
         }
@@ -2666,7 +2655,7 @@ pub fn number_width(wp: &WinInfoInfo) -> i32 {
     let mut lnum = if wp.w_onebuf_opt.wo_rnu.get() && !wp.w_onebuf_opt.wo_nu.get() {
         wp.w_view_height.get()
     } else {
-        wp.buf_mut().b_ml.ml_line_count.get()
+        wp.buf().b_ml.ml_line_count.get()
     };
 
     if lnum == wp.w_nrwidth_line_count.get() {
@@ -2695,7 +2684,7 @@ pub fn number_width(wp: &WinInfoInfo) -> i32 {
     n = n.max((wp.w_onebuf_opt.wo_nuw.get() as i32) - 1);
 
     if n < 2
-        && buf_meta_total(&wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0
+        && buf_meta_total(&wp.buf(), K_MTMETA_SIGN_TEXT) != 0
         && wp.w_minscwidth.get() == SCL_NUM
     {
         n = 2;
@@ -2740,7 +2729,7 @@ pub fn screen_invalidate_highlights() {
 }
 
 pub fn redraw_curbuf_later(type_: i32) {
-    redraw_buf_later(&curbuf_mut(), type_);
+    redraw_buf_later(&curbuf(), type_);
 }
 
 pub fn redraw_buf_later(buf: &FileBuf, type_: i32) {
@@ -2798,9 +2787,9 @@ pub fn redraw_buf_status_later(buf: &FileBuf) {
         }
     }
     if opt_vars().p_ru.get()
-        && ptr::eq(curwin_mut().w_buffer.get().as_ptr(), buf)
-        && curwin_mut().w_status_height.get() == 0
-        && !curwin_mut().w_redr_status.get()
+        && ptr::eq(curwin().w_buffer.get().as_ptr(), buf)
+        && curwin().w_status_height.get() == 0
+        && !curwin().w_redr_status.get()
     {
         g_st().redraw_cmdline.set(true);
     }
@@ -2821,7 +2810,7 @@ pub fn status_redraw_all() {
 }
 
 pub fn status_redraw_curbuf() {
-    status_redraw_buf(&curbuf_mut());
+    status_redraw_buf(&curbuf());
 }
 
 pub fn status_redraw_buf(buf: &FileBuf) {
@@ -2837,12 +2826,10 @@ pub fn status_redraw_buf(buf: &FileBuf) {
             redraw_later(Some(&wp), UPD_VALID);
         }
     }
-    if opt_vars().p_ru.get()
-        && curwin_mut().w_status_height.get() == 0
-        && !curwin_mut().w_redr_status.get()
+    if opt_vars().p_ru.get() && curwin().w_status_height.get() == 0 && !curwin().w_redr_status.get()
     {
         g_st().redraw_cmdline.set(true);
-        redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
+        redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
     }
 }
 
@@ -2867,7 +2854,7 @@ pub fn redraw_statuslines() {
 
 pub fn win_redraw_last_status(frp: &Frame) {
     if frp.fr_layout.get() == FR_LEAF {
-        frp.fr_win.get().borrow_mut().w_redr_status.set(true);
+        frp.fr_win.get().w_redr_status.set(true);
     } else if frp.fr_layout.get() == FR_ROW {
         for child in frame_iter_ptr(frp.fr_child.get()) {
             win_redraw_last_status(&child);
@@ -2920,24 +2907,21 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
         return true;
     }
     g_st().visual_global.borrow().active
-        && ptr::eq(
-            wp.w_buffer.get().as_ptr(),
-            curwin_mut().w_buffer.get().as_ptr(),
-        )
+        && ptr::eq(wp.w_buffer.get().as_ptr(), curwin().w_buffer.get().as_ptr())
         && lnum
             >= g_st()
                 .visual_global
                 .borrow()
                 .start
                 .lnum
-                .min(curwin_mut().w_cursor.get().lnum)
+                .min(curwin().w_cursor.get().lnum)
         && lnum
             <= g_st()
                 .visual_global
                 .borrow()
                 .start
                 .lnum
-                .max(curwin_mut().w_cursor.get().lnum)
+                .max(curwin().w_cursor.get().lnum)
         && !crate::strings::vim_haschr(&wp.w_onebuf_opt.wo_cocu.as_cstr(), i32::from(b'v'))
 }
 

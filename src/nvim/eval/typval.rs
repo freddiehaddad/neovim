@@ -1940,21 +1940,6 @@ pub fn tv_list_ref(l: Option<&TvList>) {
     }
 }
 
-pub struct ListMutIter(ListitemId);
-
-impl Iterator for ListMutIter {
-    type Item = ListitemId;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0.is_null() {
-            return None;
-        }
-        let next = self.0.li_next.get();
-        Some(std::mem::replace(&mut self.0, next))
-    }
-}
-
 pub struct ListPtrIter(ListitemId);
 
 impl Iterator for ListPtrIter {
@@ -1968,11 +1953,6 @@ impl Iterator for ListPtrIter {
         let next = self.0.li_next.get();
         Some(std::mem::replace(&mut self.0, next))
     }
-}
-
-#[inline]
-pub fn list_iter_mut(start: impl Into<ListitemId>) -> ListMutIter {
-    ListMutIter(start.into())
 }
 
 #[inline]
@@ -2599,7 +2579,7 @@ pub fn tv_list_copy(
         orig.lv_copy_id.set(copy_id);
         orig.lv_copylist.set(copy.clone());
     }
-    for item in crate::eval::typval::list_iter_mut(orig.first_opt()) {
+    for item in crate::eval::typval::list_iter_ptr(orig.first_opt()) {
         if g_st().got_int.get() {
             break;
         }
@@ -2816,7 +2796,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
         return;
     };
 
-    for (idx, li) in (0 as Varnumber..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
+    for (idx, li) in (0 as Varnumber..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(rettv.vval.v_list_ref(), Some(&l2));
         tv_list_append_number(&l2, idx);
@@ -2966,7 +2946,7 @@ fn list_join_inner(
     let mut sumlen: usize = 0;
     let mut first = true;
 
-    for item in crate::eval::typval::list_iter_mut(l.first_opt()) {
+    for item in crate::eval::typval::list_iter_ptr(l.first_opt()) {
         if g_st().got_int.get() {
             break;
         }
@@ -3058,7 +3038,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut out: Vec<u8> = Vec::with_capacity(80);
     let mut buf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
 
-    for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
+    for li in crate::eval::typval::list_iter_ptr(l.first_opt()) {
         let n = tv_get_number(&li.tv());
         let buflen = utf_char2bytes(n as i32, &mut buf) as usize;
         buf[buflen] = 0;
@@ -4840,7 +4820,7 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         blob.bv_ga.borrow_mut().reserve(list_len as usize);
     }
 
-    for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
+    for li in crate::eval::typval::list_iter_ptr(l.first_opt()) {
         let mut error = false;
         let n = tv_get_number_chk(&li.tv(), Some(&mut error));
         if error || !(0..=255).contains(&n) {
@@ -5410,7 +5390,7 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
             {
                 l.lv_lock.set(change_lock(lock, l.lv_lock.get()));
                 if !(0..=1).contains(&deep) {
-                    for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
+                    for li in crate::eval::typval::list_iter_ptr(l.first_opt()) {
                         let mut item_tv = li.tv().clone();
                         tv_item_lock(&mut item_tv, deep - 1, lock, check_refcount);
                         li.tv_mut().v_lock = item_tv.v_lock;
@@ -5745,7 +5725,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
     let mut lnum = tv_get_number_chk(tv, None) as Linenr;
     if lnum <= 0 && did_emsg_before == g_st().did_emsg.get() && tv.v_type != VarType::VarNumber {
         let mut fnum: i32 = 0;
-        if let Some(fp) = var2fpos(tv, true, &mut fnum, false, &curwin_mut()) {
+        if let Some(fp) = var2fpos(tv, true, &mut fnum, false, &curwin()) {
             lnum = fp.lnum;
         }
     }

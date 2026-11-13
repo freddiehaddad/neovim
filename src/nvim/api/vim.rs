@@ -484,7 +484,7 @@ pub fn nvim_set_hl(
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
     if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
-        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err)
+        let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(opts.winid, err)
         else {
             return 0;
         };
@@ -974,8 +974,8 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_current_line(err: &mut Error) -> NvimString {
     buffer_get_line(
-        curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
+        curbuf().b_fnum.get(),
+        Integer::from(curwin().w_cursor.get().lnum - 1),
         err,
     )
 }
@@ -988,8 +988,8 @@ pub fn nvim_get_current_line(err: &mut Error) -> NvimString {
 //                                      Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_line(line: NvimString, err: &mut Error) {
     buffer_set_line(
-        curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
+        curbuf().b_fnum.get(),
+        Integer::from(curwin().w_cursor.get().lnum - 1),
         line,
         err,
     );
@@ -1001,8 +1001,8 @@ pub fn nvim_set_current_line(line: NvimString, err: &mut Error) {
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_del_current_line(err: &mut Error) {
     buffer_del_line(
-        curbuf_mut().b_fnum.get(),
-        Integer::from(curwin_mut().w_cursor.get().lnum - 1),
+        curbuf().b_fnum.get(),
+        Integer::from(curwin().w_cursor.get().lnum - 1),
         err,
     );
 }
@@ -1270,9 +1270,9 @@ pub fn nvim_echo(
 /// @return List of buffer ids
 // DLLEXPORT ArrayOf(Buffer) nvim_list_bufs(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_bufs() -> Array {
-    let n = for_all_buffers_mut().count();
+    let n = for_all_buffers_ptr().count();
     let mut rv = Array::with_capacity(n);
-    for b in for_all_buffers_mut() {
+    for b in for_all_buffers_ptr() {
         add_c(&mut rv, buffer_obj(b.b_fnum.get()));
     }
     rv
@@ -1283,7 +1283,7 @@ pub fn nvim_list_bufs() -> Array {
 /// @return Buffer id
 // DLLEXPORT Buffer nvim_get_current_buf(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_buf() -> Buffer {
-    curbuf_mut().b_fnum.get()
+    curbuf().b_fnum.get()
 }
 
 /// Sets the current window's buffer to `buf`.
@@ -1292,7 +1292,7 @@ pub fn nvim_get_current_buf() -> Buffer {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_buf(Buffer buf, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
     let mut tstate = TryState::new();
@@ -1307,15 +1307,15 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
 // DLLEXPORT ArrayOf(Window) nvim_list_wins(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_wins() -> Array {
     let mut n = 0usize;
-    for tp in for_all_tabpages_mut() {
-        for _wp in for_all_windows_in_tab_mut(&tp) {
+    for tp in for_all_tabpages_ptr() {
+        for _wp in for_all_windows_in_tab_ptr(&tp) {
             n += 1;
         }
     }
 
     let mut rv = Array::with_capacity(n);
-    for tp in for_all_tabpages_mut() {
-        for wp in for_all_windows_in_tab_mut(&tp) {
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(&tp) {
             add_c(&mut rv, window_obj(wp.handle));
         }
     }
@@ -1327,7 +1327,7 @@ pub fn nvim_list_wins() -> Array {
 /// @return |window-ID|
 // DLLEXPORT Window nvim_get_current_win(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_win() -> Window {
-    curwin_mut().handle
+    curwin().handle
 }
 
 /// Navigates to the given window (and tabpage, implicitly).
@@ -1336,7 +1336,7 @@ pub fn nvim_get_current_win() -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_win(win: Window, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return;
     };
     let mut tstate = TryState::new();
@@ -1406,14 +1406,14 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         let buf_ptr = buf;
         let mut bufref = Bufref::new();
-        set_bufref(&mut bufref, buf_ptr.opt_mut());
-        if apply_autocmds(EVENT_BUFNEW, None, None, false, buf_ptr.opt_mut())
+        set_bufref(&mut bufref, buf_ptr.opt());
+        if apply_autocmds(EVENT_BUFNEW, None, None, false, buf_ptr.opt())
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
         }
         if listed
-            && apply_autocmds(EVENT_BUFADD, None, None, false, buf_ptr.opt_mut())
+            && apply_autocmds(EVENT_BUFADD, None, None, false, buf_ptr.opt())
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
@@ -1511,8 +1511,8 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     chan.internal.closed = false;
     let topts = TerminalOptions {
         chan_id: chan.id,
-        width: (curwin_mut().w_view_width.get() - win_col_off(&curwin_mut())).max(0) as u16,
-        height: curwin_mut().w_view_height.get() as u16,
+        width: (curwin().w_view_width.get() - win_col_off(&curwin())).max(0) as u16,
+        height: curwin().w_view_height.get() as u16,
         force_crlf,
     };
 
@@ -1526,10 +1526,10 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     chan.term = terminal_alloc(&b, topts);
 
-    terminal_open(chan.term.borrow_mut(), &b);
+    terminal_open(chan.term, &b);
 
     if !chan.term.is_null() {
-        terminal_check_size(chan.term.borrow_mut());
+        terminal_check_size(chan.term);
     }
 
     let chan_id = chan.id;
@@ -1580,9 +1580,9 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
 /// @return List of |tab-ID|s
 // DLLEXPORT ArrayOf(Tabpage) nvim_list_tabpages(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_tabpages() -> Array {
-    let n = for_all_tabpages_mut().count();
+    let n = for_all_tabpages_ptr().count();
     let mut rv = Array::with_capacity(n);
-    for tp in for_all_tabpages_mut() {
+    for tp in for_all_tabpages_ptr() {
         add_c(&mut rv, tabpage_obj(tp.handle));
     }
     rv
@@ -1593,7 +1593,7 @@ pub fn nvim_list_tabpages() -> Array {
 /// @return |tab-ID|
 // DLLEXPORT Tabpage nvim_get_current_tabpage(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_tabpage() -> Tabpage {
-    curtab_mut().handle
+    curtab().handle
 }
 
 /// Sets the current tabpage.
@@ -1603,7 +1603,7 @@ pub fn nvim_get_current_tabpage() -> Tabpage {
 // DLLEXPORT void nvim_set_current_tabpage(Tabpage tabpage,
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
-    let Some(tp) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tp) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return;
     };
 
@@ -1662,8 +1662,8 @@ pub fn nvim_paste(
     }
     if phase == -1 || phase == 1 {
         PASTE_CANCELLED.set(false);
-        if !curbuf_mut().terminal.get().is_null() {
-            terminal_set_streamed_paste(curbuf_mut().terminal_mut(), true);
+        if !curbuf().terminal.get().is_null() {
+            terminal_set_streamed_paste(curbuf().terminal(), true);
         }
     } else if PASTE_CANCELLED.get() {
         let retval = !PASTE_CANCELLED.get();
@@ -1686,10 +1686,8 @@ pub fn nvim_paste(
     if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
         PASTE_CANCELLED.set(true);
     }
-    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get())
-        && !curbuf_mut().terminal.get().is_null()
-    {
-        terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
+    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get()) && !curbuf().terminal.get().is_null() {
+        terminal_set_streamed_paste(curbuf().terminal(), false);
     }
     let null_str = NvimString::new();
     if !PASTE_CANCELLED.get() && (phase == -1 || phase == 1) {
@@ -2683,7 +2681,7 @@ pub fn nvim_eval_statusline(
     {
         statuscol_lnum = opts.use_statuscol_lnum as i32;
         if !validate_range(
-            statuscol_lnum > 0 && statuscol_lnum <= wp.buf_mut().b_ml.ml_line_count.get(),
+            statuscol_lnum > 0 && statuscol_lnum <= wp.buf().b_ml.ml_line_count.get(),
             c"use_statuscol_lnum",
             err,
         ) {
@@ -2713,7 +2711,7 @@ pub fn nvim_eval_statusline(
         let mut cursorline_fi = Foldinfo::new();
         let wp_buf = wp.w_buffer.get();
         decor_redraw_signs(
-            wp.borrow_mut(),
+            wp.borrow(),
             &wp_buf,
             lnum - 1,
             Some(&mut statuscol.sattrs),
@@ -2722,9 +2720,9 @@ pub fn nvim_eval_statusline(
             Some(&mut num_id),
         );
 
-        statuscol.foldinfo = fold_info(wp.borrow_mut(), lnum);
-        win_update_cursorline(wp.borrow_mut(), &mut cursorline_fi);
-        let use_cul = use_cursor_line_highlight(wp.borrow_mut(), lnum);
+        statuscol.foldinfo = fold_info(wp.borrow(), lnum);
+        win_update_cursorline(wp.borrow(), &mut cursorline_fi);
+        let use_cul = use_cursor_line_highlight(wp.borrow(), lnum);
         statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
         scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
 
@@ -2743,7 +2741,7 @@ pub fn nvim_eval_statusline(
         }
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
-        let rel = get_cursor_rel_lnum(wp.borrow_mut(), lnum);
+        let rel = get_cursor_rel_lnum(wp.borrow(), lnum);
         set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
         set_vim_var_nr(VV_VIRTNUM, 0);
     } else if fillchar == 0 && !opts.use_tabline {
@@ -2751,7 +2749,7 @@ pub fn nvim_eval_statusline(
             fillchar = wp.w_p_fcs_chars.get().wbr;
         } else {
             let mut group: Hlf = 0;
-            fillchar = fillchar_status(&mut group, wp.borrow_mut());
+            fillchar = fillchar_status(&mut group, wp.borrow());
         }
     }
 
@@ -2759,7 +2757,7 @@ pub fn nvim_eval_statusline(
         if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH)) != 0 {
             opts.maxwidth as i32
         } else if statuscol_lnum != 0 {
-            win_col_off(wp.borrow_mut())
+            win_col_off(wp.borrow())
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
             g_st().columns_global.get()
         } else {
@@ -2909,7 +2907,7 @@ pub fn nvim_complete_set(index: Integer, opts: &mut KeyDict_complete_set, err: &
         && let Some(wp) = pum_set_info(index as i32, Some(opts.info.as_bytes()))
     {
         put_c(&mut rv, c"winid", window_obj(wp.handle));
-        put_c(&mut rv, c"bufnr", buffer_obj(wp.buf_mut().b_fnum.get()));
+        put_c(&mut rv, c"bufnr", buffer_obj(wp.buf().b_fnum.get()));
     }
     rv
 }
@@ -3010,7 +3008,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     if has_valid {
         let rtype = if opts.valid { UPD_VALID } else { UPD_NOT_VALID };
         if !win.is_null() {
-            redraw_later(win.opt_mut(), rtype);
+            redraw_later(win.opt(), rtype);
         } else if !buf.is_null() {
             redraw_buf_later(buf.borrow(), rtype);
         } else {
@@ -3063,7 +3061,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
 
     let mut flush_ui = opts.flush;
     if opts.tabline {
-        if g_st().redraw_tabline.get() && firstwin_mut().w_lines_valid.get() == 0 {
+        if g_st().redraw_tabline.get() && firstwin().w_lines_valid.get() == 0 {
             opts.flush = true;
         } else {
             draw_tabline();
@@ -3077,13 +3075,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     opt_vars().p_lz.set(false);
     if opts.statuscolumn || opts.statusline || opts.winbar {
         if win.is_null() {
-            for wp in for_all_windows_mut() {
+            for wp in for_all_windows_ptr() {
                 if buf.is_null() || wp.w_buffer.get() == buf {
                     redraw_status(&wp, opts);
                 }
             }
         } else {
-            redraw_status(win.borrow_mut(), opts);
+            redraw_status(win.borrow(), opts);
         }
         flush_ui = true;
     }
@@ -3101,13 +3099,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     if opts.flush && !g_st().cmdpreview.get() {
-        validate_cursor(&curwin_mut());
-        update_topline(&curwin_mut());
+        validate_cursor(&curwin());
+        update_topline(&curwin());
         update_screen();
     }
 
     if opts.cursor {
-        setcursor_mayforce(cwin.borrow_mut(), true);
+        setcursor_mayforce(cwin.borrow(), true);
 
         flush_ui = true;
     }

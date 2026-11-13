@@ -261,7 +261,7 @@ fn call_function_impl(
     API_VIMS_STATE.with(|st| st.call_func_recursive.set(call_rec + 1));
 
     let mut rettv: TypVal = TypVal::new();
-    let lnum = curwin_mut().w_cursor.get().lnum;
+    let lnum = curwin().w_cursor.get().lnum;
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
         fe_firstline: lnum,

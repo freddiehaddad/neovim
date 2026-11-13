@@ -428,7 +428,7 @@ extern "C-unwind" fn nlua_fast_cfpcall(
         let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
         let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
         put_event(
-            queues.events.opt_mut(),
+            queues.events.opt(),
             Event::NluaLuvError {
                 msg,
                 kind: K_CALLBACK,
@@ -589,7 +589,7 @@ extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
     let cb = nlua_ref_global(lstate, 1);
     let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
     put_event(
-        queues.events.opt_mut(),
+        queues.events.opt(),
         Event::NluaSchedule {
             cb,
             ns_id: g_st().ui_event_ns_id.get(),
@@ -1117,7 +1117,7 @@ extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         );
     } else if NLUA_STATE.with(|s| s.in_fast_callback.get()) != 0 {
         let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
-        put_event(queues.events.opt_mut(), Event::NluaPrint(msg_str));
+        put_event(queues.events.opt(), Event::NluaPrint(msg_str));
     } else {
         nlua_print_event(msg_str);
     }
@@ -1292,8 +1292,8 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
 
         let mut rettv: TypVal = TypVal::new();
         let mut funcexe: Funcexe = Funcexe::new();
-        funcexe.fe_firstline = curwin_mut().w_cursor.get().lnum;
-        funcexe.fe_lastline = curwin_mut().w_cursor.get().lnum;
+        funcexe.fe_firstline = curwin().w_cursor.get().lnum;
+        funcexe.fe_lastline = curwin().w_cursor.get().lnum;
         funcexe.fe_evaluate = true;
         let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 
@@ -1880,13 +1880,13 @@ pub fn ex_luado(eap: &mut Exarg) {
 
     let was_curbuf = g_st().curbuf.get();
     for l in eap.line1..=eap.line2 {
-        if l > curbuf_mut().b_ml.ml_line_count.get() {
+        if l > curbuf().b_ml.ml_line_count.get() {
             break;
         }
 
         lua_pushvalue_safe(lstate, -1);
-        let old_line_cstr = ml_get_buf(&crate::globals::curbuf_mut(), l);
-        let old_line_len: Colnr = ml_get_buf_len(&crate::globals::curbuf_mut(), l);
+        let old_line_cstr = ml_get_buf(&crate::globals::curbuf(), l);
+        let old_line_len: Colnr = ml_get_buf_len(&crate::globals::curbuf(), l);
         lua_pushstring(lstate, &old_line_cstr);
         lua_pushnumber_safe(lstate, f64::from(l));
         if nlua_pcall(lstate, 2, 1) != 0 {
@@ -1894,7 +1894,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             break;
         }
 
-        if g_st().curbuf.get() != was_curbuf || l > curbuf_mut().b_ml.ml_line_count.get() {
+        if g_st().curbuf.get() != was_curbuf || l > curbuf().b_ml.ml_line_count.get() {
             break;
         }
 
@@ -1915,7 +1915,7 @@ pub fn ex_luado(eap: &mut Exarg) {
     }
 
     lua_pop(lstate, 1);
-    check_cursor(&curwin_mut());
+    check_cursor(&curwin());
     redraw_curbuf_later(UPD_NOT_VALID);
 }
 

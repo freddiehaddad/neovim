@@ -415,7 +415,7 @@ pub fn msg_id_exists(id: i64) -> bool {
 
 fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
-    let size = schar_get(&mut buf, curwin_mut().w_p_fcs_chars.get().msgsep);
+    let size = schar_get(&mut buf, curwin().w_p_fcs_chars.get().msgsep);
     ui_call_msg_set_pos(
         g_st().msg_grid.handle.get() as Integer,
         row as Integer,
@@ -1554,7 +1554,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
         true,
         AUGROUP_ALL,
         None,
-        Some(&crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin()),
         None,
         Some(&dict_obj),
         false,
@@ -2002,7 +2002,7 @@ pub fn wait_return(redraw: i32) {
     } else if !g_st().skip_redraw.get()
         && (redraw == 1 || (g_st().msg_scrolled.get() != 0 && redraw != -1))
     {
-        redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
+        redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
     }
 }
 
@@ -2511,13 +2511,13 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
     let mut multispace_pos = 0usize;
     let mut trail_idx: Option<usize> = None;
 
-    if curwin_mut().w_onebuf_opt.wo_list.get() {
+    if curwin().w_onebuf_opt.wo_list.get() {
         list = true;
     }
 
     if list {
         // find start of trailing whitespace
-        if curwin_mut().w_p_lcs_chars.borrow().trail != 0 {
+        if curwin().w_p_lcs_chars.borrow().trail != 0 {
             let mut t = bytes.len();
             while t > 0 && ascii_iswhite(bytes[t - 1]) {
                 t -= 1;
@@ -2525,13 +2525,9 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
             trail_idx = Some(t);
         }
         // find end of leading whitespace
-        if curwin_mut().w_p_lcs_chars.borrow().lead != 0
-            || !curwin_mut()
-                .w_p_lcs_chars
-                .borrow()
-                .leadmultispace
-                .is_empty()
-            || curwin_mut().w_p_lcs_chars.borrow().leadtab1 != 0
+        if curwin().w_p_lcs_chars.borrow().lead != 0
+            || !curwin().w_p_lcs_chars.borrow().leadmultispace.is_empty()
+            || curwin().w_p_lcs_chars.borrow().leadtab1 != 0
         {
             let mut l = 0usize;
             while l < bytes.len() && ascii_iswhite(bytes[l]) {
@@ -2544,7 +2540,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
     }
 
     // output a space for an empty line, otherwise the line will be overwritten
-    if bytes.is_empty() && !(list && curwin_mut().w_p_lcs_chars.borrow().eol != 0) {
+    if bytes.is_empty() && !(list && curwin().w_p_lcs_chars.borrow().eol != 0) {
         msg_putchar(b' ' as i32);
     }
 
@@ -2568,11 +2564,11 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                 let mut buf = [0u8; MB_MAXBYTES + 1];
                 if l >= MB_MAXBYTES {
                     crate::memory::copy_bytes_to_c_buf(&mut buf, b"?");
-                } else if curwin_mut().w_p_lcs_chars.borrow().nbsp != 0
+                } else if curwin().w_p_lcs_chars.borrow().nbsp != 0
                     && list
                     && matches!(utf_slice2char(rem), 160 | 0x202f)
                 {
-                    schar_get(&mut buf, curwin_mut().w_p_lcs_chars.borrow().nbsp);
+                    schar_get(&mut buf, curwin().w_p_lcs_chars.borrow().nbsp);
                 } else {
                     buf[..l].copy_from_slice(&rem[..l]);
                     buf[l] = 0;
@@ -2601,25 +2597,25 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                 } else {
                     in_multispace = false;
                 }
-                if c == TAB && (!list || curwin_mut().w_p_lcs_chars.borrow().tab1 != 0) {
+                if c == TAB && (!list || curwin().w_p_lcs_chars.borrow().tab1 != 0) {
                     n_extra = tabstop_padding(
                         col,
-                        curbuf_mut().b_p_ts.get(),
-                        &curbuf_mut().b_p_vts_array.borrow(),
+                        curbuf().b_p_ts.get(),
+                        &curbuf().b_p_vts_array.borrow(),
                     ) - 1;
                     if !list {
                         sc = schar_from_ascii(b' ');
                         sc_extra = schar_from_ascii(b' ');
                     } else {
-                        let mut lcs_tab1 = curwin_mut().w_p_lcs_chars.borrow().tab1;
-                        let mut lcs_tab2 = curwin_mut().w_p_lcs_chars.borrow().tab2;
-                        let mut lcs_tab3 = curwin_mut().w_p_lcs_chars.borrow().tab3;
+                        let mut lcs_tab1 = curwin().w_p_lcs_chars.borrow().tab1;
+                        let mut lcs_tab2 = curwin().w_p_lcs_chars.borrow().tab2;
+                        let mut lcs_tab3 = curwin().w_p_lcs_chars.borrow().tab3;
                         if lead_idx.is_some_and(|lead| idx <= lead)
-                            && curwin_mut().w_p_lcs_chars.borrow().leadtab1 != 0
+                            && curwin().w_p_lcs_chars.borrow().leadtab1 != 0
                         {
-                            lcs_tab1 = curwin_mut().w_p_lcs_chars.borrow().leadtab1;
-                            lcs_tab2 = curwin_mut().w_p_lcs_chars.borrow().leadtab2;
-                            lcs_tab3 = curwin_mut().w_p_lcs_chars.borrow().leadtab3;
+                            lcs_tab1 = curwin().w_p_lcs_chars.borrow().leadtab1;
+                            lcs_tab2 = curwin().w_p_lcs_chars.borrow().leadtab2;
+                            lcs_tab3 = curwin().w_p_lcs_chars.borrow().leadtab3;
                         }
                         sc = if n_extra == 0 && lcs_tab3 != 0 {
                             lcs_tab3
@@ -2630,10 +2626,10 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                         sc_final = lcs_tab3;
                         hl_id = HLF_0;
                     }
-                } else if c == NUL as i32 && list && curwin_mut().w_p_lcs_chars.borrow().eol != 0 {
+                } else if c == NUL as i32 && list && curwin().w_p_lcs_chars.borrow().eol != 0 {
                     p_extra = b"";
                     n_extra = 1;
-                    sc = curwin_mut().w_p_lcs_chars.borrow().eol;
+                    sc = curwin().w_p_lcs_chars.borrow().eol;
                     hl_id = HLF_AT;
                     idx -= 1;
                 } else if c != NUL as i32 && {
@@ -2655,44 +2651,34 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                 } else if c == b' ' as i32 {
                     if lead_idx.is_some_and(|lead| idx <= lead)
                         && in_multispace
-                        && !curwin_mut()
-                            .w_p_lcs_chars
-                            .borrow()
-                            .leadmultispace
-                            .is_empty()
+                        && !curwin().w_p_lcs_chars.borrow().leadmultispace.is_empty()
                     {
-                        sc = curwin_mut()
-                            .w_p_lcs_chars
-                            .borrow()
-                            .leadmultispace
-                            .as_slice()[multispace_pos];
+                        sc = curwin().w_p_lcs_chars.borrow().leadmultispace.as_slice()
+                            [multispace_pos];
                         multispace_pos += 1;
-                        if multispace_pos
-                            >= curwin_mut().w_p_lcs_chars.borrow().leadmultispace.len()
-                        {
+                        if multispace_pos >= curwin().w_p_lcs_chars.borrow().leadmultispace.len() {
                             multispace_pos = 0;
                         }
                         hl_id = HLF_0;
                     } else if lead_idx.is_some_and(|lead| idx <= lead)
-                        && curwin_mut().w_p_lcs_chars.borrow().lead != 0
+                        && curwin().w_p_lcs_chars.borrow().lead != 0
                     {
-                        sc = curwin_mut().w_p_lcs_chars.borrow().lead;
+                        sc = curwin().w_p_lcs_chars.borrow().lead;
                         hl_id = HLF_0;
                     } else if trail_idx.is_some_and(|trail| idx > trail) {
-                        sc = curwin_mut().w_p_lcs_chars.borrow().trail;
+                        sc = curwin().w_p_lcs_chars.borrow().trail;
                         hl_id = HLF_0;
                     } else if in_multispace
-                        && !curwin_mut().w_p_lcs_chars.borrow().multispace.is_empty()
+                        && !curwin().w_p_lcs_chars.borrow().multispace.is_empty()
                     {
-                        sc = curwin_mut().w_p_lcs_chars.borrow().multispace.as_slice()
-                            [multispace_pos];
+                        sc = curwin().w_p_lcs_chars.borrow().multispace.as_slice()[multispace_pos];
                         multispace_pos += 1;
-                        if multispace_pos >= curwin_mut().w_p_lcs_chars.borrow().multispace.len() {
+                        if multispace_pos >= curwin().w_p_lcs_chars.borrow().multispace.len() {
                             multispace_pos = 0;
                         }
                         hl_id = HLF_0;
-                    } else if list && curwin_mut().w_p_lcs_chars.borrow().space != 0 {
-                        sc = curwin_mut().w_p_lcs_chars.borrow().space;
+                    } else if list && curwin().w_p_lcs_chars.borrow().space != 0 {
+                        sc = curwin().w_p_lcs_chars.borrow().space;
                         hl_id = HLF_0;
                     } else {
                         sc = schar_from_ascii(b' ');
@@ -3601,7 +3587,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left.set(g_st().rows_global.get() - 1);
                 }
                 K_EVENT => {
-                    multiqueue_process_events(g_st().resize_events.get().borrow_mut());
+                    multiqueue_process_events(g_st().resize_events.get());
                     to_redraw = true;
                 }
                 _ => {

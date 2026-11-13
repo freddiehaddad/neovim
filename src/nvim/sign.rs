@@ -565,9 +565,9 @@ fn sign_define_by_name(
                     sh.number_hl_id = sp.sn_num_hl;
                     sh.cursorline_hl_id = sp.sn_cul_hl;
                     if !did_redraw {
-                        for wp in for_all_windows_mut() {
-                            if buf_has_signs(&wp.buf_mut()) {
-                                redraw_buf_later(&wp.buf_mut(), UPD_NOT_VALID);
+                        for wp in for_all_windows_ptr() {
+                            if buf_has_signs(&wp.buf()) {
+                                redraw_buf_later(&wp.buf(), UPD_NOT_VALID);
                             }
                         }
                         did_redraw = true;
@@ -721,8 +721,8 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
     }
 
     if buf_jump_open_win(buf).is_some() {
-        curwin_mut().w_cursor.set_lnum(lnum);
-        check_cursor_lnum(&curwin_mut());
+        curwin().w_cursor.set_lnum(lnum);
+        check_cursor_lnum(&curwin());
         beginline(BL_WHITE);
     } else {
         if buf.fname_opt().is_none() {
@@ -738,12 +738,8 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
             None,
             None,
             lnum,
-            if buf_hide(&curbuf_mut()) {
-                ECMD_HIDE
-            } else {
-                0
-            },
-            Some(&curwin_mut()),
+            if buf_hide(&curbuf()) { ECMD_HIDE } else { 0 },
+            Some(&curwin()),
         ) {
             return -1;
         }
@@ -849,10 +845,10 @@ fn sign_unplace_cmd(
         return;
     }
 
-    let cw_buf = curwin_mut().w_buffer.get();
+    let cw_buf = curwin().w_buffer.get();
     let buf = if id == -1 {
-        lnum = curwin_mut().w_cursor.get().lnum;
-        cw_buf.opt_mut()
+        lnum = curwin().w_cursor.get().lnum;
+        cw_buf.opt()
     } else {
         buf
     };
@@ -1003,7 +999,7 @@ fn parse_sign_cmd_args<'a>(
     }
 
     if filename_off.is_none() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
-        let cw_buf = curwin_mut().w_buffer.get();
+        let cw_buf = curwin().w_buffer.get();
         *buf = (!cw_buf.is_null()).then_some(cw_buf);
     }
     true
@@ -1519,7 +1515,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         }
     }
 
-    sign_get_placed(buf.opt_mut(), lnum, sign_id, group, rettv.vval.v_list_ref());
+    sign_get_placed(buf.opt(), lnum, sign_id, group, rettv.vval.v_list_ref());
 }
 
 pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -1755,7 +1751,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
         }
     }
 
-    if sign_unplace(buf.opt_mut(), id, group.as_deref(), 0) {
+    if sign_unplace(buf.opt(), id, group.as_deref(), 0) {
         0
     } else {
         -1

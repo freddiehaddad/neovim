@@ -186,7 +186,7 @@ pub fn ui_free_all_mem() {
         *st.uis.borrow_mut() = Vec::new();
     });
 
-    if let Some(events) = g_st().resize_events.get().opt_mut() {
+    if let Some(events) = g_st().resize_events.get().opt() {
         multiqueue_free(events);
     }
 }
@@ -276,7 +276,7 @@ pub fn ui_refresh() {
                 true,
                 None,
             );
-            for tp in for_all_tabpages_mut() {
+            for tp in for_all_tabpages_ptr() {
                 tp.tp_ch_used.set(i64::from(had_message));
             }
         }
@@ -341,7 +341,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(g_st().resize_events.get().borrow_mut(), Event::UiRefresh);
+    multiqueue_put_event(g_st().resize_events.get(), Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {
@@ -620,8 +620,8 @@ pub fn ui_flush() {
     }
 
     if (g_st().state_global.get() & MODE_CMDLINE) == 0
-        && curwin_mut().w_floating.get()
-        && curwin_mut().w_config.borrow().hide
+        && curwin().w_floating.get()
+        && curwin().w_config.borrow().hide
     {
         if !ui_state(|st| st.ui_flush_was_busy.replace(true)) {
             ui_call_busy_start();
@@ -734,7 +734,7 @@ pub fn ui_mouse_has(mode: i32) -> bool {
                 return true;
             }
         } else if p_byte == K_MOUSE_HELP {
-            if mode != K_MOUSE_RETURN && curbuf_mut().b_help.get() {
+            if mode != K_MOUSE_RETURN && curbuf().b_help.get() {
                 return true;
             }
         } else if mode == i32::from(p_byte as i8) {
@@ -767,20 +767,19 @@ fn ui_cursor_is_behind_floatwin() -> bool {
         return false;
     }
 
-    let crow =
-        curwin_mut().w_winrow.get() + curwin_mut().w_winrow_off.get() + curwin_mut().w_wrow.get();
-    let ccol = curwin_mut().w_wincol.get()
-        + curwin_mut().w_wincol_off.get()
-        + if curwin_mut().w_onebuf_opt.wo_rl.get() {
-            curwin_mut().w_view_width.get() - curwin_mut().w_wcol.get() - 1
+    let crow = curwin().w_winrow.get() + curwin().w_winrow_off.get() + curwin().w_wrow.get();
+    let ccol = curwin().w_wincol.get()
+        + curwin().w_wincol_off.get()
+        + if curwin().w_onebuf_opt.wo_rl.get() {
+            curwin().w_view_width.get() - curwin().w_wcol.get() - 1
         } else {
-            curwin_mut().w_wcol.get()
+            curwin().w_wcol.get()
         };
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-    !ptr::eq(&*top_grid, &raw const curwin_mut().w_grid_alloc)
+    !ptr::eq(&*top_grid, &raw const curwin().w_grid_alloc)
         && !ptr::eq(&*top_grid, &raw const g_st().default_grid)
-        && top_grid.zindex.get() >= curwin_mut().w_grid_alloc.zindex.get() + 50
+        && top_grid.zindex.get() >= curwin().w_grid_alloc.zindex.get() + 50
 }
 
 pub fn ui_has(ext: UIExtension) -> bool {

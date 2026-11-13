@@ -438,7 +438,7 @@ pub fn mf_set_dirty(mfp: &mut Memfile) {
 pub fn mf_release_all() -> bool {
     let mut retval = false;
 
-    for buf in for_all_buffers_mut() {
+    for buf in for_all_buffers_ptr() {
         if buf.b_ml.mfp_opt().is_some_and(|mfp| mfp.mf_fd < 0) && buf.b_may_swap.get() {
             ml_open_file(&buf);
         }

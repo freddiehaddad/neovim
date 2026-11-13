@@ -382,8 +382,8 @@ fn buf_write_do_autocmds(
     let mut nofile_err = false;
     let empty_memline = buf.b_ml.ml_mfp.borrow().is_none();
 
-    let _ = ctx_switch(&mut aco, None, None, buf.opt_mut(), 0);
-    set_bufref(bufref, buf.opt_mut());
+    let _ = ctx_switch(&mut aco, None, None, buf.opt(), 0);
+    set_bufref(bufref, buf.opt());
 
     let sfname_opt = names.sfname.as_deref();
     if append {
@@ -392,11 +392,11 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
         if !did_cmd {
-            if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
+            if overwriting && bt_nofilename(Some(&crate::globals::curbuf())) {
                 nofile_err = true;
             } else {
                 let _ = apply_autocmds_exarg(
@@ -404,7 +404,7 @@ fn buf_write_do_autocmds(
                     sfname_opt,
                     sfname_opt,
                     false,
-                    curbuf_opt_mut().as_deref(),
+                    curbuf_opt().as_deref(),
                     eap,
                 );
             }
@@ -415,7 +415,7 @@ fn buf_write_do_autocmds(
             None,
             sfname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
     } else if reset_changed && whole {
@@ -425,15 +425,15 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
         if did_cmd {
             if was_changed && !curbuf_is_changed_fn() {
-                u_unchanged(&curbuf_mut());
-                u_update_save_nr(&curbuf_mut());
+                u_unchanged(&curbuf());
+                u_update_save_nr(&curbuf());
             }
-        } else if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
+        } else if overwriting && bt_nofilename(Some(&crate::globals::curbuf())) {
             nofile_err = true;
         } else {
             let _ = apply_autocmds_exarg(
@@ -441,7 +441,7 @@ fn buf_write_do_autocmds(
                 sfname_opt,
                 sfname_opt,
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
                 eap,
             );
         }
@@ -451,11 +451,11 @@ fn buf_write_do_autocmds(
             sfname_opt,
             sfname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
         if !did_cmd {
-            if overwriting && bt_nofilename(Some(&crate::globals::curbuf_mut())) {
+            if overwriting && bt_nofilename(Some(&crate::globals::curbuf())) {
                 nofile_err = true;
             } else {
                 let _ = apply_autocmds_exarg(
@@ -463,7 +463,7 @@ fn buf_write_do_autocmds(
                     sfname_opt,
                     sfname_opt,
                     false,
-                    curbuf_opt_mut().as_deref(),
+                    curbuf_opt().as_deref(),
                     eap,
                 );
             }
@@ -482,7 +482,7 @@ fn buf_write_do_autocmds(
         || nofile_err
         || aborting()
     {
-        if let Some(b) = buf.opt_mut()
+        if let Some(b) = buf.opt()
             && (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) != 0
         {
             b.b_op_start.set(orig_start);
@@ -494,7 +494,7 @@ fn buf_write_do_autocmds(
         if nofile_err {
             let _ = semsg!(
                 gettext(c"E676: No matching autocommands for buftype=%s buffer"),
-                &curbuf_mut().b_p_bt,
+                &curbuf().b_p_bt,
             );
         }
 
@@ -502,7 +502,7 @@ fn buf_write_do_autocmds(
             return Some(false);
         }
         if did_cmd {
-            let Some(b) = buf.opt_mut() else {
+            let Some(b) = buf.opt() else {
                 return Some(true);
             };
             if overwriting {
@@ -531,7 +531,7 @@ fn buf_write_do_autocmds(
         return Some(false);
     }
 
-    let b = buf.borrow_mut();
+    let b = buf.borrow();
     if b.b_ml.ml_line_count.get() != old_line_count {
         if whole {
             *endp = b.b_ml.ml_line_count.get();
@@ -575,7 +575,7 @@ fn buf_write_do_post_autocmds(
     whole: bool,
 ) {
     let mut aco: CtxSwitch = CtxSwitch::new();
-    curbuf_mut().b_no_eol_lnum.set(0);
+    curbuf().b_no_eol_lnum.set(0);
 
     let _ = ctx_switch(&mut aco, None, None, Some(buf), 0);
 
@@ -586,7 +586,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
     } else if filtering {
@@ -595,7 +595,7 @@ fn buf_write_do_post_autocmds(
             None,
             fname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
     } else if reset_changed && whole {
@@ -604,7 +604,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
     } else {
@@ -613,7 +613,7 @@ fn buf_write_do_post_autocmds(
             fname_opt,
             fname_opt,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
             eap,
         );
     }
@@ -1101,7 +1101,7 @@ pub fn buf_write(
     let whole = start == 1 && end == buf.b_ml.ml_line_count.get();
     let mut write_undo_file = false;
     let mut sha_ctx = ContextSha256::new();
-    let bkc = get_bkc_flags(buf.borrow_mut());
+    let bkc = get_bkc_flags(buf.borrow());
 
     if fname_arg.is_none_or(CStr::is_empty) {
         return false;
@@ -1203,7 +1203,7 @@ pub fn buf_write(
     if let Some(ok) = res {
         return ok;
     }
-    let buf = bufref.br_buf.borrow_mut();
+    let buf = bufref.br_buf.borrow();
 
     let fname_copy = names.fname;
     let sfname_copy = names.sfname;

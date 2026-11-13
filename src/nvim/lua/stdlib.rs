@@ -131,7 +131,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     } else {
         g_st().curbuf.get()
     };
-    let Some(buf_ref) = buf.opt_mut() else {
+    let Some(buf_ref) = buf.opt() else {
         return luaL_error_cstr(lstate, c"invalid buffer");
     };
     if buf_ref.b_ml.ml_mfp.borrow().is_none() {
@@ -643,16 +643,16 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             } else {
                 K_CTX_KEEP_CWD
             };
-            let tab = if let Some(win_ref) = win.opt_mut() {
+            let tab = if let Some(win_ref) = win.opt() {
                 win_find_tabpage(win_ref)
             } else {
                 None
             };
             switched = ctx_switch(
                 &mut cs,
-                win.opt_mut(),
+                win.opt(),
                 tab.as_deref(),
-                buf.opt_mut(),
+                buf.opt(),
                 K_CTX_NO_DISPLAY | dirs | if !win.is_null() { K_CTX_VALIDATE } else { 0 },
             );
         }

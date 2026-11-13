@@ -1234,7 +1234,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 }
                 if c == b'l' as i32 {
                     if cur {
-                        n = i64::from(crate::globals::curwin_mut().w_cursor.get().lnum);
+                        n = i64::from(crate::globals::curwin().w_cursor.get().lnum);
                     }
                     emit_fn(if cmp == b'<' as i32 {
                         NFA_LNUM_LT
@@ -1248,7 +1248,7 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                     }
                 } else if c == b'c' as i32 {
                     if cur {
-                        n = i64::from(crate::globals::curwin_mut().w_cursor.get().col) + 1;
+                        n = i64::from(crate::globals::curwin().w_cursor.get().col) + 1;
                     }
                     emit_fn(if cmp == b'<' as i32 {
                         NFA_COL_LT
@@ -1260,16 +1260,16 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 } else {
                     if cur {
                         let mut vcol: Colnr = 0;
-                        let mut cursor = crate::globals::curwin_mut().w_cursor.get();
+                        let mut cursor = crate::globals::curwin().w_cursor.get();
                         getvvcol(
-                            &crate::globals::curwin_mut(),
+                            &crate::globals::curwin(),
                             &mut cursor,
                             None,
                             None,
                             Some(&mut vcol),
                             0,
                         );
-                        crate::globals::curwin_mut().w_cursor.set(cursor);
+                        crate::globals::curwin().w_cursor.set(cursor);
                         vcol += 1;
                         n = i64::from(vcol);
                     }
@@ -4300,7 +4300,7 @@ fn nfa_regmatch_ctx(
                             re_s.rex.reg_win.get()
                         };
                         if op == 1 && col - 1 > t_st.val && col > 100 {
-                            let mut ts = wp_mut.buf_mut().b_p_ts.get();
+                            let mut ts = wp_mut.buf().b_p_ts.get();
                             if ts < 4 {
                                 ts = 4;
                             }
@@ -4313,7 +4313,7 @@ fn nfa_regmatch_ctx(
                                 1
                             };
                             if !re_s.rex.has_match.get()
-                                && (lnum <= 0 || lnum > wp_mut.buf_mut().b_ml.ml_line_count.get())
+                                && (lnum <= 0 || lnum > wp_mut.buf().b_ml.ml_line_count.get())
                             {
                                 lnum = 1;
                             }
@@ -4334,8 +4334,8 @@ fn nfa_regmatch_ctx(
                         0
                     };
                     let fm = mark_get(
-                        re_s.rex.reg_buf.get().borrow_mut(),
-                        &crate::globals::curwin_mut(),
+                        re_s.rex.reg_buf.get().borrow(),
+                        &crate::globals::curwin(),
                         None,
                         K_MARK_BUF_LOCAL,
                         t_st.val,

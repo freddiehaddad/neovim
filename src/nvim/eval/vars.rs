@@ -1484,7 +1484,7 @@ fn list_glob_vars(first: &mut i32) {
 
 fn list_buf_vars(first: &mut i32) {
     list_hashtable_vars(
-        &curbuf_mut().b_vars().dv_hashtab,
+        &curbuf().b_vars().dv_hashtab,
         c"b:",
         true as i32,
         &mut *first,
@@ -1493,7 +1493,7 @@ fn list_buf_vars(first: &mut i32) {
 
 fn list_win_vars(first: &mut i32) {
     list_hashtable_vars(
-        &curwin_mut().w_vars().dv_hashtab,
+        &curwin().w_vars().dv_hashtab,
         c"w:",
         true as i32,
         &mut *first,
@@ -1502,7 +1502,7 @@ fn list_win_vars(first: &mut i32) {
 
 fn list_tab_vars(first: &mut i32) {
     list_hashtable_vars(
-        &curtab_mut().tp_vars().dv_hashtab,
+        &curtab().tp_vars().dv_hashtab,
         c"t:",
         true as i32,
         &mut *first,
@@ -2029,7 +2029,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
         tv_list_item_remove(l, &lp.ll_li);
     } else {
         let d = lp.dict_opt().unwrap();
-        let di = lp.di_mut();
+        let di = lp.di();
         let watched = tv_dict_is_watched(Some(d));
         let mut key: Option<std::ffi::CString> = None;
         let mut oldtv: TypVal = TypVal::new();
@@ -2207,13 +2207,13 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
             lp.ll_n1 += 1;
         }
     } else if !lp.ll_list.is_null() {
-        let mut item_tv = lp.li_mut().tv().clone();
+        let mut item_tv = lp.li().tv().clone();
         tv_item_lock(&mut item_tv, deep, lock, false);
-        lp.li_mut().tv_mut().v_lock = item_tv.v_lock;
+        lp.li().tv_mut().v_lock = item_tv.v_lock;
     } else {
-        let mut item_tv = lp.di_mut().tv().clone();
+        let mut item_tv = lp.di().tv().clone();
         tv_item_lock(&mut item_tv, deep, lock, false);
-        lp.di_mut().tv_mut().v_lock = item_tv.v_lock;
+        lp.di().tv_mut().v_lock = item_tv.v_lock;
     }
 
     ret
@@ -2371,7 +2371,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         return Some(xp.set_item(cat_prefix_varname(b'w' as i32, hi.key_cstr())));
     }
 
-    let ht = &curtab_mut().tp_vars().dv_hashtab;
+    let ht = &curtab().tp_vars().dv_hashtab;
     if VARS_STATE.with(|s| s.tdone.get()) < ht.ht_used.get() {
         if VARS_STATE.with(|s| s.tdone.get()) == 0 {
             VARS_STATE.with(|s| s.hi_idx.set(0));
@@ -2698,9 +2698,9 @@ pub fn find_var_in_ht(
             b's' => script_item_vars(g_st().current_sctx.get().sc_sid).0,
             b'g' => get_globvars_var(),
             b'v' => get_vimvars_var(),
-            b'b' => curbuf_mut().b_bufvar.clone(),
-            b'w' => curwin_mut().w_winvar.clone(),
-            b't' => curtab_mut().tp_winvar.get(),
+            b'b' => curbuf().b_bufvar.clone(),
+            b'w' => curwin().w_winvar.clone(),
+            b't' => curtab().tp_winvar.get(),
             b'l' => crate::eval::typval::DictitemId::from(get_funccal_local_var()),
             b'a' => crate::eval::typval::DictitemId::from(get_funccal_args_var()),
             _ => crate::eval::typval::DictitemId::NULL,
@@ -2774,9 +2774,9 @@ fn find_var_ht_dict<'a>(
     }
 
     match scope_b {
-        b'b' => dict_ptr = curbuf_mut().b_vars(),
-        b'w' => dict_ptr = curwin_mut().w_vars(),
-        b't' => dict_ptr = curtab_mut().tp_vars(),
+        b'b' => dict_ptr = curbuf().b_vars(),
+        b'w' => dict_ptr = curwin().w_vars(),
+        b't' => dict_ptr = curtab().tp_vars(),
         b'v' => dict_ptr = get_vimvar_dict(),
         b'a' => dict_ptr = get_funccal_args_dict().unwrap_or(crate::eval::typval::DictId::NULL),
         b'l' => dict_ptr = get_funccal_local_dict().unwrap_or(crate::eval::typval::DictId::NULL),
@@ -3262,7 +3262,7 @@ fn get_var_from(
         if !need_switch_win
             || ctx_switch(
                 &mut switchwin,
-                win.opt_mut(),
+                win.opt(),
                 tp.opt(),
                 None,
                 K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -3299,9 +3299,9 @@ fn get_var_from(
                 done = true;
             } else {
                 let d_scope = if htname == b'b' as i32 {
-                    buf.borrow_mut().b_vars()
+                    buf.b_vars()
                 } else if htname == b'w' as i32 {
-                    win.borrow_mut().w_vars()
+                    win.w_vars()
                 } else {
                     tp.borrow().tp_vars()
                 };
@@ -3349,7 +3349,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
         &mut tail[0],
         b'w' as i32,
         tp.opt(),
-        win.opt_mut(),
+        win.opt(),
         None,
     );
 }
@@ -3519,7 +3519,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     if !need_switch_win
         || ctx_switch(
             &mut switchwin,
-            win.opt_mut(),
+            win.opt(),
             tp.opt(),
             None,
             K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
@@ -3723,7 +3723,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         arg2,
         b't' as i32,
         tp.opt(),
-        win.opt_mut(),
+        win.opt(),
         None,
     );
 }
@@ -3751,8 +3751,8 @@ pub fn f_getbufvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         &mut *rettv,
         arg2,
         b'b' as i32,
-        Some(&curtab_mut()),
-        Some(&curwin_mut()),
+        Some(&curtab()),
+        Some(&curwin()),
         buf.as_deref(),
     );
 }

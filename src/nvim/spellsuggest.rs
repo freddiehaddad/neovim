@@ -671,59 +671,59 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
 pub fn spell_suggest(count: i32) {
     let mut badlen: i32 = 0;
     let msg_scroll_save = g_st().msg_scroll.get();
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
-    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
-        parse_spelllang(&curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell.set(true);
+    let wo_spell_save = curwin().w_onebuf_opt.wo_spell.get();
+    if !curwin().w_onebuf_opt.wo_spell.get() {
+        parse_spelllang(&curwin());
+        curwin().w_onebuf_opt.wo_spell.set(true);
     }
-    check_cursor(&curwin_mut());
-    let prev_cursor = curwin_mut().w_cursor.get();
+    check_cursor(&curwin());
+    let prev_cursor = curwin().w_cursor.get();
     'skip: {
-        let w_s = curwin_mut().w_s_ptr();
+        let w_s = curwin().w_s_ptr();
         if w_s.b_p_spl.is_empty() {
             emsg(gettext(E_NO_SPELL));
             break 'skip;
         }
         if g_st().visual_global.borrow().active {
-            if curwin_mut().w_cursor.get().lnum != g_st().visual_global.borrow().start.lnum {
+            if curwin().w_cursor.get().lnum != g_st().visual_global.borrow().start.lnum {
                 vim_beep(K_OPT_BO_FLAG_SPELL);
                 break 'skip;
             }
-            badlen = curwin_mut().w_cursor.get().col - g_st().visual_global.borrow().start.col;
+            badlen = curwin().w_cursor.get().col - g_st().visual_global.borrow().start.col;
             if badlen < 0 {
                 badlen = -badlen;
             } else {
-                curwin_mut()
+                curwin()
                     .w_cursor
                     .set_col(g_st().visual_global.borrow().start.col);
             }
             badlen += 1;
             end_visual_mode();
-            badlen = badlen.min(get_cursor_line_len() - curwin_mut().w_cursor.get().col);
-        } else if spell_move_to(&curwin_mut(), FORWARD, SMT_ALL, true, None) == 0
-            || curwin_mut().w_cursor.get().col > prev_cursor.col
+            badlen = badlen.min(get_cursor_line_len() - curwin().w_cursor.get().col);
+        } else if spell_move_to(&curwin(), FORWARD, SMT_ALL, true, None) == 0
+            || curwin().w_cursor.get().col > prev_cursor.col
         {
-            curwin_mut().w_cursor.set(prev_cursor);
+            curwin().w_cursor.set(prev_cursor);
             let curline_bytes = get_cursor_line_slice();
-            let mut p_idx = (curwin_mut().w_cursor.get().col as usize).min(curline_bytes.len());
-            while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin_mut()) {
+            let mut p_idx = (curwin().w_cursor.get().col as usize).min(curline_bytes.len());
+            while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin()) {
                 crate::mbyte::mb_idx_back(&curline_bytes, &mut p_idx);
             }
             while p_idx < curline_bytes.len()
-                && !spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin_mut())
+                && !spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin())
             {
                 p_idx += crate::mbyte::utfc_slice2len(&curline_bytes[p_idx..]);
             }
-            if !spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin_mut()) {
+            if !spell_iswordp_nmw(&curline_bytes[p_idx..], &curwin()) {
                 beep_flush();
                 break 'skip;
             }
-            curwin_mut().w_cursor.set_col(p_idx as Colnr);
+            curwin().w_cursor.set_col(p_idx as Colnr);
         }
         let need_cap = check_need_cap(
-            &curwin_mut(),
-            curwin_mut().w_cursor.get().lnum,
-            curwin_mut().w_cursor.get().col,
+            &curwin(),
+            curwin().w_cursor.get().lnum,
+            curwin().w_cursor.get().col,
         );
         let mut line_vec = get_cursor_line_slice().to_vec();
         let line_len = line_vec.len();
@@ -734,7 +734,7 @@ pub fn spell_suggest(count: i32) {
             st.sps_limit.get().min(g_st().rows_global.get() - 2)
         });
         let mut sug = Suginfo::default();
-        let cursor_col = (curwin_mut().w_cursor.get().col as usize).min(line_len);
+        let cursor_col = (curwin().w_cursor.get().col as usize).min(line_len);
         spell_find_suggest(
             &line_cstr[cursor_col..],
             badlen,
@@ -755,7 +755,7 @@ pub fn spell_suggest(count: i32) {
                 smsg!(0, gettext(c"Only %lld suggestions"), sug_len as i64,);
             }
         } else {
-            curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
+            curwin().w_onebuf_opt.wo_spell.set(wo_spell_save);
             select_spell_suggestion(&mut sug);
             g_st().lines_left.set(g_st().rows_global.get());
             g_st().msg_scroll.set(msg_scroll_save);
@@ -810,22 +810,22 @@ pub fn spell_suggest(count: i32) {
             redo_append_lit(&p_vec[c as usize..c as usize + rep_len]);
             redo_append_char(ESC);
             let _ = ml_replace(
-                curwin_mut().w_cursor.get().lnum,
+                curwin().w_cursor.get().lnum,
                 crate::memory::bytes_until_nul(&p_vec),
                 true,
             );
-            curwin_mut().w_cursor.set_col(c);
+            curwin().w_cursor.set_col(c);
             inserted_bytes(
-                curwin_mut().w_cursor.get().lnum,
+                curwin().w_cursor.get().lnum,
                 c,
                 stp.st_orglen,
                 stp.st_wordlen,
             );
         } else {
-            curwin_mut().w_cursor.set(prev_cursor);
+            curwin().w_cursor.set(prev_cursor);
         }
     }
-    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
+    curwin().w_onebuf_opt.wo_spell.set(wo_spell_save);
 }
 /// Find spell suggestions for "word".
 pub fn spell_suggest_list(
@@ -870,7 +870,7 @@ fn spell_find_suggest(
     if badlen != 0 {
         su.su_badlen = badlen;
     } else {
-        let tmplen = spell_check(&curwin_mut(), &su.su_badptr, &mut attr, None, false);
+        let tmplen = spell_check(&curwin(), &su.su_badptr, &mut attr, None, false);
         su.su_badlen = tmplen as i32;
     }
     su.su_maxcount = maxcount;
@@ -880,13 +880,13 @@ fn spell_find_suggest(
     let bad_slice = &su.su_badptr.as_bytes()[..bad_len];
     su.su_badword[..bad_len].copy_from_slice(bad_slice);
     su.su_badword[bad_len] = 0;
-    spell_casefold(&curwin_mut(), bad_slice, &mut su.su_fbadword);
+    spell_casefold(&curwin(), bad_slice, &mut su.su_fbadword);
     su.su_fbadword[su.su_badlen as usize] = 0;
     su.su_badflags = badword_captype(bad_slice);
     if need_cap {
         su.su_badflags |= WF_ONECAP;
     }
-    for lp in &*curbuf_mut().b_s.b_langp.borrow() {
+    for lp in &*curbuf().b_s.b_langp.borrow() {
         if !lp.lp_sallang.is_null() {
             su.su_sallang = lp.lp_sallang;
             break;
@@ -951,7 +951,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let mut p: Option<std::borrow::Cow<'_, CStr>> = None;
     let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
-        for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
+        for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             let li_tv = li.tv();
             if li_tv.v_type == VarType::VarList
                 && let Some(sublist) = li_tv.vval.v_list_opt()
@@ -1096,7 +1096,7 @@ fn suggest_try_change(su: &mut Suginfo) {
     let badptr_bytes = su.su_badptr.as_bytes();
     let badlen_off = (su.su_badlen as usize).min(badptr_bytes.len());
     spell_casefold(
-        &curwin_mut(),
+        &curwin(),
         &badptr_bytes[badlen_off..],
         &mut fword[n as usize..],
     );
@@ -1104,7 +1104,7 @@ fn suggest_try_change(su: &mut Suginfo) {
     if (n as usize) < MAXWLEN {
         fword[n as usize] = 0;
     }
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     let langps = w_s.b_langp.borrow().clone();
     for lp in &langps {
         if lp.slang().sl_fbyts.is_empty() {
@@ -1240,7 +1240,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     || if soundfold {
                         ascii_iswhite(i32::from(fbyte))
                     } else {
-                        !spell_iswordp(&fword_buf[stack[udepth].ts_fidx as usize..], &curwin_mut())
+                        !spell_iswordp(&fword_buf[stack[udepth].ts_fidx as usize..], &curwin())
                     };
                 tword[stack[udepth].ts_twordlen as usize] = 0;
                 if stack[udepth].ts_prefixdepth <= PFD_NOTSPECIAL
@@ -1391,7 +1391,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     if let Some(off) = p_off
                         && spell_iswordp_nmw(
                             crate::memory::bytes_until_nul(&preword[off..]),
-                            &curwin_mut(),
+                            &curwin(),
                         )
                     {
                         c &= !WF_ONECAP;
@@ -1444,10 +1444,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     } else if stack[udepth].ts_fidx > 0 {
                         let mut p_idx = stack[udepth].ts_fidx as usize;
                         mb_cptr_back(&*fword_buf, &mut p_idx);
-                        if !spell_iswordp(&fword_buf[p_idx..], &curwin_mut()) && preword[0] != 0 {
+                        if !spell_iswordp(&fword_buf[p_idx..], &curwin()) && preword[0] != 0 {
                             let mut pw_idx = crate::memory::bytes_until_nul(&preword).len();
                             mb_cptr_back(&preword, &mut pw_idx);
-                            if spell_iswordp(&preword[pw_idx..], &curwin_mut()) {
+                            if spell_iswordp(&preword[pw_idx..], &curwin()) {
                                 newscore += SCORE_NONWORD;
                             }
                         }
@@ -1591,7 +1591,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             if ((!try_compound
                                 && !spell_iswordp_nmw(
                                     &fword_buf[stack[udepth].ts_fidx as usize..],
-                                    &curwin_mut(),
+                                    &curwin(),
                                 ))
                                 || fword_ends)
                                 && fword_buf[stack[udepth].ts_fidx as usize] != 0
@@ -1862,7 +1862,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     stack[udepth].ts_state = SugState::StateFinal;
                     continue;
                 }
-                if !soundfold && !spell_iswordp(&fword_buf[fidx..], &curwin_mut()) {
+                if !soundfold && !spell_iswordp(&fword_buf[fidx..], &curwin()) {
                     stack[udepth].ts_state = SugState::StateRepIni;
                     continue;
                 }
@@ -1870,9 +1870,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 c = utf_ptr2char(&fword_buf[fidx..]);
                 if fword_buf[fidx + n as usize] == 0 {
                     c2 = 0;
-                } else if !soundfold
-                    && !spell_iswordp(&fword_buf[fidx + n as usize..], &curwin_mut())
-                {
+                } else if !soundfold && !spell_iswordp(&fword_buf[fidx + n as usize..], &curwin()) {
                     c2 = c;
                 } else {
                     c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
@@ -1916,9 +1914,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 c = utf_ptr2char(&fword_buf[fidx..]);
                 fl = utf_ptr2len(&fword_buf[fidx + n as usize..]);
                 c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                if !soundfold
-                    && !spell_iswordp(&fword_buf[fidx + (n + fl) as usize..], &curwin_mut())
-                {
+                if !soundfold && !spell_iswordp(&fword_buf[fidx + (n + fl) as usize..], &curwin()) {
                     c3 = c;
                 } else {
                     c3 = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
@@ -1958,7 +1954,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 fword_buf.copy_within(fidx..fidx + n_u, fidx + fl_tl_u);
                 utf_char2bytes(c, &mut fword_buf[fidx..fidx + 6]);
                 utf_char2bytes(c2, &mut fword_buf[fidx + tl_u..fidx + tl_u + 6]);
-                if !soundfold && !spell_iswordp(&fword_buf[fidx + tl_u..], &curwin_mut()) {
+                if !soundfold && !spell_iswordp(&fword_buf[fidx + tl_u..], &curwin()) {
                     stack[udepth].ts_state = SugState::StateRepIni;
                     continue;
                 }
@@ -2242,7 +2238,7 @@ fn score_comp_sal(su: &mut Suginfo) {
     let mut badsound: [u8; MAXWLEN] = [0; MAXWLEN];
     let sga = &mut su.su_sga;
     sga.reserve(su.su_ga.len());
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     let langps = w_s.b_langp.borrow().clone();
     for lp in &langps {
         let slang = lp.slang();
@@ -2271,7 +2267,7 @@ fn score_comp_sal(su: &mut Suginfo) {
 fn score_combine(su: &mut Suginfo) {
     let mut badsound: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut slang_opt: Option<std::rc::Rc<Slang>> = None;
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     let langps = w_s.b_langp.borrow().clone();
     for lp in &langps {
         let s = lp.slang();
@@ -2345,7 +2341,7 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &Slang, badsound: &[u8]) ->
     } else {
         let badptr_bytes = su.su_badptr.as_bytes();
         let org_len = (stp.st_orglen.max(0) as usize).min(badptr_bytes.len());
-        spell_casefold(&curwin_mut(), &badptr_bytes[..org_len], &mut fword);
+        spell_casefold(&curwin(), &badptr_bytes[..org_len], &mut fword);
         if ascii_iswhite(
             su.su_badptr
                 .to_bytes()
@@ -2385,7 +2381,7 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &Slang, badsound: &[u8]) ->
     soundalike_score(&goodsound, pbad)
 }
 fn suggest_try_soundalike_prep() {
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     for lp in &*w_s.b_langp.borrow() {
         let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
@@ -2395,7 +2391,7 @@ fn suggest_try_soundalike_prep() {
 }
 fn suggest_try_soundalike(su: &mut Suginfo) {
     let mut salword: [u8; MAXWLEN] = [0; MAXWLEN];
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     let langps = w_s.b_langp.borrow().clone();
     for lp in &langps {
         let slang = lp.slang();
@@ -2406,7 +2402,7 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
     }
 }
 fn suggest_try_soundalike_finish() {
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     for lp in &*w_s.b_langp.borrow() {
         let slang = lp.slang();
         if slang.has_sal() && !slang.sl_sbyts.is_empty() {
@@ -2753,7 +2749,7 @@ fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
         crate::memory::copy_bytes_to_c_buf(&mut longword[len..], &badptr_bytes[org_off..]);
         let mut attr: Hlf = HLF_COUNT;
         let _ = spell_check(
-            &curwin_mut(),
+            &curwin(),
             crate::memory::bytes_as_cstr(&longword),
             &mut attr,
             None,

@@ -843,12 +843,12 @@ pub fn g_st() -> &'static EditorState {
 }
 
 #[allow(non_upper_case_globals, unsafe_code)]
-#[unsafe(no_mangle)]
-pub static curwin: std::sync::atomic::AtomicPtr<WinInfoInfo> =
+#[unsafe(export_name = "curwin")]
+pub static CURWIN_FFI: std::sync::atomic::AtomicPtr<WinInfoInfo> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[inline(always)]
-pub fn curwin_mut() -> WinPtr {
+pub fn curwin() -> WinPtr {
     g_st().curwin_rc.get()
 }
 
@@ -860,33 +860,33 @@ pub fn curwin_ptr() -> WinPtr {
 #[inline(always)]
 pub fn set_curwin(wp: impl Into<WinPtr>) {
     let wp = wp.into();
-    curwin.store(wp.as_ptr(), std::sync::atomic::Ordering::Relaxed);
+    CURWIN_FFI.store(wp.as_ptr(), std::sync::atomic::Ordering::Relaxed);
     g_st().curwin_rc.set(wp);
 }
 
 #[inline(always)]
-pub fn curbuf_mut() -> BufPtr {
+pub fn curbuf() -> BufPtr {
     g_st().curbuf.get()
 }
 
 #[inline(always)]
-pub fn curbuf_opt_mut() -> Option<BufPtr> {
+pub fn curbuf_opt() -> Option<BufPtr> {
     let b = g_st().curbuf.get();
     (!b.is_null()).then_some(b)
 }
 
 #[inline(always)]
-pub fn curtab_mut() -> TabpagePtr {
+pub fn curtab() -> TabpagePtr {
     g_st().curtab.get().clone()
 }
 
 #[inline(always)]
-pub fn firstwin_mut() -> WinPtr {
+pub fn firstwin() -> WinPtr {
     g_st().firstwin.get()
 }
 
 #[inline(always)]
-pub fn lastwin_mut() -> WinPtr {
+pub fn lastwin() -> WinPtr {
     g_st().lastwin.get()
 }
 
@@ -1025,29 +1025,13 @@ macro_rules! impl_rc_graph_ptr {
             }
 
             #[inline(always)]
-            pub fn opt_mut(&self) -> Option<&$target> {
-                self.0.as_deref()
-            }
-
-            #[inline(always)]
             pub fn as_ref(&self) -> Option<&$target> {
-                self.0.as_deref()
-            }
-
-            #[allow(dead_code)]
-            #[inline(always)]
-            pub fn as_mut(&self) -> Option<&$target> {
                 self.0.as_deref()
             }
 
             #[inline(always)]
             pub fn borrow(&self) -> &$target {
                 self.opt().expect(concat!("null ", stringify!($ptr_name)))
-            }
-
-            #[inline(always)]
-            pub fn borrow_mut(&self) -> &$target {
-                self.borrow()
             }
 
             #[inline(always)]
@@ -1513,21 +1497,6 @@ pub fn curtab_handle() -> TabpagePtr {
     g_st().curtab.get().clone()
 }
 
-pub struct BufMutIter(BufPtr);
-
-impl Iterator for BufMutIter {
-    type Item = BufPtr;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0.is_null() {
-            return None;
-        }
-        let next = self.0.b_next.get();
-        Some(std::mem::replace(&mut self.0, next))
-    }
-}
-
 pub struct BufPtrIter(BufPtr);
 
 impl Iterator for BufPtrIter {
@@ -1544,13 +1513,8 @@ impl Iterator for BufPtrIter {
 }
 
 #[inline(always)]
-pub fn for_all_buffers_mut() -> BufMutIter {
-    BufMutIter(g_st().firstbuf.get())
-}
-
-#[inline(always)]
-pub fn buf_iter_mut(start: impl Into<BufPtr>) -> BufMutIter {
-    BufMutIter(start.into())
+pub fn buf_iter_ptr(start: impl Into<BufPtr>) -> BufPtrIter {
+    BufPtrIter(start.into())
 }
 
 #[inline(always)]
@@ -1578,21 +1542,6 @@ pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
     BufRevPtrIter(g_st().lastbuf.get())
 }
 
-pub struct WinMutIter(WinPtr);
-
-impl Iterator for WinMutIter {
-    type Item = WinPtr;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0.is_null() {
-            return None;
-        }
-        let next = self.0.w_next.get();
-        Some(std::mem::replace(&mut self.0, next))
-    }
-}
-
 pub struct WinPtrIter(WinPtr);
 
 impl Iterator for WinPtrIter {
@@ -1606,25 +1555,6 @@ impl Iterator for WinPtrIter {
         let next = self.0.w_next.get();
         Some(std::mem::replace(&mut self.0, next))
     }
-}
-
-#[inline(always)]
-pub fn for_all_windows_mut() -> WinMutIter {
-    WinMutIter(g_st().firstwin.get())
-}
-
-#[inline(always)]
-pub fn win_iter_mut(start: impl Into<WinPtr>) -> WinMutIter {
-    WinMutIter(start.into())
-}
-
-#[inline(always)]
-pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
-    WinMutIter(if g_st().curtab.get() == tp {
-        g_st().firstwin.get()
-    } else {
-        tp.tp_firstwin.get()
-    })
 }
 
 #[inline(always)]
@@ -1666,21 +1596,6 @@ pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
     WinRevPtrIter(g_st().lastwin.get())
 }
 
-pub struct TabMutIter(TabpagePtr);
-
-impl Iterator for TabMutIter {
-    type Item = TabpagePtr;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0.is_null() {
-            return None;
-        }
-        let next = self.0.tp_next.get();
-        Some(std::mem::replace(&mut self.0, next))
-    }
-}
-
 pub struct TabPtrIter(TabpagePtr);
 
 impl Iterator for TabPtrIter {
@@ -1697,28 +1612,8 @@ impl Iterator for TabPtrIter {
 }
 
 #[inline(always)]
-pub fn for_all_tabpages_mut() -> TabMutIter {
-    TabMutIter(g_st().first_tabpage.get().clone())
-}
-
-#[inline(always)]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
     TabPtrIter(g_st().first_tabpage.get().clone())
-}
-
-pub struct FrameMutIter(FramePtr);
-
-impl Iterator for FrameMutIter {
-    type Item = FramePtr;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0.is_null() {
-            return None;
-        }
-        let next = self.0.fr_next.get();
-        Some(std::mem::replace(&mut self.0, next))
-    }
 }
 
 pub struct FramePtrIter(FramePtr);
@@ -1734,11 +1629,6 @@ impl Iterator for FramePtrIter {
         let next = self.0.fr_next.get();
         Some(std::mem::replace(&mut self.0, next))
     }
-}
-
-#[inline(always)]
-pub fn frame_iter_mut(start: impl Into<FramePtr>) -> FrameMutIter {
-    FrameMutIter(start.into())
 }
 
 #[inline(always)]
@@ -1904,17 +1794,17 @@ pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[inline(always)]
-pub fn topframe_mut() -> FramePtr {
+pub fn topframe() -> FramePtr {
     g_st().topframe.get().clone()
 }
 
 #[inline(always)]
-pub fn first_tabpage_mut() -> TabpagePtr {
+pub fn first_tabpage() -> TabpagePtr {
     g_st().first_tabpage.get().clone()
 }
 
 #[inline(always)]
-pub fn prevwin_mut() -> WinPtr {
+pub fn prevwin() -> WinPtr {
     g_st().prevwin.get()
 }
 

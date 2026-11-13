@@ -170,7 +170,7 @@ pub fn has_format_option(x: i32) -> bool {
     if opt_vars().p_paste.get() {
         return false;
     }
-    crate::strings::vim_haschr(&curbuf_mut().b_p_fo.as_cstr(), x)
+    crate::strings::vim_haschr(&curbuf().b_p_fo.as_cstr(), x)
 }
 
 /// Format text at the current insert position (`internal_format`).
@@ -192,11 +192,11 @@ pub fn internal_format(
     let mut leader_len: Colnr;
     let mut no_leader = false;
     let mut do_comments = (flags & INSCHAR_DO_COM) != 0;
-    let has_lbr = curwin_mut().w_onebuf_opt.wo_lbr.get();
+    let has_lbr = curwin().w_onebuf_opt.wo_lbr.get();
 
-    curwin_mut().w_onebuf_opt.wo_lbr.set(false);
+    curwin().w_onebuf_opt.wo_lbr.set(false);
 
-    if !curbuf_mut().b_p_ai.get() && (g_st().state_global.get() & VREPLACE_FLAG) == 0 {
+    if !curbuf().b_p_ai.get() && (g_st().state_global.get() & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
             save_char = cc as u8;
@@ -227,7 +227,7 @@ pub fn internal_format(
         if do_comments {
             let line = crate::cursor::get_cursor_line_slice();
             leader_len = get_leader_len(&line, None, false, true);
-            if leader_len == 0 && curbuf_mut().b_p_cin.get() {
+            if leader_len == 0 && curbuf().b_p_cin.get() {
                 let comment_start = check_linecomment(&line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
@@ -251,33 +251,33 @@ pub fn internal_format(
         if (flags & INSCHAR_FORMAT) == 0 && leader_len == 0 && !has_format_option(K_FO_WRAP) {
             break;
         }
-        startcol = curwin_mut().w_cursor.get().col;
+        startcol = curwin().w_cursor.get().col;
         if startcol == 0 {
             break;
         }
 
-        coladvance(&curwin_mut(), textwidth);
-        let wantcol = curwin_mut().w_cursor.get().col;
+        coladvance(&curwin(), textwidth);
+        let wantcol = curwin().w_cursor.get().col;
 
-        curwin_mut().w_cursor.set_col(startcol);
+        curwin().w_cursor.set_col(startcol);
         foundcol = 0;
         let mut skip_pos: i32 = 0;
 
         while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
             || (flags & INSCHAR_FORMAT) != 0
-            || curwin_mut().w_cursor.get().lnum != g_st().ins_global.borrow().start.lnum
-            || curwin_mut().w_cursor.get().col >= g_st().ins_global.borrow().start.col
+            || curwin().w_cursor.get().lnum != g_st().ins_global.borrow().start.lnum
+            || curwin().w_cursor.get().col >= g_st().ins_global.borrow().start.col
         {
-            if curwin_mut().w_cursor.get().col == startcol && c != 0 {
+            if curwin().w_cursor.get().col == startcol && c != 0 {
                 cc = c;
             } else {
                 cc = gchar_cursor();
             }
             if whitechar(cc) {
-                let end_col = curwin_mut().w_cursor.get().col;
+                let end_col = curwin().w_cursor.get().col;
 
                 let mut wcc = 0;
-                while curwin_mut().w_cursor.get().col > 0 && whitechar(cc) {
+                while curwin().w_cursor.get().col > 0 && whitechar(cc) {
                     dec_cursor();
                     cc = gchar_cursor();
 
@@ -285,7 +285,7 @@ pub fn internal_format(
                         wcc += 1;
                     }
                 }
-                if curwin_mut().w_cursor.get().col == 0 && whitechar(cc) {
+                if curwin().w_cursor.get().col == 0 && whitechar(cc) {
                     break;
                 }
 
@@ -293,63 +293,63 @@ pub fn internal_format(
                     continue;
                 }
 
-                if curwin_mut().w_cursor.get().col < leader_len {
+                if curwin().w_cursor.get().col < leader_len {
                     break;
                 }
 
                 if has_format_option(K_FO_ONE_LETTER) {
-                    if curwin_mut().w_cursor.get().col == 0 {
+                    if curwin().w_cursor.get().col == 0 {
                         break;
                     }
-                    if curwin_mut().w_cursor.get().col <= leader_len {
+                    if curwin().w_cursor.get().col <= leader_len {
                         break;
                     }
-                    col = curwin_mut().w_cursor.get().col;
+                    col = curwin().w_cursor.get().col;
                     dec_cursor();
                     cc = gchar_cursor();
 
                     if whitechar(cc) {
                         continue;
                     }
-                    curwin_mut().w_cursor.set_col(col);
+                    curwin().w_cursor.set_col(col);
                 }
 
                 inc_cursor();
 
                 end_foundcol = end_col + 1;
-                foundcol = curwin_mut().w_cursor.get().col;
-                if curwin_mut().w_cursor.get().col <= wantcol {
+                foundcol = curwin().w_cursor.get().col;
+                if curwin().w_cursor.get().col <= wantcol {
                     break;
                 }
             } else if (cc >= 0x100 || !utf_allow_break_before(cc)) && fo_multibyte {
                 let mut ncc: i32;
                 let mut allow_break: bool;
 
-                if curwin_mut().w_cursor.get().col != startcol {
-                    if curwin_mut().w_cursor.get().col < leader_len {
+                if curwin().w_cursor.get().col != startcol {
+                    if curwin().w_cursor.get().col < leader_len {
                         break;
                     }
-                    col = curwin_mut().w_cursor.get().col;
+                    col = curwin().w_cursor.get().col;
                     inc_cursor();
                     ncc = gchar_cursor();
                     allow_break = utf_allow_break(cc, ncc);
 
-                    if curwin_mut().w_cursor.get().col != skip_pos && allow_break {
-                        foundcol = curwin_mut().w_cursor.get().col;
+                    if curwin().w_cursor.get().col != skip_pos && allow_break {
+                        foundcol = curwin().w_cursor.get().col;
                         end_foundcol = foundcol;
-                        if curwin_mut().w_cursor.get().col <= wantcol {
+                        if curwin().w_cursor.get().col <= wantcol {
                             break;
                         }
                     }
-                    curwin_mut().w_cursor.set_col(col);
+                    curwin().w_cursor.set_col(col);
                 }
 
-                if curwin_mut().w_cursor.get().col == 0 {
+                if curwin().w_cursor.get().col == 0 {
                     break;
                 }
 
                 ncc = cc;
-                col = curwin_mut().w_cursor.get().col;
+                col = curwin().w_cursor.get().col;
 
                 dec_cursor();
                 cc = gchar_cursor();
@@ -357,33 +357,33 @@ pub fn internal_format(
                 if whitechar(cc) {
                     continue;
                 }
-                if curwin_mut().w_cursor.get().col < leader_len {
+                if curwin().w_cursor.get().col < leader_len {
                     break;
                 }
 
-                curwin_mut().w_cursor.set_col(col);
-                skip_pos = curwin_mut().w_cursor.get().col;
+                curwin().w_cursor.set_col(col);
+                skip_pos = curwin().w_cursor.get().col;
 
                 allow_break = utf_allow_break(cc, ncc);
 
                 if allow_break {
-                    foundcol = curwin_mut().w_cursor.get().col;
+                    foundcol = curwin().w_cursor.get().col;
                     end_foundcol = foundcol;
                 }
-                if curwin_mut().w_cursor.get().col <= wantcol {
+                if curwin().w_cursor.get().col <= wantcol {
                     let ncc_allow_break = utf_allow_break_before(ncc);
 
                     if allow_break {
                         break;
                     }
                     if !ncc_allow_break && !fo_rigor_tw {
-                        if curwin_mut().w_cursor.get().col == startcol {
+                        if curwin().w_cursor.get().col == startcol {
                             end_foundcol = 0;
                             foundcol = 0;
                             break;
                         }
 
-                        col = curwin_mut().w_cursor.get().col;
+                        col = curwin().w_cursor.get().col;
 
                         inc_cursor();
                         cc = ncc;
@@ -396,23 +396,23 @@ pub fn internal_format(
                             foundcol = if ncc == 0 {
                                 0
                             } else {
-                                curwin_mut().w_cursor.get().col
+                                curwin().w_cursor.get().col
                             };
                             end_foundcol = foundcol;
                             break;
                         }
-                        curwin_mut().w_cursor.set_col(col);
+                        curwin().w_cursor.set_col(col);
                     }
                 }
             }
-            if curwin_mut().w_cursor.get().col == 0 {
+            if curwin().w_cursor.get().col == 0 {
                 break;
             }
             dec_cursor();
         }
 
         if foundcol == 0 {
-            curwin_mut().w_cursor.set_col(startcol);
+            curwin().w_cursor.set_col(startcol);
             break;
         }
 
@@ -424,15 +424,15 @@ pub fn internal_format(
             g_st().replace_offset.set(startcol - end_foundcol);
         }
 
-        curwin_mut().w_cursor.set_col(foundcol);
+        curwin().w_cursor.set_col(foundcol);
         while {
             cc = gchar_cursor();
             whitechar(cc)
-        } && (!fo_white_par || curwin_mut().w_cursor.get().col < startcol)
+        } && (!fo_white_par || curwin().w_cursor.get().col < startcol)
         {
             inc_cursor();
         }
-        startcol -= curwin_mut().w_cursor.get().col;
+        startcol -= curwin().w_cursor.get().col;
         startcol = startcol.max(0);
 
         if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
@@ -441,13 +441,13 @@ pub fn internal_format(
             saved_text.reserve_exact(keep_len + 1);
             saved_text.extend_from_slice(&rem[..keep_len]);
             saved_text.push(0);
-            curwin_mut().w_cursor.set_col(orig_col);
+            curwin().w_cursor.set_col(orig_col);
 
             if !fo_white_par {
                 backspace_until_column(foundcol);
             }
         } else if !fo_white_par {
-            curwin_mut().w_cursor.set_col(foundcol);
+            curwin().w_cursor.set_col(foundcol);
         }
 
         open_line(
@@ -481,7 +481,7 @@ pub fn internal_format(
         if first_line {
             if (flags & INSCHAR_COM_LIST) == 0 {
                 if second_indent < 0 && has_format_option(K_FO_QNUMBER) {
-                    second_indent = get_number_indent(curwin_mut().w_cursor.get().lnum - 1);
+                    second_indent = get_number_indent(curwin().w_cursor.get().lnum - 1);
                 }
                 if second_indent >= 0 {
                     if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
@@ -502,11 +502,11 @@ pub fn internal_format(
         if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
             ins_bytes(&saved_text);
         } else {
-            curwin_mut().w_cursor.add_col(startcol);
+            curwin().w_cursor.add_col(startcol);
             let len = get_cursor_line_len();
-            curwin_mut()
+            curwin()
                 .w_cursor
-                .set_col(curwin_mut().w_cursor.get().col.min(len));
+                .set_col(curwin().w_cursor.get().col.min(len));
         }
 
         haveto_redraw = true;
@@ -522,10 +522,10 @@ pub fn internal_format(
         pchar_cursor(save_char);
     }
 
-    curwin_mut().w_onebuf_opt.wo_lbr.set(has_lbr);
+    curwin().w_onebuf_opt.wo_lbr.set(has_lbr);
 
     if !format_only && haveto_redraw {
-        update_topline(&curwin_mut());
+        update_topline(&curwin());
         redraw_curbuf_later(UPD_VALID);
     }
 }
@@ -689,7 +689,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         return;
     }
 
-    let pos = curwin_mut().w_cursor.get();
+    let pos = curwin().w_cursor.get();
     let old_bytes = crate::cursor::get_cursor_line_slice();
 
     check_auto_format(false);
@@ -698,18 +698,15 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     if !old_bytes.is_empty() && !trailblank && wasatend {
         dec_cursor();
         let mut cc = gchar_cursor();
-        if !whitechar(cc)
-            && curwin_mut().w_cursor.get().col > 0
-            && has_format_option(K_FO_ONE_LETTER)
-        {
+        if !whitechar(cc) && curwin().w_cursor.get().col > 0 && has_format_option(K_FO_ONE_LETTER) {
             dec_cursor();
         }
         cc = gchar_cursor();
         if whitechar(cc) {
-            curwin_mut().w_cursor.set(pos);
+            curwin().w_cursor.set(pos);
             return;
         }
-        curwin_mut().w_cursor.set(pos);
+        curwin().w_cursor.set(pos);
     }
 
     if !old_bytes.is_empty()
@@ -721,7 +718,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             .get((pos.col - 1) as usize)
             .is_some_and(|&b| whitechar(b))
     {
-        curwin_mut().w_cursor.set(pos);
+        curwin().w_cursor.set(pos);
         return;
     }
 
@@ -732,8 +729,8 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         return;
     }
 
-    if prev_line && !paragraph_start(curwin_mut().w_cursor.get().lnum) {
-        curwin_mut().w_cursor.sub_lnum(1);
+    if prev_line && !paragraph_start(curwin().w_cursor.get().lnum) {
+        curwin().w_cursor.sub_lnum(1);
         if !u_save_cursor() {
             return;
         }
@@ -741,31 +738,31 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     g_st().saved_cursor.set(pos);
     format_lines(-1, false);
-    curwin_mut().w_cursor.set(g_st().saved_cursor.get());
+    curwin().w_cursor.set(g_st().saved_cursor.get());
     {
         let mut v = g_st().saved_cursor.get();
         v.lnum = 0;
         g_st().saved_cursor.set(v);
     }
 
-    if curwin_mut().w_cursor.get().lnum > curbuf_mut().b_ml.ml_line_count.get() {
-        curwin_mut()
+    if curwin().w_cursor.get().lnum > curbuf().b_ml.ml_line_count.get() {
+        curwin()
             .w_cursor
-            .set_lnum(curbuf_mut().b_ml.ml_line_count.get());
-        coladvance(&curwin_mut(), MAXCOL);
+            .set_lnum(curbuf().b_ml.ml_line_count.get());
+        coladvance(&curwin(), MAXCOL);
     } else {
-        check_cursor_col(&curwin_mut());
+        check_cursor_col(&curwin());
     }
 
     if !wasatend && has_format_option(K_FO_WHITE_PAR) {
         let len = get_cursor_line_len();
-        if curwin_mut().w_cursor.get().col == len {
+        if curwin().w_cursor.get().col == len {
             let mut pline = Vec::with_capacity(len as usize + 2);
             pline.extend_from_slice(&get_cursor_line_slice());
             pline.push(b' ');
             pline.push(0);
             ml_replace(
-                curwin_mut().w_cursor.get().lnum,
+                curwin().w_cursor.get().lnum,
                 crate::memory::bytes_until_nul(&pline),
                 true,
             );
@@ -775,7 +772,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         }
     }
 
-    check_cursor(&curwin_mut());
+    check_cursor(&curwin());
 }
 
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
@@ -803,40 +800,40 @@ pub fn check_auto_format(end_insert: bool) {
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
 pub fn comp_textwidth(ff: bool) -> i32 {
-    let mut textwidth = curbuf_mut().b_p_tw.get() as i32;
-    if textwidth == 0 && curbuf_mut().b_p_wm.get() != 0 {
-        textwidth = curwin_mut().w_view_width.get() - curbuf_mut().b_p_wm.get() as i32;
-        textwidth -= win_fdccol_count(&curwin_mut());
-        textwidth -= curwin_mut().w_scwidth.get();
+    let mut textwidth = curbuf().b_p_tw.get() as i32;
+    if textwidth == 0 && curbuf().b_p_wm.get() != 0 {
+        textwidth = curwin().w_view_width.get() - curbuf().b_p_wm.get() as i32;
+        textwidth -= win_fdccol_count(&curwin());
+        textwidth -= curwin().w_scwidth.get();
 
-        if curwin_mut().w_onebuf_opt.wo_nu.get() || curwin_mut().w_onebuf_opt.wo_rnu.get() {
+        if curwin().w_onebuf_opt.wo_nu.get() || curwin().w_onebuf_opt.wo_rnu.get() {
             textwidth -= 8;
         }
     }
     textwidth = textwidth.max(0);
     if ff && textwidth == 0 {
-        textwidth = (curwin_mut().w_view_width.get() - 1).min(79);
+        textwidth = (curwin().w_view_width.get() - 1).min(79);
     }
     textwidth
 }
 
 /// Implementation of the format operator `gq` (`op_format`).
 pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
-    let mut old_line_count = curbuf_mut().b_ml.ml_line_count.get();
+    let mut old_line_count = curbuf().b_ml.ml_line_count.get();
 
-    curwin_mut().w_cursor.set(oap.cursor_start);
+    curwin().w_cursor.set(oap.cursor_start);
 
     if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
         return;
     }
-    curwin_mut().w_cursor.set(oap.start);
+    curwin().w_cursor.set(oap.start);
 
     if oap.is_visual {
         redraw_curbuf_later(UPD_INVERTED);
     }
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_start.set(oap.start);
+        curbuf().b_op_start.set(oap.start);
     }
 
     if keep_cursor {
@@ -845,30 +842,29 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
 
     format_lines(oap.line_count, keep_cursor);
 
-    if oap.end_adjusted && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_ml.ml_line_count.get()
-    {
-        curwin_mut().w_cursor.add_lnum(1);
+    if oap.end_adjusted && curwin().w_cursor.get().lnum < curbuf().b_ml.ml_line_count.get() {
+        curwin().w_cursor.add_lnum(1);
     }
     beginline(BL_WHITE | BL_FIX);
-    old_line_count = curbuf_mut().b_ml.ml_line_count.get() - old_line_count;
+    old_line_count = curbuf().b_ml.ml_line_count.get() - old_line_count;
     msgmore(old_line_count);
 
     if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
-        curbuf_mut().b_op_end.set(curwin_mut().w_cursor.get());
+        curbuf().b_op_end.set(curwin().w_cursor.get());
     }
 
     if keep_cursor {
-        curwin_mut().w_cursor.set(g_st().saved_cursor.get());
+        curwin().w_cursor.set(g_st().saved_cursor.get());
         {
             let mut v = g_st().saved_cursor.get();
             v.lnum = 0;
             g_st().saved_cursor.set(v);
         }
-        check_cursor(&curwin_mut());
+        check_cursor(&curwin());
     }
 
     if oap.is_visual {
-        for wp in for_all_windows_mut() {
+        for wp in for_all_windows_ptr() {
             if wp.w_old_cursor_lnum.get() != 0 {
                 if wp.w_old_cursor_lnum.get() > wp.w_old_visual_lnum.get() {
                     wp.w_old_cursor_lnum
@@ -895,11 +891,8 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
-    let use_sandbox = was_set_insecurely(
-        Some(&crate::globals::curwin_mut()),
-        K_OPT_FORMATEXPR,
-        OPT_LOCAL,
-    ) != 0;
+    let use_sandbox =
+        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_FORMATEXPR, OPT_LOCAL) != 0;
     let save_sctx = g_st().current_sctx.get();
 
     set_vim_var_nr(VV_LNUM, i64::from(lnum));
@@ -908,9 +901,9 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
 
     g_st()
         .current_sctx
-        .set(curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get());
+        .set(curbuf().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get());
 
-    let r = eval_expr_option_number(&curbuf_mut().b_p_fex, use_sandbox);
+    let r = eval_expr_option_number(&curbuf().b_p_fex, use_sandbox);
 
     set_vim_var_string(VV_CHAR, None, -1);
     g_st().current_sctx.set(save_sctx);
@@ -933,7 +926,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let mut second_indent: i32 = -1;
     let mut first_par_line = true;
     let mut need_set_indent = true;
-    let first_line = curwin_mut().w_cursor.get().lnum;
+    let first_line = curwin().w_cursor.get().lnum;
     let mut force_format = false;
     let old_state = g_st().state_global.get();
 
@@ -945,9 +938,9 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let do_number_indent = has_format_option(K_FO_QNUMBER);
     let do_trail_white = has_format_option(K_FO_WHITE_PAR);
 
-    if curwin_mut().w_cursor.get().lnum > 1 {
+    if curwin().w_cursor.get().lnum > 1 {
         is_not_par = fmt_check_par(
-            curwin_mut().w_cursor.get().lnum - 1,
+            curwin().w_cursor.get().lnum - 1,
             &mut leader_len,
             &mut leader_flags,
             do_comments,
@@ -956,21 +949,21 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         is_not_par = true;
     }
     next_is_not_par = fmt_check_par(
-        curwin_mut().w_cursor.get().lnum,
+        curwin().w_cursor.get().lnum,
         &mut next_leader_len,
         &mut next_leader_flags,
         do_comments,
     );
     is_end_par = is_not_par || next_is_not_par;
     if !is_end_par && do_trail_white {
-        is_end_par = !ends_in_white(curwin_mut().w_cursor.get().lnum - 1);
+        is_end_par = !ends_in_white(curwin().w_cursor.get().lnum - 1);
     }
 
-    curwin_mut().w_cursor.sub_lnum(1);
+    curwin().w_cursor.sub_lnum(1);
     let mut count = i64::from(line_count);
     while count != 0 && !g_st().got_int.get() {
         if advance {
-            curwin_mut().w_cursor.add_lnum(1);
+            curwin().w_cursor.add_lnum(1);
             prev_is_end_par = is_end_par;
             is_not_par = next_is_not_par;
             leader_len = next_leader_len;
@@ -979,25 +972,25 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
             prev_is_end_par = is_end_par;
         }
 
-        if count == 1 || curwin_mut().w_cursor.get().lnum == curbuf_mut().b_ml.ml_line_count.get() {
+        if count == 1 || curwin().w_cursor.get().lnum == curbuf().b_ml.ml_line_count.get() {
             next_is_not_par = true;
             next_leader_len = 0;
             next_leader_flags = None;
         } else {
             next_is_not_par = fmt_check_par(
-                curwin_mut().w_cursor.get().lnum + 1,
+                curwin().w_cursor.get().lnum + 1,
                 &mut next_leader_len,
                 &mut next_leader_flags,
                 do_comments,
             );
             if do_number_indent {
-                next_is_start_par = get_number_indent(curwin_mut().w_cursor.get().lnum + 1) > 0;
+                next_is_start_par = get_number_indent(curwin().w_cursor.get().lnum + 1) > 0;
             }
         }
         advance = true;
         is_end_par = is_not_par || next_is_not_par || next_is_start_par;
         if !is_end_par && do_trail_white {
-            is_end_par = !ends_in_white(curwin_mut().w_cursor.get().lnum);
+            is_end_par = !ends_in_white(curwin().w_cursor.get().lnum);
         }
 
         if is_not_par {
@@ -1008,31 +1001,30 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
             if first_par_line
                 && (do_second_indent || do_number_indent)
                 && prev_is_end_par
-                && curwin_mut().w_cursor.get().lnum < curbuf_mut().b_ml.ml_line_count.get()
+                && curwin().w_cursor.get().lnum < curbuf().b_ml.ml_line_count.get()
             {
                 if do_second_indent
-                    && !crate::memline::ml_get_slice(curwin_mut().w_cursor.get().lnum + 1)
-                        .is_empty()
+                    && !crate::memline::ml_get_slice(curwin().w_cursor.get().lnum + 1).is_empty()
                 {
                     if leader_len == 0 && next_leader_len == 0 {
-                        second_indent = get_indent_lnum(curwin_mut().w_cursor.get().lnum + 1);
+                        second_indent = get_indent_lnum(curwin().w_cursor.get().lnum + 1);
                     } else {
                         second_indent = next_leader_len;
                         do_comments_list = 1;
                     }
                 } else if do_number_indent {
                     if leader_len == 0 && next_leader_len == 0 {
-                        second_indent = get_number_indent(curwin_mut().w_cursor.get().lnum);
+                        second_indent = get_number_indent(curwin().w_cursor.get().lnum);
                     } else {
-                        second_indent = get_number_indent(curwin_mut().w_cursor.get().lnum);
+                        second_indent = get_number_indent(curwin().w_cursor.get().lnum);
                         do_comments_list = 1;
                     }
                 }
             }
 
-            if (curwin_mut().w_cursor.get().lnum >= curbuf_mut().b_ml.ml_line_count.get()
+            if (curwin().w_cursor.get().lnum >= curbuf().b_ml.ml_line_count.get()
                 || !same_leader(
-                    curwin_mut().w_cursor.get().lnum,
+                    curwin().w_cursor.get().lnum,
                     leader_len,
                     leader_flags.as_deref(),
                     next_leader_len,
@@ -1048,12 +1040,12 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
             if is_end_par || force_format {
                 if need_set_indent {
-                    let indent = if curwin_mut().w_cursor.get().lnum == first_line {
+                    let indent = if curwin().w_cursor.get().lnum == first_line {
                         get_indent()
-                    } else if curbuf_mut().b_p_lisp.get() {
+                    } else if curbuf().b_p_lisp.get() {
                         get_lisp_indent()
                     } else if cindent_on() {
-                        if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
+                        if curbuf().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
                             get_expr_indent()
                         } else {
                             get_c_indent()
@@ -1065,8 +1057,8 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 }
 
                 g_st().state_global.set(MODE_NORMAL);
-                coladvance(&curwin_mut(), MAXCOL);
-                while curwin_mut().w_cursor.get().col != 0 && ascii_isspace(gchar_cursor()) {
+                coladvance(&curwin(), MAXCOL);
+                while curwin().w_cursor.get().col != 0 && ascii_isspace(gchar_cursor()) {
                     dec_cursor();
                 }
 
@@ -1104,22 +1096,22 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
             if !is_end_par {
                 advance = false;
-                curwin_mut().w_cursor.add_lnum(1);
-                curwin_mut().w_cursor.set_col(0);
+                curwin().w_cursor.add_lnum(1);
+                curwin().w_cursor.set_col(0);
                 if line_count < 0 && !u_save_cursor() {
                     break;
                 }
                 if next_leader_len > 0 {
                     del_bytes(next_leader_len, false, false);
-                    mark_col_adjust(curwin_mut().w_cursor.get().lnum, 0, 0, -next_leader_len, 0);
+                    mark_col_adjust(curwin().w_cursor.get().lnum, 0, 0, -next_leader_len, 0);
                 } else if second_indent > 0 {
                     let indent = getwhitecols_curline() as i32;
                     if indent > 0 {
                         del_bytes(indent, false, false);
-                        mark_col_adjust(curwin_mut().w_cursor.get().lnum, 0, 0, -indent, 0);
+                        mark_col_adjust(curwin().w_cursor.get().lnum, 0, 0, -indent, 0);
                     }
                 }
-                curwin_mut().w_cursor.sub_lnum(1);
+                curwin().w_cursor.sub_lnum(1);
                 if !do_join(2, true, false, false, false) {
                     beep_flush();
                     break;

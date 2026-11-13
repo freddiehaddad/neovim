@@ -1323,8 +1323,8 @@ pub fn enc_canon_props(bytes: &[u8]) -> i32 {
 
 pub fn bomb_size() -> i32 {
     let mut n = 0;
-    if curbuf_mut().b_p_bomb.get() && !curbuf_mut().b_p_bin.get() {
-        let fenc = curbuf_mut().b_p_fenc.as_bytes();
+    if curbuf().b_p_bomb.get() && !curbuf().b_p_bin.get() {
+        let fenc = curbuf().b_p_fenc.as_bytes();
         if fenc.is_empty() || fenc == b"utf-8" {
             n = 3;
         } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
@@ -1351,7 +1351,7 @@ pub fn remove_bom(buf: &mut [u8]) {
 }
 
 pub fn mb_get_class(bytes: &[u8]) -> i32 {
-    mb_get_class_tab(bytes, &curbuf_mut().b_chartab.get())
+    mb_get_class_tab(bytes, &curbuf().b_chartab.get())
 }
 
 pub fn mb_get_class_tab(bytes: &[u8], chartab: &[u64; 4]) -> i32 {
@@ -1880,7 +1880,7 @@ pub fn utf_printable(c: i32) -> bool {
 }
 
 pub fn utf_class(c: i32) -> i32 {
-    utf_class_tab(c, &curbuf_mut().b_chartab.get())
+    utf_class_tab(c, &curbuf().b_chartab.get())
 }
 
 pub fn utf_class_tab(c: i32, chartab: &[u64; 4]) -> i32 {
@@ -2880,7 +2880,7 @@ pub fn utf_cp_bounds(bytes: &[u8], idx: usize) -> CharBoundsOff {
 }
 
 pub fn utf_find_illegal() {
-    let pos: CursorPos = curwin_mut().w_cursor.get();
+    let pos: CursorPos = curwin().w_cursor.get();
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,
@@ -2889,15 +2889,15 @@ pub fn utf_find_illegal() {
     };
     let mut tofree: Option<Vec<u8>> = None;
 
-    if (enc_canon_props(&curbuf_mut().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
+    if (enc_canon_props(&curbuf().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
         convert_setup(
             &mut vimconv,
             Some(&opt_vars().p_enc.as_cstr()),
-            Some(&curbuf_mut().b_p_fenc.as_cstr()),
+            Some(&curbuf().b_p_fenc.as_cstr()),
         );
     }
 
-    curwin_mut().w_cursor.set_coladd(0);
+    curwin().w_cursor.set_coladd(0);
     'search: loop {
         let cursor_slice = crate::cursor::get_cursor_pos_slice();
         let search_bytes: &[u8] = if vimconv.vc_type != CONV_NONE {
@@ -2917,33 +2917,33 @@ pub fn utf_find_illegal() {
             let len = utf_slice2len(rest);
             if rest[0] >= 0x80 && (len == 1 || utf_char2len(utf_slice2char(rest)) as usize != len) {
                 if vimconv.vc_type == CONV_NONE {
-                    curwin_mut().w_cursor.add_col(idx as Colnr);
+                    curwin().w_cursor.add_col(idx as Colnr);
                 } else {
                     let mut rem = idx as i32;
                     let mut cur_idx = 0usize;
                     while cur_idx < cursor_slice.len() && cursor_slice[cur_idx] != 0 && rem > 0 {
                         rem -= 1;
                         let l = utf_slice2len(&cursor_slice[cur_idx..]);
-                        curwin_mut().w_cursor.add_col(l as Colnr);
+                        curwin().w_cursor.add_col(l as Colnr);
                         cur_idx += l;
                     }
                 }
-                curwin_mut().w_set_curswant.set(true);
+                curwin().w_set_curswant.set(true);
                 break 'search;
             }
             idx += len;
         }
-        if curwin_mut().w_cursor.get().lnum == curbuf_mut().b_ml.ml_line_count.get() {
-            curwin_mut().w_cursor.set(pos);
+        if curwin().w_cursor.get().lnum == curbuf().b_ml.ml_line_count.get() {
+            curwin().w_cursor.set(pos);
             beep_flush();
             break;
         }
-        curwin_mut().w_cursor.add_lnum(1);
-        curwin_mut().w_cursor.set_col(0);
+        curwin().w_cursor.add_lnum(1);
+        curwin().w_cursor.set_col(0);
     }
 
     if vimconv.vc_type != CONV_NONE && tofree.is_none() {
-        curwin_mut().w_cursor.set(pos);
+        curwin().w_cursor.set(pos);
         beep_flush();
     }
 }
@@ -2964,16 +2964,16 @@ pub fn utf_valid_string(bytes: &[u8]) -> bool {
 }
 
 pub fn mb_adjust_cursor() {
-    curwin_mut()
+    curwin()
         .w_cursor
-        .update_mut(|c| mark_mb_adjustpos(&curbuf_mut(), c));
+        .update_mut(|c| mark_mb_adjustpos(&curbuf(), c));
 }
 
 pub fn mb_check_adjust_col(win: &WinInfoInfo) {
     let oldcol = win.w_cursor.get().col;
 
     if oldcol != 0 {
-        let line = crate::memline::ml_get_buf_slice(&win.buf_mut(), win.w_cursor.get().lnum);
+        let line = crate::memline::ml_get_buf_slice(&win.buf(), win.w_cursor.get().lnum);
         let len = line.len() as Colnr;
 
         if len == 0 || oldcol < 0 {
@@ -3488,7 +3488,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
     let table_size = tv_list_len(Some(l)) as usize;
     let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
     if table_size != 0 {
-        for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
+        for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
             let li_tv = li.tv();
             if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
                 semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);

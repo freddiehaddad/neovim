@@ -80,7 +80,7 @@ pub fn win_has_winnr(wp: &WinInfoInfo, tp: &TabPageInfo) -> bool {
 }
 
 pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<crate::globals::WinPtr> {
-    let ct = curtab_mut();
+    let ct = curtab();
     let tp_ref = match tp {
         Some(tp) => tp,
         None => {
@@ -88,7 +88,7 @@ pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<crate::globa
             &ct
         }
     };
-    for wp in win_iter_mut(first_win_in_tab(tp_ref)) {
+    for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
         nr -= i32::from(win_has_winnr(&wp, tp_ref));
         if nr <= 0 {
             return Some(wp);
@@ -99,7 +99,7 @@ pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<crate::globa
 
 fn win_getid(argvars: &mut [TypVal]) -> i32 {
     if argvars[0].v_type == VarType::VarUnknown {
-        return curwin_mut().handle;
+        return curwin().handle;
     }
     let mut winnr = tv_get_number(&argvars[0]) as i32;
     if winnr <= 0 {
@@ -126,7 +126,7 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         wp = first_win_in_tab(tp.borrow());
     }
     let tp_ref = tp.borrow();
-    for wp_ref in win_iter_mut(wp) {
+    for wp_ref in win_iter_ptr(wp) {
         winnr -= i32::from(win_has_winnr(&wp_ref, tp_ref));
         if winnr == 0 {
             return wp_ref.handle;
@@ -156,8 +156,8 @@ pub fn win_id2wp_tp(
     id: i32,
     tpp: Option<&mut Option<crate::globals::TabpagePtr>>,
 ) -> Option<crate::globals::WinPtr> {
-    for tp in for_all_tabpages_mut() {
-        for wp in win_iter_mut(first_win_in_tab(&tp)) {
+    for tp in for_all_tabpages_ptr() {
+        for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.handle == id {
                 if let Some(tpp) = tpp {
                     *tpp = Some(tp);
@@ -173,15 +173,11 @@ fn win_id2win(argvars: &mut [TypVal]) -> i32 {
     let mut nr: i32 = 1;
     let id = tv_get_number(&argvars[0]) as i32;
 
-    for wp in for_all_windows_mut() {
+    for wp in for_all_windows_ptr() {
         if wp.handle == id {
-            return if win_has_winnr(&wp, &curtab_mut()) {
-                nr
-            } else {
-                0
-            };
+            return if win_has_winnr(&wp, &curtab()) { nr } else { 0 };
         }
-        nr += i32::from(win_has_winnr(&wp, &curtab_mut()));
+        nr += i32::from(win_has_winnr(&wp, &curtab()));
     }
     0
 }
@@ -189,9 +185,9 @@ fn win_id2win(argvars: &mut [TypVal]) -> i32 {
 pub fn win_findbuf(argvars: &mut [TypVal], list: &TvList) {
     let bufnr = tv_get_number(&argvars[0]) as i32;
 
-    for tp in for_all_tabpages_mut() {
-        for wp in win_iter_mut(first_win_in_tab(&tp)) {
-            if wp.buf_mut().b_fnum.get() == bufnr {
+    for tp in for_all_tabpages_ptr() {
+        for wp in win_iter_ptr(first_win_in_tab(&tp)) {
+            if wp.buf().b_fnum.get() == bufnr {
                 tv_list_append_number(list, wp.handle as Varnumber);
             }
         }
@@ -207,17 +203,17 @@ pub fn find_win_by_nr(vp: &TypVal, tp: Option<&TabPageInfo>) -> Option<crate::gl
     }
 
     if nr == 0 {
-        return Some(curwin_mut());
+        return Some(curwin());
     }
 
-    let ct = curtab_mut();
+    let ct = curtab();
     let tp_ref = match tp {
         Some(tp) => tp,
         None => &ct,
     };
 
     if nr >= LOWEST_WIN_ID {
-        for wp in win_iter_mut(first_win_in_tab(tp_ref)) {
+        for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
             if wp.handle == nr {
                 return Some(wp);
             }
@@ -252,12 +248,12 @@ pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<crate::globals::WinPtr>
             let n = tv_get_number(tvp) as i32;
             if n >= 0 { find_tabpage(n) } else { None }
         } else {
-            Some(curtab_mut())
+            Some(curtab())
         };
 
         tp.as_ref().and_then(|tp| find_win_by_nr(wvp, Some(tp)))
     } else {
-        Some(curwin_mut())
+        Some(curwin())
     }
 }
 
@@ -332,7 +328,7 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !rem.is_empty() {
                     let tail = rem;
-                    let twin_ref = twin.borrow_mut();
+                    let twin_ref = twin.borrow();
                     if tail == b"j" {
                         twin = crate::globals::WinPtr::from(win_vert_neighbor(
                             tp, twin_ref, false, count,
@@ -363,7 +359,7 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
         } else {
             nr = 0;
         }
-    } else if !win_has_winnr(twin.borrow_mut(), tp) {
+    } else if !win_has_winnr(twin.borrow(), tp) {
         nr = 0;
     }
 
@@ -373,7 +369,7 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
 
     nr = 0;
     let mut found = false;
-    for wp in win_iter_mut(first_win_in_tab(tp)) {
+    for wp in win_iter_ptr(first_win_in_tab(tp)) {
         nr += i32::from(win_has_winnr(&wp, tp));
         if twin == wp {
             found = true;
@@ -407,7 +403,7 @@ fn get_win_info(wp: &WinInfoInfo, tpnr: i16, winnr: i16) -> crate::eval::typval:
     tv_dict_add_nr(&dict, c"leftcol", wp.w_leftcol.get() as Varnumber);
     tv_dict_add_nr(&dict, c"winbar", wp.w_winbar_height.get() as Varnumber);
     tv_dict_add_nr(&dict, c"width", wp.w_view_width.get() as Varnumber);
-    tv_dict_add_nr(&dict, c"bufnr", wp.buf_mut().b_fnum.get() as Varnumber);
+    tv_dict_add_nr(&dict, c"bufnr", wp.buf().b_fnum.get() as Varnumber);
     tv_dict_add_nr(&dict, c"wincol", (wp.w_wincol.get() + 1) as Varnumber);
     tv_dict_add_nr(&dict, c"textoff", win_col_off(wp) as Varnumber);
     tv_dict_add_nr(
@@ -438,7 +434,7 @@ fn get_tabpage_info(tp: &TabPageInfo, tp_idx: i32) -> crate::eval::typval::DictI
     tv_dict_add_nr(&dict, c"tabnr", tp_idx as Varnumber);
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    for wp in win_iter_mut(first_win_in_tab(tp)) {
+    for wp in win_iter_ptr(first_win_in_tab(tp)) {
         tv_list_append_number(&l, wp.handle as Varnumber);
     }
     tv_dict_add_list(&dict, c"windows", Some(&l));
@@ -498,10 +494,10 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     let mut tabnr: i16 = 0;
-    for tp in for_all_tabpages_mut() {
+    for tp in for_all_tabpages_ptr() {
         tabnr = tabnr.wrapping_add(1);
         let mut winnr: i16 = 0;
-        for wp in win_iter_mut(first_win_in_tab(&tp)) {
+        for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             let has_winnr = win_has_winnr(&wp, &tp);
             winnr = winnr.wrapping_add(i16::from(has_winnr));
             if !wparg.is_null() && wparg != wp {
@@ -609,7 +605,7 @@ pub fn f_win_getid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `win_gotoid()` function (`f_win_gotoid`).
 pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let id = tv_get_number(&argvars[0]) as i32;
-    if curwin_mut().handle == id {
+    if curwin().handle == id {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         return;
     }
@@ -743,11 +739,11 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     if curwin_ptr() != targetwin {
-        win_goto(targetwin.borrow_mut());
+        win_goto(targetwin.borrow());
     }
 
     if curwin_ptr() == targetwin && win_valid(wp.opt()) {
-        if win_splitmove(wp.borrow_mut(), size, flags) {
+        if win_splitmove(wp.borrow(), size, flags) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     } else {
@@ -755,13 +751,13 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     if oldwin != curwin_ptr() && win_valid(oldwin.opt()) {
-        win_goto(oldwin.borrow_mut());
+        win_goto(oldwin.borrow());
     }
 }
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
 pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp = curwin_mut();
+    let mut wp = curwin();
 
     tv_set_string(rettv, None);
     if argvars[0].v_type != VarType::VarUnknown {
@@ -805,15 +801,14 @@ pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(
-        wp.map_or(-1, |w| w.buf_mut().b_fnum.get() as Varnumber),
+        wp.map_or(-1, |w| w.buf().b_fnum.get() as Varnumber),
     );
 }
 
 /// `wincol()` function (`f_wincol`).
 pub fn f_wincol(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    validate_cursor(&curwin_mut());
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number((curwin_mut().w_wcol.get() + 1) as Varnumber);
+    validate_cursor(&curwin());
+    rettv.vval = crate::eval::typval::TypvalVval::Number((curwin().w_wcol.get() + 1) as Varnumber);
 }
 
 /// `winheight(nr)` function (`f_winheight`).
@@ -829,7 +824,7 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     tv_list_alloc_ret(rettv, 2);
 
     let tp = if argvars[0].v_type == VarType::VarUnknown {
-        curtab_mut()
+        curtab()
     } else {
         let Some(found) = find_tabpage(tv_get_number(&argvars[0]) as i32) else {
             return;
@@ -842,16 +837,14 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `winline()` function (`f_winline`).
 pub fn f_winline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    validate_cursor(&curwin_mut());
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number((curwin_mut().w_wrow.get() + 1) as Varnumber);
+    validate_cursor(&curwin());
+    rettv.vval = crate::eval::typval::TypvalVval::Number((curwin().w_wrow.get() + 1) as Varnumber);
 }
 
 /// `winnr()` function (`f_winnr`).
 pub fn f_winnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(
-        get_winnr(&curtab_mut(), &mut argvars[0]) as Varnumber
-    );
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(get_winnr(&curtab(), &mut argvars[0]) as Varnumber);
 }
 
 /// `winrestcmd()` function (`f_winrestcmd`).
@@ -859,8 +852,8 @@ pub fn f_winrestcmd(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut buf = String::with_capacity(70);
     for _ in 0..2 {
         let mut winnr: i32 = 1;
-        for wp in for_all_windows_mut() {
-            if !win_has_winnr(&wp, &curtab_mut()) {
+        for wp in for_all_windows_ptr() {
+            if !win_has_winnr(&wp, &curtab()) {
                 continue;
             }
             let _ = write!(
@@ -884,29 +877,27 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 
     let dict = argvars[0].vval.v_dict_opt();
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"lnum", 4) {
-        curwin_mut()
+        curwin()
             .w_cursor
             .set_lnum(tv_get_number(&di.tv()) as Linenr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"col", 3) {
-        curwin_mut()
-            .w_cursor
-            .set_col(tv_get_number(&di.tv()) as Colnr);
+        curwin().w_cursor.set_col(tv_get_number(&di.tv()) as Colnr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"coladd", 6) {
-        curwin_mut()
+        curwin()
             .w_cursor
             .set_coladd(tv_get_number(&di.tv()) as Colnr);
     }
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"topline", 7) {
-        let prev_topline = curwin_mut().w_topline.get();
-        set_topline(&curwin_mut(), tv_get_number(&di.tv()) as Linenr);
-        if curwin_mut().w_topline.get() != prev_topline {
-            curwin_mut().w_skipcol.set(0);
+        let prev_topline = curwin().w_topline.get();
+        set_topline(&curwin(), tv_get_number(&di.tv()) as Linenr);
+        if curwin().w_topline.get() != prev_topline {
+            curwin().w_skipcol.set(0);
         }
     }
     let mut vs = Viewstate::default();
-    save_viewstate(&curwin_mut(), &mut vs);
+    save_viewstate(&curwin(), &mut vs);
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"curswant", 8) {
         vs.vs_curswant = tv_get_number(&di.tv()) as Colnr;
         vs.vs_set_curswant = false;
@@ -920,39 +911,33 @@ pub fn f_winrestview(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
     if let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, c"skipcol", 7) {
         vs.vs_skipcol = tv_get_number(&di.tv()) as Colnr;
     }
-    restore_viewstate(&curwin_mut(), &vs);
+    restore_viewstate(&curwin(), &vs);
 
-    check_cursor(&curwin_mut());
-    changed_window_setting(&curwin_mut());
-    if curwin_mut().w_topline.get() <= 0 {
-        curwin_mut().w_topline.set(1);
+    check_cursor(&curwin());
+    changed_window_setting(&curwin());
+    if curwin().w_topline.get() <= 0 {
+        curwin().w_topline.set(1);
     }
-    if curwin_mut().w_topline.get() > curbuf_mut().b_ml.ml_line_count.get() {
-        curwin_mut()
-            .w_topline
-            .set(curbuf_mut().b_ml.ml_line_count.get());
+    if curwin().w_topline.get() > curbuf().b_ml.ml_line_count.get() {
+        curwin().w_topline.set(curbuf().b_ml.ml_line_count.get());
     }
-    check_topfill(&curwin_mut(), true);
+    check_topfill(&curwin(), true);
 }
 
 /// `winsaveview()` function (`f_winsaveview`).
 pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
 
-    tv_dict_add_nr(
-        &dict,
-        c"lnum",
-        curwin_mut().w_cursor.get().lnum as Varnumber,
-    );
-    tv_dict_add_nr(&dict, c"col", curwin_mut().w_cursor.get().col as Varnumber);
+    tv_dict_add_nr(&dict, c"lnum", curwin().w_cursor.get().lnum as Varnumber);
+    tv_dict_add_nr(&dict, c"col", curwin().w_cursor.get().col as Varnumber);
     tv_dict_add_nr(
         &dict,
         c"coladd",
-        curwin_mut().w_cursor.get().coladd as Varnumber,
+        curwin().w_cursor.get().coladd as Varnumber,
     );
     update_curswant();
     let mut vs = Viewstate::default();
-    save_viewstate(&curwin_mut(), &mut vs);
+    save_viewstate(&curwin(), &mut vs);
     tv_dict_add_nr(&dict, c"curswant", vs.vs_curswant as Varnumber);
 
     tv_dict_add_nr(&dict, c"topline", vs.vs_topline as Varnumber);

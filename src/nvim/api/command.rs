@@ -350,7 +350,7 @@ pub fn nvim_parse_cmd(
             Some((c.uc_name.clone(), c.uc_def))
         })
     } else if ea.cmdidx == Cmdidx::CmdUserBuf {
-        let cb = curbuf_mut();
+        let cb = curbuf();
         let ucmds = cb.b_ucmds.borrow();
         let c = &ucmds[ea.useridx as usize];
         Some((c.uc_name.clone(), c.uc_def))
@@ -1326,7 +1326,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
             }
         })
     } else {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
             return;
         };
         let pos = b
@@ -1690,7 +1690,7 @@ pub fn nvim_buf_get_commands(
         return commands_array(None);
     }
 
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return Dict::new();
     };
     if opts.builtin {

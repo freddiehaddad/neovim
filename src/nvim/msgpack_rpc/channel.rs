@@ -172,12 +172,12 @@ pub struct Channel {
 
 impl Channel {
     #[inline]
-    pub fn events_mut(&self) -> MultiQueue {
+    pub fn events(&self) -> MultiQueue {
         self.events
     }
 
     #[inline]
-    pub fn term_mut(&self) -> crate::terminal::TermId {
+    pub fn term(&self) -> crate::terminal::TermId {
         self.term
     }
 
@@ -190,7 +190,7 @@ impl Channel {
 impl Drop for Channel {
     fn drop(&mut self) {
         crate::eval::typval::callback_free(&self.on_exit);
-        if let Some(events) = self.events.opt_mut() {
+        if let Some(events) = self.events.opt() {
             multiqueue_free(events);
         }
     }
@@ -339,7 +339,7 @@ pub fn rpc_send_call(
         && !expired
     {
         if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
-            multiqueue_process_events(ev_ptr.borrow_mut());
+            multiqueue_process_events(ev_ptr);
         } else {
             loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
         }
@@ -585,7 +585,7 @@ fn handle_request(channel: &mut Channel, args: Array) {
 
         if is_get_mode && !input_blocking() {
             multiqueue_put_event(
-                g_st().ch_before_blocking_events.get().borrow_mut(),
+                g_st().ch_before_blocking_events.get(),
                 Event::RpcRequest(Box::new(evdata)),
             );
         } else {
@@ -599,20 +599,11 @@ fn handle_request(channel: &mut Channel, args: Array) {
         if is_resize {
             let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
 
-            multiqueue_put_event(
-                channel.events.borrow_mut(),
-                Event::Oneshot(std::rc::Rc::clone(&oneshot)),
-            );
+            multiqueue_put_event(channel.events, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
 
-            multiqueue_put_event(
-                g_st().resize_events.get().borrow_mut(),
-                Event::Oneshot(oneshot),
-            );
+            multiqueue_put_event(g_st().resize_events.get(), Event::Oneshot(oneshot));
         } else {
-            multiqueue_put_event(
-                channel.events.borrow_mut(),
-                Event::RpcRequest(Box::new(evdata)),
-            );
+            multiqueue_put_event(channel.events, Event::RpcRequest(Box::new(evdata)));
         }
     }
 }
@@ -667,7 +658,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
         channel_incref(&mut *channel);
         if !channel.events.is_null() {
             multiqueue_put_event(
-                channel.events_mut(),
+                channel.events(),
                 Event::RpcInternalRead {
                     chan_id: channel.id,
                     buffer,
@@ -759,7 +750,7 @@ pub fn rpc_close(channel: &mut Channel) {
 
     {
         let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
-        multiqueue_put_event(qc.fast_events.borrow_mut(), Event::RpcClose(channel.id));
+        multiqueue_put_event(qc.fast_events, Event::RpcClose(channel.id));
     }
 }
 
@@ -1001,7 +992,7 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
 }
 
 pub fn rpc_free_all_mem() {
-    multiqueue_free(g_st().ch_before_blocking_events.get().borrow_mut());
+    multiqueue_free(g_st().ch_before_blocking_events.get());
 }
 
 #[cfg(test)]

@@ -2482,18 +2482,14 @@ fn do_source_buffer_init(
         return None;
     }
 
-    let fname = if curbuf_mut().b_ffname.get().is_some() {
-        curbuf_mut().ffname_cstr().to_owned()
+    let fname = if curbuf().b_ffname.get().is_some() {
+        curbuf().ffname_cstr().to_owned()
     } else {
         let mut iobuff = [0u8; IOSIZE];
         if ex_lua {
-            format_to_buf!(
-                &mut iobuff,
-                c":{range}lua buffer=%d",
-                curbuf_mut().b_fnum.get(),
-            );
+            format_to_buf!(&mut iobuff, c":{range}lua buffer=%d", curbuf().b_fnum.get(),);
         } else {
-            format_to_buf!(&mut iobuff, c":source buffer=%d", curbuf_mut().b_fnum.get(),);
+            format_to_buf!(&mut iobuff, c":source buffer=%d", curbuf().b_fnum.get(),);
         }
         crate::option_vars::RcCStr::from_cstr(crate::memory::bytes_as_cstr(&iobuff))
     };
@@ -2626,7 +2622,7 @@ fn do_source_ext(
                     fname_exp_opt,
                     fname_exp_opt,
                     false,
-                    curbuf_opt_mut().as_deref(),
+                    curbuf_opt().as_deref(),
                 )
             {
                 retval = !aborting();
@@ -2636,7 +2632,7 @@ fn do_source_ext(
                         fname_exp_opt,
                         fname_exp_opt,
                         false,
-                        curbuf_opt_mut().as_deref(),
+                        curbuf_opt().as_deref(),
                     );
                 }
                 break 'block;
@@ -2647,7 +2643,7 @@ fn do_source_ext(
                 fname_exp_opt,
                 fname_exp_opt,
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
             );
         }
 
@@ -2809,13 +2805,13 @@ fn do_source_ext(
         if fname_opt.is_none()
             && let Some(eap) = eap
             && !ex_lua
-            && curbuf_mut().b_p_ft.as_bytes() != b"lua"
-            && !curbuf_mut()
+            && curbuf().b_p_ft.as_bytes() != b"lua"
+            && !curbuf()
                 .fname_opt()
                 .is_some_and(|f| path_with_extension(&f, c"lua"))
         {
             let mut args_items = [
-                integer_obj(Integer::from(curbuf_mut().b_fnum.get())),
+                integer_obj(Integer::from(curbuf().b_fnum.get())),
                 integer_obj(Integer::from(eap.line1)),
                 integer_obj(Integer::from(eap.line2)),
             ];
@@ -2840,8 +2836,8 @@ fn do_source_ext(
         if fname_opt.is_none()
             && (ex_lua
                 || ts_lua
-                || curbuf_mut().b_p_ft.as_bytes() == b"lua"
-                || curbuf_mut()
+                || curbuf().b_p_ft.as_bytes() == b"lua"
+                || curbuf()
                     .fname_opt()
                     .is_some_and(|f| path_with_extension(&f, c"lua")))
         {
@@ -2931,7 +2927,7 @@ fn do_source_ext(
                 fname_exp_opt,
                 fname_exp_opt,
                 false,
-                curbuf_opt_mut().as_deref(),
+                curbuf_opt().as_deref(),
             );
         }
     }

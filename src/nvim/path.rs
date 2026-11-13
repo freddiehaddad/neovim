@@ -782,10 +782,10 @@ fn expand_path_option(curdir: &CStr, path_option: &CStr, gap: &mut Vec<std::ffi:
         if buf_arr.first() == Some(&b'.')
             && (buflen == 1 || buf_arr.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b))))
         {
-            if curbuf_mut().b_ffname.get().is_none() {
+            if curbuf().b_ffname.get().is_none() {
                 continue;
             }
-            let ffname_cstr = curbuf_mut().ffname_cstr();
+            let ffname_cstr = curbuf().ffname_cstr();
             let ffname_bytes = ffname_cstr.to_bytes();
             let p = path_tail(&ffname_cstr);
             let plen = ffname_bytes.len() - p.to_bytes().len();
@@ -1008,10 +1008,10 @@ pub fn gettail_dir(fname: &CStr) -> &CStr {
 
 fn expand_in_path(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, flags: i32) -> i32 {
     let mut path_ga: Vec<std::ffi::CString> = Vec::new();
-    let path_option = if curbuf_mut().b_p_path.is_empty() {
+    let path_option = if curbuf().b_p_path.is_empty() {
         opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.to_owned()
+        curbuf().b_p_path.to_owned()
     };
 
     let mut curdir_arr = [0u8; MAXPATHL];
@@ -1110,10 +1110,10 @@ pub fn gen_expand_wildcards_vec(
 ) -> bool {
     file.clear();
     let mut did_expand_in_path = false;
-    let path_option_owned = if curbuf_mut().b_p_path.is_empty() {
+    let path_option_owned = if curbuf().b_p_path.is_empty() {
         opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.to_owned()
+        curbuf().b_p_path.to_owned()
     };
     let path_option = path_option_owned.as_c_str();
 

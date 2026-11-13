@@ -29,17 +29,17 @@ pub extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
 
     let mut str_cstr = lua_tolstring_cstr(lstate, 1);
 
-    let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell.get();
+    let wo_spell_save = curwin().w_onebuf_opt.wo_spell.get();
 
-    if !curwin_mut().w_onebuf_opt.wo_spell.get() {
-        parse_spelllang(&curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell.set(true);
+    if !curwin().w_onebuf_opt.wo_spell.get() {
+        parse_spelllang(&curwin());
+        curwin().w_onebuf_opt.wo_spell.set(true);
     }
 
-    let w_s = curwin_mut().w_s_ptr();
+    let w_s = curwin().w_s_ptr();
     if w_s.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
-        curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
+        curwin().w_onebuf_opt.wo_spell.set(wo_spell_save);
         return 0;
     }
 
@@ -51,7 +51,7 @@ pub extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
 
     while !str_cstr.is_empty() {
         let mut attr: Hlf = HLF_COUNT;
-        let len = spell_check(&curwin_mut(), str_cstr, &mut attr, Some(&mut capcol), false);
+        let len = spell_check(&curwin(), str_cstr, &mut attr, Some(&mut capcol), false);
         assert!(len <= i32::MAX as usize);
 
         if attr != HLF_COUNT {
@@ -84,7 +84,7 @@ pub extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 {
         capcol -= len as i32;
     }
 
-    curwin_mut().w_onebuf_opt.wo_spell.set(wo_spell_save);
+    curwin().w_onebuf_opt.wo_spell.set(wo_spell_save);
     1
 }
 

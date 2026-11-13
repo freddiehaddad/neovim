@@ -313,7 +313,7 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
                 buf[i] = g_st().motion_force.get() as u8;
                 i += 1;
             }
-        } else if !curbuf_mut().terminal.get().is_null() {
+        } else if !curbuf().terminal.get().is_null() {
             buf[i] = b't';
             i += 1;
             if g_st().restart_edit.get() == b'I' as i32 {
@@ -365,7 +365,7 @@ pub fn may_trigger_modechanged() {
         Some(crate::memory::bytes_as_cstr(&pattern_buf)),
         None,
         false,
-        curbuf_opt_mut().as_deref(),
+        curbuf_opt().as_deref(),
     );
     *g_st().last_mode.borrow_mut() = curr_mode;
 
@@ -401,13 +401,7 @@ pub fn may_trigger_safestate(safe: bool) {
         );
     }
     if is_safe {
-        apply_autocmds(
-            EVENT_SAFESTATE,
-            None,
-            None,
-            false,
-            curbuf_opt_mut().as_deref(),
-        );
+        apply_autocmds(EVENT_SAFESTATE, None, None, false, curbuf_opt().as_deref());
     }
     WAS_SAFE.set(is_safe);
 }

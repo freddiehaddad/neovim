@@ -500,7 +500,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
         } else if p_bytes.starts_with(b"file") {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
-            if curbuf_mut().b_ffname.get().is_none() {
+            if curbuf().b_ffname.get().is_none() {
                 emsg(E_NONAME);
                 return None;
             }
@@ -515,7 +515,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
         p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, 4));
 
         if here {
-            bp.dbg_lnum = curwin_mut().w_cursor.get().lnum;
+            bp.dbg_lnum = curwin().w_cursor.get().lnum;
         } else if !is_prof && p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
             let p_bytes = p.to_bytes();
             let mut rem = p_bytes;
@@ -543,7 +543,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             };
             bp.dbg_name = name_src.to_owned();
         } else if here {
-            bp.dbg_name = curbuf_mut().b_ffname.get().as_deref().map(CStr::to_owned)?;
+            bp.dbg_name = curbuf().b_ffname.get().as_deref().map(CStr::to_owned)?;
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = p.to_owned();
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);

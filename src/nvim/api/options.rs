@@ -272,9 +272,9 @@ fn do_ft_buf(
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, ftbuf.opt_mut());
+    set_bufref(&mut bufref, ftbuf.opt());
 
-    ctx_switch(&mut *aco, None, None, ftbuf.opt_mut(), 0);
+    ctx_switch(&mut *aco, None, None, ftbuf.opt(), 0);
 
     set_option_direct(
         K_OPT_BUFHIDDEN,
@@ -301,7 +301,7 @@ fn do_ft_buf(
 
     let mut did_au_ft = false;
     try_wrap(err, || {
-        did_au_ft = do_filetype_autocmd(ftbuf.borrow_mut(), true);
+        did_au_ft = do_filetype_autocmd(ftbuf.borrow(), true);
     });
 
     if !bufref_valid(Some(&bufref)) {
@@ -334,14 +334,14 @@ fn wipe_ft_buf(buf: &FileBuf) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, buf_ptr.opt_mut());
+    set_bufref(&mut bufref, buf_ptr.opt());
 
-    close_windows(buf_ptr.opt_mut(), false);
+    close_windows(buf_ptr.opt(), false);
     if bufref_valid(Some(&bufref))
         && g_st().curbuf.get() != buf_ptr
         && buf_ptr.b_nwindows.get() == 0
     {
-        wipe_buffer(buf_ptr.borrow_mut(), false);
+        wipe_buffer(buf_ptr.borrow(), false);
     }
     if bufref_valid(Some(&bufref)) {
         buf_ptr.b_flags.set(buf_ptr.b_flags.get() & (!BF_DUMMY));
@@ -405,7 +405,7 @@ pub fn nvim_get_option_value(
     if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(ftbuf.borrow_mut());
+            wipe_ft_buf(ftbuf.borrow());
         }
         return OBJECT_NIL;
     }
@@ -419,7 +419,7 @@ pub fn nvim_get_option_value(
 
     ctx_restore(&mut aco);
     if !ftbuf.is_null() {
-        wipe_ft_buf(ftbuf.borrow_mut());
+        wipe_ft_buf(ftbuf.borrow());
     }
 
     if error_set(err) {
@@ -603,7 +603,7 @@ pub fn nvim_set_option_value(
     } else {
         &crate::globals::curwin_handle()
     };
-    let varp = get_varp_from(option, buf.borrow_mut(), win.opt_mut());
+    let varp = get_varp_from(option, buf.borrow(), win.opt());
 
     let nitems = if is_array {
         value.data.array().size
@@ -864,7 +864,7 @@ pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDict_option, err: &
         &crate::globals::curwin_handle()
     };
 
-    get_option_info(name, opt_flags, buf.borrow_mut(), win.borrow_mut(), err)
+    get_option_info(name, opt_flags, buf.borrow(), win.borrow(), err)
 }
 
 #[cfg(test)]

@@ -210,18 +210,8 @@ impl TermId {
     }
 
     #[inline(always)]
-    pub const fn borrow_mut(self) -> Self {
-        self
-    }
-
-    #[inline(always)]
     pub const fn opt(self) -> Option<Self> {
         if self.0 == 0 { None } else { Some(self) }
-    }
-
-    #[inline(always)]
-    pub const fn opt_mut(self) -> Option<Self> {
-        self.opt()
     }
 }
 
@@ -373,7 +363,7 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        if let Some(events) = self.pending.events.opt_mut() {
+        if let Some(events) = self.pending.events.opt() {
             multiqueue_free(events);
         }
         self.pending.events = MultiQueue::NULL;
@@ -575,7 +565,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         true,
         AUGROUP_ALL,
         handle_get_buffer_opt(buf_handle).as_deref(),
-        Some(&crate::globals::curwin_mut()),
+        Some(&crate::globals::curwin()),
         None,
         Some(&data_obj),
         false,
@@ -753,7 +743,7 @@ pub fn terminal_teardown() {
     REFRESH_TIMER.with(|cell| {
         let mut timer = cell.borrow_mut();
         time_watcher_stop(&mut timer);
-        if let Some(events) = timer.events.opt_mut() {
+        if let Some(events) = timer.events.opt() {
             multiqueue_free(events);
         }
         time_watcher_close(&mut timer);
@@ -947,9 +937,9 @@ pub fn terminal_open(term_id: TermId, buf: &FileBuf) {
         let ffname_bytes = buf.ffname_bytes().to_vec();
         buf_set_term_title(Some(buf), &ffname_bytes);
     }
-    curwin_mut().w_onebuf_opt.wo_scb.set(false);
-    curwin_mut().w_onebuf_opt.wo_crb.set(false);
-    curwin_mut().w_cursor.set(CursorPos {
+    curwin().w_onebuf_opt.wo_scb.set(false);
+    curwin().w_onebuf_opt.wo_crb.set(false);
+    curwin().w_cursor.set(CursorPos {
         lnum: 1,
         col: 0,
         coladd: 0,
@@ -962,7 +952,7 @@ pub fn terminal_open(term_id: TermId, buf: &FileBuf) {
     let Some(buf) = handle_get_buffer(buf_handle) else {
         return;
     };
-    let Some(term_id) = buf.terminal.get().opt_mut() else {
+    let Some(term_id) = buf.terminal.get().opt() else {
         return;
     };
     if with_term(term_id, |t| t.buf_handle == 0) {
@@ -1049,8 +1039,8 @@ pub fn terminal_close(term_id: TermId, status: i32) {
             channel_term_close(chan);
         }
     } else if !only_destroy {
-        for wp in for_all_windows_mut() {
-            if !wp.w_buffer.get().is_null() && wp.buf_mut().b_fnum.get() == buf_handle {
+        for wp in for_all_windows_ptr() {
+            if !wp.w_buffer.get().is_null() && wp.buf().b_fnum.get() == buf_handle {
                 wp.w_redr_status.set(true);
             }
         }
@@ -1090,7 +1080,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
             status >= 0,
             AUGROUP_ALL,
             handle_get_buffer_opt(buf_handle).as_deref(),
-            Some(&crate::globals::curwin_mut()),
+            Some(&crate::globals::curwin()),
             None,
             Some(&data_obj),
             false,
@@ -1137,7 +1127,7 @@ pub fn terminal_check_size(term_id: TermId) {
         for wp in for_all_windows_in_tab_ptr(&tp) {
             if !is_ctx_win(&wp)
                 && !wp.w_buffer.get().is_null()
-                && (*wp).buf_mut().terminal.get() == term_id
+                && (*wp).buf().terminal.get() == term_id
             {
                 let win_width = (wp.w_view_width.get() - win_col_off(&wp)).max(0) as u16;
                 width = width.max(win_width);
@@ -1164,39 +1154,36 @@ pub fn terminal_check_size(term_id: TermId) {
 fn set_terminal_winopts(s: &mut TerminalState) {
     debug_assert!(s.save_curwin_handle == 0);
 
-    s.save_curwin_handle = curwin_mut().handle;
-    s.save_w_p_cul = curwin_mut().w_onebuf_opt.wo_cul.get();
+    s.save_curwin_handle = curwin().handle;
+    s.save_w_p_cul = curwin().w_onebuf_opt.wo_cul.get();
     s.save_w_p_culopt = None;
-    s.save_w_p_culopt_flags = curwin_mut().w_p_culopt_flags.get();
-    s.save_w_p_cuc = curwin_mut().w_onebuf_opt.wo_cuc.get();
-    s.save_w_p_so = curwin_mut().w_onebuf_opt.wo_so.get();
-    s.save_w_p_siso = curwin_mut().w_onebuf_opt.wo_siso.get();
+    s.save_w_p_culopt_flags = curwin().w_p_culopt_flags.get();
+    s.save_w_p_cuc = curwin().w_onebuf_opt.wo_cuc.get();
+    s.save_w_p_so = curwin().w_onebuf_opt.wo_so.get();
+    s.save_w_p_siso = curwin().w_onebuf_opt.wo_siso.get();
 
-    if curwin_mut().w_onebuf_opt.wo_cul.get()
-        && (curwin_mut().w_p_culopt_flags.get() & K_OPT_CULOPT_FLAG_NUMBER) != 0
+    if curwin().w_onebuf_opt.wo_cul.get()
+        && (curwin().w_p_culopt_flags.get() & K_OPT_CULOPT_FLAG_NUMBER) != 0
     {
-        if curwin_mut().w_onebuf_opt.wo_culopt.as_bytes() != b"number" {
-            s.save_w_p_culopt = Some(curwin_mut().w_onebuf_opt.wo_culopt.to_owned());
-            curwin_mut()
-                .w_onebuf_opt
-                .wo_culopt
-                .set_option_cstr(c"number");
+        if curwin().w_onebuf_opt.wo_culopt.as_bytes() != b"number" {
+            s.save_w_p_culopt = Some(curwin().w_onebuf_opt.wo_culopt.to_owned());
+            curwin().w_onebuf_opt.wo_culopt.set_option_cstr(c"number");
         }
-        curwin_mut().w_p_culopt_flags.set(K_OPT_CULOPT_FLAG_NUMBER);
+        curwin().w_p_culopt_flags.set(K_OPT_CULOPT_FLAG_NUMBER);
     } else {
-        curwin_mut().w_onebuf_opt.wo_cul.set(false);
+        curwin().w_onebuf_opt.wo_cul.set(false);
     }
-    curwin_mut().w_onebuf_opt.wo_cuc.set(false);
-    curwin_mut().w_onebuf_opt.wo_so.set(0);
-    curwin_mut().w_onebuf_opt.wo_siso.set(0);
+    curwin().w_onebuf_opt.wo_cuc.set(false);
+    curwin().w_onebuf_opt.wo_so.set(0);
+    curwin().w_onebuf_opt.wo_siso.set(0);
 
-    if curwin_mut().w_onebuf_opt.wo_cuc.get() != s.save_w_p_cuc {
-        redraw_later(Some(&crate::globals::curwin_mut()), UPD_SOME_VALID);
-    } else if (curwin_mut().w_onebuf_opt.wo_cul.get()) != s.save_w_p_cul
-        || (curwin_mut().w_onebuf_opt.wo_cul.get()
-            && curwin_mut().w_p_culopt_flags.get() != s.save_w_p_culopt_flags)
+    if curwin().w_onebuf_opt.wo_cuc.get() != s.save_w_p_cuc {
+        redraw_later(Some(&crate::globals::curwin()), UPD_SOME_VALID);
+    } else if (curwin().w_onebuf_opt.wo_cul.get()) != s.save_w_p_cul
+        || (curwin().w_onebuf_opt.wo_cul.get()
+            && curwin().w_p_culopt_flags.get() != s.save_w_p_culopt_flags)
     {
-        redraw_later(Some(&crate::globals::curwin_mut()), UPD_VALID);
+        redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
     }
 }
 
@@ -1214,7 +1201,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             winopts.wo_so.set(s.save_w_p_so);
             winopts.wo_siso.set(s.save_w_p_siso);
         };
-        if wp.buf_mut().b_fnum.get() != term_buf_handle {
+        if wp.buf().b_fnum.get() != term_buf_handle {
             if let Some(buf) = handle_get_buffer_opt(term_buf_handle) {
                 for wip in &mut *buf.b_wininfo.borrow_mut() {
                     if !wip.wi_win.is_null()
@@ -1272,24 +1259,18 @@ pub fn terminal_enter() -> bool {
 
     with_term_mut(s.term, |t| t.pending.cursor = true);
 
-    adjust_topline_cursor(s.term, buf.borrow_mut(), 0);
+    adjust_topline_cursor(s.term, buf.borrow(), 0);
 
     showmode();
     ui_cursor_shape();
 
     terminal_focus(s.term, true);
-    curbuf_mut()
+    curbuf()
         .b_last_changedtick_i
-        .set(buf_get_changedtick(&curbuf_mut()));
+        .set(buf_get_changedtick(&curbuf()));
 
     with_term_mut(s.term, |t| t.refcount += 1);
-    apply_autocmds(
-        EVENT_TERMENTER,
-        None,
-        None,
-        false,
-        curbuf_opt_mut().as_deref(),
-    );
+    apply_autocmds(EVENT_TERMENTER, None, None, false, curbuf_opt().as_deref());
     may_trigger_modechanged();
     let buf_handle = with_term_mut(s.term, |t| {
         t.refcount -= 1;
@@ -1315,11 +1296,11 @@ pub fn terminal_enter() -> bool {
     unset_terminal_winopts(&mut s);
 
     terminal_focus(s.term, false);
-    curbuf_mut()
+    curbuf()
         .b_last_changedtick
-        .set(buf_get_changedtick(&curbuf_mut()));
+        .set(buf_get_changedtick(&curbuf()));
 
-    if s.term == curbuf_mut().terminal.get() && !s.close {
+    if s.term == curbuf().terminal.get() && !s.close {
         terminal_check_cursor();
     }
     if g_st().restart_edit.get() != 0 {
@@ -1332,13 +1313,7 @@ pub fn terminal_enter() -> bool {
     if s.close {
         with_term_mut(s.term, |t| t.refcount += 1);
     }
-    apply_autocmds(
-        EVENT_TERMLEAVE,
-        None,
-        None,
-        false,
-        curbuf_opt_mut().as_deref(),
-    );
+    apply_autocmds(EVENT_TERMLEAVE, None, None, false, curbuf_opt().as_deref());
     if s.close {
         let (buf_handle, chan) = with_term_mut(s.term, |t| {
             t.refcount -= 1;
@@ -1357,7 +1332,7 @@ pub fn terminal_enter() -> bool {
 }
 
 fn terminal_check_cursor() {
-    let term_id = curbuf_mut().terminal.get();
+    let term_id = curbuf().terminal.get();
     let (lnum_target, suspended, cursor_col) = with_term_mut(term_id, |term| {
         (
             row_to_linenr(term, term.cursor.row),
@@ -1365,42 +1340,41 @@ fn terminal_check_cursor() {
             term.cursor.col,
         )
     });
-    curwin_mut()
+    curwin()
         .w_cursor
-        .set_lnum(curbuf_mut().b_ml.ml_line_count.get().min(lnum_target));
-    let topline =
-        (curbuf_mut().b_ml.ml_line_count.get() - curwin_mut().w_view_height.get() + 1).max(1);
-    if topline != curwin_mut().w_topline.get() {
-        set_topline(&curwin_mut(), topline);
+        .set_lnum(curbuf().b_ml.ml_line_count.get().min(lnum_target));
+    let topline = (curbuf().b_ml.ml_line_count.get() - curwin().w_view_height.get() + 1).max(1);
+    if topline != curwin().w_topline.get() {
+        set_topline(&curwin(), topline);
     }
     if suspended && (g_st().state_global.get() & MODE_TERMINAL) != 0 {
-        curwin_mut().w_cursor.set(CursorPos {
-            lnum: curbuf_mut().b_ml.ml_line_count.get(),
+        curwin().w_cursor.set(CursorPos {
+            lnum: curbuf().b_ml.ml_line_count.get(),
             col: 0,
             coladd: 0,
         });
     } else {
         let off = if (g_st().state_global.get() & MODE_TERMINAL) != 0 {
             0
-        } else if curwin_mut().w_onebuf_opt.wo_rl.get() {
+        } else if curwin().w_onebuf_opt.wo_rl.get() {
             1
         } else {
             -1
         };
-        coladvance(&curwin_mut(), (cursor_col + off).max(0));
+        coladvance(&curwin(), (cursor_col + off).max(0));
     }
 }
 
 fn terminal_check_focus(s: &mut TerminalState) -> bool {
-    if curbuf_mut().terminal.get().is_null() {
+    if curbuf().terminal.get().is_null() {
         return false;
     }
 
-    if s.save_curwin_handle != curwin_mut().handle {
+    if s.save_curwin_handle != curwin().handle {
         unset_terminal_winopts(s);
         set_terminal_winopts(s);
     }
-    let cur_term = curbuf_mut().terminal.get();
+    let cur_term = curbuf().terminal.get();
     if s.term != cur_term {
         terminal_focus(s.term, false);
         if s.close {
@@ -1424,8 +1398,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
 
 fn terminal_check(s: &mut TerminalState) -> i32 {
     debug_assert!(
-        !s.close
-            || (with_term(s.term, |t| t.buf_handle == 0) && s.term != curbuf_mut().terminal.get())
+        !s.close || (with_term(s.term, |t| t.buf_handle == 0) && s.term != curbuf().terminal.get())
     );
 
     if g_st().ins_global.borrow().stop_insert_mode || !terminal_check_focus(&mut *s) {
@@ -1435,22 +1408,22 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
     terminal_check_refresh();
 
     terminal_check_cursor();
-    validate_cursor(&curwin_mut());
+    validate_cursor(&curwin());
 
     with_term_mut(s.term, |t| t.refcount += 1);
     if has_event(EVENT_TEXTCHANGEDT)
-        && curbuf_mut().b_last_changedtick_i.get() != buf_get_changedtick(&curbuf_mut())
+        && curbuf().b_last_changedtick_i.get() != buf_get_changedtick(&curbuf())
     {
         apply_autocmds(
             EVENT_TEXTCHANGEDT,
             None,
             None,
             false,
-            curbuf_opt_mut().as_deref(),
+            curbuf_opt().as_deref(),
         );
-        curbuf_mut()
+        curbuf()
             .b_last_changedtick_i
-            .set(buf_get_changedtick(&curbuf_mut()));
+            .set(buf_get_changedtick(&curbuf()));
     }
     may_trigger_win_scrolled_resized();
     let buf_handle = with_term_mut(s.term, |t| {
@@ -1465,7 +1438,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
         return 0;
     }
     terminal_check_cursor();
-    validate_cursor(&curwin_mut());
+    validate_cursor(&curwin());
 
     show_cursor_info_later(false);
     if g_st().must_redraw.get() != 0 {
@@ -1639,7 +1612,7 @@ pub fn terminal_set_streamed_paste(term_id: TermId, streamed: bool) {
         changed
     });
     if changed {
-        let cur_term = curbuf_mut().terminal.get();
+        let cur_term = curbuf().terminal.get();
         with_vterm_mut(cur_term, |vt| {
             if streamed {
                 vterm_keyboard_start_paste(vt);
@@ -1654,7 +1627,7 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
     if y_slice.is_empty() {
         return;
     }
-    let cur_term = curbuf_mut().terminal.get();
+    let cur_term = curbuf().terminal.get();
     if !with_term(cur_term, |t| t.streamed_paste) {
         with_vterm_mut(cur_term, vterm_keyboard_start_paste);
     }
@@ -1662,7 +1635,7 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
     for _ in 0..count {
         for (j, item) in y_slice.iter().enumerate() {
             if j > 0 {
-                let term_now = curbuf_mut().terminal.get();
+                let term_now = curbuf().terminal.get();
                 #[cfg(windows)]
                 terminal_send(term_now, b"\r\n");
                 #[cfg(not(windows))]
@@ -1681,11 +1654,11 @@ pub fn terminal_paste(count: i32, y_slice: &[NvimString]) {
                 }
                 pos += len;
             }
-            let term_now = curbuf_mut().terminal.get();
+            let term_now = curbuf().terminal.get();
             terminal_send(term_now, &buff);
         }
     }
-    let term_end = curbuf_mut().terminal.get();
+    let term_end = curbuf().terminal.get();
     if !with_term(term_end, |t| t.streamed_paste) {
         with_vterm_mut(term_end, vterm_keyboard_end_paste);
     }
@@ -2340,14 +2313,14 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
     let mut grid = g_st().mouse_grid.get();
     let mut is_term_mouse_win = false;
     if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
-        is_term_mouse_win = (*mouse_win).buf_mut().terminal.get() == term_id;
+        is_term_mouse_win = (*mouse_win).buf().terminal.get() == term_id;
         let offset: i32;
         let (suspended, closed, forward_mouse) =
             with_term(term_id, |t| (t.suspended, t.closed, t.forward_mouse));
         if !suspended
             && !closed
             && forward_mouse
-            && (*mouse_win).buf_mut().terminal.get() == term_id
+            && (*mouse_win).buf().terminal.get() == term_id
             && row >= 0
             && (grid > 1 || row + mouse_win.w_winbar_height.get() < mouse_win.w_height.get())
             && {
@@ -2384,7 +2357,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
         if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
             let save_curwin = curwin_ptr();
             set_curwin(&mouse_win);
-            g_st().curbuf.set(curwin_mut().w_buffer.get());
+            g_st().curbuf.set(curwin().w_buffer.get());
 
             let mut cap = Cmdarg::new();
             cap.cmdchar = c;
@@ -2398,9 +2371,9 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
 
             do_mousescroll(&mut cap);
 
-            curwin_mut().w_redr_status.set(true);
+            curwin().w_redr_status.set(true);
             set_curwin(save_curwin);
-            g_st().curbuf.set(curwin_mut().w_buffer.get());
+            g_st().curbuf.set(curwin().w_buffer.get());
             redraw_later(Some(&mouse_win), UPD_NOT_VALID);
             with_term_mut(term_id, |term| invalidate_terminal(term_id, term, -1, -1));
             return mouse_win == curwin_ptr();
@@ -2509,7 +2482,7 @@ fn refresh_terminal(term_id: TermId) {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
                 if !wp.w_buffer.get().is_null()
-                    && (*wp).buf_mut().b_fnum.get() == buf_handle
+                    && (*wp).buf().b_fnum.get() == buf_handle
                     && wp.w_leftcol.get() != 0
                 {
                     wp.w_leftcol.set(0);
@@ -2802,7 +2775,7 @@ fn linenr_to_row(term: &Terminal, linenr: i32) -> i32 {
 
 #[inline]
 fn is_focused(term_id: TermId) -> bool {
-    (g_st().state_global.get() & MODE_TERMINAL) != 0 && curbuf_mut().terminal.get() == term_id
+    (g_st().state_global.get() & MODE_TERMINAL) != 0 && curbuf().terminal.get() == term_id
 }
 
 fn get_config_string(buf: &FileBuf, key: &[u8]) -> Option<std::ffi::CString> {

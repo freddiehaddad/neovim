@@ -242,7 +242,7 @@ fn get_patterns_from_pattern_or_buf(
             return Array::new();
         }
     } else if has_buf {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
             return Array::new();
         };
         patterns.push(string_obj(format_buflocal_arena(b.b_fnum.get())));
@@ -449,7 +449,7 @@ pub fn nvim_get_autocmds(opts: &mut KeyDict_get_autocmds, err: &mut Error) -> Ar
         if buf.obj_type == ObjectType::ObjectTypeInteger
             || buf.obj_type == ObjectType::ObjectTypeBuffer
         {
-            let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(
+            let Some(b) = crate::api::private::helpers::find_buffer_by_handle(
                 buf.data.integer() as Buffer,
                 err,
             ) else {
@@ -482,7 +482,7 @@ pub fn nvim_get_autocmds(opts: &mut KeyDict_get_autocmds, err: &mut Error) -> Ar
                     );
                     break 'body;
                 }
-                let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(
+                let Some(b) = crate::api::private::helpers::find_buffer_by_handle(
                     bufnr.data.integer() as Buffer,
                     err,
                 ) else {
@@ -1152,8 +1152,8 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDict_exec_autocmds, err: 
                 None,
                 true,
                 au_group,
-                b.opt_mut(),
-                Some(&crate::globals::curwin_mut()),
+                b.opt(),
+                Some(&crate::globals::curwin()),
                 None,
                 data,
                 has_buf,

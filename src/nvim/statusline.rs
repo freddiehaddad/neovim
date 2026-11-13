@@ -529,7 +529,7 @@ fn win_redr_stl_expr(
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf.set(curwin_mut().w_buffer.get());
+        g_st().curbuf.set(curwin().w_buffer.get());
     }
 
     if wp.is_null() {
@@ -542,7 +542,7 @@ fn win_redr_stl_expr(
         opt_idx = K_OPT_TABLINE;
         click_defs_target = ClickDefsTarget::Tabline;
     } else if draw_winbar {
-        let wp_ref = wp.borrow_mut();
+        let wp_ref = wp.borrow();
         opt_idx = K_OPT_WINBAR;
         stl_cstr = if !wp_ref.w_onebuf_opt.wo_wbr.is_empty() {
             wp_ref
@@ -631,7 +631,7 @@ fn win_redr_stl_expr(
         attr = hl_attr(group);
         click_defs_target = ClickDefsTarget::None;
     } else {
-        let wp_ref = wp.borrow_mut();
+        let wp_ref = wp.borrow();
         stl_cstr = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
             wp_ref
                 .w_onebuf_opt
@@ -711,12 +711,8 @@ fn win_redr_stl_expr(
                 let defs = tab_defs_guard.as_deref_mut().unwrap();
                 (defs.len() >= maxwidth_u).then(|| &mut defs[..maxwidth_u])
             }
-            ClickDefsTarget::Winbar => {
-                Some(&mut wp.borrow_mut().w_winbar_click_defs.borrow_mut()[..maxwidth_u])
-            }
-            ClickDefsTarget::Status => {
-                Some(&mut wp.borrow_mut().w_status_click_defs.borrow_mut()[..maxwidth_u])
-            }
+            ClickDefsTarget::Winbar => Some(&mut wp.w_winbar_click_defs.borrow_mut()[..maxwidth_u]),
+            ClickDefsTarget::Status => Some(&mut wp.w_status_click_defs.borrow_mut()[..maxwidth_u]),
         };
         with_stl_state(|st| {
             stl_fill_click_defs(
@@ -738,8 +734,8 @@ fn win_redr_stl_expr(
         if !ui_event {
             let grid_ref = match grid_target {
                 StlGridTarget::Default => crate::grid::GridRef::Static(&g_st().default_grid),
-                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow_mut(),
-                StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow_mut(),
+                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow(),
+                StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow(),
                 StlGridTarget::WinAlloc(w) => crate::grid::GridRef::Win(w),
             };
             screengrid_line_start(&grid_ref, row, 0);
@@ -859,8 +855,8 @@ pub fn win_redr_winbar(wp: &WinInfoInfo) {
 }
 
 pub fn redraw_ruler() {
-    let wp = if !curwin_mut().w_config.borrow().hide && curwin_mut().w_status_height.get() == 0 {
-        curwin_mut()
+    let wp = if !curwin().w_config.borrow().hide && curwin().w_status_height.get() == 0 {
+        curwin()
     } else {
         lastwin_nofloating(None)
     };
@@ -881,7 +877,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_cursor.get().lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
+    if wp.w_cursor.get().lnum > (*wp).buf().b_ml.ml_line_count.get() {
         return;
     }
 
@@ -933,7 +929,7 @@ fn ui_ext_tabline_update() {
         };
 
         let mut name_buff = [0u8; MAXPATHL];
-        get_trans_bufname(&cwp.borrow_mut().buf_mut(), &mut name_buff);
+        get_trans_bufname(&cwp.buf(), &mut name_buff);
 
         put_c(
             &mut tab_info,
@@ -969,7 +965,7 @@ fn ui_ext_tabline_update() {
     let mut buffers = Array::with_capacity(n_buffers);
     buf = g_st().firstbuf.get();
     while !buf.is_null() {
-        let b = buf.borrow_mut();
+        let b = buf.borrow();
         if b.b_p_bl.get() {
             let mut buffer_info = Dict::with_capacity(2);
 
@@ -1008,12 +1004,7 @@ fn ui_ext_tabline_update() {
         buf = b.b_next.get();
     }
 
-    ui_call_tabline_update(
-        curtab_mut().handle,
-        tabs,
-        curbuf_mut().b_fnum.get(),
-        buffers,
-    );
+    ui_call_tabline_update(curtab().handle, tabs, curbuf().b_fnum.get(), buffers);
 }
 
 /// Draw the tab pages line at the top of the Vim window.
@@ -1077,7 +1068,7 @@ pub fn draw_tabline() {
             };
 
             if tp.tp_topframe.get() == g_st().topframe.get() {
-                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TPS));
+                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow(), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
                 grid_line_put_schar(col, schar_from_ascii(b'|'), attr);
@@ -1085,7 +1076,7 @@ pub fn draw_tabline() {
             }
 
             if tp.tp_topframe.get() != g_st().topframe.get() {
-                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TP));
+                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow(), HLF_TP));
             }
 
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1094,10 +1085,10 @@ pub fn draw_tabline() {
             let mut modified = false;
             let mut wincount: i32 = 0;
             while !wp.is_null() {
-                let wp_ref = wp.borrow_mut();
+                let wp_ref = wp.borrow();
                 if !win_is_focusable(wp_ref) {
                     wincount -= 1;
-                } else if buf_is_changed_fn(&wp_ref.buf_mut()) {
+                } else if buf_is_changed_fn(&wp_ref.buf()) {
                     modified = true;
                 }
 
@@ -1117,7 +1108,7 @@ pub fn draw_tabline() {
                         col,
                         crate::memory::bytes_as_cstr(&name_buff),
                         len,
-                        hl_combine_attr(attr, win_hl_attr(cwp.borrow_mut(), HLF_T)),
+                        hl_combine_attr(attr, win_hl_attr(cwp.borrow(), HLF_T)),
                     );
 
                     col += len;
@@ -1133,7 +1124,7 @@ pub fn draw_tabline() {
             let room = scol - col + tabwidth - 1;
             if room > 0 {
                 let mut name_buff = [0u8; MAXPATHL];
-                get_trans_bufname(&cwp.borrow_mut().buf_mut(), &mut name_buff);
+                get_trans_bufname(&cwp.buf(), &mut name_buff);
 
                 shorten_dir(&mut name_buff);
                 let name_cstr = crate::memory::bytes_as_cstr(&name_buff);
@@ -1624,12 +1615,12 @@ pub fn build_stl_str_hl_slice(
     }
 
     let mut lnum = wp.w_cursor.get().lnum;
-    if lnum > (*wp).buf_mut().b_ml.ml_line_count.get() {
-        lnum = (*wp).buf_mut().b_ml.ml_line_count.get();
+    if lnum > (*wp).buf().b_ml.ml_line_count.get() {
+        lnum = (*wp).buf().b_ml.ml_line_count.get();
         wp.w_cursor.set_lnum(lnum);
     }
 
-    let line_slice = crate::memline::ml_get_buf_slice(&(*wp).buf_mut(), lnum);
+    let line_slice = crate::memline::ml_get_buf_slice(&(*wp).buf(), lnum);
     let empty_line = line_slice.is_empty();
 
     let len = line_slice.len() as Colnr;
@@ -2024,9 +2015,9 @@ pub fn build_stl_str_hl_slice(
                     crate::memory::copy_bytes_to_c_buf(&mut name_buff, name.to_bytes());
                 } else {
                     let t = if opt == STL_FULLPATH {
-                        (*wp).buf_mut().ffname_opt()
+                        (*wp).buf().ffname_opt()
                     } else {
-                        (*wp).buf_mut().fname_opt()
+                        (*wp).buf().fname_opt()
                     };
 
                     home_replace(wp.w_buffer.get().opt(), t.as_deref(), &mut name_buff, true);
@@ -2068,12 +2059,12 @@ pub fn build_stl_str_hl_slice(
 
                     out_idx = t_idx;
 
-                    format_to_buf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum.get());
+                    format_to_buf!(&mut buf_tmp[..], c"%d", curbuf().b_fnum.get());
                     set_internal_string_var(
                         c"g:actual_curbuf",
                         crate::memory::bytes_as_cstr(&buf_tmp),
                     );
-                    format_to_buf!(&mut buf_tmp[..], c"%d", curwin_mut().handle);
+                    format_to_buf!(&mut buf_tmp[..], c"%d", curwin().handle);
                     set_internal_string_var(
                         c"g:actual_curwin",
                         crate::memory::bytes_as_cstr(&buf_tmp),
@@ -2170,7 +2161,7 @@ pub fn build_stl_str_hl_slice(
                         }
                     }
                 } else if stcp.is_none() {
-                    num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
+                    num = if ((*wp).buf().b_ml.ml_flags.get() & ML_EMPTY) != 0 {
                         0
                     } else {
                         wp.w_cursor.get().lnum
@@ -2178,7 +2169,7 @@ pub fn build_stl_str_hl_slice(
                 }
             }
             STL_NUMLINES => {
-                num = (*wp).buf_mut().b_ml.ml_line_count.get();
+                num = (*wp).buf().b_ml.ml_line_count.get();
             }
             STL_COLUMN => {
                 num = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
@@ -2201,11 +2192,11 @@ pub fn build_stl_str_hl_slice(
             STL_PERCENTAGE => {
                 num = calc_percentage(
                     i64::from(wp.w_cursor.get().lnum),
-                    i64::from((*wp).buf_mut().b_ml.ml_line_count.get()),
+                    i64::from((*wp).buf().b_ml.ml_line_count.get()),
                 );
             }
             STL_ALTPERCENT => {
-                get_rel_pos(wp.borrow_mut(), &mut buf_tmp);
+                get_rel_pos(wp.borrow(), &mut buf_tmp);
                 str_slice = Some(&buf_tmp);
             }
             STL_SHOWCMD => {
@@ -2221,13 +2212,13 @@ pub fn build_stl_str_hl_slice(
             STL_ARGLISTSTAT => {
                 fillable = false;
                 buf_tmp[0] = 0;
-                if append_arg_number(wp.borrow_mut(), &mut buf_tmp) > 0 {
+                if append_arg_number(wp.borrow(), &mut buf_tmp) > 0 {
                     str_slice = Some(&buf_tmp);
                 }
             }
             STL_KEYMAP => {
                 fillable = false;
-                if get_keymap_str(wp.borrow_mut(), c"<%s>", &mut buf_tmp) > 0 {
+                if get_keymap_str(wp.borrow(), c"<%s>", &mut buf_tmp) > 0 {
                     str_slice = Some(&buf_tmp);
                 }
             }
@@ -2235,15 +2226,14 @@ pub fn build_stl_str_hl_slice(
                 num = 0;
             }
             STL_BUFNO => {
-                num = (*wp).buf_mut().b_fnum.get();
+                num = (*wp).buf().b_fnum.get();
             }
             STL_OFFSET_X | STL_OFFSET => {
                 if opt == STL_OFFSET_X {
                     base = NumberBase::NumBaseHexadecimal;
                 }
-                let l =
-                    ml_find_line_or_offset(&(*wp).buf_mut(), wp.w_cursor.get().lnum, None, false);
-                num = if ((*wp).buf_mut().b_ml.ml_flags.get() & ML_EMPTY) != 0 || l < 0 {
+                let l = ml_find_line_or_offset(&(*wp).buf(), wp.w_cursor.get().lnum, None, false);
+                num = if ((*wp).buf().b_ml.ml_flags.get() & ML_EMPTY) != 0 || l < 0 {
                     0
                 } else {
                     l + 1
@@ -2261,13 +2251,13 @@ pub fn build_stl_str_hl_slice(
                 num = byteval;
                 if num == NL {
                     num = 0;
-                } else if num == CAR && get_fileformat(&(*wp).buf_mut()) == EOL_MAC {
+                } else if num == CAR && get_fileformat(&(*wp).buf()) == EOL_MAC {
                     num = NL;
                 }
             }
             STL_ROFLAG | STL_ROFLAG_ALT => {
                 itemisflag = true;
-                if (*wp).buf_mut().b_p_ro.get() {
+                if (*wp).buf().b_p_ro.get() {
                     str_slice = Some(if opt == STL_ROFLAG_ALT {
                         c",RO".to_bytes_with_nul()
                     } else {
@@ -2277,7 +2267,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_HELPFLAG | STL_HELPFLAG_ALT => {
                 itemisflag = true;
-                if (*wp).buf_mut().b_help.get() {
+                if (*wp).buf().b_help.get() {
                     str_slice = Some(if opt == STL_HELPFLAG_ALT {
                         c",HLP".to_bytes_with_nul()
                     } else {
@@ -2289,7 +2279,7 @@ pub fn build_stl_str_hl_slice(
                 handle_stcsign = true;
             }
             STL_FILETYPE => {
-                let ft = (*wp).buf_mut().b_p_ft.as_cstr();
+                let ft = (*wp).buf().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 3 {
                     format_to_buf!(&mut buf_tmp[..], c"[%s]", ft);
                     str_slice = Some(&buf_tmp);
@@ -2297,7 +2287,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_FILETYPE_ALT => {
                 itemisflag = true;
-                let ft = (*wp).buf_mut().b_p_ft.as_cstr();
+                let ft = (*wp).buf().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 2 {
                     format_to_buf!(&mut buf_tmp[..], c",%s", ft);
                     for b in &mut buf_tmp {
@@ -2331,8 +2321,8 @@ pub fn build_stl_str_hl_slice(
             STL_MODIFIED | STL_MODIFIED_ALT => {
                 itemisflag = true;
                 let code = i32::from(opt == STL_MODIFIED_ALT)
-                    + i32::from(buf_is_changed_fn(&(*wp).buf_mut())) * 2
-                    + i32::from(!(*wp).buf_mut().b_p_ma.get()) * 4;
+                    + i32::from(buf_is_changed_fn(&(*wp).buf())) * 2
+                    + i32::from(!(*wp).buf().b_p_ma.get()) * 4;
                 str_slice = match code {
                     2 => Some(c"[+]".to_bytes_with_nul()),
                     3 => Some(c",+".to_bytes_with_nul()),
@@ -2368,7 +2358,7 @@ pub fn build_stl_str_hl_slice(
 
         if handle_stcsign && let Some(stcp_ref) = stcp.as_deref_mut() {
             let fdc = if opt == STL_FOLDCOL {
-                compute_foldcolumn(wp.borrow_mut(), 0)
+                compute_foldcolumn(wp.borrow(), 0)
             } else {
                 0
             };
@@ -2388,7 +2378,7 @@ pub fn build_stl_str_hl_slice(
                     let mut fold_buf: [Schar; 9] = [0; 9];
 
                     fill_foldcolumn(
-                        wp.borrow_mut(),
+                        wp.borrow(),
                         stcp_ref.foldinfo,
                         stcp_ref.lnum,
                         0,
@@ -2399,7 +2389,7 @@ pub fn build_stl_str_hl_slice(
                     );
 
                     stl_items!()[curitem as usize].minwid =
-                        -if use_cursor_line_highlight(wp.borrow_mut(), lnum) {
+                        -if use_cursor_line_highlight(wp.borrow(), lnum) {
                             HLF_CLF
                         } else {
                             HLF_FC
@@ -2784,11 +2774,11 @@ mod tests {
                          exp_cells: Option<i32>| {
                 if let Some(fname) = file_name {
                     let fn_c = CString::new(fname).unwrap();
-                    setfname(&curbuf_mut(), Some(fn_c.as_c_str()), None, true);
+                    setfname(&curbuf(), Some(fn_c.as_c_str()), None, true);
                 } else {
-                    setfname(&curbuf_mut(), None, None, true);
+                    setfname(&curbuf(), None, None, true);
                 }
-                curwin_mut().w_cursor.set_lnum(0);
+                curwin().w_cursor.set_lnum(0);
 
                 let fillchar = match fill {
                     None => schar_from_str(Some(c" ")),

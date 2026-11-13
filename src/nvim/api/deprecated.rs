@@ -106,7 +106,7 @@ pub fn nvim_execute_lua(code: NvimString, args: Array, err: &mut Error) -> Objec
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
 pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
-    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return 0;
     };
     i64::from(buf.b_fnum.get())
@@ -173,7 +173,7 @@ pub fn nvim_buf_add_highlight(
     mut col_end: Integer,
     err: &mut Error,
 ) -> Integer {
-    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return 0;
     };
 
@@ -257,7 +257,7 @@ pub fn nvim_buf_set_virtual_text(
     _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Integer {
-    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return 0;
     };
 
@@ -507,7 +507,7 @@ pub fn buffer_set_line_slice(
 // DLLEXPORT Object buffer_set_var(Buffer buffer, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn buffer_set_var(buffer: Buffer, name: NvimString, value: Object, err: &mut Error) -> Object {
-    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&buf.b_vars(), name, value, false, true, err)
@@ -524,7 +524,7 @@ pub fn buffer_set_var(buffer: Buffer, name: NvimString, value: Object, err: &mut
 // DLLEXPORT Object buffer_del_var(Buffer buffer, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn buffer_del_var(buffer: Buffer, name: NvimString, err: &mut Error) -> Object {
-    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&buf.b_vars(), name, OBJECT_NIL, true, true, err)
@@ -542,7 +542,7 @@ pub fn buffer_del_var(buffer: Buffer, name: NvimString, err: &mut Error) -> Obje
 // DLLEXPORT Object window_set_var(Window window, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn window_set_var(window: Window, name: NvimString, value: Object, err: &mut Error) -> Object {
-    let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
+    let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(window, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&win.w_vars(), name, value, false, true, err)
@@ -559,7 +559,7 @@ pub fn window_set_var(window: Window, name: NvimString, value: Object, err: &mut
 // DLLEXPORT Object window_del_var(Window window, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn window_del_var(window: Window, name: NvimString, err: &mut Error) -> Object {
-    let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
+    let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(window, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&win.w_vars(), name, OBJECT_NIL, true, true, err)
@@ -583,7 +583,7 @@ pub fn tabpage_set_var(
     value: Object,
     err: &mut Error,
 ) -> Object {
-    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&tab.tp_vars(), name, value, false, true, err)
@@ -600,7 +600,7 @@ pub fn tabpage_set_var(
 // DLLEXPORT Object tabpage_del_var(Tabpage tabpage, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) -> Object {
-    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&tab.tp_vars(), name, OBJECT_NIL, true, true, err)
@@ -639,7 +639,7 @@ const fn convert_index(index: i64) -> i64 {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
 pub fn nvim_get_option_info(name: NvimString, err: &mut Error) -> Dict {
-    get_option_info(name, OPT_GLOBAL, &curbuf_mut(), &curwin_mut(), err)
+    get_option_info(name, OPT_GLOBAL, &curbuf(), &curwin(), err)
 }
 
 /// Sets the global value of an option.
@@ -1099,7 +1099,7 @@ pub fn nvim_notify(msg_str: NvimString, log_level: Integer, opts: Dict, err: &mu
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return;
     };
     try_wrap(err, || {
@@ -1121,7 +1121,7 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return;
     };
     try_wrap(err, || {
