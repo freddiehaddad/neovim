@@ -6,9 +6,9 @@ use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
-    arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
-    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj, static_cstr_as_string,
-    string_obj, try_wrap, with_script_context,
+    array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var, error_set,
+    find_buffer_by_handle, find_window_by_handle, integer_obj, static_cstr_as_string, string_obj,
+    try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -30,7 +30,6 @@ use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::marktree::{DECOR_HIGHLIGHT_INLINE_INIT, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL};
-use crate::memory::Arena;
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
@@ -92,13 +91,8 @@ pub fn nvim_command_output(channel_id: u64, command: NvimString, err: &mut Error
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(7)
 //   FUNC_API_REMOTE_ONLY;
-pub fn nvim_execute_lua(
-    code: NvimString,
-    args: Array,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
-    nlua_exec(code, None, args, K_RET_OBJECT, Some(arena), err)
+pub fn nvim_execute_lua(code: NvimString, args: Array, err: &mut Error) -> Object {
+    nlua_exec(code, None, args, K_RET_OBJECT, err)
 }
 
 /// Gets the buffer number
@@ -343,14 +337,14 @@ pub fn nvim_buf_set_virtual_text(
 // DLLEXPORT Dict nvim_get_hl_by_id(Integer hl_id, Boolean rgb, Arena *arena, Error *err)
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(9);
-pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, arena: &mut Arena, err: &mut Error) -> Dict {
+pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, err: &mut Error) -> Dict {
     let dic = Dict::new();
     if syn_get_final_id(hl_id as i32) == 0 {
         api_err_invalid(err, c"highlight id", None, hl_id, false);
         return dic;
     }
     let attrcode = syn_id2attr(hl_id as i32);
-    crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
+    crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, err)
 }
 
 /// Gets a highlight definition by name.
@@ -365,19 +359,14 @@ pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, arena: &mut Arena, err: &
 // DLLEXPORT Dict nvim_get_hl_by_name(String name, Boolean rgb, Arena *arena, Error *err)
 //   FUNC_API_SINCE(3)
 //   FUNC_API_DEPRECATED_SINCE(9);
-pub fn nvim_get_hl_by_name(
-    name: NvimString,
-    rgb: Boolean,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
+pub fn nvim_get_hl_by_name(name: NvimString, rgb: Boolean, err: &mut Error) -> Dict {
     let result = Dict::new();
     let id = syn_name2id(name.as_cstr());
     if id == 0 {
         api_err_invalid(err, c"highlight name", name.as_opt_cstr(), 0, true);
         return result;
     }
-    nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
+    nvim_get_hl_by_id(i64::from(id), rgb, err)
 }
 
 /// Inserts a sequence of lines to a buffer at a certain index
@@ -392,14 +381,8 @@ pub fn nvim_get_hl_by_name(
 // DLLEXPORT void buffer_insert(Buffer buffer, Integer lnum, ArrayOf(String) lines, Arena *arena,
 //                              Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_insert(
-    buffer: Buffer,
-    lnum: Integer,
-    lines: Array,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
-    nvim_buf_set_lines(0, buffer, lnum, lnum, true, lines, arena, err);
+pub fn buffer_insert(buffer: Buffer, lnum: Integer, lines: Array, err: &mut Error) {
+    nvim_buf_set_lines(0, buffer, lnum, lnum, true, lines, err);
 }
 
 /// Gets a buffer line
@@ -412,24 +395,10 @@ pub fn buffer_insert(
 /// @return Line string
 // DLLEXPORT String buffer_get_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_get_line(
-    buffer: Buffer,
-    mut index: Integer,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> NvimString {
+pub fn buffer_get_line(buffer: Buffer, mut index: Integer, err: &mut Error) -> NvimString {
     let mut rv = NvimString::new();
     index = convert_index(index);
-    let slice = nvim_buf_get_lines(
-        0,
-        buffer,
-        index,
-        index + 1,
-        true,
-        arena,
-        std::ptr::null_mut(),
-        err,
-    );
+    let slice = nvim_buf_get_lines(0, buffer, index, index + 1, true, std::ptr::null_mut(), err);
     if !error_set(err) && slice.size > 0 {
         rv = slice[0].data.string();
     }
@@ -446,17 +415,11 @@ pub fn buffer_get_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void buffer_set_line(Buffer buffer, Integer index, String line, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_set_line(
-    buffer: Buffer,
-    mut index: Integer,
-    line: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
+pub fn buffer_set_line(buffer: Buffer, mut index: Integer, line: NvimString, err: &mut Error) {
     let mut l = [string_obj(line)];
     let array = Array::from_slice(&mut l);
     index = convert_index(index);
-    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
+    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, err);
 }
 
 /// Deletes a buffer line
@@ -468,10 +431,10 @@ pub fn buffer_set_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void buffer_del_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_del_line(buffer: Buffer, mut index: Integer, arena: &mut Arena, err: &mut Error) {
+pub fn buffer_del_line(buffer: Buffer, mut index: Integer, err: &mut Error) {
     let array = Array::new();
     index = convert_index(index);
-    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
+    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, err);
 }
 
 /// Retrieves a line range from the buffer
@@ -495,21 +458,11 @@ pub fn buffer_get_line_slice(
     mut end: Integer,
     include_start: Boolean,
     include_end: Boolean,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     start = convert_index(start) + i64::from(!include_start);
     end = convert_index(end) + i64::from(include_end);
-    nvim_buf_get_lines(
-        0,
-        buffer,
-        start,
-        end,
-        false,
-        arena,
-        std::ptr::null_mut(),
-        err,
-    )
+    nvim_buf_get_lines(0, buffer, start, end, false, std::ptr::null_mut(), err)
 }
 
 /// Replaces a line range on the buffer
@@ -535,12 +488,11 @@ pub fn buffer_set_line_slice(
     include_start: Boolean,
     include_end: Boolean,
     replacement: Array,
-    arena: &mut Arena,
     err: &mut Error,
 ) {
     start = convert_index(start) + i64::from(!include_start);
     end = convert_index(end) + i64::from(include_end);
-    nvim_buf_set_lines(0, buffer, start, end, false, replacement, arena, err);
+    nvim_buf_set_lines(0, buffer, start, end, false, replacement, err);
 }
 
 /// Sets a buffer-scoped (b:) variable
@@ -554,17 +506,11 @@ pub fn buffer_set_line_slice(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object buffer_set_var(Buffer buffer, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_set_var(
-    buffer: Buffer,
-    name: NvimString,
-    value: Object,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn buffer_set_var(buffer: Buffer, name: NvimString, value: Object, err: &mut Error) -> Object {
     let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(&buf.b_vars(), name, value, false, true, Some(arena), err)
+    dict_set_var(&buf.b_vars(), name, value, false, true, err)
 }
 
 /// Removes a buffer-scoped (b:) variable
@@ -577,24 +523,11 @@ pub fn buffer_set_var(
 /// @return Old value
 // DLLEXPORT Object buffer_del_var(Buffer buffer, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn buffer_del_var(
-    buffer: Buffer,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn buffer_del_var(buffer: Buffer, name: NvimString, err: &mut Error) -> Object {
     let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &buf.b_vars(),
-        name,
-        OBJECT_NIL,
-        true,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&buf.b_vars(), name, OBJECT_NIL, true, true, err)
 }
 
 /// Sets a window-scoped (w:) variable
@@ -608,17 +541,11 @@ pub fn buffer_del_var(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object window_set_var(Window window, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn window_set_var(
-    window: Window,
-    name: NvimString,
-    value: Object,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn window_set_var(window: Window, name: NvimString, value: Object, err: &mut Error) -> Object {
     let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(&win.w_vars(), name, value, false, true, Some(arena), err)
+    dict_set_var(&win.w_vars(), name, value, false, true, err)
 }
 
 /// Removes a window-scoped (w:) variable
@@ -631,24 +558,11 @@ pub fn window_set_var(
 /// @return Old value
 // DLLEXPORT Object window_del_var(Window window, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn window_del_var(
-    window: Window,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn window_del_var(window: Window, name: NvimString, err: &mut Error) -> Object {
     let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &win.w_vars(),
-        name,
-        OBJECT_NIL,
-        true,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&win.w_vars(), name, OBJECT_NIL, true, true, err)
 }
 
 /// Sets a tab-scoped (t:) variable
@@ -667,13 +581,12 @@ pub fn tabpage_set_var(
     tabpage: Tabpage,
     name: NvimString,
     value: Object,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(&tab.tp_vars(), name, value, false, true, Some(arena), err)
+    dict_set_var(&tab.tp_vars(), name, value, false, true, err)
 }
 
 /// Removes a tab-scoped (t:) variable
@@ -686,24 +599,11 @@ pub fn tabpage_set_var(
 /// @return Old value
 // DLLEXPORT Object tabpage_del_var(Tabpage tabpage, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn tabpage_del_var(
-    tabpage: Tabpage,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) -> Object {
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return OBJECT_NIL;
     };
-    dict_set_var(
-        &tab.tp_vars(),
-        name,
-        OBJECT_NIL,
-        true,
-        true,
-        Some(arena),
-        err,
-    )
+    dict_set_var(&tab.tp_vars(), name, OBJECT_NIL, true, true, err)
 }
 
 /// @deprecated
@@ -711,32 +611,16 @@ pub fn tabpage_del_var(
 /// @return Old value or nil if there was no previous value.
 // DLLEXPORT Object vim_set_var(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn vim_set_var(name: NvimString, value: Object, arena: &mut Arena, err: &mut Error) -> Object {
-    dict_set_var(
-        &get_globvar_dict(),
-        name,
-        value,
-        false,
-        true,
-        Some(arena),
-        err,
-    )
+pub fn vim_set_var(name: NvimString, value: Object, err: &mut Error) -> Object {
+    dict_set_var(&get_globvar_dict(), name, value, false, true, err)
 }
 
 /// @deprecated
 /// @see nvim_del_var
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
-pub fn vim_del_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    dict_set_var(
-        &get_globvar_dict(),
-        name,
-        OBJECT_NIL,
-        true,
-        true,
-        Some(arena),
-        err,
-    )
+pub fn vim_del_var(name: NvimString, err: &mut Error) -> Object {
+    dict_set_var(&get_globvar_dict(), name, OBJECT_NIL, true, true, err)
 }
 
 #[inline]
@@ -754,8 +638,8 @@ const fn convert_index(index: i64) -> i64 {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info(String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
-pub fn nvim_get_option_info(name: NvimString, arena: &mut Arena, err: &mut Error) -> Dict {
-    get_option_info(name, OPT_GLOBAL, &curbuf_mut(), &curwin_mut(), arena, err)
+pub fn nvim_get_option_info(name: NvimString, err: &mut Error) -> Dict {
+    get_option_info(name, OPT_GLOBAL, &curbuf_mut(), &curwin_mut(), err)
 }
 
 /// Sets the global value of an option.
@@ -994,14 +878,9 @@ fn set_option_to(
 /// @return Array of two elements.
 // DLLEXPORT Array nvim_call_atomic(uint64_t channel_id, Array calls, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(12) FUNC_API_REMOTE_ONLY;
-pub fn nvim_call_atomic(
-    channel_id: u64,
-    calls: Array,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
-    let mut rv = arena_array(arena, 2);
-    let mut results = arena_array(arena, calls.size);
+pub fn nvim_call_atomic(channel_id: u64, calls: Array, err: &mut Error) -> Array {
+    let mut rv = Array::with_capacity(2);
+    let mut results = Array::with_capacity(calls.size);
     let mut nested_error = Error::new();
 
     let mut i = 0usize;
@@ -1051,11 +930,11 @@ pub fn nvim_call_atomic(
             }
 
             let func = handler.r#fn.unwrap();
-            let result = func(channel_id, args, &mut *arena, &mut nested_error);
+            let result = func(channel_id, args, &mut nested_error);
             if error_set(&nested_error) {
                 break;
             }
-            add_c(&mut results, copy_object(result.clone(), Some(arena)));
+            add_c(&mut results, copy_object(result.clone()));
             if handler.ret_alloc {
                 api_free_object(result);
             }
@@ -1065,15 +944,12 @@ pub fn nvim_call_atomic(
 
         add_c(&mut rv, array_obj(results));
         if error_set(&nested_error) {
-            let mut errval = arena_array(arena, 3);
+            let mut errval = Array::with_capacity(3);
             add_c(&mut errval, integer_obj(i as Integer));
             add_c(&mut errval, integer_obj(nested_error.err_type as Integer));
             add_c(
                 &mut errval,
-                string_obj(copy_string(
-                    cstr_as_string(nested_error.msg_cstr()),
-                    Some(arena),
-                )),
+                string_obj(copy_string(cstr_as_string(nested_error.msg_cstr()))),
             );
             add_c(&mut rv, array_obj(errval));
         } else {
@@ -1198,13 +1074,7 @@ pub fn nvim_err_writeln(str: NvimString) {
 // DLLEXPORT Object nvim_notify(String msg, Integer log_level, Dict opts, Arena *arena, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(13);
-pub fn nvim_notify(
-    msg_str: NvimString,
-    log_level: Integer,
-    opts: Dict,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_notify(msg_str: NvimString, log_level: Integer, opts: Dict, err: &mut Error) -> Object {
     let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
     let args = Array::from_slice(&mut items[..3]);
     nlua_exec(
@@ -1212,7 +1082,6 @@ pub fn nvim_notify(
         None,
         args,
         K_RET_OBJECT,
-        Some(arena),
         err,
     )
 }

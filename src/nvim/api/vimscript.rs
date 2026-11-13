@@ -3,9 +3,9 @@
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::helpers::{
-    TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_bytes, arena_dict,
-    arena_string, array_obj, boolean_obj, bytes_to_string, cstr_as_string, dict_obj, error_set,
-    float_obj, integer_obj, nil_obj, put_c, string_obj, try_enter, try_leave,
+    TryState, add_c, api_set_error, api_set_sctx, array_obj, boolean_obj, bytes_to_string,
+    cstr_as_string, dict_obj, error_set, float_obj, integer_obj, nil_obj, put_c, string_obj,
+    try_enter, try_leave,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -16,7 +16,6 @@ use crate::eval::userfunc::{Funcexe, call_func};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
-use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
@@ -62,8 +61,8 @@ std::thread_local! {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-fn cbuf_to_arena_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
-    string_obj(arena_bytes(arena, bytes))
+fn cbuf_to_arena_obj(bytes: &[u8]) -> Object {
+    string_obj(NvimString::from_bytes(bytes))
 }
 
 /// Executes Vimscript (multiline block of Ex commands), like anonymous
@@ -180,7 +179,7 @@ pub fn nvim_command(cmd: NvimString, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
+pub fn nvim_eval(expr: NvimString, err: &mut Error) -> Object {
     let mut rv = nil_obj();
 
     let eval_rec = API_VIMS_STATE.with(|st| st.eval_recursive.get());
@@ -217,7 +216,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
                 expr,
             );
         } else {
-            rv = vim_to_object(&rettv, Some(arena), false);
+            rv = vim_to_object(&rettv);
         }
     }
 
@@ -232,7 +231,6 @@ fn call_function_impl(
     fn_name: NvimString,
     args: Array,
     self_dict: Option<&TvDict>,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     let mut rv = nil_obj();
@@ -291,7 +289,7 @@ fn call_function_impl(
     try_leave(&tstate, err);
 
     if !error_set(err) {
-        rv = vim_to_object(&rettv, Some(arena), false);
+        rv = vim_to_object(&rettv);
     }
 
     tv_clear(&mut rettv);
@@ -319,10 +317,9 @@ pub fn nvim_call_function(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    call_function_impl(channel_id, fn_name, args, None, arena, err)
+    call_function_impl(channel_id, fn_name, args, None, err)
 }
 
 /// Calls a Vimscript |Dictionary-function| with the given arguments.
@@ -341,7 +338,6 @@ pub fn nvim_call_dict_function(
     dict: Object,
     mut fn_name: NvimString,
     args: Array,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     let mut rv = nil_obj();
@@ -438,7 +434,7 @@ pub fn nvim_call_dict_function(
             break 'body;
         }
 
-        rv = call_function_impl(channel_id, fn_name, args, Some(self_dict_ref), arena, err);
+        rv = call_function_impl(channel_id, fn_name, args, Some(self_dict_ref), err);
     }
 
     if mustfree {
@@ -528,7 +524,6 @@ pub fn nvim_parse_expression(
     expr: NvimString,
     flags: NvimString,
     hl: Boolean,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     let mut pflags: i32 = 0;
@@ -569,7 +564,7 @@ pub fn nvim_parse_expression(
     let east = viml_pexpr_parse(&mut pstate, pflags);
 
     let ret_size = 2 + usize::from(east.err.msg.is_some()) + usize::from(hl);
-    let mut ret = arena_dict(arena, ret_size);
+    let mut ret = Dict::with_capacity(ret_size);
     let parsed_len = if pstate.pos.line == 1 {
         parser_lines[0].size()
     } else {
@@ -578,21 +573,22 @@ pub fn nvim_parse_expression(
     put_c(&mut ret, c"len", integer_obj(parsed_len as Integer));
 
     if let Some(err_msg) = east.err.msg {
-        let mut err_dict = arena_dict(arena, 2);
-        let msg_str = arena_string(arena, cstr_as_string(Some(err_msg)));
+        let mut err_dict = Dict::with_capacity(2);
+        let msg_str =
+            crate::api::private::helpers::ensure_nul_string(cstr_as_string(Some(err_msg)));
         put_c(&mut err_dict, c"message", string_obj(msg_str));
         put_c(
             &mut err_dict,
             c"arg",
-            cbuf_to_arena_obj(arena, east.err.arg_bytes()),
+            cbuf_to_arena_obj(east.err.arg_bytes()),
         );
         put_c(&mut ret, c"error", dict_obj(err_dict));
     }
 
     if let Some(colors) = pstate.colors.take() {
-        let mut hl_arr = arena_array(arena, colors.len());
+        let mut hl_arr = Array::with_capacity(colors.len());
         for chunk in &colors {
-            let mut chunk_arr = arena_array(arena, 4);
+            let mut chunk_arr = Array::with_capacity(4);
             add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
             add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
             add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
@@ -606,7 +602,7 @@ pub fn nvim_parse_expression(
     }
 
     let ast = if let Some(ref root) = east.root {
-        expr_ast_node_to_obj(root, arena)
+        expr_ast_node_to_obj(root)
     } else {
         nil_obj()
     };
@@ -616,7 +612,7 @@ pub fn nvim_parse_expression(
     ret
 }
 
-fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
+fn expr_ast_node_to_obj(node: &ExprASTNode) -> Object {
     let nt = node.r#type;
     let items_size = 3
         + usize::from(node.children.is_some())
@@ -635,20 +631,14 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             nt == K_EXPR_NODE_DOUBLE_QUOTED_STRING || nt == K_EXPR_NODE_SINGLE_QUOTED_STRING,
         )
         + usize::from(nt == K_EXPR_NODE_ASSIGNMENT);
-    let mut ret_node = arena_dict(arena, items_size);
+    let mut ret_node = Dict::with_capacity(items_size);
 
     if let Some(ref first_child) = node.children {
         let num_children = 1 + usize::from(first_child.next.is_some());
-        let mut children_array = arena_array(arena, num_children);
-        add_c(
-            &mut children_array,
-            expr_ast_node_to_obj(first_child, arena),
-        );
+        let mut children_array = Array::with_capacity(num_children);
+        add_c(&mut children_array, expr_ast_node_to_obj(first_child));
         if let Some(ref second_child) = first_child.next {
-            add_c(
-                &mut children_array,
-                expr_ast_node_to_obj(second_child, arena),
-            );
+            add_c(&mut children_array, expr_ast_node_to_obj(second_child));
         }
         put_c(&mut ret_node, c"children", array_obj(children_array));
     }
@@ -658,7 +648,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
         c"type",
         string_obj(cstr_as_string(Some(EAST_NODE_TYPE_TAB[nt as usize]))),
     );
-    let mut start_array = arena_array(arena, 2);
+    let mut start_array = Array::with_capacity(2);
     add_c(&mut start_array, integer_obj(node.start.line as Integer));
     add_c(&mut start_array, integer_obj(node.start.col as Integer));
     put_c(&mut ret_node, c"start", array_obj(start_array));
@@ -666,7 +656,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
 
     match nt {
         K_EXPR_NODE_DOUBLE_QUOTED_STRING | K_EXPR_NODE_SINGLE_QUOTED_STRING => {
-            let str_obj = cbuf_to_arena_obj(arena, node.data.str().as_bytes());
+            let str_obj = cbuf_to_arena_obj(node.data.str().as_bytes());
             put_c(&mut ret_node, c"svalue", str_obj);
         }
         K_EXPR_NODE_OPTION => {
@@ -678,7 +668,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.opt().ident_bytes()),
+                cbuf_to_arena_obj(node.data.opt().ident_bytes()),
             );
         }
         K_EXPR_NODE_PLAIN_IDENTIFIER => {
@@ -690,21 +680,21 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.var().ident_bytes()),
+                cbuf_to_arena_obj(node.data.var().ident_bytes()),
             );
         }
         K_EXPR_NODE_PLAIN_KEY => {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.var().ident_bytes()),
+                cbuf_to_arena_obj(node.data.var().ident_bytes()),
             );
         }
         K_EXPR_NODE_ENVIRONMENT => {
             put_c(
                 &mut ret_node,
                 c"ident",
-                cbuf_to_arena_obj(arena, node.data.env().ident_bytes()),
+                cbuf_to_arena_obj(node.data.env().ident_bytes()),
             );
         }
         K_EXPR_NODE_REGISTER => {

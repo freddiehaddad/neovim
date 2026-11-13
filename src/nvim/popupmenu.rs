@@ -3,8 +3,8 @@
 
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
-    cstr_as_string, string_obj,
+    add_c, api_clear_error, api_free_array, array_obj, boolean_obj, cstr_as_obj, cstr_as_string,
+    string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::win_config::{K_UIMULTIGRID, WIN_CONFIG_INIT, parse_winborder};
@@ -43,7 +43,6 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, utf_ptr2cells, utfc_ptr2len};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::menu::{Vimmenu, execute_menu, get_menu_mode_flag, menu_find, menu_is_separator};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
@@ -577,10 +576,9 @@ pub fn pum_display(
 
         if PUM.with(|s| s.external.get()) {
             if array_changed {
-                let mut arena = Arena::new();
-                let mut arr = arena_array(&mut arena, size as usize);
+                let mut arr = Array::with_capacity(size as usize);
                 for elem in &items[..(size as usize)] {
-                    let mut item = arena_array(&mut arena, 4);
+                    let mut item = Array::with_capacity(4);
                     add_c(&mut item, cstr_as_obj(elem.text_cstr()));
                     add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
                     add_c(&mut item, cstr_as_obj(elem.extra_cstr()));
@@ -594,7 +592,6 @@ pub fn pum_display(
                     i64::from(cursor_col - PUM.with(|s| s.win_col_offset.get())),
                     i64::from(PUM.with(|s| s.anchor_grid.get())),
                 );
-                arena_mem_free(arena_finish(&mut arena));
             } else {
                 ui_call_popupmenu_select(i64::from(selected));
                 return;
@@ -1266,7 +1263,6 @@ fn pum_preview_set_text(
     max_width: &mut i32,
 ) {
     let mut err = Error::new();
-    let mut arena = Arena::new();
     let mut replacement = Array::new();
     let buf = win.w_buffer.get();
     buf.b_p_ma.set(true);
@@ -1304,7 +1300,6 @@ fn pum_preview_set_text(
         -1,
         false,
         replacement.clone(),
-        &mut arena,
         &mut err,
     );
     g_st().textlock.set(original_textlock);
@@ -1312,7 +1307,6 @@ fn pum_preview_set_text(
         emsg(err.msg_cstr().unwrap_or(c""));
         api_clear_error(&mut err);
     }
-    arena_mem_free(arena_finish(&mut arena));
     api_free_array(replacement);
     buf.b_p_ma.set(false);
 }

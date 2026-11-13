@@ -2,10 +2,10 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_array_opt, arena_dict,
-    arena_string_opt, boolean_obj, cstr_as_string, cstr_to_arena_obj, dict_obj, integer_obj, put_c,
-    static_cstr_as_string, string_obj,
+    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, boolean_obj, cstr_as_string, dict_obj,
+    integer_obj, put_c, static_cstr_as_string, string_obj,
 };
+use crate::api::private::validate::Dict;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
@@ -42,7 +42,7 @@ use crate::lua::executor::{
     K_RET_NIL_BOOL, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
 use crate::mbyte::{Vimconv, convert_setup, enc_canonize, string_convert, utfc_ptr2len};
-use crate::memory::{Arena, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 #[cfg(windows)]
 use crate::message::msg_source;
 use crate::message::{
@@ -950,17 +950,17 @@ fn do_in_cached_path(
     did_one
 }
 
-pub fn runtime_inspect(arena: &mut Arena) -> Array {
+pub fn runtime_inspect() -> Array {
     RUNTIME_SEARCH_PATH.with(|cell| {
         let rsp = cell.borrow();
-        let mut rv = arena_array(arena, rsp.len());
+        let mut rv = Array::with_capacity(rsp.len());
 
         for item in rsp.iter() {
-            let mut entry = arena_dict(arena, 5);
+            let mut entry = Dict::with_capacity(5);
             put_c(
                 &mut entry,
                 c"path",
-                cstr_to_arena_obj(arena, Some(&item.path)),
+                crate::api::private::helpers::cstr_to_nonnull_obj(Some(&item.path)),
             );
             if item.after {
                 put_c(&mut entry, c"after", boolean_obj(true));
@@ -984,10 +984,10 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
     })
 }
 
-pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
+pub fn runtime_get_named(lua: bool, pat: Array, all: bool) -> Array {
     let path = runtime_search_path_get_cached();
     let mut buf = [0u8; MAXPATHL];
-    runtime_get_named_common(lua, pat, all, &path, &mut buf, Some(arena))
+    runtime_get_named_common(lua, pat, all, &path, &mut buf)
 }
 
 pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
@@ -995,7 +995,7 @@ pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     let mut buf = [0u8; MAXPATHL];
-    runtime_get_named_common(lua, pat, all, &path, &mut buf, None)
+    runtime_get_named_common(lua, pat, all, &path, &mut buf)
 }
 
 fn runtime_get_named_common(
@@ -1004,10 +1004,9 @@ fn runtime_get_named_common(
     all: bool,
     path: &[SearchPathItem],
     buf_slice: &mut [u8],
-    mut arena: Option<&mut Arena>,
 ) -> Array {
     let buf_len = buf_slice.len();
-    let mut rv = arena_array_opt(arena.as_deref_mut(), path.len() * pat.size);
+    let mut rv = Array::with_capacity(path.len() * pat.size);
     for item in path {
         if lua {
             if item.has_lua.get() == K_NONE {
@@ -1031,10 +1030,9 @@ fn runtime_get_named_common(
                 ) as usize;
                 if size < buf_len && os_file_is_readable(crate::memory::bytes_as_cstr(buf_slice)) {
                     to_slash(buf_slice);
-                    let astr = arena_string_opt(
-                        arena.as_deref_mut(),
-                        cstr_as_string(Some(crate::memory::bytes_as_cstr(buf_slice))),
-                    );
+                    let astr = crate::api::private::helpers::ensure_nul_string(cstr_as_string(
+                        Some(crate::memory::bytes_as_cstr(buf_slice)),
+                    ));
                     add_c(&mut rv, string_obj(astr));
                     if !all {
                         return rv;
@@ -2828,7 +2826,6 @@ fn do_source_ext(
                 None,
                 args,
                 K_RET_NIL_BOOL,
-                None,
                 &mut err,
             );
             if err.err_type == ErrorType::ErrorTypeNone

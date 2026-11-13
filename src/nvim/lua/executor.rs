@@ -5,7 +5,7 @@ use crate::api::command::is_user_cmdidx;
 use crate::api::extmark::ns_initialized;
 use crate::api::private::helpers::{
     HlMessageChunk, OBJECT_NIL, TryState, api_clear_error, api_free_array, api_set_error,
-    api_set_sctx, arena_array, error_set, try_enter, try_leave,
+    api_set_sctx, error_set, try_enter, try_leave,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -55,14 +55,13 @@ use crate::lua::converter::{
     luaL_error_cstr_arg, luaL_loadbuffer, luaL_newstate_safe, luaL_openlibs_safe, luaL_ref_safe,
     luaL_unref_safe, luaL_where_safe, luv_init_vim, luv_set_thread_cb_safe,
     nlua_exit_thread_on_oom, nlua_fast_api_disabled_error, nlua_gettop, nlua_init_types,
-    nlua_pop_array, nlua_pop_array_opt, nlua_pop_integer, nlua_pop_object, nlua_pop_object_opt,
-    nlua_pop_typval, nlua_push_array, nlua_push_object, nlua_push_typval,
+    nlua_pop_array, nlua_pop_integer, nlua_pop_object, nlua_pop_typval, nlua_push_array,
+    nlua_push_object, nlua_push_typval,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
@@ -518,7 +517,7 @@ extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> i3
     lua_pop(lstate, 1);
 
     let mut err = Error::new();
-    let pat = nlua_pop_array_opt(lstate, None, &mut err);
+    let pat = nlua_pop_array(lstate, &mut err);
     if error_set(&err) {
         luaL_where_safe(lstate, 1);
         lua_pushstring_opt(lstate, err.msg_cstr());
@@ -1360,12 +1359,11 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     let name_cstr = luaL_checkstring(lstate, name_idx);
     let nargs = nlua_gettop(lstate) - name_idx;
     let mut err = Error::new();
-    let mut arena = Arena::new();
 
-    let mut args = arena_array(&mut arena, nargs.max(0) as usize);
+    let mut args = Array::with_capacity(nargs.max(0) as usize);
     for i in 0..nargs {
         lua_pushvalue_safe(lstate, name_idx + 1 + i);
-        let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
+        let obj = nlua_pop_object(lstate, false, &mut err);
         *args.next_slot_mut() = obj;
         args.size += 1;
         if error_set(&err) {
@@ -1375,12 +1373,9 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
 
     if !error_set(&err) {
         if request {
-            let mut res_mem = ArenaMem::NULL;
-            let mut result =
-                rpc_send_call(chan_id, name_cstr, args, timeout, &mut res_mem, &mut err);
+            let mut result = rpc_send_call(chan_id, name_cstr, args, timeout, &mut err);
             if !error_set(&err) {
                 nlua_push_object(lstate, &mut result, 0);
-                arena_mem_free(res_mem);
             }
         } else if !rpc_send_event(chan_id, name_cstr, args) {
             let mut mbuf = [0u8; 64];
@@ -1389,8 +1384,6 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
             api_set_error!(&mut err, ErrorType::ErrorTypeValidation, c"%s", msg_cstr,);
         }
     }
-
-    arena_mem_free(arena_finish(&mut arena));
 
     if error_set(&err) {
         lua_pushstring_opt(lstate, err.msg_cstr());
@@ -1598,7 +1591,6 @@ pub fn nlua_exec(
     chunkname: Option<&CStr>,
     mut args: Array,
     mode: LuaRetMode,
-    arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
     let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
@@ -1638,7 +1630,7 @@ pub fn nlua_exec(
         return OBJECT_NIL;
     }
 
-    nlua_call_pop_retval(lstate, mode, arena, top, Some(err))
+    nlua_call_pop_retval(lstate, mode, top, Some(err))
 }
 
 pub fn nlua_call_typval(
@@ -1711,10 +1703,9 @@ pub fn nlua_call_ref(
     name: Option<&CStr>,
     args: Array,
     mode: LuaRetMode,
-    arena: Option<&mut Arena>,
     err: Option<&mut Error>,
 ) -> Object {
-    nlua_call_ref_ctx(false, ref_, name, args, mode, arena, err)
+    nlua_call_ref_ctx(false, ref_, name, args, mode, err)
 }
 
 #[inline]
@@ -1732,7 +1723,6 @@ pub fn nlua_call_ref_ctx(
     name: Option<&CStr>,
     mut args: Array,
     mode: LuaRetMode,
-    arena: Option<&mut Arena>,
     err: Option<&mut Error>,
 ) -> Object {
     let lstate = NLUA_STATE.with(|s| s.active_lstate.get());
@@ -1771,13 +1761,12 @@ pub fn nlua_call_ref_ctx(
         return OBJECT_NIL;
     }
 
-    nlua_call_pop_retval(lstate, mode, arena, top, err)
+    nlua_call_pop_retval(lstate, mode, top, err)
 }
 
 fn nlua_call_pop_retval(
     lstate: *mut lua_State,
     mode: LuaRetMode,
-    mut arena: Option<&mut Arena>,
     pretop: i32,
     err: Option<&mut Error>,
 ) -> Object {
@@ -1805,16 +1794,14 @@ fn nlua_call_pop_retval(
                 data: ObjectData::LuaRef(ref_),
             }
         }
-        K_RET_OBJECT => nlua_pop_object_opt(lstate, false, arena, perr),
+        K_RET_OBJECT => nlua_pop_object(lstate, false, perr),
         K_RET_MULTI => {
             let nres = nlua_gettop(lstate) - pretop;
             let nres_u = nres.max(0) as usize;
-            let mut res =
-                crate::api::private::helpers::arena_array_opt(arena.as_deref_mut(), nres_u);
+            let mut res = Array::with_capacity(nres_u);
             res.size = nres_u;
             for i in 0..nres_u {
-                res[nres_u - i - 1] =
-                    nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
+                res[nres_u - i - 1] = nlua_pop_object(lstate, false, perr);
                 if error_set(perr) {
                     return OBJECT_NIL;
                 }
@@ -2015,10 +2002,9 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     }
 
     let mut err = Error::new();
-    let mut arena = Arena::new();
-    let prefix_len = nlua_pop_integer(lstate, &mut arena, &mut err) as isize;
+    let prefix_len = nlua_pop_integer(lstate, &mut err) as isize;
     if !error_set(&err) && prefix_len <= patlen {
-        let completions = nlua_pop_array(lstate, &mut arena, &mut err);
+        let completions = nlua_pop_array(lstate, &mut err);
         if !error_set(&err) {
             let mut results = Vec::with_capacity(completions.size);
 
@@ -2037,7 +2023,6 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                 status = true;
             }
         }
-        arena_mem_free(arena_finish(&mut arena));
     }
 
     if !status {
@@ -2334,7 +2319,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
     let args = Array::from_slice(&mut args_items[..1]);
     let mut err = Error::new();
     let code = NvimString::from_cstr(c"return type(loadstring(...)()) == 'function'");
-    let result = nlua_exec(code, None, args, K_RET_NIL_BOOL, None, &mut err);
+    let result = nlua_exec(code, None, args, K_RET_NIL_BOOL, &mut err);
     drop(str_cstr);
 
     api_clear_error(&mut err);

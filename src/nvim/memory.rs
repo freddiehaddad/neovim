@@ -1,4 +1,4 @@
-//! Memory allocation, arena allocator, string utilities, and linked-list mergesort
+//! Memory allocation allocator, string utilities, and linked-list mergesort
 //! (`src/nvim/memory.c`).
 #![forbid(unsafe_code)]
 
@@ -21,27 +21,6 @@ use crate::ui_client::ui_client_free_all_mem;
 use std::ffi::{CStr, CString};
 
 pub const ARENA_BLOCK_SIZE: usize = 4096;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ArenaMem;
-
-impl ArenaMem {
-    pub const NULL: Self = Self;
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Arena {
-    pub pos: usize,
-    pub size: usize,
-}
-
-impl Arena {
-    #[inline(always)]
-    pub const fn new() -> Self {
-        Self { pos: 0, size: 0 }
-    }
-}
 
 pub(crate) struct MemoryModuleState {
     pub(crate) entered_free_all_mem: std::cell::Cell<bool>,
@@ -74,7 +53,6 @@ pub(crate) fn try_to_free_memory() {
 
     clear_sb_text(true);
     mf_release_all();
-    arena_free_reuse_blks();
 
     MEM_STATE.with(|s| s.trying_to_free.set(false));
 }
@@ -82,9 +60,6 @@ pub(crate) fn try_to_free_memory() {
 pub(crate) fn out_of_memory_exit() -> ! {
     preserve_exit(Some(E_OUTOFMEM))
 }
-
-/// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
-pub fn arena_free_reuse_blks() {}
 
 /// Safe O(1) sub-slicing of a `&CStr`.
 pub trait CStrSubslice<'a> {
@@ -199,15 +174,6 @@ pub fn vec_to_cstring(mut v: Vec<u8>) -> CString {
     }
     CString::from_vec_with_nul(v).unwrap_or_default()
 }
-
-/// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
-pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
-    *arena = Arena::new();
-    ArenaMem
-}
-
-/// Free all blocks belonging to `mem` (`arena_mem_free`).
-pub fn arena_mem_free(_mem: ArenaMem) {}
 
 /// Free everything that we allocated (`free_all_mem`).
 pub fn free_all_mem() {
@@ -384,8 +350,6 @@ pub fn free_all_mem() {
         nlua_free_all_mem();
         rpc_free_all_mem();
         autocmd_free_all_mem();
-
-        arena_free_reuse_blks();
     }
 }
 
@@ -496,14 +460,6 @@ pub const fn fx_hashset<T>() -> FxHashSet<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn arena_lifecycle() {
-        let mut arena = Arena::new();
-        let mem = arena_finish(&mut arena);
-        arena_mem_free(mem);
-        arena_free_reuse_blks();
-    }
 
     #[test]
     fn fx_hash_collections_work() {

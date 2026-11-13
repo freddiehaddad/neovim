@@ -1541,7 +1541,7 @@ pub fn ins_compl_lnum_in_range(lnum: Linenr) -> bool {
 /// Reduce the longest common string for match "match".
 fn ins_compl_longest_match(match_: ComplMeta) {
     if INSEXPAND.with(|s| s.compl_leader.get()).data.is_null() {
-        INSEXPAND.with(|s| s.compl_leader.set(copy_string(match_.cp_str, None)));
+        INSEXPAND.with(|s| s.compl_leader.set(copy_string(match_.cp_str)));
 
         let had_match = curwin_mut().w_cursor.get().col > INSEXPAND.with(|s| s.compl_col.get());
         ins_compl_longest_insert(INSEXPAND.with(|s| s.compl_leader.get()).as_bytes());
@@ -6366,10 +6366,8 @@ fn set_compl_globals(mut startcol: i32, curs_col: Colnr, is_cpt_compl: bool) {
             INSEXPAND.with(|s| s.cpt_compl_pattern.set(pat));
         } else {
             INSEXPAND.with(|s| {
-                s.cpt_compl_pattern.set(copy_string(
-                    INSEXPAND.with(|s| s.compl_orig_text.get()),
-                    None,
-                ))
+                s.cpt_compl_pattern
+                    .set(copy_string(INSEXPAND.with(|s| s.compl_orig_text.get())))
             });
         }
     } else {

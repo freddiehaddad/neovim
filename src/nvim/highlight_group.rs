@@ -3,8 +3,7 @@
 
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
-    api_set_error, arena_dict, boolean_obj, cbuf_to_arena_str, cstr_as_obj, cstr_as_string,
-    cstr_to_arena_obj, dict_obj, put_c,
+    api_set_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
@@ -39,7 +38,6 @@ use crate::highlight::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
-use crate::memory::Arena;
 use crate::message::{
     emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts_hl, msg_source, semsg,
@@ -1748,7 +1746,7 @@ fn highlight_list_one(id: i32) {
     }
 }
 
-fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool {
+fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32) -> bool {
     let (sg_link, sg_set, sg_cleared, sg_attr) = with_hl_group((hl_id - 1) as usize, |sgp| {
         (sgp.sg_link, sgp.sg_set, sgp.sg_cleared, sgp.sg_attr)
     });
@@ -1771,30 +1769,29 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
         ns_get_hl(&mut ns, hl_id, false, sg_set != 0)
     };
     let attr = syn_attr2entry(attr_id);
-    *hl = arena_dict(arena, HLATTRS_DICT_SIZE + 1);
+    *hl = Dict::with_capacity(HLATTRS_DICT_SIZE + 1);
     if (attr.rgb_ae_attr & HL_DEFAULT) != 0 {
         put_c(hl, c"default", boolean_obj(true));
     }
     if link > 0 {
         assert!(1 <= link && link <= hl_len());
         let link_name = with_hl_group((link - 1) as usize, |g| g.sg_name.clone());
-        put_c(hl, c"link", cstr_to_arena_obj(arena, Some(&link_name)));
+        put_c(
+            hl,
+            c"link",
+            crate::api::private::helpers::cstr_to_nonnull_obj(Some(&link_name)),
+        );
     }
-    let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
-    hlattrs2dict(hl, None, attr, true, true, Some(arena));
-    hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true, None);
+    let mut hl_cterm = Dict::with_capacity(HLATTRS_DICT_SIZE);
+    hlattrs2dict(hl, None, attr, true, true);
+    hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true);
     if hl_cterm.size > 0 {
         put_c(hl, c"cterm", dict_obj(hl_cterm));
     }
     true
 }
 
-pub fn ns_get_hl_defs(
-    ns_id: NS,
-    opts: &mut KeyDict_get_highlight,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
+pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDict_get_highlight, err: &mut Error) -> Dict {
     let link = if has_key(opts.is_set_get_highlight, KEYSET_OPTIDX_GET_HIGHLIGHT_LINK) {
         opts.link
     } else {
@@ -1835,7 +1832,7 @@ pub fn ns_get_hl_defs(
         }
         let mut attrs = Dict::new();
         let target_id = if link { id } else { syn_get_final_id(id) };
-        hlgroup2dict(&mut attrs, ns_id, target_id, arena);
+        hlgroup2dict(&mut attrs, ns_id, target_id);
         return attrs;
     }
     if err.err_type != ErrorType::ErrorTypeNone {
@@ -1843,15 +1840,15 @@ pub fn ns_get_hl_defs(
     }
 
     let len = hl_len();
-    let mut rv = arena_dict(arena, len as usize);
+    let mut rv = Dict::with_capacity(len as usize);
     for i in 1..=len {
         let mut attrs = Dict::new();
-        if !hlgroup2dict(&mut attrs, ns_id, i, arena) {
+        if !hlgroup2dict(&mut attrs, ns_id, i) {
             continue;
         }
         let target_id = if link { i } else { syn_get_final_id(i) };
         let target_name = with_hl_group((target_id - 1) as usize, |g| {
-            cbuf_to_arena_str(arena, g.sg_name.as_bytes())
+            NvimString::from_bytes(g.sg_name.as_bytes())
         });
         put_c(&mut rv, target_name, dict_obj(attrs));
     }

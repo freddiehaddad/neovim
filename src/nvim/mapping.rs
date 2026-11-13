@@ -5,9 +5,8 @@
 use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
-    ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_to_arena_obj, dict_obj, has_key, integer_obj, luaref_obj, put_c,
-    string_obj, string_to_cstr,
+    ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, dict_obj, has_key,
+    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
@@ -46,7 +45,6 @@ use crate::lua::executor::{
 use crate::mbyte::{
     mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
 };
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
@@ -1804,7 +1802,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     if luaref != LUA_NOREF {
         let mut err = Error::new();
         let args = Array::new();
-        let ret = nlua_call_ref(luaref, None, args, K_RET_OBJECT, None, Some(&mut err));
+        let ret = nlua_call_ref(luaref, None, args, K_RET_OBJECT, Some(&mut err));
         if ret.obj_type == ObjectType::ObjectTypeString {
             p = Some(string_to_cstr(ret.data.string()));
         }
@@ -2202,9 +2200,8 @@ fn mapblock_fill_dict(
     buffer_value: i32,
     abbr: bool,
     compatible: bool,
-    arena: &mut Arena,
 ) -> Dict {
-    let mut dict = arena_dict(arena, 20);
+    let mut dict = Dict::with_capacity(20);
     let lhs = str2special_save(
         mp.m_keys.as_bytes(),
         compatible,
@@ -2230,23 +2227,35 @@ fn mapblock_fill_dict(
         put_c(
             &mut dict,
             c"rhs",
-            cstr_to_arena_obj(arena, Some(mp.m_orig_str.as_c_str())),
+            crate::api::private::helpers::cstr_to_nonnull_obj(Some(mp.m_orig_str.as_c_str())),
         );
     } else {
         let rhs_cstr = str2special_save(mp.m_str.as_bytes(), false, K_NONE);
-        put_c(&mut dict, c"rhs", cstr_to_arena_obj(arena, Some(&rhs_cstr)));
+        put_c(
+            &mut dict,
+            c"rhs",
+            crate::api::private::helpers::cstr_to_nonnull_obj(Some(&rhs_cstr)),
+        );
     }
     if let Some(ref desc) = mp.m_desc {
-        put_c(&mut dict, c"desc", cstr_to_arena_obj(arena, Some(desc)));
+        put_c(
+            &mut dict,
+            c"desc",
+            crate::api::private::helpers::cstr_to_nonnull_obj(Some(desc)),
+        );
     }
-    put_c(&mut dict, c"lhs", cstr_to_arena_obj(arena, Some(&lhs)));
+    put_c(
+        &mut dict,
+        c"lhs",
+        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&lhs)),
+    );
     put_c(
         &mut dict,
         c"lhsraw",
-        cstr_to_arena_obj(arena, Some(&*mp.m_keys)),
+        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&*mp.m_keys)),
     );
     if let Some(lhsrawalt) = lhsrawalt {
-        let alt_s = crate::api::private::helpers::arena_bytes(arena, lhsrawalt.to_bytes());
+        let alt_s = NvimString::from_bytes(lhsrawalt.to_bytes());
         put_c(&mut dict, c"lhsrawalt", string_obj(alt_s));
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
@@ -2289,10 +2298,9 @@ fn mapblock_fill_dict(
     put_c(
         &mut dict,
         c"mode",
-        string_obj(crate::api::private::helpers::arena_bytes(
-            arena,
-            crate::memory::bytes_until_nul(&mapmode),
-        )),
+        string_obj(NvimString::from_bytes(crate::memory::bytes_until_nul(
+            &mapmode,
+        ))),
     );
     put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
     put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));
@@ -2396,7 +2404,6 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     } else if let Some(loc) = mp_opt
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
-        let mut arena = Arena::new();
         let cb = g_st().curbuf.get();
         let b = if loc.local { cb.opt() } else { None };
         let dict = with_map_buckets(b, loc.abbr, |buckets| {
@@ -2407,7 +2414,6 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
                 buffer_local,
                 abbr,
                 true,
-                &mut arena,
             )
         });
         let mut dobj = dict_obj(dict);
@@ -2417,7 +2423,6 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
             true,
             &mut crate::api::private::validate::Error::new(),
         );
-        arena_mem_free(arena_finish(&mut arena));
     } else {
         tv_dict_alloc_ret(rettv);
     }
@@ -2619,8 +2624,6 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     }
 
                     let mut did_simplify = false;
-
-                    let mut arena = Arena::new();
                     let lhs = str2special_save(mp.m_keys.as_bytes(), true, K_FALSE);
                     let keys_buf = replace_termcodes(
                         lhs.to_bytes(),
@@ -2638,7 +2641,6 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         buffer_local,
                         abbr,
                         true,
-                        &mut arena,
                     );
                     let mut d = TypVal {
                         v_type: VarType::VarUnknown,
@@ -2654,7 +2656,6 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     );
                     debug_assert!(d.v_type == VarType::VarDict);
                     tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
-                    arena_mem_free(arena_finish(&mut arena));
                 }
             }
         });
@@ -3088,7 +3089,7 @@ pub fn modify_keymap(
 
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
-pub fn keymap_array(mode: NvimString, buf: Option<&FileBuf>, arena: &mut Arena) -> Array {
+pub fn keymap_array(mode: NvimString, buf: Option<&FileBuf>) -> Array {
     let mut mappings = ArrayBuilder::new();
 
     let mut p_slice: &[u8] = if mode.size > 0 { mode.as_bytes() } else { b"m" };
@@ -3113,14 +3114,13 @@ pub fn keymap_array(mode: NvimString, buf: Option<&FileBuf>, arena: &mut Arena) 
                         buffer_value,
                         is_abbrev,
                         false,
-                        arena,
                     )));
                 }
             }
         }
     });
 
-    arena_take_arraybuilder(arena, &mut mappings)
+    crate::api::private::helpers::take_arraybuilder(&mut mappings)
 }
 
 #[cfg(test)]

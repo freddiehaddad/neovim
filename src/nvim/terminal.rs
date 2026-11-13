@@ -1979,7 +1979,6 @@ fn buf_set_term_title(buf: Option<&FileBuf>, title: &[u8]) {
         string_obj(NvimString::from_bytes(title)),
         false,
         false,
-        None,
         &mut err,
     );
     buf_ref.b_locked.set(buf_ref.b_locked.get() - (1));
@@ -2809,10 +2808,10 @@ fn is_focused(term_id: TermId) -> bool {
 fn get_config_string(buf: &FileBuf, key: &[u8]) -> Option<std::ffi::CString> {
     let mut err = Error::new();
     let key_str = NvimString::from_bytes(key);
-    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str.clone(), None, &mut err);
+    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str.clone(), &mut err);
     api_clear_error(&mut err);
     if obj.obj_type == ObjectType::ObjectTypeNil {
-        obj = dict_get_value(Some(&*get_globvar_dict()), key_str, None, &mut err);
+        obj = dict_get_value(Some(&*get_globvar_dict()), key_str, &mut err);
         api_clear_error(&mut err);
     }
     if obj.obj_type == ObjectType::ObjectTypeString {

@@ -6,10 +6,9 @@ use crate::api::private::dispatch::{
     key_dict_cmd_magic_get_field, key_dict_cmd_mods_filter_get_field, key_dict_cmd_mods_get_field,
 };
 use crate::api::private::helpers::{
-    add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_bytes, arena_dict,
-    arena_string, boolean_obj, cbuf_to_arena_str, cstr_as_string, dict_obj, error_set,
-    find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string, string_obj,
-    try_wrap, with_script_context,
+    add_c, api_dict_to_keydict, api_set_error, api_typename, boolean_obj, cstr_as_string, dict_obj,
+    error_set, find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string,
+    string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -36,7 +35,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -173,10 +172,10 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-fn cstr_to_arena_str(arena: &mut Arena, str_ptr: Option<&CStr>) -> NvimString {
+fn cstr_to_arena_str(str_ptr: Option<&CStr>) -> NvimString {
     match str_ptr {
         None => NvimString::new(),
-        Some(s) => cbuf_to_arena_str(arena, s.to_bytes()),
+        Some(s) => NvimString::from_bytes(s.to_bytes()),
     }
 }
 
@@ -203,19 +202,19 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
 }
 
-fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
-    let mut args = arena_array(arena, 2);
+fn parse_map_cmd(arg_str: &CStr) -> Array {
+    let mut args = Array::with_capacity(2);
     let bytes = arg_str.to_bytes();
     let lhs_len = crate::charset::skiptowhite_len(bytes);
 
     add_c(
         &mut args,
-        string_obj(cbuf_to_arena_str(arena, &bytes[..lhs_len])),
+        string_obj(NvimString::from_bytes(&bytes[..lhs_len])),
     );
 
     let rhs = crate::charset::skipwhite_slice(&bytes[lhs_len..]);
     if !rhs.is_empty() {
-        add_c(&mut args, string_obj(cbuf_to_arena_str(arena, rhs)));
+        add_c(&mut args, string_obj(NvimString::from_bytes(rhs)));
     }
 
     args
@@ -283,7 +282,6 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
 pub fn nvim_parse_cmd(
     str_val: NvimString,
     _opts: &mut KeyDict_empty,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_cmd {
     let mut result = KeyDict_cmd::default();
@@ -315,13 +313,13 @@ pub fn nvim_parse_cmd(
     let length = ea.arg.len();
 
     if ea.cmdidx != Cmdidx::CmdSize && is_map_cmd(ea.cmdidx) && !ea.arg.is_empty() {
-        args = parse_map_cmd(ea.arg.as_cstr(), arena);
+        args = parse_map_cmd(ea.arg.as_cstr());
     } else if (ea.argt & EX_NOSPC) != 0 {
         if !ea.arg.is_empty() {
-            args = arena_array(arena, 1);
+            args = Array::with_capacity(1);
             add_c(
                 &mut args,
-                string_obj(cbuf_to_arena_str(arena, ea.arg.slice(length))),
+                string_obj(NvimString::from_bytes(ea.arg.slice(length))),
             );
         }
     } else {
@@ -331,7 +329,7 @@ pub fn nvim_parse_cmd(
         let mut buf_off = 0usize;
         let mut done = false;
         let arg_slice = ea.arg.slice(length);
-        args = arena_array(arena, uc_nargs_upper_bound(arg_slice));
+        args = Array::with_capacity(uc_nargs_upper_bound(arg_slice));
 
         while !done {
             let buf_slice = &mut buf_vec[buf_off..];
@@ -339,7 +337,7 @@ pub fn nvim_parse_cmd(
             if len > 0 {
                 add_c(
                     &mut args,
-                    string_obj(cbuf_to_arena_str(arena, &buf_slice[..len])),
+                    string_obj(NvimString::from_bytes(&buf_slice[..len])),
                 );
                 buf_off = (buf_off + len + 1).min(buf_vec.len());
             }
@@ -371,12 +369,12 @@ pub fn nvim_parse_cmd(
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
     result.cmd = match name {
-        Some(n) => cbuf_to_arena_str(arena, n.to_bytes()),
+        Some(n) => NvimString::from_bytes(n.to_bytes()),
         None => NvimString::default(),
     };
 
     if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
-        let mut range = arena_array(arena, 2);
+        let mut range = Array::with_capacity(2);
         if ea.addr_count > 1 {
             add_c(&mut range, integer_obj(i64::from(ea.line1)));
         }
@@ -406,7 +404,7 @@ pub fn nvim_parse_cmd(
             b""
         };
         result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_REG;
-        result.reg = arena_bytes(arena, reg);
+        result.reg = NvimString::from_bytes(reg);
     }
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
@@ -432,7 +430,7 @@ pub fn nvim_parse_cmd(
         b'0'
     };
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
-    result.nargs = string_obj(arena_bytes(arena, &[nargs_ch]));
+    result.nargs = string_obj(NvimString::from_bytes(&[nargs_ch]));
 
     let addr = match ea.addr_type {
         ADDR_LINES => c"line",
@@ -451,15 +449,15 @@ pub fn nvim_parse_cmd(
     result.nextcmd = if ea.nextcmd.is_null() {
         cstr_as_string(None)
     } else {
-        cstr_to_arena_str(arena, ea.nextcmd.as_opt_cstr())
+        cstr_to_arena_str(ea.nextcmd.as_opt_cstr())
     };
 
-    let mut mods = arena_dict(arena, 20);
-    let mut filter = arena_dict(arena, 2);
+    let mut mods = Dict::with_capacity(20);
+    let mut filter = Dict::with_capacity(2);
     put_c(
         &mut filter,
         c"pattern",
-        string_obj(cstr_to_arena_str(arena, cmod.cmod_filter_pat.as_deref())),
+        string_obj(cstr_to_arena_str(cmod.cmod_filter_pat.as_deref())),
     );
     put_c(&mut filter, c"force", boolean_obj(cmod.cmod_filter_force));
     put_c(&mut mods, c"filter", dict_obj(filter));
@@ -571,7 +569,7 @@ pub fn nvim_parse_cmd(
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
     result.mods = mods;
 
-    let mut magic = arena_dict(arena, 2);
+    let mut magic = Dict::with_capacity(2);
     put_c(&mut magic, c"file", boolean_obj(ea.magic.file));
     put_c(&mut magic, c"bar", boolean_obj(ea.magic.bar));
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
@@ -618,7 +616,6 @@ pub fn nvim_cmd(
     channel_id: u64,
     cmd: &mut KeyDict_cmd,
     opts: &mut KeyDict_cmd_opts,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> NvimString {
     let mut ea: Exarg = Exarg::new();
@@ -644,7 +641,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        let cmdname = arena_string(arena, cmd.cmd.clone());
+        let cmdname = crate::api::private::helpers::ensure_nul_string(cmd.cmd.clone());
         ea.cmd = crate::strings::OwnedSlice::from_cstr(cmdname.as_cstr());
 
         let mut p_opt = find_ex_command(&mut ea, None);
@@ -654,7 +651,7 @@ pub fn nvim_cmd(
             && ascii_isupper(ea.cmd.first_byte())
             && has_event(EVENT_CMDUNDEFINED)
         {
-            let p_raw = arena_string(arena, cmd.cmd.clone());
+            let p_raw = crate::api::private::helpers::ensure_nul_string(cmd.cmd.clone());
             let p_ev = p_raw.as_opt_cstr();
             let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_ev, p_ev, true, None);
             p_opt = if ret && !aborting() {
@@ -752,24 +749,24 @@ pub fn nvim_cmd(
                     ea.addr_count = 1;
                     ea.line1 = count_value as Linenr;
                     ea.line2 = count_value as Linenr;
-                    args = arena_array(arena, 0);
+                    args = Array::with_capacity(0);
                 }
             }
 
             if !count_from_first_arg {
-                args = arena_array(arena, cmd.args.size);
+                args = Array::with_capacity(cmd.args.size);
                 for elem in cmd.args.as_slice() {
                     match elem.obj_type {
                         ObjectType::ObjectTypeBoolean => {
                             let b = if elem.data.boolean() { b"1" } else { b"0" };
-                            add_c(&mut args, string_obj(arena_bytes(arena, b)));
+                            add_c(&mut args, string_obj(NvimString::from_bytes(b)));
                         }
                         ObjectType::ObjectTypeBuffer
                         | ObjectType::ObjectTypeWindow
                         | ObjectType::ObjectTypeTabpage
                         | ObjectType::ObjectTypeInteger => {
                             let s = elem.data.integer().to_string();
-                            add_c(&mut args, string_obj(arena_bytes(arena, s.as_bytes())));
+                            add_c(&mut args, string_obj(NvimString::from_bytes(s.as_bytes())));
                         }
                         ObjectType::ObjectTypeString => {
                             if string_iswhite(elem.data.string()) {
@@ -1173,7 +1170,7 @@ pub fn nvim_cmd(
 
         if !error_set(err) && opts.output && capture_local.len() > 1 {
             let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
-            retv = crate::api::private::helpers::arena_bytes(arena, slice);
+            retv = NvimString::from_bytes(slice);
         }
     }
 
@@ -1657,12 +1654,8 @@ pub fn create_user_command(
 // DLLEXPORT DictOf(DictAs(command_info)) nvim_get_commands(Dict(get_commands) *opts, Arena *arena,
 //                                                          Error *err)
 //   FUNC_API_SINCE(4);
-pub fn nvim_get_commands(
-    opts: &mut KeyDict_get_commands,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
-    nvim_buf_get_commands(-1, opts, arena, err)
+pub fn nvim_get_commands(opts: &mut KeyDict_get_commands, err: &mut Error) -> Dict {
+    nvim_buf_get_commands(-1, opts, err)
 }
 
 /// Gets a map of buffer-local |user-commands|.
@@ -1678,7 +1671,6 @@ pub fn nvim_get_commands(
 pub fn nvim_buf_get_commands(
     buf: Buffer,
     opts: &mut KeyDict_get_commands,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     let global = buf == -1;
@@ -1695,7 +1687,7 @@ pub fn nvim_buf_get_commands(
             );
             return Dict::new();
         }
-        return commands_array(None, arena);
+        return commands_array(None);
     }
 
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
@@ -1704,7 +1696,7 @@ pub fn nvim_buf_get_commands(
     if opts.builtin {
         return Dict::new();
     }
-    commands_array(Some(&b), arena)
+    commands_array(Some(&b))
 }
 
 #[cfg(test)]

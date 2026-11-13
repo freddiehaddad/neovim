@@ -242,7 +242,7 @@ pub fn vim_findfile_init(
             let expand_len = crate::memory::bytes_until_nul(&expand_buf).len();
 
             search_ctx.ffsc_start_dir =
-                copy_string(NvimString::from_bytes_len(&expand_buf, expand_len), None);
+                copy_string(NvimString::from_bytes_len(&expand_buf, expand_len));
         }
 
         if let Some(stopdirs_cstr) = stopdirs {
@@ -326,13 +326,13 @@ pub fn vim_findfile_init(
             }
             expand_buf[expand_size] = NUL as u8;
             search_ctx.ffsc_wc_path =
-                copy_string(NvimString::from_bytes_len(&expand_buf, expand_size), None);
+                copy_string(NvimString::from_bytes_len(&expand_buf, expand_size));
         } else {
             search_ctx.ffsc_fix_path = cstr_to_string(Some(path));
         }
 
         if search_ctx.ffsc_start_dir.data.is_null() {
-            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path.clone(), None);
+            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path.clone());
             if let Some(first) = search_ctx.ffsc_fix_path.as_bytes_with_nul_mut().first_mut() {
                 *first = 0;
             }

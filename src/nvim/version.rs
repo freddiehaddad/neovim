@@ -4124,7 +4124,6 @@ pub fn list_lua_version() {
         None,
         args,
         K_RET_OBJECT,
-        None,
         &mut err,
     );
     debug_assert!(err.err_type == ErrorType::ErrorTypeNone);

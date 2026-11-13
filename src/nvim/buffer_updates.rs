@@ -2,24 +2,18 @@
 #![forbid(unsafe_code)]
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, buf_collect_lines};
-use crate::api::private::helpers::{
-    OBJECT_NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
-};
+use crate::api::private::helpers::{OBJECT_NIL, array_obj, boolean_obj, buffer_obj, integer_obj};
 use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::{BufUpdateCallbacks, FileBuf, buf_get_changedtick};
+use crate::cursor::{Colnr, Linenr};
 use crate::extmark::Bcount;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
-
-pub(crate) const ARENA_EMPTY: Arena = Arena::new();
-
-use crate::cursor::{Colnr, Linenr};
 
 const LOG_ERROR: i32 = 3;
 
@@ -64,9 +58,8 @@ pub fn buf_updates_register(
     if send_buffer {
         let line_count = buf.b_ml.ml_line_count.get() as usize;
         let mut linedata = Array::new();
-        let mut arena = ARENA_EMPTY;
         if line_count > 0 {
-            linedata = arena_array(&mut arena, line_count);
+            linedata = Array::with_capacity(line_count);
             buf_collect_lines(
                 buf,
                 line_count,
@@ -75,7 +68,6 @@ pub fn buf_updates_register(
                 true,
                 &mut linedata,
                 std::ptr::null_mut(),
-                &mut arena,
             );
         }
 
@@ -90,7 +82,6 @@ pub fn buf_updates_register(
         let args = Array::from_slice(&mut items[..6]);
 
         rpc_send_event(channel_id, c"nvim_buf_lines_event", args);
-        arena_mem_free(arena_finish(&mut arena));
     } else {
         buf_updates_changedtick_single(buf, channel_id);
     }
@@ -161,7 +152,6 @@ pub fn buf_updates_unload(buf: &FileBuf, can_reload: bool) {
                     args,
                     0,
                     None,
-                    None,
                 );
             });
         }
@@ -195,11 +185,9 @@ pub fn buf_updates_send_changes(
     let send_tick = !(g_st().cmdpreview.get()
         && (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr());
     let mut badchannelid: u64 = 0;
-
-    let mut arena = ARENA_EMPTY;
     let mut linedata = Array::new();
     if num_added > 0 && !buf.update_channels.borrow().is_empty() {
-        linedata = arena_array(&mut arena, num_added as usize);
+        linedata = Array::with_capacity(num_added as usize);
         buf_collect_lines(
             buf,
             num_added as usize,
@@ -208,7 +196,6 @@ pub fn buf_updates_send_changes(
             true,
             &mut linedata,
             std::ptr::null_mut(),
-            &mut arena,
         );
     }
 
@@ -244,9 +231,6 @@ pub fn buf_updates_send_changes(
         );
         buf_updates_unregister(buf, badchannelid);
     }
-
-    arena_mem_free(arena_finish(&mut arena));
-
     let mut i = 0usize;
     while i < buf.update_callbacks.borrow().len() {
         let on_lines = buf.update_callbacks.borrow().as_slice()[i].on_lines;
@@ -272,7 +256,7 @@ pub fn buf_updates_send_changes(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_lines, Some(c"lines"), args, K_RET_NIL_BOOL, None, None);
+                res = nlua_call_ref(on_lines, Some(c"lines"), args, K_RET_NIL_BOOL, None);
             });
 
             if luaret_truthy(res) {
@@ -326,7 +310,7 @@ pub fn buf_updates_send_splice(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_bytes, Some(c"bytes"), args, K_RET_NIL_BOOL, None, None);
+                res = nlua_call_ref(on_bytes, Some(c"bytes"), args, K_RET_NIL_BOOL, None);
             });
 
             if luaret_truthy(res) {
@@ -366,7 +350,6 @@ pub fn buf_updates_changedtick(buf: &FileBuf) {
                     Some(c"changedtick"),
                     args,
                     K_RET_NIL_BOOL,
-                    None,
                     None,
                 );
             });

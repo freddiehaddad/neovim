@@ -149,7 +149,7 @@ use crate::mark::{
 use crate::r#match::ex_match;
 use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
-use crate::memory::{ArenaMem, arena_mem_free, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::menu::{SaveState, ex_emenu, ex_menu, ex_menutranslate};
 use crate::message::{
     emsg, emsg_multiline, ex_messages, iemsg, msg, msg_ext_set_kind, msg_make, msg_outtrans,
@@ -9434,7 +9434,6 @@ fn ex_restart(eap: &mut Exarg) {
                 None,
                 Array::new(),
                 K_RET_OBJECT,
-                None,
                 &mut lua_err,
             );
             if !error_set(&lua_err)
@@ -9501,8 +9500,6 @@ fn ex_restart(eap: &mut Exarg) {
         return;
     };
     let chan_id = channel_ref.id;
-    let mut result_mem = ArenaMem::NULL;
-
     'fail_2: {
         let mut detach_kv = [KeyValuePair {
             key: cstr_as_string(Some(c"detach")),
@@ -9517,20 +9514,10 @@ fn ex_restart(eap: &mut Exarg) {
             },
         ];
         let detach_args = Array::from_slice(&mut detach_items[..2]);
-        rpc_send_call(
-            chan_id,
-            c"nvim_chan_set",
-            detach_args,
-            -1,
-            &mut result_mem,
-            &mut err,
-        );
+        rpc_send_call(chan_id, c"nvim_chan_set", detach_args, -1, &mut err);
         if error_set(&err) {
             break 'fail_2;
         }
-        arena_mem_free(result_mem);
-        result_mem = ArenaMem::NULL;
-
         if !after_cmd.to_bytes().is_empty() {
             let mut autocmd_kv = [
                 KeyValuePair {
@@ -9555,31 +9542,15 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let autocmd_args = Array::from_slice(&mut autocmd_items[..2]);
-            rpc_send_call(
-                chan_id,
-                c"nvim_create_autocmd",
-                autocmd_args,
-                -1,
-                &mut result_mem,
-                &mut err,
-            );
+            rpc_send_call(chan_id, c"nvim_create_autocmd", autocmd_args, -1, &mut err);
             if error_set(&err) {
                 break 'fail_2;
             }
-            arena_mem_free(result_mem);
-            result_mem = ArenaMem::NULL;
         }
 
         let mut servername_items = [cstr_as_obj(Some(c"servername"))];
         let servername_args = Array::from_slice(&mut servername_items[..1]);
-        let result = rpc_send_call(
-            chan_id,
-            c"nvim_get_vvar",
-            servername_args,
-            -1,
-            &mut result_mem,
-            &mut err,
-        );
+        let result = rpc_send_call(chan_id, c"nvim_get_vvar", servername_args, -1, &mut err);
         if error_set(&err) {
             break 'fail_2;
         }
@@ -9588,9 +9559,6 @@ fn ex_restart(eap: &mut Exarg) {
             break 'fail_2;
         }
         let listen_addr = bytes_to_cstring(result.data.string().as_bytes());
-        arena_mem_free(result_mem);
-        result_mem = ArenaMem::NULL;
-
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
             let mut handoff_items = [cstr_as_obj(Some(la)), integer_obj(ui_active() as Integer)];
@@ -9605,19 +9573,10 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let lua_args = Array::from_slice(&mut lua_items[..2]);
-            rpc_send_call(
-                chan_id,
-                c"nvim_exec_lua",
-                lua_args,
-                -1,
-                &mut result_mem,
-                &mut err,
-            );
+            rpc_send_call(chan_id, c"nvim_exec_lua", lua_args, -1, &mut err);
             if error_set(&err) {
                 break 'fail_2;
             }
-            arena_mem_free(result_mem);
-            result_mem = ArenaMem::NULL;
         }
 
         let reuse_addr = listen_arg
@@ -9653,23 +9612,12 @@ fn ex_restart(eap: &mut Exarg) {
         let _ = emsg(err.msg_cstr().unwrap_or(c""));
         api_clear_error(&mut err);
     }
-    arena_mem_free(result_mem);
-
     #[cfg(not(windows))]
     {
-        result_mem = ArenaMem::NULL;
         let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
         let chanclose_args = Array::from_slice(&mut chanclose_items[..1]);
-        rpc_send_call(
-            chan_id,
-            c"nvim_eval",
-            chanclose_args,
-            -1,
-            &mut result_mem,
-            &mut err,
-        );
+        rpc_send_call(chan_id, c"nvim_eval", chanclose_args, -1, &mut err);
         api_clear_error(&mut err);
-        arena_mem_free(result_mem);
     }
 
     if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {

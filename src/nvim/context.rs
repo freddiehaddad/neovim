@@ -5,8 +5,8 @@ use crate::api::extmark::nvim_create_namespace;
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_set_error, arena_dict, array_obj, copy_array, copy_object,
-    error_set, put_c, static_cstr_as_string, string_obj, string_to_array,
+    api_clear_error, api_free_array, api_set_error, array_obj, copy_array, copy_object, error_set,
+    put_c, static_cstr_as_string, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -26,7 +26,6 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::mark::{Fmark, Fmarkv};
-use crate::memory::Arena;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::Visualinfo;
 use crate::option::buf_copy_options;
@@ -522,34 +521,30 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     sbuf
 }
 
-pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
+pub fn ctx_to_dict(ctx: &mut Context) -> Dict {
     let as_str = NvimString::from_bytes;
-    let mut rv = arena_dict(arena, 5);
+    let mut rv = Dict::with_capacity(5);
     put_c(
         &mut rv,
         c"regs",
-        array_obj(string_to_array(as_str(&ctx.regs), false, arena)),
+        array_obj(string_to_array(as_str(&ctx.regs), false)),
     );
     put_c(
         &mut rv,
         c"jumps",
-        array_obj(string_to_array(as_str(&ctx.jumps), false, arena)),
+        array_obj(string_to_array(as_str(&ctx.jumps), false)),
     );
     put_c(
         &mut rv,
         c"bufs",
-        array_obj(string_to_array(as_str(&ctx.bufs), false, arena)),
+        array_obj(string_to_array(as_str(&ctx.bufs), false)),
     );
     put_c(
         &mut rv,
         c"gvars",
-        array_obj(string_to_array(as_str(&ctx.gvars), false, arena)),
+        array_obj(string_to_array(as_str(&ctx.gvars), false)),
     );
-    put_c(
-        &mut rv,
-        c"funcs",
-        array_obj(copy_array(ctx.funcs.clone(), Some(arena))),
-    );
+    put_c(&mut rv, c"funcs", array_obj(copy_array(ctx.funcs.clone())));
     rv
 }
 
@@ -576,7 +571,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
             ctx.gvars = array_to_string(item.value.data.array(), err);
         } else if item.key.opt_bytes() == Some(b"funcs") {
             types |= K_CTX_FUNCS;
-            ctx.funcs = copy_object(item.value.clone(), None).data.array();
+            ctx.funcs = copy_object(item.value.clone()).data.array();
         }
     }
     types

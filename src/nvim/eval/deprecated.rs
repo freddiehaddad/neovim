@@ -15,7 +15,6 @@ use crate::eval::typval::{
 use crate::eval::userfunc::{restore_funccal, save_funccal, set_current_funccal};
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
-use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::{emsg, semsg, semsg_multiline};
 use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
 use crate::runtime::Sctx;
@@ -58,13 +57,11 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
-    let mut arena = Arena::new();
-
     for tv in argvars[2..]
         .iter_mut()
         .take_while(|tv| tv.v_type != VarType::VarUnknown)
     {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
+        *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
     }
 
@@ -73,9 +70,6 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         &tv_get_string(&argvars[1]),
         args,
     );
-
-    arena_mem_free(arena_finish(&mut arena));
-
     if !ok {
         semsg!(gettext(E_INVARG2), c"Channel doesn't exist",);
         return;
@@ -108,13 +102,11 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
-    let mut arena = Arena::new();
-
     for tv in argvars[2..]
         .iter_mut()
         .take_while(|tv| tv.v_type != VarType::VarUnknown)
     {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
+        *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
     }
 
@@ -155,11 +147,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut err = Error::new();
     let chan_id = argvars[0].vval.v_number() as u64;
     let method = tv_get_string(&argvars[1]);
-
-    let mut res_mem = ArenaMem::NULL;
-    let result = rpc_send_call(chan_id, &method, args, -1, &mut res_mem, &mut err);
-    arena_mem_free(arena_finish(&mut arena));
-
+    let result = rpc_send_call(chan_id, &method, args, -1, &mut err);
     if l_provider_call_nesting != 0 {
         g_st().current_sctx.set(save_current_sctx);
         crate::runtime::estack_pop_raw();
@@ -196,8 +184,6 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     } else {
         object_to_vim(result, &mut *rettv, &mut err);
     }
-
-    arena_mem_free(res_mem);
     api_clear_error(&mut err);
 }
 

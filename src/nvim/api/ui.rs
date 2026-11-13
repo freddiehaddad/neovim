@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_obj, cstr_as_string, dict_obj, error_set, integer_obj, string_obj, window_obj,
+    api_clear_error, api_set_error, api_typename, array_obj, boolean_obj, cstr_as_obj,
+    cstr_as_string, dict_obj, error_set, integer_obj, string_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -20,7 +20,6 @@ use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get_bytes};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel_opt, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, ObjHandle, PackerBuffer, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
@@ -1046,9 +1045,8 @@ pub fn remote_ui_hl_attr_define(
     let mut rgb = Dict::from_buf(&mut rgb_items);
     let mut cterm_items = [const { KeyValuePair::new() }; HLATTRS_DICT_SIZE];
     let mut cterm = Dict::from_buf(&mut cterm_items);
-    let mut arena = Arena::new();
-    hlattrs2dict(&mut rgb, None, rgb_attrs, true, false, Some(&mut arena));
-    hlattrs2dict(&mut cterm, None, rgb_attrs, false, false, None);
+    hlattrs2dict(&mut rgb, None, rgb_attrs, true, false);
+    hlattrs2dict(&mut cterm, None, rgb_attrs, false, false);
 
     let url_owned;
     if rgb_attrs.url >= 0 {
@@ -1072,7 +1070,6 @@ pub fn remote_ui_hl_attr_define(
     ];
     let args = Array::from_slice(&mut args_items[..4]);
     push_call(ui, c"hl_attr_define", args);
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
@@ -1081,21 +1078,12 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
         return;
     }
     ui.hl_id = id;
-    let mut arena = Arena::new();
     let mut dict_items = [const { KeyValuePair::new() }; HLATTRS_DICT_SIZE];
     let mut dict = Dict::from_buf(&mut dict_items);
-    hlattrs2dict(
-        &mut dict,
-        None,
-        syn_attr2entry(id),
-        ui.rgb,
-        false,
-        Some(&mut arena),
-    );
+    hlattrs2dict(&mut dict, None, syn_attr2entry(id), ui.rgb, false);
     let mut args_items: [Object; 1] = [dict_obj(dict)];
     let args = Array::from_slice(&mut args_items[..1]);
     push_call(ui, c"highlight_set", args);
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 /// "true" cursor used only for input focus
@@ -1332,22 +1320,15 @@ pub fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
     ui_flush_buf(ui, false);
 }
 
-fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> Array {
-    let mut new_contents = arena_array(arena, contents.size);
+fn translate_contents(ui: &mut RemoteUI, contents: Array) -> Array {
+    let mut new_contents = Array::with_capacity(contents.size);
     for i in 0..contents.size {
         let item = contents[i].data.array();
-        let mut new_item = arena_array(arena, 2);
+        let mut new_item = Array::with_capacity(2);
         let attr = item[0].data.integer() as i32;
         if attr != 0 {
-            let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
-            hlattrs2dict(
-                &mut rgb_attrs,
-                None,
-                syn_attr2entry(attr),
-                ui.rgb,
-                false,
-                Some(arena),
-            );
+            let mut rgb_attrs = Dict::with_capacity(HLATTRS_DICT_SIZE);
+            hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
             new_item[0] = dict_obj(rgb_attrs);
         } else {
             new_item[0] = dict_obj(DICT_INIT);
@@ -1360,10 +1341,10 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
     new_contents
 }
 
-fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Array {
-    let mut new_args = arena_array(arena, args.size);
+fn translate_firstarg(ui: &mut RemoteUI, args: Array) -> Array {
+    let mut new_args = Array::with_capacity(args.size);
     let contents = args[0].data.array();
-    new_args[0] = array_obj(translate_contents(ui, contents, arena));
+    new_args[0] = array_obj(translate_contents(ui, contents));
     for i in 1..args.size {
         new_args[i] = args[i].clone();
     }
@@ -1373,29 +1354,25 @@ fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Arra
 
 // DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
 pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) {
-    let mut arena = Arena::new();
     if !ui.ui_ext[K_UILINEGRID] {
         if name == c"cmdline_show" {
-            let new_args = translate_firstarg(ui, args, &mut arena);
+            let new_args = translate_firstarg(ui, args);
             push_call(ui, name, new_args);
-            arena_mem_free(arena_finish(&mut arena));
             return;
         } else if name == c"cmdline_block_show" {
             let block = args[0].data.array();
-            let mut new_block = arena_array(&mut arena, block.size);
+            let mut new_block = Array::with_capacity(block.size);
             for i in 0..block.size {
-                new_block[i] = array_obj(translate_contents(ui, block[i].data.array(), &mut arena));
+                new_block[i] = array_obj(translate_contents(ui, block[i].data.array()));
             }
             new_block.size = block.size;
             let mut new_args_items: [Object; 1] = [array_obj(new_block)];
             let new_args = Array::from_slice(&mut new_args_items[..1]);
             push_call(ui, name, new_args);
-            arena_mem_free(arena_finish(&mut arena));
             return;
         } else if name == c"cmdline_block_append" {
-            let new_args = translate_firstarg(ui, args, &mut arena);
+            let new_args = translate_firstarg(ui, args);
             push_call(ui, name, new_args);
-            arena_mem_free(arena_finish(&mut arena));
             return;
         }
     }
@@ -1405,7 +1382,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             ui.wildmenu_active = args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
             if ui.wildmenu_active {
                 let items = args[0].data.array();
-                let mut new_items = arena_array(&mut arena, items.size);
+                let mut new_items = Array::with_capacity(items.size);
                 for i in 0..items.size {
                     new_items[i] = items[i].data.array()[0].clone();
                 }
@@ -1424,7 +1401,6 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                         Array::from_slice(&mut new_args_items[..1]),
                     );
                 }
-                arena_mem_free(arena_finish(&mut arena));
                 return;
             }
         } else if name == c"popupmenu_select" {

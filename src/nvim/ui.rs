@@ -4,9 +4,10 @@
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_string, float_obj, integer_obj, string_obj, window_obj,
+    api_clear_error, api_set_error, array_obj, boolean_obj, cstr_as_string, float_obj, integer_obj,
+    string_obj, window_obj,
 };
+use crate::api::private::validate::Dict;
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
@@ -36,7 +37,6 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{K_RET_NIL_BOOL, api_free_luaref, nlua_call_ref_ctx};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
     msg_source, msg_ui_refresh,
@@ -654,11 +654,9 @@ pub fn ui_flush() {
         win_ui_flush(false);
     }
     if ui_state(|st| st.pending_mode_info_update.get()) {
-        let mut arena = Arena::new();
-        let style = mode_style_array(&mut arena);
+        let style = mode_style_array();
         let enabled = !opt_vars().p_guicursor.is_empty();
         ui_call_mode_info_set(enabled, style);
-        arena_mem_free(arena_finish(&mut arena));
         ui_state(|st| st.pending_mode_info_update.set(false));
     }
 
@@ -789,12 +787,12 @@ pub fn ui_has(ext: UIExtension) -> bool {
     ui_state(|st| st.ui_ext.get()[ext as usize])
 }
 
-pub fn ui_array(arena: &mut Arena) -> Array {
-    let mut all_uis = arena_array(arena, ui_state(|st| st.uis.borrow().len()));
+pub fn ui_array() -> Array {
+    let mut all_uis = Array::with_capacity(ui_state(|st| st.uis.borrow().len()));
 
     for ui_rc in ui_rcs() {
         let ui = ui_rc.borrow();
-        let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
+        let mut info = Dict::with_capacity(10 + K_UIEXT_COUNT);
         let mut put_info = |k: &std::ffi::CStr, v: Object| {
             *info.next_slot_mut() = KeyValuePair {
                 key: cstr_as_string(Some(k)),
@@ -921,7 +919,6 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             Some(name),
             args.clone(),
             K_RET_NIL_BOOL,
-            None,
             Some(&mut err),
         );
         g_st().ui_event_ns_id.set(0);

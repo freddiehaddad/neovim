@@ -3539,7 +3539,7 @@ fn shada_read_next_item(
                             );
                         break 'parse_item false;
                     }
-                    it.pat = copy_string(it.pat.clone(), None);
+                    it.pat = copy_string(it.pat.clone());
                 }
                 ShadaEntryType::SDItemChange
                 | ShadaEntryType::SDItemJump
@@ -3657,7 +3657,7 @@ fn shada_read_next_item(
                         break 'parse_item false;
                     }
                     for s in &mut it.rc {
-                        *s = copy_string(s.clone(), None);
+                        *s = copy_string(s.clone());
                     }
                     let reg = entry.data.reg_mut();
                     reg.contents = it.rc;

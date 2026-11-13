@@ -4568,14 +4568,7 @@ fn get_healthcheck_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         let a = Array::new();
         let mut err = Error::new();
         let code = c"return vim.health._complete()";
-        let res = nlua_exec(
-            NvimString::from_cstr(code),
-            None,
-            a,
-            K_RET_OBJECT,
-            None,
-            &mut err,
-        );
+        let res = nlua_exec(NvimString::from_cstr(code), None, a, K_RET_OBJECT, &mut err);
         api_clear_error(&mut err);
         api_free_object(CMDEXP_STATE.with(|s| s.healthcheck_names.get()));
         CMDEXP_STATE.with(|s| s.healthcheck_names.set(res));
@@ -4638,7 +4631,6 @@ fn get_arg1_from_lua<'a>(
             None,
             args,
             K_RET_OBJECT,
-            None,
             &mut err,
         );
         api_clear_error(&mut err);

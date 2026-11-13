@@ -3,7 +3,7 @@
 //! Async I/O and process/socket/stdio/terminal channel management (`src/nvim/channel.c`).
 
 use crate::api::private::converter::object_to_vim;
-use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, put_c};
+use crate::api::private::helpers::{cstr_as_string, put_c};
 use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::{AuEvent, apply_autocmds, has_event};
 use crate::buffer::FileBuf;
@@ -30,7 +30,6 @@ use crate::fileio::{dup2, os_dupfd_cloexec};
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::semsg;
 pub use crate::msgpack_rpc::channel::Channel;
 use crate::msgpack_rpc::channel::{
@@ -994,7 +993,6 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             args,
             crate::lua::executor::K_RET_NIL_BOOL,
             None,
-            None,
         );
         g_st().textlock.set(g_st().textlock.get() - (1));
         return;
@@ -1070,8 +1068,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
 pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let dict = get_v_event(&mut save_v_event);
-    let mut arena = Arena::new();
-    let info = channel_info(chan.id, &mut arena);
+    let info = channel_info(chan.id);
     let mut retval: TypVal = TypVal::new();
     object_to_vim(
         Object {
@@ -1088,7 +1085,6 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut().as_deref());
 
     restore_v_event(&dict, &mut save_v_event);
-    arena_mem_free(arena_finish(&mut arena));
     channel_decref(chan);
 }
 
@@ -1103,12 +1099,12 @@ pub fn channel_job_running(id: u64) -> bool {
     !(ph.status >= 0 || ph.stopped_time != 0)
 }
 
-pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
+pub fn channel_info(id: u64) -> Dict {
     let Some(chan) = find_channel(id) else {
         return Dict::new();
     };
 
-    let mut info = arena_dict(arena, 10);
+    let mut info = Dict::with_capacity(10);
 
     put_c(
         &mut info,
@@ -1124,7 +1120,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             let ph = &mut chan.uv.proc_;
             if ph.r#type == K_PROC_TYPE_PTY {
                 let s = match pty_proc_tty_name(ph) {
-                    Some(name) => crate::api::private::helpers::arena_bytes(arena, name.to_bytes()),
+                    Some(name) => NvimString::from_bytes(name.to_bytes()),
                     None => NvimString::from_bytes(b""),
                 };
                 put_c(
@@ -1141,7 +1137,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             let mut argv = Array::new();
             if !args.is_empty() {
                 let n = args.len();
-                argv = arena_array(arena, n);
+                argv = Array::with_capacity(n);
                 for arg in args {
                     add_c(
                         &mut argv,
@@ -1271,11 +1267,11 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
     info
 }
 
-pub fn channel_all_info(arena: &mut Arena) -> Array {
-    let mut ret = arena_array(arena, crate::event::r#loop::main_loop_ptr().channels.len());
+pub fn channel_all_info() -> Array {
+    let mut ret = Array::with_capacity(crate::event::r#loop::main_loop_ptr().channels.len());
 
     for &id in crate::event::r#loop::main_loop_ptr().channels.keys() {
-        let info = channel_info(id, arena);
+        let info = channel_info(id);
         add_c(
             &mut ret,
             Object {

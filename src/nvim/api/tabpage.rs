@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
+    TryState, api_clear_error, api_set_error, dict_get_value, dict_set_var, error_set,
     find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, Object};
@@ -10,7 +10,6 @@ use crate::api::vim::nvim_get_current_win;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
-use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::window::{
     tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
@@ -36,7 +35,7 @@ pub struct KeyDict_tabpage_config {
 /// @return List of windows in `tabpage`
 // DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
 //                                                  Error *err) FUNC_API_SINCE(1);
-pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Error) -> Array {
+pub fn nvim_tabpage_list_wins(tabpage: Tabpage, err: &mut Error) -> Array {
     let mut rv = Array::new();
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return rv;
@@ -52,7 +51,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     };
     let n = win_iter_mut(&first).count();
 
-    rv = arena_array(arena, n);
+    rv = Array::with_capacity(n);
     for wp in win_iter_mut(first) {
         *rv.next_slot_mut() = window_obj(wp.handle);
         rv.size += 1;
@@ -69,16 +68,11 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
 /// @return Variable value
 // DLLEXPORT Object nvim_tabpage_get_var(Tabpage tabpage, String name, Arena *arena,
 //                                       Error *err) FUNC_API_SINCE(1);
-pub fn nvim_tabpage_get_var(
-    tabpage: Tabpage,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_tabpage_get_var(tabpage: Tabpage, name: NvimString, err: &mut Error) -> Object {
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return nil_obj();
     };
-    dict_get_value(Some(&*tab.tp_vars()), name, Some(arena), err)
+    dict_get_value(Some(&*tab.tp_vars()), name, err)
 }
 
 /// Sets a tab-scoped (t:) variable
@@ -93,7 +87,7 @@ pub fn nvim_tabpage_set_var(tabpage: Tabpage, name: NvimString, value: Object, e
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return;
     };
-    dict_set_var(&tab.tp_vars(), name, value, false, false, None, err);
+    dict_set_var(&tab.tp_vars(), name, value, false, false, err);
 }
 
 /// Removes a tab-scoped (t:) variable
@@ -106,7 +100,7 @@ pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error)
     let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return;
     };
-    dict_set_var(&tab.tp_vars(), name, nil_obj(), true, false, None, err);
+    dict_set_var(&tab.tp_vars(), name, nil_obj(), true, false, err);
 }
 
 /// Gets the current window in a tabpage

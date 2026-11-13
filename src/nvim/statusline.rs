@@ -2,9 +2,8 @@
 
 //! Statusline, winbar, ruler, tabline, and statuscolumn rendering (`src/nvim/statusline.c`).
 
-use crate::api::private::helpers::{
-    add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
-};
+use crate::api::private::helpers::{add_c, api_free_array, cstr_as_string, put_c};
+use crate::api::private::validate::Dict;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::{
     FileBuf, K_UIMESSAGES, append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos,
@@ -34,7 +33,6 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utfc_ptr2len};
 use crate::memline::ml_find_line_or_offset;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -907,8 +905,6 @@ pub fn fillchar_status(group: &mut Hlf, wp: &WinInfoInfo) -> Schar {
 }
 
 fn ui_ext_tabline_update() {
-    let mut arena = Arena::new();
-
     let mut n_tabs: usize = 0;
     let mut tp = g_st().first_tabpage.get().clone();
     while !tp.is_null() {
@@ -916,10 +912,10 @@ fn ui_ext_tabline_update() {
         tp = tp.tp_next.get();
     }
 
-    let mut tabs = arena_array(&mut arena, n_tabs);
+    let mut tabs = Array::with_capacity(n_tabs);
     tp = g_st().first_tabpage.get().clone();
     while !tp.is_null() {
-        let mut tab_info = arena_dict(&mut arena, 2);
+        let mut tab_info = Dict::with_capacity(2);
 
         put_c(
             &mut tab_info,
@@ -944,8 +940,7 @@ fn ui_ext_tabline_update() {
             c"name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(arena_string(
-                    &mut arena,
+                data: ObjectData::String(crate::api::private::helpers::ensure_nul_string(
                     cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
                 )),
             },
@@ -971,12 +966,12 @@ fn ui_ext_tabline_update() {
         buf = buf.b_next.get();
     }
 
-    let mut buffers = arena_array(&mut arena, n_buffers);
+    let mut buffers = Array::with_capacity(n_buffers);
     buf = g_st().firstbuf.get();
     while !buf.is_null() {
         let b = buf.borrow_mut();
         if b.b_p_bl.get() {
-            let mut buffer_info = arena_dict(&mut arena, 2);
+            let mut buffer_info = Dict::with_capacity(2);
 
             put_c(
                 &mut buffer_info,
@@ -995,8 +990,7 @@ fn ui_ext_tabline_update() {
                 c"name",
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(arena_string(
-                        &mut arena,
+                    data: ObjectData::String(crate::api::private::helpers::ensure_nul_string(
                         cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
                     )),
                 },
@@ -1020,7 +1014,6 @@ fn ui_ext_tabline_update() {
         curbuf_mut().b_fnum.get(),
         buffers,
     );
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 /// Draw the tab pages line at the top of the Vim window.

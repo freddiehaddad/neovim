@@ -2,8 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    arena_bytes, arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj,
-    put_c, string_obj,
+    boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
@@ -40,7 +39,6 @@ use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL, replace_termcodes};
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx};
 use crate::mapping::set_context_in_map_cmd;
-use crate::memory::Arena;
 use crate::menu::set_context_in_menu_cmd;
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar,
@@ -1787,39 +1785,31 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 }
 
 #[inline]
-fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
-    string_obj(arena_bytes(arena, bytes))
+fn arena_str_obj(bytes: &[u8]) -> Object {
+    string_obj(NvimString::from_bytes(bytes))
 }
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
-pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
+pub fn commands_array(buf: Option<&FileBuf>) -> Dict {
     with_ucmds(|u| {
         let buf_ucmds = buf.map(|b| b.b_ucmds.borrow());
         let gap: &[Ucmd] = buf_ucmds.as_deref().map_or(u, Vec::as_slice);
 
-        let mut rv = arena_dict(arena, gap.len());
+        let mut rv = Dict::with_capacity(gap.len());
         for cmd in gap {
             let mut arg_ch: u8 = 0;
-            let mut d = arena_dict(arena, 16);
+            let mut d = Dict::with_capacity(16);
 
-            put_c(
-                &mut d,
-                c"name",
-                arena_str_obj(arena, cmd.uc_name.as_bytes()),
-            );
-            put_c(
-                &mut d,
-                c"definition",
-                arena_str_obj(arena, cmd.uc_rep.as_bytes()),
-            );
+            put_c(&mut d, c"name", arena_str_obj(cmd.uc_name.as_bytes()));
+            put_c(&mut d, c"definition", arena_str_obj(cmd.uc_rep.as_bytes()));
             put_c(
                 &mut d,
                 c"desc",
                 cmd.uc_desc
                     .as_ref()
                     .map_or(string_obj(NvimString::default()), |desc| {
-                        arena_str_obj(arena, desc.as_bytes())
+                        arena_str_obj(desc.as_bytes())
                     }),
             );
             put_c(
@@ -1870,7 +1860,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             } else {
                 std::slice::from_ref(&arg_ch)
             };
-            put_c(&mut d, c"nargs", arena_str_obj(arena, arg_slice));
+            put_c(&mut d, c"nargs", arena_str_obj(arg_slice));
 
             if cmd.uc_compl_luaref != LUA_NOREF {
                 put_c(
@@ -1892,7 +1882,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                 &mut d,
                 c"complete_arg",
                 match &cmd.uc_compl_arg {
-                    Some(arg) => arena_str_obj(arena, arg.as_bytes()),
+                    Some(arg) => arena_str_obj(arg.as_bytes()),
                     None => nil_obj(),
                 },
             );
@@ -1901,7 +1891,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             if (cmd.uc_argt & EX_COUNT) != 0 {
                 if cmd.uc_def >= 0 {
                     let s = format!("{}", cmd.uc_def);
-                    obj = arena_str_obj(arena, s.as_bytes());
+                    obj = arena_str_obj(s.as_bytes());
                 } else {
                     obj = cstr_as_obj(Some(c"0"));
                 }
@@ -1914,7 +1904,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                     obj = cstr_as_obj(Some(c"%"));
                 } else if cmd.uc_def >= 0 {
                     let s = format!("{}", cmd.uc_def);
-                    obj = arena_str_obj(arena, s.as_bytes());
+                    obj = arena_str_obj(s.as_bytes());
                 } else {
                     obj = cstr_as_obj(Some(c"."));
                 }
@@ -1935,7 +1925,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             }
             put_c(&mut d, c"addr", obj);
 
-            let cmd_key = arena_bytes(arena, cmd.uc_name.as_bytes());
+            let cmd_key = NvimString::from_bytes(cmd.uc_name.as_bytes());
             put_c(&mut rv, cmd_key, dict_obj(d));
         }
         let _ = size_of::<KeyValuePair>();

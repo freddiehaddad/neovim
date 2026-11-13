@@ -3,8 +3,9 @@
 //! Expression evaluation (`src/nvim/eval.c`).
 
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string, tv_dict_is_watched,
+    HLF_E, api_clear_error, cstr_as_string, cstr_to_string, tv_dict_is_watched,
 };
+use crate::api::private::validate::Array;
 use crate::charset::{
     NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
     ascii_iswhite, ascii_iswhite_or_nul, hex2nr, skipdigits_len,
@@ -130,7 +131,7 @@ use crate::mbyte::{
     Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len,
 };
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, arena_finish, arena_mem_free, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::OptIndex;
@@ -999,7 +1000,7 @@ pub fn eval_foldtext(wp: &WinInfoInfo) -> Object {
         };
     } else {
         if tv.v_type == VarType::VarList {
-            retval = vim_to_object(&tv, None, false);
+            retval = vim_to_object(&tv);
         } else {
             retval = Object {
                 obj_type: ObjectType::ObjectTypeString,
@@ -4922,23 +4923,15 @@ pub fn callback_call(
             name = partial_name(partial.opt());
         }
         K_CALLBACK_LUA => {
-            let mut arena = Arena::new();
-            let mut luaargs = arena_array(&mut arena, argcount_in as usize);
+            let mut luaargs = Array::with_capacity(argcount_in as usize);
             for arg_tv in argvars_in.iter_mut().take(argcount_in as usize) {
-                *luaargs.next_slot_mut() = vim_to_object(arg_tv, Some(&mut arena), false);
+                *luaargs.next_slot_mut() = vim_to_object(arg_tv);
                 luaargs.size += 1;
             }
             let mut err = Error::new();
             let luaref = callback.data.as_luaref();
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
-            let result = nlua_call_ref(
-                luaref,
-                None,
-                luaargs,
-                K_RET_OBJECT,
-                Some(&mut arena),
-                Some(&mut err),
-            );
+            let result = nlua_call_ref(luaref, None, luaargs, K_RET_OBJECT, Some(&mut err));
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
             let ok = err.err_type == ErrorType::ErrorTypeNone;
             if !ok {
@@ -4951,7 +4944,6 @@ pub fn callback_call(
                     &mut crate::api::private::validate::Error::new(),
                 );
             }
-            arena_mem_free(arena_finish(&mut arena));
             return ok;
         }
         K_CALLBACK_EXPR => {

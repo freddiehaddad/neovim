@@ -2,13 +2,12 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, arena_array, arena_bytes, array_obj, boolean_obj,
-    cstr_as_obj, dict_obj, static_cstr_as_obj, static_cstr_as_string, string_obj,
+    api_clear_error, api_free_object, array_obj, boolean_obj, cstr_as_obj, dict_obj,
+    static_cstr_as_obj, static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectType,
 };
-use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{
     CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_entry,
@@ -32,7 +31,6 @@ use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, logmsg, min_log_level};
 use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_slice2char};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option::OptInt;
 #[cfg(windows)]
@@ -614,9 +612,9 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
     }
 }
 
-fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
-    let str_val = arena_bytes(err_arena, msg.as_bytes());
-    let mut err = arena_array(err_arena, 2);
+fn push_termdef_err(chunks: &mut Vec<Object>, msg: &str) {
+    let str_val = NvimString::from_bytes(msg.as_bytes());
+    let mut err = Array::with_capacity(2);
     *err.next_slot_mut() = string_obj(str_val);
     err.size += 1;
     *err.next_slot_mut() = static_cstr_as_obj(c"ErrorMsg");
@@ -636,7 +634,6 @@ fn apply_termdefs(tui: &mut TUIData) {
         None,
         empty_args,
         K_RET_OBJECT,
-        None,
         &mut lua_err,
     );
     if rv.obj_type != ObjectType::ObjectTypeDict {
@@ -644,8 +641,6 @@ fn apply_termdefs(tui: &mut TUIData) {
         api_clear_error(&mut lua_err);
         return;
     }
-
-    let mut err_arena = ARENA_EMPTY;
     let mut chunks: Vec<Object> = Vec::new();
     let mut err_count = 0usize;
 
@@ -660,13 +655,13 @@ fn apply_termdefs(tui: &mut TUIData) {
 
         let Some(target) = lookup_termdef_field(key_bytes) else {
             let msg = format!("skipping invalid field in $NVIM_TERMDEFS: '{key_str}'\n");
-            push_termdef_err(&mut err_arena, &mut chunks, &msg);
+            push_termdef_err(&mut chunks, &msg);
             err_count += 1;
             continue;
         };
         if kv.value.obj_type != target.expected_type() {
             let msg = format!("skipping invalid field in $NVIM_TERMDEFS: '{key_str}'\n");
-            push_termdef_err(&mut err_arena, &mut chunks, &msg);
+            push_termdef_err(&mut chunks, &msg);
             err_count += 1;
             continue;
         }
@@ -706,7 +701,7 @@ fn apply_termdefs(tui: &mut TUIData) {
                     let msg = format!(
                         "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}: array should have at most two entries for unshifted and shifted key variants.\n"
                     );
-                    push_termdef_err(&mut err_arena, &mut chunks, &msg);
+                    push_termdef_err(&mut chunks, &msg);
                     err_count += 1;
                     continue;
                 }
@@ -717,7 +712,7 @@ fn apply_termdefs(tui: &mut TUIData) {
                         let msg = format!(
                             "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}[{key_map_idx}]: expected type 'string'\n"
                         );
-                        push_termdef_err(&mut err_arena, &mut chunks, &msg);
+                        push_termdef_err(&mut chunks, &msg);
                         err_count += 1;
                         continue;
                     }
@@ -743,8 +738,6 @@ fn apply_termdefs(tui: &mut TUIData) {
         let args = Array::from_slice(&mut args_items[..3]);
         rpc_send_event(g_st().ui_client_channel_id.get(), c"nvim_echo", args);
     }
-
-    arena_mem_free(arena_finish(&mut err_arena));
     api_free_object(rv);
     api_clear_error(&mut lua_err);
 }

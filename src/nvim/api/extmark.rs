@@ -2,9 +2,9 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_string, dict_obj, error_set, find_window_by_handle, has_key, integer_obj,
-    object_to_hl_id, put_c, string_obj, string_to_cstr,
+    MAXLNUM, add_c, api_set_error, api_typename, array_obj, boolean_obj, cstr_as_string, dict_obj,
+    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id, put_c, string_obj,
+    string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -48,7 +48,6 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_get_buf_len;
-use crate::memory::Arena;
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
@@ -230,8 +229,8 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
 /// @return dict that maps from names to namespace ids.
 // DLLEXPORT DictOf(Integer) nvim_get_namespaces(Arena *arena)
 //   FUNC_API_SINCE(5);
-pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
-    let mut retval = arena_dict(arena, g_st().namespace_ids.borrow().len());
+pub fn nvim_get_namespaces() -> Dict {
+    let mut retval = Dict::with_capacity(g_st().namespace_ids.borrow().len());
     for (name, id) in &*g_st().namespace_ids.borrow() {
         *retval.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(name)),
@@ -264,8 +263,8 @@ pub fn ns_initialized(ns: u32) -> bool {
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
-pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena) -> Array {
-    let mut chunks = arena_array(arena, vt.len());
+pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool) -> Array {
+    let mut chunks = Array::with_capacity(vt.len());
     let mut i = 0usize;
     while i < vt.len() {
         let mut j = i;
@@ -276,28 +275,28 @@ pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena
             j += 1;
         }
 
-        let mut hl_array = arena_array(arena, if i < j { j - i + 1 } else { 0 });
+        let mut hl_array = Array::with_capacity(if i < j { j - i + 1 } else { 0 });
         while i < j {
             let hl_id = vt[i].hl_id;
             if hl_id >= 0 {
-                add_c(&mut hl_array, hl_group_name(hl_id, hl_name, arena));
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
             }
             i += 1;
         }
 
         let hl_id = vt[i].hl_id;
-        let mut chunk = arena_array(arena, 2);
+        let mut chunk = Array::with_capacity(2);
         add_c(
             &mut chunk,
             string_obj(cstr_as_string(vt[i].text.as_deref())),
         );
         if hl_array.size > 0 {
             if hl_id >= 0 {
-                add_c(&mut hl_array, hl_group_name(hl_id, hl_name, arena));
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
             }
             add_c(&mut chunk, array_obj(hl_array));
         } else if hl_id >= 0 {
-            add_c(&mut chunk, hl_group_name(hl_id, hl_name, arena));
+            add_c(&mut chunk, hl_group_name(hl_id, hl_name));
         }
         add_c(&mut chunks, array_obj(chunk));
         i += 1;
@@ -305,15 +304,9 @@ pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena
     chunks
 }
 
-fn extmark_to_array(
-    extmark: MTPair,
-    id: bool,
-    add_dict: bool,
-    hl_name: bool,
-    arena: &mut Arena,
-) -> Array {
+fn extmark_to_array(extmark: MTPair, id: bool, add_dict: bool, hl_name: bool) -> Array {
     let start = extmark.start;
-    let mut rv = arena_array(arena, 4);
+    let mut rv = Array::with_capacity(4);
     if id {
         add_c(&mut rv, integer_obj(i64::from(start.id)));
     }
@@ -321,7 +314,7 @@ fn extmark_to_array(
     add_c(&mut rv, integer_obj(i64::from(start.pos.col)));
 
     if add_dict {
-        let mut dict = arena_dict(arena, SET_EXTMARK_TABLE_SIZE);
+        let mut dict = Dict::with_capacity(SET_EXTMARK_TABLE_SIZE);
         put_c(&mut dict, c"ns_id", integer_obj(i64::from(start.ns)));
         put_c(&mut dict, c"right_gravity", boolean_obj(mt_right(start)));
 
@@ -354,7 +347,7 @@ fn extmark_to_array(
             put_c(&mut dict, c"invalid", boolean_obj(true));
         }
 
-        decor_to_dict_legacy(&mut dict, mt_decor(start), hl_name, arena);
+        decor_to_dict_legacy(&mut dict, mt_decor(start), hl_name);
         add_c(&mut rv, dict_obj(dict));
     }
 
@@ -386,7 +379,6 @@ pub fn nvim_buf_get_extmark_by_id(
     ns_id: Integer,
     id: Integer,
     opts: &mut KeyDict_get_extmark,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     let rv = Array::new();
@@ -410,7 +402,7 @@ pub fn nvim_buf_get_extmark_by_id(
     if extmark.start.pos.row < 0 {
         return rv;
     }
-    extmark_to_array(extmark, false, details, hl_name, arena)
+    extmark_to_array(extmark, false, details, hl_name)
 }
 
 /// Gets |extmarks| in "traversal order" from a |charwise| region defined by buffer positions
@@ -481,7 +473,6 @@ pub fn nvim_buf_get_extmarks(
     start: Object,
     end: Object,
     opts: &mut KeyDict_get_extmarks,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
@@ -565,7 +556,7 @@ pub fn nvim_buf_get_extmarks(
         opts.overlap,
     );
 
-    rv = arena_array(arena, marks.len().min(rv_limit));
+    rv = Array::with_capacity(marks.len().min(rv_limit));
     if reverse {
         for &mark in marks.iter().rev() {
             if rv.size >= rv_limit {
@@ -573,14 +564,14 @@ pub fn nvim_buf_get_extmarks(
             }
             add_c(
                 &mut rv,
-                array_obj(extmark_to_array(mark, true, details, hl_name, arena)),
+                array_obj(extmark_to_array(mark, true, details, hl_name)),
             );
         }
     } else {
         for &mark in &marks {
             add_c(
                 &mut rv,
-                array_obj(extmark_to_array(mark, true, details, hl_name, arena)),
+                array_obj(extmark_to_array(mark, true, details, hl_name)),
             );
         }
     }
@@ -1772,7 +1763,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDict_ns_opts {
+pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDict_ns_opts {
     let mut opts = KeyDict_ns_opts {
         is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
         wins: Array::new(),
@@ -1800,7 +1791,7 @@ pub fn nvim_ns_get(ns_id: Integer, arena: &mut Arena, err: &mut Error) -> KeyDic
         }
     }
 
-    let mut windows = arena_array(arena, count);
+    let mut windows = Array::with_capacity(count);
 
     for tp in for_all_tabpages_mut() {
         for wp in for_all_windows_in_tab_mut(&tp) {

@@ -4,9 +4,8 @@
 
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,
-    cstr_as_string, cstr_to_obj, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c,
-    string_obj,
+    api_free_string, api_set_error, boolean_obj, copy_object, cstr_as_obj, cstr_as_string,
+    cstr_to_obj, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
     Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -94,7 +93,6 @@ use crate::mbyte::enc_locale;
 use crate::mcursor::{K_OPT_FOLLOW, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::Arena;
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -959,7 +957,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
         def_val = cstr_as_obj(Some(s));
     }
     if optval_is_owned(opt_idx) {
-        copy_object(def_val, None)
+        copy_object(def_val)
     } else {
         def_val
     }
@@ -969,7 +967,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
 fn alloc_options_default() {
     for opt_idx in 0..K_OPT_COUNT {
         let def_val = get_option(opt_idx).def_val();
-        let copied = copy_object(def_val, None);
+        let copied = copy_object(def_val);
         get_option(opt_idx).set_def_val(copied);
     }
 }
@@ -1122,7 +1120,7 @@ fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>)
     }
     let optval = cstr_as_obj(Some(val));
     set_option_direct(idx, optval.clone(), 0, SID_NONE);
-    change_option_default(idx, copy_object(optval, None));
+    change_option_default(idx, copy_object(optval));
 }
 
 /// Initialize the options, part three: After reading the .vimrc
@@ -5050,7 +5048,7 @@ pub fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
     if optval_is_owned(opt_idx) {
         value
     } else {
-        copy_object(value, None)
+        copy_object(value)
     }
 }
 
@@ -5059,7 +5057,7 @@ fn optval_snapshot(value: Object) -> Object {
         let s = nlua_funcref_str(value.data.luaref(), true);
         return cstr_to_obj(Some(s.as_c_str()));
     }
-    copy_object(value, None)
+    copy_object(value)
 }
 
 fn optval_snapshot_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
@@ -5823,7 +5821,7 @@ fn set_option<'a>(
         let varp_global = get_varp_scope(opt, OPT_GLOBAL);
         saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
         saved_old_local_value = if is_opt_local_unset {
-            copy_object(saved_old_global_value.clone(), None)
+            copy_object(saved_old_global_value.clone())
         } else {
             optval_snapshot_varp(opt_idx, varp_local)
         };
@@ -5901,7 +5899,7 @@ pub fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: i32, set_s
 
     let errmsg = set_option(
         opt_idx,
-        copy_object(value, None),
+        copy_object(value),
         opt_flags,
         set_sid,
         true,
@@ -5957,7 +5955,7 @@ pub fn set_option_value(
 
     set_option(
         opt_idx,
-        copy_object(value, None),
+        copy_object(value),
         opt_flags,
         0,
         false,
@@ -8499,7 +8497,6 @@ pub fn get_option_info(
     opt_flags: i32,
     buf: &FileBuf,
     win: &WinInfoInfo,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     let opt_idx = find_option_len(name.as_bytes(), name.size);
@@ -8513,30 +8510,24 @@ pub fn get_option_info(
         return Dict::new();
     }
 
-    option_info_dict(get_option(opt_idx), opt_flags, buf, win, arena)
+    option_info_dict(get_option(opt_idx), opt_flags, buf, win)
 }
 
 /// Metadata Dict for every option, keyed by full name.
-pub fn get_all_options_info(arena: &mut Arena) -> Dict {
-    let mut retval = arena_dict(arena, K_OPT_COUNT as usize);
+pub fn get_all_options_info() -> Dict {
+    let mut retval = Dict::with_capacity(K_OPT_COUNT as usize);
     for opt_idx in 0..K_OPT_COUNT {
         let opt = get_option(opt_idx);
         let fullname = opt.fullname;
-        let opt_dict = option_info_dict(opt, OPT_GLOBAL, &curbuf_mut(), &curwin_mut(), arena);
+        let opt_dict = option_info_dict(opt, OPT_GLOBAL, &curbuf_mut(), &curwin_mut());
         put_c(&mut retval, fullname, dict_obj(opt_dict));
     }
     retval
 }
 
-fn option_info_dict(
-    opt: &Vimoption,
-    opt_flags: i32,
-    buf: &FileBuf,
-    win: &WinInfoInfo,
-    arena: &mut Arena,
-) -> Dict {
+fn option_info_dict(opt: &Vimoption, opt_flags: i32, buf: &FileBuf, win: &WinInfoInfo) -> Dict {
     let opt_idx = get_opt_idx(opt);
-    let mut dict = arena_dict(arena, 13);
+    let mut dict = Dict::with_capacity(13);
 
     put_c(&mut dict, c"name", cstr_as_obj(Some(opt.fullname)));
     put_c(&mut dict, c"shortname", cstr_as_obj(opt.shortname));

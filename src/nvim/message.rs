@@ -607,7 +607,7 @@ fn format_progress_message(
             hl_id = syn_check_group(b"WarningMsg");
         }
         updated_msg.push(HlMessageChunk {
-            text: copy_string(msg_data.as_deref_mut().unwrap().title.clone(), None),
+            text: copy_string(msg_data.as_deref_mut().unwrap().title.clone()),
             hl_id,
         });
         updated_msg.push(HlMessageChunk {
@@ -629,7 +629,7 @@ fn format_progress_message(
     if !updated_msg.is_empty() {
         for chunk in hl_msg {
             updated_msg.push(HlMessageChunk {
-                text: copy_string(chunk.text.clone(), None),
+                text: copy_string(chunk.text.clone()),
                 hl_id: chunk.hl_id,
             });
         }
@@ -1731,7 +1731,7 @@ pub fn ex_messages(eap: &mut Exarg) {
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(copy_string(chunk.text.clone(), None)),
+                        data: ObjectData::String(copy_string(chunk.text.clone())),
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::ObjectTypeInteger,

@@ -4,8 +4,7 @@
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::helpers::{
-    api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array_opt,
-    arena_dict_opt, cbuf_to_arena_str_opt, error_set, nil_obj,
+    api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, error_set, nil_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
@@ -29,7 +28,6 @@ use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 pub use crate::lua::ffi::*;
-use crate::memory::Arena;
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 
@@ -1164,28 +1162,20 @@ pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
 }
 
 /// Convert Lua value to `String` (`nlua_pop_String`).
-pub fn nlua_pop_string(lstate: *mut lua_State, arena: &mut Arena, err: &mut Error) -> NvimString {
-    nlua_pop_string_opt(lstate, Some(arena), err)
-}
-
-pub fn nlua_pop_string_opt(
-    lstate: *mut lua_State,
-    arena: Option<&mut Arena>,
-    err: &mut Error,
-) -> NvimString {
+pub fn nlua_pop_string(lstate: *mut lua_State, err: &mut Error) -> NvimString {
     if lua_type_safe(lstate, -1) != LUA_TSTRING {
         lua_pop(lstate, 1);
         api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua string",);
         return NvimString::new();
     }
     let slice = lua_tolstring_bytes(lstate, -1);
-    let ret = crate::api::private::helpers::arena_bytes_opt(arena, slice);
+    let ret = NvimString::from_bytes(slice);
     lua_pop(lstate, 1);
     ret
 }
 
 /// Convert Lua value to `Integer` (`nlua_pop_Integer`).
-pub fn nlua_pop_integer(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Error) -> Integer {
+pub fn nlua_pop_integer(lstate: *mut lua_State, err: &mut Error) -> Integer {
     if lua_type_safe(lstate, -1) != LUA_TNUMBER {
         lua_pop(lstate, 1);
         api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua number",);
@@ -1208,7 +1198,7 @@ pub fn nlua_pop_integer(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Er
 }
 
 /// Convert Lua value to `Boolean` (`nlua_pop_Boolean`).
-pub fn nlua_pop_boolean(lstate: *mut lua_State, _arena: &mut Arena, _err: &mut Error) -> Boolean {
+pub fn nlua_pop_boolean(lstate: *mut lua_State, _err: &mut Error) -> Boolean {
     let ret = lua_toboolean_safe(lstate, -1);
     lua_pop(lstate, 1);
     ret
@@ -1283,7 +1273,7 @@ fn nlua_check_type(
 }
 
 /// Convert Lua value or typed table to `Float` (`nlua_pop_Float`).
-pub fn nlua_pop_float(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Error) -> Float {
+pub fn nlua_pop_float(lstate: *mut lua_State, err: &mut Error) -> Float {
     if lua_type_safe(lstate, -1) == LUA_TNUMBER {
         let ret = lua_tonumber_safe(lstate, -1);
         lua_pop(lstate, 1);
@@ -1300,22 +1290,19 @@ pub fn nlua_pop_float(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Erro
 fn nlua_pop_array_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
-    mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Array {
-    let mut ret = arena_array_opt(arena.as_deref_mut(), table_props.maxidx);
+    let mut ret = Array::with_capacity(table_props.maxidx);
     if table_props.maxidx == 0 {
         lua_pop(lstate, 1);
         return ret;
     }
     for i in 1..=table_props.maxidx {
         lua_rawgeti_safe(lstate, -1, i as i32);
-        let val = nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), err);
+        let val = nlua_pop_object(lstate, false, err);
         if error_set(err) {
             lua_pop(lstate, 1);
-            if arena.is_none() {
-                api_free_array(ret);
-            }
+            api_free_array(ret);
             return Array::new();
         }
         assert!(ret.size < ret.capacity);
@@ -1327,30 +1314,21 @@ fn nlua_pop_array_unchecked(
 }
 
 /// Convert Lua table to `Array` (`nlua_pop_Array`).
-pub fn nlua_pop_array(lstate: *mut lua_State, arena: &mut Arena, err: &mut Error) -> Array {
-    nlua_pop_array_opt(lstate, Some(arena), err)
-}
-
-pub fn nlua_pop_array_opt(
-    lstate: *mut lua_State,
-    arena: Option<&mut Arena>,
-    err: &mut Error,
-) -> Array {
+pub fn nlua_pop_array(lstate: *mut lua_State, err: &mut Error) -> Array {
     let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeArray);
     if table_props.table_type != ObjectType::ObjectTypeArray {
         return Array::new();
     }
-    nlua_pop_array_unchecked(lstate, table_props, arena, err)
+    nlua_pop_array_unchecked(lstate, table_props, err)
 }
 
 fn nlua_pop_dict_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
     ref_: bool,
-    mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Dict {
-    let mut ret = arena_dict_opt(arena.as_deref_mut(), table_props.string_keys_num);
+    let mut ret = Dict::with_capacity(table_props.string_keys_num);
     if table_props.string_keys_num == 0 {
         lua_pop(lstate, 1);
         return ret;
@@ -1361,9 +1339,9 @@ fn nlua_pop_dict_unchecked(
     while lua_next_safe(lstate, -2) != 0 && i < table_props.string_keys_num {
         if lua_type_safe(lstate, -2) == LUA_TSTRING {
             lua_pushvalue_safe(lstate, -2);
-            let key = nlua_pop_string_opt(lstate, arena.as_deref_mut(), err);
+            let key = nlua_pop_string(lstate, err);
             if !error_set(err) {
-                let value = nlua_pop_object_opt(lstate, ref_, arena.as_deref_mut(), err);
+                let value = nlua_pop_object(lstate, ref_, err);
                 assert!(ret.size < ret.capacity);
                 *ret.next_slot_mut() = KeyValuePair { key, value };
                 ret.size += 1;
@@ -1372,9 +1350,7 @@ fn nlua_pop_dict_unchecked(
             }
 
             if error_set(err) {
-                if arena.is_none() {
-                    api_free_dict(ret);
-                }
+                api_free_dict(ret);
                 lua_pop(lstate, 2);
                 return Dict::new();
             }
@@ -1388,37 +1364,13 @@ fn nlua_pop_dict_unchecked(
 }
 
 /// Convert Lua table to `Dict` (`nlua_pop_Dict`).
-pub fn nlua_pop_dict(
-    lstate: *mut lua_State,
-    ref_: bool,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
-    nlua_pop_dict_opt(lstate, ref_, Some(arena), err)
-}
-
-pub fn nlua_pop_dict_opt(
-    lstate: *mut lua_State,
-    ref_: bool,
-    arena: Option<&mut Arena>,
-    err: &mut Error,
-) -> Dict {
+pub fn nlua_pop_dict(lstate: *mut lua_State, ref_: bool, err: &mut Error) -> Dict {
     let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeDict);
     if table_props.table_type != ObjectType::ObjectTypeDict {
         lua_pop(lstate, 1);
         return Dict::new();
     }
-    nlua_pop_dict_unchecked(lstate, table_props, ref_, arena, err)
-}
-
-/// Convert Lua value to `Object` (`nlua_pop_Object`).
-pub fn nlua_pop_object(
-    lstate: *mut lua_State,
-    ref_: bool,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
-    nlua_pop_object_opt(lstate, ref_, Some(arena), err)
+    nlua_pop_dict_unchecked(lstate, table_props, ref_, err)
 }
 
 #[inline]
@@ -1443,12 +1395,8 @@ fn attach_popped_object(stack: &mut [ObjPopStackItem], ret: &mut Object, val: Ob
     }
 }
 
-pub fn nlua_pop_object_opt(
-    lstate: *mut lua_State,
-    ref_: bool,
-    mut arena: Option<&mut Arena>,
-    err: &mut Error,
-) -> Object {
+/// Convert Lua value to `Object` (`nlua_pop_Object`).
+pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool, err: &mut Error) -> Object {
     let mut ret = nil_obj();
     let initial_size = nlua_gettop(lstate);
     let mut stack: Vec<ObjPopStackItem> = Vec::new();
@@ -1486,7 +1434,7 @@ pub fn nlua_pop_object_opt(
                 }
                 if next_key_found {
                     let s_bytes = lua_tolstring_bytes(lstate, -2);
-                    cur.next_key = Some(cbuf_to_arena_str_opt(arena.as_deref_mut(), s_bytes));
+                    cur.next_key = Some(NvimString::from_bytes(s_bytes));
                 } else {
                     lua_pop(lstate, 1);
                     let finished = stack.pop().unwrap().obj;
@@ -1523,7 +1471,7 @@ pub fn nlua_pop_object_opt(
                 let s_bytes = lua_tolstring_bytes(lstate, -1);
                 cur_obj = Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cbuf_to_arena_str_opt(arena.as_deref_mut(), s_bytes)),
+                    data: ObjectData::String(NvimString::from_bytes(s_bytes)),
                 };
             }
             LUA_TNUMBER => {
@@ -1551,8 +1499,7 @@ pub fn nlua_pop_object_opt(
                             stack.push(ObjPopStackItem {
                                 obj: Object {
                                     obj_type: ObjectType::ObjectTypeArray,
-                                    data: ObjectData::Array(arena_array_opt(
-                                        arena.as_deref_mut(),
+                                    data: ObjectData::Array(Array::with_capacity(
                                         table_props.maxidx,
                                     )),
                                 },
@@ -1571,8 +1518,7 @@ pub fn nlua_pop_object_opt(
                             stack.push(ObjPopStackItem {
                                 obj: Object {
                                     obj_type: ObjectType::ObjectTypeDict,
-                                    data: ObjectData::Dict(arena_dict_opt(
-                                        arena.as_deref_mut(),
+                                    data: ObjectData::Dict(Dict::with_capacity(
                                         table_props.string_keys_num,
                                     )),
                                 },
@@ -1646,12 +1592,10 @@ pub fn nlua_pop_object_opt(
     }
 
     if error_set(err) {
-        if arena.is_none() {
-            for item in stack {
-                api_free_object(item.obj);
-            }
-            api_free_object(ret);
+        for item in stack {
+            api_free_object(item.obj);
         }
+        api_free_object(ret);
         ret = nil_obj();
         lua_pop(lstate, nlua_gettop(lstate) - initial_size + 1);
     }
@@ -1660,14 +1604,14 @@ pub fn nlua_pop_object_opt(
 }
 
 /// Convert Lua value to `LuaRef` (`nlua_pop_LuaRef`).
-pub fn nlua_pop_lua_ref(lstate: *mut lua_State, _arena: &mut Arena, _err: &mut Error) -> LuaRef {
+pub fn nlua_pop_lua_ref(lstate: *mut lua_State, _err: &mut Error) -> LuaRef {
     let rv = nlua_ref_global(lstate, -1);
     lua_pop(lstate, 1);
     rv
 }
 
 /// Convert Lua value to `ObjHandle` (`nlua_pop_handle`).
-pub fn nlua_pop_handle(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Error) -> ObjHandle {
+pub fn nlua_pop_handle(lstate: *mut lua_State, err: &mut Error) -> ObjHandle {
     let ret = if lua_type_safe(lstate, -1) != LUA_TNUMBER {
         api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua number",);
         -1
@@ -1721,18 +1665,6 @@ pub fn nlua_pop_keydict<T: KeyDict>(
     retval: &mut T,
     hashy: FieldHashfn<T>,
     err_opt: &mut Option<&'static std::ffi::CStr>,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
-    nlua_pop_keydict_opt(lstate, retval, hashy, err_opt, Some(arena), err);
-}
-
-pub fn nlua_pop_keydict_opt<T: KeyDict>(
-    lstate: *mut lua_State,
-    retval: &mut T,
-    hashy: FieldHashfn<T>,
-    err_opt: &mut Option<&'static std::ffi::CStr>,
-    mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) {
     if lua_type_safe(lstate, -1) != LUA_TTABLE {
@@ -1741,7 +1673,6 @@ pub fn nlua_pop_keydict_opt<T: KeyDict>(
         return;
     }
 
-    let mut dummy_arena = Arena::default();
     let hashy_fn = hashy.unwrap();
     lua_pushnil_safe(lstate);
     while lua_next_safe(lstate, -2) != 0 {
@@ -1761,8 +1692,7 @@ pub fn nlua_pop_keydict_opt<T: KeyDict>(
         field.mark_set(retval);
 
         if field.key_type == (ObjectType::ObjectTypeNil as i32) {
-            *field.field_mut::<Object>(retval) =
-                nlua_pop_object_opt(lstate, true, arena.as_deref_mut(), err);
+            *field.field_mut::<Object>(retval) = nlua_pop_object(lstate, true, err);
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
             if field.is_hlgroup && lua_type_safe(lstate, -1) == LUA_TSTRING {
                 let name_bytes = lua_tolstring_bytes(lstate, -1);
@@ -1773,29 +1703,25 @@ pub fn nlua_pop_keydict_opt<T: KeyDict>(
                     0
                 };
             } else {
-                *field.field_mut::<Integer>(retval) =
-                    nlua_pop_integer(lstate, &mut dummy_arena, err);
+                *field.field_mut::<Integer>(retval) = nlua_pop_integer(lstate, err);
             }
         } else if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
             *field.field_mut::<Boolean>(retval) = nlua_pop_boolean_strict(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
-            *field.field_mut::<NvimString>(retval) =
-                nlua_pop_string_opt(lstate, arena.as_deref_mut(), err);
+            *field.field_mut::<NvimString>(retval) = nlua_pop_string(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeFloat as i32) {
-            *field.field_mut::<Float>(retval) = nlua_pop_float(lstate, &mut dummy_arena, err);
+            *field.field_mut::<Float>(retval) = nlua_pop_float(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeBuffer as i32)
             || field.key_type == (ObjectType::ObjectTypeWindow as i32)
             || field.key_type == (ObjectType::ObjectTypeTabpage as i32)
         {
-            *field.field_mut::<ObjHandle>(retval) = nlua_pop_handle(lstate, &mut dummy_arena, err);
+            *field.field_mut::<ObjHandle>(retval) = nlua_pop_handle(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeArray as i32) {
-            *field.field_mut::<Array>(retval) =
-                nlua_pop_array_opt(lstate, arena.as_deref_mut(), err);
+            *field.field_mut::<Array>(retval) = nlua_pop_array(lstate, err);
         } else if field.key_type == (ObjectType::ObjectTypeDict as i32) {
-            *field.field_mut::<Dict>(retval) =
-                nlua_pop_dict_opt(lstate, false, arena.as_deref_mut(), err);
+            *field.field_mut::<Dict>(retval) = nlua_pop_dict(lstate, false, err);
         } else if field.key_type == (ObjectType::ObjectTypeLuaRef as i32) {
-            *field.field_mut::<LuaRef>(retval) = nlua_pop_lua_ref(lstate, &mut dummy_arena, err);
+            *field.field_mut::<LuaRef>(retval) = nlua_pop_lua_ref(lstate, err);
         } else {
             std::process::abort();
         }

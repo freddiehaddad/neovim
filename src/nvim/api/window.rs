@@ -2,9 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
-    dict_set_var, error_set, find_window_by_handle, has_key, integer_obj, normalize_index, put_c,
-    try_wrap, try_wrap_err,
+    OBJECT_NIL, add_c, api_clear_error, api_set_error, dict_get_value, dict_set_var, error_set,
+    find_window_by_handle, has_key, integer_obj, normalize_index, put_c, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
@@ -21,7 +20,6 @@ use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
-use crate::memory::Arena;
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};
 use crate::msgpack_rpc::packer::Integer;
@@ -107,10 +105,10 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
 /// @return (row, col) tuple
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_cursor(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_cursor(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
+pub fn nvim_win_get_cursor(win: Window, err: &mut Error) -> Array {
     let mut rv = Array::new();
     if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
-        rv = arena_array(arena, 2);
+        rv = Array::with_capacity(2);
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().lnum)));
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().col)));
     }
@@ -211,16 +209,11 @@ pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
 /// @return Variable value
 // DLLEXPORT Object nvim_win_get_var(Window win, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_var(
-    win: Window,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_win_get_var(win: Window, name: NvimString, err: &mut Error) -> Object {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return OBJECT_NIL;
     };
-    dict_get_value(Some(&*w.w_vars()), name, Some(arena), err)
+    dict_get_value(Some(&*w.w_vars()), name, err)
 }
 
 /// Sets a window-scoped (w:) variable
@@ -235,7 +228,7 @@ pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut 
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
     };
-    dict_set_var(&w.w_vars(), name, value, false, false, None, err);
+    dict_set_var(&w.w_vars(), name, value, false, false, err);
 }
 
 /// Removes a window-scoped (w:) variable
@@ -249,7 +242,7 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return;
     };
-    dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false, None, err);
+    dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false, err);
 }
 
 /// Gets the window position in display cells. First position is zero.
@@ -259,10 +252,10 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
 /// @return (row, col) tuple with the window position
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_position(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_position(win: Window, arena: &mut Arena, err: &mut Error) -> Array {
+pub fn nvim_win_get_position(win: Window, err: &mut Error) -> Array {
     let mut rv = Array::new();
     if let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) {
-        rv = arena_array(arena, 2);
+        rv = Array::with_capacity(2);
         add_c(&mut rv, integer_obj(i64::from(w.w_winrow.get())));
         add_c(&mut rv, integer_obj(i64::from(w.w_wincol.get())));
     }
@@ -402,7 +395,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {
             let args = Array::new();
-            nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, None, Some(err));
+            nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, Some(err));
         }
         ctx_restore(&mut cs);
     });
@@ -480,10 +473,9 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 pub fn nvim_win_text_height(
     win: Window,
     opts: &mut KeyDict_win_text_height,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    let mut rv = arena_dict(arena, 4);
+    let mut rv = Dict::with_capacity(4);
 
     let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
         return rv;

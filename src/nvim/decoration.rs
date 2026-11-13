@@ -3,9 +3,10 @@
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{
-    arena_array, arena_bytes, array_obj, boolean_obj, cstr_as_obj, cstr_to_arena_obj, integer_obj,
-    put_c, string_obj,
+    array_obj, boolean_obj, cstr_as_obj, integer_obj, put_c, string_obj,
 };
+use crate::api::private::validate::Array;
+use crate::api::private::validate::NvimString;
 use crate::api::private::validate::{Dict, Object};
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::buffer::{FileBuf, buf_meta_total};
@@ -33,7 +34,6 @@ use crate::marktree::{
     mt_decor_any, mt_decor_sign, mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_slice2len};
-use crate::memory::Arena;
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
@@ -1876,7 +1876,7 @@ pub fn decor_virt_lines(
     n_virt_lines
 }
 
-pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, arena: &mut Arena) {
+pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool) {
     let mut sh_hl = DECOR_SIGN_HIGHLIGHT_INIT;
     let mut sh_sign = DECOR_SIGN_HIGHLIGHT_INIT;
     let mut virt_text: Option<DecorVirtText> = None;
@@ -1911,11 +1911,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     }
 
     if sh_hl.hl_id != 0 {
-        put_c(
-            dict,
-            c"hl_group",
-            hl_group_name(sh_hl.hl_id, hl_name, arena),
-        );
+        put_c(dict, c"hl_group", hl_group_name(sh_hl.hl_id, hl_name));
         put_c(
             dict,
             c"hl_eol",
@@ -1932,7 +1928,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         put_c(
             dict,
             c"conceal",
-            string_obj(arena_bytes(arena, &buf[..len])),
+            string_obj(NvimString::from_bytes(&buf[..len])),
         );
     }
 
@@ -1960,7 +1956,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
             put_c(dict, c"hl_mode", cstr_as_obj(Some(mode_str)));
         }
 
-        let chunks = virt_text_to_array(virt_text.data.virt_text(), hl_name, arena);
+        let chunks = virt_text_to_array(virt_text.data.virt_text(), hl_name);
         put_c(dict, c"virt_text", array_obj(chunks));
         put_c(
             dict,
@@ -1986,13 +1982,13 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
     if let Some(virt_lines) = virt_lines {
         let vl_vec = virt_lines.data.virt_lines();
-        let mut all_chunks = arena_array(arena, vl_vec.len());
+        let mut all_chunks = Array::with_capacity(vl_vec.len());
         let mut virt_lines_flags: i32 = 0;
         let mut virt_lines_overflow: VirtLineOverflow = K_VLOVERFLOW_TRUNC;
         for vl in vl_vec {
             virt_lines_flags = vl.flags;
             virt_lines_overflow = vl.overflow;
-            let chunks = virt_text_to_array(&vl.line, hl_name, arena);
+            let chunks = virt_text_to_array(&vl.line, hl_name);
             all_chunks.push(array_obj(chunks));
         }
         put_c(dict, c"virt_lines", array_obj(all_chunks));
@@ -2024,7 +2020,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
             put_c(
                 dict,
                 c"sign_text",
-                string_obj(arena_bytes(arena, &buf[..len])),
+                string_obj(NvimString::from_bytes(&buf[..len])),
             );
         }
 
@@ -2040,7 +2036,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         ];
         for (name, val) in hls {
             if val != 0 {
-                put_c(dict, name, hl_group_name(val, hl_name, arena));
+                put_c(dict, name, hl_group_name(val, hl_name));
             }
         }
         priority = i32::from(sh_sign.priority);
@@ -2082,10 +2078,10 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
     }
 }
 
-pub fn hl_group_name(hl_id: i32, hl_name: bool, arena: &mut Arena) -> Object {
+pub fn hl_group_name(hl_id: i32, hl_name: bool) -> Object {
     if hl_name {
         let name = syn_id2name(hl_id);
-        cstr_to_arena_obj(arena, Some(&name))
+        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&name))
     } else {
         integer_obj(Integer::from(hl_id))
     }

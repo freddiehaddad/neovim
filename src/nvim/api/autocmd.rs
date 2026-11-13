@@ -2,11 +2,11 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,
-    arena_bytes, arena_dict, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,
-    error_set, find_buffer_by_handle, has_key, integer_obj, luaref_obj, put_c, string_obj,
-    try_enter, try_leave,
+    ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, boolean_obj,
+    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, has_key, integer_obj, luaref_obj,
+    put_c, string_obj, try_enter, try_leave,
 };
+use crate::api::private::validate::Dict;
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_required, check_string_array,
@@ -26,7 +26,7 @@ use crate::eval::typval::{
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::memory::{Arena, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::msgpack_rpc::packer::Integer;
 use std::ffi::{CStr, CString};
 
@@ -142,20 +142,14 @@ fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
 }
 
 #[inline]
-fn format_buflocal_arena(arena: &mut Arena, handle: i32) -> NvimString {
+fn format_buflocal_arena(handle: i32) -> NvimString {
     let s = format!("<buffer={handle}>");
-    arena_bytes(arena, s.as_bytes())
+    NvimString::from_bytes(s.as_bytes())
 }
 
-fn unpack_string_or_array(
-    v: Object,
-    k: &std::ffi::CStr,
-    required: bool,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
+fn unpack_string_or_array(v: Object, k: &std::ffi::CStr, required: bool, err: &mut Error) -> Array {
     if v.obj_type == ObjectType::ObjectTypeString {
-        let mut arr = arena_array(arena, 1);
+        let mut arr = Array::with_capacity(1);
         add_c(&mut arr, v);
         arr
     } else if v.obj_type == ObjectType::ObjectTypeArray {
@@ -213,7 +207,6 @@ fn get_patterns_from_pattern_or_buf(
     has_buf: bool,
     buf: Buffer,
     fallback: &std::ffi::CStr,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     let mut patterns = ArrayBuilder::new();
@@ -223,7 +216,7 @@ fn get_patterns_from_pattern_or_buf(
             let pat_str = pattern.data.string();
             let mut rem = pat_str.cstr_bytes();
             while let Some((span, rest)) = aucmd_span_pattern_slice(rem) {
-                patterns.push(string_obj(arena_bytes(arena, span)));
+                patterns.push(string_obj(NvimString::from_bytes(span)));
                 rem = rest;
             }
         } else if pattern.obj_type == ObjectType::ObjectTypeArray {
@@ -235,7 +228,7 @@ fn get_patterns_from_pattern_or_buf(
                 let entry_str = array[i].data.string();
                 let mut rem = entry_str.cstr_bytes();
                 while let Some((span, rest)) = aucmd_span_pattern_slice(rem) {
-                    patterns.push(string_obj(arena_bytes(arena, span)));
+                    patterns.push(string_obj(NvimString::from_bytes(span)));
                     rem = rest;
                 }
             }
@@ -252,12 +245,12 @@ fn get_patterns_from_pattern_or_buf(
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Array::new();
         };
-        patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum.get())));
+        patterns.push(string_obj(format_buflocal_arena(b.b_fnum.get())));
     } else {
         patterns.push(string_obj(cstr_as_string(Some(fallback))));
     }
 
-    arena_take_arraybuilder(arena, &mut patterns)
+    crate::api::private::helpers::take_arraybuilder(&mut patterns)
 }
 
 fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut Error) -> bool {
@@ -315,11 +308,7 @@ fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut 
 // DLLEXPORT ArrayOf(DictAs(get_autocmds__ret)) nvim_get_autocmds(Dict(get_autocmds) *opts,
 //                                                                Arena *arena,
 //                                                                Error *err) FUNC_API_SINCE(9);
-pub fn nvim_get_autocmds(
-    opts: &mut KeyDict_get_autocmds,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
+pub fn nvim_get_autocmds(opts: &mut KeyDict_get_autocmds, err: &mut Error) -> Array {
     let mut autocmd_list = ArrayBuilder::new();
     let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
     let mut buffers = Array::new();
@@ -466,8 +455,8 @@ pub fn nvim_get_autocmds(
             ) else {
                 break 'body;
             };
-            let pat = format_buflocal_arena(arena, b.b_fnum.get());
-            buffers = arena_array(arena, 1);
+            let pat = format_buflocal_arena(b.b_fnum.get());
+            buffers = Array::with_capacity(1);
             add_c(&mut buffers, string_obj(pat));
         } else if buf.obj_type == ObjectType::ObjectTypeArray {
             let buf_slice = buf.data.array_slice();
@@ -480,7 +469,7 @@ pub fn nvim_get_autocmds(
                 );
                 break 'body;
             }
-            buffers = arena_array(arena, buf_slice.len());
+            buffers = Array::with_capacity(buf_slice.len());
             for bufnr in buf_slice {
                 if bufnr.obj_type != ObjectType::ObjectTypeInteger
                     && bufnr.obj_type != ObjectType::ObjectTypeBuffer
@@ -501,7 +490,7 @@ pub fn nvim_get_autocmds(
                 };
                 add_c(
                     &mut buffers,
-                    string_obj(format_buflocal_arena(arena, b.b_fnum.get())),
+                    string_obj(format_buflocal_arena(b.b_fnum.get())),
                 );
             }
         } else if has_buf {
@@ -564,7 +553,7 @@ pub fn nvim_get_autocmds(
                         }
                     }
 
-                    let mut autocmd_info = arena_dict(arena, 12);
+                    let mut autocmd_info = Dict::with_capacity(12);
 
                     if ap.group != AUGROUP_DEFAULT {
                         put_c(
@@ -576,10 +565,7 @@ pub fn nvim_get_autocmds(
                         put_c(
                             &mut autocmd_info,
                             c"group_name",
-                            crate::api::private::helpers::cstr_to_arena_obj(
-                                arena,
-                                gname.as_deref(),
-                            ),
+                            crate::api::private::helpers::cstr_to_nonnull_obj(gname.as_deref()),
                         );
                     }
 
@@ -591,7 +577,7 @@ pub fn nvim_get_autocmds(
                         put_c(
                             &mut autocmd_info,
                             c"desc",
-                            crate::api::private::helpers::cstr_to_arena_obj(arena, Some(desc)),
+                            crate::api::private::helpers::cstr_to_nonnull_obj(Some(desc)),
                         );
                     }
 
@@ -600,10 +586,9 @@ pub fn nvim_get_autocmds(
                             put_c(
                                 &mut autocmd_info,
                                 c"command",
-                                crate::api::private::helpers::cstr_to_arena_obj(
-                                    arena,
-                                    Some(cmd.as_c_str()),
-                                ),
+                                crate::api::private::helpers::cstr_to_nonnull_obj(Some(
+                                    cmd.as_c_str(),
+                                )),
                             );
                         }
                         crate::autocmd::AutoCmdHandler::Fn(cb) => {
@@ -625,10 +610,11 @@ pub fn nvim_get_autocmds(
                                     put_c(
                                         &mut autocmd_info,
                                         c"callback",
-                                        string_obj(crate::api::private::helpers::arena_string(
-                                            arena,
-                                            cstr_as_string(Some(&*cb_str)),
-                                        )),
+                                        string_obj(
+                                            crate::api::private::helpers::ensure_nul_string(
+                                                cstr_as_string(Some(&*cb_str)),
+                                            ),
+                                        ),
                                     );
                                 }
                                 _ => {
@@ -644,15 +630,14 @@ pub fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"pattern",
-                        crate::api::private::helpers::cstr_to_arena_obj(arena, Some(&*ap.pat)),
+                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&*ap.pat)),
                     );
                     put_c(
                         &mut autocmd_info,
                         c"event",
-                        crate::api::private::helpers::cstr_to_arena_obj(
-                            arena,
-                            Some(event_nr2name(event as AuEvent)),
-                        ),
+                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(event_nr2name(
+                            event as AuEvent,
+                        ))),
                     );
                     put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
 
@@ -678,7 +663,7 @@ pub fn nvim_get_autocmds(
         }
     }
 
-    arena_take_arraybuilder(arena, &mut autocmd_list)
+    crate::api::private::helpers::take_arraybuilder(&mut autocmd_list)
 }
 
 /// Creates an |autocommand| event handler, defined by `callback` (Lua function or Vimscript
@@ -745,7 +730,6 @@ pub fn nvim_create_autocmd(
     channel_id: u64,
     event: Object,
     opts: &mut KeyDict_create_autocmd,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Integer {
     let mut autocmd_id: i64 = -1;
@@ -754,7 +738,7 @@ pub fn nvim_create_autocmd(
     let mut handler_fn = Callback::NONE;
 
     'body: {
-        let event_array = unpack_string_or_array(event, c"event", true, arena, err);
+        let event_array = unpack_string_or_array(event, c"event", true, err);
         if error_set(err) {
             break 'body;
         }
@@ -828,7 +812,7 @@ pub fn nvim_create_autocmd(
         }
 
         let patterns =
-            get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"*", arena, err);
+            get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"*", err);
         if error_set(err) {
             break 'body;
         }
@@ -926,8 +910,8 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 ///
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
-pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, arena: &mut Arena, err: &mut Error) {
-    let event_array = unpack_string_or_array(opts.event.clone(), c"event", false, arena, err);
+pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, err: &mut Error) {
+    let event_array = unpack_string_or_array(opts.event.clone(), c"event", false, err);
     if error_set(err) {
         return;
     }
@@ -952,8 +936,7 @@ pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, arena: &mut Arena,
         return;
     }
 
-    let patterns =
-        get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", arena, err);
+    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", err);
     if error_set(err) {
         return;
     }
@@ -1077,16 +1060,11 @@ pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
 /// @see |:doautocmd|
 // DLLEXPORT void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(9);
-pub fn nvim_exec_autocmds(
-    event: Object,
-    opts: &mut KeyDict_exec_autocmds,
-    arena: &mut Arena,
-    err: &mut Error,
-) {
+pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDict_exec_autocmds, err: &mut Error) {
     let mut au_group = AUGROUP_ALL;
     let mut b = g_st().curbuf.get();
 
-    let event_array = unpack_string_or_array(event, c"event", true, arena, err);
+    let event_array = unpack_string_or_array(event, c"event", true, err);
     if error_set(err) {
         return;
     }
@@ -1146,8 +1124,7 @@ pub fn nvim_exec_autocmds(
         }
     }
 
-    let patterns =
-        get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", arena, err);
+    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", err);
     if error_set(err) {
         return;
     }

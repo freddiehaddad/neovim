@@ -4,8 +4,8 @@
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
-    arena_array, array_obj, bytes_to_string, cstr_as_string, cstr_to_arena_obj, error_set,
-    find_window_by_handle, has_key, integer_obj, object_to_hl_id, string_obj, try_wrap,
+    array_obj, bytes_to_string, cstr_as_string, error_set, find_window_by_handle, has_key,
+    integer_obj, object_to_hl_id, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
@@ -26,7 +26,6 @@ use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-use crate::memory::Arena;
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::didset_window_options;
@@ -1089,14 +1088,13 @@ fn config_put_bordertext(
     config: &mut KeyDict_win_config,
     fconfig: &WinConfig,
     bordertext_type: BorderTextType,
-    arena: &mut Arena,
 ) {
     let (vt, align) = match bordertext_type {
         K_BORDER_TEXT_TITLE => (&fconfig.title_chunks, fconfig.title_pos),
         _ => (&fconfig.footer_chunks, fconfig.footer_pos),
     };
 
-    let bordertext = virt_text_to_array(vt, true, arena);
+    let bordertext = virt_text_to_array(vt, true);
 
     let pos = match align {
         K_ALIGN_LEFT => c"left",
@@ -1132,7 +1130,7 @@ fn config_put_bordertext(
 /// @return     Map defining the window configuration, see |nvim_open_win()|
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
-pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> KeyDict_win_config {
+pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDict_win_config {
     const FLOAT_RELATIVE_STR: [&CStr; 6] = [
         c"editor",
         c"win",
@@ -1173,7 +1171,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                 rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIN;
                 rv.win = config.window;
                 if config.bufpos.lnum >= 0 {
-                    let mut pos = arena_array(arena, 2);
+                    let mut pos = Array::with_capacity(2);
                     add_c(&mut pos, integer_obj(i64::from(config.bufpos.lnum)));
                     add_c(&mut pos, integer_obj(i64::from(config.bufpos.col)));
                     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BUFPOS;
@@ -1190,7 +1188,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
             rv.zindex = i64::from(config.zindex);
         }
         if config.border {
-            let mut border = arena_array(arena, 8);
+            let mut border = Array::with_capacity(8);
             for i in 0..8 {
                 let bchars = &config.border_chars[i];
                 let blen = bchars
@@ -1201,9 +1199,12 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                 let hi_id = config.border_hl_ids[i];
                 let hi_name = syn_id2name(hi_id);
                 if !hi_name.to_bytes().is_empty() {
-                    let mut tuple = arena_array(arena, 2);
+                    let mut tuple = Array::with_capacity(2);
                     add_c(&mut tuple, string_obj(s));
-                    add_c(&mut tuple, cstr_to_arena_obj(arena, Some(&hi_name)));
+                    add_c(
+                        &mut tuple,
+                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&hi_name)),
+                    );
                     add_c(&mut border, array_obj(tuple));
                 } else {
                     add_c(&mut border, string_obj(s));
@@ -1212,10 +1213,10 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
             rv.border = array_obj(border);
             if config.title {
-                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_TITLE, arena);
+                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_TITLE);
             }
             if config.footer {
-                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_FOOTER, arena);
+                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_FOOTER);
             }
         } else {
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;

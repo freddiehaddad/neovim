@@ -54,7 +54,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
-use crate::memory::{Arena, arena_finish, arena_mem_free, bytes_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
@@ -3272,7 +3272,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 
     let mut err = Error::new();
     let args = Array::new();
-    nlua_call_ref(ref_, None, args, K_RET_NIL_BOOL, None, Some(&mut err));
+    nlua_call_ref(ref_, None, args, K_RET_NIL_BOOL, Some(&mut err));
     if err.err_type != ErrorType::ErrorTypeNone {
         semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
         api_clear_error(&mut err);
@@ -3389,23 +3389,14 @@ pub fn paste_repeat(count: i32) {
     g_st().no_mapping.set(g_st().no_mapping.get() - (1));
 
     let str_ = NvimString::from_bytes(&buf);
-    let mut arena = Arena::new();
     let mut err = Error::new();
     let mut i = 0;
     while !aborted && i < count {
-        nvim_paste(
-            LUA_INTERNAL_CALL,
-            str_.clone(),
-            false,
-            -1,
-            &mut arena,
-            &mut err,
-        );
+        nvim_paste(LUA_INTERNAL_CALL, str_.clone(), false, -1, &mut err);
         aborted = err.err_type != ErrorType::ErrorTypeNone;
         i += 1;
     }
     api_clear_error(&mut err);
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 #[cfg(test)]

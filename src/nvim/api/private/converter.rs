@@ -1,7 +1,7 @@
 //! Conversions between Vimscript `TypVal` and API `Object` (`src/nvim/api/private/converter.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::helpers::{arena_array_opt, arena_bytes_opt, arena_dict_opt, nil_obj};
+use crate::api::private::helpers::nil_obj;
 use crate::api::private::validate::{
     Array, Dict, Error, NvimString, Object, ObjectData, ObjectType,
 };
@@ -14,26 +14,16 @@ use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copy_id, partial_name};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
-use crate::memory::Arena;
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 
 #[inline]
-fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u8]) -> Object {
-    let s = if reuse_strdata {
-        if bytes.is_empty() {
-            NvimString::empty_cstr()
-        } else {
-            NvimString::from_bytes(bytes)
-        }
-    } else {
-        arena_bytes_opt(arena, bytes)
-    };
+fn cbuf_to_string_obj(bytes: &[u8]) -> Object {
     Object {
         obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(s),
+        data: ObjectData::String(NvimString::from_bytes(bytes)),
     }
 }
 
@@ -56,15 +46,13 @@ enum ConvStackEntry {
 fn convert_one_value(
     stack: &mut Vec<Object>,
     mpstack: &mut Vec<ConvStackEntry>,
-    arena: Option<&mut Arena>,
-    reuse_strdata: bool,
     tv: &TypVal,
     copy_id: i32,
 ) {
     match tv.v_type {
         VarType::VarString => {
             let bytes = tv.vval.v_string_bytes();
-            stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
+            stack.push(cbuf_to_string_obj(bytes));
         }
         VarType::VarNumber => {
             let n = tv.vval.v_number();
@@ -83,8 +71,8 @@ fn convert_one_value(
         VarType::VarBlob => {
             let blob = tv.vval.v_blob_opt();
             let obj = match blob {
-                Some(b) => cbuf_to_string_obj(arena, reuse_strdata, &b.bv_ga.borrow()),
-                None => cbuf_to_string_obj(arena, reuse_strdata, &[]),
+                Some(b) => cbuf_to_string_obj(&b.bv_ga.borrow()),
+                None => cbuf_to_string_obj(&[]),
             };
             stack.push(obj);
         }
@@ -135,14 +123,14 @@ fn convert_one_value(
                     data: ObjectData::Array(Array::new()),
                 });
                 return;
-            }
+            };
             let saved_copy_id = list.lv_copy_id.get();
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
             list.lv_copy_id.set(copy_id);
-            let arr = arena_array_opt(arena, list.lv_len.get() as usize);
+            let arr = Array::with_capacity(list.lv_len.get() as usize);
             stack.push(Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(arr),
@@ -187,7 +175,7 @@ fn convert_one_value(
             }
             dict.dv_copy_id.set(copy_id);
             let used = dict.dv_hashtab.ht_used.get();
-            let d_obj = arena_dict_opt(arena, used);
+            let d_obj = Dict::with_capacity(used);
             stack.push(Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(d_obj),
@@ -233,19 +221,12 @@ fn pop_into_parent_dict(stack: &mut Vec<Object>) {
 }
 
 /// Recursively convert a Vimscript `TypVal` into an API `Object` (`vim_to_object`).
-pub fn vim_to_object(obj: &TypVal, mut arena: Option<&mut Arena>, reuse_strdata: bool) -> Object {
+pub fn vim_to_object(obj: &TypVal) -> Object {
     let copy_id = get_copy_id();
     let mut stack: Vec<Object> = Vec::with_capacity(4);
     let mut mpstack: Vec<ConvStackEntry> = Vec::new();
 
-    convert_one_value(
-        &mut stack,
-        &mut mpstack,
-        arena.as_deref_mut(),
-        reuse_strdata,
-        obj,
-        copy_id,
-    );
+    convert_one_value(&mut stack, &mut mpstack, obj, copy_id);
 
     while let Some(top) = mpstack.last_mut() {
         match top {
@@ -272,14 +253,7 @@ pub fn vim_to_object(obj: &TypVal, mut arena: Option<&mut Arena>, reuse_strdata:
                 let cur_li = li.clone();
                 *li = cur_li.li_next.get();
                 let tv_ref = cur_li.tv();
-                convert_one_value(
-                    &mut stack,
-                    &mut mpstack,
-                    arena.as_deref_mut(),
-                    reuse_strdata,
-                    &tv_ref,
-                    copy_id,
-                );
+                convert_one_value(&mut stack, &mut mpstack, &tv_ref, copy_id);
             }
             ConvStackEntry::Dict {
                 dict,
@@ -307,7 +281,7 @@ pub fn vim_to_object(obj: &TypVal, mut arena: Option<&mut Arena>, reuse_strdata:
                 *todo -= 1;
 
                 let key_bytes = di.key_bytes();
-                let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
+                let key_obj = cbuf_to_string_obj(key_bytes);
 
                 let dict_obj = stack.last_mut().unwrap();
                 debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
@@ -315,14 +289,7 @@ pub fn vim_to_object(obj: &TypVal, mut arena: Option<&mut Arena>, reuse_strdata:
                 d.next_slot_mut().key = key_obj.data.string();
 
                 let tv_ref = di.tv();
-                convert_one_value(
-                    &mut stack,
-                    &mut mpstack,
-                    arena.as_deref_mut(),
-                    reuse_strdata,
-                    &tv_ref,
-                    copy_id,
-                );
+                convert_one_value(&mut stack, &mut mpstack, &tv_ref, copy_id);
             }
         }
     }
@@ -511,7 +478,7 @@ mod tests {
             assert_eq!(tv.v_type, VarType::VarNumber);
             assert_eq!(tv.vval.v_number(), 99);
 
-            let obj = vim_to_object(&tv, None, false);
+            let obj = vim_to_object(&tv);
             assert_eq!(obj.obj_type, ObjectType::ObjectTypeInteger);
             assert_eq!(obj.data.integer(), 99);
 
@@ -521,7 +488,7 @@ mod tests {
                 v_lock: 0,
                 vval: TypvalVval::List(crate::eval::typval::ListId::NULL),
             };
-            let arr_obj = vim_to_object(&null_list, None, false);
+            let arr_obj = vim_to_object(&null_list);
             assert_eq!(arr_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(arr_obj.data.array().size, 0);
 
@@ -530,7 +497,7 @@ mod tests {
                 v_lock: 0,
                 vval: TypvalVval::Dict(crate::eval::typval::DictId::NULL),
             };
-            let dict_obj = vim_to_object(&null_dict, None, false);
+            let dict_obj = vim_to_object(&null_dict);
             assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
             assert_eq!(dict_obj.data.dict().size, 0);
 
@@ -543,7 +510,7 @@ mod tests {
                 vval: TypvalVval::List(list.clone()),
             };
             tv_list_append_owned_tv(&list, list_tv.clone());
-            let cyc_obj = vim_to_object(&list_tv, None, false);
+            let cyc_obj = vim_to_object(&list_tv);
             assert_eq!(cyc_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);

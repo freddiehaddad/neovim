@@ -1190,7 +1190,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     ];
     let a = Array::from_slice(&mut a_items[..4]);
     let s = NvimString::from_cstr(c"return vim._cs_remote(...)");
-    let o = nlua_exec(s, None, a, K_RET_OBJECT, None, &mut err);
+    let o = nlua_exec(s, None, a, K_RET_OBJECT, &mut err);
     drop(args_vec);
     if err.err_type != ErrorType::ErrorTypeNone {
         fprintf!(stderr, c"%s\n", err.msg_cstr());

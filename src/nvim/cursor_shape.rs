@@ -1,7 +1,7 @@
 //! Handling of cursor and mouse pointer shapes in various modes (`src/nvim/cursor_shape.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string};
+use crate::api::private::helpers::cstr_as_string;
 use crate::api::private::validate::{
     Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
@@ -10,7 +10,6 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 #[cfg(test)]
 use crate::log::{LOGLVL_WRN, logmsg};
-use crate::memory::Arena;
 use crate::option_vars::*;
 use crate::ui::ui_mode_info_set;
 use std::ffi::CStr;
@@ -147,13 +146,13 @@ fn clear_shape_table(tbl: &mut [Cursorentry; SHAPE_IDX_COUNT]) {
 }
 
 /// Converts the shape table into an `Array` of `Dict`s (`mode_style_array`).
-pub fn mode_style_array(arena: &mut Arena) -> Array {
-    let mut all = arena_array(arena, SHAPE_IDX_COUNT);
+pub fn mode_style_array() -> Array {
+    let mut all = Array::with_capacity(SHAPE_IDX_COUNT);
     let tbl = SHAPE_TABLE.with(std::cell::Cell::get);
 
     for cur in tbl.iter() {
         let is_cursor = (cur.used_for & SHAPE_CURSOR) != 0;
-        let mut dic = arena_dict(arena, 3 + if is_cursor { 9 } else { 0 });
+        let mut dic = Dict::with_capacity(3 + if is_cursor { 9 } else { 0 });
         dict_put_c(
             &mut dic,
             c"name",

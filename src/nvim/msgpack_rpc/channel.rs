@@ -27,7 +27,7 @@ use crate::event::stream::{Stream, StreamCbData};
 use crate::event::wstream::{WBuffer, wstream_new_vec_buffer, wstream_write};
 use crate::globals::*;
 use crate::log::logmsg;
-use crate::memory::{ARENA_BLOCK_SIZE, Arena, ArenaMem, arena_finish, arena_mem_free};
+use crate::memory::ARENA_BLOCK_SIZE;
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, mpack_array, mpack_integer, mpack_nil, mpack_object, mpack_object_array,
@@ -57,7 +57,7 @@ const K_CLIENT_TYPE_HOST: ClientType = 3;
 const K_CLIENT_TYPE_PLUGIN: ClientType = 4;
 const K_CLIENT_TYPE_MSGPACK_RPC: ClientType = 5;
 
-use crate::api::private::helpers::arena_string;
+use crate::api::private::helpers::ensure_nul_string;
 
 #[repr(C)]
 pub struct RemoteUI {
@@ -93,7 +93,6 @@ pub struct ChannelCallFrame {
     pub returned: std::cell::Cell<bool>,
     pub errored: std::cell::Cell<bool>,
     pub result: crate::api::private::validate::CloneCell<Object>,
-    pub result_mem: std::cell::Cell<ArenaMem>,
 }
 
 #[repr(C)]
@@ -103,12 +102,10 @@ pub struct RequestEvent {
     pub handler: MsgpackRpcRequestHandler,
     pub args: Array,
     pub request_id: u32,
-    pub used_mem: Arena,
 }
 
 impl Drop for RequestEvent {
     fn drop(&mut self) {
-        arena_mem_free(arena_finish(&mut self.used_mem));
         if let Some(chan) = find_channel_opt(self.chan_id) {
             channel_decref(chan);
         }
@@ -300,7 +297,6 @@ pub fn rpc_send_call(
     method_name: &CStr,
     args: Array,
     timeout: i32,
-    result_mem: &mut ArenaMem,
     err: &mut Error,
 ) -> Object {
     let Some(channel) = find_rpc_channel_opt(id) else {
@@ -324,7 +320,6 @@ pub fn rpc_send_call(
         returned: std::cell::Cell::new(false),
         errored: std::cell::Cell::new(false),
         result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
-        result_mem: std::cell::Cell::new(ArenaMem::NULL),
     });
     rpc.call_stack.push(frame.clone());
     let ev_ptr = channel.events;
@@ -404,16 +399,11 @@ pub fn rpc_send_call(
         } else {
             api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
         }
-
-        arena_mem_free(frame.result_mem.get());
-        frame.result_mem.set(ArenaMem::NULL);
     }
 
     if let Some(channel) = find_channel_opt(id) {
         channel_decref(channel);
     }
-
-    *result_mem = frame.result_mem.get();
 
     if frame.errored.get() {
         OBJECT_NIL
@@ -472,8 +462,6 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
                     ui_fn(p.result.data.array());
                 }
             }
-
-            arena_mem_free(arena_finish(&mut p.arena));
         } else if msg_type == MessageType::MessageTypeResponse {
             let request_id = channel.unpacker_mut().request_id;
             let frame_opt = find_call_frame(&channel.rpc, request_id);
@@ -488,8 +476,6 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
                     channel.id,
                     request_id,
                 );
-                let p = channel.unpacker_mut();
-                arena_mem_free(arena_finish(&mut p.arena));
                 continue;
             }
             let is_not_last = channel.rpc.client_type != K_CLIENT_TYPE_MSGPACK_RPC
@@ -520,8 +506,6 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
             } else {
                 frame.result.set(std::mem::take(&mut p.result));
             }
-
-            frame.result_mem.set(arena_finish(&mut p.arena));
         } else {
             let mut res = std::mem::take(&mut channel.unpacker_mut().result);
             if res.obj_type != ObjectType::ObjectTypeArray {
@@ -580,7 +564,6 @@ fn handle_request(channel: &mut Channel, args: Array) {
         let request_id = p.request_id;
         let msg = p.unpack_error.msg.take();
         api_clear_error(&mut p.unpack_error);
-        arena_mem_free(arena_finish(&mut p.arena));
         send_error(channel, handler, msg_type, request_id, msg);
         return;
     }
@@ -590,11 +573,8 @@ fn handle_request(channel: &mut Channel, args: Array) {
         chan_id,
         handler,
         args,
-        used_mem: p.arena,
         request_id: p.request_id,
     };
-
-    p.arena = Arena::new();
 
     channel_incref(&mut *channel);
 
@@ -645,7 +625,7 @@ pub fn request_event(mut e: RequestEvent) {
     if is_open {
         let fn_call = handler.r#fn.unwrap();
         let args = std::mem::take(&mut e.args);
-        let mut result = fn_call(e.chan_id, args, &mut e.used_mem, &mut error);
+        let mut result = fn_call(e.chan_id, args, &mut error);
         if (e.r#type == MessageType::MessageTypeRequest
             || error.err_type != ErrorType::ErrorTypeNone)
             && let Some(channel) = find_channel_opt(e.chan_id)
@@ -819,7 +799,6 @@ pub fn rpc_close_event(chan_id: u64) {
 
 fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
     logmsg!(loglevel, Some(c"RPC: "), None, -1, true, c"%s", msg,);
-    let p = channel.rpc.unpacker.as_deref_mut().unwrap();
 
     for frame in &channel.rpc.call_stack {
         if frame.returned.get() {
@@ -827,12 +806,11 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
         }
         frame.returned.set(true);
         frame.errored.set(true);
-        let s = arena_string(&mut p.arena, cstr_as_string(Some(msg)));
+        let s = ensure_nul_string(cstr_as_string(Some(msg)));
         frame.result.set(Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(s),
         });
-        frame.result_mem.set(arena_finish(&mut p.arena));
     }
 
     channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, None);
@@ -1046,14 +1024,12 @@ mod tests {
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
             result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
-            result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         let f2 = std::rc::Rc::new(ChannelCallFrame {
             request_id: 20,
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
             result: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
-            result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         rpc.call_stack.push(f1.clone());
         rpc.call_stack.push(f2.clone());

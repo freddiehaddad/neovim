@@ -2663,7 +2663,7 @@ pub fn aucmd_defer(
         fname_io: fname_io.map(CStr::to_owned),
         group,
         buf: buf.b_fnum.get(),
-        data: data.map(|d| copy_object(d.clone(), None)),
+        data: data.map(|d| copy_object(d.clone())),
     });
 
     multiqueue_put_event(
@@ -3470,7 +3470,7 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
         let args = Array::from_slice(&mut args_items[..1]);
 
         let luaref = callback.data.as_luaref();
-        let result = nlua_call_ref(luaref, None, args, K_RET_NIL_BOOL, None, None);
+        let result = nlua_call_ref(luaref, None, args, K_RET_NIL_BOOL, None);
         result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
     } else {
         let mut argsin: [TypVal; 1] = [TypVal::new()];

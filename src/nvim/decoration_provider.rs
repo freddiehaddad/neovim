@@ -136,7 +136,6 @@ fn decor_provider_invoke(
         } else {
             K_RET_NIL_BOOL
         },
-        None,
         Some(&mut err),
     );
     g_st().textlock.set(g_st().textlock.get() - (1));

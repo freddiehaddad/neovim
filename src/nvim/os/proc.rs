@@ -1,12 +1,7 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
-
-#[cfg(windows)]
-use crate::api::private::helpers::{arena_bytes, arena_dict};
 #[cfg(windows)]
 use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
-#[cfg(windows)]
-use crate::memory::Arena;
 #[cfg(windows)]
 use std::ffi::CStr;
 #[cfg(target_os = "windows")]
@@ -281,7 +276,7 @@ pub fn os_proc_children(ppid: i32) -> Result<Vec<i32>, i32> {
 ///
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
-pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
+pub fn os_proc_info(pid: i32) -> Dict {
     let mut pinfo = Dict::new();
 
     {
@@ -305,7 +300,7 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
         unsafe { CloseHandle(h) };
 
         if pe.th32_process_id == pid as u32 {
-            pinfo = arena_dict(arena, 3);
+            pinfo = Dict::with_capacity(3);
             let put = |dict: &mut Dict, key: &CStr, value: Object| {
                 let idx = dict.size;
                 dict[idx] = KeyValuePair {
@@ -332,7 +327,7 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
                 },
             );
             let exe_cstr = CStr::from_bytes_until_nul(&pe.sz_exe_file).unwrap_or(c"");
-            let name_str = arena_bytes(arena, exe_cstr.to_bytes());
+            let name_str = NvimString::from_bytes(exe_cstr.to_bytes());
             put(
                 &mut pinfo,
                 c"name",

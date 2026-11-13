@@ -668,12 +668,10 @@ pub fn nlua_fast_api_disabled_error(lstate: *mut lua_State, fn_name: &std::ffi::
 #[inline]
 pub fn nlua_finish_api_call(
     lstate: *mut lua_State,
-    arena: &mut crate::memory::Arena,
     err: &mut crate::api::private::validate::Error,
     err_param: Option<&'static std::ffi::CStr>,
     nret: i32,
 ) -> i32 {
-    crate::memory::arena_mem_free(crate::memory::arena_finish(arena));
     if err.err_type != crate::api::private::validate::ErrorType::ErrorTypeNone {
         luaL_where_safe(lstate, 1);
 

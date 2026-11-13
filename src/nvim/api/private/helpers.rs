@@ -24,7 +24,6 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 
 use crate::mark::setmark_pos;
 use crate::memline::ml_get_buf;
-use crate::memory::{Arena, ArenaMem, arena_finish};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
@@ -245,8 +244,8 @@ pub fn cstr_to_obj(s: Option<&CStr>) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_arena_obj(arena: &mut Arena, s: Option<&CStr>) -> Object {
-    string_obj(arena_string(arena, cstr_as_string(s)))
+pub fn cstr_to_nonnull_obj(s: Option<&CStr>) -> Object {
+    string_obj(ensure_nul_string(cstr_as_string(s)))
 }
 
 #[inline]
@@ -312,16 +311,6 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
         key: key.into_dict_key(),
         value: val,
     });
-}
-
-#[inline]
-pub fn cbuf_to_arena_str(_arena: &mut Arena, buf: &[u8]) -> NvimString {
-    NvimString::from_bytes(buf)
-}
-
-#[inline]
-pub fn cbuf_to_arena_str_opt(_arena: Option<&mut Arena>, buf: &[u8]) -> NvimString {
-    NvimString::from_bytes(buf)
 }
 
 #[inline]
@@ -413,12 +402,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
-pub fn dict_get_value(
-    dict: Option<&TvDict>,
-    key: NvimString,
-    arena: Option<&mut Arena>,
-    err: &mut Error,
-) -> Object {
+pub fn dict_get_value(dict: Option<&TvDict>, key: NvimString, err: &mut Error) -> Object {
     let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key_cstr, key.size as isize) else {
         api_set_error!(
@@ -429,7 +413,7 @@ pub fn dict_get_value(
         );
         return OBJECT_NIL;
     };
-    vim_to_object(&di.tv(), arena, true)
+    vim_to_object(&di.tv())
 }
 
 pub fn dict_check_writable(
@@ -475,7 +459,6 @@ pub fn dict_set_var(
     value: Object,
     del: bool,
     retval: bool,
-    arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
     let mut rv = OBJECT_NIL;
@@ -500,7 +483,7 @@ pub fn dict_set_var(
             tv_dict_watcher_notify(dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&old_tv));
         }
         if retval {
-            rv = vim_to_object(&di.tv(), arena, false);
+            rv = vim_to_object(&di.tv());
         }
 
         tv_dict_item_remove(dict, &di);
@@ -511,7 +494,7 @@ pub fn dict_set_var(
 
         let di: crate::eval::typval::DictitemId = if let Some(di) = di_opt {
             if retval {
-                rv = vim_to_object(&di.tv(), arena, false);
+                rv = vim_to_object(&di.tv());
             }
             let mut type_error = false;
             if ptr::eq(dict, &*get_vimvar_dict())
@@ -687,7 +670,7 @@ pub fn cstr_as_string(str_: Option<&CStr>) -> NvimString {
     NvimString::from_opt_cstr(str_)
 }
 
-pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Array {
+pub fn string_to_array(input: NvimString, crlf: bool) -> Array {
     let mut ret = ArrayBuilder::new();
     let bytes = input.as_bytes();
 
@@ -708,7 +691,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
         if crlf && end_byte == b'\r' && bytes.get(end_idx + 1).copied() == Some(b'\n') {
             i += 1;
         }
-        let mut s = arena_bytes(arena, &bytes[start..start + line_len]);
+        let mut s = NvimString::from_bytes(&bytes[start..start + line_len]);
         if line_len > 0 {
             for b in &mut s.as_bytes_with_nul_mut()[..line_len] {
                 if *b == 0 {
@@ -721,16 +704,15 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
             data: ObjectData::String(s),
         });
         if i + 1 == bytes.len() && (end_byte == b'\n' || (crlf && end_byte == b'\r')) {
-            let empty_s = arena_bytes(arena, &[]);
             ret.push(Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(empty_s),
+                data: ObjectData::String(NvimString::empty_cstr()),
             });
         }
         i += 1;
     }
 
-    arena_take_arraybuilder(arena, &mut ret)
+    take_arraybuilder(&mut ret)
 }
 
 pub fn normalize_index(buf: &FileBuf, mut index: i64, end_exclusive: bool, oob: &mut bool) -> i64 {
@@ -799,63 +781,17 @@ pub fn api_free_string(value: NvimString) {
     drop(value);
 }
 
-pub fn arena_array(_arena: &mut Arena, max_size: usize) -> Array {
-    Array::with_capacity(max_size)
-}
-
-#[inline]
-pub fn arena_array_opt(_arena: Option<&mut Arena>, max_size: usize) -> Array {
-    Array::with_capacity(max_size)
-}
-
-pub fn arena_dict(_arena: &mut Arena, max_size: usize) -> Dict {
-    Dict::with_capacity(max_size)
-}
-
-#[inline]
-pub fn arena_dict_opt(_arena: Option<&mut Arena>, max_size: usize) -> Dict {
-    Dict::with_capacity(max_size)
-}
-
-pub fn arena_zeroed_string(_arena: &mut Arena, size: usize) -> NvimString {
-    NvimString::zeroed(size)
-}
-
-pub fn arena_bytes(_arena: &mut Arena, bytes: &[u8]) -> NvimString {
-    if !bytes.is_empty() {
-        NvimString::from_bytes(bytes)
-    } else {
-        NvimString::empty_cstr()
-    }
-}
-
-pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
+pub fn ensure_nul_string(str_: NvimString) -> NvimString {
     if str_.data.is_null() || str_.size == 0 {
         NvimString::empty_cstr()
     } else if str_.is_nul_terminated() {
         str_
     } else {
-        arena_bytes(arena, str_.as_bytes())
+        NvimString::from_bytes(str_.as_bytes())
     }
 }
 
-#[inline]
-pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
-    match arena {
-        Some(a) => arena_bytes(a, bytes),
-        None => NvimString::from_bytes(bytes),
-    }
-}
-
-#[inline]
-pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimString {
-    match arena {
-        Some(a) => arena_string(a, str_),
-        None => copy_string(str_, None),
-    }
-}
-
-pub fn arena_take_arraybuilder(_arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
+pub fn take_arraybuilder(arr: &mut ArrayBuilder) -> Array {
     let taken = std::mem::take(arr);
     let len = taken.len();
     Array {
@@ -909,7 +845,7 @@ pub fn api_clear_error(value: &mut Error) {
     value.err_type = ErrorType::ErrorTypeNone;
 }
 
-pub fn copy_string(str_: NvimString, _arena: Option<&mut Arena>) -> NvimString {
+pub fn copy_string(str_: NvimString) -> NvimString {
     if !str_.data.is_null() {
         if str_.size == 0 {
             NvimString::empty_cstr()
@@ -923,30 +859,30 @@ pub fn copy_string(str_: NvimString, _arena: Option<&mut Arena>) -> NvimString {
     }
 }
 
-pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
-    let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
+pub fn copy_array(array: Array) -> Array {
+    let mut rv = Array::with_capacity(array.size);
     for i in 0..array.size {
-        rv[i] = copy_object(array[i].clone(), arena.as_deref_mut());
+        rv[i] = copy_object(array[i].clone());
     }
     rv.size = array.size;
     rv
 }
 
-pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
-    let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
+pub fn copy_dict(dict: Dict) -> Dict {
+    let mut rv = Dict::with_capacity(dict.size);
     for i in 0..dict.size {
         let item = &dict[i];
-        let k_copy = copy_string(item.key.clone(), arena.as_deref_mut());
+        let k_copy = copy_string(item.key.clone());
         rv[i] = KeyValuePair {
             key: k_copy,
-            value: copy_object(item.value.clone(), arena.as_deref_mut()),
+            value: copy_object(item.value.clone()),
         };
     }
     rv.size = dict.size;
     rv
 }
 
-pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
+pub fn copy_object(obj: Object) -> Object {
     match obj.obj_type {
         ObjectType::ObjectTypeUnset
         | ObjectType::ObjectTypeBuffer
@@ -958,15 +894,15 @@ pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
         | ObjectType::ObjectTypeFloat => obj,
         ObjectType::ObjectTypeString => Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(copy_string(obj.data.string(), arena)),
+            data: ObjectData::String(copy_string(obj.data.string())),
         },
         ObjectType::ObjectTypeArray => Object {
             obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(copy_array(obj.data.array(), arena)),
+            data: ObjectData::Array(copy_array(obj.data.array())),
         },
         ObjectType::ObjectTypeDict => Object {
             obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(copy_dict(obj.data.dict(), arena)),
+            data: ObjectData::Dict(copy_dict(obj.data.dict())),
         },
         ObjectType::ObjectTypeLuaRef => Object {
             obj_type: ObjectType::ObjectTypeLuaRef,
@@ -1058,7 +994,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
             return HlMessage::new();
         }
 
-        let str_ = copy_string(chunk[0].data.string(), None);
+        let str_ = copy_string(chunk[0].data.string());
         let hl_id = if chunk.size == 2 {
             object_to_hl_id(chunk[1].clone(), c"text highlight", err)
         } else if is_err {
@@ -1229,9 +1165,8 @@ pub fn api_keydict_to_dict<T: crate::api::private::validate::KeyDict>(
     value: &T,
     table: &[KeySetLink<T>],
     max_size: usize,
-    arena: &mut Arena,
 ) -> Dict {
-    let mut rv = arena_dict(arena, max_size);
+    let mut rv = Dict::with_capacity(max_size);
     for field in table {
         let Some(field_str) = field.str else {
             break;
@@ -1461,14 +1396,12 @@ pub fn api_set_sctx(channel_id: u64) -> Sctx {
 }
 
 struct ApiMetadataState {
-    mem_for_metadata: std::cell::Cell<ArenaMem>,
     metadata_obj: crate::api::private::validate::CloneCell<Object>,
 }
 
 impl ApiMetadataState {
     const fn new() -> Self {
         Self {
-            mem_for_metadata: std::cell::Cell::new(ArenaMem::NULL),
             metadata_obj: crate::api::private::validate::CloneCell::new(OBJECT_NIL),
         }
     }
@@ -4237,15 +4170,13 @@ pub fn api_get_packed_metadata() -> &'static [u8] {
 pub fn api_metadata() -> Object {
     API_META_STATE.with(|st| {
         if st.metadata_obj.get().obj_type == ObjectType::ObjectTypeNil {
-            let mut arena = Arena::new();
             let mut err = Error::new();
             let packed = api_get_packed_metadata();
-            let obj = unpack(packed, &mut arena, &mut err);
+            let obj = unpack(packed, &mut err);
             if error_set(&err) || obj.obj_type != ObjectType::ObjectTypeDict {
                 std::process::abort();
             }
             st.metadata_obj.set(obj);
-            st.mem_for_metadata.set(arena_finish(&mut arena));
         }
         st.metadata_obj.get()
     })

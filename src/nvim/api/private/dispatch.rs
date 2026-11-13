@@ -111,7 +111,6 @@ use crate::lua::converter::{
     nlua_push_keydict, nlua_push_object, nlua_push_string,
 };
 use crate::lua::xdiff::KeyDict_xdl_diff;
-use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
@@ -121,8 +120,7 @@ use crate::ui_client::handle_ui_client_redraw;
 
 const K_UNPACK_TYPE_STRING_ARRAY_CONST: i32 = -1;
 
-pub type ApiDispatchWrapper =
-    Option<fn(channel_id: u64, args: Array, arena: &mut Arena, error: &mut Error) -> Object>;
+pub type ApiDispatchWrapper = Option<fn(channel_id: u64, args: Array, error: &mut Error) -> Object>;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -4806,12 +4804,7 @@ pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink<Key
     (hash >= 0).then(|| &XDL_DIFF_TABLE[hash as usize])
 }
 
-pub fn handle_nvim_get_autocmds(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_autocmds",
@@ -4832,7 +4825,7 @@ pub fn handle_nvim_get_autocmds(
             && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *", error) {
                 return ret;
             }
-    let rv = nvim_get_autocmds(&mut arg_1, arena, error);
+    let rv = nvim_get_autocmds(&mut arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -4840,12 +4833,7 @@ pub fn handle_nvim_get_autocmds(
     ret
 }
 
-pub fn handle_nvim_create_autocmd(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_create_autocmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_autocmd",
@@ -4867,7 +4855,7 @@ pub fn handle_nvim_create_autocmd(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *", error) {
                 return ret;
             }
-    let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, arena, error);
+    let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -4875,12 +4863,7 @@ pub fn handle_nvim_create_autocmd(
     ret
 }
 
-pub fn handle_nvim_del_autocmd(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_autocmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_autocmd",
@@ -4912,12 +4895,7 @@ pub fn handle_nvim_del_autocmd(
     ret
 }
 
-pub fn handle_nvim_clear_autocmds(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_clear_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_clear_autocmds",
@@ -4938,19 +4916,14 @@ pub fn handle_nvim_clear_autocmds(
             && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *", error) {
                 return ret;
             }
-    nvim_clear_autocmds(&mut arg_1, arena, error);
+    nvim_clear_autocmds(&mut arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_create_augroup(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_create_augroup(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_augroup",
@@ -4988,12 +4961,7 @@ pub fn handle_nvim_create_augroup(
     ret
 }
 
-pub fn handle_nvim_del_augroup_by_id(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_augroup_by_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_augroup_by_id",
@@ -5025,12 +4993,7 @@ pub fn handle_nvim_del_augroup_by_id(
     ret
 }
 
-pub fn handle_nvim_del_augroup_by_name(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_augroup_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_augroup_by_name",
@@ -5062,12 +5025,7 @@ pub fn handle_nvim_del_augroup_by_name(
     ret
 }
 
-pub fn handle_nvim_exec_autocmds(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_exec_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_exec_autocmds",
@@ -5089,19 +5047,14 @@ pub fn handle_nvim_exec_autocmds(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *", error) {
                 return ret;
             }
-    nvim_exec_autocmds(arg_1, &mut arg_2, arena, error);
+    nvim_exec_autocmds(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_buf_line_count(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_line_count(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_line_count",
@@ -5135,12 +5088,7 @@ pub fn handle_nvim_buf_line_count(
     ret
 }
 
-pub fn handle_nvim_buf_attach(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_attach",
@@ -5195,12 +5143,7 @@ pub fn handle_nvim_buf_attach(
     ret
 }
 
-pub fn handle_nvim_buf_detach(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_detach(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_detach",
@@ -5234,12 +5177,7 @@ pub fn handle_nvim_buf_detach(
     ret
 }
 
-pub fn handle_nvim_buf_get_lines(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_lines(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_lines",
@@ -5298,7 +5236,6 @@ pub fn handle_nvim_buf_get_lines(
         arg_2,
         arg_3,
         arg_4,
-        arena,
         std::ptr::null_mut(),
         error,
     );
@@ -5309,12 +5246,7 @@ pub fn handle_nvim_buf_get_lines(
     ret
 }
 
-pub fn handle_nvim_buf_set_lines(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_lines(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_lines",
@@ -5380,19 +5312,14 @@ pub fn handle_nvim_buf_set_lines(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+    nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_buf_set_text(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_text",
@@ -5467,21 +5394,14 @@ pub fn handle_nvim_buf_set_text(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    nvim_buf_set_text(
-        channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error,
-    );
+    nvim_buf_set_text(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_buf_get_text(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_text",
@@ -5563,7 +5483,6 @@ pub fn handle_nvim_buf_get_text(
         arg_4,
         arg_5,
         &mut arg_6,
-        arena,
         std::ptr::null_mut(),
         error,
     );
@@ -5574,12 +5493,7 @@ pub fn handle_nvim_buf_get_text(
     ret
 }
 
-pub fn handle_nvim_buf_get_offset(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_offset(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_offset",
@@ -5622,12 +5536,7 @@ pub fn handle_nvim_buf_get_offset(
     ret
 }
 
-pub fn handle_nvim_buf_get_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_var",
@@ -5662,7 +5571,7 @@ pub fn handle_nvim_buf_get_var(
     ) {
         return ret;
     }
-    let rv = nvim_buf_get_var(arg_1, arg_2, arena, error);
+    let rv = nvim_buf_get_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -5670,12 +5579,7 @@ pub fn handle_nvim_buf_get_var(
     ret
 }
 
-pub fn handle_nvim_buf_get_changedtick(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_changedtick(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_changedtick",
@@ -5709,12 +5613,7 @@ pub fn handle_nvim_buf_get_changedtick(
     ret
 }
 
-pub fn handle_nvim_buf_get_keymap(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_keymap",
@@ -5749,7 +5648,7 @@ pub fn handle_nvim_buf_get_keymap(
     ) {
         return ret;
     }
-    let rv = nvim_buf_get_keymap(arg_1, arg_2, arena, error);
+    let rv = nvim_buf_get_keymap(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -5757,12 +5656,7 @@ pub fn handle_nvim_buf_get_keymap(
     ret
 }
 
-pub fn handle_nvim_buf_set_keymap(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_keymap",
@@ -5834,12 +5728,7 @@ pub fn handle_nvim_buf_set_keymap(
     ret
 }
 
-pub fn handle_nvim_buf_del_keymap(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_del_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_keymap",
@@ -5895,12 +5784,7 @@ pub fn handle_nvim_buf_del_keymap(
     ret
 }
 
-pub fn handle_nvim_buf_set_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_var",
@@ -5943,12 +5827,7 @@ pub fn handle_nvim_buf_set_var(
     ret
 }
 
-pub fn handle_nvim_buf_del_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_var",
@@ -5990,12 +5869,7 @@ pub fn handle_nvim_buf_del_var(
     ret
 }
 
-pub fn handle_nvim_buf_get_name(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_name",
@@ -6029,12 +5903,7 @@ pub fn handle_nvim_buf_get_name(
     ret
 }
 
-pub fn handle_nvim_buf_set_name(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_name",
@@ -6076,12 +5945,7 @@ pub fn handle_nvim_buf_set_name(
     ret
 }
 
-pub fn handle_nvim_buf_is_loaded(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_is_loaded(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_is_loaded",
@@ -6112,12 +5976,7 @@ pub fn handle_nvim_buf_is_loaded(
     ret
 }
 
-pub fn handle_nvim_buf_delete(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_delete(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_delete",
@@ -6166,12 +6025,7 @@ pub fn handle_nvim_buf_delete(
     ret
 }
 
-pub fn handle_nvim_buf_is_valid(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_is_valid",
@@ -6202,12 +6056,7 @@ pub fn handle_nvim_buf_is_valid(
     ret
 }
 
-pub fn handle_nvim_buf_del_mark(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_del_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_mark",
@@ -6250,12 +6099,7 @@ pub fn handle_nvim_buf_del_mark(
     ret
 }
 
-pub fn handle_nvim_buf_set_mark(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_mark",
@@ -6328,12 +6172,7 @@ pub fn handle_nvim_buf_set_mark(
     ret
 }
 
-pub fn handle_nvim_buf_get_mark(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_mark",
@@ -6368,7 +6207,7 @@ pub fn handle_nvim_buf_get_mark(
     ) {
         return ret;
     }
-    let rv = nvim_buf_get_mark(arg_1, arg_2, arena, error);
+    let rv = nvim_buf_get_mark(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6376,12 +6215,7 @@ pub fn handle_nvim_buf_get_mark(
     ret
 }
 
-pub fn handle_nvim_buf_stats(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_stats(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__buf_stats",
@@ -6407,7 +6241,7 @@ pub fn handle_nvim_buf_stats(
     ) {
         return ret;
     }
-    let rv = nvim_buf_stats(arg_1, arena, error);
+    let rv = nvim_buf_stats(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6415,12 +6249,7 @@ pub fn handle_nvim_buf_stats(
     ret
 }
 
-pub fn handle_nvim_parse_cmd(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_parse_cmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_parse_cmd",
@@ -6457,20 +6286,15 @@ pub fn handle_nvim_parse_cmd(
     {
         return ret;
     }
-    let rv = nvim_parse_cmd(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_parse_cmd(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
-    ret = dict_obj(api_keydict_to_dict(&rv, &CMD_TABLE, CMD_TABLE.len(), arena));
+    ret = dict_obj(api_keydict_to_dict(&rv, &CMD_TABLE, CMD_TABLE.len()));
     ret
 }
 
-pub fn handle_nvim_cmd(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_cmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_cmd", c"API: vim -> nvim_cmd");
     let mut ret = OBJECT_NIL;
     let mut arg_1: KeyDict_cmd = Default::default();
@@ -6504,7 +6328,7 @@ pub fn handle_nvim_cmd(
     {
         return ret;
     }
-    let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2, arena, error);
+    let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6512,12 +6336,7 @@ pub fn handle_nvim_cmd(
     ret
 }
 
-pub fn handle_nvim_create_user_command(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_create_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_user_command",
@@ -6555,12 +6374,7 @@ pub fn handle_nvim_create_user_command(
     ret
 }
 
-pub fn handle_nvim_del_user_command(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_user_command",
@@ -6595,7 +6409,6 @@ pub fn handle_nvim_del_user_command(
 pub fn handle_nvim_buf_create_user_command(
     channel_id: u64,
     args: Array,
-    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     dlog_internal_call(
@@ -6645,12 +6458,7 @@ pub fn handle_nvim_buf_create_user_command(
     ret
 }
 
-pub fn handle_nvim_buf_del_user_command(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_del_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_user_command",
@@ -6692,12 +6500,7 @@ pub fn handle_nvim_buf_del_user_command(
     ret
 }
 
-pub fn handle_nvim_get_commands(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_commands(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_commands",
@@ -6718,7 +6521,7 @@ pub fn handle_nvim_get_commands(
             && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *", error) {
                 return ret;
             }
-    let rv = nvim_get_commands(&mut arg_1, arena, error);
+    let rv = nvim_get_commands(&mut arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6726,12 +6529,7 @@ pub fn handle_nvim_get_commands(
     ret
 }
 
-pub fn handle_nvim_buf_get_commands(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_commands(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_commands",
@@ -6762,7 +6560,7 @@ pub fn handle_nvim_buf_get_commands(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *", error) {
                 return ret;
             }
-    let rv = nvim_buf_get_commands(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_buf_get_commands(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6770,12 +6568,7 @@ pub fn handle_nvim_buf_get_commands(
     ret
 }
 
-pub fn handle_nvim_exec(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_exec(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_exec", c"API: vim -> nvim_exec");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
@@ -6813,12 +6606,7 @@ pub fn handle_nvim_exec(
     ret
 }
 
-pub fn handle_nvim_command_output(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_command_output(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_command_output",
@@ -6851,12 +6639,7 @@ pub fn handle_nvim_command_output(
     ret
 }
 
-pub fn handle_nvim_execute_lua(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_execute_lua(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_execute_lua",
@@ -6890,7 +6673,7 @@ pub fn handle_nvim_execute_lua(
     ) {
         return ret;
     }
-    let rv = nvim_execute_lua(arg_1, arg_2, arena, error);
+    let rv = nvim_execute_lua(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -6898,12 +6681,7 @@ pub fn handle_nvim_execute_lua(
     ret
 }
 
-pub fn handle_nvim_buf_get_number(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_number",
@@ -6937,12 +6715,7 @@ pub fn handle_nvim_buf_get_number(
     ret
 }
 
-pub fn handle_nvim_buf_clear_highlight(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_clear_highlight(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_clear_highlight",
@@ -7002,12 +6775,7 @@ pub fn handle_nvim_buf_clear_highlight(
     ret
 }
 
-pub fn handle_nvim_buf_add_highlight(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_add_highlight(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_add_highlight",
@@ -7086,12 +6854,7 @@ pub fn handle_nvim_buf_add_highlight(
     ret
 }
 
-pub fn handle_nvim_buf_set_virtual_text(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_virtual_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_virtual_text",
@@ -7157,12 +6920,7 @@ pub fn handle_nvim_buf_set_virtual_text(
     ret
 }
 
-pub fn handle_nvim_get_hl_by_id(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_hl_by_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_by_id",
@@ -7196,7 +6954,7 @@ pub fn handle_nvim_get_hl_by_id(
     ) {
         return ret;
     }
-    let rv = nvim_get_hl_by_id(arg_1, arg_2, arena, error);
+    let rv = nvim_get_hl_by_id(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7204,12 +6962,7 @@ pub fn handle_nvim_get_hl_by_id(
     ret
 }
 
-pub fn handle_nvim_get_hl_by_name(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_hl_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_by_name",
@@ -7243,7 +6996,7 @@ pub fn handle_nvim_get_hl_by_name(
     ) {
         return ret;
     }
-    let rv = nvim_get_hl_by_name(arg_1, arg_2, arena, error);
+    let rv = nvim_get_hl_by_name(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7251,12 +7004,7 @@ pub fn handle_nvim_get_hl_by_name(
     ret
 }
 
-pub fn handle_buffer_insert(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_insert(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_insert",
@@ -7300,19 +7048,14 @@ pub fn handle_buffer_insert(
     ) {
         return ret;
     }
-    buffer_insert(arg_1, arg_2, arg_3, arena, error);
+    buffer_insert(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_buffer_get_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_get_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_get_line",
@@ -7347,7 +7090,7 @@ pub fn handle_buffer_get_line(
     ) {
         return ret;
     }
-    let rv = buffer_get_line(arg_1, arg_2, arena, error);
+    let rv = buffer_get_line(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7355,12 +7098,7 @@ pub fn handle_buffer_get_line(
     ret
 }
 
-pub fn handle_buffer_set_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_set_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_line",
@@ -7404,19 +7142,14 @@ pub fn handle_buffer_set_line(
     ) {
         return ret;
     }
-    buffer_set_line(arg_1, arg_2, arg_3, arena, error);
+    buffer_set_line(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_buffer_del_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_del_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_del_line",
@@ -7451,19 +7184,14 @@ pub fn handle_buffer_del_line(
     ) {
         return ret;
     }
-    buffer_del_line(arg_1, arg_2, arena, error);
+    buffer_del_line(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_buffer_get_line_slice(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_get_line_slice(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_get_line_slice",
@@ -7525,7 +7253,7 @@ pub fn handle_buffer_get_line_slice(
     ) {
         return ret;
     }
-    let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+    let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7533,12 +7261,7 @@ pub fn handle_buffer_get_line_slice(
     ret
 }
 
-pub fn handle_buffer_set_line_slice(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_set_line_slice(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_line_slice",
@@ -7609,19 +7332,14 @@ pub fn handle_buffer_set_line_slice(
     ) {
         return ret;
     }
-    buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error);
+    buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_buffer_set_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_var",
@@ -7657,7 +7375,7 @@ pub fn handle_buffer_set_var(
         return ret;
     }
     let arg_3: Object = args[2].clone();
-    let rv = buffer_set_var(arg_1, arg_2, arg_3, arena, error);
+    let rv = buffer_set_var(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7665,12 +7383,7 @@ pub fn handle_buffer_set_var(
     ret
 }
 
-pub fn handle_buffer_del_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_buffer_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_del_var",
@@ -7705,7 +7418,7 @@ pub fn handle_buffer_del_var(
     ) {
         return ret;
     }
-    let rv = buffer_del_var(arg_1, arg_2, arena, error);
+    let rv = buffer_del_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7713,12 +7426,7 @@ pub fn handle_buffer_del_var(
     ret
 }
 
-pub fn handle_window_set_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_window_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_window_set_var",
@@ -7754,7 +7462,7 @@ pub fn handle_window_set_var(
         return ret;
     }
     let arg_3: Object = args[2].clone();
-    let rv = window_set_var(arg_1, arg_2, arg_3, arena, error);
+    let rv = window_set_var(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7762,12 +7470,7 @@ pub fn handle_window_set_var(
     ret
 }
 
-pub fn handle_window_del_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_window_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_window_del_var",
@@ -7802,7 +7505,7 @@ pub fn handle_window_del_var(
     ) {
         return ret;
     }
-    let rv = window_del_var(arg_1, arg_2, arena, error);
+    let rv = window_del_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7810,12 +7513,7 @@ pub fn handle_window_del_var(
     ret
 }
 
-pub fn handle_tabpage_set_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_tabpage_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_tabpage_set_var",
@@ -7851,7 +7549,7 @@ pub fn handle_tabpage_set_var(
         return ret;
     }
     let arg_3: Object = args[2].clone();
-    let rv = tabpage_set_var(arg_1, arg_2, arg_3, arena, error);
+    let rv = tabpage_set_var(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7859,12 +7557,7 @@ pub fn handle_tabpage_set_var(
     ret
 }
 
-pub fn handle_tabpage_del_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_tabpage_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_tabpage_del_var",
@@ -7899,7 +7592,7 @@ pub fn handle_tabpage_del_var(
     ) {
         return ret;
     }
-    let rv = tabpage_del_var(arg_1, arg_2, arena, error);
+    let rv = tabpage_del_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7907,12 +7600,7 @@ pub fn handle_tabpage_del_var(
     ret
 }
 
-pub fn handle_vim_set_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_vim_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_vim_set_var",
@@ -7938,7 +7626,7 @@ pub fn handle_vim_set_var(
         return ret;
     }
     let arg_2: Object = args[1].clone();
-    let rv = vim_set_var(arg_1, arg_2, arena, error);
+    let rv = vim_set_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7946,12 +7634,7 @@ pub fn handle_vim_set_var(
     ret
 }
 
-pub fn handle_vim_del_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_vim_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_vim_del_var",
@@ -7976,7 +7659,7 @@ pub fn handle_vim_del_var(
     ) {
         return ret;
     }
-    let rv = vim_del_var(arg_1, arena, error);
+    let rv = vim_del_var(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -7984,12 +7667,7 @@ pub fn handle_vim_del_var(
     ret
 }
 
-pub fn handle_nvim_get_option_info(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_option_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_info",
@@ -8014,7 +7692,7 @@ pub fn handle_nvim_get_option_info(
     ) {
         return ret;
     }
-    let rv = nvim_get_option_info(arg_1, arena, error);
+    let rv = nvim_get_option_info(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -8022,12 +7700,7 @@ pub fn handle_nvim_get_option_info(
     ret
 }
 
-pub fn handle_nvim_set_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_option",
@@ -8060,12 +7733,7 @@ pub fn handle_nvim_set_option(
     ret
 }
 
-pub fn handle_nvim_get_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option",
@@ -8098,12 +7766,7 @@ pub fn handle_nvim_get_option(
     ret
 }
 
-pub fn handle_nvim_buf_get_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_option",
@@ -8146,12 +7809,7 @@ pub fn handle_nvim_buf_get_option(
     ret
 }
 
-pub fn handle_nvim_buf_set_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_option",
@@ -8194,12 +7852,7 @@ pub fn handle_nvim_buf_set_option(
     ret
 }
 
-pub fn handle_nvim_win_get_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_option",
@@ -8242,12 +7895,7 @@ pub fn handle_nvim_win_get_option(
     ret
 }
 
-pub fn handle_nvim_win_set_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_option",
@@ -8290,12 +7938,7 @@ pub fn handle_nvim_win_set_option(
     ret
 }
 
-pub fn handle_nvim_call_atomic(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_call_atomic(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_atomic",
@@ -8320,7 +7963,7 @@ pub fn handle_nvim_call_atomic(
     ) {
         return ret;
     }
-    let rv = nvim_call_atomic(channel_id, arg_1, arena, error);
+    let rv = nvim_call_atomic(channel_id, arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -8328,12 +7971,7 @@ pub fn handle_nvim_call_atomic(
     ret
 }
 
-pub fn handle_nvim_subscribe(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_subscribe(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_subscribe",
@@ -8362,12 +8000,7 @@ pub fn handle_nvim_subscribe(
     ret
 }
 
-pub fn handle_nvim_unsubscribe(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_unsubscribe(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_unsubscribe",
@@ -8396,12 +8029,7 @@ pub fn handle_nvim_unsubscribe(
     ret
 }
 
-pub fn handle_nvim_out_write(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_out_write(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_out_write",
@@ -8430,12 +8058,7 @@ pub fn handle_nvim_out_write(
     ret
 }
 
-pub fn handle_nvim_err_write(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_err_write(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_err_write",
@@ -8464,12 +8087,7 @@ pub fn handle_nvim_err_write(
     ret
 }
 
-pub fn handle_nvim_err_writeln(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_err_writeln(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_err_writeln",
@@ -8498,12 +8116,7 @@ pub fn handle_nvim_err_writeln(
     ret
 }
 
-pub fn handle_nvim_notify(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_notify(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_notify",
@@ -8546,7 +8159,7 @@ pub fn handle_nvim_notify(
     ) {
         return ret;
     }
-    let rv = nvim_notify(arg_1, arg_2, arg_3, arena, error);
+    let rv = nvim_notify(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -8554,12 +8167,7 @@ pub fn handle_nvim_notify(
     ret
 }
 
-pub fn handle_nvim_win_set_height(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_height",
@@ -8601,12 +8209,7 @@ pub fn handle_nvim_win_set_height(
     ret
 }
 
-pub fn handle_nvim_win_set_width(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_width(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_width",
@@ -8648,12 +8251,7 @@ pub fn handle_nvim_win_set_width(
     ret
 }
 
-pub fn handle_nvim_error_event(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_error_event(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_error_event",
@@ -8691,12 +8289,7 @@ pub fn handle_nvim_error_event(
     ret
 }
 
-pub fn handle_nvim_ui_term_event(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_term_event(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_term_event",
@@ -8729,12 +8322,7 @@ pub fn handle_nvim_ui_term_event(
     ret
 }
 
-pub fn handle_nvim_create_namespace(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_create_namespace(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_namespace",
@@ -8764,12 +8352,7 @@ pub fn handle_nvim_create_namespace(
     ret
 }
 
-pub fn handle_nvim_get_namespaces(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_namespaces(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_namespaces",
@@ -8785,7 +8368,7 @@ pub fn handle_nvim_get_namespaces(
         );
         return ret;
     }
-    let rv = nvim_get_namespaces(arena);
+    let rv = nvim_get_namespaces();
     ret = dict_obj(rv);
     ret
 }
@@ -8793,7 +8376,6 @@ pub fn handle_nvim_get_namespaces(
 pub fn handle_nvim_buf_get_extmark_by_id(
     channel_id: u64,
     args: Array,
-    arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     dlog_internal_call(
@@ -8844,7 +8426,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
             && !extract_keydict(args[3].clone(), &mut arg_4, Some(key_dict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *", error) {
                 return ret;
             }
-    let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, arena, error);
+    let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -8852,12 +8434,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
     ret
 }
 
-pub fn handle_nvim_buf_get_extmarks(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_extmarks(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_extmarks",
@@ -8899,7 +8476,7 @@ pub fn handle_nvim_buf_get_extmarks(
             && !extract_keydict(args[4].clone(), &mut arg_5, Some(key_dict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *", error) {
                 return ret;
             }
-    let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, arena, error);
+    let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -8907,12 +8484,7 @@ pub fn handle_nvim_buf_get_extmarks(
     ret
 }
 
-pub fn handle_nvim_buf_set_extmark(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_set_extmark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_extmark",
@@ -8978,12 +8550,7 @@ pub fn handle_nvim_buf_set_extmark(
     ret
 }
 
-pub fn handle_nvim_buf_del_extmark(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_del_extmark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_extmark",
@@ -9035,12 +8602,7 @@ pub fn handle_nvim_buf_del_extmark(
     ret
 }
 
-pub fn handle_nvim_buf_clear_namespace(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_clear_namespace(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_clear_namespace",
@@ -9100,12 +8662,7 @@ pub fn handle_nvim_buf_clear_namespace(
     ret
 }
 
-pub fn handle_nvim_buf_debug_extmarks(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_debug_extmarks(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__buf_debug_extmarks",
@@ -9157,12 +8714,7 @@ pub fn handle_nvim_buf_debug_extmarks(
     ret
 }
 
-pub fn handle_nvim_ns_set(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ns_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__ns_set",
@@ -9206,12 +8758,7 @@ pub fn handle_nvim_ns_set(
     ret
 }
 
-pub fn handle_nvim_ns_get(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ns_get(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__ns_get",
@@ -9236,7 +8783,7 @@ pub fn handle_nvim_ns_get(
     ) {
         return ret;
     }
-    let rv = nvim_ns_get(arg_1, arena, error);
+    let rv = nvim_ns_get(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9244,17 +8791,11 @@ pub fn handle_nvim_ns_get(
         &rv,
         &NS_OPTS_TABLE,
         NS_OPTS_TABLE.len(),
-        arena,
     ));
     ret
 }
 
-pub fn handle_nvim_get_option_value(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_option_value(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_value",
@@ -9292,12 +8833,7 @@ pub fn handle_nvim_get_option_value(
     ret
 }
 
-pub fn handle_nvim_set_option_value(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_option_value(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_option_value",
@@ -9328,7 +8864,7 @@ pub fn handle_nvim_set_option_value(
             && !extract_keydict(args[2].clone(), &mut arg_3, Some(key_dict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *", error) {
                 return ret;
             }
-    let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, arena, error);
+    let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9336,12 +8872,7 @@ pub fn handle_nvim_set_option_value(
     ret
 }
 
-pub fn handle_nvim_get_all_options_info(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_all_options_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_all_options_info",
@@ -9357,7 +8888,7 @@ pub fn handle_nvim_get_all_options_info(
         );
         return ret;
     }
-    let rv = nvim_get_all_options_info(arena, error);
+    let rv = nvim_get_all_options_info(error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9365,12 +8896,7 @@ pub fn handle_nvim_get_all_options_info(
     ret
 }
 
-pub fn handle_nvim_get_option_info2(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_option_info2(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_info2",
@@ -9400,7 +8926,7 @@ pub fn handle_nvim_get_option_info2(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *", error) {
                 return ret;
             }
-    let rv = nvim_get_option_info2(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_get_option_info2(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9408,12 +8934,7 @@ pub fn handle_nvim_get_option_info2(
     ret
 }
 
-pub fn handle_nvim_tabpage_list_wins(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_list_wins(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_list_wins",
@@ -9439,7 +8960,7 @@ pub fn handle_nvim_tabpage_list_wins(
     ) {
         return ret;
     }
-    let rv = nvim_tabpage_list_wins(arg_1, arena, error);
+    let rv = nvim_tabpage_list_wins(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9447,12 +8968,7 @@ pub fn handle_nvim_tabpage_list_wins(
     ret
 }
 
-pub fn handle_nvim_tabpage_get_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_var",
@@ -9487,7 +9003,7 @@ pub fn handle_nvim_tabpage_get_var(
     ) {
         return ret;
     }
-    let rv = nvim_tabpage_get_var(arg_1, arg_2, arena, error);
+    let rv = nvim_tabpage_get_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -9495,12 +9011,7 @@ pub fn handle_nvim_tabpage_get_var(
     ret
 }
 
-pub fn handle_nvim_tabpage_set_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_set_var",
@@ -9543,12 +9054,7 @@ pub fn handle_nvim_tabpage_set_var(
     ret
 }
 
-pub fn handle_nvim_tabpage_del_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_del_var",
@@ -9590,12 +9096,7 @@ pub fn handle_nvim_tabpage_del_var(
     ret
 }
 
-pub fn handle_nvim_tabpage_get_win(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_get_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_win",
@@ -9629,12 +9130,7 @@ pub fn handle_nvim_tabpage_get_win(
     ret
 }
 
-pub fn handle_nvim_tabpage_set_win(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_set_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_set_win",
@@ -9677,12 +9173,7 @@ pub fn handle_nvim_tabpage_set_win(
     ret
 }
 
-pub fn handle_nvim_tabpage_get_number(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_number",
@@ -9716,12 +9207,7 @@ pub fn handle_nvim_tabpage_get_number(
     ret
 }
 
-pub fn handle_nvim_tabpage_is_valid(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_tabpage_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_is_valid",
@@ -9752,12 +9238,7 @@ pub fn handle_nvim_tabpage_is_valid(
     ret
 }
 
-pub fn handle_nvim_open_tabpage(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_open_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_tabpage",
@@ -9808,12 +9289,7 @@ pub fn handle_nvim_open_tabpage(
     ret
 }
 
-pub fn handle_nvim_ui_attach(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_attach",
@@ -9863,12 +9339,7 @@ pub fn handle_nvim_ui_attach(
     ret
 }
 
-pub fn handle_ui_attach(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_ui_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_ui_attach", c"API: vim -> ui_attach");
     let ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
@@ -9914,12 +9385,7 @@ pub fn handle_ui_attach(
     ret
 }
 
-pub fn handle_nvim_ui_set_focus(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_set_focus(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_set_focus",
@@ -9951,12 +9417,7 @@ pub fn handle_nvim_ui_set_focus(
     ret
 }
 
-pub fn handle_nvim_ui_detach(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_detach(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_detach",
@@ -9979,12 +9440,7 @@ pub fn handle_nvim_ui_detach(
     ret
 }
 
-pub fn handle_nvim_ui_try_resize(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_try_resize(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_try_resize",
@@ -10025,12 +9481,7 @@ pub fn handle_nvim_ui_try_resize(
     ret
 }
 
-pub fn handle_nvim_ui_set_option(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_set_option",
@@ -10063,12 +9514,7 @@ pub fn handle_nvim_ui_set_option(
     ret
 }
 
-pub fn handle_nvim_ui_try_resize_grid(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_try_resize_grid(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_try_resize_grid",
@@ -10118,12 +9564,7 @@ pub fn handle_nvim_ui_try_resize_grid(
     ret
 }
 
-pub fn handle_nvim_ui_pum_set_height(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_pum_set_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_pum_set_height",
@@ -10155,12 +9596,7 @@ pub fn handle_nvim_ui_pum_set_height(
     ret
 }
 
-pub fn handle_nvim_ui_pum_set_bounds(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_pum_set_bounds(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_pum_set_bounds",
@@ -10219,12 +9655,7 @@ pub fn handle_nvim_ui_pum_set_bounds(
     ret
 }
 
-pub fn handle_nvim_ui_send(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_ui_send(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_send",
@@ -10256,12 +9687,7 @@ pub fn handle_nvim_ui_send(
     ret
 }
 
-pub fn handle_nvim_get_hl_id_by_name(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_hl_id_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_id_by_name",
@@ -10294,12 +9720,7 @@ pub fn handle_nvim_get_hl_id_by_name(
     ret
 }
 
-pub fn handle_nvim_get_hl(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_hl(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl",
@@ -10336,7 +9757,7 @@ pub fn handle_nvim_get_hl(
     {
         return ret;
     }
-    let rv = nvim_get_hl(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_get_hl(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -10344,12 +9765,7 @@ pub fn handle_nvim_get_hl(
     ret
 }
 
-pub fn handle_nvim_set_hl(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_hl(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl",
@@ -10400,12 +9816,7 @@ pub fn handle_nvim_set_hl(
     ret
 }
 
-pub fn handle_nvim_get_hl_ns(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_ns",
@@ -10441,12 +9852,7 @@ pub fn handle_nvim_get_hl_ns(
     ret
 }
 
-pub fn handle_nvim_set_hl_ns(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl_ns",
@@ -10478,12 +9884,7 @@ pub fn handle_nvim_set_hl_ns(
     ret
 }
 
-pub fn handle_nvim_set_hl_ns_fast(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_hl_ns_fast(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl_ns_fast",
@@ -10515,12 +9916,7 @@ pub fn handle_nvim_set_hl_ns_fast(
     ret
 }
 
-pub fn handle_nvim_feedkeys(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_feedkeys(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_feedkeys",
@@ -10567,12 +9963,7 @@ pub fn handle_nvim_feedkeys(
     ret
 }
 
-pub fn handle_nvim_input(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_input(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_input", c"API: vim -> nvim_input");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
@@ -10598,12 +9989,7 @@ pub fn handle_nvim_input(
     ret
 }
 
-pub fn handle_nvim_input_mouse(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_input_mouse(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_input_mouse",
@@ -10680,12 +10066,7 @@ pub fn handle_nvim_input_mouse(
     ret
 }
 
-pub fn handle_nvim_replace_termcodes(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_replace_termcodes(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_replace_termcodes",
@@ -10742,12 +10123,7 @@ pub fn handle_nvim_replace_termcodes(
     ret
 }
 
-pub fn handle_nvim_exec_lua(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_exec_lua(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_exec_lua",
@@ -10781,7 +10157,7 @@ pub fn handle_nvim_exec_lua(
     ) {
         return ret;
     }
-    let rv = nvim_exec_lua(arg_1, arg_2, arena, error);
+    let rv = nvim_exec_lua(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -10789,12 +10165,7 @@ pub fn handle_nvim_exec_lua(
     ret
 }
 
-pub fn handle_nvim_exec_lua_fast(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_exec_lua_fast(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__exec_lua_fast",
@@ -10828,7 +10199,7 @@ pub fn handle_nvim_exec_lua_fast(
     ) {
         return ret;
     }
-    let rv = nvim_exec_lua_fast(arg_1, arg_2, arena, error);
+    let rv = nvim_exec_lua_fast(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -10836,12 +10207,7 @@ pub fn handle_nvim_exec_lua_fast(
     ret
 }
 
-pub fn handle_nvim_strwidth(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_strwidth(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_strwidth",
@@ -10874,12 +10240,7 @@ pub fn handle_nvim_strwidth(
     ret
 }
 
-pub fn handle_nvim_list_runtime_paths(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_runtime_paths(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_runtime_paths",
@@ -10895,7 +10256,7 @@ pub fn handle_nvim_list_runtime_paths(
         );
         return ret;
     }
-    let rv = nvim_list_runtime_paths(arena, error);
+    let rv = nvim_list_runtime_paths(error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -10903,12 +10264,7 @@ pub fn handle_nvim_list_runtime_paths(
     ret
 }
 
-pub fn handle_nvim_runtime_inspect(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_runtime_inspect(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__runtime_inspect",
@@ -10924,17 +10280,12 @@ pub fn handle_nvim_runtime_inspect(
         );
         return ret;
     }
-    let rv = nvim_runtime_inspect(arena);
+    let rv = nvim_runtime_inspect();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_runtime_file(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_runtime_file(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_runtime_file",
@@ -10968,7 +10319,7 @@ pub fn handle_nvim_get_runtime_file(
     ) {
         return ret;
     }
-    let rv = nvim_get_runtime_file(arg_1, arg_2, arena, error);
+    let rv = nvim_get_runtime_file(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -10976,12 +10327,7 @@ pub fn handle_nvim_get_runtime_file(
     ret
 }
 
-pub fn handle_nvim_get_lib_dir(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_lib_dir(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__get_lib_dir",
@@ -11002,12 +10348,7 @@ pub fn handle_nvim_get_lib_dir(
     ret
 }
 
-pub fn handle_nvim_get_runtime(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_runtime(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__get_runtime",
@@ -11053,7 +10394,7 @@ pub fn handle_nvim_get_runtime(
     {
         return ret;
     }
-    let rv = nvim_get_runtime(arg_1, arg_2, &mut arg_3, arena, error);
+    let rv = nvim_get_runtime(arg_1, arg_2, &mut arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -11061,12 +10402,7 @@ pub fn handle_nvim_get_runtime(
     ret
 }
 
-pub fn handle_nvim_set_current_dir(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_current_dir(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_dir",
@@ -11098,12 +10434,7 @@ pub fn handle_nvim_set_current_dir(
     ret
 }
 
-pub fn handle_nvim_get_current_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_line",
@@ -11119,7 +10450,7 @@ pub fn handle_nvim_get_current_line(
         );
         return ret;
     }
-    let rv = nvim_get_current_line(arena, error);
+    let rv = nvim_get_current_line(error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -11127,12 +10458,7 @@ pub fn handle_nvim_get_current_line(
     ret
 }
 
-pub fn handle_nvim_set_current_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_line",
@@ -11161,19 +10487,14 @@ pub fn handle_nvim_set_current_line(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    nvim_set_current_line(arg_1, arena, error);
+    nvim_set_current_line(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_del_current_line(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_current_line",
@@ -11193,19 +10514,14 @@ pub fn handle_nvim_del_current_line(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    nvim_del_current_line(arena, error);
+    nvim_del_current_line(error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_get_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_var",
@@ -11230,7 +10546,7 @@ pub fn handle_nvim_get_var(
     ) {
         return ret;
     }
-    let rv = nvim_get_var(arg_1, arena, error);
+    let rv = nvim_get_var(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -11238,12 +10554,7 @@ pub fn handle_nvim_get_var(
     ret
 }
 
-pub fn handle_nvim_set_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_var",
@@ -11276,12 +10587,7 @@ pub fn handle_nvim_set_var(
     ret
 }
 
-pub fn handle_nvim_del_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_var",
@@ -11313,12 +10619,7 @@ pub fn handle_nvim_del_var(
     ret
 }
 
-pub fn handle_nvim_get_vvar(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_vvar(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_vvar",
@@ -11343,7 +10644,7 @@ pub fn handle_nvim_get_vvar(
     ) {
         return ret;
     }
-    let rv = nvim_get_vvar(arg_1, arena, error);
+    let rv = nvim_get_vvar(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -11351,12 +10652,7 @@ pub fn handle_nvim_get_vvar(
     ret
 }
 
-pub fn handle_nvim_set_vvar(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_vvar(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_vvar",
@@ -11389,12 +10685,7 @@ pub fn handle_nvim_set_vvar(
     ret
 }
 
-pub fn handle_nvim_echo(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_echo(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_echo", c"API: vim -> nvim_echo");
     let mut ret = OBJECT_NIL;
     let mut arg_1: Array = Default::default();
@@ -11439,12 +10730,7 @@ pub fn handle_nvim_echo(
     ret
 }
 
-pub fn handle_nvim_list_bufs(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_bufs(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_bufs",
@@ -11460,17 +10746,12 @@ pub fn handle_nvim_list_bufs(
         );
         return ret;
     }
-    let rv = nvim_list_bufs(arena);
+    let rv = nvim_list_bufs();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_current_buf(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_current_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_buf",
@@ -11491,12 +10772,7 @@ pub fn handle_nvim_get_current_buf(
     ret
 }
 
-pub fn handle_nvim_set_current_buf(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_current_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_buf",
@@ -11533,12 +10809,7 @@ pub fn handle_nvim_set_current_buf(
     ret
 }
 
-pub fn handle_nvim_list_wins(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_wins(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_wins",
@@ -11554,17 +10825,12 @@ pub fn handle_nvim_list_wins(
         );
         return ret;
     }
-    let rv = nvim_list_wins(arena);
+    let rv = nvim_list_wins();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_current_win(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_current_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_win",
@@ -11585,12 +10851,7 @@ pub fn handle_nvim_get_current_win(
     ret
 }
 
-pub fn handle_nvim_set_current_win(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_current_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_win",
@@ -11627,12 +10888,7 @@ pub fn handle_nvim_set_current_win(
     ret
 }
 
-pub fn handle_nvim_create_buf(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_create_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_buf",
@@ -11674,12 +10930,7 @@ pub fn handle_nvim_create_buf(
     ret
 }
 
-pub fn handle_nvim_open_term(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_open_term(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_term",
@@ -11729,12 +10980,7 @@ pub fn handle_nvim_open_term(
     ret
 }
 
-pub fn handle_nvim_chan_send(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_chan_send(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_chan_send",
@@ -11775,12 +11021,7 @@ pub fn handle_nvim_chan_send(
     ret
 }
 
-pub fn handle_nvim_list_tabpages(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_tabpages(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_tabpages",
@@ -11796,17 +11037,12 @@ pub fn handle_nvim_list_tabpages(
         );
         return ret;
     }
-    let rv = nvim_list_tabpages(arena);
+    let rv = nvim_list_tabpages();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_current_tabpage(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_current_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_tabpage",
@@ -11827,12 +11063,7 @@ pub fn handle_nvim_get_current_tabpage(
     ret
 }
 
-pub fn handle_nvim_set_current_tabpage(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_current_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_tabpage",
@@ -11869,12 +11100,7 @@ pub fn handle_nvim_set_current_tabpage(
     ret
 }
 
-pub fn handle_nvim_paste(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_paste(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_paste", c"API: vim -> nvim_paste");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
@@ -11917,7 +11143,7 @@ pub fn handle_nvim_paste(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3, arena, error);
+    let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -11925,12 +11151,7 @@ pub fn handle_nvim_paste(
     ret
 }
 
-pub fn handle_nvim_put(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_put(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_put", c"API: vim -> nvim_put");
     let ret = OBJECT_NIL;
     let mut arg_1: Array = Default::default();
@@ -11982,19 +11203,14 @@ pub fn handle_nvim_put(
         api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
         return ret;
     }
-    nvim_put(arg_1, arg_2, arg_3, arg_4, arena, error);
+    nvim_put(arg_1, arg_2, arg_3, arg_4, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_get_color_by_name(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_color_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_color_by_name",
@@ -12024,12 +11240,7 @@ pub fn handle_nvim_get_color_by_name(
     ret
 }
 
-pub fn handle_nvim_get_color_map(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_color_map(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_color_map",
@@ -12045,17 +11256,12 @@ pub fn handle_nvim_get_color_map(
         );
         return ret;
     }
-    let rv = nvim_get_color_map(arena);
+    let rv = nvim_get_color_map();
     ret = dict_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_context(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_context(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_context",
@@ -12083,7 +11289,7 @@ pub fn handle_nvim_get_context(
     {
         return ret;
     }
-    let rv = nvim_get_context(&mut arg_1, arena, error);
+    let rv = nvim_get_context(&mut arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -12091,12 +11297,7 @@ pub fn handle_nvim_get_context(
     ret
 }
 
-pub fn handle_nvim_load_context(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_load_context(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_load_context",
@@ -12129,12 +11330,7 @@ pub fn handle_nvim_load_context(
     ret
 }
 
-pub fn handle_nvim_get_mode(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_mode(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_mode",
@@ -12150,17 +11346,12 @@ pub fn handle_nvim_get_mode(
         );
         return ret;
     }
-    let rv = nvim_get_mode(arena);
+    let rv = nvim_get_mode();
     ret = dict_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_keymap(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_keymap",
@@ -12185,17 +11376,12 @@ pub fn handle_nvim_get_keymap(
     ) {
         return ret;
     }
-    let rv = nvim_get_keymap(arg_1, arena);
+    let rv = nvim_get_keymap(arg_1);
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_set_keymap(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_keymap",
@@ -12257,12 +11443,7 @@ pub fn handle_nvim_set_keymap(
     ret
 }
 
-pub fn handle_nvim_del_keymap(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_keymap",
@@ -12315,12 +11496,7 @@ pub fn handle_nvim_del_keymap(
     ret
 }
 
-pub fn handle_nvim_get_api_info(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_api_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_api_info",
@@ -12336,17 +11512,12 @@ pub fn handle_nvim_get_api_info(
         );
         return ret;
     }
-    let rv = nvim_get_api_info(channel_id, arena);
+    let rv = nvim_get_api_info(channel_id);
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_set_client_info(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_client_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_client_info",
@@ -12407,19 +11578,14 @@ pub fn handle_nvim_set_client_info(
     ) {
         return ret;
     }
-    nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+    nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
     ret
 }
 
-pub fn handle_nvim_chan_set(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_chan_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_chan_set",
@@ -12461,12 +11627,7 @@ pub fn handle_nvim_chan_set(
     ret
 }
 
-pub fn handle_nvim_cmdwin_set(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_cmdwin_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__cmdwin_set",
@@ -12508,12 +11669,7 @@ pub fn handle_nvim_cmdwin_set(
     ret
 }
 
-pub fn handle_nvim_get_chan_info(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_chan_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_chan_info",
@@ -12538,7 +11694,7 @@ pub fn handle_nvim_get_chan_info(
     ) {
         return ret;
     }
-    let rv = nvim_get_chan_info(channel_id, arg_1, arena, error);
+    let rv = nvim_get_chan_info(channel_id, arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -12546,12 +11702,7 @@ pub fn handle_nvim_get_chan_info(
     ret
 }
 
-pub fn handle_nvim_list_chans(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_chans(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_chans",
@@ -12567,17 +11718,12 @@ pub fn handle_nvim_list_chans(
         );
         return ret;
     }
-    let rv = nvim_list_chans(arena);
+    let rv = nvim_list_chans();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_id(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim__id", c"API: vim -> nvim__id");
     let mut ret = OBJECT_NIL;
     if args.size != 1 {
@@ -12590,17 +11736,12 @@ pub fn handle_nvim_id(
         return ret;
     }
     let arg_1: Object = args[0].clone();
-    let rv = nvim_id(arg_1, arena);
+    let rv = nvim_id(arg_1);
     ret = rv;
     ret
 }
 
-pub fn handle_nvim_id_array(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_id_array(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_array",
@@ -12625,17 +11766,12 @@ pub fn handle_nvim_id_array(
     ) {
         return ret;
     }
-    let rv = nvim_id_array(arg_1, arena);
+    let rv = nvim_id_array(arg_1);
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_id_dict(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_id_dict(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_dict",
@@ -12660,17 +11796,12 @@ pub fn handle_nvim_id_dict(
     ) {
         return ret;
     }
-    let rv = nvim_id_dict(arg_1, arena);
+    let rv = nvim_id_dict(arg_1);
     ret = dict_obj(rv);
     ret
 }
 
-pub fn handle_nvim_id_float(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_id_float(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_float",
@@ -12700,12 +11831,7 @@ pub fn handle_nvim_id_float(
     ret
 }
 
-pub fn handle_nvim_stats(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_stats(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__stats",
@@ -12721,17 +11847,12 @@ pub fn handle_nvim_stats(
         );
         return ret;
     }
-    let rv = nvim_stats(arena);
+    let rv = nvim_stats();
     ret = dict_obj(rv);
     ret
 }
 
-pub fn handle_nvim_list_uis(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_list_uis(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_uis",
@@ -12747,17 +11868,12 @@ pub fn handle_nvim_list_uis(
         );
         return ret;
     }
-    let rv = nvim_list_uis(arena);
+    let rv = nvim_list_uis();
     ret = array_obj(rv);
     ret
 }
 
-pub fn handle_nvim_get_proc_children(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_proc_children(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_proc_children",
@@ -12782,7 +11898,7 @@ pub fn handle_nvim_get_proc_children(
     ) {
         return ret;
     }
-    let rv = nvim_get_proc_children(arg_1, arena, error);
+    let rv = nvim_get_proc_children(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -12790,12 +11906,7 @@ pub fn handle_nvim_get_proc_children(
     ret
 }
 
-pub fn handle_nvim_get_proc(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_proc(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_proc",
@@ -12820,7 +11931,7 @@ pub fn handle_nvim_get_proc(
     ) {
         return ret;
     }
-    let rv = nvim_get_proc(arg_1, arena, error);
+    let rv = nvim_get_proc(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -12831,7 +11942,6 @@ pub fn handle_nvim_get_proc(
 pub fn handle_nvim_select_popupmenu_item(
     channel_id: u64,
     args: Array,
-    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     dlog_internal_call(
@@ -12888,12 +11998,7 @@ pub fn handle_nvim_select_popupmenu_item(
     ret
 }
 
-pub fn handle_nvim_inspect_cell(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_inspect_cell(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__inspect_cell",
@@ -12936,7 +12041,7 @@ pub fn handle_nvim_inspect_cell(
     ) {
         return ret;
     }
-    let rv = nvim_inspect_cell(arg_1, arg_2, arg_3, arena, error);
+    let rv = nvim_inspect_cell(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -12944,12 +12049,7 @@ pub fn handle_nvim_inspect_cell(
     ret
 }
 
-pub fn handle_nvim_screenshot(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_screenshot(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__screenshot",
@@ -12981,7 +12081,6 @@ pub fn handle_nvim_screenshot(
 pub fn handle_nvim_invalidate_glyph_cache(
     channel_id: u64,
     args: Array,
-    _arena: &mut Arena,
     error: &mut Error,
 ) -> Object {
     dlog_internal_call(
@@ -13003,12 +12102,7 @@ pub fn handle_nvim_invalidate_glyph_cache(
     ret
 }
 
-pub fn handle_nvim_unpack(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_unpack(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__unpack",
@@ -13033,7 +12127,7 @@ pub fn handle_nvim_unpack(
     ) {
         return ret;
     }
-    let rv = nvim_unpack(arg_1, arena, error);
+    let rv = nvim_unpack(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13041,12 +12135,7 @@ pub fn handle_nvim_unpack(
     ret
 }
 
-pub fn handle_nvim_del_mark(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_del_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_mark",
@@ -13079,12 +12168,7 @@ pub fn handle_nvim_del_mark(
     ret
 }
 
-pub fn handle_nvim_get_mark(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_get_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_mark",
@@ -13121,7 +12205,7 @@ pub fn handle_nvim_get_mark(
     {
         return ret;
     }
-    let rv = nvim_get_mark(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_get_mark(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13129,12 +12213,7 @@ pub fn handle_nvim_get_mark(
     ret
 }
 
-pub fn handle_nvim_eval_statusline(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_eval_statusline(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_eval_statusline",
@@ -13164,7 +12243,7 @@ pub fn handle_nvim_eval_statusline(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *", error) {
                 return ret;
             }
-    let rv = nvim_eval_statusline(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_eval_statusline(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13172,12 +12251,7 @@ pub fn handle_nvim_eval_statusline(
     ret
 }
 
-pub fn handle_nvim_complete_set(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_complete_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__complete_set",
@@ -13207,7 +12281,7 @@ pub fn handle_nvim_complete_set(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *", error) {
                 return ret;
             }
-    let rv = nvim_complete_set(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_complete_set(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13215,12 +12289,7 @@ pub fn handle_nvim_complete_set(
     ret
 }
 
-pub fn handle_nvim_redraw(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_redraw(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__redraw",
@@ -13255,12 +12324,7 @@ pub fn handle_nvim_redraw(
     ret
 }
 
-pub fn handle_nvim_set_restart_on_crash(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_set_restart_on_crash(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__set_restart_on_crash",
@@ -13298,12 +12362,7 @@ pub fn handle_nvim_set_restart_on_crash(
     ret
 }
 
-pub fn handle_nvim_exec2(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_exec2(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_exec2", c"API: vim -> nvim_exec2");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
@@ -13344,12 +12403,7 @@ pub fn handle_nvim_exec2(
     ret
 }
 
-pub fn handle_nvim_command(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_command",
@@ -13381,12 +12435,7 @@ pub fn handle_nvim_command(
     ret
 }
 
-pub fn handle_nvim_eval(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_eval(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_eval", c"API: vim -> nvim_eval");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
@@ -13407,7 +12456,7 @@ pub fn handle_nvim_eval(
     ) {
         return ret;
     }
-    let rv = nvim_eval(arg_1, arena, error);
+    let rv = nvim_eval(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13415,12 +12464,7 @@ pub fn handle_nvim_eval(
     ret
 }
 
-pub fn handle_nvim_call_function(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_call_function(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_function",
@@ -13454,7 +12498,7 @@ pub fn handle_nvim_call_function(
     ) {
         return ret;
     }
-    let rv = nvim_call_function(channel_id, arg_1, arg_2, arena, error);
+    let rv = nvim_call_function(channel_id, arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13462,12 +12506,7 @@ pub fn handle_nvim_call_function(
     ret
 }
 
-pub fn handle_nvim_call_dict_function(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_call_dict_function(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_dict_function",
@@ -13502,7 +12541,7 @@ pub fn handle_nvim_call_dict_function(
     ) {
         return ret;
     }
-    let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3, arena, error);
+    let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13510,12 +12549,7 @@ pub fn handle_nvim_call_dict_function(
     ret
 }
 
-pub fn handle_nvim_parse_expression(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_parse_expression(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_parse_expression",
@@ -13558,7 +12592,7 @@ pub fn handle_nvim_parse_expression(
     ) {
         return ret;
     }
-    let rv = nvim_parse_expression(arg_1, arg_2, arg_3, arena, error);
+    let rv = nvim_parse_expression(arg_1, arg_2, arg_3, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13566,12 +12600,7 @@ pub fn handle_nvim_parse_expression(
     ret
 }
 
-pub fn handle_nvim_open_win(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_open_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_win",
@@ -13628,12 +12657,7 @@ pub fn handle_nvim_open_win(
     ret
 }
 
-pub fn handle_nvim_win_set_config(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_config(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_config",
@@ -13676,12 +12700,7 @@ pub fn handle_nvim_win_set_config(
     ret
 }
 
-pub fn handle_nvim_win_get_config(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_config(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_config",
@@ -13707,7 +12726,7 @@ pub fn handle_nvim_win_get_config(
     ) {
         return ret;
     }
-    let rv = nvim_win_get_config(arg_1, arena, error);
+    let rv = nvim_win_get_config(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13715,17 +12734,11 @@ pub fn handle_nvim_win_get_config(
         &rv,
         &WIN_CONFIG_TABLE,
         WIN_CONFIG_TABLE.len(),
-        arena,
     ));
     ret
 }
 
-pub fn handle_nvim_win_get_buf(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_buf",
@@ -13759,12 +12772,7 @@ pub fn handle_nvim_win_get_buf(
     ret
 }
 
-pub fn handle_nvim_win_set_buf(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_buf",
@@ -13811,12 +12819,7 @@ pub fn handle_nvim_win_set_buf(
     ret
 }
 
-pub fn handle_nvim_win_get_cursor(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_cursor(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_cursor",
@@ -13842,7 +12845,7 @@ pub fn handle_nvim_win_get_cursor(
     ) {
         return ret;
     }
-    let rv = nvim_win_get_cursor(arg_1, arena, error);
+    let rv = nvim_win_get_cursor(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -13850,12 +12853,7 @@ pub fn handle_nvim_win_get_cursor(
     ret
 }
 
-pub fn handle_nvim_win_set_cursor(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_cursor(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_cursor",
@@ -13892,12 +12890,7 @@ pub fn handle_nvim_win_set_cursor(
     ret
 }
 
-pub fn handle_nvim_win_get_height(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_height",
@@ -13931,12 +12924,7 @@ pub fn handle_nvim_win_get_height(
     ret
 }
 
-pub fn handle_nvim_win_get_width(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_width(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_width",
@@ -13970,12 +12958,7 @@ pub fn handle_nvim_win_get_width(
     ret
 }
 
-pub fn handle_nvim_win_get_var(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_var",
@@ -14010,7 +12993,7 @@ pub fn handle_nvim_win_get_var(
     ) {
         return ret;
     }
-    let rv = nvim_win_get_var(arg_1, arg_2, arena, error);
+    let rv = nvim_win_get_var(arg_1, arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -14018,12 +13001,7 @@ pub fn handle_nvim_win_get_var(
     ret
 }
 
-pub fn handle_nvim_win_set_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_var",
@@ -14066,12 +13044,7 @@ pub fn handle_nvim_win_set_var(
     ret
 }
 
-pub fn handle_nvim_win_del_var(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_del_var",
@@ -14113,12 +13086,7 @@ pub fn handle_nvim_win_del_var(
     ret
 }
 
-pub fn handle_nvim_win_get_position(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_position(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_position",
@@ -14144,7 +13112,7 @@ pub fn handle_nvim_win_get_position(
     ) {
         return ret;
     }
-    let rv = nvim_win_get_position(arg_1, arena, error);
+    let rv = nvim_win_get_position(arg_1, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -14152,12 +13120,7 @@ pub fn handle_nvim_win_get_position(
     ret
 }
 
-pub fn handle_nvim_win_get_tabpage(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_tabpage",
@@ -14191,12 +13154,7 @@ pub fn handle_nvim_win_get_tabpage(
     ret
 }
 
-pub fn handle_nvim_win_get_number(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_number",
@@ -14230,12 +13188,7 @@ pub fn handle_nvim_win_get_number(
     ret
 }
 
-pub fn handle_nvim_win_is_valid(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_is_valid",
@@ -14266,12 +13219,7 @@ pub fn handle_nvim_win_is_valid(
     ret
 }
 
-pub fn handle_nvim_win_hide(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_hide(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_hide",
@@ -14308,12 +13256,7 @@ pub fn handle_nvim_win_hide(
     ret
 }
 
-pub fn handle_nvim_win_close(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_close(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_close",
@@ -14359,12 +13302,7 @@ pub fn handle_nvim_win_close(
     ret
 }
 
-pub fn handle_nvim_win_set_hl_ns(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_set_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_hl_ns",
@@ -14406,12 +13344,7 @@ pub fn handle_nvim_win_set_hl_ns(
     ret
 }
 
-pub fn handle_nvim_win_text_height(
-    channel_id: u64,
-    args: Array,
-    arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_text_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_text_height",
@@ -14442,7 +13375,7 @@ pub fn handle_nvim_win_text_height(
             && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *", error) {
                 return ret;
             }
-    let rv = nvim_win_text_height(arg_1, &mut arg_2, arena, error);
+    let rv = nvim_win_text_height(arg_1, &mut arg_2, error);
     if error.err_type != ErrorType::ErrorTypeNone {
         return ret;
     }
@@ -14450,12 +13383,7 @@ pub fn handle_nvim_win_text_height(
     ret
 }
 
-pub fn handle_nvim_win_resize(
-    channel_id: u64,
-    args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_win_resize(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_resize",
@@ -16553,7 +15481,6 @@ const K_NLUA_PUSH_FREE_REFS_CONST: i32 = 0x02;
 
 extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_get_autocmds = Default::default();
     'exit_0: {
@@ -16575,7 +15502,6 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_get_autocmds_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -16584,7 +15510,7 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_autocmds(&mut arg1, &mut arena, &mut err);
+            let ret = nvim_get_autocmds(&mut arg1, &mut err);
             nlua_push_array(
                 lstate,
                 ret,
@@ -16594,12 +15520,11 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg1, &GET_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_create_autocmd = Default::default();
     let arg1: Object;
@@ -16619,27 +15544,20 @@ extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32
                     &mut arg2,
                     Some(key_dict_create_autocmd_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg1 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"event");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_create_autocmd(
-                LUA_INTERNAL_CALL,
-                arg1.clone(),
-                &mut arg2,
-                &mut arena,
-                &mut err,
-            );
+            let ret = nvim_create_autocmd(LUA_INTERNAL_CALL, arg1.clone(), &mut arg2, &mut err);
             nlua_push_integer(
                 lstate,
                 ret,
@@ -16650,12 +15568,11 @@ extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg2, &CREATE_AUTOCMD_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -16670,7 +15587,7 @@ extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_autocmd");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"id");
             break 'exit_0;
@@ -16680,12 +15597,11 @@ extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
         nvim_del_autocmd(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_clear_autocmds = Default::default();
     'exit_0: {
@@ -16707,7 +15623,6 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
                     &mut arg1,
                     Some(key_dict_clear_autocmds_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -16716,17 +15631,16 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_clear_autocmds(&mut arg1, &mut arena, &mut err);
+            nvim_clear_autocmds(&mut arg1, &mut err);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &CLEAR_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_create_augroup = Default::default();
     let arg1: NvimString;
@@ -16749,14 +15663,13 @@ extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32
                     &mut arg2,
                     Some(key_dict_create_augroup_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
@@ -16773,12 +15686,11 @@ extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg2, &CREATE_AUGROUP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -16793,7 +15705,7 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_id");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"id");
             break 'exit_0;
@@ -16803,12 +15715,11 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> 
         nvim_del_augroup_by_id(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -16823,7 +15734,7 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -16833,12 +15744,11 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -
         nvim_del_augroup_by_name(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_exec_autocmds = Default::default();
     let arg1: Object;
@@ -16861,32 +15771,30 @@ extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 
                     &mut arg2,
                     Some(key_dict_exec_autocmds_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg1 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"event");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_exec_autocmds(arg1.clone(), &mut arg2, &mut arena, &mut err);
+            nvim_exec_autocmds(arg1.clone(), &mut arg2, &mut err);
             set_active_lstate(save_active_lstate);
             api_luarefs_free_object(arg1);
         }
         api_luarefs_free_keydict(&arg2, &EXEC_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -16901,7 +15809,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_line_count");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -16916,12 +15824,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_buf_attach = Default::default();
     let arg2: Boolean;
@@ -16946,19 +15853,18 @@ extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
                         &mut arg3,
                         Some(key_dict_buf_attach_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"send_buffer");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -16976,12 +15882,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &BUF_ATTACH_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg4: Boolean;
     let arg3: Integer;
@@ -17002,22 +15907,22 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_lines");
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg4 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"strict_indexing");
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"end");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"start");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_3;
@@ -17031,7 +15936,6 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
                         arg2,
                         arg3,
                         arg4,
-                        &mut arena,
                         lstate,
                         &mut err,
                     );
@@ -17045,12 +15949,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, &mut err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg5: Array;
     let arg4: Boolean;
@@ -17081,27 +15984,27 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 
                             );
                             break 'exit_0;
                         }
-                        arg5 = nlua_pop_array(lstate, &mut arena, &mut err);
+                        arg5 = nlua_pop_array(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"replacement");
                             break 'exit_0;
                         }
-                        arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_boolean(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"strict_indexing");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"end");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"start");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_4;
@@ -17115,7 +16018,6 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 
                             arg3,
                             arg4,
                             arg5,
-                            &mut arena,
                             &mut err,
                         );
                         set_active_lstate(save_active_lstate);
@@ -17124,12 +16026,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg6: Array;
     let arg5: Integer;
@@ -17162,32 +16063,32 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
                                 );
                                 break 'exit_0;
                             }
-                            arg6 = nlua_pop_array(lstate, &mut arena, &mut err);
+                            arg6 = nlua_pop_array(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"replacement");
                                 break 'exit_0;
                             }
-                            arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg5 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end_col");
                                 break 'exit_1;
                             }
-                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end_row");
                                 break 'exit_2;
                             }
-                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start_col");
                                 break 'exit_3;
                             }
-                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start_row");
                                 break 'exit_4;
                             }
-                            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                            arg1 = nlua_pop_Buffer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_5;
@@ -17202,7 +16103,6 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
                                 arg4,
                                 arg5,
                                 arg6,
-                                &mut arena,
                                 &mut err,
                             );
                             set_active_lstate(save_active_lstate);
@@ -17212,12 +16112,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg6: KeyDict_empty = Default::default();
     let arg5: Integer;
@@ -17248,34 +16147,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                                     &mut arg6,
                                     Some(key_dict_empty_get_field),
                                     &mut err_param,
-                                    &mut arena,
                                     &mut err,
                                 );
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     break 'exit_1;
                                 }
                             }
-                            arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg5 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end_col");
                                 break 'exit_1;
                             }
-                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end_row");
                                 break 'exit_2;
                             }
-                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start_col");
                                 break 'exit_3;
                             }
-                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start_row");
                                 break 'exit_4;
                             }
-                            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                            arg1 = nlua_pop_Buffer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buf");
                                 break 'exit_5;
@@ -17291,7 +16189,6 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                                 arg4,
                                 arg5,
                                 &mut arg6,
-                                &mut arena,
                                 lstate,
                                 &mut err,
                             );
@@ -17308,12 +16205,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg6, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, &mut err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Integer;
     let arg1: Buffer;
@@ -17330,12 +16226,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_offset");
             }
-            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"index");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -17351,12 +16247,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17373,19 +16268,19 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_buf_get_var(arg1, arg2, &mut arena, &mut err);
+            let mut ret = nvim_buf_get_var(arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
                 &mut ret,
@@ -17394,12 +16289,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -17414,7 +16308,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_changedtick");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -17429,12 +16323,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17451,19 +16344,19 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_keymap");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"mode");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_keymap(arg1, arg2, &mut arena, &mut err);
+            let ret = nvim_buf_get_keymap(arg1, arg2, &mut err);
             nlua_push_array(
                 lstate,
                 ret,
@@ -17472,12 +16365,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg5: KeyDict_keymap = Default::default();
     let arg4: NvimString;
@@ -17506,29 +16398,28 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
                                 &mut arg5,
                                 Some(key_dict_keymap_get_field),
                                 &mut err_param,
-                                &mut arena,
                                 &mut err,
                             );
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
-                        arg4 = nlua_pop_string(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_string(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"rhs");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_string(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lhs");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"mode");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_4;
@@ -17551,12 +16442,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg5, &KEYMAP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_keymap_del = Default::default();
     let arg3: NvimString;
@@ -17583,24 +16473,23 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32
                             &mut arg4,
                             Some(key_dict_keymap_del_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"lhs");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_3;
@@ -17614,12 +16503,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg4, &KEYMAP_DEL_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Object;
     let arg2: NvimString;
@@ -17638,17 +16526,17 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg3 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -17661,12 +16549,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17683,12 +16570,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -17699,12 +16586,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -17719,7 +16605,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_name");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -17734,12 +16620,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17756,12 +16641,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_name");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -17772,12 +16657,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -17792,7 +16676,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_loaded");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -17807,12 +16691,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_buf_delete = Default::default();
     let arg1: Buffer;
@@ -17843,14 +16726,13 @@ extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_buf_delete_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -17862,12 +16744,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &BUF_DELETE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -17882,7 +16763,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_valid");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -17897,12 +16778,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17919,12 +16799,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_mark");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -17940,12 +16820,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg5: KeyDict_empty = Default::default();
     let arg4: Integer;
@@ -17974,29 +16853,28 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
                                 &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
-                                &mut arena,
                                 &mut err,
                             );
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
-                        arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"col");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"name");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_4;
@@ -18016,12 +16894,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg5, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -18038,19 +16915,19 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_mark");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_mark(arg1, arg2, &mut arena, &mut err);
+            let ret = nvim_buf_get_mark(arg1, arg2, &mut err);
             nlua_push_array(
                 lstate,
                 ret,
@@ -18059,12 +16936,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: LuaRef;
     let arg1: Buffer;
@@ -18081,12 +16957,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_call");
             }
-            arg2 = nlua_pop_lua_ref(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_lua_ref(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"fn");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -18099,12 +16975,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
         }
         api_free_luaref(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, &mut err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -18119,14 +16994,14 @@ extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__buf_stats");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_stats(arg1, &mut arena, &mut err);
+        let ret = nvim_buf_stats(arg1, &mut err);
         nlua_push_dict(
             lstate,
             ret,
@@ -18134,12 +17009,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_empty = Default::default();
     let arg1: NvimString;
@@ -18159,32 +17033,30 @@ extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_parse_cmd(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_parse_cmd(arg1, &mut arg2, &mut err);
             nlua_push_keydict(lstate, &ret, &CMD_TABLE);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_cmd_opts = Default::default();
     let mut arg1: KeyDict_cmd = Default::default();
@@ -18208,7 +17080,6 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
                         &mut arg2,
                         Some(key_dict_cmd_opts_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
@@ -18220,7 +17091,6 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_cmd_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -18228,13 +17098,7 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_cmd(
-                    LUA_INTERNAL_CALL,
-                    &mut arg1,
-                    &mut arg2,
-                    &mut arena,
-                    &mut err,
-                );
+                let ret = nvim_cmd(LUA_INTERNAL_CALL, &mut arg1, &mut arg2, &mut err);
                 nlua_push_string(
                     lstate,
                     ret,
@@ -18246,12 +17110,11 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &CMD_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_user_command = Default::default();
     let arg2: Object;
@@ -18276,19 +17139,18 @@ extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -
                         &mut arg3,
                         Some(key_dict_user_command_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"cmd");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_2;
@@ -18308,12 +17170,11 @@ extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -
         }
         api_luarefs_free_keydict(&arg3, &USER_COMMAND_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -18328,7 +17189,7 @@ extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_user_command");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -18338,12 +17199,11 @@ extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i
         nvim_del_user_command(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_user_command = Default::default();
     let arg3: Object;
@@ -18373,24 +17233,23 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
                             &mut arg4,
                             Some(key_dict_user_command_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"cmd");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_3;
@@ -18412,12 +17271,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
         }
         api_luarefs_free_keydict(&arg4, &USER_COMMAND_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -18434,12 +17292,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_user_command");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -18450,12 +17308,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) 
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_get_commands = Default::default();
     'exit_0: {
@@ -18477,7 +17334,6 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -18486,7 +17342,7 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_commands(&mut arg1, &mut arena, &mut err);
+            let ret = nvim_get_commands(&mut arg1, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -18496,12 +17352,11 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg1, &GET_COMMANDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_get_commands = Default::default();
     let arg1: Buffer;
@@ -18524,21 +17379,20 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i
                     &mut arg2,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_commands(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_buf_get_commands(arg1, &mut arg2, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -18548,12 +17402,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i
         }
         api_luarefs_free_keydict(&arg2, &GET_COMMANDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: NvimString;
@@ -18570,12 +17423,12 @@ extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_exec");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"output");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"src");
                 break 'exit_1;
@@ -18592,12 +17445,11 @@ extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
             api_free_string(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -18612,7 +17464,7 @@ extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_command_output");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"command");
             break 'exit_0;
@@ -18628,12 +17480,11 @@ extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32
         set_active_lstate(save_active_lstate);
         api_free_string(ret);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -18648,7 +17499,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_number");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buffer");
             break 'exit_0;
@@ -18663,12 +17514,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg4: Integer;
     let arg3: Integer;
@@ -18689,22 +17539,22 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_highlight");
                     }
-                    arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg4 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"line_end");
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"line_start");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buffer");
                         break 'exit_3;
@@ -18717,12 +17567,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg6: Integer;
     let arg5: Integer;
@@ -18750,32 +17599,32 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
                                     c"nvim_buf_add_highlight",
                                 );
                             }
-                            arg6 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg6 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col_end");
                                 break 'exit_0;
                             }
-                            arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg5 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col_start");
                                 break 'exit_1;
                             }
-                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
-                            arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_string(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"hl_group");
                                 break 'exit_3;
                             }
-                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"ns_id");
                                 break 'exit_4;
                             }
-                            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                            arg1 = nlua_pop_Buffer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"buffer");
                                 break 'exit_5;
@@ -18797,12 +17646,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg5: KeyDict_empty = Default::default();
     let arg4: Array;
@@ -18834,29 +17682,28 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
                                 &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
-                                &mut arena,
                                 &mut err,
                             );
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
-                        arg4 = nlua_pop_array(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_array(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"chunks");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"src_id");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buffer");
                             break 'exit_4;
@@ -18877,12 +17724,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
         }
         api_luarefs_free_keydict(&arg5, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: Integer;
@@ -18899,19 +17745,19 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_id");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"rgb");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"hl_id");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl_by_id(arg1, arg2, &mut arena, &mut err);
+            let ret = nvim_get_hl_by_id(arg1, arg2, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -18920,12 +17766,11 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: NvimString;
@@ -18942,19 +17787,19 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_name");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"rgb");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl_by_name(arg1, arg2, &mut arena, &mut err);
+            let ret = nvim_get_hl_by_name(arg1, arg2, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -18963,12 +17808,11 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -18983,14 +17827,14 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i3
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_info");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_option_info(arg1, &mut arena, &mut err);
+        let ret = nvim_get_option_info(arg1, &mut err);
         nlua_push_dict(
             lstate,
             ret,
@@ -18998,12 +17842,11 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Object;
     let arg1: NvimString;
@@ -19020,12 +17863,12 @@ extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_option");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg2 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"value");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
@@ -19037,12 +17880,11 @@ extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -19057,7 +17899,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_option");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -19073,12 +17915,11 @@ extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
         set_active_lstate(save_active_lstate);
         api_free_object(ret);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -19095,12 +17936,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_option");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buffer");
                 break 'exit_1;
@@ -19117,12 +17958,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32
             api_free_object(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Object;
     let arg2: NvimString;
@@ -19141,17 +17981,17 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_option");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg3 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buffer");
                     break 'exit_2;
@@ -19164,12 +18004,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Window;
@@ -19186,12 +18025,12 @@ extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_option");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"window");
                 break 'exit_1;
@@ -19208,12 +18047,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32
             api_free_object(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Object;
     let arg2: NvimString;
@@ -19232,17 +18070,17 @@ extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_option");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg3 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Window(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"window");
                     break 'exit_2;
@@ -19255,12 +18093,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -19275,7 +18112,7 @@ extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_out_write");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"str");
             break 'exit_0;
@@ -19285,12 +18122,11 @@ extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
         nvim_out_write(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -19305,7 +18141,7 @@ extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_err_write");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"str");
             break 'exit_0;
@@ -19315,12 +18151,11 @@ extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
         nvim_err_write(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -19335,7 +18170,7 @@ extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_err_writeln");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"str");
             break 'exit_0;
@@ -19345,12 +18180,11 @@ extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
         nvim_err_writeln(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Dict;
     let arg2: Integer;
@@ -19369,24 +18203,24 @@ extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_notify");
                 }
-                arg3 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
+                arg3 = nlua_pop_dict(lstate, false, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"opts");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"log_level");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"msg");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret = nvim_notify(arg1, arg2, arg3, &mut arena, &mut err);
+                let mut ret = nvim_notify(arg1, arg2, arg3, &mut err);
                 nlua_push_object(
                     lstate,
                     &mut ret,
@@ -19396,12 +18230,11 @@ extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Integer;
     let arg1: Window;
@@ -19418,12 +18251,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_height");
             }
-            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"height");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -19434,12 +18267,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Integer;
     let arg1: Window;
@@ -19456,12 +18288,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_width");
             }
-            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"width");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -19472,12 +18304,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -19492,7 +18323,7 @@ extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_create_namespace");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -19507,12 +18338,11 @@ extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -19528,7 +18358,7 @@ extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_namespaces(&mut arena);
+        let ret = nvim_get_namespaces();
         nlua_push_dict(
             lstate,
             ret,
@@ -19536,12 +18366,11 @@ extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_get_extmark = Default::default();
     let arg3: Integer;
@@ -19568,33 +18397,30 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
                             &mut arg4,
                             Some(key_dict_get_extmark_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"id");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_3;
                     }
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    let ret = nvim_buf_get_extmark_by_id(
-                        arg1, arg2, arg3, &mut arg4, &mut arena, &mut err,
-                    );
+                    let ret = nvim_buf_get_extmark_by_id(arg1, arg2, arg3, &mut arg4, &mut err);
                     nlua_push_array(
                         lstate,
                         ret,
@@ -19606,12 +18432,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
         }
         api_luarefs_free_keydict(&arg4, &GET_EXTMARK_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg5: KeyDict_get_extmarks = Default::default();
     let arg4: Object;
@@ -19640,29 +18465,28 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
                                 &mut arg5,
                                 Some(key_dict_get_extmarks_get_field),
                                 &mut err_param,
-                                &mut arena,
                                 &mut err,
                             );
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
-                        arg4 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                        arg4 = nlua_pop_object(lstate, true, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"end");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                        arg3 = nlua_pop_object(lstate, true, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"start");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_4;
@@ -19675,7 +18499,6 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
                             arg3.clone(),
                             arg4.clone(),
                             &mut arg5,
-                            &mut arena,
                             &mut err,
                         );
                         nlua_push_array(
@@ -19692,12 +18515,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
         }
         api_luarefs_free_keydict(&arg5, &GET_EXTMARKS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg5: KeyDict_set_extmark = Default::default();
     let arg4: Integer;
@@ -19726,29 +18548,28 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
                                 &mut arg5,
                                 Some(key_dict_set_extmark_get_field),
                                 &mut err_param,
-                                &mut arena,
                                 &mut err,
                             );
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 break 'exit_1;
                             }
                         }
-                        arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"col");
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line");
                             break 'exit_2;
                         }
-                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_3;
                         }
-                        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_Buffer(lstate, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"buf");
                             break 'exit_4;
@@ -19768,12 +18589,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
         }
         api_luarefs_free_keydict(&arg5, &SET_EXTMARK_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Integer;
     let arg2: Integer;
@@ -19792,17 +18612,17 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i3
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_extmark");
                 }
-                arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"id");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -19819,12 +18639,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i3
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg4: Integer;
     let arg3: Integer;
@@ -19845,22 +18664,22 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_namespace");
                     }
-                    arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg4 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"line_end");
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"line_start");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Buffer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"buf");
                         break 'exit_3;
@@ -19873,12 +18692,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_set_decoration_provider = Default::default();
     let arg1: Integer;
@@ -19901,14 +18719,13 @@ extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_Stat
                     &mut arg2,
                     Some(key_dict_set_decoration_provider_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_1;
@@ -19920,12 +18737,11 @@ extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_Stat
         }
         api_luarefs_free_keydict(&arg2, &SET_DECORATION_PROVIDER_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: Buffer;
@@ -19941,12 +18757,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_Sta
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__buf_set_conceal_provider");
         }
-        arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+        arg2 = nlua_pop_boolean(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"enabled");
             break 'exit_0;
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -19956,12 +18772,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_Sta
         nvim_buf_set_conceal_provider(arg1, arg2, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Boolean;
     let arg2: Boolean;
@@ -19980,17 +18795,17 @@ extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__buf_debug_extmarks");
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"dot");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"keys");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -20008,12 +18823,11 @@ extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) ->
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_ns_opts = Default::default();
     let arg1: Integer;
@@ -20036,14 +18850,13 @@ extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_ns_opts_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_1;
@@ -20055,12 +18868,11 @@ extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &NS_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -20075,23 +18887,22 @@ extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__ns_get");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"ns_id");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_ns_get(arg1, &mut arena, &mut err);
+        let ret = nvim_ns_get(arg1, &mut err);
         nlua_push_keydict(lstate, &ret, &NS_OPTS_TABLE);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Object;
     let arg1: NvimString;
@@ -20108,30 +18919,29 @@ extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__option_to_object");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg2 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"value");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_option_to_object(arg1, arg2.clone(), &mut arena, &mut err);
+            let mut ret = nvim_option_to_object(arg1, arg2.clone(), &mut err);
             nlua_push_object(lstate, &mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_option = Default::default();
     let arg1: NvimString;
@@ -20154,14 +18964,13 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
                     &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
@@ -20179,12 +18988,11 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
         }
         api_luarefs_free_keydict(&arg2, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_option = Default::default();
     let arg2: Object;
@@ -20209,19 +19017,18 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
                         &mut arg3,
                         Some(key_dict_option_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_2;
@@ -20233,7 +19040,6 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
                     arg1,
                     arg2.clone(),
                     &mut arg3,
-                    &mut arena,
                     &mut err,
                 );
                 nlua_push_object(
@@ -20247,12 +19053,11 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
         }
         api_luarefs_free_keydict(&arg3, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -20268,7 +19073,7 @@ extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) 
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_all_options_info(&mut arena, &mut err);
+        let ret = nvim_get_all_options_info(&mut err);
         nlua_push_dict(
             lstate,
             ret,
@@ -20276,12 +19081,11 @@ extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_option = Default::default();
     let arg1: NvimString;
@@ -20304,32 +19108,30 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i
                     &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_option_info2(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_get_option_info2(arg1, &mut arg2, &mut err);
             nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Tabpage;
     'exit_0: {
@@ -20344,14 +19146,14 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_list_wins");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Tabpage(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"tabpage");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_tabpage_list_wins(arg1, &mut arena, &mut err);
+        let ret = nvim_tabpage_list_wins(arg1, &mut err);
         nlua_push_array(
             lstate,
             ret,
@@ -20359,12 +19161,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Tabpage;
@@ -20381,19 +19182,19 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i3
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Tabpage(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_tabpage_get_var(arg1, arg2, &mut arena, &mut err);
+            let mut ret = nvim_tabpage_get_var(arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
                 &mut ret,
@@ -20402,12 +19203,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i3
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Object;
     let arg2: NvimString;
@@ -20426,17 +19226,17 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i3
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg3 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Tabpage(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"tabpage");
                     break 'exit_2;
@@ -20449,12 +19249,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i3
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Tabpage;
@@ -20471,12 +19270,12 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i3
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Tabpage(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_1;
@@ -20487,12 +19286,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i3
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Tabpage;
     'exit_0: {
@@ -20507,7 +19305,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i3
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_win");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Tabpage(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"tabpage");
             break 'exit_0;
@@ -20522,12 +19320,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Window;
     let arg1: Tabpage;
@@ -20544,12 +19341,12 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i3
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_win");
             }
-            arg2 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Tabpage(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"tabpage");
                 break 'exit_1;
@@ -20560,12 +19357,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i3
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Tabpage;
     'exit_0: {
@@ -20580,7 +19376,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) ->
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_number");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Tabpage(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"tabpage");
             break 'exit_0;
@@ -20595,12 +19391,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) ->
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Tabpage;
     'exit_0: {
@@ -20615,7 +19410,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_is_valid");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Tabpage(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"tabpage");
             break 'exit_0;
@@ -20630,12 +19425,11 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_tabpage_config = Default::default();
     let arg2: Boolean;
@@ -20667,18 +19461,17 @@ extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
                     &mut arg3,
                     Some(key_dict_tabpage_config_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"enter");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -20692,12 +19485,11 @@ extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &TABPAGE_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -20712,7 +19504,7 @@ extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_ui_send");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"content");
             break 'exit_0;
@@ -20722,12 +19514,11 @@ extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
         nvim_ui_send(LUA_INTERNAL_CALL, arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -20742,7 +19533,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_id_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -20757,12 +19548,11 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_get_highlight = Default::default();
     let arg1: Integer;
@@ -20785,32 +19575,30 @@ extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_get_highlight_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_get_hl(arg1, &mut arg2, &mut err);
             nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &GET_HIGHLIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_highlight = Default::default();
     let arg2: NvimString;
@@ -20834,18 +19622,17 @@ extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
                     &mut arg3,
                     Some(key_dict_highlight_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_2;
@@ -20858,12 +19645,11 @@ extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &HIGHLIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_get_ns = Default::default();
     'exit_0: {
@@ -20885,7 +19671,6 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_get_ns_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -20900,12 +19685,11 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg1, &GET_NS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -20920,7 +19704,7 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_hl_ns");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"ns_id");
             break 'exit_0;
@@ -20930,12 +19714,11 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
         nvim_set_hl_ns(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -20947,7 +19730,7 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"ns_id");
             break 'exit_0;
@@ -20957,12 +19740,11 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32
         nvim_set_hl_ns_fast(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Boolean;
     let arg2: NvimString;
@@ -20981,17 +19763,17 @@ extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_feedkeys");
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"escape_ks");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"mode");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"keys");
                     break 'exit_2;
@@ -21003,12 +19785,11 @@ extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21020,7 +19801,7 @@ extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"keys");
             break 'exit_0;
@@ -21035,12 +19816,11 @@ extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg6: Integer;
     let arg5: Integer;
@@ -21062,32 +19842,32 @@ extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
                                 );
                                 break 'exit_0;
                             }
-                            arg6 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg6 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col");
                                 break 'exit_0;
                             }
-                            arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg5 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"row");
                                 break 'exit_1;
                             }
-                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"grid");
                                 break 'exit_2;
                             }
-                            arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_string(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"modifier");
                                 break 'exit_3;
                             }
-                            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_string(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"action");
                                 break 'exit_4;
                             }
-                            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                            arg1 = nlua_pop_string(lstate, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"button");
                                 break 'exit_5;
@@ -21102,12 +19882,11 @@ extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg4: Boolean;
     let arg3: Boolean;
@@ -21125,22 +19904,22 @@ extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> 
                         );
                         break 'exit_0;
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg4 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"special");
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"do_lt");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"from_part");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"str");
                         break 'exit_3;
@@ -21159,12 +19938,11 @@ extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21179,7 +19957,7 @@ extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_strwidth");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"text");
             break 'exit_0;
@@ -21194,12 +19972,11 @@ extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21215,7 +19992,7 @@ extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) ->
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_runtime_paths(&mut arena, &mut err);
+        let ret = nvim_list_runtime_paths(&mut err);
         nlua_push_array(
             lstate,
             ret,
@@ -21223,12 +20000,11 @@ extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) ->
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21244,7 +20020,7 @@ extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i3
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_runtime_inspect(&mut arena);
+        let ret = nvim_runtime_inspect();
         nlua_push_array(
             lstate,
             ret,
@@ -21252,12 +20028,11 @@ extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: NvimString;
@@ -21271,19 +20046,19 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i
                 );
                 break 'exit_0;
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"all");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_runtime_file(arg1, arg2, &mut arena, &mut err);
+            let ret = nvim_get_runtime_file(arg1, arg2, &mut err);
             nlua_push_array(
                 lstate,
                 ret,
@@ -21292,12 +20067,11 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21322,12 +20096,11 @@ extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
         set_active_lstate(save_active_lstate);
         api_free_string(ret);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_runtime = Default::default();
     let arg2: Boolean;
@@ -21349,26 +20122,25 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
                         &mut arg3,
                         Some(key_dict_runtime_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"all");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_array(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"pat");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_get_runtime(arg1, arg2, &mut arg3, &mut arena, &mut err);
+                let ret = nvim_get_runtime(arg1, arg2, &mut arg3, &mut err);
                 nlua_push_array(
                     lstate,
                     ret,
@@ -21379,12 +20151,11 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &RUNTIME_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21399,7 +20170,7 @@ extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i3
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_dir");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"dir");
             break 'exit_0;
@@ -21409,12 +20180,11 @@ extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i3
         nvim_set_current_dir(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21430,7 +20200,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_current_line(&mut arena, &mut err);
+        let ret = nvim_get_current_line(&mut err);
         nlua_push_string(
             lstate,
             ret,
@@ -21438,12 +20208,11 @@ extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21466,22 +20235,21 @@ extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> i
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"line");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_line(arg1, &mut arena, &mut err);
+        nvim_set_current_line(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21505,15 +20273,14 @@ extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> i
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_current_line(&mut arena, &mut err);
+        nvim_del_current_line(&mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21528,14 +20295,14 @@ extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_var");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_var(arg1, &mut arena, &mut err);
+        let mut ret = nvim_get_var(arg1, &mut err);
         nlua_push_object(
             lstate,
             &mut ret,
@@ -21543,12 +20310,11 @@ extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Object;
     let arg1: NvimString;
@@ -21565,12 +20331,12 @@ extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_var");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg2 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"value");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
@@ -21582,12 +20348,11 @@ extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21602,7 +20367,7 @@ extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_var");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -21612,12 +20377,11 @@ extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
         nvim_del_var(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -21632,14 +20396,14 @@ extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_vvar");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_vvar(arg1, &mut arena, &mut err);
+        let mut ret = nvim_get_vvar(arg1, &mut err);
         nlua_push_object(
             lstate,
             &mut ret,
@@ -21647,12 +20411,11 @@ extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Object;
     let arg1: NvimString;
@@ -21669,12 +20432,12 @@ extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_vvar");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+            arg2 = nlua_pop_object(lstate, true, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"value");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
@@ -21686,12 +20449,11 @@ extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_echo_opts = Default::default();
     let arg2: Boolean;
@@ -21716,19 +20478,18 @@ extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
                         &mut arg3,
                         Some(key_dict_echo_opts_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"history");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_array(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"chunks");
                     break 'exit_2;
@@ -21746,12 +20507,11 @@ extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &ECHO_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21767,7 +20527,7 @@ extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_bufs(&mut arena);
+        let ret = nvim_list_bufs();
         nlua_push_array(
             lstate,
             ret,
@@ -21775,12 +20535,11 @@ extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21804,12 +20563,11 @@ extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Buffer;
     'exit_0: {
@@ -21832,7 +20590,7 @@ extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i3
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Buffer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"buf");
             break 'exit_0;
@@ -21842,12 +20600,11 @@ extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i3
         nvim_set_current_buf(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21863,7 +20620,7 @@ extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_wins(&mut arena);
+        let ret = nvim_list_wins();
         nlua_push_array(
             lstate,
             ret,
@@ -21871,12 +20628,11 @@ extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -21900,12 +20656,11 @@ extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -21928,7 +20683,7 @@ extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i3
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -21938,12 +20693,11 @@ extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i3
         nvim_set_current_win(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: Boolean;
@@ -21960,12 +20714,12 @@ extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_create_buf");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"scratch");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"listed");
                 break 'exit_1;
@@ -21981,12 +20735,11 @@ extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_open_term = Default::default();
     let arg1: Buffer;
@@ -22017,14 +20770,13 @@ extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_open_term_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_1;
@@ -22041,12 +20793,11 @@ extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &OPEN_TERM_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Integer;
@@ -22063,12 +20814,12 @@ extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_chan_send");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"data");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"chan");
                 break 'exit_1;
@@ -22079,12 +20830,11 @@ extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22100,7 +20850,7 @@ extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_tabpages(&mut arena);
+        let ret = nvim_list_tabpages();
         nlua_push_array(
             lstate,
             ret,
@@ -22108,12 +20858,11 @@ extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22137,12 +20886,11 @@ extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Tabpage;
     'exit_0: {
@@ -22165,7 +20913,7 @@ extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Tabpage(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"tabpage");
             break 'exit_0;
@@ -22175,12 +20923,11 @@ extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -
         nvim_set_current_tabpage(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Integer;
     let arg2: Boolean;
@@ -22207,24 +20954,24 @@ extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
                     );
                     break 'exit_0;
                 }
-                arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"phase");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"crlf");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"data");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_paste(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut arena, &mut err);
+                let ret = nvim_paste(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut err);
                 nlua_push_boolean(
                     lstate,
                     ret,
@@ -22234,12 +20981,11 @@ extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg4: Boolean;
     let arg3: Boolean;
@@ -22268,40 +21014,39 @@ extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> i32 {
                         );
                         break 'exit_0;
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg4 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"follow");
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"after");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"type");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_array(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"lines");
                         break 'exit_3;
                     }
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_put(arg1, arg2, arg3, arg4, &mut arena, &mut err);
+                    nvim_put(arg1, arg2, arg3, arg4, &mut err);
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -22316,7 +21061,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_color_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -22331,12 +21076,11 @@ extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22352,7 +21096,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_color_map(&mut arena);
+        let ret = nvim_get_color_map();
         nlua_push_dict(
             lstate,
             ret,
@@ -22360,12 +21104,11 @@ extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_context = Default::default();
     'exit_0: {
@@ -22387,7 +21130,6 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_context_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -22396,7 +21138,7 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_context(&mut arg1, &mut arena, &mut err);
+            let ret = nvim_get_context(&mut arg1, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -22406,12 +21148,11 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg1, &CONTEXT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Dict;
     'exit_0: {
@@ -22426,7 +21167,7 @@ extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_load_context");
         }
-        arg1 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
+        arg1 = nlua_pop_dict(lstate, false, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"dict");
             break 'exit_0;
@@ -22441,12 +21182,11 @@ extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22459,7 +21199,7 @@ extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_mode(&mut arena);
+        let ret = nvim_get_mode();
         nlua_push_dict(
             lstate,
             ret,
@@ -22467,12 +21207,11 @@ extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -22487,14 +21226,14 @@ extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_keymap");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"mode");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_keymap(arg1, &mut arena);
+        let ret = nvim_get_keymap(arg1);
         nlua_push_array(
             lstate,
             ret,
@@ -22502,12 +21241,11 @@ extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_keymap = Default::default();
     let arg3: NvimString;
@@ -22534,24 +21272,23 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
                             &mut arg4,
                             Some(key_dict_keymap_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"rhs");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"lhs");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_3;
@@ -22565,12 +21302,11 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg4, &KEYMAP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_keymap_del = Default::default();
     let arg2: NvimString;
@@ -22595,19 +21331,18 @@ extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
                         &mut arg3,
                         Some(key_dict_keymap_del_get_field),
                         &mut err_param,
-                        &mut arena,
                         &mut err,
                     );
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"lhs");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"mode");
                     break 'exit_2;
@@ -22620,12 +21355,11 @@ extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &KEYMAP_DEL_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_chan_set = Default::default();
     let arg1: Integer;
@@ -22644,13 +21378,12 @@ extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
                 &mut arg2,
                 Some(key_dict_chan_set_get_field),
                 &mut err_param,
-                &mut arena,
                 &mut err,
             );
             if err.err_type != ErrorType::ErrorTypeNone {
                 break 'exit_1;
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"chan");
                 break 'exit_1;
@@ -22662,12 +21395,11 @@ extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &CHAN_SET_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Buffer;
     let arg1: NvimString;
@@ -22684,12 +21416,12 @@ extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__cmdwin_set");
             }
-            arg2 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"type");
                 break 'exit_1;
@@ -22700,12 +21432,11 @@ extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -22720,14 +21451,14 @@ extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_chan_info");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"chan");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &mut arena, &mut err);
+        let ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &mut err);
         nlua_push_dict(
             lstate,
             ret,
@@ -22735,12 +21466,11 @@ extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22756,7 +21486,7 @@ extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_chans(&mut arena);
+        let ret = nvim_list_chans();
         nlua_push_array(
             lstate,
             ret,
@@ -22764,12 +21494,11 @@ extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Object;
     'exit_0: {
@@ -22784,14 +21513,14 @@ extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id");
         }
-        arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+        arg1 = nlua_pop_object(lstate, true, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"obj");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_id(arg1.clone(), &mut arena);
+        let mut ret = nvim_id(arg1.clone());
         nlua_push_object(
             lstate,
             &mut ret,
@@ -22800,12 +21529,11 @@ extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
         set_active_lstate(save_active_lstate);
         api_luarefs_free_object(arg1);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Array;
     'exit_0: {
@@ -22820,14 +21548,14 @@ extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_array");
         }
-        arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_array(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"arr");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_id_array(arg1, &mut arena);
+        let ret = nvim_id_array(arg1);
         nlua_push_array(
             lstate,
             ret,
@@ -22835,12 +21563,11 @@ extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Dict;
     'exit_0: {
@@ -22855,14 +21582,14 @@ extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_dict");
         }
-        arg1 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
+        arg1 = nlua_pop_dict(lstate, false, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"dct");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_id_dict(arg1, &mut arena);
+        let ret = nvim_id_dict(arg1);
         nlua_push_dict(
             lstate,
             ret,
@@ -22870,12 +21597,11 @@ extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Float;
     'exit_0: {
@@ -22890,7 +21616,7 @@ extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_float");
         }
-        arg1 = nlua_pop_float(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_float(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"flt");
             break 'exit_0;
@@ -22905,12 +21631,11 @@ extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22926,7 +21651,7 @@ extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_stats(&mut arena);
+        let ret = nvim_stats();
         nlua_push_dict(
             lstate,
             ret,
@@ -22934,12 +21659,11 @@ extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -22955,7 +21679,7 @@ extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_uis(&mut arena);
+        let ret = nvim_list_uis();
         nlua_push_array(
             lstate,
             ret,
@@ -22963,12 +21687,11 @@ extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -22983,14 +21706,14 @@ extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc_children");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"pid");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_proc_children(arg1, &mut arena, &mut err);
+        let ret = nvim_get_proc_children(arg1, &mut err);
         nlua_push_array(
             lstate,
             ret,
@@ -22998,12 +21721,11 @@ extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Integer;
     'exit_0: {
@@ -23018,14 +21740,14 @@ extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc");
         }
-        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_integer(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"pid");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_proc(arg1, &mut arena, &mut err);
+        let mut ret = nvim_get_proc(arg1, &mut err);
         nlua_push_object(
             lstate,
             &mut ret,
@@ -23033,12 +21755,11 @@ extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_empty = Default::default();
     let arg3: Boolean;
@@ -23065,24 +21786,23 @@ extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State)
                             &mut arg4,
                             Some(key_dict_empty_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"finish");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"insert");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"item");
                         break 'exit_3;
@@ -23096,12 +21816,11 @@ extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State)
         }
         api_luarefs_free_keydict(&arg4, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Integer;
     let arg2: Integer;
@@ -23120,24 +21839,24 @@ extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__inspect_cell");
                 }
-                arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"col");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"row");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"grid");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_inspect_cell(arg1, arg2, arg3, &mut arena, &mut err);
+                let ret = nvim_inspect_cell(arg1, arg2, arg3, &mut err);
                 nlua_push_array(
                     lstate,
                     ret,
@@ -23147,12 +21866,11 @@ extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -23164,7 +21882,7 @@ extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"path");
             break 'exit_0;
@@ -23174,12 +21892,11 @@ extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
         nvim_screenshot(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
@@ -23198,12 +21915,11 @@ extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State
         nvim_invalidate_glyph_cache();
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -23215,14 +21931,14 @@ extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"str");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_unpack(arg1, &mut arena, &mut err);
+        let mut ret = nvim_unpack(arg1, &mut err);
         nlua_push_object(
             lstate,
             &mut ret,
@@ -23230,12 +21946,11 @@ extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -23250,7 +21965,7 @@ extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_mark");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"name");
             break 'exit_0;
@@ -23265,12 +21980,11 @@ extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_empty = Default::default();
     let arg1: NvimString;
@@ -23293,21 +22007,20 @@ extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_mark(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_get_mark(arg1, &mut arg2, &mut err);
             nlua_push_array(
                 lstate,
                 ret,
@@ -23317,12 +22030,11 @@ extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_eval_statusline = Default::default();
     let arg1: NvimString;
@@ -23342,21 +22054,20 @@ extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i3
                     &mut arg2,
                     Some(key_dict_eval_statusline_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_eval_statusline(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_eval_statusline(arg1, &mut arg2, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -23366,12 +22077,11 @@ extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i3
         }
         api_luarefs_free_keydict(&arg2, &EVAL_STATUSLINE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_complete_set = Default::default();
     let arg1: Integer;
@@ -23394,21 +22104,20 @@ extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_complete_set_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"index");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_complete_set(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_complete_set(arg1, &mut arg2, &mut err);
             nlua_push_dict(
                 lstate,
                 ret,
@@ -23418,12 +22127,11 @@ extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &COMPLETE_SET_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg1: KeyDict_redraw = Default::default();
     'exit_0: {
@@ -23445,7 +22153,6 @@ extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
                     &mut arg1,
                     Some(key_dict_redraw_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -23459,12 +22166,11 @@ extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg1, &REDRAW_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Array;
     let arg1: NvimString;
@@ -23481,12 +22187,12 @@ extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__set_restart_on_crash");
             }
-            arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_array(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"argv");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"progpath");
                 break 'exit_1;
@@ -23497,12 +22203,11 @@ extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) 
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_exec_opts = Default::default();
     let arg1: NvimString;
@@ -23525,14 +22230,13 @@ extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
                     &mut arg2,
                     Some(key_dict_exec_opts_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"src");
                 break 'exit_1;
@@ -23546,12 +22250,11 @@ extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg2, &EXEC_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -23566,7 +22269,7 @@ extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_command");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"cmd");
             break 'exit_0;
@@ -23576,12 +22279,11 @@ extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
         nvim_command(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: NvimString;
     'exit_0: {
@@ -23596,14 +22298,14 @@ extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_eval");
         }
-        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_string(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"expr");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_eval(arg1, &mut arena, &mut err);
+        let mut ret = nvim_eval(arg1, &mut err);
         nlua_push_object(
             lstate,
             &mut ret,
@@ -23611,12 +22313,11 @@ extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Array;
     let arg1: NvimString;
@@ -23633,19 +22334,19 @@ extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_call_function");
             }
-            arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_array(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"args");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"fn");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2, &mut arena, &mut err);
+            let mut ret = nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
                 &mut ret,
@@ -23654,12 +22355,11 @@ extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Array;
     let arg2: NvimString;
@@ -23678,31 +22378,25 @@ extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_call_dict_function");
                 }
-                arg3 = nlua_pop_array(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_array(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"args");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg1 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"dict");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret = nvim_call_dict_function(
-                    LUA_INTERNAL_CALL,
-                    arg1.clone(),
-                    arg2,
-                    arg3,
-                    &mut arena,
-                    &mut err,
-                );
+                let mut ret =
+                    nvim_call_dict_function(LUA_INTERNAL_CALL, arg1.clone(), arg2, arg3, &mut err);
                 nlua_push_object(
                     lstate,
                     &mut ret,
@@ -23713,12 +22407,11 @@ extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) ->
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Boolean;
     let arg2: NvimString;
@@ -23734,24 +22427,24 @@ extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i
                     );
                     break 'exit_0;
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg3 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"hl");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"flags");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"expr");
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_parse_expression(arg1, arg2, arg3, &mut arena, &mut err);
+                let ret = nvim_parse_expression(arg1, arg2, arg3, &mut err);
                 nlua_push_dict(
                     lstate,
                     ret,
@@ -23761,12 +22454,11 @@ extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg3: KeyDict_win_config = Default::default();
     let arg2: Boolean;
@@ -23798,18 +22490,17 @@ extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
                     &mut arg3,
                     Some(key_dict_win_config_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"enter");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Buffer(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"buf");
                     break 'exit_2;
@@ -23827,12 +22518,11 @@ extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg3, &WIN_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_win_config = Default::default();
     let arg1: Window;
@@ -23854,13 +22544,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32
                 &mut arg2,
                 Some(key_dict_win_config_get_field),
                 &mut err_param,
-                &mut arena,
                 &mut err,
             );
             if err.err_type != ErrorType::ErrorTypeNone {
                 break 'exit_1;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -23872,12 +22561,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg2, &WIN_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -23892,23 +22580,22 @@ extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_config");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_config(arg1, &mut arena, &mut err);
+        let ret = nvim_win_get_config(arg1, &mut err);
         nlua_push_keydict(lstate, &ret, &WIN_CONFIG_TABLE);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -23923,7 +22610,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_buf");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -23938,12 +22625,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Buffer;
     let arg1: Window;
@@ -23968,12 +22654,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
                 );
                 break 'exit_0;
             }
-            arg2 = nlua_pop_Buffer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_Buffer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"buf");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -23984,12 +22670,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24004,14 +22689,14 @@ extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_cursor");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_cursor(arg1, &mut arena, &mut err);
+        let ret = nvim_win_get_cursor(arg1, &mut err);
         nlua_push_array(
             lstate,
             ret,
@@ -24019,12 +22704,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Array;
     let arg1: Window;
@@ -24041,12 +22725,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_cursor");
             }
-            arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_array(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"pos");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -24057,12 +22741,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24077,7 +22760,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_height");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24092,12 +22775,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24112,7 +22794,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_width");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24127,12 +22809,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Window;
@@ -24149,19 +22830,19 @@ extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_win_get_var(arg1, arg2, &mut arena, &mut err);
+            let mut ret = nvim_win_get_var(arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
                 &mut ret,
@@ -24170,12 +22851,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg3: Object;
     let arg2: NvimString;
@@ -24194,17 +22874,17 @@ extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
+                arg3 = nlua_pop_object(lstate, true, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_Window(lstate, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"win");
                     break 'exit_2;
@@ -24217,12 +22897,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: NvimString;
     let arg1: Window;
@@ -24239,12 +22918,12 @@ extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_string(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -24255,12 +22934,11 @@ extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24275,14 +22953,14 @@ extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_position");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_position(arg1, &mut arena, &mut err);
+        let ret = nvim_win_get_position(arg1, &mut err);
         nlua_push_array(
             lstate,
             ret,
@@ -24290,12 +22968,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24310,7 +22987,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i3
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_tabpage");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24325,12 +23002,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24345,7 +23021,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_number");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24360,12 +23036,11 @@ extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24380,7 +23055,7 @@ extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_is_valid");
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24395,12 +23070,11 @@ extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg1: Window;
     'exit_0: {
@@ -24423,7 +23097,7 @@ extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
             );
             break 'exit_0;
         }
-        arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+        arg1 = nlua_pop_Window(lstate, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             err_param = Some(c"win");
             break 'exit_0;
@@ -24433,12 +23107,11 @@ extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
         nvim_win_hide(arg1, &mut err);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: Window;
@@ -24463,12 +23136,12 @@ extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
                 );
                 break 'exit_0;
             }
-            arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_boolean(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"force");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -24479,12 +23152,11 @@ extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: LuaRef;
     let arg1: Window;
@@ -24501,12 +23173,12 @@ extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_call");
             }
-            arg2 = nlua_pop_lua_ref(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_lua_ref(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"fn");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -24519,12 +23191,11 @@ extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
         }
         api_free_luaref(arg2);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, &mut err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Integer;
     let arg1: Window;
@@ -24541,12 +23212,12 @@ extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_hl_ns");
             }
-            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+            arg2 = nlua_pop_integer(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
@@ -24557,12 +23228,11 @@ extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg2: KeyDict_win_text_height = Default::default();
     let arg1: Window;
@@ -24585,32 +23255,30 @@ extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i3
                     &mut arg2,
                     Some(key_dict_win_text_height_get_field),
                     &mut err_param,
-                    &mut arena,
                     &mut err,
                 );
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
             }
-            arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_Window(lstate, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"win");
                 break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_win_text_height(arg1, &mut arg2, &mut arena, &mut err);
+            let ret = nvim_win_text_height(arg1, &mut arg2, &mut err);
             nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &WIN_TEXT_HEIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, &mut err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut arena: Arena = Default::default();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
     let mut arg4: KeyDict_win_resize = Default::default();
     let arg3: Integer;
@@ -24637,24 +23305,23 @@ extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
                             &mut arg4,
                             Some(key_dict_win_resize_get_field),
                             &mut err_param,
-                            &mut arena,
                             &mut err,
                         );
                         if err.err_type != ErrorType::ErrorTypeNone {
                             break 'exit_1;
                         }
                     }
-                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"height");
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"width");
                         break 'exit_2;
                     }
-                    arg1 = nlua_pop_Window(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_Window(lstate, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"win");
                         break 'exit_3;
@@ -24668,7 +23335,7 @@ extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg4, &WIN_RESIZE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, &mut err, err_param, 0)
 }
 
 pub extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {

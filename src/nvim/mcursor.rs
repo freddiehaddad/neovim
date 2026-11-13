@@ -57,7 +57,6 @@ use crate::marktree::{
     marktree_itr_current, marktree_itr_get, marktree_itr_next, mt_end,
 };
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::menu::SaveState;
 use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
@@ -801,14 +800,13 @@ fn mc_region_mark_range(mark: u32, start: &mut CursorPos, end: &mut CursorPos) -
 }
 
 fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
-    let mut arena = Arena::new();
     let mut err = Error::new();
     let input = if !text.data.is_null() {
         text.clone()
     } else {
         NvimString::new()
     };
-    let lines = string_to_array(input, false, &mut arena);
+    let lines = string_to_array(input, false);
     nvim_buf_set_text(
         LUA_INTERNAL_CALL,
         0,
@@ -817,7 +815,6 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
         i64::from(end.lnum - 1),
         i64::from(end.col),
         lines,
-        &mut arena,
         &mut err,
     );
     if err.err_type != ErrorType::ErrorTypeNone {
@@ -834,7 +831,6 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
         }
         api_clear_error(&mut err);
     }
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 fn mc_ins_preview_set(new_text: &NvimString) {

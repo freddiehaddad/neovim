@@ -27,7 +27,6 @@ use crate::globals::*;
 use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
-use crate::memory::Arena;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
@@ -346,12 +345,7 @@ pub fn ui_client_set_size(width: i32, height: i32) {
     UIC_STATE.with(|s| s.tui_height.set(height));
 }
 
-pub fn handle_ui_client_redraw(
-    _channel_id: u64,
-    _args: Array,
-    _arena: &mut Arena,
-    error: &mut Error,
-) -> Object {
+pub fn handle_ui_client_redraw(_channel_id: u64, _args: Array, error: &mut Error) -> Object {
     api_set_error!(
         error,
         ErrorType::ErrorTypeValidation,
@@ -514,13 +508,13 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 
 pub fn ui_client_event_restart(args: Array) {
     api_free_array(UIC_STATE.with(|s| s.restart_args.get()));
-    UIC_STATE.with(|s| s.restart_args.set(copy_array(args, None)));
+    UIC_STATE.with(|s| s.restart_args.set(copy_array(args)));
     UIC_STATE.with(|s| s.restart_pending.set(true));
 }
 
 pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
     api_free_array(UIC_STATE.with(|s| s.restart_args_after_crash_exit.get()));
-    UIC_STATE.with(|s| s.restart_args_after_crash_exit.set(copy_array(args, None)));
+    UIC_STATE.with(|s| s.restart_args_after_crash_exit.set(copy_array(args)));
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {

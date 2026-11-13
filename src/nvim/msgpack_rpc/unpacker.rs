@@ -2,15 +2,12 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
-use crate::api::private::helpers::{
-    api_set_error, arena_array, arena_dict, arena_zeroed_string, nil_obj,
-};
+use crate::api::private::helpers::{api_set_error, nil_obj};
 use crate::api::private::validate::{
-    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::globals::*;
 use crate::lua::converter::{Boolean, FieldHashfn};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
 };
@@ -81,7 +78,6 @@ pub struct Unpacker {
     pub error: Object,
     pub result: Object,
     pub unpack_error: Error,
-    pub arena: Arena,
     pub nevents: i32,
     pub ncalls: i32,
     pub ui_handler: UIClientHandler,
@@ -100,13 +96,7 @@ use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
 
-#[inline]
-const fn empty_arena() -> Arena {
-    Arena::new()
-}
-
 struct ApiParseCtx<'a> {
-    arena: &'a mut Arena,
     result: &'a mut Object,
     ext_buf: &'a mut [u8; MAX_EXT_LEN],
 }
@@ -155,7 +145,7 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
         }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = node.tok.length as usize;
-            let s = arena_zeroed_string(p.arena, len);
+            let s = NvimString::zeroed(len);
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(s),
@@ -212,7 +202,7 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
         }
         MpackTokenType::MpackTokenArray => {
             let len = node.tok.length as usize;
-            let mut arr = arena_array(p.arena, len);
+            let mut arr = Array::with_capacity(len);
             arr.size = len;
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeArray,
@@ -221,7 +211,7 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
         }
         MpackTokenType::MpackTokenMap => {
             let len = node.tok.length as usize;
-            let mut dict = arena_dict(p.arena, len);
+            let mut dict = Dict::with_capacity(len);
             dict.size = len;
             node.data[0] = crate::mpack::object::MpackData::Object(Object {
                 obj_type: ObjectType::ObjectTypeDict,
@@ -267,14 +257,12 @@ fn api_parse_exit(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: u
 fn parse_nop(_parser: &mut MpackParser, _ctx: &mut (), _node_idx: usize) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-pub fn unpack(mut bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
+pub fn unpack(mut bytes: &[u8], err: &mut Error) -> Object {
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
-    unpacker.arena = *arena;
 
     let result = {
         let mut ctx = ApiParseCtx {
-            arena: &mut unpacker.arena,
             result: &mut unpacker.result,
             ext_buf: &mut unpacker.ext_buf,
         };
@@ -286,8 +274,6 @@ pub fn unpack(mut bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
             Some(api_parse_exit),
         )
     };
-
-    *arena = std::mem::replace(&mut unpacker.arena, empty_arena());
 
     if result == MPACK_NOMEM {
         api_set_error!(
@@ -338,7 +324,6 @@ impl Unpacker {
             error: nil_obj(),
             result: nil_obj(),
             unpack_error: Error::new(),
-            arena: empty_arena(),
             nevents: 0,
             ncalls: 0,
             ui_handler: UIClientHandler {
@@ -359,18 +344,10 @@ impl Unpacker {
     }
 }
 
-impl Drop for Unpacker {
-    fn drop(&mut self) {
-        let mem = arena_finish(&mut self.arena);
-        arena_mem_free(mem);
-    }
-}
-
 pub fn unpacker_init(p: &mut Unpacker) {
     mpack_parser_init(&mut p.parser, 0);
     mpack_tokbuf_init(&mut p.reader);
     p.unpack_error = Error::new();
-    p.arena = empty_arena();
     p.has_grid_line_event = false;
 }
 
@@ -489,7 +466,7 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             && p.handler.r#fn.is_some_and(|f| {
                 std::ptr::fn_addr_eq(
                     f,
-                    handle_ui_client_redraw as fn(u64, Array, &mut Arena, &mut Error) -> Object,
+                    handle_ui_client_redraw as fn(u64, Array, &mut Error) -> Object,
                 )
             })
         {
@@ -501,7 +478,6 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             } else {
                 2
             };
-            p.arena = empty_arena();
         }
     }
 
@@ -523,7 +499,6 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             need_parse = false;
         } else {
             assert_eq!(p.state, 12);
-            p.arena = empty_arena();
             p.state = 13;
         }
     }
@@ -532,7 +507,6 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
         if need_parse {
             let result = {
                 let mut ctx = ApiParseCtx {
-                    arena: &mut p.arena,
                     result: &mut p.result,
                     ext_buf: &mut p.ext_buf,
                 };
@@ -650,7 +624,6 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             return true;
         } else {
             p.state = 14;
-            p.arena = empty_arena();
         }
     }
 

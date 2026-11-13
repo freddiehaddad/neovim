@@ -9,7 +9,7 @@ use crate::lua::converter::{
     lua_isnumber_safe, lua_objlen_safe, lua_pcall_safe, lua_push_bytes, lua_pushinteger_safe,
     lua_pushvalue_safe, lua_rawseti_safe, lua_settop_safe, lua_tolstring_bytes, lua_tolstring_cstr,
     lua_tonumber_safe, lua_type_safe, luaL_argerror, luaL_error_cstr, luaL_where_safe, nlua_gettop,
-    nlua_pop_keydict_opt,
+    nlua_pop_keydict,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
@@ -280,12 +280,11 @@ fn process_xdl_diff_opts(
     let mut err_param: Option<&'static std::ffi::CStr> = None;
 
     {
-        nlua_pop_keydict_opt(
+        nlua_pop_keydict(
             lstate,
             &mut opts,
             Some(key_dict_xdl_diff_get_field),
             &mut err_param,
-            None,
             err,
         );
         if err.err_type != ErrorType::ErrorTypeNone {

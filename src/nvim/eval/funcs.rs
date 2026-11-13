@@ -133,7 +133,7 @@ use crate::memline::{
     decl, incl, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
     recover_names, swapfile_dict,
 };
-use crate::memory::{ARENA_BLOCK_SIZE, Arena, arena_finish, arena_mem_free, bytes_to_cstring};
+use crate::memory::{ARENA_BLOCK_SIZE, bytes_to_cstring};
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
     emsg, internal_error, msg_clr_eos, msg_ext_set_kind, msg_putchar, msg_puts, msg_scroll_flush,
@@ -1279,19 +1279,17 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
-    let mut arena = Arena::new();
-
     for tv in argvars
         .iter_mut()
         .take_while(|tv| tv.v_type != VarType::VarUnknown)
     {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
+        *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
     }
 
     let mut err = Error::new();
     let fn_ptr = handler.r#fn.unwrap();
-    let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut arena, &mut err);
+    let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut err);
 
     if err.err_type != ErrorType::ErrorTypeNone {
         semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
@@ -1302,7 +1300,6 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     if handler.ret_alloc {
         api_free_object(result);
     }
-    arena_mem_free(arena_finish(&mut arena));
     api_clear_error(&mut err);
 }
 
@@ -1315,13 +1312,11 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         }
     }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
-    let mut arena = Arena::new();
-
     for tv in argvars
         .iter_mut()
         .take_while(|tv| tv.v_type != VarType::VarUnknown)
     {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
+        *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
     }
 
@@ -1341,7 +1336,6 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         None,
         args,
         K_RET_OBJECT,
-        Some(&mut arena),
         &mut err,
     );
 
@@ -1350,8 +1344,6 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     } else {
         object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
     }
-
-    arena_mem_free(arena_finish(&mut arena));
     api_clear_error(&mut err);
 }
 
@@ -3752,7 +3744,6 @@ fn has_wsl() -> bool {
             None,
             Array::new(),
             K_RET_NIL_BOOL,
-            None,
             &mut err,
         );
         debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
@@ -4567,7 +4558,6 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 },
                 false,
                 false,
-                None,
                 &mut err,
             );
 
@@ -4581,7 +4571,6 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 },
                 false,
                 false,
-                None,
                 &mut err,
             );
             api_clear_error(&mut err);

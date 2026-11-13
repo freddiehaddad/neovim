@@ -2,10 +2,10 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_bytes,
-    arena_dict, arena_string, array_obj, boolean_obj, cbuf_to_arena_str, copy_object, dict_obj,
-    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key,
-    integer_obj, put_c, static_cstr_as_obj, string_obj, try_wrap, with_script_context,
+    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, array_obj, boolean_obj,
+    copy_object, dict_obj, error_set, find_buffer_by_handle, find_tab_by_handle,
+    find_window_by_handle, has_key, integer_obj, put_c, static_cstr_as_obj, string_obj, try_wrap,
+    with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
@@ -23,7 +23,6 @@ use crate::eval::vars::K_OPT_FLAG_FUNC;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::Arena;
 use crate::option::{
     K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_EXPAND,
     K_OPT_FLAG_EXPR, K_OPT_FLAG_FLAG_LIST, K_OPT_INVALID, K_OPT_KEYWORDPRG, K_OPT_SCOPE_BUF,
@@ -431,9 +430,9 @@ pub fn nvim_get_option_value(
     value
 }
 
-fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> Object {
+fn option_to_object_idx(opt_idx: OptIndex, value: Object) -> Object {
     if value.obj_type != ObjectType::ObjectTypeString {
-        return copy_object(value, Some(arena));
+        return copy_object(value);
     }
 
     let option = get_option(opt_idx);
@@ -442,11 +441,13 @@ fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> 
     let bytes = value.data.cstr_bytes();
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
-        string_obj(arena_string(arena, value.data.string()))
+        string_obj(crate::api::private::helpers::ensure_nul_string(
+            value.data.string(),
+        ))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
-        let mut d = arena_dict(arena, bytes.len());
+        let mut d = Dict::with_capacity(bytes.len());
         for &b in bytes {
-            put_c(&mut d, cbuf_to_arena_str(arena, &[b]), boolean_obj(true));
+            put_c(&mut d, NvimString::from_bytes(&[b]), boolean_obj(true));
         }
         dict_obj(d)
     } else {
@@ -460,14 +461,14 @@ fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> 
             || (flags & K_OPT_FLAG_FLAG_LIST) != 0
             || !schema.is_empty();
         let mut d = if as_map {
-            arena_dict(arena, nparts)
+            Dict::with_capacity(nparts)
         } else {
             Dict::new()
         };
         let mut a = if as_map {
             Array::new()
         } else {
-            arena_array(arena, nparts)
+            Array::with_capacity(nparts)
         };
         let mut p_bytes = bytes;
         let str_len = p_bytes.len();
@@ -486,17 +487,17 @@ fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> 
                 continue;
             }
             if !as_map {
-                add_c(&mut a, string_obj(arena_bytes(arena, item_bytes)));
+                add_c(&mut a, string_obj(NvimString::from_bytes(item_bytes)));
                 continue;
             }
             let (key_bytes, val_bytes) = match item_bytes.iter().position(|&b| b == b':') {
                 Some(idx) => (&item_bytes[..idx], Some(&item_bytes[idx + 1..])),
                 None => (item_bytes, None),
             };
-            let key = arena_bytes(arena, key_bytes);
+            let key = NvimString::from_bytes(key_bytes);
             let v = match val_bytes {
                 Some(vb) if (flags & K_OPT_FLAG_FLAG_LIST) == 0 => {
-                    string_obj(arena_bytes(arena, vb))
+                    string_obj(NvimString::from_bytes(vb))
                 }
                 _ => boolean_obj(true),
             };
@@ -509,12 +510,7 @@ fn option_to_object_idx(opt_idx: OptIndex, value: Object, arena: &mut Arena) -> 
 /// @nodoc
 // DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_option_to_object(
-    name: NvimString,
-    value: Object,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_option_to_object(name: NvimString, value: Object, err: &mut Error) -> Object {
     let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
         api_set_error!(
@@ -526,7 +522,7 @@ pub fn nvim_option_to_object(
         return OBJECT_NIL;
     }
 
-    option_to_object_idx(opt_idx, value, arena)
+    option_to_object_idx(opt_idx, value)
 }
 
 /// Sets the value of an option. The behavior of this function matches that of
@@ -562,7 +558,6 @@ pub fn nvim_set_option_value(
     name: NvimString,
     value: Object,
     opts: &mut KeyDict_option,
-    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     let mut opt_idx: OptIndex = 0;
@@ -708,7 +703,7 @@ pub fn nvim_set_option_value(
                 merged_val = optval_right.clone();
             }
             ObjectType::ObjectTypeLuaRef => {
-                merged_val = copy_object(optval_right.clone(), None);
+                merged_val = copy_object(optval_right.clone());
             }
             _ => {
                 std::process::abort();
@@ -781,7 +776,7 @@ pub fn nvim_set_option_value(
         });
     }
 
-    let rv = option_to_object_idx(opt_idx, merged_val.clone(), arena);
+    let rv = option_to_object_idx(opt_idx, merged_val.clone());
     optval_free(merged_val);
     rv
 }
@@ -796,8 +791,8 @@ pub fn nvim_set_option_value(
 /// @return dict of all options
 // DLLEXPORT Dict nvim_get_all_options_info(Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-pub fn nvim_get_all_options_info(arena: &mut Arena, _err: &mut Error) -> Dict {
-    get_all_options_info(arena)
+pub fn nvim_get_all_options_info(_err: &mut Error) -> Dict {
+    get_all_options_info()
 }
 
 /// Gets the option information for one option from arbitrary buffer or window
@@ -836,12 +831,7 @@ pub fn nvim_get_all_options_info(arena: &mut Arena, _err: &mut Error) -> Dict {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info2(String name, Dict(option) *opts,
 //                                                         Arena *arena, Error *err)
 //   FUNC_API_SINCE(11);
-pub fn nvim_get_option_info2(
-    name: NvimString,
-    opts: &mut KeyDict_option,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
+pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDict_option, err: &mut Error) -> Dict {
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
@@ -874,14 +864,7 @@ pub fn nvim_get_option_info2(
         &crate::globals::curwin_handle()
     };
 
-    get_option_info(
-        name,
-        opt_flags,
-        buf.borrow_mut(),
-        win.borrow_mut(),
-        arena,
-        err,
-    )
+    get_option_info(name, opt_flags, buf.borrow_mut(), win.borrow_mut(), err)
 }
 
 #[cfg(test)]

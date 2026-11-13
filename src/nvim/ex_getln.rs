@@ -4,7 +4,7 @@
 
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    HLF_E, TryState, add_c, api_clear_error, api_free_array, arena_array, array_obj, cstr_as_obj,
+    HLF_E, TryState, add_c, api_clear_error, api_free_array, array_obj, cstr_as_obj,
     cstr_as_string, cstrn_as_string, error_init, error_set, integer_obj, string_obj, try_enter,
     try_leave,
 };
@@ -95,7 +95,6 @@ use crate::mbyte::{
     utf_char2len, utf_iscomposing_first, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
     msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
@@ -4052,11 +4051,10 @@ fn draw_cmdline(start: i32, len: i32) {
 }
 
 fn ui_ext_cmdline_show(line: &CmdlineInfo) {
-    let mut arena = Arena::new();
     let mut content: Array;
     let cmdbuff = line.cmdbuff();
     if g_st().cmdline_star.get() != 0 {
-        content = arena_array(&mut arena, 1);
+        content = Array::with_capacity(1);
         let mut len: usize = 0;
         let mut p = get_cmdline_info().cmdbuff();
         while !p.is_empty() {
@@ -4065,22 +4063,17 @@ fn ui_ext_cmdline_show(line: &CmdlineInfo) {
             len += 1;
         }
         let stars = vec![b'*'; len];
-        let mut item = arena_array(&mut arena, 3);
+        let mut item = Array::with_capacity(3);
         add_c(&mut item, integer_obj(0));
-        add_c(
-            &mut item,
-            string_obj(crate::api::private::helpers::arena_bytes(
-                &mut arena, &stars,
-            )),
-        );
+        add_c(&mut item, string_obj(NvimString::from_bytes(&stars)));
         add_c(&mut item, integer_obj(0));
         add_c(&mut content, array_obj(item));
     } else if !line.last_colors.borrow().colors.is_empty() {
         let last_colors = line.last_colors.borrow();
-        content = arena_array(&mut arena, last_colors.colors.len());
+        content = Array::with_capacity(last_colors.colors.len());
         let cmd_bytes = cmdbuff.as_bytes();
         for &chunk in &last_colors.colors {
-            let mut item = arena_array(&mut arena, 3);
+            let mut item = Array::with_capacity(3);
             add_c(
                 &mut item,
                 integer_obj(if chunk.hl_id == 0 {
@@ -4101,11 +4094,11 @@ fn ui_ext_cmdline_show(line: &CmdlineInfo) {
             add_c(&mut content, array_obj(item));
         }
     } else {
-        let mut item = arena_array(&mut arena, 3);
+        let mut item = Array::with_capacity(3);
         add_c(&mut item, integer_obj(0));
         add_c(&mut item, cstr_as_obj(cmdbuff.as_opt_cstr()));
         add_c(&mut item, integer_obj(0));
-        content = arena_array(&mut arena, 1);
+        content = Array::with_capacity(1);
         add_c(&mut content, array_obj(item));
     }
     let mut charbuf: [u8; 2] = [line.cmdfirstc.get() as u8, 0];
@@ -4130,7 +4123,6 @@ fn ui_ext_cmdline_show(line: &CmdlineInfo) {
             line.level.get() as Integer,
         );
     }
-    arena_mem_free(arena_finish(&mut arena));
 }
 
 pub fn ui_ext_cmdline_block_append(indent: usize, line: &[u8]) {

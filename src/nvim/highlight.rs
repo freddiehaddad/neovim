@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
-    cstr_as_string, cstr_to_arena_obj, dict_obj, integer_obj, put_c, string_obj,
+    add_c, api_dict_to_keydict, api_set_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj,
+    integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_exp,
@@ -20,7 +20,6 @@ use crate::highlight_group::{
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{K_RET_OBJECT, nlua_call_ref};
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::emsg;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::check_blending;
@@ -366,10 +365,8 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
         });
 
         let id = k as i32;
-        let mut arena = Arena::new();
-        let inspect = hl_inspect(id, &mut arena);
+        let inspect = hl_inspect(id);
         ui_call_hl_attr_define(Integer::from(id), entry.attr, entry.attr, inspect);
-        arena_mem_free(arena_finish(&mut arena));
         return id;
     }
 }
@@ -377,11 +374,9 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
 pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     let len = hl_st(|st| st.attr_entries.borrow().len());
     for i in 1..len {
-        let mut arena = Arena::new();
-        let inspect = hl_inspect(i as i32, &mut arena);
+        let inspect = hl_inspect(i as i32);
         let attr = hl_st(|st| st.attr_entries.borrow()[i].attr);
         remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
-        arena_mem_free(arena_finish(&mut arena));
     }
     for hlf in 0..HLF_COUNT {
         remote_ui_hl_group_set(
@@ -497,14 +492,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
 
         let mut err = Error::new();
         hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() + 1));
-        let ret = nlua_call_ref(
-            hl_def,
-            Some(c"hl_def"),
-            args,
-            K_RET_OBJECT,
-            None,
-            Some(&mut err),
-        );
+        let ret = nlua_call_ref(hl_def, Some(c"hl_def"), args, K_RET_OBJECT, Some(&mut err));
         hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() - 1));
 
         let mut fallback = true;
@@ -1211,12 +1199,7 @@ pub fn syn_attr2entry(attr: i32) -> HlAttrs {
     })
 }
 
-pub fn hl_get_attr_by_id(
-    attr_id: Integer,
-    rgb: Boolean,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Dict {
+pub fn hl_get_attr_by_id(attr_id: Integer, rgb: Boolean, err: &mut Error) -> Dict {
     let dic = Dict::new();
 
     if attr_id == 0 {
@@ -1232,14 +1215,13 @@ pub fn hl_get_attr_by_id(
         );
         return dic;
     }
-    let mut retval = arena_dict(arena, HLATTRS_DICT_SIZE);
+    let mut retval = Dict::with_capacity(HLATTRS_DICT_SIZE);
     hlattrs2dict(
         &mut retval,
         None,
         syn_attr2entry(attr_id as i32),
         rgb,
         false,
-        Some(arena),
     );
     retval
 }
@@ -1250,7 +1232,6 @@ pub fn hlattrs2dict(
     ae: HlAttrs,
     use_rgb: bool,
     short_keys: bool,
-    arena: Option<&mut Arena>,
 ) {
     assert!(hl.capacity >= HLATTRS_DICT_SIZE);
     let hl_attrs: &mut Dict = match hl_attrs {
@@ -1341,10 +1322,7 @@ pub fn hlattrs2dict(
             put_c(
                 &mut *hl,
                 c"font",
-                string_obj(crate::api::private::helpers::arena_bytes_opt(
-                    arena,
-                    font.to_bytes(),
-                )),
+                string_obj(NvimString::from_bytes(font.to_bytes())),
             );
         }
     } else {
@@ -1769,12 +1747,12 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
     }
 }
 
-pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
+pub fn hl_inspect(attr: i32) -> Array {
     if !hl_st(|st| st.hlstate_active.get()) {
         return Array::new();
     }
-    let mut ret = arena_array(arena, hl_inspect_size(attr));
-    hl_inspect_impl(&mut ret, attr, arena);
+    let mut ret = Array::with_capacity(hl_inspect_size(attr));
+    hl_inspect_impl(&mut ret, attr);
     ret
 }
 
@@ -1791,7 +1769,7 @@ fn hl_inspect_size(attr: i32) -> usize {
     1
 }
 
-fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
+fn hl_inspect_impl(arr: &mut Array, attr: i32) {
     if attr <= 0 {
         return;
     }
@@ -1801,17 +1779,17 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
     let mut item: Dict;
     match e.kind {
         K_HL_SYNTAX => {
-            item = arena_dict(arena, 3);
+            item = Dict::with_capacity(3);
             put_c(&mut item, c"kind", cstr_as_obj(Some(c"syntax")));
             let hi_name = syn_id2name(e.id1);
             put_c(
                 &mut item,
                 c"hi_name",
-                cstr_to_arena_obj(arena, Some(&hi_name)),
+                crate::api::private::helpers::cstr_to_nonnull_obj(Some(&hi_name)),
             );
         }
         K_HL_UI => {
-            item = arena_dict(arena, 4);
+            item = Dict::with_capacity(4);
             put_c(&mut item, c"kind", cstr_as_obj(Some(c"ui")));
             let ui_name = if e.id1 == -1 {
                 Some(c"Normal")
@@ -1823,16 +1801,16 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
             put_c(
                 &mut item,
                 c"hi_name",
-                cstr_to_arena_obj(arena, Some(&hi_name)),
+                crate::api::private::helpers::cstr_to_nonnull_obj(Some(&hi_name)),
             );
         }
         K_HL_TERMINAL => {
-            item = arena_dict(arena, 2);
+            item = Dict::with_capacity(2);
             put_c(&mut item, c"kind", cstr_as_obj(Some(c"term")));
         }
         K_HL_COMBINE | K_HL_BLEND | K_HL_BLEND_THROUGH => {
-            hl_inspect_impl(arr, e.id1, arena);
-            hl_inspect_impl(arr, e.id2, arena);
+            hl_inspect_impl(arr, e.id1);
+            hl_inspect_impl(arr, e.id2);
             return;
         }
         _ => return,

@@ -4,10 +4,10 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_bytes,
-    arena_dict, boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
-    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
-    static_cstr_as_obj, string_obj, try_wrap, try_wrap_err,
+    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, boolean_obj, buf_get_text,
+    cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, has_key,
+    integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj, try_wrap,
+    try_wrap_err,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
@@ -37,7 +37,6 @@ use crate::marktree::K_MTMETA_LINES;
 use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf_len,
 };
-use crate::memory::Arena;
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
@@ -321,7 +320,6 @@ pub fn nvim_buf_get_lines(
     mut start: Integer,
     mut end: Integer,
     strict_indexing: Boolean,
-    arena: &mut Arena,
     lstate: *mut lua_State,
     err: &mut Error,
 ) -> Array {
@@ -331,7 +329,7 @@ pub fn nvim_buf_get_lines(
     };
 
     if b.b_ml.ml_mfp.borrow().is_none() {
-        init_line_array(lstate, &mut rv, 0, arena);
+        init_line_array(lstate, &mut rv, 0);
         return rv;
     }
 
@@ -355,7 +353,7 @@ pub fn nvim_buf_get_lines(
         0
     };
 
-    init_line_array(lstate, &mut rv, size, arena);
+    init_line_array(lstate, &mut rv, size);
 
     buf_collect_lines(
         &b,
@@ -365,7 +363,6 @@ pub fn nvim_buf_get_lines(
         channel_id != VIML_INTERNAL_CALL,
         &mut rv,
         lstate,
-        arena,
     );
 
     rv
@@ -404,7 +401,6 @@ pub fn nvim_buf_set_lines(
     mut end: Integer,
     strict_indexing: Boolean,
     replacement: Array,
-    _arena: &mut Arena,
     err: &mut Error,
 ) {
     let Some(b) = api_buf_ensure_loaded(buf, err) else {
@@ -649,7 +645,6 @@ pub fn nvim_buf_set_text(
     mut end_row: Integer,
     mut end_col: Integer,
     replacement: Array,
-    _arena: &mut Arena,
     err: &mut Error,
 ) {
     let scratch_items = [static_cstr_as_obj(c"")];
@@ -1004,7 +999,6 @@ pub fn nvim_buf_get_text(
     mut end_row: Integer,
     end_col: Integer,
     _opts: &mut KeyDict_empty,
-    arena: &mut Arena,
     lstate: *mut lua_State,
     err: &mut Error,
 ) -> Array {
@@ -1014,7 +1008,7 @@ pub fn nvim_buf_get_text(
     };
 
     if b.b_ml.ml_mfp.borrow().is_none() {
-        init_line_array(lstate, &mut rv, 0, arena);
+        init_line_array(lstate, &mut rv, 0);
         return rv;
     }
 
@@ -1045,14 +1039,14 @@ pub fn nvim_buf_get_text(
     let replace_nl = channel_id != VIML_INTERNAL_CALL;
     let size = ((end_row - start_row) as usize) + 1;
 
-    init_line_array(lstate, &mut rv, size, arena);
+    init_line_array(lstate, &mut rv, size);
 
     if start_row == end_row {
         let line = buf_get_text(&b, start_row, start_col, end_col, err);
         if error_set(err) {
             return Array::new();
         }
-        push_linestr(lstate, &mut rv, line.as_bytes(), 0, replace_nl, arena);
+        push_linestr(lstate, &mut rv, line.as_bytes(), 0, replace_nl);
         return rv;
     }
 
@@ -1061,7 +1055,7 @@ pub fn nvim_buf_get_text(
         return Array::new();
     }
 
-    push_linestr(lstate, &mut rv, str_val.as_bytes(), 0, replace_nl, arena);
+    push_linestr(lstate, &mut rv, str_val.as_bytes(), 0, replace_nl);
 
     if size > 2 {
         buf_collect_lines(
@@ -1072,7 +1066,6 @@ pub fn nvim_buf_get_text(
             replace_nl,
             &mut rv,
             lstate,
-            arena,
         );
     }
 
@@ -1087,7 +1080,6 @@ pub fn nvim_buf_get_text(
         str_val.as_bytes(),
         (size - 1) as i32,
         replace_nl,
-        arena,
     );
 
     if error_set(err) {
@@ -1148,16 +1140,11 @@ pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Inte
 /// @return Variable value
 // DLLEXPORT Object nvim_buf_get_var(Buffer buf, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_buf_get_var(
-    buf: Buffer,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_buf_get_var(buf: Buffer, name: NvimString, err: &mut Error) -> Object {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return OBJECT_NIL;
     };
-    dict_get_value(Some(&*b.b_vars()), name, Some(arena), err)
+    dict_get_value(Some(&*b.b_vars()), name, err)
 }
 
 /// Gets a changed tick of a buffer
@@ -1185,16 +1172,11 @@ pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
 // DLLEXPORT ArrayOf(DictAs(get_keymap)) nvim_buf_get_keymap(Buffer buf, String mode, Arena *arena,
 //                                                           Error *err)
 //   FUNC_API_SINCE(3);
-pub fn nvim_buf_get_keymap(
-    buf: Buffer,
-    mode: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
+pub fn nvim_buf_get_keymap(buf: Buffer, mode: NvimString, err: &mut Error) -> Array {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return Array::new();
     };
-    keymap_array(mode, Some(&b), arena)
+    keymap_array(mode, Some(&b))
 }
 
 /// Sets a buffer-local |mapping| for the given mode.
@@ -1267,7 +1249,7 @@ pub fn nvim_buf_set_var(buf: Buffer, name: NvimString, value: Object, err: &mut 
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    dict_set_var(&b.b_vars(), name, value, false, false, None, err);
+    dict_set_var(&b.b_vars(), name, value, false, false, err);
 }
 
 /// Removes a buffer-scoped (b:) variable
@@ -1281,7 +1263,7 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return;
     };
-    dict_set_var(&b.b_vars(), name, OBJECT_NIL, true, false, None, err);
+    dict_set_var(&b.b_vars(), name, OBJECT_NIL, true, false, err);
 }
 
 /// Gets the full/absolute filepath of the buffer, or the buffer name for non-file buffers.
@@ -1529,12 +1511,7 @@ pub fn nvim_buf_set_mark(
 /// @see |nvim_buf_del_mark()|
 // DLLEXPORT ArrayOf(Integer, 2) nvim_buf_get_mark(Buffer buf, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_buf_get_mark(
-    buf: Buffer,
-    name: NvimString,
-    arena: &mut Arena,
-    err: &mut Error,
-) -> Array {
+pub fn nvim_buf_get_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Array {
     let mut rv = Array::new();
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return rv;
@@ -1563,7 +1540,7 @@ pub fn nvim_buf_get_mark(
         (fm.mark.lnum, fm.mark.col)
     };
 
-    rv = arena_array(arena, 2);
+    rv = Array::with_capacity(2);
     add_c(&mut rv, integer_obj(i64::from(lnum)));
     add_c(&mut rv, integer_obj(i64::from(col)));
     rv
@@ -1598,7 +1575,7 @@ pub fn nvim_buf_call(buf: Buffer, fn_ref: LuaRef, err: &mut Error) -> Object {
         let mut cs: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut cs, None, None, Some(&b), 0);
         let args = Array::new();
-        nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, None, Some(err));
+        nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, Some(err));
 
         ctx_restore(&mut cs);
     });
@@ -1608,12 +1585,12 @@ pub fn nvim_buf_call(buf: Buffer, fn_ref: LuaRef, err: &mut Error) -> Object {
 
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
-pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
+pub fn nvim_buf_stats(buf: Buffer, err: &mut Error) -> Dict {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return Dict::new();
     };
 
-    let mut rv = arena_dict(arena, 8);
+    let mut rv = Dict::with_capacity(8);
     put_c(
         &mut rv,
         c"flush_count",
@@ -1766,22 +1743,15 @@ fn fix_cursor_cols(
 }
 
 #[inline]
-fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &mut Arena) {
+fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize) {
     if !lstate.is_null() {
         crate::lua::converter::lua_createtable_safe(lstate, size as i32, 0);
     } else {
-        *a = arena_array(arena, size);
+        *a = Array::with_capacity(size);
     }
 }
 
-fn push_linestr(
-    lstate: *mut lua_State,
-    a: &mut Array,
-    s: &[u8],
-    idx: i32,
-    replace_nl: bool,
-    arena: &mut Arena,
-) {
+fn push_linestr(lstate: *mut lua_State, a: &mut Array, s: &[u8], idx: i32, replace_nl: bool) {
     if !lstate.is_null() {
         if replace_nl && s.contains(&b'\n') {
             let mut tmp: Vec<u8> = s.to_vec();
@@ -1798,7 +1768,7 @@ fn push_linestr(
     } else {
         let mut str_val = NvimString::new();
         if !s.is_empty() {
-            str_val = arena_bytes(arena, s);
+            str_val = NvimString::from_bytes(s);
             if replace_nl {
                 for b in &mut str_val.as_bytes_with_nul_mut()[..s.len()] {
                     if *b == b'\n' {
@@ -1833,19 +1803,11 @@ pub fn buf_collect_lines(
     replace_nl: bool,
     l: &mut Array,
     lstate: *mut lua_State,
-    arena: &mut Arena,
 ) {
     for i in 0..n {
         let lnum = start + (i as Linenr);
         let line_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
-        push_linestr(
-            lstate,
-            l,
-            &line_bytes,
-            start_idx + (i as i32),
-            replace_nl,
-            arena,
-        );
+        push_linestr(lstate, l, &line_bytes, start_idx + (i as i32), replace_nl);
     }
 }
 
