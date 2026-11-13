@@ -149,6 +149,41 @@ describe('Screen', function()
     ]])
   end)
 
+  it('allows VimResized autocmd to mutate mappings, commands, and signs at more-prompt', function()
+    exec([[
+      set more
+      call setline(1, range(1, 10))
+      sign define S1 text=>>
+      for i in range(1, 10)
+        execute 'nmap m' .. i .. ' <Nop>'
+        execute 'command C' .. i .. ' echo ' .. i
+        execute 'sign place ' .. i .. ' line=' .. i .. ' name=S1 buffer=1'
+      endfor
+      autocmd VimResized * execute 'nmap m_resized <Nop>' | execute 'command! CResized echo 1' | sign place 99 line=1 name=S1 buffer=1
+    ]])
+
+    feed(':nmap<CR>')
+    screen:expect({ any = vim.pesc('{6:-- More --}') })
+    screen:try_resize(20, 6)
+    feed('q')
+    screen:expect({ any = vim.pesc('{7:>>}^1') })
+    eq('<Nop>', api.nvim_eval('maparg("m_resized", "n")'))
+
+    feed(':command<CR>')
+    screen:expect({ any = vim.pesc('{6:-- More --}') })
+    screen:try_resize(20, 5)
+    feed('q')
+    screen:expect({ any = vim.pesc('{7:>>}^1') })
+    eq(2, api.nvim_eval('exists(":CResized")'))
+
+    feed(':sign place<CR>')
+    screen:expect({ any = vim.pesc('{6:-- More --}') })
+    screen:try_resize(20, 6)
+    feed('q')
+    screen:expect({ any = vim.pesc('{7:>>}^1') })
+    eq(1, api.nvim_eval('len(sign_getplaced("", {"id": 99})[0].signs)'))
+  end)
+
   it('cursor position does not move after empty-string :cmap <expr> #19046', function()
     command([[cnoremap <expr> <F2> '']])
     feed(':<F2>')

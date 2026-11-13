@@ -354,20 +354,22 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         }
 
         if ns >= 0 {
-            let mut itr = MarkTreeIter::new();
             let mut signs: Vec<MTKey> = Vec::new();
-            let b = &buf_ref.b_marktree.borrow();
-            marktree_itr_get(b, 0, 0, &mut itr);
+            {
+                let mut itr = MarkTreeIter::new();
+                let b = &buf_ref.b_marktree.borrow();
+                marktree_itr_get(b, 0, 0, &mut itr);
 
-            while itr.x.is_some() {
-                let mark = marktree_itr_current(b, &itr);
-                if !mt_end(mark)
-                    && mt_decor_sign(mark)
-                    && (ns == i64::from(u32::MAX) || ns == i64::from(mark.ns))
-                {
-                    signs.push(mark);
+                while itr.x.is_some() {
+                    let mark = marktree_itr_current(b, &itr);
+                    if !mt_end(mark)
+                        && mt_decor_sign(mark)
+                        && (ns == i64::from(u32::MAX) || ns == i64::from(mark.ns))
+                    {
+                        signs.push(mark);
+                    }
+                    marktree_itr_next(b, &mut itr);
                 }
-                marktree_itr_next(b, &mut itr);
             }
 
             if !signs.is_empty() {
@@ -375,6 +377,9 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
                 msg_putchar(b'\n' as i32);
 
                 for (i, &mark) in signs.iter().enumerate() {
+                    if g_st().got_int.get() {
+                        break;
+                    }
                     namebuf[0] = 0;
                     groupbuf[0] = 0;
 
@@ -1129,16 +1134,22 @@ fn sign_get_placed_info_dict(mark: MTKey) -> crate::eval::typval::DictId {
 
 pub fn get_buffer_signs(buf: &FileBuf) -> crate::eval::typval::ListId {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    let mut itr = MarkTreeIter::new();
-    let b = &buf.b_marktree.borrow();
-    marktree_itr_get(b, 0, 0, &mut itr);
+    let mut signs: Vec<MTKey> = Vec::new();
+    {
+        let mut itr = MarkTreeIter::new();
+        let b = &buf.b_marktree.borrow();
+        marktree_itr_get(b, 0, 0, &mut itr);
 
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if !mt_end(mark) && mt_decor_sign(mark) {
-            tv_list_append_dict(&l, Some(&sign_get_placed_info_dict(mark)));
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
+            if !mt_end(mark) && mt_decor_sign(mark) {
+                signs.push(mark);
+            }
+            marktree_itr_next(b, &mut itr);
         }
-        marktree_itr_next(b, &mut itr);
+    }
+    for mark in signs {
+        tv_list_append_dict(&l, Some(&sign_get_placed_info_dict(mark)));
     }
 
     l
@@ -1164,27 +1175,29 @@ fn sign_get_placed_in_buf(
         return;
     }
 
-    let mut itr = MarkTreeIter::new();
     let mut signs: Vec<MTKey> = Vec::new();
-    let b = &buf.b_marktree.borrow();
-    marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, &mut itr);
+    {
+        let mut itr = MarkTreeIter::new();
+        let b = &buf.b_marktree.borrow();
+        marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, &mut itr);
 
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if lnum != 0 && mark.pos.row >= lnum {
-            break;
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
+            if lnum != 0 && mark.pos.row >= lnum {
+                break;
+            }
+            if !mt_end(mark)
+                && (ns == i64::from(u32::MAX) || ns == i64::from(mark.ns))
+                && ((lnum == 0 && sign_id == 0)
+                    || (sign_id == 0 && lnum == mark.pos.row + 1)
+                    || (lnum == 0 && sign_id == mark.id as i32)
+                    || (lnum == mark.pos.row + 1 && sign_id == mark.id as i32))
+                && mt_decor_sign(mark)
+            {
+                signs.push(mark);
+            }
+            marktree_itr_next(b, &mut itr);
         }
-        if !mt_end(mark)
-            && (ns == i64::from(u32::MAX) || ns == i64::from(mark.ns))
-            && ((lnum == 0 && sign_id == 0)
-                || (sign_id == 0 && lnum == mark.pos.row + 1)
-                || (lnum == 0 && sign_id == mark.id as i32)
-                || (lnum == mark.pos.row + 1 && sign_id == mark.id as i32))
-            && mt_decor_sign(mark)
-        {
-            signs.push(mark);
-        }
-        marktree_itr_next(b, &mut itr);
     }
 
     if !signs.is_empty() {

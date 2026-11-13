@@ -64,6 +64,7 @@ describe('ffi.cdef', function()
       ]]
 
         local out = ffi.new('char[1024]')
+        assert(ffi.C.find_window_by_handle(-1, ffi.new('Error')) == nil)
         return ffi.C.build_stl_str_hl(
           ffi.C.find_window_by_handle(0, ffi.new('Error')),
           ffi.new('CharBuf', { out, ffi.sizeof(out) }),

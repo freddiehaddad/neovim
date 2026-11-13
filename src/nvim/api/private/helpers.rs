@@ -604,8 +604,12 @@ pub fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
 
 #[allow(unsafe_code)]
 #[unsafe(export_name = "find_window_by_handle")]
-pub extern "C" fn find_window_by_handle_ffi(window: Window, err: &mut Error) -> *mut WinInfoInfo {
-    find_window_by_handle(window, err).as_ptr()
+pub extern "C" fn find_window_by_handle_ffi(
+    window: Window,
+    _err: *mut std::ffi::c_void,
+) -> *mut WinInfoInfo {
+    let mut err = Error::new();
+    find_window_by_handle(window, &mut err).as_ptr()
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
