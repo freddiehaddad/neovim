@@ -7,7 +7,8 @@ use crate::event::r#loop::{
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
-use crate::log::{LOGLVL_DBG, LOGLVL_WRN, logmsg, min_log_level};
+use crate::globals::g_st;
+use crate::log::{LOGLVL_DBG, LOGLVL_INF, logmsg, min_log_level};
 use std::ffi::c_void;
 
 pub const UV_NAMED_PIPE: i32 = 7;
@@ -276,9 +277,9 @@ pub fn stream_close_handle(stream: &mut Stream) {
     let handle: *mut uv_handle_t = if stream.has_uvstream {
         let uv_s: *mut uv_stream_t = (&raw mut stream.uv).cast();
         let queued = unsafe { uv_stream_get_write_queue_size(uv_s) };
-        if queued > 0 {
+        if !g_st().exiting.get() && queued > 0 {
             logmsg!(
-                LOGLVL_WRN,
+                LOGLVL_INF,
                 None,
                 Some(c"stream_close_handle"),
                 116,
