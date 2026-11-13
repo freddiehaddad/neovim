@@ -450,10 +450,37 @@ impl OptString {
     }
 }
 
+#[derive(Default)]
+pub struct KeywHasher(u64);
+
+impl std::hash::Hasher for KeywHasher {
+    #[inline(always)]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    #[inline(always)]
+    fn write(&mut self, bytes: &[u8]) {
+        let mut h = self.0;
+        for &b in bytes {
+            h = (h ^ u64::from(b)).wrapping_mul(0x517c_c1b7_2722_0a95);
+        }
+        self.0 = h;
+    }
+
+    #[inline(always)]
+    fn write_usize(&mut self, i: usize) {
+        self.0 = (self.0 ^ (i as u64)).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+pub type KeywTabMap =
+    std::collections::HashMap<Vec<u8>, Vec<Keyentry>, std::hash::BuildHasherDefault<KeywHasher>>;
+
 #[repr(C)]
 pub struct Synblock {
-    pub b_keywtab: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>>,
-    pub b_keywtab_ic: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>>,
+    pub b_keywtab: std::cell::RefCell<KeywTabMap>,
+    pub b_keywtab_ic: std::cell::RefCell<KeywTabMap>,
     pub b_syn_error: std::cell::Cell<bool>,
     pub b_syn_slow: std::cell::Cell<bool>,
     pub b_syn_ic: std::cell::Cell<bool>,
@@ -499,8 +526,12 @@ pub struct Synblock {
 impl Synblock {
     pub const fn new() -> Self {
         Self {
-            b_keywtab: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            b_keywtab_ic: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            b_keywtab: std::cell::RefCell::new(std::collections::HashMap::with_hasher(
+                std::hash::BuildHasherDefault::new(),
+            )),
+            b_keywtab_ic: std::cell::RefCell::new(std::collections::HashMap::with_hasher(
+                std::hash::BuildHasherDefault::new(),
+            )),
             b_syn_error: std::cell::Cell::new(false),
             b_syn_slow: std::cell::Cell::new(false),
             b_syn_ic: std::cell::Cell::new(false),

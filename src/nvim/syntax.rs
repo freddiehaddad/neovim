@@ -25,7 +25,7 @@ use crate::highlight_group::{
 };
 use crate::indent_c::find_start_comment;
 use crate::mbyte::{mb_strcmp_ic, utfc_ptr2len, utfc_slice2len};
-use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get_buf_len;
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
@@ -54,11 +54,22 @@ pub use crate::option_vars::Synblock;
 
 #[inline]
 fn syn_curline_byte(col: Colnr) -> u8 {
-    let slice = crate::memline::ml_get_buf_slice(
-        &SYN_STATE.with(SyntaxState::syn_buf_mut),
-        SYN_STATE.with(|s| s.current_lnum.get()),
-    );
-    slice.get(col.max(0) as usize).copied().unwrap_or(0)
+    let (buf, lnum) = SYN_STATE.with(|s| (s.syn_buf_mut(), s.current_lnum.get()));
+    crate::memline::with_ml_buf_line(&buf, lnum, |slice| {
+        slice.get(col.max(0) as usize).copied().unwrap_or(0)
+    })
+}
+
+#[inline]
+fn syn_curline_two_bytes(col: Colnr) -> (u8, u8) {
+    let (buf, lnum) = SYN_STATE.with(|s| (s.syn_buf_mut(), s.current_lnum.get()));
+    crate::memline::with_ml_buf_line(&buf, lnum, |slice| {
+        let idx = col.max(0) as usize;
+        (
+            slice.get(idx).copied().unwrap_or(0),
+            slice.get(idx + 1).copied().unwrap_or(0),
+        )
+    })
 }
 
 #[repr(C)]
@@ -1575,7 +1586,8 @@ fn syn_current_attr(
     let mut zero_width_next_ga: Vec<i32> = Vec::new();
 
     let cur_col_init = SYN_STATE.with(|s| s.current_col.get());
-    if syn_curline_byte(cur_col_init) == 0 && cur_col_init != 0 {
+    let (b0, b1) = syn_curline_two_bytes(cur_col_init);
+    if b0 == 0 && cur_col_init != 0 {
         if SYN_STATE.with(|s| s.next_match_idx.get()) >= 0
             && SYN_STATE.with(|s| s.next_match_col.get()) >= cur_col_init
             && SYN_STATE.with(|s| s.next_match_col.get()) != MAXCOL
@@ -1588,7 +1600,7 @@ fn syn_current_attr(
         return 0;
     }
 
-    if syn_curline_byte(cur_col_init) == 0 || syn_curline_byte(cur_col_init + 1) == 0 {
+    if b0 == 0 || b1 == 0 {
         SYN_STATE.with(|s| s.current_finished.set(true));
         SYN_STATE.with(|s| s.current_state_stored.set(false));
     }
@@ -1598,9 +1610,9 @@ fn syn_current_attr(
         SYN_STATE.with(|s| s.try_next_column.set(false));
     }
 
+    let syn_blk = syn_block_mut();
     let do_keywords = !syncing
-        && (!syn_block_mut().b_keywtab.borrow().is_empty()
-            || !syn_block_mut().b_keywtab_ic.borrow().is_empty());
+        && (!syn_blk.b_keywtab.borrow().is_empty() || !syn_blk.b_keywtab_ic.borrow().is_empty());
 
     save_chartab(&mut buf_chartab);
 
@@ -1611,124 +1623,135 @@ fn syn_current_attr(
 
         cur_si_idx = (!cur_state_empty()).then(|| (cur_state_len() - 1) as usize);
 
-        if syn_block_mut().b_syn_containedin.get() != 0
+        if syn_blk.b_syn_containedin.get() != 0
             || cur_si_idx.is_none_or(|idx| with_cur_state(|cs| cs[idx].si_cont_list.is_some()))
         {
             if do_keywords {
-                let line_cstr = ml_get_buf(
-                    &SYN_STATE.with(SyntaxState::syn_buf_mut),
-                    SYN_STATE.with(|s| s.current_lnum.get()),
-                );
-                let line_bytes = line_cstr.to_bytes();
-                let cur_col =
-                    (SYN_STATE.with(|s| s.current_col.get()) as usize).min(line_bytes.len());
-                if vim_iswordp_buf(
-                    &line_bytes[cur_col..],
-                    &SYN_STATE.with(SyntaxState::syn_buf_mut),
-                ) && (cur_col == 0
-                    || !vim_iswordp_buf(
-                        &line_bytes[cur_col
-                            - 1
-                            - (crate::mbyte::utf_head_off_slice(line_bytes, cur_col - 1)
-                                as usize)..],
-                        &SYN_STATE.with(SyntaxState::syn_buf_mut),
-                    ))
-                {
-                    syn_id = check_keyword_id(
-                        line_bytes,
-                        SYN_STATE.with(|s| s.current_col.get()),
-                        &mut endcol,
-                        &mut flags,
-                        &mut next_list,
-                        cur_si_idx,
-                        &mut cchar,
-                    );
-                    if syn_id != 0 {
-                        push_current_state(KEYWORD_IDX);
-                        let len = cur_state_len();
-                        let new_idx = (len - 1) as usize;
-                        cur_si_idx = Some(new_idx);
-                        let cur_col_val = SYN_STATE.with(|s| s.current_col.get());
-                        let cur_lnum_val = SYN_STATE.with(|s| s.current_lnum.get());
-                        let seqnr = SYN_STATE.with(|s| s.next_seqnr.get());
-                        SYN_STATE.with(|s| s.next_seqnr.set(seqnr + 1));
-                        let attr_val = if (flags & HL_TRANSP) != 0 {
-                            0
-                        } else {
-                            syn_id2attr(syn_id)
-                        };
-                        let next_l = next_list.take();
-                        with_cur_state_mut(|cs| {
-                            let prev_flags = if len > 1 { cs[new_idx - 1].si_flags } else { 0 };
-                            let prev_attr = if len > 1 { cs[new_idx - 1].si_attr } else { 0 };
-                            let prev_trans = if len > 1 {
-                                cs[new_idx - 1].si_trans_id
+                let (syn_buf, cur_lnum, cur_col_i32) = SYN_STATE
+                    .with(|s| (s.syn_buf_mut(), s.current_lnum.get(), s.current_col.get()));
+                syn_id = crate::memline::with_ml_buf_line(&syn_buf, cur_lnum, |line_bytes| {
+                    let cur_col = (cur_col_i32.max(0) as usize).min(line_bytes.len());
+                    if vim_iswordp_buf(&line_bytes[cur_col..], &syn_buf)
+                        && (cur_col == 0 || {
+                            let prev_idx = cur_col - 1;
+                            let prev_off = if line_bytes[prev_idx] < 0x80 {
+                                prev_idx
                             } else {
-                                0
+                                prev_idx
+                                    - crate::mbyte::utf_head_off_slice(line_bytes, prev_idx)
+                                        as usize
                             };
-                            let cur_si = &mut cs[new_idx];
-                            cur_si.si_m_startcol = cur_col_val;
-                            cur_si.si_h_startpos.lnum = cur_lnum_val;
-                            cur_si.si_h_startpos.col = 0;
-                            cur_si.si_m_endpos.lnum = cur_lnum_val;
-                            cur_si.si_m_endpos.col = endcol;
-                            cur_si.si_h_endpos.lnum = cur_lnum_val;
-                            cur_si.si_h_endpos.col = endcol;
-                            cur_si.si_ends = 1;
-                            cur_si.si_end_idx = 0;
-                            cur_si.si_flags = flags | (prev_flags & HL_CONCEAL);
-                            cur_si.si_seqnr = seqnr;
-                            cur_si.si_cchar = cchar;
-                            cur_si.si_id = syn_id;
-                            cur_si.si_trans_id = syn_id;
-                            if (flags & HL_TRANSP) != 0 {
-                                cur_si.si_attr = prev_attr;
-                                cur_si.si_trans_id = prev_trans;
-                            } else {
-                                cur_si.si_attr = attr_val;
-                            }
-                            cur_si.si_cont_list = None;
-                            cur_si.si_next_list = next_l;
-                        });
-                        check_keepend();
+                            !vim_iswordp_buf(&line_bytes[prev_off..], &syn_buf)
+                        })
+                    {
+                        check_keyword_id(
+                            line_bytes,
+                            cur_col_i32,
+                            &mut endcol,
+                            &mut flags,
+                            &mut next_list,
+                            cur_si_idx,
+                            &mut cchar,
+                        )
+                    } else {
+                        0
                     }
+                });
+                if syn_id != 0 {
+                    push_current_state(KEYWORD_IDX);
+                    let len = cur_state_len();
+                    let new_idx = (len - 1) as usize;
+                    cur_si_idx = Some(new_idx);
+                    let cur_col_val = SYN_STATE.with(|s| s.current_col.get());
+                    let cur_lnum_val = SYN_STATE.with(|s| s.current_lnum.get());
+                    let seqnr = SYN_STATE.with(|s| s.next_seqnr.get());
+                    SYN_STATE.with(|s| s.next_seqnr.set(seqnr + 1));
+                    let attr_val = if (flags & HL_TRANSP) != 0 {
+                        0
+                    } else {
+                        syn_id2attr(syn_id)
+                    };
+                    let next_l = next_list.take();
+                    with_cur_state_mut(|cs| {
+                        let prev_flags = if len > 1 { cs[new_idx - 1].si_flags } else { 0 };
+                        let prev_attr = if len > 1 { cs[new_idx - 1].si_attr } else { 0 };
+                        let prev_trans = if len > 1 {
+                            cs[new_idx - 1].si_trans_id
+                        } else {
+                            0
+                        };
+                        let cur_si = &mut cs[new_idx];
+                        cur_si.si_m_startcol = cur_col_val;
+                        cur_si.si_h_startpos.lnum = cur_lnum_val;
+                        cur_si.si_h_startpos.col = 0;
+                        cur_si.si_m_endpos.lnum = cur_lnum_val;
+                        cur_si.si_m_endpos.col = endcol;
+                        cur_si.si_h_endpos.lnum = cur_lnum_val;
+                        cur_si.si_h_endpos.col = endcol;
+                        cur_si.si_ends = 1;
+                        cur_si.si_end_idx = 0;
+                        cur_si.si_flags = flags | (prev_flags & HL_CONCEAL);
+                        cur_si.si_seqnr = seqnr;
+                        cur_si.si_cchar = cchar;
+                        cur_si.si_id = syn_id;
+                        cur_si.si_trans_id = syn_id;
+                        if (flags & HL_TRANSP) != 0 {
+                            cur_si.si_attr = prev_attr;
+                            cur_si.si_trans_id = prev_trans;
+                        } else {
+                            cur_si.si_attr = attr_val;
+                        }
+                        cur_si.si_cont_list = None;
+                        cur_si.si_next_list = next_l;
+                    });
+                    check_keepend();
                 }
             }
 
-            if syn_id == 0 && !syn_block_mut().b_syn_patterns.borrow().is_empty() {
+            if syn_id == 0 && !syn_blk.b_syn_patterns.borrow().is_empty() {
                 if SYN_STATE.with(|s| s.next_match_idx.get()) < 0
                     || SYN_STATE.with(|s| s.next_match_col.get())
                         < SYN_STATE.with(|s| s.current_col.get())
                 {
                     SYN_STATE.with(|s| s.next_match_idx.set(0));
                     SYN_STATE.with(|s| s.next_match_col.set(MAXCOL));
-                    let mut idx = syn_block_mut().b_syn_patterns.borrow().len() as i32 - 1;
+                    let cur_next_list = with_syn_ext(|ext| ext.current_next_list.borrow().clone());
+                    let si_cont_list = cur_si_idx
+                        .and_then(|si_idx| with_cur_state(|cs| cs[si_idx].si_cont_list.clone()));
+                    let mut idx = syn_blk.b_syn_patterns.borrow().len() as i32 - 1;
                     while idx >= 0 {
-                        let spp = syn_items(&syn_block_mut(), idx as isize);
-                        let cur_next_list =
-                            with_syn_ext(|ext| ext.current_next_list.borrow().clone());
-                        if spp.sp_syncing == syncing
-                            && (displaying || (spp.sp_flags & HL_DISPLAY) == 0)
-                            && (spp.sp_type == SPTYPE_MATCH || spp.sp_type == SPTYPE_START)
-                            && if cur_next_list.is_some() {
-                                in_id_list(None, &cur_next_list, &spp.sp_syn, 0) != 0
-                            } else if let Some(si_idx) = cur_si_idx {
-                                let cont_list =
-                                    with_cur_state(|cs| cs[si_idx].si_cont_list.clone());
-                                in_id_list(Some(si_idx), &cont_list, &spp.sp_syn, spp.sp_flags) != 0
-                            } else {
-                                (spp.sp_flags & HL_CONTAINED) == 0
-                            }
-                        {
-                            if spp.sp_line_id.get() == SYN_STATE.with(|s| s.current_line_id.get())
-                                && spp.sp_startcol.get()
-                                    >= SYN_STATE.with(|s| s.next_match_col.get())
+                        let (cur_line_id, next_match_col) =
+                            SYN_STATE.with(|s| (s.current_line_id.get(), s.next_match_col.get()));
+                        let candidate_spp = {
+                            let pats = syn_blk.b_syn_patterns.borrow();
+                            let spp_ref = &pats[idx as usize];
+                            if spp_ref.sp_syncing == syncing
+                                && (displaying || (spp_ref.sp_flags & HL_DISPLAY) == 0)
+                                && (spp_ref.sp_type == SPTYPE_MATCH
+                                    || spp_ref.sp_type == SPTYPE_START)
+                                && !(spp_ref.sp_line_id.get() == cur_line_id
+                                    && spp_ref.sp_startcol.get() >= next_match_col)
+                                && (cur_next_list.is_some()
+                                    || cur_si_idx.is_some()
+                                    || (spp_ref.sp_flags & HL_CONTAINED) == 0)
                             {
-                                idx -= 1;
-                                continue;
+                                Some(spp_ref.clone())
+                            } else {
+                                None
                             }
-                            spp.sp_line_id
-                                .set(SYN_STATE.with(|s| s.current_line_id.get()));
+                        };
+                        let Some(spp) = candidate_spp else {
+                            idx -= 1;
+                            continue;
+                        };
+                        if if cur_next_list.is_some() {
+                            in_id_list(None, &cur_next_list, &spp.sp_syn, 0) != 0
+                        } else if let Some(si_idx) = cur_si_idx {
+                            in_id_list(Some(si_idx), &si_cont_list, &spp.sp_syn, spp.sp_flags) != 0
+                        } else {
+                            true
+                        } {
+                            spp.sp_line_id.set(cur_line_id);
 
                             let mut lc_col = SYN_STATE.with(|s| s.current_col.get())
                                 - spp.sp_offsets[SPO_LC_OFF];
@@ -1990,8 +2013,9 @@ fn syn_current_attr(
 
     if with_syn_ext(|ext| ext.current_next_list.borrow().is_some()) {
         let cur_col = SYN_STATE.with(|s| s.current_col.get());
-        if syn_curline_byte(cur_col) != 0
-            && syn_curline_byte(cur_col + 1) == 0
+        let (cb0, cb1) = syn_curline_two_bytes(cur_col);
+        if cb0 != 0
+            && cb1 == 0
             && (SYN_STATE.with(|s| s.current_next_flags.get()) & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
         {
             with_syn_ext(|ext| *ext.current_next_list.borrow_mut() = None);
@@ -2593,24 +2617,23 @@ fn syn_add_end_off(
     {
         col = 0;
     } else if off != 0 {
-        let line = crate::memline::ml_get_buf_slice(
-            &SYN_STATE.with(SyntaxState::syn_buf_mut),
-            result.lnum,
-        );
-        let mut col_idx = (col.max(0) as usize).min(line.len());
-        if off > 0 {
-            while off > 0 && col_idx < line.len() {
-                off -= 1;
-                col_idx += utfc_slice2len(&line[col_idx..]).max(1);
-                col_idx = col_idx.min(line.len());
+        let syn_buf = SYN_STATE.with(SyntaxState::syn_buf_mut);
+        col = crate::memline::with_ml_buf_line(&syn_buf, result.lnum, |line| {
+            let mut col_idx = (col.max(0) as usize).min(line.len());
+            if off > 0 {
+                while off > 0 && col_idx < line.len() {
+                    off -= 1;
+                    col_idx += utfc_slice2len(&line[col_idx..]).max(1);
+                    col_idx = col_idx.min(line.len());
+                }
+            } else {
+                while off < 0 && col_idx > 0 {
+                    off += 1;
+                    crate::mbyte::mb_idx_back(line, &mut col_idx);
+                }
             }
-        } else {
-            while off < 0 && col_idx > 0 {
-                off += 1;
-                crate::mbyte::mb_idx_back(&line, &mut col_idx);
-            }
-        }
-        col = col_idx as i32;
+            col_idx as i32
+        });
     }
     result.col = col;
 }
@@ -2634,39 +2657,28 @@ fn syn_add_start_off(
         col = regmatch.startpos[0].col;
         off = spp.sp_offsets[idx];
     }
-    if result.lnum
-        > SYN_STATE
-            .with(SyntaxState::syn_buf_mut)
-            .b_ml
-            .ml_line_count
-            .get()
-    {
-        result.lnum = SYN_STATE
-            .with(SyntaxState::syn_buf_mut)
-            .b_ml
-            .ml_line_count
-            .get();
-        col = ml_get_buf_len(&SYN_STATE.with(SyntaxState::syn_buf_mut), result.lnum);
+    let syn_buf = SYN_STATE.with(SyntaxState::syn_buf_mut);
+    if result.lnum > syn_buf.b_ml.ml_line_count.get() {
+        result.lnum = syn_buf.b_ml.ml_line_count.get();
+        col = ml_get_buf_len(&syn_buf, result.lnum);
     }
     if off != 0 {
-        let line = crate::memline::ml_get_buf_slice(
-            &SYN_STATE.with(SyntaxState::syn_buf_mut),
-            result.lnum,
-        );
-        let mut col_idx = (col.max(0) as usize).min(line.len());
-        if off > 0 {
-            while off > 0 && col_idx < line.len() {
-                off -= 1;
-                col_idx += utfc_slice2len(&line[col_idx..]).max(1);
-                col_idx = col_idx.min(line.len());
+        col = crate::memline::with_ml_buf_line(&syn_buf, result.lnum, |line| {
+            let mut col_idx = (col.max(0) as usize).min(line.len());
+            if off > 0 {
+                while off > 0 && col_idx < line.len() {
+                    off -= 1;
+                    col_idx += utfc_slice2len(&line[col_idx..]).max(1);
+                    col_idx = col_idx.min(line.len());
+                }
+            } else {
+                while off < 0 && col_idx > 0 {
+                    off += 1;
+                    crate::mbyte::mb_idx_back(line, &mut col_idx);
+                }
             }
-        } else {
-            while off < 0 && col_idx > 0 {
-                off += 1;
-                crate::mbyte::mb_idx_back(&line, &mut col_idx);
-            }
-        }
-        col = col_idx as i32;
+            col_idx as i32
+        });
     }
     result.col = col;
 }
@@ -2755,12 +2767,18 @@ fn check_keyword_id(
     ccharp: &mut i32,
 ) -> i32 {
     let kwp = &line[(startcol as usize).min(line.len())..];
+    let syn_buf = SYN_STATE.with(SyntaxState::syn_buf_mut);
     let mut kwlen: usize = 0;
     loop {
-        kwlen += crate::mbyte::utfc_slice2len(&kwp[kwlen..]).max(1);
-        if kwlen >= kwp.len()
-            || !vim_iswordp_buf(&kwp[kwlen..], &SYN_STATE.with(SyntaxState::syn_buf_mut))
+        let step = if kwp.get(kwlen).is_some_and(|&b| b < 0x80)
+            && kwp.get(kwlen + 1).is_none_or(|&b| b < 0x80)
         {
+            1
+        } else {
+            crate::mbyte::utfc_slice2len(&kwp[kwlen..]).max(1)
+        };
+        kwlen += step;
+        if kwlen >= kwp.len() || !vim_iswordp_buf(&kwp[kwlen..], &syn_buf) {
             break;
         }
     }
@@ -2770,43 +2788,56 @@ fn check_keyword_id(
         return 0;
     }
 
-    let mut kp: Option<Keyentry> = None;
+    let syn_blk = syn_block_mut();
+    let mut matched: Option<(i32, SynIdList, i32, i32)> = None;
 
-    if !syn_block_mut().b_keywtab.borrow().is_empty() {
-        kp = match_keyword(
-            &kwp[..kwlen],
-            &syn_block_mut().b_keywtab.borrow(),
-            cur_si_idx,
-        );
+    {
+        let keywtab = syn_blk.b_keywtab.borrow();
+        if !keywtab.is_empty()
+            && let Some(kp) = match_keyword(&kwp[..kwlen], &keywtab, cur_si_idx)
+        {
+            matched = Some((
+                kp.flags,
+                kp.next_list.clone(),
+                kp.k_char,
+                i32::from(kp.k_syn.id),
+            ));
+        }
     }
 
-    if kp.is_none() && !syn_block_mut().b_keywtab_ic.borrow().is_empty() {
-        let mut keyword = [0u8; MAXKEYWLEN + 1];
-        str_foldcase(&kwp[..kwlen], Some(&mut keyword));
-        let folded_len = crate::memory::bytes_until_nul(&keyword).len();
-        kp = match_keyword(
-            &keyword[..folded_len],
-            &syn_block_mut().b_keywtab_ic.borrow(),
-            cur_si_idx,
-        );
+    if matched.is_none() {
+        let keywtab_ic = syn_blk.b_keywtab_ic.borrow();
+        if !keywtab_ic.is_empty() {
+            let mut keyword = [0u8; MAXKEYWLEN + 1];
+            str_foldcase(&kwp[..kwlen], Some(&mut keyword));
+            let folded_len = crate::memory::bytes_until_nul(&keyword).len();
+            if let Some(kp) = match_keyword(&keyword[..folded_len], &keywtab_ic, cur_si_idx) {
+                matched = Some((
+                    kp.flags,
+                    kp.next_list.clone(),
+                    kp.k_char,
+                    i32::from(kp.k_syn.id),
+                ));
+            }
+        }
     }
 
-    if let Some(kp) = kp {
+    if let Some((flags, next_list, k_char, syn_id)) = matched {
         *endcolp = startcol + kwlen as i32;
-        *flagsp = kp.flags;
-        *next_listp = kp.next_list.clone();
-        *ccharp = kp.k_char;
-        return kp.k_syn.id as i32;
+        *flagsp = flags;
+        *next_listp = next_list;
+        *ccharp = k_char;
+        return syn_id;
     }
 
     0
 }
 
-fn match_keyword(
+fn match_keyword<'a>(
     key_bytes: &[u8],
-    ht: &std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
+    ht: &'a KeywTabMap,
     cur_si_idx: Option<usize>,
-) -> Option<Keyentry> {
+) -> Option<&'a Keyentry> {
     if let Some(entries) = ht.get(key_bytes) {
         let cur_next_list = with_syn_ext(|ext| ext.current_next_list.borrow().clone());
         let si_cont_list =
@@ -2819,7 +2850,7 @@ fn match_keyword(
             } else {
                 (kp.flags & HL_CONTAINED) == 0
             } {
-                return Some(kp.clone());
+                return Some(kp);
             }
         }
     }
@@ -3576,12 +3607,7 @@ fn put_pattern(s: &std::ffi::CStr, c: i32, spp: &Synpat, hl_id: i32) {
     msg_putchar(b' ' as i32);
 }
 
-fn syn_list_keywords(
-    id: i32,
-    ht: &std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
-    mut did_header: bool,
-    hl_id: i32,
-) -> bool {
+fn syn_list_keywords(id: i32, ht: &KeywTabMap, mut did_header: bool, hl_id: i32) -> bool {
     let mut prev_contained: i32 = 0;
     let mut prev_next_list: SynIdList = None;
     let mut prev_cont_in_list: SynIdList = None;
@@ -3589,7 +3615,11 @@ fn syn_list_keywords(
     let mut prev_skipwhite: i32 = 0;
     let mut prev_skipempty: i32 = 0;
 
-    for entries in ht.values() {
+    let mut sorted_entries: Vec<(&[u8], &Vec<Keyentry>)> =
+        ht.iter().map(|(k, v)| (k.as_slice(), v)).collect();
+    sorted_entries.sort_unstable_by_key(|(k, _)| *k);
+
+    for (_, entries) in sorted_entries {
         if g_st().got_int.get() {
             break;
         }
@@ -3662,14 +3692,14 @@ fn syn_list_keywords(
     did_header
 }
 
-fn syn_clear_keyword(id: i32, ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>) {
+fn syn_clear_keyword(id: i32, ht: &mut KeywTabMap) {
     ht.retain(|_, entries| {
         entries.retain(|kp| kp.k_syn.id as i32 != id);
         !entries.is_empty()
     });
 }
 
-fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>) {
+fn clear_keywtab(ht: &mut KeywTabMap) {
     ht.clear();
 }
 
@@ -3710,7 +3740,11 @@ fn add_keyword(
     } else {
         ws.b_keywtab.borrow_mut()
     };
-    ht.entry(kw_vec.to_vec()).or_default().insert(0, kp);
+    if let Some(entries) = ht.get_mut(kw_vec) {
+        entries.insert(0, kp);
+    } else {
+        ht.insert(kw_vec.to_vec(), vec![kp]);
+    }
 }
 
 fn get_group_name<'a>(arg: &'a CStr, name_len: &mut usize) -> Option<&'a CStr> {
