@@ -3605,11 +3605,12 @@ fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :language command.
 fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let bytes = arg.to_bytes();
+    let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
+    let bytes = arg_slice.as_bytes();
     let p_rem = crate::charset::skiptowhite_slice(bytes);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_LANGUAGE;
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+        xp.xp_pattern = arg_slice;
     } else {
         let n = bytes.len() - p_rem.len();
         let word = &bytes[..n];
@@ -3620,8 +3621,7 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
         {
             xp.xp_context = EXPAND_LOCALES;
             let rest = crate::charset::skipwhite_slice(p_rem);
-            xp.xp_pattern =
-                crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rest.len());
+            xp.xp_pattern = arg_slice.wrapping_add(bytes.len() - rest.len());
         } else {
             xp.xp_context = EXPAND_NOTHING;
         }
@@ -3630,8 +3630,9 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :breakadd command.
 fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
+    let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
     xp.xp_context = EXPAND_BREAKPOINT;
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+    xp.xp_pattern = arg_slice.clone();
 
     if cmdidx == Cmdidx::CmdBreakadd {
         CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
@@ -3641,7 +3642,7 @@ fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
         CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Profdel));
     }
 
-    let bytes = arg.to_bytes();
+    let bytes = arg_slice.as_bytes();
     let p_rem = crate::charset::skipwhite_slice(bytes);
     if p_rem.is_empty() {
         return;
@@ -3664,13 +3665,11 @@ fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
         } else {
             EXPAND_USER_FUNC
         };
-        xp.xp_pattern =
-            crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rem.len());
+        xp.xp_pattern = arg_slice.wrapping_add(bytes.len() - rem.len());
     } else if let Some(after_expr) = p_rem.strip_prefix(b"expr ") {
         let rem = crate::charset::skipwhite_slice(after_expr);
         xp.xp_context = EXPAND_EXPRESSION;
-        xp.xp_pattern =
-            crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rem.len());
+        xp.xp_pattern = arg_slice.wrapping_add(bytes.len() - rem.len());
     }
 }
 
@@ -4149,7 +4148,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
     expand_init(xp);
     xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr);
-    xp.xp_line = crate::strings::OwnedSlice::from_cstr(buff_cstr);
+    xp.xp_line = xp.xp_pattern.clone();
     xp.xp_context = EXPAND_COMMANDS;
     ea.argt = 0;
 
@@ -4293,11 +4292,12 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
     let buff_bytes = buff_cstr.to_bytes();
     let mut idx = 0usize;
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr);
+    let buff_slice = crate::strings::OwnedSlice::from_cstr(buff_cstr);
+    xp.xp_pattern = buff_slice.clone();
     while idx < buff_bytes.len() {
         if matches!(buff_bytes[idx], b' ' | TAB) {
             idx += 1;
-            xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr).wrapping_add(idx);
+            xp.xp_pattern = buff_slice.wrapping_add(idx);
         } else {
             if buff_bytes[idx] == b'\\' && idx + 1 < buff_bytes.len() {
                 idx += 1;
@@ -4364,7 +4364,7 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
         let addr = xp.xp_pattern.addr();
         if addr >= work_base && addr < work_base + work_slice.len() {
             let offset = (addr - work_base).min(str_buf.len().saturating_sub(1));
-            xp.xp_pattern = crate::strings::OwnedSlice::from_bytes(&str_buf[offset..]);
+            xp.xp_pattern = xp.xp_line.wrapping_add(offset);
         }
     }
 }
@@ -5892,9 +5892,10 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_col = cmdline_len;
     } else {
-        xpc.xp_pattern = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
-        xpc.xp_pattern_len = (xpc.xp_pattern).len();
-        xpc.xp_line = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
+        let pat_slice = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
+        xpc.xp_pattern_len = pat_slice.len();
+        xpc.xp_pattern = pat_slice.clone();
+        xpc.xp_line = pat_slice;
 
         xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
         match xpc.xp_context {

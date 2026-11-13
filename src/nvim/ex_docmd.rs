@@ -419,6 +419,11 @@ impl Exarg {
     }
 
     #[inline]
+    pub fn cmdline_addr(&self) -> usize {
+        self.cmdline_buf.as_ptr() as usize
+    }
+
+    #[inline]
     pub fn cmdline_ptr(&self) -> crate::strings::OwnedSlice {
         if self.cmdline_buf.is_empty() {
             crate::strings::OwnedSlice::NULL
@@ -5966,7 +5971,7 @@ pub fn parse_cmdline(
         if eap.cmd.first_byte() == b'"' {
             break 'end;
         }
-        if eap.cmd.is_empty() && eap.addr_count == 0 && after_modifier == eap.cmdline_ptr() {
+        if eap.cmd.is_empty() && eap.addr_count == 0 && after_modifier == orig_cmd {
             break 'end;
         }
 
@@ -5990,7 +5995,7 @@ pub fn parse_cmdline(
             let cmdname = if !after_modifier.is_null() {
                 after_modifier
             } else {
-                eap.cmdline_ptr()
+                orig_cmd
             };
             append_command((cmdname).as_cstr());
             *errormsg = Some(std::borrow::Cow::Owned(g_st().iobuff_cstr()));
@@ -6790,9 +6795,13 @@ fn do_one_cmd(
         .set(g_st().ex_nesting_level.get() - (1));
 
     if ea.nextcmd.is_null() {
+        *cmdline_buf = std::mem::take(&mut ea.cmdline_buf);
         false
     } else {
-        *cmdline_buf = ea.nextcmd.as_cstr().to_bytes_with_nul().to_vec();
+        let mut buf = std::mem::take(&mut ea.cmdline_buf);
+        buf.clear();
+        buf.extend_from_slice(ea.nextcmd.as_cstr().to_bytes_with_nul());
+        *cmdline_buf = buf;
         true
     }
 }
@@ -8539,7 +8548,7 @@ fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> 
 pub fn separate_nextcmd(eap: &mut Exarg) {
     let mut idx = skip_grep_pat(eap);
     let arg_off_in_cmdline = if !eap.cmdline_buf.is_empty() {
-        Some(eap.arg.offset_from(eap.cmdline_ptr()))
+        Some(eap.arg.offset_from(eap.cmdline_addr()))
     } else {
         None
     };

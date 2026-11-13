@@ -120,8 +120,10 @@ impl<T> SliceBaseAddr for *mut T {
 #[must_use]
 #[derive(Clone, Default, Debug)]
 pub struct OwnedSlice {
-    bytes: Option<Vec<u8>>,
+    bytes: Option<std::rc::Rc<Vec<u8>>>,
+    off: usize,
     addr: usize,
+    has_interior_nul: bool,
 }
 
 impl PartialEq for OwnedSlice {
@@ -140,14 +142,18 @@ impl Eq for OwnedSlice {}
 impl OwnedSlice {
     pub const NULL: Self = Self {
         bytes: None,
+        off: 0,
         addr: 0,
+        has_interior_nul: false,
     };
 
     #[inline]
     pub fn from_cstr(s: &CStr) -> Self {
         Self {
-            bytes: Some(s.to_bytes_with_nul().to_vec()),
+            bytes: Some(std::rc::Rc::new(s.to_bytes_with_nul().to_vec())),
+            off: 0,
             addr: s.as_ptr() as usize,
+            has_interior_nul: false,
         }
     }
 
@@ -161,11 +167,15 @@ impl OwnedSlice {
 
     #[inline]
     pub fn from_bytes_with_addr(b: &[u8], addr: usize) -> Self {
-        let mut v = crate::memory::bytes_until_nul(b).to_vec();
+        let slice = crate::memory::bytes_until_nul(b);
+        let mut v = Vec::with_capacity(slice.len() + 1);
+        v.extend_from_slice(slice);
         v.push(0);
         Self {
-            bytes: Some(v),
+            bytes: Some(std::rc::Rc::new(v)),
+            off: 0,
             addr,
+            has_interior_nul: false,
         }
     }
 
@@ -187,37 +197,62 @@ impl OwnedSlice {
     #[inline]
     pub fn as_cstr(&self) -> &CStr {
         match self.bytes {
-            Some(ref v) => CStr::from_bytes_until_nul(v).unwrap_or(c""),
+            Some(ref v) => {
+                let tail = &v[self.off..];
+                if !self.has_interior_nul
+                    && let Ok(s) = CStr::from_bytes_with_nul(tail)
+                {
+                    return s;
+                }
+                CStr::from_bytes_until_nul(tail).unwrap_or(c"")
+            }
             None => c"",
         }
     }
 
     #[inline]
     pub fn as_opt_cstr(&self) -> Option<&CStr> {
-        self.bytes
-            .as_ref()
-            .map(|v| CStr::from_bytes_until_nul(v).unwrap_or(c""))
+        if self.bytes.is_some() {
+            Some(self.as_cstr())
+        } else {
+            None
+        }
     }
 
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        self.as_cstr().to_bytes()
+        match self.bytes {
+            Some(ref v) if !self.has_interior_nul => {
+                let end = v.len().saturating_sub(1);
+                &v[self.off.min(end)..end]
+            }
+            Some(_) => self.as_cstr().to_bytes(),
+            None => &[],
+        }
     }
 
     #[inline]
     pub fn cstr_buf(&self) -> &[u8] {
-        self.bytes.as_deref().unwrap_or(&[])
+        match self.bytes {
+            Some(ref v) => &v[self.off..],
+            None => &[],
+        }
     }
 
     #[inline]
     pub fn cstr_buf_mut(&mut self) -> &mut [u8] {
-        self.bytes.as_deref_mut().unwrap_or(&mut [])
+        self.has_interior_nul = true;
+        match self.bytes {
+            Some(ref mut v) => &mut std::rc::Rc::make_mut(v)[self.off..],
+            None => &mut [],
+        }
     }
 
     #[inline]
     pub fn mut_bytes(&mut self) -> &mut [u8] {
         match self.bytes {
-            Some(ref mut v) => {
+            Some(ref mut rc) => {
+                let v = &mut std::rc::Rc::make_mut(rc)[self.off..];
                 let len = CStr::from_bytes_until_nul(v).map_or(0, |s| s.to_bytes().len());
                 &mut v[..len]
             }
@@ -227,15 +262,17 @@ impl OwnedSlice {
 
     #[inline]
     pub fn set_subslice_lowercased_nul(&mut self, offset: usize, len: usize) {
-        if let Some(ref mut v) = self.bytes
-            && offset <= v.len()
-        {
-            let end = (offset + len).min(v.len().saturating_sub(1));
-            for b in &mut v[offset..end] {
-                *b = crate::charset::tolower_asc(i32::from(*b)) as u8;
-            }
-            if end < v.len() {
-                v[end] = 0;
+        self.has_interior_nul = true;
+        if let Some(ref mut rc) = self.bytes {
+            let v = &mut std::rc::Rc::make_mut(rc)[self.off..];
+            if offset <= v.len() {
+                let end = (offset + len).min(v.len().saturating_sub(1));
+                for b in &mut v[offset..end] {
+                    *b = crate::charset::tolower_asc(i32::from(*b)) as u8;
+                }
+                if end < v.len() {
+                    v[end] = 0;
+                }
             }
         }
     }
@@ -262,7 +299,7 @@ impl OwnedSlice {
 
     #[inline]
     pub fn first_byte(&self) -> u8 {
-        self.as_bytes().first().copied().unwrap_or(0)
+        self.cstr_buf().first().copied().unwrap_or(0)
     }
 
     #[inline]
@@ -290,11 +327,13 @@ impl OwnedSlice {
     pub fn wrapping_add(&self, n: usize) -> Self {
         match self.bytes {
             Some(ref v) => {
-                let max_step = v.len().saturating_sub(1);
+                let max_step = v.len().saturating_sub(1 + self.off);
                 let step = n.min(max_step);
                 Self {
-                    bytes: Some(v[step..].to_vec()),
+                    bytes: Some(v.clone()),
+                    off: self.off + step,
                     addr: self.addr.wrapping_add(step),
+                    has_interior_nul: self.has_interior_nul,
                 }
             }
             None => Self::NULL,
@@ -3535,6 +3574,22 @@ mod tests {
             crate::memory::bytes_as_cstr(&small).to_str().unwrap(),
             "hell"
         );
+    }
+
+    #[test]
+    fn owned_slice_shared_cursor_and_mutation() {
+        let base = OwnedSlice::from_cstr(c"  setlocal number | echo 1");
+        let after_ws = base.skipwhite();
+        assert_eq!(after_ws.first_byte(), b's');
+        assert_eq!(after_ws.offset_from(&base), 2);
+        assert_eq!(after_ws.as_bytes(), b"setlocal number | echo 1");
+
+        let mut arg = after_ws.skiptowhite().skipwhite();
+        assert_eq!(arg.as_cstr(), c"number | echo 1");
+        arg.cstr_buf_mut()[6] = 0;
+        assert_eq!(arg.as_cstr(), c"number");
+        assert_eq!(arg.as_bytes(), b"number");
+        assert_eq!(base.as_cstr(), c"  setlocal number | echo 1");
     }
 
     #[test]
