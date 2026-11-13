@@ -120,13 +120,11 @@ pub fn decode_string(s: &[u8], force_blob: bool) -> TypVal {
         return tv;
     }
 
-    let mut tv = TypVal {
+    TypVal {
         v_type: VarType::VarString,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::NULL_STRING,
-    };
-    crate::eval::typval::tv_set_bytes(&mut tv, s);
-    tv
+        vval: TypvalVval::from_bytes_no_nul(s),
+    }
 }
 
 fn json_decoder_pop(

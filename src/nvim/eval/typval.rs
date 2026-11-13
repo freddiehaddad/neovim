@@ -427,7 +427,6 @@ pub enum VarType {
     VarBlob = 10,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub enum TypvalVval {
     #[default]
@@ -437,6 +436,7 @@ pub enum TypvalVval {
     Special(i32),
     Float(f64),
     String(Option<std::ffi::CString>),
+    StringInline([u8; 22], u8),
     List(ListId),
     Dict(DictId),
     Blob(BlobId),
@@ -447,23 +447,66 @@ impl TypvalVval {
     pub const NULL_STRING: Self = Self::String(None);
 
     #[inline]
+    pub fn from_bytes_no_nul(bytes: &[u8]) -> Self {
+        if bytes.len() <= 21 {
+            let mut buf = [0u8; 22];
+            buf[..bytes.len()].copy_from_slice(bytes);
+            Self::StringInline(buf, bytes.len() as u8)
+        } else {
+            let mut v = Vec::with_capacity(bytes.len() + 1);
+            v.extend_from_slice(bytes);
+            v.push(0);
+            Self::String(Some(
+                std::ffi::CString::from_vec_with_nul(v)
+                    .unwrap_or_else(|_| crate::memory::bytes_to_cstring(bytes)),
+            ))
+        }
+    }
+
+    #[inline]
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self::from_bytes_no_nul(crate::memory::bytes_until_nul(bytes))
+    }
+
+    #[inline]
+    pub fn from_opt_bytes(bytes: Option<&[u8]>) -> Self {
+        match bytes {
+            Some(b) => Self::from_bytes(b),
+            None => Self::NULL_STRING,
+        }
+    }
+
+    #[inline]
     pub fn from_cstr(s: &CStr) -> Self {
-        Self::String(Some(s.to_owned()))
+        Self::from_bytes_no_nul(s.to_bytes())
     }
 
     #[inline]
     pub fn from_opt_cstring(s: Option<std::ffi::CString>) -> Self {
-        Self::String(s)
+        match s {
+            Some(cs) => Self::from_cstring(cs),
+            None => Self::NULL_STRING,
+        }
     }
 
     #[inline]
     pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        Self::String(s.map(CStr::to_owned))
+        match s {
+            Some(cs) => Self::from_cstr(cs),
+            None => Self::NULL_STRING,
+        }
     }
 
     #[inline]
     pub fn from_cstring(s: std::ffi::CString) -> Self {
-        Self::String(Some(s))
+        let bytes = s.as_bytes();
+        if bytes.len() <= 21 {
+            let mut buf = [0u8; 22];
+            buf[..bytes.len()].copy_from_slice(bytes);
+            Self::StringInline(buf, bytes.len() as u8)
+        } else {
+            Self::String(Some(s))
+        }
     }
 
     #[inline]
@@ -526,12 +569,16 @@ impl TypvalVval {
 
     #[inline]
     pub const fn v_string_is_null(&self) -> bool {
-        !matches!(self, Self::String(Some(_)))
+        !matches!(self, Self::String(Some(_)) | Self::StringInline(_, _))
     }
 
     #[inline]
     pub fn v_string_cstr(&self) -> Option<&CStr> {
         match self {
+            Self::StringInline(buf, len) => {
+                let end = (*len as usize) + 1;
+                CStr::from_bytes_with_nul(&buf[..end]).ok()
+            }
             Self::String(Some(s)) => Some(s.as_c_str()),
             _ => None,
         }
@@ -544,12 +591,16 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_string_bytes(&self) -> &[u8] {
-        self.v_string_cstr_or_empty().to_bytes()
+        self.v_string_opt_bytes().unwrap_or(&[])
     }
 
     #[inline]
     pub fn v_string_opt_bytes(&self) -> Option<&[u8]> {
-        self.v_string_cstr().map(CStr::to_bytes)
+        match self {
+            Self::StringInline(buf, len) => Some(&buf[..*len as usize]),
+            Self::String(Some(s)) => Some(s.as_bytes()),
+            _ => None,
+        }
     }
 
     #[inline]
@@ -658,6 +709,7 @@ impl TypvalVval {
     #[inline]
     pub fn v_any_addr(&self) -> usize {
         match self {
+            Self::StringInline(buf, _) => buf.as_ptr() as usize,
             Self::String(Some(s)) => s.as_ptr() as usize,
             Self::List(p) => p.as_ptr() as usize,
             Self::Dict(p) => p.as_ptr() as usize,
@@ -1818,6 +1870,12 @@ pub fn tv_list_set_ret(tv: &mut TypVal, l: Option<&TvList>) {
 pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
     match std::mem::replace(&mut tv.vval, crate::eval::typval::TypvalVval::NULL_STRING) {
         crate::eval::typval::TypvalVval::String(s) => s,
+        crate::eval::typval::TypvalVval::StringInline(buf, len) => {
+            let mut v = Vec::with_capacity(len as usize + 1);
+            v.extend_from_slice(&buf[..len as usize]);
+            v.push(0);
+            std::ffi::CString::from_vec_with_nul(v).ok()
+        }
         other => {
             tv.vval = other;
             None
@@ -1828,20 +1886,19 @@ pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
 #[inline]
 pub fn tv_set_string(tv: &mut TypVal, s: Option<&CStr>) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::from_opt_cstring(s.map(CStr::to_owned));
+    tv.vval = crate::eval::typval::TypvalVval::from_opt_cstr(s);
 }
 
 #[inline]
 pub fn tv_set_bytes(tv: &mut TypVal, bytes: &[u8]) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::from_cstring(crate::memory::bytes_to_cstring(bytes));
+    tv.vval = crate::eval::typval::TypvalVval::from_bytes(bytes);
 }
 
 #[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: Option<&[u8]>) {
     tv.v_type = VarType::VarString;
-    tv.vval =
-        crate::eval::typval::TypvalVval::from_opt_cstring(s.map(crate::memory::bytes_to_cstring));
+    tv.vval = crate::eval::typval::TypvalVval::from_opt_bytes(s);
 }
 
 #[inline]
@@ -2491,28 +2548,26 @@ pub fn tv_list_append_bytes(l: &TvList, bytes: &[u8]) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::from_cstring(crate::memory::bytes_to_cstring(bytes)),
+            vval: TypvalVval::from_bytes(bytes),
         },
     );
 }
 
 pub fn tv_list_append_string(l: &TvList, str_: Option<&CStr>, len: isize) {
-    let v_string = match str_ {
-        None => None,
+    let vval = match str_ {
+        None => TypvalVval::NULL_STRING,
         Some(s) if len >= 0 => {
             let bytes = s.to_bytes();
-            Some(crate::memory::bytes_to_cstring(
-                &bytes[..(len as usize).min(bytes.len())],
-            ))
+            TypvalVval::from_bytes_no_nul(&bytes[..(len as usize).min(bytes.len())])
         }
-        Some(s) => Some(s.to_owned()),
+        Some(s) => TypvalVval::from_cstr(s),
     };
     tv_list_append_owned_tv(
         l,
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::from_opt_cstring(v_string),
+            vval,
         },
     );
 }
@@ -4313,9 +4368,7 @@ pub fn tv_dict_add_str_len(d: &TvDict, key: &CStr, val: Option<&[u8]>) -> bool {
     item.set_tv(TypVal {
         v_type: VarType::VarString,
         v_lock: VAR_UNLOCKED,
-        vval: crate::eval::typval::TypvalVval::from_opt_cstring(
-            val.map(crate::memory::bytes_to_cstring),
-        ),
+        vval: crate::eval::typval::TypvalVval::from_opt_bytes(val),
     });
     if !tv_dict_add(d, &item) {
         tv_dict_item_free(&item);
@@ -6331,5 +6384,46 @@ mod tests {
                 assert!(tv_d.vval.v_list().is_null());
             }
         }
+    }
+
+    #[test]
+    fn test_typval_vval_inline_and_heap_strings() {
+        let null_v = TypvalVval::NULL_STRING;
+        assert!(null_v.v_string_is_null());
+        assert_eq!(null_v.v_string_cstr(), None);
+        assert_eq!(null_v.v_string_bytes(), b"");
+        assert_eq!(null_v.v_any_addr(), 0);
+
+        let empty_v = TypvalVval::from_cstr(c"");
+        assert!(!empty_v.v_string_is_null());
+        assert!(matches!(empty_v, TypvalVval::StringInline(_, 0)));
+        assert_eq!(empty_v.v_string_cstr(), Some(c""));
+        assert_eq!(empty_v.v_string_bytes(), b"");
+        assert_ne!(empty_v.v_any_addr(), 0);
+
+        let max_inline = b"123456789012345678901"; // 21 bytes
+        let mut tv_in = TypVal {
+            v_type: VarType::VarString,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::from_bytes(max_inline),
+        };
+        assert!(matches!(tv_in.vval, TypvalVval::StringInline(_, 21)));
+        assert_eq!(tv_in.vval.v_string_bytes(), max_inline);
+        assert_eq!(
+            tv_in.vval.v_string_cstr().unwrap().to_bytes_with_nul(),
+            b"123456789012345678901\0"
+        );
+        let taken = tv_take_string(&mut tv_in).unwrap();
+        assert_eq!(taken.as_bytes(), max_inline);
+        assert!(tv_in.vval.v_string_is_null());
+
+        let min_heap = b"1234567890123456789012"; // 22 bytes
+        let tv_heap = TypvalVval::from_bytes(min_heap);
+        assert!(matches!(tv_heap, TypvalVval::String(Some(_))));
+        assert_eq!(tv_heap.v_string_bytes(), min_heap);
+        assert_eq!(
+            tv_heap.v_string_cstr().unwrap().to_bytes_with_nul(),
+            b"1234567890123456789012\0"
+        );
     }
 }
