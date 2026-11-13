@@ -35,9 +35,8 @@ enum NluaXdiffMode {
     Locations,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_xdl_diff {
+pub struct KeyDictXdlDiff {
     pub is_set_xdl_diff: u64,
     pub on_hunk: i32,
     pub result_type: NvimString,
@@ -53,7 +52,7 @@ pub struct KeyDict_xdl_diff {
     pub indent_heuristic: bool,
 }
 
-impl KeyDict_xdl_diff {
+impl KeyDictXdlDiff {
     fn init() -> Self {
         Self {
             is_set_xdl_diff: 0,
@@ -276,7 +275,7 @@ fn process_xdl_diff_opts(
     linematch: &mut i64,
     err: &mut Error,
 ) -> NluaXdiffMode {
-    let mut opts = KeyDict_xdl_diff::init();
+    let mut opts = KeyDictXdlDiff::init();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
 
     {

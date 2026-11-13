@@ -311,7 +311,6 @@ pub struct Forinfo {
 pub type HtStack = Vec<crate::eval::typval::DictId>;
 pub type ListStack = Vec<crate::eval::typval::ListId>;
 
-#[repr(C)]
 pub struct VimTimer {
     pub watcher: std::cell::RefCell<TimeWatcher>,
     pub timer_id: i32,
@@ -336,7 +335,6 @@ impl Drop for VimTimer {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct CallerScope {
     pub script_ctx: Sctx,

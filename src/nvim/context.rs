@@ -9,7 +9,7 @@ use crate::api::private::helpers::{
     put_c, static_cstr_as_string, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
-use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
+use crate::api::vimscript::{KeyDictExecOpts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{
     BCO_ENTER, BCO_NOHELP, FileBuf, MAXLNUM, bt_prompt, bufref_valid, do_autochdir, set_bufref,
@@ -54,7 +54,6 @@ pub type CtxLoadFlags = i32;
 pub type CtxSwitchFlags = i32;
 pub type CdCause = i32;
 
-#[repr(C)]
 pub struct CtxSwitch {
     pub cs_flags: i32,
     pub cs_mode: i32,
@@ -163,7 +162,6 @@ pub struct Context {
     pub funcs: Array,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct CtxWin {
     pub cw_win: crate::globals::WinPtr,
@@ -400,7 +398,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 cmd_vec.extend_from_slice(name_bytes);
                 let cmd_len = cmd_vec.len();
                 cmd_vec.push(0);
-                let mut opts = KeyDict_exec_opts { output: true };
+                let mut opts = KeyDictExecOpts { output: true };
                 let func_body = exec_impl(
                     VIML_INTERNAL_CALL,
                     NvimString::from_bytes(&cmd_vec[..cmd_len]),

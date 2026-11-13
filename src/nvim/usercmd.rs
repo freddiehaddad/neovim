@@ -56,7 +56,6 @@ use std::ffi::{CStr, CString};
 
 pub(crate) const UC_BUFFER: i32 = 1;
 
-#[repr(C)]
 pub struct Ucmd {
     pub uc_name: CString,
     pub uc_argt: u32,

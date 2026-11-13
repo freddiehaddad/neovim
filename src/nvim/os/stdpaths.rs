@@ -13,7 +13,6 @@ use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 use crate::path::path_to_slash;
 use crate::path::{K_PATH_CMP_LITERAL, concat_fnames_cstr, path_equal, path_is_absolute};
 use std::ffi::{CStr, CString};
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum XDGVarType {

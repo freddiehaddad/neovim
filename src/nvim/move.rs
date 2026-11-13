@@ -51,7 +51,6 @@ use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, Direction, FORWARD};
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct Lineoff {
     lnum: Linenr,

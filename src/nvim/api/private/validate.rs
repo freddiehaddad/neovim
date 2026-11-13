@@ -82,7 +82,6 @@ impl NvimStringData {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct NvimString {
     pub data: NvimStringData,
@@ -302,7 +301,6 @@ impl NvimString {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorType {
     ErrorTypeNone = -1,
@@ -322,7 +320,6 @@ impl ErrorType {
     }
 }
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct Error {
     pub err_type: ErrorType,
@@ -351,7 +348,6 @@ impl Default for Error {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ObjectType {
     ObjectTypeNil = 0,
@@ -401,7 +397,6 @@ thread_local! {
     };
 }
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct Array {
     pub size: usize,
@@ -555,7 +550,6 @@ impl std::ops::IndexMut<usize> for Array {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct Dict {
     pub size: usize,
@@ -709,7 +703,6 @@ impl std::ops::IndexMut<usize> for Dict {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub enum ObjectData {
     #[default]
@@ -866,7 +859,6 @@ impl ObjectData {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct Object {
     pub obj_type: ObjectType,
@@ -890,7 +882,6 @@ impl Default for Object {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct KeyValuePair {
     pub key: NvimString,
@@ -974,7 +965,6 @@ impl_key_field_type!(Dict, Dict);
 impl_key_field_type!(i32, I32);
 impl_key_field_type!(Vec<NvimString>, StringArray);
 
-#[repr(C)]
 pub struct KeySetLink<T: 'static> {
     pub str: Option<&'static std::ffi::CStr>,
     pub field: KeyField<T>,

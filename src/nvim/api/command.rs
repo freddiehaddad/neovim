@@ -1,7 +1,7 @@
 //! Command API functions (`src/nvim/api/command.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::deprecated::KeyDict_empty;
+use crate::api::deprecated::KeyDictEmpty;
 use crate::api::private::dispatch::{
     key_dict_cmd_magic_get_field, key_dict_cmd_mods_filter_get_field, key_dict_cmd_mods_get_field,
 };
@@ -82,9 +82,8 @@ const KEYSET_OPTIDX_USER_COMMAND_COMPLETE: u64 = 10;
 
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_cmd {
+pub struct KeyDictCmd {
     pub is_set_cmd: OptionalKeys,
     pub cmd: NvimString,
     pub range: Array,
@@ -99,17 +98,15 @@ pub struct KeyDict_cmd {
     pub nextcmd: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_cmd_magic {
+pub struct KeyDictCmdMagic {
     pub is_set_cmd_magic: OptionalKeys,
     pub file: Boolean,
     pub bar: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_cmd_mods {
+pub struct KeyDictCmdMods {
     pub is_set_cmd_mods: OptionalKeys,
     pub silent: Boolean,
     pub emsg_silent: Boolean,
@@ -133,23 +130,20 @@ pub struct KeyDict_cmd_mods {
     pub split: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_cmd_mods_filter {
+pub struct KeyDictCmdModsFilter {
     pub is_set_cmd_mods_filter: OptionalKeys,
     pub pattern: NvimString,
     pub force: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_cmd_opts {
+pub struct KeyDictCmdOpts {
     pub output: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_user_command {
+pub struct KeyDictUserCommand {
     pub is_set_user_command: OptionalKeys,
     pub addr: Object,
     pub bang: Boolean,
@@ -165,9 +159,8 @@ pub struct KeyDict_user_command {
     pub register_: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_get_commands {
+pub struct KeyDictGetCommands {
     pub builtin: Boolean,
 }
 
@@ -281,10 +274,10 @@ fn parse_map_cmd(arg_str: &CStr) -> Array {
 //   FUNC_API_SINCE(10) FUNC_API_FAST;
 pub fn nvim_parse_cmd(
     str_val: NvimString,
-    _opts: &mut KeyDict_empty,
+    _opts: &mut KeyDictEmpty,
     err: &mut Error,
-) -> KeyDict_cmd {
-    let mut result = KeyDict_cmd::default();
+) -> KeyDictCmd {
+    let mut result = KeyDictCmd::default();
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut errormsg = None;
@@ -614,8 +607,8 @@ pub fn nvim_parse_cmd(
 //   FUNC_API_SINCE(10);
 pub fn nvim_cmd(
     channel_id: u64,
-    cmd: &mut KeyDict_cmd,
-    opts: &mut KeyDict_cmd_opts,
+    cmd: &mut KeyDictCmd,
+    opts: &mut KeyDictCmdOpts,
     err: &mut Error,
 ) -> NvimString {
     let mut ea: Exarg = Exarg::new();
@@ -958,7 +951,7 @@ pub fn nvim_cmd(
         }
 
         if has_key(mask, KEYSET_OPTIDX_CMD_MAGIC) {
-            let mut magic = KeyDict_cmd_magic::default();
+            let mut magic = KeyDictCmdMagic::default();
             if !api_dict_to_keydict(
                 &mut magic,
                 Some(key_dict_cmd_magic_get_field),
@@ -989,7 +982,7 @@ pub fn nvim_cmd(
         }
 
         if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
-            let mut mods = KeyDict_cmd_mods::default();
+            let mut mods = KeyDictCmdMods::default();
             if !api_dict_to_keydict(
                 &mut mods,
                 Some(key_dict_cmd_mods_get_field),
@@ -1001,7 +994,7 @@ pub fn nvim_cmd(
 
             let mods_mask = mods.is_set_cmd_mods;
             if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
-                let mut filter = KeyDict_cmd_mods_filter::default();
+                let mut filter = KeyDictCmdModsFilter::default();
                 if !api_dict_to_keydict(
                     &mut filter,
                     Some(key_dict_cmd_mods_filter_get_field),
@@ -1259,7 +1252,7 @@ pub fn nvim_create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,
-    opts: &mut KeyDict_user_command,
+    opts: &mut KeyDictUserCommand,
     err: &mut Error,
 ) {
     create_user_command(channel_id, name, cmd, &mut *opts, 0, err);
@@ -1288,7 +1281,7 @@ pub fn nvim_buf_create_user_command(
     buf: Buffer,
     name: NvimString,
     cmd: Object,
-    opts: &mut KeyDict_user_command,
+    opts: &mut KeyDictUserCommand,
     err: &mut Error,
 ) {
     let Some(target_buf) = find_buffer_by_handle(buf, err) else {
@@ -1359,7 +1352,7 @@ pub fn create_user_command(
     channel_id: u64,
     name: NvimString,
     cmd: Object,
-    opts: &mut KeyDict_user_command,
+    opts: &mut KeyDictUserCommand,
     flags: i32,
     err: &mut Error,
 ) {
@@ -1654,7 +1647,7 @@ pub fn create_user_command(
 // DLLEXPORT DictOf(DictAs(command_info)) nvim_get_commands(Dict(get_commands) *opts, Arena *arena,
 //                                                          Error *err)
 //   FUNC_API_SINCE(4);
-pub fn nvim_get_commands(opts: &mut KeyDict_get_commands, err: &mut Error) -> Dict {
+pub fn nvim_get_commands(opts: &mut KeyDictGetCommands, err: &mut Error) -> Dict {
     nvim_buf_get_commands(-1, opts, err)
 }
 
@@ -1668,11 +1661,7 @@ pub fn nvim_get_commands(opts: &mut KeyDict_get_commands, err: &mut Error) -> Di
 // DLLEXPORT DictAs(command_info) nvim_buf_get_commands(Buffer buf, Dict(get_commands) *opts,
 //                                                      Arena *arena, Error *err)
 //   FUNC_API_SINCE(4);
-pub fn nvim_buf_get_commands(
-    buf: Buffer,
-    opts: &mut KeyDict_get_commands,
-    err: &mut Error,
-) -> Dict {
+pub fn nvim_buf_get_commands(buf: Buffer, opts: &mut KeyDictGetCommands, err: &mut Error) -> Dict {
     let global = buf == -1;
     if error_set(err) {
         return Dict::new();

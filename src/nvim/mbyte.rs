@@ -38,14 +38,12 @@ use crate::utf8proc::{
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CharInfo {
     pub value: i32,
     pub len: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct StrCharInfo<'a> {
     pub ptr: &'a [u8],
@@ -82,7 +80,6 @@ impl<'a> StrCharInfo<'a> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ClusterInfo<'a> {
     pub next: StrCharInfo<'a>,
@@ -130,7 +127,6 @@ const ICONV_EILSEQ: i32 = 92;
 #[cfg(windows)]
 pub(crate) const CP_UTF8: u32 = 65001;
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct Vimconv {
     pub vc_type: i32,
@@ -181,7 +177,6 @@ struct ClInterval {
     cls: u32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct CwInterval {
     first: i64,
@@ -196,14 +191,13 @@ enum WorkingStatus {
     KBroken = 2,
 }
 
-#[repr(C)]
 struct EncCanonEntry {
     name: &'static CStr,
     prop: i32,
+    #[expect(dead_code)]
     codepage: i32,
 }
 
-#[repr(C)]
 struct EncAliasEntry {
     name: &'static CStr,
     canon: usize,

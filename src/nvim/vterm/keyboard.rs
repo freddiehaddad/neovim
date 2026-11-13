@@ -36,13 +36,11 @@ const MODE_NEWLINE_BIT: u32 = 1 << 4;
 const MODE_ALT_SCREEN_BIT: u32 = 1 << 9;
 const MODE_BRACKETPASTE_BIT: u32 = 1 << 13;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermColor {
     pub bytes: [u8; 4],
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermPen {
     pub fg: VTermColor,
@@ -51,7 +49,6 @@ pub struct VTermPen {
     pub flags: u32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermStateSaved {
     pub pos: VTermPos,
@@ -59,26 +56,22 @@ pub struct VTermStateSaved {
     pub mode: u32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermStateTmp {
     pub words: [u32; 3],
 }
 
-#[repr(C)]
 pub struct VTermStateSelection {
     pub callbacks: Option<&'static crate::vterm::state::VTermSelectionCallbacks>,
     pub buffer: Vec<u8>,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermKeyEncodingStack {
     pub items: [u8; 16],
     pub size: u8,
 }
 
-#[repr(C)]
 pub struct VTermStateFull {
     pub out: std::rc::Rc<std::cell::Cell<VTermOutput>>,
     pub screen: Option<Box<VTermScreen>>,

@@ -48,7 +48,6 @@ const S_IWRITE: i32 = 0o200;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BhdrId(usize);
 
-#[repr(C)]
 pub struct Bhdr {
     pub bh_bnum: Blocknr,
     pub bh_data: Vec<u8>,
@@ -63,7 +62,6 @@ impl Bhdr {
     }
 }
 
-#[repr(C)]
 pub struct Memfile {
     pub mf_fname: Option<std::ffi::CString>,
     pub mf_ffname: Option<std::ffi::CString>,

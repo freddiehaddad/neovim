@@ -217,7 +217,6 @@ const PC_STATUS_RIGHT: i32 = 1;
 const PC_STATUS_LEFT: i32 = 2;
 const PC_STATUS_SET: i32 = 3;
 
-#[repr(C)]
 struct InsertState {
     mincol: i32,
     cmdchar: i32,
@@ -234,7 +233,6 @@ struct InsertState {
     old_topfill: i32,
     inserted_space: i32,
     replace_state: i32,
-    did_restart_edit: i32,
     nomove: bool,
 }
 
@@ -256,7 +254,6 @@ impl InsertState {
             old_topfill: 0,
             inserted_space: 0,
             replace_state: 0,
-            did_restart_edit: 0,
             nomove: false,
         }
     }

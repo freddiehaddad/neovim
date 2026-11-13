@@ -310,7 +310,6 @@ impl<'a> IntoIterator for &'a RcSlice {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct OptString(crate::globals::CloneCell<Option<RcCStr>>);
 
@@ -477,7 +476,6 @@ impl std::hash::Hasher for KeywHasher {
 pub type KeywTabMap =
     std::collections::HashMap<Vec<u8>, Vec<Keyentry>, std::hash::BuildHasherDefault<KeywHasher>>;
 
-#[repr(C)]
 pub struct Synblock {
     pub b_keywtab: std::cell::RefCell<KeywTabMap>,
     pub b_keywtab_ic: std::cell::RefCell<KeywTabMap>,
@@ -581,7 +579,6 @@ impl Synblock {
     }
 }
 
-#[repr(C)]
 pub struct Winopt {
     pub wo_arab: std::cell::Cell<bool>,
     pub wo_bri: std::cell::Cell<bool>,

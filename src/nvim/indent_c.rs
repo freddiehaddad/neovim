@@ -42,7 +42,6 @@ const LOOKFOR_CPP_BASECLASS: i32 = 9;
 const LOOKFOR_ENUM_OR_INIT: i32 = 10;
 const LOOKFOR_JS_KEY: i32 = 11;
 const LOOKFOR_COMMA: i32 = 12;
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct CppBaseclassCache {
     found: i32,

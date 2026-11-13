@@ -65,7 +65,6 @@ use crate::regexp::MAXCOL;
 use crate::search::FORWARD;
 use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Oparg {
     pub op_type: i32,
@@ -123,7 +122,6 @@ impl Default for Oparg {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InsState {
     pub start: CursorPos,

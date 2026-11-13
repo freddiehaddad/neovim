@@ -229,7 +229,6 @@ const SHELL_ESC_CHARS: &CStr = c" \t\n*?[{`$\\%#'\"|!<>();&";
 const BUFFER_ESC_CHARS: &CStr = c" \t\n*?[`$\\%#'\"|!<";
 
 /// Struct to store the state of `'incsearch'` highlighting.
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct IncsearchState {
     search_start: CursorPos,
@@ -259,7 +258,6 @@ impl IncsearchState {
     }
 }
 
-#[repr(C)]
 struct CommandLineState {
     firstc: i32,
     count: i32,
@@ -379,7 +377,6 @@ impl Default for CpBufInfo {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct CpWinInfo {
     win: crate::globals::WinPtr,

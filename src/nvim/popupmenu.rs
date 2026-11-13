@@ -74,14 +74,12 @@ use crate::ex_getln::Hlf;
 use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct Pumitem {
     pub pum_text: Option<std::ffi::CString>,
     pub pum_kind: Option<std::ffi::CString>,
     pub pum_extra: Option<std::ffi::CString>,
     pub pum_info: Option<std::ffi::CString>,
-    pub pum_cpt_source_idx: i32,
     pub pum_user_abbr_hlattr: i32,
     pub pum_user_kind_hlattr: i32,
     pub pum_comp_idx: Option<usize>,
@@ -94,7 +92,6 @@ impl Pumitem {
             pum_kind: None,
             pum_extra: None,
             pum_info: None,
-            pum_cpt_source_idx: 0,
             pum_user_abbr_hlattr: 0,
             pum_user_kind_hlattr: 0,
             pum_comp_idx: None,
@@ -122,7 +119,6 @@ impl Pumitem {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct PumWant {
     pub active: std::cell::Cell<bool>,

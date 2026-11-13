@@ -53,7 +53,6 @@ const TS_META_QUERY: &CStr = c"treesitter_query";
 const TS_META_QUERYCURSOR: &CStr = c"treesitter_querycursor";
 const TS_META_QUERYMATCH: &CStr = c"treesitter_querymatch";
 
-#[repr(C)]
 struct TSLuaTree {
     tree: *const TSTree,
 }

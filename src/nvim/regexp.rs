@@ -330,7 +330,6 @@ impl PartialEq for RegprogPtr {
 
 impl Eq for RegprogPtr {}
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Regmmatch {
     pub regprog: RegprogPtr,
@@ -670,7 +669,6 @@ pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Regmatch {
     pub regprog: RegprogPtr,
@@ -736,7 +734,6 @@ impl Default for Regmatch {
     }
 }
 
-#[repr(C)]
 #[derive(Default)]
 pub struct RegExtmatch {
     pub matches: [Option<std::ffi::CString>; NSUBEXP],
@@ -866,7 +863,6 @@ impl Default for RegPos {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regsave {
     pub rs_u: RegPos,
@@ -882,7 +878,6 @@ impl Regsave {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct SaveSe {
     pub se_u: RegPos,
@@ -968,7 +963,6 @@ impl Default for RegItemSave {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regitem {
     pub rs_state: Regstate,
@@ -994,7 +988,6 @@ impl Default for Regitem {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regbehind {
     pub save_after: Regsave,
@@ -1092,7 +1085,6 @@ impl Default for Frag {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct MultiPos {
     pub start_lnum: Linenr,
@@ -1123,7 +1115,6 @@ impl MultiPos {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regsub {
     pub in_use: i32,
@@ -1142,7 +1133,6 @@ impl Regsub {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Regsubs {
     pub norm: Regsub,
@@ -1212,7 +1202,6 @@ impl Default for NfaThread {
     }
 }
 
-#[repr(C)]
 pub(super) struct NfaList {
     pub t: Vec<NfaThread>,
     pub n: i32,
@@ -1236,7 +1225,6 @@ impl CaseConv {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct ParseState {
     pub regparse_off: usize,
@@ -1272,7 +1260,6 @@ impl Default for ParseState {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub(super) struct Regexec {
     pub has_match: bool,
@@ -1350,7 +1337,6 @@ impl Default for Regexec {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regsubmatch {
     pub sm_has_match: bool,

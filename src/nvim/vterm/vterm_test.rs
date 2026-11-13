@@ -52,7 +52,6 @@ const VTERM_ATTR_URI_MASK: VTermAttrMask = 1 << 12;
 const VTERM_ATTR_DIM_MASK: VTermAttrMask = 1 << 13;
 const VTERM_ATTR_OVERLINE_MASK: VTermAttrMask = 1 << 14;
 
-#[repr(C)]
 struct StatePenRecord {
     bold: i32,
     underline: i32,

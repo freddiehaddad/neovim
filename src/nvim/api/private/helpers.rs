@@ -153,7 +153,6 @@ pub fn array_add(a: &mut Array, item: Object) {
     a.push(item);
 }
 
-#[repr(C)]
 pub struct TryState {
     pub current_exception: Option<std::rc::Rc<Except>>,
     pub msg_list: Option<Vec<Msglist>>,
@@ -178,7 +177,6 @@ impl TryState {
 
 pub type ArrayBuilder = Vec<Object>;
 
-#[repr(C)]
 pub struct HlMessageChunk {
     pub text: NvimString,
     pub hl_id: i32,

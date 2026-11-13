@@ -293,7 +293,6 @@ const MAX_FUNC_NESTING: i32 = 50;
 pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: i32 = (MSG_BUF_LEN / 6) as i32;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Funcdict {
     pub fd_dict: DictId,
@@ -327,7 +326,6 @@ impl Default for Funcdict {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Funcexe {
     pub fe_fill_submatch: bool,
@@ -369,7 +367,6 @@ impl Default for Funcexe {
     }
 }
 
-#[repr(C)]
 pub struct EvalFuncDef {
     pub name: Option<&'static std::ffi::CStr>,
     pub min_argc: u8,
@@ -380,7 +377,6 @@ pub struct EvalFuncDef {
     pub data: EvalFuncData,
 }
 
-#[repr(C)]
 pub struct DeferCall {
     pub(crate) dr_name: Option<std::ffi::CString>,
     pub(crate) dr_argvars: Vec<TypVal>,

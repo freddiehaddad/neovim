@@ -3,7 +3,6 @@
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::message::semsg;
 use std::ffi::{CStr, CString, c_void};
-
 #[repr(C)]
 pub struct UvLib {
     pub _opaque: [*mut c_void; 4],

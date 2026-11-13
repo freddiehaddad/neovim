@@ -95,7 +95,6 @@ use crate::eval::funcs::{MT_BLOCK_WISE, MT_CHAR_WISE, MT_LINE_WISE, MT_UNKNOWN};
 use crate::ex_getln::K_LUA;
 use crate::regexp::{CTRL_V_CONST, MAXCOL};
 
-#[repr(C)]
 struct McSandbox {
     primary: Context,
     cursor_mark: u32,
@@ -120,7 +119,6 @@ impl McSandbox {
     }
 }
 
-#[repr(C)]
 struct McInsSaved {
     ins: InsState,
     last_changedtick: Varnumber,

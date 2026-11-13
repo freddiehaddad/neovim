@@ -66,7 +66,6 @@ use crate::undo::buf_is_changed_fn;
 use std::ffi::CStr;
 use std::ptr;
 
-#[repr(C)]
 pub struct Memline {
     pub ml_line_count: std::cell::Cell<i32>,
     pub ml_mfp: std::cell::RefCell<Option<Box<crate::memfile::Memfile>>>,
@@ -260,7 +259,6 @@ pub(crate) const K_PATH_DEVICE_UNC: i32 = 5;
 #[cfg(unix)]
 const ENOENT: i32 = 2;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Infoptr {
     pub ip_bnum: Blocknr,
@@ -269,13 +267,11 @@ pub struct Infoptr {
     pub ip_index: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Chunksize {
     pub mlcs_numlines: i32,
     pub mlcs_totalsize: i32,
 }
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct PointerEntry {
@@ -284,7 +280,6 @@ struct PointerEntry {
     pe_old_lnum: Linenr,
     pe_page_count: i32,
 }
-
 #[repr(C)]
 struct PointerBlock {
     pb_id: u16,
@@ -292,7 +287,6 @@ struct PointerBlock {
     pb_count_max: u16,
     pb_pointer: [PointerEntry; 0],
 }
-
 #[repr(C)]
 struct DataBlock {
     db_id: u16,
@@ -302,7 +296,6 @@ struct DataBlock {
     db_line_count: i64,
     db_index: [u32; 0],
 }
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ZeroBlock {
@@ -403,7 +396,6 @@ impl ZeroBlock {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UpdBlock0 {
     UbFname = 0,

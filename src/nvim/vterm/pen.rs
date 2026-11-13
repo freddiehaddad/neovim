@@ -90,7 +90,6 @@ impl<'a> VTermValue<'a> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermRect {
     pub start_row: i32,
@@ -121,7 +120,6 @@ pub type VTermSetLineInfoFn = fn(
     user: Option<&mut VTermScreen>,
 ) -> i32;
 
-#[repr(C)]
 pub struct VTermStateCallbacks {
     pub putglyph: Option<VTermPutGlyphFn>,
     pub movecursor: Option<VTermMoveCursorFn>,

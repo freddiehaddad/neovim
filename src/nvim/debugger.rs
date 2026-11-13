@@ -74,7 +74,6 @@ std::thread_local! {
     static DBG_STATE: DebuggerState = const { DebuggerState::new() };
 }
 
-#[repr(C)]
 pub struct Debuggy {
     pub dbg_nr: i32,
     pub dbg_type: i32,
@@ -83,7 +82,6 @@ pub struct Debuggy {
     pub dbg_lnum: i32,
     pub dbg_forceit: bool,
     pub dbg_val: Option<TypVal>,
-    pub dbg_level: i32,
 }
 
 impl Drop for Debuggy {
@@ -490,7 +488,6 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             dbg_prog: None,
             dbg_lnum: 0,
             dbg_forceit: false,
-            dbg_level: 0,
             dbg_val: None,
         };
 

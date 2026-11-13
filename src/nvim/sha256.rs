@@ -92,7 +92,6 @@ static SHA256_PADDING: [u8; SHA256_BUFFER_SIZE] = {
 
 const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContextSha256 {
     pub total: [u32; 2],

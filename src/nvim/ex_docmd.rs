@@ -309,14 +309,12 @@ pub(crate) const CMOD_LOCKMARKS: i32 = 0x0800;
 pub(crate) const CMOD_KEEPPATTERNS: i32 = 0x1000;
 pub(crate) const CMOD_NOSWAPFILE: i32 = 0x2000;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ExMagic {
     pub file: bool,
     pub bar: bool,
 }
 
-#[repr(C)]
 pub struct Exarg {
     pub arg: crate::strings::OwnedSlice,
     pub args: Vec<crate::strings::OwnedSlice>,
@@ -453,7 +451,6 @@ impl Default for Exarg {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Cmdmod {
     pub cmod_flags: i32,
@@ -506,7 +503,6 @@ use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::os::fs::MAXPATHL;
 use crate::search::{BACKWARD, FORWARD};
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CommandDefinition {
     pub cmd_name: &'static CStr,
@@ -652,7 +648,6 @@ struct Wcmd {
     lnum: Linenr,
 }
 
-#[repr(C)]
 pub struct LoopCookie {
     lines: Vec<Wcmd>,
     current_line: i32,

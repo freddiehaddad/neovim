@@ -68,7 +68,6 @@ const MENU_MODE_CHARS: [&CStr; MENU_MODES] = [c"n", c"v", c"s", c"o", c"i", c"c"
 const E_NOTSUBMENU: &CStr = c"E327: Part of menu-item path is not sub-menu";
 const E_NOMENU: &CStr = c"E329: No menu \"%s\"";
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Vimmenu {
     pub modes: i32,
@@ -112,7 +111,6 @@ impl Default for Vimmenu {
     }
 }
 
-#[repr(C)]
 struct Menutrans {
     from: std::ffi::CString,
     from_noamp: std::ffi::CString,
@@ -131,7 +129,6 @@ use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct SaveState {
     pub save_msg_scroll: i32,

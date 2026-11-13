@@ -44,7 +44,6 @@ pub(crate) const K_TRUE: i32 = 1;
 
 pub(crate) const K_EXTMARK_SPLICE: UndoObjectType = 0;
 pub(crate) const K_EXTMARK_MOVE: UndoObjectType = 1;
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ExtmarkSplice {
@@ -113,7 +112,6 @@ impl ExtmarkSplice {
         }
     }
 }
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ExtmarkMove {
@@ -183,7 +181,6 @@ impl ExtmarkMove {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExtmarkSavePos {
     pub mark: u64,

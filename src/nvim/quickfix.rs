@@ -170,7 +170,6 @@ const E_CURRENT_QUICKFIX_LIST_WAS_CHANGED: &CStr = c"E925: Current quickfix list
 const E_CURRENT_LOCATION_LIST_WAS_CHANGED: &CStr = c"E926: Current location list was changed";
 const E_INVACT: &CStr = c"E927: Invalid action: '%s'";
 
-#[repr(C)]
 pub struct Qfline {
     pub qf_lnum: Linenr,
     pub qf_end_lnum: Linenr,
@@ -222,7 +221,6 @@ pub const QFLT_QUICKFIX: Qfltype = 0;
 pub const QFLT_LOCATION: Qfltype = 1;
 pub const QFLT_INTERNAL: Qfltype = 2;
 
-#[repr(C)]
 pub struct QfList {
     pub qf_id: u32,
     pub qfl_type: Qfltype,
@@ -414,7 +412,6 @@ impl QfInfo {
     }
 }
 
-#[repr(C)]
 struct Efm {
     prog: Option<Box<Regprog>>,
     addr: [u8; FMT_PATTERNS],
@@ -483,7 +480,6 @@ impl Default for Qfstate {
     }
 }
 
-#[repr(C)]
 struct Qffields {
     namebuf: Vec<u8>,
     bnr: i32,
@@ -520,7 +516,6 @@ impl Default for Qffields {
     }
 }
 
-#[repr(C)]
 struct VgrArgs {
     tomatch: i32,
     spat: Option<std::ffi::CString>,

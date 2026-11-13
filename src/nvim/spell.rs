@@ -164,13 +164,11 @@ impl Default for Matchinf<'_> {
         Self::new()
     }
 }
-#[repr(C)]
 pub struct Spelload {
     sl_lang: [u8; MAXWLEN + 1],
     sl_loaded: bool,
     sl_nobreak: i32,
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SylItem {
     sy_chars: [u8; SY_MAXLEN],

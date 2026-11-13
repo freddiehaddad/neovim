@@ -37,7 +37,7 @@ use crate::option::{
     set_option_value, was_set_insecurely,
 };
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, OptKeyDict_briopt, opt_keyset};
+use crate::optionstr::{OptIndex, OptKeyDictBriopt, opt_keyset};
 use crate::os::input::line_breakcheck;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
@@ -121,7 +121,7 @@ std::thread_local! {
 }
 
 #[inline]
-const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
+const fn has_briopt_key(v: &OptKeyDictBriopt, bit: u64) -> bool {
     (v.is_set_briopt & (1u64 << bit)) != 0
 }
 
@@ -788,7 +788,7 @@ pub fn briopt_check(wp: Option<&WinInfoInfo>) {
     if wp.is_none() {
         return;
     }
-    let vr: &OptKeyDict_briopt = &opt_keyset(
+    let vr: &OptKeyDictBriopt = &opt_keyset(
         &wp.unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );

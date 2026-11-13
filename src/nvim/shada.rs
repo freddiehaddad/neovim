@@ -140,18 +140,16 @@ const KEYSET_OPTIDX_SHADA_REGISTER_RW: u32 = 5;
 
 const KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP: u32 = 8;
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict__shada_buflist_item {
+pub struct KeyDictShadaBuflistItem {
     pub is_set_shada_buflist_item: OptionalKeys,
     pub l: Integer,
     pub c: Integer,
     pub f: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict__shada_mark {
+pub struct KeyDictShadaMark {
     pub is_set_shada_mark: OptionalKeys,
     pub n: Integer,
     pub l: Integer,
@@ -159,9 +157,8 @@ pub struct KeyDict__shada_mark {
     pub f: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict__shada_register {
+pub struct KeyDictShadaRegister {
     pub is_set_shada_register: OptionalKeys,
     pub rc: StringArray,
     pub ru: Boolean,
@@ -170,9 +167,8 @@ pub struct KeyDict__shada_register {
     pub rw: Integer,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict__shada_search_pat {
+pub struct KeyDictShadaSearchPat {
     pub is_set_shada_search_pat: OptionalKeys,
     pub magic: Boolean,
     pub smartcase: Boolean,
@@ -209,7 +205,6 @@ impl Default for SubReplacementString {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ShadaEntryType {
     SDItemUnknown = -1,
@@ -273,7 +268,6 @@ struct ShadaHistoryItem {
     sep: u8,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct ShadaReg {
     name: u8,
@@ -307,7 +301,6 @@ struct BufferListBuffer {
     additional_data: Option<AdditionalData>,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct ShadaBufferList {
     buffers: Vec<BufferListBuffer>,
@@ -318,7 +311,7 @@ enum ShadaEntryData {
     Missing,
     Header(Dict),
     Filemark(ShadaFilemark),
-    SearchPattern(KeyDict__shada_search_pat),
+    SearchPattern(KeyDictShadaSearchPat),
     HistoryItem(ShadaHistoryItem),
     Reg(ShadaReg),
     GlobalVar(ShadaGlobalVar),
@@ -353,7 +346,7 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    fn search_pattern(&self) -> KeyDict__shada_search_pat {
+    fn search_pattern(&self) -> KeyDictShadaSearchPat {
         match self {
             Self::SearchPattern(v) => v.clone(),
             _ => unreachable!(),
@@ -361,7 +354,7 @@ impl ShadaEntryData {
     }
 
     #[inline]
-    fn search_pattern_mut(&mut self) -> &mut KeyDict__shada_search_pat {
+    fn search_pattern_mut(&mut self) -> &mut KeyDictShadaSearchPat {
         match self {
             Self::SearchPattern(v) => v,
             _ => unreachable!(),
@@ -466,7 +459,6 @@ struct ShadaEntry {
     additional_data: Option<AdditionalData>,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct HMLListEntry {
     data: ShadaEntry,
@@ -485,7 +477,6 @@ struct HMLList {
     contained_entries: std::collections::HashMap<Vec<u8>, usize>,
 }
 
-#[repr(C)]
 struct HistoryMergerState {
     hmll: HMLList,
     do_merge: bool,
@@ -495,7 +486,6 @@ struct HistoryMergerState {
     history_type: u8,
 }
 
-#[repr(C)]
 struct FileMarks {
     marks: [ShadaEntry; NLOCALMARKS],
     changes: [ShadaEntry; JUMPLISTSIZE],
@@ -524,7 +514,6 @@ impl Drop for FileMarks {
     }
 }
 
-#[repr(C)]
 struct WriteMergerState {
     hms: [HistoryMergerState; HIST_COUNT],
     global_marks: [ShadaEntry; NMARKS],
@@ -581,7 +570,7 @@ const MISSING_ENTRY: ShadaEntry = ShadaEntry {
     additional_data: None,
 };
 
-const DEFAULT_SEARCH_PAT: KeyDict__shada_search_pat = KeyDict__shada_search_pat {
+const DEFAULT_SEARCH_PAT: KeyDictShadaSearchPat = KeyDictShadaSearchPat {
     is_set_shada_search_pat: 0,
     magic: true,
     smartcase: false,
@@ -2357,7 +2346,7 @@ fn add_search_pattern(
             can_free_entry: true,
             entry_type: ShadaEntryType::SDItemSearchPattern,
             timestamp: pat.timestamp,
-            data: ShadaEntryData::SearchPattern(KeyDict__shada_search_pat {
+            data: ShadaEntryData::SearchPattern(KeyDictShadaSearchPat {
                 is_set_shada_search_pat: 0,
                 magic: pat.magic,
                 smartcase: !pat.no_scs,
@@ -3545,7 +3534,7 @@ fn shada_read_next_item(
                 | ShadaEntryType::SDItemJump
                 | ShadaEntryType::SDItemGlobalMark
                 | ShadaEntryType::SDItemLocalMark => {
-                    let mut it = KeyDict__shada_mark::default();
+                    let mut it = KeyDictShadaMark::default();
                     if !unpack_keydict(
                         &mut it,
                         Some(shada_mark_get_field_cb),
@@ -3623,7 +3612,7 @@ fn shada_read_next_item(
                     }
                 }
                 ShadaEntryType::SDItemRegister => {
-                    let mut it = KeyDict__shada_register {
+                    let mut it = KeyDictShadaRegister {
                         is_set_shada_register: 0,
                         rc: Vec::new(),
                         ru: false,
@@ -3840,7 +3829,7 @@ fn shada_read_next_item(
                         let buffers = &mut entry.data.buffer_list_mut().buffers;
                         buffers.reserve(ulen);
                         for _ in 0..ulen {
-                            let mut it = KeyDict__shada_buflist_item::default();
+                            let mut it = KeyDictShadaBuflistItem::default();
                             let mut it_ad = AdditionalDataBuilder::default();
                             if !unpack_keydict(
                                 &mut it,

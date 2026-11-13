@@ -87,17 +87,15 @@ const KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW: u64 = 34;
 
 const KEYSET_OPTIDX_NS_OPTS_WINS: u64 = 1;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_get_extmark {
+pub struct KeyDictGetExtmark {
     pub is_set_get_extmark: OptionalKeys,
     pub details: Boolean,
     pub hl_name: Boolean,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_get_extmarks {
+pub struct KeyDictGetExtmarks {
     pub is_set_get_extmarks: OptionalKeys,
     pub limit: Integer,
     pub details: Boolean,
@@ -106,9 +104,8 @@ pub struct KeyDict_get_extmarks {
     pub type_: NvimString,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_set_extmark {
+pub struct KeyDictSetExtmark {
     pub is_set_set_extmark: OptionalKeys,
     pub id: Integer,
     pub end_line: Integer,
@@ -148,9 +145,8 @@ pub struct KeyDict_set_extmark {
     pub _subpriority: Integer,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_set_decoration_provider {
+pub struct KeyDictSetDecorationProvider {
     pub is_set_set_decoration_provider: OptionalKeys,
     pub on_start: LuaRef,
     pub on_buf: LuaRef,
@@ -164,9 +160,8 @@ pub struct KeyDict_set_decoration_provider {
     pub _on_conceal: LuaRef,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_ns_opts {
+pub struct KeyDictNsOpts {
     pub is_set_ns_opts: OptionalKeys,
     pub wins: Array,
 }
@@ -378,7 +373,7 @@ pub fn nvim_buf_get_extmark_by_id(
     buf: Buffer,
     ns_id: Integer,
     id: Integer,
-    opts: &mut KeyDict_get_extmark,
+    opts: &mut KeyDictGetExtmark,
     err: &mut Error,
 ) -> Array {
     let rv = Array::new();
@@ -472,7 +467,7 @@ pub fn nvim_buf_get_extmarks(
     ns_id: Integer,
     start: Object,
     end: Object,
-    opts: &mut KeyDict_get_extmarks,
+    opts: &mut KeyDictGetExtmarks,
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
@@ -702,7 +697,7 @@ pub fn nvim_buf_set_extmark(
     ns_id: Integer,
     mut line: Integer,
     mut col: Integer,
-    opts: &mut KeyDict_set_extmark,
+    opts: &mut KeyDictSetExtmark,
     err: &mut Error,
 ) -> Integer {
     let mut hl = DECOR_HIGHLIGHT_INLINE_INIT;
@@ -1448,7 +1443,7 @@ pub fn nvim_buf_clear_namespace(
 //   FUNC_API_SINCE(7) FUNC_API_LUA_ONLY;
 pub fn nvim_set_decoration_provider(
     ns_id: Integer,
-    opts: &mut KeyDict_set_decoration_provider,
+    opts: &mut KeyDictSetDecorationProvider,
     _err: &mut Error,
 ) {
     with_decor_provider_mut(ns_id as NS, true, |p| {
@@ -1681,7 +1676,7 @@ pub fn nvim_buf_debug_extmarks(
 ///           - wins: a list of windows to be scoped in
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
-pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
+pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
     if !ns_initialized(ns_id as u32) {
         api_err_invalid(err, c"ns_id", None, ns_id, false);
         return;
@@ -1758,8 +1753,8 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDict_ns_opts {
-    let mut opts = KeyDict_ns_opts {
+pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDictNsOpts {
+    let mut opts = KeyDictNsOpts {
         is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
         wins: Array::new(),
     };

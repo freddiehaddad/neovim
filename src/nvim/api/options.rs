@@ -48,9 +48,8 @@ const KEYSET_OPTIDX_OPTION_DRY_RUN: u64 = 5;
 const KEYSET_OPTIDX_OPTION_FILETYPE: u64 = 6;
 const KEYSET_OPTIDX_OPTION_OPERATION: u64 = 7;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_option {
+pub struct KeyDictOption {
     pub is_set_option: OptionalKeys,
     pub scope: NvimString,
     pub win: Window,
@@ -62,7 +61,7 @@ pub struct KeyDict_option {
 }
 
 fn validate_option_value_args<'a>(
-    opts: &'a mut KeyDict_option,
+    opts: &'a mut KeyDictOption,
     name: &CStr,
     allow_tab: bool,
     opt_idxp: &mut OptIndex,
@@ -374,7 +373,7 @@ fn wipe_ft_buf(buf: &FileBuf) {
 //   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
 pub fn nvim_get_option_value(
     name: NvimString,
-    opts: &mut KeyDict_option,
+    opts: &mut KeyDictOption,
     err: &mut Error,
 ) -> Object {
     let mut opt_idx: OptIndex = 0;
@@ -557,7 +556,7 @@ pub fn nvim_set_option_value(
     channel_id: u64,
     name: NvimString,
     value: Object,
-    opts: &mut KeyDict_option,
+    opts: &mut KeyDictOption,
     err: &mut Error,
 ) -> Object {
     let mut opt_idx: OptIndex = 0;
@@ -750,7 +749,6 @@ pub fn nvim_set_option_value(
             os_prep: OptSetPrep::None,
             os_value_checked: false,
             os_value_changed: false,
-            os_restore_chartab: false,
             os_errbuf: Some(&mut raw_buf),
             os_win: win.clone(),
             os_buf: buf.clone(),
@@ -831,7 +829,7 @@ pub fn nvim_get_all_options_info(_err: &mut Error) -> Dict {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info2(String name, Dict(option) *opts,
 //                                                         Arena *arena, Error *err)
 //   FUNC_API_SINCE(11);
-pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDict_option, err: &mut Error) -> Dict {
+pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption, err: &mut Error) -> Dict {
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;

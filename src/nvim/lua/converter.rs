@@ -41,7 +41,6 @@ std::thread_local! {
     static TYPVAL_CONV_SPECIAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NluaRefState {
     pub nil_ref: LuaRef,

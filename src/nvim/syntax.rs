@@ -78,7 +78,6 @@ fn syn_curline_two_bytes_buf(buf: &FileBuf, lnum: Linenr, col: Colnr) -> (u8, u8
     })
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct SynTime {
     pub total: u64,
@@ -209,7 +208,6 @@ fn is_id_list_all(list: &SynIdList) -> bool {
     list.as_ref().is_some_and(|rc| rc.is_empty())
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct SpSyn {
     pub inc_tag: i32,
@@ -233,7 +231,6 @@ impl Default for SpSyn {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Keyentry {
     pub k_syn: SpSyn,
@@ -243,7 +240,6 @@ pub struct Keyentry {
     pub keyword: std::ffi::CString,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Bufstate {
     pub bs_idx: i32,
@@ -253,7 +249,6 @@ pub struct Bufstate {
     pub bs_extmatch: Option<std::rc::Rc<RegExtmatch>>,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct Synstate {
     pub sst_lnum: Linenr,
@@ -264,7 +259,6 @@ pub struct Synstate {
     pub sst_change_lnum: Linenr,
 }
 
-#[repr(C)]
 pub struct Synpat {
     sp_type: u8,
     sp_syncing: bool,
@@ -315,14 +309,12 @@ impl Default for Synpat {
     }
 }
 
-#[repr(C)]
 pub struct SynCluster {
     scl_name: std::ffi::CString,
     scl_name_u: std::ffi::CString,
     scl_list: crate::globals::CloneCell<SynIdList>,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct Stateitem {
     si_idx: i32,
@@ -401,7 +393,6 @@ pub struct IdlCache {
     last: i32,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct TimeEntry {
     total: Proftime,

@@ -31,7 +31,6 @@ pub const SHAPE_MOUSE: i32 = 1;
 pub const SHAPE_CURSOR: i32 = 2;
 const SHAPE_BOTH: i32 = SHAPE_CURSOR + SHAPE_MOUSE;
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CursorShape {
     ShapeBlock = 0,
@@ -39,7 +38,6 @@ pub enum CursorShape {
     ShapeVer = 2,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Cursorentry {
     pub full_name: &'static CStr,

@@ -31,7 +31,7 @@ use crate::globals::*;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE, HlAttrs,
     KEYSET_OPTIDX_HIGHLIGHT_BG, KEYSET_OPTIDX_HIGHLIGHT_FG, KEYSET_OPTIDX_HIGHLIGHT_FONT,
-    KEYSET_OPTIDX_HIGHLIGHT_SP, KEYSET_OPTIDX_HIGHLIGHT_UPDATE, KeyDict_highlight, OptionalKeys,
+    KEYSET_OPTIDX_HIGHLIGHT_SP, KEYSET_OPTIDX_HIGHLIGHT_UPDATE, KeyDictHighlight, OptionalKeys,
     RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict,
     ns_get_hl, syn_attr2entry,
 };
@@ -87,9 +87,8 @@ const KEYSET_OPTIDX_GET_HIGHLIGHT_LINK: u64 = 2;
 const KEYSET_OPTIDX_GET_HIGHLIGHT_NAME: u64 = 3;
 const KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE: u64 = 4;
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_get_highlight {
+pub struct KeyDictGetHighlight {
     pub is_set_get_highlight: OptionalKeys,
     pub id: Integer,
     pub name: NvimString,
@@ -97,14 +96,12 @@ pub struct KeyDict_get_highlight {
     pub create: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ColorNameTable {
     pub name: &'static CStr,
     pub color: RgbValue,
 }
 
-#[repr(C)]
 #[derive(Clone, PartialEq, Eq)]
 struct HlGroup {
     sg_name: std::ffi::CString,
@@ -946,7 +943,7 @@ fn lookup_color(idx: i32, foreground: bool, boldp: &mut TriState) -> i32 {
     color
 }
 
-pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: i32) {
+pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDictHighlight, link_id: i32) {
     let idx = (id - 1) as usize;
     let is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
 
@@ -1791,7 +1788,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32) -> bool {
     true
 }
 
-pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDict_get_highlight, err: &mut Error) -> Dict {
+pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight, err: &mut Error) -> Dict {
     let link = if has_key(opts.is_set_get_highlight, KEYSET_OPTIDX_GET_HIGHLIGHT_LINK) {
         opts.link
     } else {

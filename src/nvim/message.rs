@@ -60,7 +60,7 @@ use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
 use crate::option_vars::*;
-use crate::optionstr::{OptKeyDict_mopt, Optset, opt_keyset};
+use crate::optionstr::{OptKeyDictMopt, Optset, opt_keyset};
 use crate::os::env::home_replace_save;
 use crate::os::fs::CFile;
 use crate::os::input::os_breakcheck;
@@ -124,7 +124,6 @@ struct Msgchunk {
     sb_text: Vec<u8>,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SbClear {
     SbClearNone = 0,
@@ -1636,7 +1635,7 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
-    let v: OptKeyDict_mopt =
+    let v: OptKeyDictMopt =
         opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MESSAGESOPT);
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
@@ -1655,7 +1654,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
-    let v: OptKeyDict_mopt = opt_keyset(&opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
+    let v: OptKeyDictMopt = opt_keyset(&opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
 
     MSG_STATE.with(|s| s.msg_hit_enter.set(v.hit_enter));
     MSG_STATE.with(|s| s.msg_wait.set(v.wait as i32));

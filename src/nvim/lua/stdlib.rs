@@ -69,7 +69,6 @@ use crate::cjson::lua_cjson::luaopen_cjson;
 use crate::lpeg::lptree::luaopen_lpeg;
 use crate::mpack::lmpack::luaopen_mpack;
 
-#[repr(C)]
 struct LuaRegex {
     prog: crate::regexp::RegprogPtr,
 }

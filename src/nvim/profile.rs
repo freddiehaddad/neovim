@@ -73,7 +73,6 @@ const PEXPAND_CMDS: [&CStr; 7] = [
     c"stop",
 ];
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SnPrl {
     pub snp_count: i32,
@@ -81,7 +80,6 @@ pub struct SnPrl {
     pub sn_prl_self: Proftime,
 }
 
-#[repr(C)]
 pub struct Scriptitem {
     pub sn_vars: Box<crate::runtime::Scriptvar>,
     pub sn_name: Option<std::ffi::CString>,

@@ -32,9 +32,8 @@ use crate::viml::parser::parser::{
 
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_exec_opts {
+pub struct KeyDictExecOpts {
     pub output: Boolean,
 }
 
@@ -89,7 +88,7 @@ fn cbuf_to_arena_obj(bytes: &[u8]) -> Object {
 pub fn nvim_exec2(
     channel_id: u64,
     src: NvimString,
-    opts: &mut KeyDict_exec_opts,
+    opts: &mut KeyDictExecOpts,
     err: &mut Error,
 ) -> Dict {
     let mut result = Dict::new();
@@ -110,7 +109,7 @@ pub fn nvim_exec2(
 pub fn exec_impl(
     channel_id: u64,
     src: NvimString,
-    opts: &mut KeyDict_exec_opts,
+    opts: &mut KeyDictExecOpts,
     err: &mut Error,
 ) -> NvimString {
     let save_msg_silent = g_st().msg_silent.get();

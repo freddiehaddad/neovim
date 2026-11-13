@@ -119,7 +119,6 @@ use crate::runtime::Sctx;
 
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
 
-#[repr(C)]
 pub struct ExpandCtx {
     pub xp_pattern: crate::strings::OwnedSlice,
     pub xp_context: i32,
@@ -1528,7 +1527,6 @@ use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 use crate::os::fs::MAXPATHL;
 use crate::search::{BACKWARD, FORWARD};
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CmdlineColorChunk {
     pub start: i32,
@@ -1538,7 +1536,6 @@ pub struct CmdlineColorChunk {
 
 pub type CmdlineColors = Vec<CmdlineColorChunk>;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct ColoredCmdline {
     pub prompt_id: u32,
@@ -2188,7 +2185,6 @@ fn cmdline_pum_create(
             pum_kind,
             pum_extra,
             pum_info,
-            pum_cpt_source_idx: 0,
             pum_user_abbr_hlattr: -1,
             pum_user_kind_hlattr: -1,
             pum_comp_idx: None,

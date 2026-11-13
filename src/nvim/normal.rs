@@ -196,7 +196,6 @@ use crate::window::{
 };
 use std::ffi::CStr;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Visualinfo {
     pub vi_start: CursorPos,
@@ -216,7 +215,6 @@ impl Visualinfo {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VisualExtent {
     pub mode: i32,
@@ -234,7 +232,6 @@ impl VisualExtent {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VisualState {
     pub start: CursorPos,
@@ -339,7 +336,6 @@ fn nv_mouse_cmd(cap: &mut Cmdarg) {
     nv_mouse(cap)
 }
 
-#[repr(C)]
 struct NormalState {
     command_finished: bool,
     ctrl_w: bool,

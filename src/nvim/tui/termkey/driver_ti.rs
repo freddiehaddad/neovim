@@ -119,7 +119,6 @@ pub const K_TERM_KEY_RIGHT: TerminfoKey = 15;
 pub const K_TERM_KEY_COUNT: usize = 16;
 pub const K_TERMINFO_FUNC_KEY_MAX: usize = 63;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct TerminfoEntry {
     pub back_color_erase: bool,
@@ -134,7 +133,6 @@ pub struct TerminfoEntry {
     pub f_keys: [Option<std::borrow::Cow<'static, CStr>>; K_TERMINFO_FUNC_KEY_MAX],
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermKeyKeyCode {
     pub codepoint: i32,
@@ -143,7 +141,6 @@ pub struct TermKeyKeyCode {
     pub mouse: [u8; 4],
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermKeyKey {
     pub r#type: TermKeyType,
@@ -186,7 +183,6 @@ impl Default for TermKeyKey {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TiKeyInfo {
     pub r#type: TermKeyType,

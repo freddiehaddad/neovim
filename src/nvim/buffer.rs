@@ -128,7 +128,6 @@ pub(crate) const BCO_ENTER: i32 = 1;
 pub(crate) const BCO_NOHELP: i32 = 4;
 pub(crate) const BF_DUMMY: i32 = 0x80;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Bufref {
     pub br_buf: crate::globals::BufPtr,
@@ -159,7 +158,6 @@ impl Default for Bufref {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct BufSigncols {
     pub max: std::cell::Cell<i32>,
@@ -168,7 +166,6 @@ pub struct BufSigncols {
     pub autom: std::cell::Cell<bool>,
 }
 
-#[repr(C)]
 pub struct BufUpdateCallbacks {
     pub on_lines: crate::lua::converter::LuaRef,
     pub on_bytes: crate::lua::converter::LuaRef,
@@ -197,7 +194,6 @@ pub enum BufFname {
     Full,
 }
 
-#[repr(C)]
 pub struct FileBuf {
     pub self_weak: std::rc::Weak<Self>,
     pub b_fnum: std::cell::Cell<crate::msgpack_rpc::packer::ObjHandle>,
@@ -896,7 +892,6 @@ pub(crate) const OPT_MODELINE: i32 = 0x04;
 use crate::charset::NL;
 use crate::search::FORWARD;
 
-#[repr(C)]
 struct Bufmatch {
     buf: crate::globals::BufPtr,
     match_: std::ffi::CString,

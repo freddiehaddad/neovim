@@ -147,7 +147,6 @@ enum DidUpdate {
     Fold = 3,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WinExtmark {
     pub ns_id: NS,
@@ -156,7 +155,6 @@ pub struct WinExtmark {
     pub win_col: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Spellvars {
     pub spv_has_spell: bool,

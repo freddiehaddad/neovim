@@ -106,7 +106,6 @@ pub(crate) const K_SHM_SEARCH: i32 = b's' as i32;
 
 const K_OPT_BO_FLAG_SHOWMATCH: u32 = 0x2000;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct SearchOffset {
     pub dir: u8,
@@ -165,7 +164,6 @@ impl Default for SearchPattern {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SearchitArg {
     pub sa_stop_lnum: Linenr,
@@ -191,7 +189,6 @@ impl Default for SearchitArg {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Searchstat {
     pub cur: i32,

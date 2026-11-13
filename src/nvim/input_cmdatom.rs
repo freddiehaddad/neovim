@@ -158,7 +158,6 @@ const TYPE_NAMES: [&CStr; 12] = [
     c"visual",
 ];
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct CmdSpec {
     pub count: i64,
@@ -208,7 +207,6 @@ impl Default for CmdSpec {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct CmdOrigin {
     pub buf: Bufref,
@@ -246,7 +244,6 @@ impl Default for CmdOrigin {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct InsSession {
     pub origin: CmdOrigin,
@@ -255,7 +252,6 @@ pub struct InsSession {
     pub vsel: Option<std::ffi::CString>,
 }
 
-#[repr(C)]
 pub struct CmdAtom {
     pub r#type: CmdAtomType,
     pub spec: CmdSpec,
@@ -296,7 +292,6 @@ impl Default for CmdAtom {
     }
 }
 
-#[repr(C)]
 pub struct CmdFrame {
     pub origin: CmdOrigin,
     pub staged: CmdAtom,

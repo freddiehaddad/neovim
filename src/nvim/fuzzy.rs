@@ -43,7 +43,6 @@ const SCORE_MATCH_DOT: f64 = 0.6;
 
 const K_CALLBACK_NONE: i32 = 0;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct FuzmatchStr {
     pub idx: i32,

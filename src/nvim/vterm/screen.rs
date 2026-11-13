@@ -28,7 +28,6 @@ pub(crate) const VTERM_DAMAGE_SCROLL: VTermDamageSize = 3;
 pub(crate) const VTERM_PROP_ALTSCREEN: VTermProp = 3;
 pub(crate) const VTERM_PROP_REVERSE: VTermProp = 6;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermScreenCellAttrs {
     pub flags: u32,
@@ -141,7 +140,6 @@ impl VTermScreenCellAttrs {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermScreenCell {
     pub schar: Schar,
@@ -152,7 +150,6 @@ pub struct VTermScreenCell {
     pub uri: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ScreenPen {
     pub fg: VTermColor,
@@ -284,14 +281,12 @@ impl ScreenPen {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ScreenCell {
     pub schar: Schar,
     pub pen: ScreenPen,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermGlyphInfo {
     pub schar: Schar,
@@ -314,7 +309,6 @@ impl VTermGlyphInfo {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermLineInfo {
     pub flags: u32,
@@ -347,7 +341,6 @@ impl VTermLineInfo {
     }
 }
 
-#[repr(C)]
 pub struct VTermStateFields {
     pub pos: VTermPos,
     pub lineinfos: [Vec<VTermLineInfo>; 2],
@@ -356,7 +349,6 @@ pub struct VTermStateFields {
 pub type VTermSbPushLineFn = fn(cells: &[VTermScreenCell], user: Option<&mut TermId>) -> i32;
 pub type VTermSbPopLineFn = fn(cells: &mut [VTermScreenCell], user: Option<&mut TermId>) -> i32;
 
-#[repr(C)]
 pub struct VTermScreenCallbacks {
     pub damage: Option<fn(rect: VTermRect, user: Option<&mut TermId>) -> i32>,
     pub moverect: Option<crate::vterm::pen::VTermMoveRectFn<TermId>>,
@@ -370,7 +362,6 @@ pub struct VTermScreenCallbacks {
     pub sb_clear: Option<fn(user: Option<&mut TermId>) -> i32>,
 }
 
-#[repr(C)]
 pub struct VTermScreen {
     pub out: std::rc::Rc<std::cell::Cell<VTermOutput>>,
     pub lineinfos: std::rc::Rc<std::cell::RefCell<[Vec<VTermLineInfo>; 2]>>,

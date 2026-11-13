@@ -69,7 +69,6 @@ use crate::errors::{
 const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
 const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 
-#[repr(C)]
 pub struct Cstack {
     pub cs_flags: [i32; CSTACK_LEN],
     pub cs_pending: [u8; CSTACK_LEN],
@@ -102,7 +101,6 @@ impl Default for Cstack {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Msglist {
     pub msg: CString,
@@ -113,7 +111,6 @@ pub struct Msglist {
     pub multiline: bool,
 }
 
-#[repr(C)]
 pub struct Except {
     pub r#type: ExceptType,
     pub value: CString,
@@ -136,7 +133,6 @@ pub enum PendingVal {
     Throw(Option<std::rc::Rc<Except>>),
 }
 
-#[repr(C)]
 pub struct ExCleanup {
     pub pending: i32,
     pub exception: Option<std::rc::Rc<Except>>,
@@ -159,7 +155,6 @@ impl Default for ExCleanup {
     }
 }
 
-#[repr(C)]
 pub struct ExceptionState {
     pub estate_current_exception: Option<std::rc::Rc<Except>>,
     pub estate_did_throw: bool,

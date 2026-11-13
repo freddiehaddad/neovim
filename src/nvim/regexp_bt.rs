@@ -98,19 +98,18 @@ static CLASSCODES: [i32; 27] = [
     NUPPER,
 ];
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct Regstar {
     nextb: i32,
     nextb_ic: i32,
     count: i64,
     minval: i64,
+    #[expect(dead_code)]
     maxval: i64,
 }
 
 const JUST_CALC_SIZE: usize = usize::MAX;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Backpos {
     bp_scan: usize,

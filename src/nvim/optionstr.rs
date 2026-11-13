@@ -95,7 +95,6 @@ pub enum OptSchemaKind {
     OptSchemaStr = 4,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptSchemaItem {
     pub name: &'static std::ffi::CStr,
@@ -103,7 +102,6 @@ pub struct OptSchemaItem {
     pub enum_values: &'static [&'static std::ffi::CStr],
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptDictSchema {
     pub schema: &'static [OptSchemaItem],
@@ -373,7 +371,6 @@ impl From<OptRef<crate::eval::typval::Callback>> for OptVar {
     }
 }
 
-#[repr(C)]
 pub struct Optset<'a> {
     pub os_varp: OptVar,
     pub os_idx: OptIndex,
@@ -383,7 +380,6 @@ pub struct Optset<'a> {
     pub os_prep: OptSetPrep,
     pub os_value_checked: bool,
     pub os_value_changed: bool,
-    pub os_restore_chartab: bool,
     pub os_errbuf: Option<&'a mut [u8]>,
     pub os_win: crate::globals::WinPtr,
     pub os_buf: crate::globals::BufPtr,
@@ -406,7 +402,6 @@ impl<'a> Optset<'a> {
             os_prep: OptSetPrep::None,
             os_value_checked: false,
             os_value_changed: false,
-            os_restore_chartab: false,
             os_errbuf: None,
             os_win: crate::globals::WinPtr::NULL,
             os_buf: crate::globals::BufPtr::NULL,
@@ -439,7 +434,6 @@ impl<'a> Optset<'a> {
     }
 }
 
-#[repr(C)]
 pub struct Optexpand<'a> {
     pub oe_idx: OptIndex,
     pub oe_opt_value: &'a std::ffi::CStr,
@@ -481,7 +475,6 @@ impl OptDefVal {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Vimoption {
     pub fullname: &'static std::ffi::CStr,
@@ -538,9 +531,8 @@ fn copy_opt_str<const N: usize>(dst: &mut [u8; N], v: Option<&[u8]>) {
     dst[len] = 0;
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct OptKeyDict_briopt {
+pub struct OptKeyDictBriopt {
     pub is_set_briopt: OptionalKeys,
     pub shift: Integer,
     pub min: Integer,
@@ -549,7 +541,7 @@ pub struct OptKeyDict_briopt {
     pub column: Integer,
 }
 
-impl OptKeyDict for OptKeyDict_briopt {
+impl OptKeyDict for OptKeyDictBriopt {
     fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
         let idx = match key {
             b"min" => {
@@ -578,9 +570,8 @@ impl OptKeyDict for OptKeyDict_briopt {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct OptKeyDict_dip {
+pub struct OptKeyDictDip {
     pub is_set_dip: OptionalKeys,
     pub filler: Boolean,
     pub anchor: Boolean,
@@ -603,7 +594,7 @@ pub struct OptKeyDict_dip {
     pub linematch: Integer,
 }
 
-impl OptKeyDict for OptKeyDict_dip {
+impl OptKeyDict for OptKeyDictDip {
     fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
         let idx = match key {
             b"icase" => {
@@ -688,9 +679,8 @@ impl OptKeyDict for OptKeyDict_dip {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct OptKeyDict_mopt {
+pub struct OptKeyDictMopt {
     pub is_set_mopt: OptionalKeys,
     pub hit_enter: Boolean,
     pub history: Integer,
@@ -701,7 +691,7 @@ pub struct OptKeyDict_mopt {
     pub wait: Integer,
 }
 
-impl Default for OptKeyDict_mopt {
+impl Default for OptKeyDictMopt {
     fn default() -> Self {
         Self {
             is_set_mopt: 0,
@@ -716,7 +706,7 @@ impl Default for OptKeyDict_mopt {
     }
 }
 
-impl OptKeyDict for OptKeyDict_mopt {
+impl OptKeyDict for OptKeyDictMopt {
     fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
         let idx = match key {
             b"wait" => {
@@ -753,15 +743,14 @@ impl OptKeyDict for OptKeyDict_mopt {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct OptKeyDict_mousescroll {
+pub struct OptKeyDictMousescroll {
     pub is_set_mousescroll: OptionalKeys,
     pub hor: Integer,
     pub ver: Integer,
 }
 
-impl OptKeyDict for OptKeyDict_mousescroll {
+impl OptKeyDict for OptKeyDictMousescroll {
     fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
         let idx = match key {
             b"hor" => {
@@ -778,16 +767,15 @@ impl OptKeyDict for OptKeyDict_mousescroll {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct OptKeyDict_pvp {
+pub struct OptKeyDictPvp {
     pub is_set_pvp: OptionalKeys,
     pub height: Integer,
     pub width: Integer,
     pub border: [u8; 8],
 }
 
-impl OptKeyDict for OptKeyDict_pvp {
+impl OptKeyDict for OptKeyDictPvp {
     fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
         let idx = match key {
             b"width" => {
@@ -2484,7 +2472,7 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 
 /// Validate the 'mousescroll' option.
 pub fn validate_mousescroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let v: OptKeyDict_mousescroll =
+    let v: OptKeyDictMousescroll =
         opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
@@ -2497,7 +2485,7 @@ pub fn validate_mousescroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let v: OptKeyDict_mousescroll =
+    let v: OptKeyDictMousescroll =
         opt_keyset(&opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;

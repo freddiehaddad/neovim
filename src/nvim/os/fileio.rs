@@ -19,7 +19,6 @@ pub const K_FILE_TRUNCATE: i32 = 32;
 pub const K_FILE_APPEND: i32 = 64;
 pub const K_FILE_NON_BLOCKING: i32 = 128;
 pub const K_FILE_MK_DIR: i32 = 256;
-
 #[repr(C)]
 #[derive(Debug)]
 pub struct FileDescriptor {

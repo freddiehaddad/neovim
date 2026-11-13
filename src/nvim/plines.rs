@@ -45,7 +45,6 @@ const K_CHARSIZE_REGULAR: CSType = false;
 
 static INLINE_FILTER: [u32; K_MTMETA_COUNT] = [K_MTFILTER_SELECT, 0, 0, 0, 0, 0];
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConcealSpan {
     pub start_col: i32,
@@ -110,7 +109,6 @@ impl<'a> From<&'a crate::option_vars::RcCStr> for CsLine<'a> {
     }
 }
 
-#[repr(C)]
 pub struct CharsizeArg<'a> {
     pub win: Option<&'a WinInfoInfo>,
     pub line: CsLine<'a>,
@@ -215,7 +213,6 @@ impl Default for CharsizeArg<'_> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CharSize {
     pub width: i32,

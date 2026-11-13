@@ -81,7 +81,6 @@ pub(crate) const K_VTHIDE: u8 = 2;
 pub(crate) const K_VTLINES_ABOVE: u8 = 4;
 pub(crate) const K_VTREPEAT_LINEBREAK: u8 = 8;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct DecorSignHighlight {
     pub flags: u16,
@@ -111,7 +110,6 @@ pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
     url: None,
 };
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DecorRangeUI {
     pub ns_id: u32,
@@ -312,7 +310,6 @@ impl DecorState {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DecorInline {
     pub data: DecorInlineData,
@@ -325,7 +322,6 @@ impl DecorInline {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct VirtTextChunk {
     pub text: Option<crate::option_vars::RcCStr>,
@@ -334,7 +330,6 @@ pub struct VirtTextChunk {
 
 pub type VirtText = Vec<VirtTextChunk>;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct VirtLine {
     pub line: std::rc::Rc<VirtText>,
@@ -398,7 +393,6 @@ impl DecorVirtTextData {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct DecorVirtText {
     pub flags: u8,
@@ -445,7 +439,6 @@ static SIGN_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, K_MTFILTER_SELECT, K_MTFILTER
 static SIGNTEXT_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, K_MTFILTER_SELECT, 0, 0];
 static LINES_FILTER: [u32; K_MTMETA_COUNT] = [0, K_MTFILTER_SELECT, 0, 0, 0, 0];
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SignTextAttrs {
     pub text: [Schar; SIGN_WIDTH],

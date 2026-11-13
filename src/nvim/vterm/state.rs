@@ -124,7 +124,6 @@ pub static vterm_primary_device_attr: [std::sync::atomic::AtomicU8; 9] = [
     std::sync::atomic::AtomicU8::new(0),
 ];
 
-#[repr(C)]
 pub struct VTermStateFallbacks {
     pub control: Option<fn(control: u8, user: Option<&mut TermId>) -> i32>,
     pub csi: Option<crate::vterm::parser::VTermCsiFn<TermId>>,
@@ -138,7 +137,6 @@ pub struct VTermStateFallbacks {
 pub type VTermSelectionSetFn =
     fn(mask: VTermSelectionMask, frag: VTermStringFragment<'_>, user: Option<&mut TermId>) -> i32;
 
-#[repr(C)]
 pub struct VTermSelectionCallbacks {
     pub set: Option<VTermSelectionSetFn>,
     pub query: Option<fn(mask: VTermSelectionMask, user: Option<&mut TermId>) -> i32>,

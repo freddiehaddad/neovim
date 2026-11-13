@@ -24,7 +24,7 @@ use crate::fileio::close;
 #[cfg(not(windows))]
 use crate::fileio::dup;
 use crate::globals::*;
-use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDict_highlight, dict2hlattrs};
+use crate::highlight::{HLATTRS_INIT, HlAttrs, KeyDictHighlight, dict2hlattrs};
 use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -356,7 +356,7 @@ pub fn handle_ui_client_redraw(_channel_id: u64, _args: Array, error: &mut Error
 
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     let mut err = Error::new();
-    let mut dict = KeyDict_highlight::default();
+    let mut dict = KeyDictHighlight::default();
     if !api_dict_to_keydict(&mut dict, Some(highlight_get_field_cb), d, &mut err) {
         return HLATTRS_INIT;
     }
@@ -665,7 +665,6 @@ pub fn ui_client_free_all_mem() {
     *g_st().grid_line_buf_attr.borrow_mut() = Vec::new();
 }
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct UIClientHandler {
     pub name: &'static CStr,

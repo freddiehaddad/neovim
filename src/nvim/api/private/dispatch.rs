@@ -3,13 +3,13 @@
 //! API Msgpack-RPC request handler lookup and dispatch wrappers (`src/nvim/api/private/dispatch.c`).
 
 use crate::api::autocmd::{
-    KeyDict_clear_autocmds, KeyDict_create_augroup, KeyDict_create_autocmd, KeyDict_exec_autocmds,
-    KeyDict_get_autocmds, nvim_clear_autocmds, nvim_create_augroup, nvim_create_autocmd,
+    KeyDictClearAutocmds, KeyDictCreateAugroup, KeyDictCreateAutocmd, KeyDictExecAutocmds,
+    KeyDictGetAutocmds, nvim_clear_autocmds, nvim_create_augroup, nvim_create_autocmd,
     nvim_del_augroup_by_id, nvim_del_augroup_by_name, nvim_del_autocmd, nvim_exec_autocmds,
     nvim_get_autocmds,
 };
 use crate::api::buffer::{
-    KeyDict_buf_attach, KeyDict_buf_delete, KeyDict_keymap, KeyDict_keymap_del, LUA_INTERNAL_CALL,
+    KeyDictBufAttach, KeyDictBufDelete, KeyDictKeymap, KeyDictKeymapDel, LUA_INTERNAL_CALL,
     nvim_buf_attach, nvim_buf_call, nvim_buf_del_keymap, nvim_buf_del_mark, nvim_buf_del_var,
     nvim_buf_delete, nvim_buf_detach, nvim_buf_get_changedtick, nvim_buf_get_keymap,
     nvim_buf_get_lines, nvim_buf_get_mark, nvim_buf_get_name, nvim_buf_get_offset,
@@ -18,13 +18,13 @@ use crate::api::buffer::{
     nvim_buf_set_name, nvim_buf_set_text, nvim_buf_set_var, nvim_buf_stats,
 };
 use crate::api::command::{
-    KeyDict_cmd, KeyDict_cmd_magic, KeyDict_cmd_mods, KeyDict_cmd_mods_filter, KeyDict_cmd_opts,
-    KeyDict_get_commands, KeyDict_user_command, nvim_buf_create_user_command,
+    KeyDictCmd, KeyDictCmdMagic, KeyDictCmdMods, KeyDictCmdModsFilter, KeyDictCmdOpts,
+    KeyDictGetCommands, KeyDictUserCommand, nvim_buf_create_user_command,
     nvim_buf_del_user_command, nvim_buf_get_commands, nvim_cmd, nvim_create_user_command,
     nvim_del_user_command, nvim_get_commands, nvim_parse_cmd,
 };
 use crate::api::deprecated::{
-    KeyDict_empty, buffer_del_line, buffer_del_var, buffer_get_line, buffer_get_line_slice,
+    KeyDictEmpty, buffer_del_line, buffer_del_var, buffer_get_line, buffer_get_line_slice,
     buffer_insert, buffer_set_line, buffer_set_line_slice, buffer_set_var, nvim_buf_add_highlight,
     nvim_buf_clear_highlight, nvim_buf_get_number, nvim_buf_get_option, nvim_buf_set_option,
     nvim_buf_set_virtual_text, nvim_call_atomic, nvim_command_output, nvim_err_write,
@@ -36,14 +36,14 @@ use crate::api::deprecated::{
 };
 use crate::api::events::{nvim_error_event, nvim_ui_term_event};
 use crate::api::extmark::{
-    KeyDict_get_extmark, KeyDict_get_extmarks, KeyDict_ns_opts, KeyDict_set_decoration_provider,
-    KeyDict_set_extmark, nvim_buf_clear_namespace, nvim_buf_debug_extmarks, nvim_buf_del_extmark,
+    KeyDictGetExtmark, KeyDictGetExtmarks, KeyDictNsOpts, KeyDictSetDecorationProvider,
+    KeyDictSetExtmark, nvim_buf_clear_namespace, nvim_buf_debug_extmarks, nvim_buf_del_extmark,
     nvim_buf_get_extmark_by_id, nvim_buf_get_extmarks, nvim_buf_set_conceal_provider,
     nvim_buf_set_extmark, nvim_create_namespace, nvim_get_namespaces, nvim_ns_get, nvim_ns_set,
     nvim_set_decoration_provider,
 };
 use crate::api::options::{
-    KeyDict_option, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
+    KeyDictOption, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
     nvim_option_to_object, nvim_set_option_value,
 };
 use crate::api::private::helpers::{
@@ -56,7 +56,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType,
 };
 use crate::api::tabpage::{
-    Buffer, KeyDict_tabpage_config, Tabpage, Window, nvim_open_tabpage, nvim_tabpage_del_var,
+    Buffer, KeyDictTabpageConfig, Tabpage, Window, nvim_open_tabpage, nvim_tabpage_del_var,
     nvim_tabpage_get_number, nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid,
     nvim_tabpage_list_wins, nvim_tabpage_set_var, nvim_tabpage_set_win,
 };
@@ -65,42 +65,41 @@ use crate::api::ui::{
     nvim_ui_set_focus, nvim_ui_set_option, nvim_ui_try_resize, nvim_ui_try_resize_grid, ui_attach,
 };
 use crate::api::vim::{
-    KeyDict_chan_set, KeyDict_complete_set, KeyDict_context, KeyDict_echo_opts,
-    KeyDict_eval_statusline, KeyDict_get_ns, KeyDict_open_term, KeyDict_redraw, KeyDict_runtime,
-    nvim__id_float, nvim_chan_send, nvim_chan_set, nvim_cmdwin_set, nvim_complete_set,
-    nvim_create_buf, nvim_del_current_line, nvim_del_keymap, nvim_del_mark, nvim_del_var,
-    nvim_echo, nvim_eval_statusline, nvim_exec_lua, nvim_exec_lua_fast, nvim_feedkeys,
-    nvim_get_api_info, nvim_get_chan_info, nvim_get_color_by_name, nvim_get_color_map,
-    nvim_get_context, nvim_get_current_buf, nvim_get_current_line, nvim_get_current_tabpage,
-    nvim_get_current_win, nvim_get_hl, nvim_get_hl_id_by_name, nvim_get_hl_ns, nvim_get_keymap,
-    nvim_get_lib_dir, nvim_get_mark, nvim_get_mode, nvim_get_proc, nvim_get_proc_children,
-    nvim_get_runtime, nvim_get_runtime_file, nvim_get_var, nvim_get_vvar, nvim_id, nvim_id_array,
-    nvim_id_dict, nvim_input, nvim_input_mouse, nvim_inspect_cell, nvim_invalidate_glyph_cache,
-    nvim_list_bufs, nvim_list_chans, nvim_list_runtime_paths, nvim_list_tabpages, nvim_list_uis,
-    nvim_list_wins, nvim_load_context, nvim_open_term, nvim_paste, nvim_put, nvim_redraw,
-    nvim_replace_termcodes, nvim_runtime_inspect, nvim_screenshot, nvim_select_popupmenu_item,
-    nvim_set_client_info, nvim_set_current_buf, nvim_set_current_dir, nvim_set_current_line,
-    nvim_set_current_tabpage, nvim_set_current_win, nvim_set_hl, nvim_set_hl_ns,
-    nvim_set_hl_ns_fast, nvim_set_keymap, nvim_set_restart_on_crash, nvim_set_var, nvim_set_vvar,
-    nvim_stats, nvim_strwidth, nvim_unpack,
+    KeyDictChanSet, KeyDictCompleteSet, KeyDictContext, KeyDictEchoOpts, KeyDictEvalStatusline,
+    KeyDictGetNs, KeyDictOpenTerm, KeyDictRedraw, KeyDictRuntime, nvim__id_float, nvim_chan_send,
+    nvim_chan_set, nvim_cmdwin_set, nvim_complete_set, nvim_create_buf, nvim_del_current_line,
+    nvim_del_keymap, nvim_del_mark, nvim_del_var, nvim_echo, nvim_eval_statusline, nvim_exec_lua,
+    nvim_exec_lua_fast, nvim_feedkeys, nvim_get_api_info, nvim_get_chan_info,
+    nvim_get_color_by_name, nvim_get_color_map, nvim_get_context, nvim_get_current_buf,
+    nvim_get_current_line, nvim_get_current_tabpage, nvim_get_current_win, nvim_get_hl,
+    nvim_get_hl_id_by_name, nvim_get_hl_ns, nvim_get_keymap, nvim_get_lib_dir, nvim_get_mark,
+    nvim_get_mode, nvim_get_proc, nvim_get_proc_children, nvim_get_runtime, nvim_get_runtime_file,
+    nvim_get_var, nvim_get_vvar, nvim_id, nvim_id_array, nvim_id_dict, nvim_input,
+    nvim_input_mouse, nvim_inspect_cell, nvim_invalidate_glyph_cache, nvim_list_bufs,
+    nvim_list_chans, nvim_list_runtime_paths, nvim_list_tabpages, nvim_list_uis, nvim_list_wins,
+    nvim_load_context, nvim_open_term, nvim_paste, nvim_put, nvim_redraw, nvim_replace_termcodes,
+    nvim_runtime_inspect, nvim_screenshot, nvim_select_popupmenu_item, nvim_set_client_info,
+    nvim_set_current_buf, nvim_set_current_dir, nvim_set_current_line, nvim_set_current_tabpage,
+    nvim_set_current_win, nvim_set_hl, nvim_set_hl_ns, nvim_set_hl_ns_fast, nvim_set_keymap,
+    nvim_set_restart_on_crash, nvim_set_var, nvim_set_vvar, nvim_stats, nvim_strwidth, nvim_unpack,
 };
 use crate::api::vimscript::{
-    KeyDict_exec_opts, nvim_call_dict_function, nvim_call_function, nvim_command, nvim_eval,
+    KeyDictExecOpts, nvim_call_dict_function, nvim_call_function, nvim_command, nvim_eval,
     nvim_exec2, nvim_parse_expression,
 };
 use crate::api::win_config::{
-    KeyDict_win_config, nvim_open_win, nvim_win_get_config, nvim_win_set_config,
+    KeyDictWinConfig, nvim_open_win, nvim_win_get_config, nvim_win_set_config,
 };
 use crate::api::window::{
-    KeyDict_win_resize, KeyDict_win_text_height, nvim_win_call, nvim_win_close, nvim_win_del_var,
+    KeyDictWinResize, KeyDictWinTextHeight, nvim_win_call, nvim_win_close, nvim_win_del_var,
     nvim_win_get_buf, nvim_win_get_cursor, nvim_win_get_height, nvim_win_get_number,
     nvim_win_get_position, nvim_win_get_tabpage, nvim_win_get_var, nvim_win_get_width,
     nvim_win_hide, nvim_win_is_valid, nvim_win_resize, nvim_win_set_buf, nvim_win_set_cursor,
     nvim_win_set_hl_ns, nvim_win_set_var, nvim_win_text_height,
 };
 use crate::ex_getln::{get_text_locked_msg, text_locked};
-use crate::highlight::{KeyDict_highlight, KeyDict_highlight_cterm};
-use crate::highlight_group::KeyDict_get_highlight;
+use crate::highlight::{KeyDictHighlight, KeyDictHighlightCterm};
+use crate::highlight_group::KeyDictGetHighlight;
 use crate::lua::converter::{
     Boolean, FieldHashfn, Float, KeyDict, KeyField, KeySetLink, LuaRef, nlua_pop_array,
     nlua_pop_boolean, nlua_pop_dict, nlua_pop_float, nlua_pop_handle as nlua_pop_Buffer,
@@ -110,11 +109,10 @@ use crate::lua::converter::{
     nlua_push_handle as nlua_push_Tabpage, nlua_push_handle as nlua_push_Window, nlua_push_integer,
     nlua_push_keydict, nlua_push_object, nlua_push_string,
 };
-use crate::lua::xdiff::KeyDict_xdl_diff;
+use crate::lua::xdiff::KeyDictXdlDiff;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::shada::{
-    KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
-    KeyDict__shada_search_pat,
+    KeyDictShadaBuflistItem, KeyDictShadaMark, KeyDictShadaRegister, KeyDictShadaSearchPat,
 };
 use crate::ui_client::handle_ui_client_redraw;
 
@@ -122,7 +120,6 @@ const K_UNPACK_TYPE_STRING_ARRAY_CONST: i32 = -1;
 
 pub type ApiDispatchWrapper = Option<fn(channel_id: u64, args: Array, error: &mut Error) -> Object>;
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct MsgpackRpcRequestHandler {
     pub name: &'static std::ffi::CStr,
@@ -312,61 +309,58 @@ macro_rules! impl_keydict {
         }
     };
 }
-impl_keydict!(KeyDict__shada_buflist_item, is_set_shada_buflist_item);
-impl_keydict!(KeyDict__shada_mark, is_set_shada_mark);
-impl_keydict!(KeyDict__shada_register, is_set_shada_register);
-impl_keydict!(KeyDict__shada_search_pat, is_set_shada_search_pat);
-impl_keydict!(KeyDict_buf_attach, is_set_buf_attach);
-impl_keydict!(KeyDict_buf_delete, is_set_buf_delete);
-impl_keydict!(KeyDict_chan_set, is_set_chan_set);
-impl_keydict!(KeyDict_clear_autocmds, is_set_clear_autocmds);
-impl_keydict!(KeyDict_cmd, is_set_cmd);
-impl_keydict!(KeyDict_cmd_magic, is_set_cmd_magic);
-impl_keydict!(KeyDict_cmd_mods, is_set_cmd_mods);
-impl_keydict!(KeyDict_cmd_mods_filter, is_set_cmd_mods_filter);
-impl_keydict!(KeyDict_cmd_opts);
-impl_keydict!(KeyDict_complete_set, is_set_complete_set);
-impl_keydict!(KeyDict_context, is_set_context);
-impl_keydict!(KeyDict_create_augroup, is_set_create_augroup);
-impl_keydict!(KeyDict_create_autocmd, is_set_create_autocmd);
-impl_keydict!(KeyDict_echo_opts, is_set_echo_opts);
-impl_keydict!(KeyDict_eval_statusline, is_set_eval_statusline);
-impl_keydict!(KeyDict_exec_autocmds, is_set_exec_autocmds);
-impl_keydict!(KeyDict_exec_opts);
-impl_keydict!(KeyDict_get_autocmds, is_set_get_autocmds);
-impl_keydict!(KeyDict_get_commands);
-impl_keydict!(KeyDict_get_extmark, is_set_get_extmark);
-impl_keydict!(KeyDict_get_extmarks, is_set_get_extmarks);
-impl_keydict!(KeyDict_get_highlight, is_set_get_highlight);
-impl_keydict!(KeyDict_get_ns, is_set_get_ns);
-impl_keydict!(KeyDict_highlight, is_set_highlight);
-impl_keydict!(KeyDict_highlight_cterm);
-impl_keydict!(KeyDict_keymap, is_set_keymap);
-impl_keydict!(KeyDict_keymap_del, is_set_keymap_del);
-impl_keydict!(KeyDict_ns_opts, is_set_ns_opts);
-impl_keydict!(KeyDict_open_term, is_set_open_term);
-impl_keydict!(KeyDict_option, is_set_option);
-impl_keydict!(KeyDict_redraw, is_set_redraw);
-impl_keydict!(KeyDict_runtime);
-impl_keydict!(
-    KeyDict_set_decoration_provider,
-    is_set_set_decoration_provider
-);
-impl_keydict!(KeyDict_set_extmark, is_set_set_extmark);
-impl_keydict!(KeyDict_tabpage_config, is_set_tabpage_config);
-impl_keydict!(KeyDict_user_command, is_set_user_command);
-impl_keydict!(KeyDict_win_config, is_set_win_config);
-impl_keydict!(KeyDict_win_resize, is_set_win_resize);
-impl_keydict!(KeyDict_win_text_height, is_set_win_text_height);
-impl_keydict!(KeyDict_xdl_diff, is_set_xdl_diff);
-impl_keydict!(KeyDict_empty, is_set_empty);
+impl_keydict!(KeyDictShadaBuflistItem, is_set_shada_buflist_item);
+impl_keydict!(KeyDictShadaMark, is_set_shada_mark);
+impl_keydict!(KeyDictShadaRegister, is_set_shada_register);
+impl_keydict!(KeyDictShadaSearchPat, is_set_shada_search_pat);
+impl_keydict!(KeyDictBufAttach, is_set_buf_attach);
+impl_keydict!(KeyDictBufDelete, is_set_buf_delete);
+impl_keydict!(KeyDictChanSet, is_set_chan_set);
+impl_keydict!(KeyDictClearAutocmds, is_set_clear_autocmds);
+impl_keydict!(KeyDictCmd, is_set_cmd);
+impl_keydict!(KeyDictCmdMagic, is_set_cmd_magic);
+impl_keydict!(KeyDictCmdMods, is_set_cmd_mods);
+impl_keydict!(KeyDictCmdModsFilter, is_set_cmd_mods_filter);
+impl_keydict!(KeyDictCmdOpts);
+impl_keydict!(KeyDictCompleteSet, is_set_complete_set);
+impl_keydict!(KeyDictContext, is_set_context);
+impl_keydict!(KeyDictCreateAugroup, is_set_create_augroup);
+impl_keydict!(KeyDictCreateAutocmd, is_set_create_autocmd);
+impl_keydict!(KeyDictEchoOpts, is_set_echo_opts);
+impl_keydict!(KeyDictEvalStatusline, is_set_eval_statusline);
+impl_keydict!(KeyDictExecAutocmds, is_set_exec_autocmds);
+impl_keydict!(KeyDictExecOpts);
+impl_keydict!(KeyDictGetAutocmds, is_set_get_autocmds);
+impl_keydict!(KeyDictGetCommands);
+impl_keydict!(KeyDictGetExtmark, is_set_get_extmark);
+impl_keydict!(KeyDictGetExtmarks, is_set_get_extmarks);
+impl_keydict!(KeyDictGetHighlight, is_set_get_highlight);
+impl_keydict!(KeyDictGetNs, is_set_get_ns);
+impl_keydict!(KeyDictHighlight, is_set_highlight);
+impl_keydict!(KeyDictHighlightCterm);
+impl_keydict!(KeyDictKeymap, is_set_keymap);
+impl_keydict!(KeyDictKeymapDel, is_set_keymap_del);
+impl_keydict!(KeyDictNsOpts, is_set_ns_opts);
+impl_keydict!(KeyDictOpenTerm, is_set_open_term);
+impl_keydict!(KeyDictOption, is_set_option);
+impl_keydict!(KeyDictRedraw, is_set_redraw);
+impl_keydict!(KeyDictRuntime);
+impl_keydict!(KeyDictSetDecorationProvider, is_set_set_decoration_provider);
+impl_keydict!(KeyDictSetExtmark, is_set_set_extmark);
+impl_keydict!(KeyDictTabpageConfig, is_set_tabpage_config);
+impl_keydict!(KeyDictUserCommand, is_set_user_command);
+impl_keydict!(KeyDictWinConfig, is_set_win_config);
+impl_keydict!(KeyDictWinResize, is_set_win_resize);
+impl_keydict!(KeyDictWinTextHeight, is_set_win_text_height);
+impl_keydict!(KeyDictXdlDiff, is_set_xdl_diff);
+impl_keydict!(KeyDictEmpty, is_set_empty);
 
-pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink<KeyDict__shada_buflist_item>; 4] = [
+pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink<KeyDictShadaBuflistItem>; 4] = [
     KeySetLink {
         str: Some(c"c"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_buflist_item| &d.c,
-            |d: &mut KeyDict__shada_buflist_item| &mut d.c,
+            |d: &KeyDictShadaBuflistItem| &d.c,
+            |d: &mut KeyDictShadaBuflistItem| &mut d.c,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -375,8 +369,8 @@ pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink<KeyDict__shada_buflist_item>; 
     KeySetLink {
         str: Some(c"f"),
         field: KeyField::String(
-            |d: &KeyDict__shada_buflist_item| &d.f,
-            |d: &mut KeyDict__shada_buflist_item| &mut d.f,
+            |d: &KeyDictShadaBuflistItem| &d.f,
+            |d: &mut KeyDictShadaBuflistItem| &mut d.f,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -385,8 +379,8 @@ pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink<KeyDict__shada_buflist_item>; 
     KeySetLink {
         str: Some(c"l"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_buflist_item| &d.l,
-            |d: &mut KeyDict__shada_buflist_item| &mut d.l,
+            |d: &KeyDictShadaBuflistItem| &d.l,
+            |d: &mut KeyDictShadaBuflistItem| &mut d.l,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
@@ -412,17 +406,17 @@ pub fn _shada_buflist_item_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_shada_buflist_item_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict__shada_buflist_item>> {
+) -> Option<&'static KeySetLink<KeyDictShadaBuflistItem>> {
     let hash = _shada_buflist_item_hash(key);
     (hash >= 0).then(|| &_SHADA_BUFLIST_ITEM_TABLE[hash as usize])
 }
 
-pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDict__shada_mark>; 5] = [
+pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDictShadaMark>; 5] = [
     KeySetLink {
         str: Some(c"c"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_mark| &d.c,
-            |d: &mut KeyDict__shada_mark| &mut d.c,
+            |d: &KeyDictShadaMark| &d.c,
+            |d: &mut KeyDictShadaMark| &mut d.c,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -431,8 +425,8 @@ pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDict__shada_mark>; 5] = [
     KeySetLink {
         str: Some(c"f"),
         field: KeyField::String(
-            |d: &KeyDict__shada_mark| &d.f,
-            |d: &mut KeyDict__shada_mark| &mut d.f,
+            |d: &KeyDictShadaMark| &d.f,
+            |d: &mut KeyDictShadaMark| &mut d.f,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -441,8 +435,8 @@ pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDict__shada_mark>; 5] = [
     KeySetLink {
         str: Some(c"l"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_mark| &d.l,
-            |d: &mut KeyDict__shada_mark| &mut d.l,
+            |d: &KeyDictShadaMark| &d.l,
+            |d: &mut KeyDictShadaMark| &mut d.l,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
@@ -451,8 +445,8 @@ pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDict__shada_mark>; 5] = [
     KeySetLink {
         str: Some(c"n"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_mark| &d.n,
-            |d: &mut KeyDict__shada_mark| &mut d.n,
+            |d: &KeyDictShadaMark| &d.n,
+            |d: &mut KeyDictShadaMark| &mut d.n,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
@@ -477,19 +471,17 @@ pub fn _shada_mark_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_shada_mark_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict__shada_mark>> {
+pub fn key_dict_shada_mark_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictShadaMark>> {
     let hash = _shada_mark_hash(key);
     (hash >= 0).then(|| &_SHADA_MARK_TABLE[hash as usize])
 }
 
-pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDict__shada_register>; 6] = [
+pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDictShadaRegister>; 6] = [
     KeySetLink {
         str: Some(c"n"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_register| &d.n,
-            |d: &mut KeyDict__shada_register| &mut d.n,
+            |d: &KeyDictShadaRegister| &d.n,
+            |d: &mut KeyDictShadaRegister| &mut d.n,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -498,8 +490,8 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDict__shada_register>; 6] = [
     KeySetLink {
         str: Some(c"rc"),
         field: KeyField::StringArray(
-            |d: &KeyDict__shada_register| &d.rc,
-            |d: &mut KeyDict__shada_register| &mut d.rc,
+            |d: &KeyDictShadaRegister| &d.rc,
+            |d: &mut KeyDictShadaRegister| &mut d.rc,
         ),
         key_type: K_UNPACK_TYPE_STRING_ARRAY_CONST,
         opt_index: 2,
@@ -508,8 +500,8 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDict__shada_register>; 6] = [
     KeySetLink {
         str: Some(c"rt"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_register| &d.rt,
-            |d: &mut KeyDict__shada_register| &mut d.rt,
+            |d: &KeyDictShadaRegister| &d.rt,
+            |d: &mut KeyDictShadaRegister| &mut d.rt,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
@@ -518,8 +510,8 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDict__shada_register>; 6] = [
     KeySetLink {
         str: Some(c"ru"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_register| &d.ru,
-            |d: &mut KeyDict__shada_register| &mut d.ru,
+            |d: &KeyDictShadaRegister| &d.ru,
+            |d: &mut KeyDictShadaRegister| &mut d.ru,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -528,8 +520,8 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDict__shada_register>; 6] = [
     KeySetLink {
         str: Some(c"rw"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_register| &d.rw,
-            |d: &mut KeyDict__shada_register| &mut d.rw,
+            |d: &KeyDictShadaRegister| &d.rw,
+            |d: &mut KeyDictShadaRegister| &mut d.rw,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
@@ -557,17 +549,17 @@ pub fn _shada_register_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_shada_register_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict__shada_register>> {
+) -> Option<&'static KeySetLink<KeyDictShadaRegister>> {
     let hash = _shada_register_hash(key);
     (hash >= 0).then(|| &_SHADA_REGISTER_TABLE[hash as usize])
 }
 
-pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] = [
+pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDictShadaSearchPat>; 11] = [
     KeySetLink {
         str: Some(c"sb"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.search_backward,
-            |d: &mut KeyDict__shada_search_pat| &mut d.search_backward,
+            |d: &KeyDictShadaSearchPat| &d.search_backward,
+            |d: &mut KeyDictShadaSearchPat| &mut d.search_backward,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -576,8 +568,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"sc"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.smartcase,
-            |d: &mut KeyDict__shada_search_pat| &mut d.smartcase,
+            |d: &KeyDictShadaSearchPat| &d.smartcase,
+            |d: &mut KeyDictShadaSearchPat| &mut d.smartcase,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -586,8 +578,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"se"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.place_cursor_at_end,
-            |d: &mut KeyDict__shada_search_pat| &mut d.place_cursor_at_end,
+            |d: &KeyDictShadaSearchPat| &d.place_cursor_at_end,
+            |d: &mut KeyDictShadaSearchPat| &mut d.place_cursor_at_end,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -596,8 +588,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"sh"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.highlighted,
-            |d: &mut KeyDict__shada_search_pat| &mut d.highlighted,
+            |d: &KeyDictShadaSearchPat| &d.highlighted,
+            |d: &mut KeyDictShadaSearchPat| &mut d.highlighted,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -606,8 +598,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"sl"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.has_line_offset,
-            |d: &mut KeyDict__shada_search_pat| &mut d.has_line_offset,
+            |d: &KeyDictShadaSearchPat| &d.has_line_offset,
+            |d: &mut KeyDictShadaSearchPat| &mut d.has_line_offset,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -616,8 +608,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"sm"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.magic,
-            |d: &mut KeyDict__shada_search_pat| &mut d.magic,
+            |d: &KeyDictShadaSearchPat| &d.magic,
+            |d: &mut KeyDictShadaSearchPat| &mut d.magic,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -626,8 +618,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"so"),
         field: KeyField::Integer(
-            |d: &KeyDict__shada_search_pat| &d.offset,
-            |d: &mut KeyDict__shada_search_pat| &mut d.offset,
+            |d: &KeyDictShadaSearchPat| &d.offset,
+            |d: &mut KeyDictShadaSearchPat| &mut d.offset,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
@@ -636,8 +628,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"sp"),
         field: KeyField::String(
-            |d: &KeyDict__shada_search_pat| &d.pat,
-            |d: &mut KeyDict__shada_search_pat| &mut d.pat,
+            |d: &KeyDictShadaSearchPat| &d.pat,
+            |d: &mut KeyDictShadaSearchPat| &mut d.pat,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 8,
@@ -646,8 +638,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"ss"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.is_substitute_pattern,
-            |d: &mut KeyDict__shada_search_pat| &mut d.is_substitute_pattern,
+            |d: &KeyDictShadaSearchPat| &d.is_substitute_pattern,
+            |d: &mut KeyDictShadaSearchPat| &mut d.is_substitute_pattern,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -656,8 +648,8 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDict__shada_search_pat>; 11] 
     KeySetLink {
         str: Some(c"su"),
         field: KeyField::Boolean(
-            |d: &KeyDict__shada_search_pat| &d.is_last_used,
-            |d: &mut KeyDict__shada_search_pat| &mut d.is_last_used,
+            |d: &KeyDictShadaSearchPat| &d.is_last_used,
+            |d: &mut KeyDictShadaSearchPat| &mut d.is_last_used,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
@@ -690,17 +682,17 @@ pub fn _shada_search_pat_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_shada_search_pat_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict__shada_search_pat>> {
+) -> Option<&'static KeySetLink<KeyDictShadaSearchPat>> {
     let hash = _shada_search_pat_hash(key);
     (hash >= 0).then(|| &_SHADA_SEARCH_PAT_TABLE[hash as usize])
 }
 
-pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
+pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDictBufAttach>; 8] = [
     KeySetLink {
         str: Some(c"preview"),
         field: KeyField::Boolean(
-            |d: &KeyDict_buf_attach| &d.preview,
-            |d: &mut KeyDict_buf_attach| &mut d.preview,
+            |d: &KeyDictBufAttach| &d.preview,
+            |d: &mut KeyDictBufAttach| &mut d.preview,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -709,8 +701,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"on_bytes"),
         field: KeyField::I32(
-            |d: &KeyDict_buf_attach| &d.on_bytes,
-            |d: &mut KeyDict_buf_attach| &mut d.on_bytes,
+            |d: &KeyDictBufAttach| &d.on_bytes,
+            |d: &mut KeyDictBufAttach| &mut d.on_bytes,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
@@ -719,8 +711,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"on_lines"),
         field: KeyField::I32(
-            |d: &KeyDict_buf_attach| &d.on_lines,
-            |d: &mut KeyDict_buf_attach| &mut d.on_lines,
+            |d: &KeyDictBufAttach| &d.on_lines,
+            |d: &mut KeyDictBufAttach| &mut d.on_lines,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 3,
@@ -729,8 +721,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"utf_sizes"),
         field: KeyField::Boolean(
-            |d: &KeyDict_buf_attach| &d.utf_sizes,
-            |d: &mut KeyDict_buf_attach| &mut d.utf_sizes,
+            |d: &KeyDictBufAttach| &d.utf_sizes,
+            |d: &mut KeyDictBufAttach| &mut d.utf_sizes,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -739,8 +731,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"on_detach"),
         field: KeyField::I32(
-            |d: &KeyDict_buf_attach| &d.on_detach,
-            |d: &mut KeyDict_buf_attach| &mut d.on_detach,
+            |d: &KeyDictBufAttach| &d.on_detach,
+            |d: &mut KeyDictBufAttach| &mut d.on_detach,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 5,
@@ -749,8 +741,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"on_reload"),
         field: KeyField::I32(
-            |d: &KeyDict_buf_attach| &d.on_reload,
-            |d: &mut KeyDict_buf_attach| &mut d.on_reload,
+            |d: &KeyDictBufAttach| &d.on_reload,
+            |d: &mut KeyDictBufAttach| &mut d.on_reload,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 6,
@@ -759,8 +751,8 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDict_buf_attach>; 8] = [
     KeySetLink {
         str: Some(c"on_changedtick"),
         field: KeyField::I32(
-            |d: &KeyDict_buf_attach| &d.on_changedtick,
-            |d: &mut KeyDict_buf_attach| &mut d.on_changedtick,
+            |d: &KeyDictBufAttach| &d.on_changedtick,
+            |d: &mut KeyDictBufAttach| &mut d.on_changedtick,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 7,
@@ -788,19 +780,17 @@ pub fn buf_attach_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_buf_attach_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_buf_attach>> {
+pub fn key_dict_buf_attach_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictBufAttach>> {
     let hash = buf_attach_hash(key);
     (hash >= 0).then(|| &BUF_ATTACH_TABLE[hash as usize])
 }
 
-pub static BUF_DELETE_TABLE: [KeySetLink<KeyDict_buf_delete>; 3] = [
+pub static BUF_DELETE_TABLE: [KeySetLink<KeyDictBufDelete>; 3] = [
     KeySetLink {
         str: Some(c"force"),
         field: KeyField::Boolean(
-            |d: &KeyDict_buf_delete| &d.force,
-            |d: &mut KeyDict_buf_delete| &mut d.force,
+            |d: &KeyDictBufDelete| &d.force,
+            |d: &mut KeyDictBufDelete| &mut d.force,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -809,8 +799,8 @@ pub static BUF_DELETE_TABLE: [KeySetLink<KeyDict_buf_delete>; 3] = [
     KeySetLink {
         str: Some(c"unload"),
         field: KeyField::Boolean(
-            |d: &KeyDict_buf_delete| &d.unload,
-            |d: &mut KeyDict_buf_delete| &mut d.unload,
+            |d: &KeyDictBufDelete| &d.unload,
+            |d: &mut KeyDictBufDelete| &mut d.unload,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -833,19 +823,17 @@ pub fn buf_delete_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_buf_delete_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_buf_delete>> {
+pub fn key_dict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictBufDelete>> {
     let hash = buf_delete_hash(key);
     (hash >= 0).then(|| &BUF_DELETE_TABLE[hash as usize])
 }
 
-pub static CHAN_SET_TABLE: [KeySetLink<KeyDict_chan_set>; 4] = [
+pub static CHAN_SET_TABLE: [KeySetLink<KeyDictChanSet>; 4] = [
     KeySetLink {
         str: Some(c"addr"),
         field: KeyField::String(
-            |d: &KeyDict_chan_set| &d.addr,
-            |d: &mut KeyDict_chan_set| &mut d.addr,
+            |d: &KeyDictChanSet| &d.addr,
+            |d: &mut KeyDictChanSet| &mut d.addr,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
@@ -854,8 +842,8 @@ pub static CHAN_SET_TABLE: [KeySetLink<KeyDict_chan_set>; 4] = [
     KeySetLink {
         str: Some(c"detach"),
         field: KeyField::Boolean(
-            |d: &KeyDict_chan_set| &d.detach,
-            |d: &mut KeyDict_chan_set| &mut d.detach,
+            |d: &KeyDictChanSet| &d.detach,
+            |d: &mut KeyDictChanSet| &mut d.detach,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -864,8 +852,8 @@ pub static CHAN_SET_TABLE: [KeySetLink<KeyDict_chan_set>; 4] = [
     KeySetLink {
         str: Some(c"trust"),
         field: KeyField::Boolean(
-            |d: &KeyDict_chan_set| &d.trust,
-            |d: &mut KeyDict_chan_set| &mut d.trust,
+            |d: &KeyDictChanSet| &d.trust,
+            |d: &mut KeyDictChanSet| &mut d.trust,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -889,17 +877,17 @@ pub fn chan_set_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_chan_set>> {
+pub fn key_dict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictChanSet>> {
     let hash = chan_set_hash(key);
     (hash >= 0).then(|| &CHAN_SET_TABLE[hash as usize])
 }
 
-pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDict_clear_autocmds>; 6] = [
+pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDictClearAutocmds>; 6] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::I32(
-            |d: &KeyDict_clear_autocmds| &d.buf,
-            |d: &mut KeyDict_clear_autocmds| &mut d.buf,
+            |d: &KeyDictClearAutocmds| &d.buf,
+            |d: &mut KeyDictClearAutocmds| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
@@ -908,8 +896,8 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDict_clear_autocmds>; 6] = [
     KeySetLink {
         str: Some(c"event"),
         field: KeyField::Object(
-            |d: &KeyDict_clear_autocmds| &d.event,
-            |d: &mut KeyDict_clear_autocmds| &mut d.event,
+            |d: &KeyDictClearAutocmds| &d.event,
+            |d: &mut KeyDictClearAutocmds| &mut d.event,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
@@ -918,8 +906,8 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDict_clear_autocmds>; 6] = [
     KeySetLink {
         str: Some(c"group"),
         field: KeyField::Object(
-            |d: &KeyDict_clear_autocmds| &d.group,
-            |d: &mut KeyDict_clear_autocmds| &mut d.group,
+            |d: &KeyDictClearAutocmds| &d.group,
+            |d: &mut KeyDictClearAutocmds| &mut d.group,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
@@ -928,8 +916,8 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDict_clear_autocmds>; 6] = [
     KeySetLink {
         str: Some(c"buffer"),
         field: KeyField::I32(
-            |d: &KeyDict_clear_autocmds| &d.buffer,
-            |d: &mut KeyDict_clear_autocmds| &mut d.buffer,
+            |d: &KeyDictClearAutocmds| &d.buffer,
+            |d: &mut KeyDictClearAutocmds| &mut d.buffer,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 4,
@@ -938,8 +926,8 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDict_clear_autocmds>; 6] = [
     KeySetLink {
         str: Some(c"pattern"),
         field: KeyField::Object(
-            |d: &KeyDict_clear_autocmds| &d.pattern,
-            |d: &mut KeyDict_clear_autocmds| &mut d.pattern,
+            |d: &KeyDictClearAutocmds| &d.pattern,
+            |d: &mut KeyDictClearAutocmds| &mut d.pattern,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
@@ -967,90 +955,78 @@ pub fn clear_autocmds_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_clear_autocmds_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_clear_autocmds>> {
+) -> Option<&'static KeySetLink<KeyDictClearAutocmds>> {
     let hash = clear_autocmds_hash(key);
     (hash >= 0).then(|| &CLEAR_AUTOCMDS_TABLE[hash as usize])
 }
 
-pub static CMD_TABLE: [KeySetLink<KeyDict_cmd>; 12] = [
+pub static CMD_TABLE: [KeySetLink<KeyDictCmd>; 12] = [
     KeySetLink {
         str: Some(c"cmd"),
-        field: KeyField::String(|d: &KeyDict_cmd| &d.cmd, |d: &mut KeyDict_cmd| &mut d.cmd),
+        field: KeyField::String(|d: &KeyDictCmd| &d.cmd, |d: &mut KeyDictCmd| &mut d.cmd),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"reg"),
-        field: KeyField::String(|d: &KeyDict_cmd| &d.reg, |d: &mut KeyDict_cmd| &mut d.reg),
+        field: KeyField::String(|d: &KeyDictCmd| &d.reg, |d: &mut KeyDictCmd| &mut d.reg),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"bang"),
-        field: KeyField::Boolean(|d: &KeyDict_cmd| &d.bang, |d: &mut KeyDict_cmd| &mut d.bang),
+        field: KeyField::Boolean(|d: &KeyDictCmd| &d.bang, |d: &mut KeyDictCmd| &mut d.bang),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"addr"),
-        field: KeyField::String(|d: &KeyDict_cmd| &d.addr, |d: &mut KeyDict_cmd| &mut d.addr),
+        field: KeyField::String(|d: &KeyDictCmd| &d.addr, |d: &mut KeyDictCmd| &mut d.addr),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"mods"),
-        field: KeyField::Dict(|d: &KeyDict_cmd| &d.mods, |d: &mut KeyDict_cmd| &mut d.mods),
+        field: KeyField::Dict(|d: &KeyDictCmd| &d.mods, |d: &mut KeyDictCmd| &mut d.mods),
         key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 5,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"args"),
-        field: KeyField::Array(|d: &KeyDict_cmd| &d.args, |d: &mut KeyDict_cmd| &mut d.args),
+        field: KeyField::Array(|d: &KeyDictCmd| &d.args, |d: &mut KeyDictCmd| &mut d.args),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 6,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"count"),
-        field: KeyField::Integer(
-            |d: &KeyDict_cmd| &d.count,
-            |d: &mut KeyDict_cmd| &mut d.count,
-        ),
+        field: KeyField::Integer(|d: &KeyDictCmd| &d.count, |d: &mut KeyDictCmd| &mut d.count),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"magic"),
-        field: KeyField::Dict(
-            |d: &KeyDict_cmd| &d.magic,
-            |d: &mut KeyDict_cmd| &mut d.magic,
-        ),
+        field: KeyField::Dict(|d: &KeyDictCmd| &d.magic, |d: &mut KeyDictCmd| &mut d.magic),
         key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 8,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"nargs"),
-        field: KeyField::Object(
-            |d: &KeyDict_cmd| &d.nargs,
-            |d: &mut KeyDict_cmd| &mut d.nargs,
-        ),
+        field: KeyField::Object(|d: &KeyDictCmd| &d.nargs, |d: &mut KeyDictCmd| &mut d.nargs),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
         is_hlgroup: false,
     },
     KeySetLink {
         str: Some(c"range"),
-        field: KeyField::Array(
-            |d: &KeyDict_cmd| &d.range,
-            |d: &mut KeyDict_cmd| &mut d.range,
-        ),
+        field: KeyField::Array(|d: &KeyDictCmd| &d.range, |d: &mut KeyDictCmd| &mut d.range),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 10,
         is_hlgroup: false,
@@ -1058,8 +1034,8 @@ pub static CMD_TABLE: [KeySetLink<KeyDict_cmd>; 12] = [
     KeySetLink {
         str: Some(c"nextcmd"),
         field: KeyField::String(
-            |d: &KeyDict_cmd| &d.nextcmd,
-            |d: &mut KeyDict_cmd| &mut d.nextcmd,
+            |d: &KeyDictCmd| &d.nextcmd,
+            |d: &mut KeyDictCmd| &mut d.nextcmd,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 11,
@@ -1091,17 +1067,17 @@ pub fn cmd_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_cmd>> {
+pub fn key_dict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmd>> {
     let hash = cmd_hash(key);
     (hash >= 0).then(|| &CMD_TABLE[hash as usize])
 }
 
-pub static CMD_MAGIC_TABLE: [KeySetLink<KeyDict_cmd_magic>; 3] = [
+pub static CMD_MAGIC_TABLE: [KeySetLink<KeyDictCmdMagic>; 3] = [
     KeySetLink {
         str: Some(c"bar"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_magic| &d.bar,
-            |d: &mut KeyDict_cmd_magic| &mut d.bar,
+            |d: &KeyDictCmdMagic| &d.bar,
+            |d: &mut KeyDictCmdMagic| &mut d.bar,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -1110,8 +1086,8 @@ pub static CMD_MAGIC_TABLE: [KeySetLink<KeyDict_cmd_magic>; 3] = [
     KeySetLink {
         str: Some(c"file"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_magic| &d.file,
-            |d: &mut KeyDict_cmd_magic| &mut d.file,
+            |d: &KeyDictCmdMagic| &d.file,
+            |d: &mut KeyDictCmdMagic| &mut d.file,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -1134,17 +1110,17 @@ pub fn cmd_magic_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_cmd_magic>> {
+pub fn key_dict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdMagic>> {
     let hash = cmd_magic_hash(key);
     (hash >= 0).then(|| &CMD_MAGIC_TABLE[hash as usize])
 }
 
-pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
+pub static CMD_MODS_TABLE: [KeySetLink<KeyDictCmdMods>; 21] = [
     KeySetLink {
         str: Some(c"tab"),
         field: KeyField::Integer(
-            |d: &KeyDict_cmd_mods| &d.tab,
-            |d: &mut KeyDict_cmd_mods| &mut d.tab,
+            |d: &KeyDictCmdMods| &d.tab,
+            |d: &mut KeyDictCmdMods| &mut d.tab,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -1153,8 +1129,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"hide"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.hide,
-            |d: &mut KeyDict_cmd_mods| &mut d.hide,
+            |d: &KeyDictCmdMods| &d.hide,
+            |d: &mut KeyDictCmdMods| &mut d.hide,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -1163,8 +1139,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"split"),
         field: KeyField::String(
-            |d: &KeyDict_cmd_mods| &d.split,
-            |d: &mut KeyDict_cmd_mods| &mut d.split,
+            |d: &KeyDictCmdMods| &d.split,
+            |d: &mut KeyDictCmdMods| &mut d.split,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
@@ -1173,8 +1149,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"browse"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.browse,
-            |d: &mut KeyDict_cmd_mods| &mut d.browse,
+            |d: &KeyDictCmdMods| &d.browse,
+            |d: &mut KeyDictCmdMods| &mut d.browse,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -1183,8 +1159,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"filter"),
         field: KeyField::Dict(
-            |d: &KeyDict_cmd_mods| &d.filter,
-            |d: &mut KeyDict_cmd_mods| &mut d.filter,
+            |d: &KeyDictCmdMods| &d.filter,
+            |d: &mut KeyDictCmdMods| &mut d.filter,
         ),
         key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 5,
@@ -1193,8 +1169,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"silent"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.silent,
-            |d: &mut KeyDict_cmd_mods| &mut d.silent,
+            |d: &KeyDictCmdMods| &d.silent,
+            |d: &mut KeyDictCmdMods| &mut d.silent,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -1203,8 +1179,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"confirm"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.confirm,
-            |d: &mut KeyDict_cmd_mods| &mut d.confirm,
+            |d: &KeyDictCmdMods| &d.confirm,
+            |d: &mut KeyDictCmdMods| &mut d.confirm,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
@@ -1213,8 +1189,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"keepalt"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.keepalt,
-            |d: &mut KeyDict_cmd_mods| &mut d.keepalt,
+            |d: &KeyDictCmdMods| &d.keepalt,
+            |d: &mut KeyDictCmdMods| &mut d.keepalt,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
@@ -1223,8 +1199,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"sandbox"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.sandbox,
-            |d: &mut KeyDict_cmd_mods| &mut d.sandbox,
+            |d: &KeyDictCmdMods| &d.sandbox,
+            |d: &mut KeyDictCmdMods| &mut d.sandbox,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -1233,8 +1209,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"verbose"),
         field: KeyField::Integer(
-            |d: &KeyDict_cmd_mods| &d.verbose,
-            |d: &mut KeyDict_cmd_mods| &mut d.verbose,
+            |d: &KeyDictCmdMods| &d.verbose,
+            |d: &mut KeyDictCmdMods| &mut d.verbose,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 10,
@@ -1243,8 +1219,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"unsilent"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.unsilent,
-            |d: &mut KeyDict_cmd_mods| &mut d.unsilent,
+            |d: &KeyDictCmdMods| &d.unsilent,
+            |d: &mut KeyDictCmdMods| &mut d.unsilent,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
@@ -1253,8 +1229,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"vertical"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.vertical,
-            |d: &mut KeyDict_cmd_mods| &mut d.vertical,
+            |d: &KeyDictCmdMods| &d.vertical,
+            |d: &mut KeyDictCmdMods| &mut d.vertical,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
@@ -1263,8 +1239,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"keepjumps"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.keepjumps,
-            |d: &mut KeyDict_cmd_mods| &mut d.keepjumps,
+            |d: &KeyDictCmdMods| &d.keepjumps,
+            |d: &mut KeyDictCmdMods| &mut d.keepjumps,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 13,
@@ -1273,8 +1249,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"keepmarks"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.keepmarks,
-            |d: &mut KeyDict_cmd_mods| &mut d.keepmarks,
+            |d: &KeyDictCmdMods| &d.keepmarks,
+            |d: &mut KeyDictCmdMods| &mut d.keepmarks,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
@@ -1283,8 +1259,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"lockmarks"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.lockmarks,
-            |d: &mut KeyDict_cmd_mods| &mut d.lockmarks,
+            |d: &KeyDictCmdMods| &d.lockmarks,
+            |d: &mut KeyDictCmdMods| &mut d.lockmarks,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 15,
@@ -1293,8 +1269,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"noautocmd"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.noautocmd,
-            |d: &mut KeyDict_cmd_mods| &mut d.noautocmd,
+            |d: &KeyDictCmdMods| &d.noautocmd,
+            |d: &mut KeyDictCmdMods| &mut d.noautocmd,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 16,
@@ -1303,8 +1279,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"horizontal"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.horizontal,
-            |d: &mut KeyDict_cmd_mods| &mut d.horizontal,
+            |d: &KeyDictCmdMods| &d.horizontal,
+            |d: &mut KeyDictCmdMods| &mut d.horizontal,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
@@ -1313,8 +1289,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"noswapfile"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.noswapfile,
-            |d: &mut KeyDict_cmd_mods| &mut d.noswapfile,
+            |d: &KeyDictCmdMods| &d.noswapfile,
+            |d: &mut KeyDictCmdMods| &mut d.noswapfile,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
@@ -1323,8 +1299,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"emsg_silent"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.emsg_silent,
-            |d: &mut KeyDict_cmd_mods| &mut d.emsg_silent,
+            |d: &KeyDictCmdMods| &d.emsg_silent,
+            |d: &mut KeyDictCmdMods| &mut d.emsg_silent,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 19,
@@ -1333,8 +1309,8 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDict_cmd_mods>; 21] = [
     KeySetLink {
         str: Some(c"keeppatterns"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods| &d.keeppatterns,
-            |d: &mut KeyDict_cmd_mods| &mut d.keeppatterns,
+            |d: &KeyDictCmdMods| &d.keeppatterns,
+            |d: &mut KeyDictCmdMods| &mut d.keeppatterns,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 20,
@@ -1375,17 +1351,17 @@ pub fn cmd_mods_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_cmd_mods>> {
+pub fn key_dict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdMods>> {
     let hash = cmd_mods_hash(key);
     (hash >= 0).then(|| &CMD_MODS_TABLE[hash as usize])
 }
 
-pub static CMD_MODS_FILTER_TABLE: [KeySetLink<KeyDict_cmd_mods_filter>; 3] = [
+pub static CMD_MODS_FILTER_TABLE: [KeySetLink<KeyDictCmdModsFilter>; 3] = [
     KeySetLink {
         str: Some(c"force"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_mods_filter| &d.force,
-            |d: &mut KeyDict_cmd_mods_filter| &mut d.force,
+            |d: &KeyDictCmdModsFilter| &d.force,
+            |d: &mut KeyDictCmdModsFilter| &mut d.force,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -1394,8 +1370,8 @@ pub static CMD_MODS_FILTER_TABLE: [KeySetLink<KeyDict_cmd_mods_filter>; 3] = [
     KeySetLink {
         str: Some(c"pattern"),
         field: KeyField::String(
-            |d: &KeyDict_cmd_mods_filter| &d.pattern,
-            |d: &mut KeyDict_cmd_mods_filter| &mut d.pattern,
+            |d: &KeyDictCmdModsFilter| &d.pattern,
+            |d: &mut KeyDictCmdModsFilter| &mut d.pattern,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -1420,17 +1396,17 @@ pub fn cmd_mods_filter_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_cmd_mods_filter_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_cmd_mods_filter>> {
+) -> Option<&'static KeySetLink<KeyDictCmdModsFilter>> {
     let hash = cmd_mods_filter_hash(key);
     (hash >= 0).then(|| &CMD_MODS_FILTER_TABLE[hash as usize])
 }
 
-pub static CMD_OPTS_TABLE: [KeySetLink<KeyDict_cmd_opts>; 2] = [
+pub static CMD_OPTS_TABLE: [KeySetLink<KeyDictCmdOpts>; 2] = [
     KeySetLink {
         str: Some(c"output"),
         field: KeyField::Boolean(
-            |d: &KeyDict_cmd_opts| &d.output,
-            |d: &mut KeyDict_cmd_opts| &mut d.output,
+            |d: &KeyDictCmdOpts| &d.output,
+            |d: &mut KeyDictCmdOpts| &mut d.output,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -1452,17 +1428,17 @@ pub fn cmd_opts_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_cmd_opts>> {
+pub fn key_dict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdOpts>> {
     let hash = cmd_opts_hash(key);
     (hash >= 0).then(|| &CMD_OPTS_TABLE[hash as usize])
 }
 
-pub static COMPLETE_SET_TABLE: [KeySetLink<KeyDict_complete_set>; 2] = [
+pub static COMPLETE_SET_TABLE: [KeySetLink<KeyDictCompleteSet>; 2] = [
     KeySetLink {
         str: Some(c"info"),
         field: KeyField::String(
-            |d: &KeyDict_complete_set| &d.info,
-            |d: &mut KeyDict_complete_set| &mut d.info,
+            |d: &KeyDictCompleteSet| &d.info,
+            |d: &mut KeyDictCompleteSet| &mut d.info,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
@@ -1486,17 +1462,17 @@ pub fn complete_set_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_complete_set_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_complete_set>> {
+) -> Option<&'static KeySetLink<KeyDictCompleteSet>> {
     let hash = complete_set_hash(key);
     (hash >= 0).then(|| &COMPLETE_SET_TABLE[hash as usize])
 }
 
-pub static CONTEXT_TABLE: [KeySetLink<KeyDict_context>; 2] = [
+pub static CONTEXT_TABLE: [KeySetLink<KeyDictContext>; 2] = [
     KeySetLink {
         str: Some(c"types"),
         field: KeyField::Array(
-            |d: &KeyDict_context| &d.types,
-            |d: &mut KeyDict_context| &mut d.types,
+            |d: &KeyDictContext| &d.types,
+            |d: &mut KeyDictContext| &mut d.types,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 1,
@@ -1518,17 +1494,17 @@ pub fn context_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_context>> {
+pub fn key_dict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictContext>> {
     let hash = context_hash(key);
     (hash >= 0).then(|| &CONTEXT_TABLE[hash as usize])
 }
 
-pub static CREATE_AUGROUP_TABLE: [KeySetLink<KeyDict_create_augroup>; 2] = [
+pub static CREATE_AUGROUP_TABLE: [KeySetLink<KeyDictCreateAugroup>; 2] = [
     KeySetLink {
         str: Some(c"clear"),
         field: KeyField::Boolean(
-            |d: &KeyDict_create_augroup| &d.clear,
-            |d: &mut KeyDict_create_augroup| &mut d.clear,
+            |d: &KeyDictCreateAugroup| &d.clear,
+            |d: &mut KeyDictCreateAugroup| &mut d.clear,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -1552,17 +1528,17 @@ pub fn create_augroup_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_create_augroup_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_create_augroup>> {
+) -> Option<&'static KeySetLink<KeyDictCreateAugroup>> {
     let hash = create_augroup_hash(key);
     (hash >= 0).then(|| &CREATE_AUGROUP_TABLE[hash as usize])
 }
 
-pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
+pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDictCreateAutocmd>; 10] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::I32(
-            |d: &KeyDict_create_autocmd| &d.buf,
-            |d: &mut KeyDict_create_autocmd| &mut d.buf,
+            |d: &KeyDictCreateAutocmd| &d.buf,
+            |d: &mut KeyDictCreateAutocmd| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
@@ -1571,8 +1547,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"desc"),
         field: KeyField::String(
-            |d: &KeyDict_create_autocmd| &d.desc,
-            |d: &mut KeyDict_create_autocmd| &mut d.desc,
+            |d: &KeyDictCreateAutocmd| &d.desc,
+            |d: &mut KeyDictCreateAutocmd| &mut d.desc,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -1581,8 +1557,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"once"),
         field: KeyField::Boolean(
-            |d: &KeyDict_create_autocmd| &d.once,
-            |d: &mut KeyDict_create_autocmd| &mut d.once,
+            |d: &KeyDictCreateAutocmd| &d.once,
+            |d: &mut KeyDictCreateAutocmd| &mut d.once,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -1591,8 +1567,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"group"),
         field: KeyField::Object(
-            |d: &KeyDict_create_autocmd| &d.group,
-            |d: &mut KeyDict_create_autocmd| &mut d.group,
+            |d: &KeyDictCreateAutocmd| &d.group,
+            |d: &mut KeyDictCreateAutocmd| &mut d.group,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
@@ -1601,8 +1577,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"buffer"),
         field: KeyField::I32(
-            |d: &KeyDict_create_autocmd| &d.buffer,
-            |d: &mut KeyDict_create_autocmd| &mut d.buffer,
+            |d: &KeyDictCreateAutocmd| &d.buffer,
+            |d: &mut KeyDictCreateAutocmd| &mut d.buffer,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 5,
@@ -1611,8 +1587,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"nested"),
         field: KeyField::Boolean(
-            |d: &KeyDict_create_autocmd| &d.nested,
-            |d: &mut KeyDict_create_autocmd| &mut d.nested,
+            |d: &KeyDictCreateAutocmd| &d.nested,
+            |d: &mut KeyDictCreateAutocmd| &mut d.nested,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -1621,8 +1597,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"command"),
         field: KeyField::String(
-            |d: &KeyDict_create_autocmd| &d.command,
-            |d: &mut KeyDict_create_autocmd| &mut d.command,
+            |d: &KeyDictCreateAutocmd| &d.command,
+            |d: &mut KeyDictCreateAutocmd| &mut d.command,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
@@ -1631,8 +1607,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"pattern"),
         field: KeyField::Object(
-            |d: &KeyDict_create_autocmd| &d.pattern,
-            |d: &mut KeyDict_create_autocmd| &mut d.pattern,
+            |d: &KeyDictCreateAutocmd| &d.pattern,
+            |d: &mut KeyDictCreateAutocmd| &mut d.pattern,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
@@ -1641,8 +1617,8 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDict_create_autocmd>; 10] = [
     KeySetLink {
         str: Some(c"callback"),
         field: KeyField::Object(
-            |d: &KeyDict_create_autocmd| &d.callback,
-            |d: &mut KeyDict_create_autocmd| &mut d.callback,
+            |d: &KeyDictCreateAutocmd| &d.callback,
+            |d: &mut KeyDictCreateAutocmd| &mut d.callback,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
@@ -1674,17 +1650,17 @@ pub fn create_autocmd_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_create_autocmd_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_create_autocmd>> {
+) -> Option<&'static KeySetLink<KeyDictCreateAutocmd>> {
     let hash = create_autocmd_hash(key);
     (hash >= 0).then(|| &CREATE_AUTOCMD_TABLE[hash as usize])
 }
 
-pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
+pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDictEchoOpts>; 11] = [
     KeySetLink {
         str: Some(c"id"),
         field: KeyField::Object(
-            |d: &KeyDict_echo_opts| &d.id,
-            |d: &mut KeyDict_echo_opts| &mut d.id,
+            |d: &KeyDictEchoOpts| &d.id,
+            |d: &mut KeyDictEchoOpts| &mut d.id,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 1,
@@ -1693,8 +1669,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"err"),
         field: KeyField::Boolean(
-            |d: &KeyDict_echo_opts| &d.err,
-            |d: &mut KeyDict_echo_opts| &mut d.err,
+            |d: &KeyDictEchoOpts| &d.err,
+            |d: &mut KeyDictEchoOpts| &mut d.err,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -1703,8 +1679,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"data"),
         field: KeyField::Dict(
-            |d: &KeyDict_echo_opts| &d.data,
-            |d: &mut KeyDict_echo_opts| &mut d.data,
+            |d: &KeyDictEchoOpts| &d.data,
+            |d: &mut KeyDictEchoOpts| &mut d.data,
         ),
         key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 3,
@@ -1713,8 +1689,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"kind"),
         field: KeyField::String(
-            |d: &KeyDict_echo_opts| &d.kind,
-            |d: &mut KeyDict_echo_opts| &mut d.kind,
+            |d: &KeyDictEchoOpts| &d.kind,
+            |d: &mut KeyDictEchoOpts| &mut d.kind,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
@@ -1723,8 +1699,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"title"),
         field: KeyField::String(
-            |d: &KeyDict_echo_opts| &d.title,
-            |d: &mut KeyDict_echo_opts| &mut d.title,
+            |d: &KeyDictEchoOpts| &d.title,
+            |d: &mut KeyDictEchoOpts| &mut d.title,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
@@ -1733,8 +1709,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"source"),
         field: KeyField::String(
-            |d: &KeyDict_echo_opts| &d.source,
-            |d: &mut KeyDict_echo_opts| &mut d.source,
+            |d: &KeyDictEchoOpts| &d.source,
+            |d: &mut KeyDictEchoOpts| &mut d.source,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
@@ -1743,8 +1719,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"status"),
         field: KeyField::String(
-            |d: &KeyDict_echo_opts| &d.status,
-            |d: &mut KeyDict_echo_opts| &mut d.status,
+            |d: &KeyDictEchoOpts| &d.status,
+            |d: &mut KeyDictEchoOpts| &mut d.status,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
@@ -1753,8 +1729,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"percent"),
         field: KeyField::Integer(
-            |d: &KeyDict_echo_opts| &d.percent,
-            |d: &mut KeyDict_echo_opts| &mut d.percent,
+            |d: &KeyDictEchoOpts| &d.percent,
+            |d: &mut KeyDictEchoOpts| &mut d.percent,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 8,
@@ -1763,8 +1739,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"verbose"),
         field: KeyField::Boolean(
-            |d: &KeyDict_echo_opts| &d.verbose,
-            |d: &mut KeyDict_echo_opts| &mut d.verbose,
+            |d: &KeyDictEchoOpts| &d.verbose,
+            |d: &mut KeyDictEchoOpts| &mut d.verbose,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -1773,8 +1749,8 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDict_echo_opts>; 11] = [
     KeySetLink {
         str: Some(c"_truncate"),
         field: KeyField::Boolean(
-            |d: &KeyDict_echo_opts| &d._truncate,
-            |d: &mut KeyDict_echo_opts| &mut d._truncate,
+            |d: &KeyDictEchoOpts| &d._truncate,
+            |d: &mut KeyDictEchoOpts| &mut d._truncate,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
@@ -1805,12 +1781,12 @@ pub fn echo_opts_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_echo_opts>> {
+pub fn key_dict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictEchoOpts>> {
     let hash = echo_opts_hash(key);
     (hash >= 0).then(|| &ECHO_OPTS_TABLE[hash as usize])
 }
 
-pub static EMPTY_TABLE: [KeySetLink<KeyDict_empty>; 1] = [KeySetLink {
+pub static EMPTY_TABLE: [KeySetLink<KeyDictEmpty>; 1] = [KeySetLink {
     str: None,
     field: KeyField::None,
     key_type: ObjectType::ObjectTypeNil as i32,
@@ -1823,17 +1799,17 @@ pub fn empty_hash(key: &[u8]) -> i32 {
     -1
 }
 
-pub fn key_dict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_empty>> {
+pub fn key_dict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictEmpty>> {
     let hash = empty_hash(key);
     (hash >= 0).then(|| &EMPTY_TABLE[hash as usize])
 }
 
-pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
+pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDictEvalStatusline>; 8] = [
     KeySetLink {
         str: Some(c"winid"),
         field: KeyField::I32(
-            |d: &KeyDict_eval_statusline| &d.winid,
-            |d: &mut KeyDict_eval_statusline| &mut d.winid,
+            |d: &KeyDictEvalStatusline| &d.winid,
+            |d: &mut KeyDictEvalStatusline| &mut d.winid,
         ),
         key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 1,
@@ -1842,8 +1818,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"fillchar"),
         field: KeyField::String(
-            |d: &KeyDict_eval_statusline| &d.fillchar,
-            |d: &mut KeyDict_eval_statusline| &mut d.fillchar,
+            |d: &KeyDictEvalStatusline| &d.fillchar,
+            |d: &mut KeyDictEvalStatusline| &mut d.fillchar,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -1852,8 +1828,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"maxwidth"),
         field: KeyField::Integer(
-            |d: &KeyDict_eval_statusline| &d.maxwidth,
-            |d: &mut KeyDict_eval_statusline| &mut d.maxwidth,
+            |d: &KeyDictEvalStatusline| &d.maxwidth,
+            |d: &mut KeyDictEvalStatusline| &mut d.maxwidth,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
@@ -1862,8 +1838,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"highlights"),
         field: KeyField::Boolean(
-            |d: &KeyDict_eval_statusline| &d.highlights,
-            |d: &mut KeyDict_eval_statusline| &mut d.highlights,
+            |d: &KeyDictEvalStatusline| &d.highlights,
+            |d: &mut KeyDictEvalStatusline| &mut d.highlights,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -1872,8 +1848,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"use_winbar"),
         field: KeyField::Boolean(
-            |d: &KeyDict_eval_statusline| &d.use_winbar,
-            |d: &mut KeyDict_eval_statusline| &mut d.use_winbar,
+            |d: &KeyDictEvalStatusline| &d.use_winbar,
+            |d: &mut KeyDictEvalStatusline| &mut d.use_winbar,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -1882,8 +1858,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"use_tabline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_eval_statusline| &d.use_tabline,
-            |d: &mut KeyDict_eval_statusline| &mut d.use_tabline,
+            |d: &KeyDictEvalStatusline| &d.use_tabline,
+            |d: &mut KeyDictEvalStatusline| &mut d.use_tabline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -1892,8 +1868,8 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDict_eval_statusline>; 8] = [
     KeySetLink {
         str: Some(c"use_statuscol_lnum"),
         field: KeyField::Integer(
-            |d: &KeyDict_eval_statusline| &d.use_statuscol_lnum,
-            |d: &mut KeyDict_eval_statusline| &mut d.use_statuscol_lnum,
+            |d: &KeyDictEvalStatusline| &d.use_statuscol_lnum,
+            |d: &mut KeyDictEvalStatusline| &mut d.use_statuscol_lnum,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
@@ -1923,17 +1899,17 @@ pub fn eval_statusline_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_eval_statusline_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_eval_statusline>> {
+) -> Option<&'static KeySetLink<KeyDictEvalStatusline>> {
     let hash = eval_statusline_hash(key);
     (hash >= 0).then(|| &EVAL_STATUSLINE_TABLE[hash as usize])
 }
 
-pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
+pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDictExecAutocmds>; 7] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::I32(
-            |d: &KeyDict_exec_autocmds| &d.buf,
-            |d: &mut KeyDict_exec_autocmds| &mut d.buf,
+            |d: &KeyDictExecAutocmds| &d.buf,
+            |d: &mut KeyDictExecAutocmds| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
@@ -1942,8 +1918,8 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"data"),
         field: KeyField::Object(
-            |d: &KeyDict_exec_autocmds| &d.data,
-            |d: &mut KeyDict_exec_autocmds| &mut d.data,
+            |d: &KeyDictExecAutocmds| &d.data,
+            |d: &mut KeyDictExecAutocmds| &mut d.data,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
@@ -1952,8 +1928,8 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"group"),
         field: KeyField::Object(
-            |d: &KeyDict_exec_autocmds| &d.group,
-            |d: &mut KeyDict_exec_autocmds| &mut d.group,
+            |d: &KeyDictExecAutocmds| &d.group,
+            |d: &mut KeyDictExecAutocmds| &mut d.group,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
@@ -1962,8 +1938,8 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"buffer"),
         field: KeyField::I32(
-            |d: &KeyDict_exec_autocmds| &d.buffer,
-            |d: &mut KeyDict_exec_autocmds| &mut d.buffer,
+            |d: &KeyDictExecAutocmds| &d.buffer,
+            |d: &mut KeyDictExecAutocmds| &mut d.buffer,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 4,
@@ -1972,8 +1948,8 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"pattern"),
         field: KeyField::Object(
-            |d: &KeyDict_exec_autocmds| &d.pattern,
-            |d: &mut KeyDict_exec_autocmds| &mut d.pattern,
+            |d: &KeyDictExecAutocmds| &d.pattern,
+            |d: &mut KeyDictExecAutocmds| &mut d.pattern,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
@@ -1982,8 +1958,8 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDict_exec_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"modeline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_exec_autocmds| &d.modeline,
-            |d: &mut KeyDict_exec_autocmds| &mut d.modeline,
+            |d: &KeyDictExecAutocmds| &d.modeline,
+            |d: &mut KeyDictExecAutocmds| &mut d.modeline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -2012,17 +1988,17 @@ pub fn exec_autocmds_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_exec_autocmds_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_exec_autocmds>> {
+) -> Option<&'static KeySetLink<KeyDictExecAutocmds>> {
     let hash = exec_autocmds_hash(key);
     (hash >= 0).then(|| &EXEC_AUTOCMDS_TABLE[hash as usize])
 }
 
-pub static EXEC_OPTS_TABLE: [KeySetLink<KeyDict_exec_opts>; 2] = [
+pub static EXEC_OPTS_TABLE: [KeySetLink<KeyDictExecOpts>; 2] = [
     KeySetLink {
         str: Some(c"output"),
         field: KeyField::Boolean(
-            |d: &KeyDict_exec_opts| &d.output,
-            |d: &mut KeyDict_exec_opts| &mut d.output,
+            |d: &KeyDictExecOpts| &d.output,
+            |d: &mut KeyDictExecOpts| &mut d.output,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2044,17 +2020,17 @@ pub fn exec_opts_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_exec_opts>> {
+pub fn key_dict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictExecOpts>> {
     let hash = exec_opts_hash(key);
     (hash >= 0).then(|| &EXEC_OPTS_TABLE[hash as usize])
 }
 
-pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
+pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDictGetAutocmds>; 7] = [
     KeySetLink {
         str: Some(c"id"),
         field: KeyField::Integer(
-            |d: &KeyDict_get_autocmds| &d.id,
-            |d: &mut KeyDict_get_autocmds| &mut d.id,
+            |d: &KeyDictGetAutocmds| &d.id,
+            |d: &mut KeyDictGetAutocmds| &mut d.id,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -2063,8 +2039,8 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::Object(
-            |d: &KeyDict_get_autocmds| &d.buf,
-            |d: &mut KeyDict_get_autocmds| &mut d.buf,
+            |d: &KeyDictGetAutocmds| &d.buf,
+            |d: &mut KeyDictGetAutocmds| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
@@ -2073,8 +2049,8 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"event"),
         field: KeyField::Object(
-            |d: &KeyDict_get_autocmds| &d.event,
-            |d: &mut KeyDict_get_autocmds| &mut d.event,
+            |d: &KeyDictGetAutocmds| &d.event,
+            |d: &mut KeyDictGetAutocmds| &mut d.event,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
@@ -2083,8 +2059,8 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"group"),
         field: KeyField::Object(
-            |d: &KeyDict_get_autocmds| &d.group,
-            |d: &mut KeyDict_get_autocmds| &mut d.group,
+            |d: &KeyDictGetAutocmds| &d.group,
+            |d: &mut KeyDictGetAutocmds| &mut d.group,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
@@ -2093,8 +2069,8 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"buffer"),
         field: KeyField::Object(
-            |d: &KeyDict_get_autocmds| &d.buffer,
-            |d: &mut KeyDict_get_autocmds| &mut d.buffer,
+            |d: &KeyDictGetAutocmds| &d.buffer,
+            |d: &mut KeyDictGetAutocmds| &mut d.buffer,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
@@ -2103,8 +2079,8 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDict_get_autocmds>; 7] = [
     KeySetLink {
         str: Some(c"pattern"),
         field: KeyField::Object(
-            |d: &KeyDict_get_autocmds| &d.pattern,
-            |d: &mut KeyDict_get_autocmds| &mut d.pattern,
+            |d: &KeyDictGetAutocmds| &d.pattern,
+            |d: &mut KeyDictGetAutocmds| &mut d.pattern,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 6,
@@ -2133,17 +2109,17 @@ pub fn get_autocmds_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_get_autocmds_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_get_autocmds>> {
+) -> Option<&'static KeySetLink<KeyDictGetAutocmds>> {
     let hash = get_autocmds_hash(key);
     (hash >= 0).then(|| &GET_AUTOCMDS_TABLE[hash as usize])
 }
 
-pub static GET_COMMANDS_TABLE: [KeySetLink<KeyDict_get_commands>; 2] = [
+pub static GET_COMMANDS_TABLE: [KeySetLink<KeyDictGetCommands>; 2] = [
     KeySetLink {
         str: Some(c"builtin"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_commands| &d.builtin,
-            |d: &mut KeyDict_get_commands| &mut d.builtin,
+            |d: &KeyDictGetCommands| &d.builtin,
+            |d: &mut KeyDictGetCommands| &mut d.builtin,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2167,17 +2143,17 @@ pub fn get_commands_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_get_commands_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_get_commands>> {
+) -> Option<&'static KeySetLink<KeyDictGetCommands>> {
     let hash = get_commands_hash(key);
     (hash >= 0).then(|| &GET_COMMANDS_TABLE[hash as usize])
 }
 
-pub static GET_EXTMARK_TABLE: [KeySetLink<KeyDict_get_extmark>; 3] = [
+pub static GET_EXTMARK_TABLE: [KeySetLink<KeyDictGetExtmark>; 3] = [
     KeySetLink {
         str: Some(c"details"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_extmark| &d.details,
-            |d: &mut KeyDict_get_extmark| &mut d.details,
+            |d: &KeyDictGetExtmark| &d.details,
+            |d: &mut KeyDictGetExtmark| &mut d.details,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -2186,8 +2162,8 @@ pub static GET_EXTMARK_TABLE: [KeySetLink<KeyDict_get_extmark>; 3] = [
     KeySetLink {
         str: Some(c"hl_name"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_extmark| &d.hl_name,
-            |d: &mut KeyDict_get_extmark| &mut d.hl_name,
+            |d: &KeyDictGetExtmark| &d.hl_name,
+            |d: &mut KeyDictGetExtmark| &mut d.hl_name,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -2212,17 +2188,17 @@ pub fn get_extmark_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_get_extmark_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_get_extmark>> {
+) -> Option<&'static KeySetLink<KeyDictGetExtmark>> {
     let hash = get_extmark_hash(key);
     (hash >= 0).then(|| &GET_EXTMARK_TABLE[hash as usize])
 }
 
-pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDict_get_extmarks>; 6] = [
+pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDictGetExtmarks>; 6] = [
     KeySetLink {
         str: Some(c"type"),
         field: KeyField::String(
-            |d: &KeyDict_get_extmarks| &d.type_,
-            |d: &mut KeyDict_get_extmarks| &mut d.type_,
+            |d: &KeyDictGetExtmarks| &d.type_,
+            |d: &mut KeyDictGetExtmarks| &mut d.type_,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
@@ -2231,8 +2207,8 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDict_get_extmarks>; 6] = [
     KeySetLink {
         str: Some(c"limit"),
         field: KeyField::Integer(
-            |d: &KeyDict_get_extmarks| &d.limit,
-            |d: &mut KeyDict_get_extmarks| &mut d.limit,
+            |d: &KeyDictGetExtmarks| &d.limit,
+            |d: &mut KeyDictGetExtmarks| &mut d.limit,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 2,
@@ -2241,8 +2217,8 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDict_get_extmarks>; 6] = [
     KeySetLink {
         str: Some(c"details"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_extmarks| &d.details,
-            |d: &mut KeyDict_get_extmarks| &mut d.details,
+            |d: &KeyDictGetExtmarks| &d.details,
+            |d: &mut KeyDictGetExtmarks| &mut d.details,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -2251,8 +2227,8 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDict_get_extmarks>; 6] = [
     KeySetLink {
         str: Some(c"hl_name"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_extmarks| &d.hl_name,
-            |d: &mut KeyDict_get_extmarks| &mut d.hl_name,
+            |d: &KeyDictGetExtmarks| &d.hl_name,
+            |d: &mut KeyDictGetExtmarks| &mut d.hl_name,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -2261,8 +2237,8 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDict_get_extmarks>; 6] = [
     KeySetLink {
         str: Some(c"overlap"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_extmarks| &d.overlap,
-            |d: &mut KeyDict_get_extmarks| &mut d.overlap,
+            |d: &KeyDictGetExtmarks| &d.overlap,
+            |d: &mut KeyDictGetExtmarks| &mut d.overlap,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -2290,17 +2266,17 @@ pub fn get_extmarks_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_get_extmarks_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_get_extmarks>> {
+) -> Option<&'static KeySetLink<KeyDictGetExtmarks>> {
     let hash = get_extmarks_hash(key);
     (hash >= 0).then(|| &GET_EXTMARKS_TABLE[hash as usize])
 }
 
-pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDict_get_highlight>; 5] = [
+pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDictGetHighlight>; 5] = [
     KeySetLink {
         str: Some(c"id"),
         field: KeyField::Integer(
-            |d: &KeyDict_get_highlight| &d.id,
-            |d: &mut KeyDict_get_highlight| &mut d.id,
+            |d: &KeyDictGetHighlight| &d.id,
+            |d: &mut KeyDictGetHighlight| &mut d.id,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -2309,8 +2285,8 @@ pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDict_get_highlight>; 5] = [
     KeySetLink {
         str: Some(c"link"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_highlight| &d.link,
-            |d: &mut KeyDict_get_highlight| &mut d.link,
+            |d: &KeyDictGetHighlight| &d.link,
+            |d: &mut KeyDictGetHighlight| &mut d.link,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -2319,8 +2295,8 @@ pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDict_get_highlight>; 5] = [
     KeySetLink {
         str: Some(c"name"),
         field: KeyField::String(
-            |d: &KeyDict_get_highlight| &d.name,
-            |d: &mut KeyDict_get_highlight| &mut d.name,
+            |d: &KeyDictGetHighlight| &d.name,
+            |d: &mut KeyDictGetHighlight| &mut d.name,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
@@ -2329,8 +2305,8 @@ pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDict_get_highlight>; 5] = [
     KeySetLink {
         str: Some(c"create"),
         field: KeyField::Boolean(
-            |d: &KeyDict_get_highlight| &d.create,
-            |d: &mut KeyDict_get_highlight| &mut d.create,
+            |d: &KeyDictGetHighlight| &d.create,
+            |d: &mut KeyDictGetHighlight| &mut d.create,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -2357,17 +2333,17 @@ pub fn get_highlight_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_get_highlight_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_get_highlight>> {
+) -> Option<&'static KeySetLink<KeyDictGetHighlight>> {
     let hash = get_highlight_hash(key);
     (hash >= 0).then(|| &GET_HIGHLIGHT_TABLE[hash as usize])
 }
 
-pub static GET_NS_TABLE: [KeySetLink<KeyDict_get_ns>; 2] = [
+pub static GET_NS_TABLE: [KeySetLink<KeyDictGetNs>; 2] = [
     KeySetLink {
         str: Some(c"winid"),
         field: KeyField::I32(
-            |d: &KeyDict_get_ns| &d.winid,
-            |d: &mut KeyDict_get_ns| &mut d.winid,
+            |d: &KeyDictGetNs| &d.winid,
+            |d: &mut KeyDictGetNs| &mut d.winid,
         ),
         key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 1,
@@ -2389,17 +2365,17 @@ pub fn get_ns_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_get_ns>> {
+pub fn key_dict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictGetNs>> {
     let hash = get_ns_hash(key);
     (hash >= 0).then(|| &GET_NS_TABLE[hash as usize])
 }
 
-pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
+pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDictHighlight>; 37] = [
     KeySetLink {
         str: Some(c"bg"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.bg,
-            |d: &mut KeyDict_highlight| &mut d.bg,
+            |d: &KeyDictHighlight| &d.bg,
+            |d: &mut KeyDictHighlight| &mut d.bg,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 1,
@@ -2408,8 +2384,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"fg"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.fg,
-            |d: &mut KeyDict_highlight| &mut d.fg,
+            |d: &KeyDictHighlight| &d.fg,
+            |d: &mut KeyDictHighlight| &mut d.fg,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
@@ -2418,8 +2394,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"sp"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.sp,
-            |d: &mut KeyDict_highlight| &mut d.sp,
+            |d: &KeyDictHighlight| &d.sp,
+            |d: &mut KeyDictHighlight| &mut d.sp,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 3,
@@ -2428,8 +2404,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"dim"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.dim,
-            |d: &mut KeyDict_highlight| &mut d.dim,
+            |d: &KeyDictHighlight| &d.dim,
+            |d: &mut KeyDictHighlight| &mut d.dim,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -2438,8 +2414,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"url"),
         field: KeyField::String(
-            |d: &KeyDict_highlight| &d.url,
-            |d: &mut KeyDict_highlight| &mut d.url,
+            |d: &KeyDictHighlight| &d.url,
+            |d: &mut KeyDictHighlight| &mut d.url,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
@@ -2448,8 +2424,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"bold"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.bold,
-            |d: &mut KeyDict_highlight| &mut d.bold,
+            |d: &KeyDictHighlight| &d.bold,
+            |d: &mut KeyDictHighlight| &mut d.bold,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -2458,8 +2434,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"font"),
         field: KeyField::String(
-            |d: &KeyDict_highlight| &d.font,
-            |d: &mut KeyDict_highlight| &mut d.font,
+            |d: &KeyDictHighlight| &d.font,
+            |d: &mut KeyDictHighlight| &mut d.font,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
@@ -2468,8 +2444,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"link"),
         field: KeyField::Integer(
-            |d: &KeyDict_highlight| &d.link,
-            |d: &mut KeyDict_highlight| &mut d.link,
+            |d: &KeyDictHighlight| &d.link,
+            |d: &mut KeyDictHighlight| &mut d.link,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 8,
@@ -2478,8 +2454,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"blend"),
         field: KeyField::Integer(
-            |d: &KeyDict_highlight| &d.blend,
-            |d: &mut KeyDict_highlight| &mut d.blend,
+            |d: &KeyDictHighlight| &d.blend,
+            |d: &mut KeyDictHighlight| &mut d.blend,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 9,
@@ -2488,8 +2464,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"force"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.force,
-            |d: &mut KeyDict_highlight| &mut d.force,
+            |d: &KeyDictHighlight| &d.force,
+            |d: &mut KeyDictHighlight| &mut d.force,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
@@ -2498,8 +2474,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"blink"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.blink,
-            |d: &mut KeyDict_highlight| &mut d.blink,
+            |d: &KeyDictHighlight| &d.blink,
+            |d: &mut KeyDictHighlight| &mut d.blink,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
@@ -2508,8 +2484,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"cterm"),
         field: KeyField::Dict(
-            |d: &KeyDict_highlight| &d.cterm,
-            |d: &mut KeyDict_highlight| &mut d.cterm,
+            |d: &KeyDictHighlight| &d.cterm,
+            |d: &mut KeyDictHighlight| &mut d.cterm,
         ),
         key_type: ObjectType::ObjectTypeDict as i32,
         opt_index: 12,
@@ -2518,8 +2494,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"italic"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.italic,
-            |d: &mut KeyDict_highlight| &mut d.italic,
+            |d: &KeyDictHighlight| &d.italic,
+            |d: &mut KeyDictHighlight| &mut d.italic,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 13,
@@ -2528,8 +2504,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"update"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.update,
-            |d: &mut KeyDict_highlight| &mut d.update,
+            |d: &KeyDictHighlight| &d.update,
+            |d: &mut KeyDictHighlight| &mut d.update,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
@@ -2538,8 +2514,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"reverse"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.reverse,
-            |d: &mut KeyDict_highlight| &mut d.reverse,
+            |d: &KeyDictHighlight| &d.reverse,
+            |d: &mut KeyDictHighlight| &mut d.reverse,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 15,
@@ -2548,8 +2524,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"default"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.default_,
-            |d: &mut KeyDict_highlight| &mut d.default_,
+            |d: &KeyDictHighlight| &d.default_,
+            |d: &mut KeyDictHighlight| &mut d.default_,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 16,
@@ -2558,8 +2534,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"altfont"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.altfont,
-            |d: &mut KeyDict_highlight| &mut d.altfont,
+            |d: &KeyDictHighlight| &d.altfont,
+            |d: &mut KeyDictHighlight| &mut d.altfont,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
@@ -2568,8 +2544,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"conceal"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.conceal,
-            |d: &mut KeyDict_highlight| &mut d.conceal,
+            |d: &KeyDictHighlight| &d.conceal,
+            |d: &mut KeyDictHighlight| &mut d.conceal,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
@@ -2578,8 +2554,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"special"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.special,
-            |d: &mut KeyDict_highlight| &mut d.special,
+            |d: &KeyDictHighlight| &d.special,
+            |d: &mut KeyDictHighlight| &mut d.special,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 19,
@@ -2588,8 +2564,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"ctermfg"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.ctermfg,
-            |d: &mut KeyDict_highlight| &mut d.ctermfg,
+            |d: &KeyDictHighlight| &d.ctermfg,
+            |d: &mut KeyDictHighlight| &mut d.ctermfg,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 20,
@@ -2598,8 +2574,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"ctermbg"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.ctermbg,
-            |d: &mut KeyDict_highlight| &mut d.ctermbg,
+            |d: &KeyDictHighlight| &d.ctermbg,
+            |d: &mut KeyDictHighlight| &mut d.ctermbg,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 21,
@@ -2608,8 +2584,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"fallback"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.fallback,
-            |d: &mut KeyDict_highlight| &mut d.fallback,
+            |d: &KeyDictHighlight| &d.fallback,
+            |d: &mut KeyDictHighlight| &mut d.fallback,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 22,
@@ -2618,8 +2594,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"overline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.overline,
-            |d: &mut KeyDict_highlight| &mut d.overline,
+            |d: &KeyDictHighlight| &d.overline,
+            |d: &mut KeyDictHighlight| &mut d.overline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 23,
@@ -2628,8 +2604,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"standout"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.standout,
-            |d: &mut KeyDict_highlight| &mut d.standout,
+            |d: &KeyDictHighlight| &d.standout,
+            |d: &mut KeyDictHighlight| &mut d.standout,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 24,
@@ -2638,8 +2614,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"nocombine"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.nocombine,
-            |d: &mut KeyDict_highlight| &mut d.nocombine,
+            |d: &KeyDictHighlight| &d.nocombine,
+            |d: &mut KeyDictHighlight| &mut d.nocombine,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 25,
@@ -2648,8 +2624,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"undercurl"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.undercurl,
-            |d: &mut KeyDict_highlight| &mut d.undercurl,
+            |d: &KeyDictHighlight| &d.undercurl,
+            |d: &mut KeyDictHighlight| &mut d.undercurl,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 26,
@@ -2658,8 +2634,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"underline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.underline,
-            |d: &mut KeyDict_highlight| &mut d.underline,
+            |d: &KeyDictHighlight| &d.underline,
+            |d: &mut KeyDictHighlight| &mut d.underline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 27,
@@ -2668,8 +2644,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"background"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.background,
-            |d: &mut KeyDict_highlight| &mut d.background,
+            |d: &KeyDictHighlight| &d.background,
+            |d: &mut KeyDictHighlight| &mut d.background,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 28,
@@ -2678,8 +2654,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"bg_indexed"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.bg_indexed,
-            |d: &mut KeyDict_highlight| &mut d.bg_indexed,
+            |d: &KeyDictHighlight| &d.bg_indexed,
+            |d: &mut KeyDictHighlight| &mut d.bg_indexed,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 29,
@@ -2688,8 +2664,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"foreground"),
         field: KeyField::Object(
-            |d: &KeyDict_highlight| &d.foreground,
-            |d: &mut KeyDict_highlight| &mut d.foreground,
+            |d: &KeyDictHighlight| &d.foreground,
+            |d: &mut KeyDictHighlight| &mut d.foreground,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 30,
@@ -2698,8 +2674,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"fg_indexed"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.fg_indexed,
-            |d: &mut KeyDict_highlight| &mut d.fg_indexed,
+            |d: &KeyDictHighlight| &d.fg_indexed,
+            |d: &mut KeyDictHighlight| &mut d.fg_indexed,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 31,
@@ -2708,8 +2684,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"link_global"),
         field: KeyField::Integer(
-            |d: &KeyDict_highlight| &d.link_global,
-            |d: &mut KeyDict_highlight| &mut d.link_global,
+            |d: &KeyDictHighlight| &d.link_global,
+            |d: &mut KeyDictHighlight| &mut d.link_global,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 32,
@@ -2718,8 +2694,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"underdashed"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.underdashed,
-            |d: &mut KeyDict_highlight| &mut d.underdashed,
+            |d: &KeyDictHighlight| &d.underdashed,
+            |d: &mut KeyDictHighlight| &mut d.underdashed,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 33,
@@ -2728,8 +2704,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"underdotted"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.underdotted,
-            |d: &mut KeyDict_highlight| &mut d.underdotted,
+            |d: &KeyDictHighlight| &d.underdotted,
+            |d: &mut KeyDictHighlight| &mut d.underdotted,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 34,
@@ -2738,8 +2714,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"underdouble"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.underdouble,
-            |d: &mut KeyDict_highlight| &mut d.underdouble,
+            |d: &KeyDictHighlight| &d.underdouble,
+            |d: &mut KeyDictHighlight| &mut d.underdouble,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 35,
@@ -2748,8 +2724,8 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDict_highlight>; 37] = [
     KeySetLink {
         str: Some(c"strikethrough"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight| &d.strikethrough,
-            |d: &mut KeyDict_highlight| &mut d.strikethrough,
+            |d: &KeyDictHighlight| &d.strikethrough,
+            |d: &mut KeyDictHighlight| &mut d.strikethrough,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 36,
@@ -2806,17 +2782,17 @@ pub fn highlight_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_highlight>> {
+pub fn key_dict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictHighlight>> {
     let hash = highlight_hash(key);
     (hash >= 0).then(|| &HIGHLIGHT_TABLE[hash as usize])
 }
 
-pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
+pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDictHighlightCterm>; 17] = [
     KeySetLink {
         str: Some(c"dim"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.dim,
-            |d: &mut KeyDict_highlight_cterm| &mut d.dim,
+            |d: &KeyDictHighlightCterm| &d.dim,
+            |d: &mut KeyDictHighlightCterm| &mut d.dim,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2825,8 +2801,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"bold"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.bold,
-            |d: &mut KeyDict_highlight_cterm| &mut d.bold,
+            |d: &KeyDictHighlightCterm| &d.bold,
+            |d: &mut KeyDictHighlightCterm| &mut d.bold,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2835,8 +2811,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"blink"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.blink,
-            |d: &mut KeyDict_highlight_cterm| &mut d.blink,
+            |d: &KeyDictHighlightCterm| &d.blink,
+            |d: &mut KeyDictHighlightCterm| &mut d.blink,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2845,8 +2821,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"italic"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.italic,
-            |d: &mut KeyDict_highlight_cterm| &mut d.italic,
+            |d: &KeyDictHighlightCterm| &d.italic,
+            |d: &mut KeyDictHighlightCterm| &mut d.italic,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2855,8 +2831,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"altfont"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.altfont,
-            |d: &mut KeyDict_highlight_cterm| &mut d.altfont,
+            |d: &KeyDictHighlightCterm| &d.altfont,
+            |d: &mut KeyDictHighlightCterm| &mut d.altfont,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2865,8 +2841,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"conceal"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.conceal,
-            |d: &mut KeyDict_highlight_cterm| &mut d.conceal,
+            |d: &KeyDictHighlightCterm| &d.conceal,
+            |d: &mut KeyDictHighlightCterm| &mut d.conceal,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2875,8 +2851,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"reverse"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.reverse,
-            |d: &mut KeyDict_highlight_cterm| &mut d.reverse,
+            |d: &KeyDictHighlightCterm| &d.reverse,
+            |d: &mut KeyDictHighlightCterm| &mut d.reverse,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2885,8 +2861,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"overline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.overline,
-            |d: &mut KeyDict_highlight_cterm| &mut d.overline,
+            |d: &KeyDictHighlightCterm| &d.overline,
+            |d: &mut KeyDictHighlightCterm| &mut d.overline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2895,8 +2871,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"standout"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.standout,
-            |d: &mut KeyDict_highlight_cterm| &mut d.standout,
+            |d: &KeyDictHighlightCterm| &d.standout,
+            |d: &mut KeyDictHighlightCterm| &mut d.standout,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2905,8 +2881,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"nocombine"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.nocombine,
-            |d: &mut KeyDict_highlight_cterm| &mut d.nocombine,
+            |d: &KeyDictHighlightCterm| &d.nocombine,
+            |d: &mut KeyDictHighlightCterm| &mut d.nocombine,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2915,8 +2891,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"undercurl"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.undercurl,
-            |d: &mut KeyDict_highlight_cterm| &mut d.undercurl,
+            |d: &KeyDictHighlightCterm| &d.undercurl,
+            |d: &mut KeyDictHighlightCterm| &mut d.undercurl,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2925,8 +2901,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"underline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.underline,
-            |d: &mut KeyDict_highlight_cterm| &mut d.underline,
+            |d: &KeyDictHighlightCterm| &d.underline,
+            |d: &mut KeyDictHighlightCterm| &mut d.underline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2935,8 +2911,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"underdashed"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.underdashed,
-            |d: &mut KeyDict_highlight_cterm| &mut d.underdashed,
+            |d: &KeyDictHighlightCterm| &d.underdashed,
+            |d: &mut KeyDictHighlightCterm| &mut d.underdashed,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2945,8 +2921,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"underdotted"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.underdotted,
-            |d: &mut KeyDict_highlight_cterm| &mut d.underdotted,
+            |d: &KeyDictHighlightCterm| &d.underdotted,
+            |d: &mut KeyDictHighlightCterm| &mut d.underdotted,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2955,8 +2931,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"underdouble"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.underdouble,
-            |d: &mut KeyDict_highlight_cterm| &mut d.underdouble,
+            |d: &KeyDictHighlightCterm| &d.underdouble,
+            |d: &mut KeyDictHighlightCterm| &mut d.underdouble,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -2965,8 +2941,8 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDict_highlight_cterm>; 17] = [
     KeySetLink {
         str: Some(c"strikethrough"),
         field: KeyField::Boolean(
-            |d: &KeyDict_highlight_cterm| &d.strikethrough,
-            |d: &mut KeyDict_highlight_cterm| &mut d.strikethrough,
+            |d: &KeyDictHighlightCterm| &d.strikethrough,
+            |d: &mut KeyDictHighlightCterm| &mut d.strikethrough,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -3005,17 +2981,17 @@ pub fn highlight_cterm_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_highlight_cterm_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_highlight_cterm>> {
+) -> Option<&'static KeySetLink<KeyDictHighlightCterm>> {
     let hash = highlight_cterm_hash(key);
     (hash >= 0).then(|| &HIGHLIGHT_CTERM_TABLE[hash as usize])
 }
 
-pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
+pub static KEYMAP_TABLE: [KeySetLink<KeyDictKeymap>; 10] = [
     KeySetLink {
         str: Some(c"desc"),
         field: KeyField::String(
-            |d: &KeyDict_keymap| &d.desc,
-            |d: &mut KeyDict_keymap| &mut d.desc,
+            |d: &KeyDictKeymap| &d.desc,
+            |d: &mut KeyDictKeymap| &mut d.desc,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
@@ -3024,8 +3000,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"expr"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.expr,
-            |d: &mut KeyDict_keymap| &mut d.expr,
+            |d: &KeyDictKeymap| &d.expr,
+            |d: &mut KeyDictKeymap| &mut d.expr,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -3034,8 +3010,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"script"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.script,
-            |d: &mut KeyDict_keymap| &mut d.script,
+            |d: &KeyDictKeymap| &d.script,
+            |d: &mut KeyDictKeymap| &mut d.script,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -3044,8 +3020,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"silent"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.silent,
-            |d: &mut KeyDict_keymap| &mut d.silent,
+            |d: &KeyDictKeymap| &d.silent,
+            |d: &mut KeyDictKeymap| &mut d.silent,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -3054,8 +3030,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"unique"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.unique,
-            |d: &mut KeyDict_keymap| &mut d.unique,
+            |d: &KeyDictKeymap| &d.unique,
+            |d: &mut KeyDictKeymap| &mut d.unique,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -3064,8 +3040,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"nowait"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.nowait,
-            |d: &mut KeyDict_keymap| &mut d.nowait,
+            |d: &KeyDictKeymap| &d.nowait,
+            |d: &mut KeyDictKeymap| &mut d.nowait,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -3074,8 +3050,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"noremap"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.noremap,
-            |d: &mut KeyDict_keymap| &mut d.noremap,
+            |d: &KeyDictKeymap| &d.noremap,
+            |d: &mut KeyDictKeymap| &mut d.noremap,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
@@ -3084,8 +3060,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"callback"),
         field: KeyField::I32(
-            |d: &KeyDict_keymap| &d.callback,
-            |d: &mut KeyDict_keymap| &mut d.callback,
+            |d: &KeyDictKeymap| &d.callback,
+            |d: &mut KeyDictKeymap| &mut d.callback,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 8,
@@ -3094,8 +3070,8 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDict_keymap>; 10] = [
     KeySetLink {
         str: Some(c"replace_keycodes"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap| &d.replace_keycodes,
-            |d: &mut KeyDict_keymap| &mut d.replace_keycodes,
+            |d: &KeyDictKeymap| &d.replace_keycodes,
+            |d: &mut KeyDictKeymap| &mut d.replace_keycodes,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -3125,17 +3101,17 @@ pub fn keymap_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_keymap>> {
+pub fn key_dict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictKeymap>> {
     let hash = keymap_hash(key);
     (hash >= 0).then(|| &KEYMAP_TABLE[hash as usize])
 }
 
-pub static KEYMAP_DEL_TABLE: [KeySetLink<KeyDict_keymap_del>; 2] = [
+pub static KEYMAP_DEL_TABLE: [KeySetLink<KeyDictKeymapDel>; 2] = [
     KeySetLink {
         str: Some(c"lhs"),
         field: KeyField::Boolean(
-            |d: &KeyDict_keymap_del| &d.lhs,
-            |d: &mut KeyDict_keymap_del| &mut d.lhs,
+            |d: &KeyDictKeymapDel| &d.lhs,
+            |d: &mut KeyDictKeymapDel| &mut d.lhs,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -3157,19 +3133,17 @@ pub fn keymap_del_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_keymap_del_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_keymap_del>> {
+pub fn key_dict_keymap_del_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictKeymapDel>> {
     let hash = keymap_del_hash(key);
     (hash >= 0).then(|| &KEYMAP_DEL_TABLE[hash as usize])
 }
 
-pub static NS_OPTS_TABLE: [KeySetLink<KeyDict_ns_opts>; 2] = [
+pub static NS_OPTS_TABLE: [KeySetLink<KeyDictNsOpts>; 2] = [
     KeySetLink {
         str: Some(c"wins"),
         field: KeyField::Array(
-            |d: &KeyDict_ns_opts| &d.wins,
-            |d: &mut KeyDict_ns_opts| &mut d.wins,
+            |d: &KeyDictNsOpts| &d.wins,
+            |d: &mut KeyDictNsOpts| &mut d.wins,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 1,
@@ -3191,17 +3165,17 @@ pub fn ns_opts_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_ns_opts>> {
+pub fn key_dict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictNsOpts>> {
     let hash = ns_opts_hash(key);
     (hash >= 0).then(|| &NS_OPTS_TABLE[hash as usize])
 }
 
-pub static OPEN_TERM_TABLE: [KeySetLink<KeyDict_open_term>; 3] = [
+pub static OPEN_TERM_TABLE: [KeySetLink<KeyDictOpenTerm>; 3] = [
     KeySetLink {
         str: Some(c"on_input"),
         field: KeyField::I32(
-            |d: &KeyDict_open_term| &d.on_input,
-            |d: &mut KeyDict_open_term| &mut d.on_input,
+            |d: &KeyDictOpenTerm| &d.on_input,
+            |d: &mut KeyDictOpenTerm| &mut d.on_input,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 1,
@@ -3210,8 +3184,8 @@ pub static OPEN_TERM_TABLE: [KeySetLink<KeyDict_open_term>; 3] = [
     KeySetLink {
         str: Some(c"force_crlf"),
         field: KeyField::Boolean(
-            |d: &KeyDict_open_term| &d.force_crlf,
-            |d: &mut KeyDict_open_term| &mut d.force_crlf,
+            |d: &KeyDictOpenTerm| &d.force_crlf,
+            |d: &mut KeyDictOpenTerm| &mut d.force_crlf,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 2,
@@ -3234,17 +3208,17 @@ pub fn open_term_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_open_term>> {
+pub fn key_dict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictOpenTerm>> {
     let hash = open_term_hash(key);
     (hash >= 0).then(|| &OPEN_TERM_TABLE[hash as usize])
 }
 
-pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
+pub static OPTION_TABLE: [KeySetLink<KeyDictOption>; 8] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::I32(
-            |d: &KeyDict_option| &d.buf,
-            |d: &mut KeyDict_option| &mut d.buf,
+            |d: &KeyDictOption| &d.buf,
+            |d: &mut KeyDictOption| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
@@ -3253,8 +3227,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"tab"),
         field: KeyField::I32(
-            |d: &KeyDict_option| &d.tab,
-            |d: &mut KeyDict_option| &mut d.tab,
+            |d: &KeyDictOption| &d.tab,
+            |d: &mut KeyDictOption| &mut d.tab,
         ),
         key_type: ObjectType::ObjectTypeTabpage as i32,
         opt_index: 2,
@@ -3263,8 +3237,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"win"),
         field: KeyField::I32(
-            |d: &KeyDict_option| &d.win,
-            |d: &mut KeyDict_option| &mut d.win,
+            |d: &KeyDictOption| &d.win,
+            |d: &mut KeyDictOption| &mut d.win,
         ),
         key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 3,
@@ -3273,8 +3247,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"scope"),
         field: KeyField::String(
-            |d: &KeyDict_option| &d.scope,
-            |d: &mut KeyDict_option| &mut d.scope,
+            |d: &KeyDictOption| &d.scope,
+            |d: &mut KeyDictOption| &mut d.scope,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 4,
@@ -3283,8 +3257,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"dry_run"),
         field: KeyField::Boolean(
-            |d: &KeyDict_option| &d.dry_run,
-            |d: &mut KeyDict_option| &mut d.dry_run,
+            |d: &KeyDictOption| &d.dry_run,
+            |d: &mut KeyDictOption| &mut d.dry_run,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -3293,8 +3267,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"filetype"),
         field: KeyField::String(
-            |d: &KeyDict_option| &d.filetype,
-            |d: &mut KeyDict_option| &mut d.filetype,
+            |d: &KeyDictOption| &d.filetype,
+            |d: &mut KeyDictOption| &mut d.filetype,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
@@ -3303,8 +3277,8 @@ pub static OPTION_TABLE: [KeySetLink<KeyDict_option>; 8] = [
     KeySetLink {
         str: Some(c"operation"),
         field: KeyField::String(
-            |d: &KeyDict_option| &d.operation,
-            |d: &mut KeyDict_option| &mut d.operation,
+            |d: &KeyDictOption| &d.operation,
+            |d: &mut KeyDictOption| &mut d.operation,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 7,
@@ -3332,17 +3306,17 @@ pub fn option_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_option>> {
+pub fn key_dict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictOption>> {
     let hash = option_hash(key);
     (hash >= 0).then(|| &OPTION_TABLE[hash as usize])
 }
 
-pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
+pub static REDRAW_TABLE: [KeySetLink<KeyDictRedraw>; 11] = [
     KeySetLink {
         str: Some(c"buf"),
         field: KeyField::I32(
-            |d: &KeyDict_redraw| &d.buf,
-            |d: &mut KeyDict_redraw| &mut d.buf,
+            |d: &KeyDictRedraw| &d.buf,
+            |d: &mut KeyDictRedraw| &mut d.buf,
         ),
         key_type: ObjectType::ObjectTypeBuffer as i32,
         opt_index: 1,
@@ -3351,8 +3325,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"win"),
         field: KeyField::I32(
-            |d: &KeyDict_redraw| &d.win,
-            |d: &mut KeyDict_redraw| &mut d.win,
+            |d: &KeyDictRedraw| &d.win,
+            |d: &mut KeyDictRedraw| &mut d.win,
         ),
         key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 2,
@@ -3361,8 +3335,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"flush"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.flush,
-            |d: &mut KeyDict_redraw| &mut d.flush,
+            |d: &KeyDictRedraw| &d.flush,
+            |d: &mut KeyDictRedraw| &mut d.flush,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -3371,8 +3345,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"range"),
         field: KeyField::Array(
-            |d: &KeyDict_redraw| &d.range,
-            |d: &mut KeyDict_redraw| &mut d.range,
+            |d: &KeyDictRedraw| &d.range,
+            |d: &mut KeyDictRedraw| &mut d.range,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 4,
@@ -3381,8 +3355,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"valid"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.valid,
-            |d: &mut KeyDict_redraw| &mut d.valid,
+            |d: &KeyDictRedraw| &d.valid,
+            |d: &mut KeyDictRedraw| &mut d.valid,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -3391,8 +3365,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"cursor"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.cursor,
-            |d: &mut KeyDict_redraw| &mut d.cursor,
+            |d: &KeyDictRedraw| &d.cursor,
+            |d: &mut KeyDictRedraw| &mut d.cursor,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -3401,8 +3375,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"winbar"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.winbar,
-            |d: &mut KeyDict_redraw| &mut d.winbar,
+            |d: &KeyDictRedraw| &d.winbar,
+            |d: &mut KeyDictRedraw| &mut d.winbar,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
@@ -3411,8 +3385,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"tabline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.tabline,
-            |d: &mut KeyDict_redraw| &mut d.tabline,
+            |d: &KeyDictRedraw| &d.tabline,
+            |d: &mut KeyDictRedraw| &mut d.tabline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
@@ -3421,8 +3395,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"statusline"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.statusline,
-            |d: &mut KeyDict_redraw| &mut d.statusline,
+            |d: &KeyDictRedraw| &d.statusline,
+            |d: &mut KeyDictRedraw| &mut d.statusline,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -3431,8 +3405,8 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDict_redraw>; 11] = [
     KeySetLink {
         str: Some(c"statuscolumn"),
         field: KeyField::Boolean(
-            |d: &KeyDict_redraw| &d.statuscolumn,
-            |d: &mut KeyDict_redraw| &mut d.statuscolumn,
+            |d: &KeyDictRedraw| &d.statuscolumn,
+            |d: &mut KeyDictRedraw| &mut d.statuscolumn,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
@@ -3463,17 +3437,17 @@ pub fn redraw_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_redraw>> {
+pub fn key_dict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictRedraw>> {
     let hash = redraw_hash(key);
     (hash >= 0).then(|| &REDRAW_TABLE[hash as usize])
 }
 
-pub static RUNTIME_TABLE: [KeySetLink<KeyDict_runtime>; 3] = [
+pub static RUNTIME_TABLE: [KeySetLink<KeyDictRuntime>; 3] = [
     KeySetLink {
         str: Some(c"is_lua"),
         field: KeyField::Boolean(
-            |d: &KeyDict_runtime| &d.is_lua,
-            |d: &mut KeyDict_runtime| &mut d.is_lua,
+            |d: &KeyDictRuntime| &d.is_lua,
+            |d: &mut KeyDictRuntime| &mut d.is_lua,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -3482,8 +3456,8 @@ pub static RUNTIME_TABLE: [KeySetLink<KeyDict_runtime>; 3] = [
     KeySetLink {
         str: Some(c"do_source"),
         field: KeyField::Boolean(
-            |d: &KeyDict_runtime| &d.do_source,
-            |d: &mut KeyDict_runtime| &mut d.do_source,
+            |d: &KeyDictRuntime| &d.do_source,
+            |d: &mut KeyDictRuntime| &mut d.do_source,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: -1,
@@ -3506,17 +3480,17 @@ pub fn runtime_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_runtime>> {
+pub fn key_dict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictRuntime>> {
     let hash = runtime_hash(key);
     (hash >= 0).then(|| &RUNTIME_TABLE[hash as usize])
 }
 
-pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_provider>; 11] = [
+pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDictSetDecorationProvider>; 11] = [
     KeySetLink {
         str: Some(c"on_buf"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_buf,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_buf,
+            |d: &KeyDictSetDecorationProvider| &d.on_buf,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_buf,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 1,
@@ -3525,8 +3499,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"on_end"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_end,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_end,
+            |d: &KeyDictSetDecorationProvider| &d.on_end,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_end,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
@@ -3535,8 +3509,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"on_win"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_win,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_win,
+            |d: &KeyDictSetDecorationProvider| &d.on_win,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_win,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 3,
@@ -3545,8 +3519,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"on_line"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_line,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_line,
+            |d: &KeyDictSetDecorationProvider| &d.on_line,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_line,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 4,
@@ -3555,8 +3529,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"on_range"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_range,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_range,
+            |d: &KeyDictSetDecorationProvider| &d.on_range,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_range,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 5,
@@ -3565,8 +3539,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"on_start"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d.on_start,
-            |d: &mut KeyDict_set_decoration_provider| &mut d.on_start,
+            |d: &KeyDictSetDecorationProvider| &d.on_start,
+            |d: &mut KeyDictSetDecorationProvider| &mut d.on_start,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 6,
@@ -3575,8 +3549,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"_on_hl_def"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d._on_hl_def,
-            |d: &mut KeyDict_set_decoration_provider| &mut d._on_hl_def,
+            |d: &KeyDictSetDecorationProvider| &d._on_hl_def,
+            |d: &mut KeyDictSetDecorationProvider| &mut d._on_hl_def,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 7,
@@ -3585,8 +3559,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"_on_spell_nav"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d._on_spell_nav,
-            |d: &mut KeyDict_set_decoration_provider| &mut d._on_spell_nav,
+            |d: &KeyDictSetDecorationProvider| &d._on_spell_nav,
+            |d: &mut KeyDictSetDecorationProvider| &mut d._on_spell_nav,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 8,
@@ -3595,8 +3569,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"_on_conceal_line"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d._on_conceal_line,
-            |d: &mut KeyDict_set_decoration_provider| &mut d._on_conceal_line,
+            |d: &KeyDictSetDecorationProvider| &d._on_conceal_line,
+            |d: &mut KeyDictSetDecorationProvider| &mut d._on_conceal_line,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 9,
@@ -3605,8 +3579,8 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDict_set_decoration_pro
     KeySetLink {
         str: Some(c"_on_conceal"),
         field: KeyField::I32(
-            |d: &KeyDict_set_decoration_provider| &d._on_conceal,
-            |d: &mut KeyDict_set_decoration_provider| &mut d._on_conceal,
+            |d: &KeyDictSetDecorationProvider| &d._on_conceal,
+            |d: &mut KeyDictSetDecorationProvider| &mut d._on_conceal,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 10,
@@ -3639,17 +3613,17 @@ pub fn set_decoration_provider_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_set_decoration_provider_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_set_decoration_provider>> {
+) -> Option<&'static KeySetLink<KeyDictSetDecorationProvider>> {
     let hash = set_decoration_provider_hash(key);
     (hash >= 0).then(|| &SET_DECORATION_PROVIDER_TABLE[hash as usize])
 }
 
-pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
+pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDictSetExtmark>; 37] = [
     KeySetLink {
         str: Some(c"id"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.id,
-            |d: &mut KeyDict_set_extmark| &mut d.id,
+            |d: &KeyDictSetExtmark| &d.id,
+            |d: &mut KeyDictSetExtmark| &mut d.id,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -3658,8 +3632,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"url"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.url,
-            |d: &mut KeyDict_set_extmark| &mut d.url,
+            |d: &KeyDictSetExtmark| &d.url,
+            |d: &mut KeyDictSetExtmark| &mut d.url,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 2,
@@ -3668,8 +3642,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"spell"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.spell,
-            |d: &mut KeyDict_set_extmark| &mut d.spell,
+            |d: &KeyDictSetExtmark| &d.spell,
+            |d: &mut KeyDictSetExtmark| &mut d.spell,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -3678,8 +3652,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"scoped"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.scoped,
-            |d: &mut KeyDict_set_extmark| &mut d.scoped,
+            |d: &KeyDictSetExtmark| &d.scoped,
+            |d: &mut KeyDictSetExtmark| &mut d.scoped,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -3688,8 +3662,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"hl_eol"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.hl_eol,
-            |d: &mut KeyDict_set_extmark| &mut d.hl_eol,
+            |d: &KeyDictSetExtmark| &d.hl_eol,
+            |d: &mut KeyDictSetExtmark| &mut d.hl_eol,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 5,
@@ -3698,8 +3672,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"strict"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.strict,
-            |d: &mut KeyDict_set_extmark| &mut d.strict,
+            |d: &KeyDictSetExtmark| &d.strict,
+            |d: &mut KeyDictSetExtmark| &mut d.strict,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -3708,8 +3682,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"end_col"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.end_col,
-            |d: &mut KeyDict_set_extmark| &mut d.end_col,
+            |d: &KeyDictSetExtmark| &d.end_col,
+            |d: &mut KeyDictSetExtmark| &mut d.end_col,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 7,
@@ -3718,8 +3692,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"conceal"),
         field: KeyField::Object(
-            |d: &KeyDict_set_extmark| &d.conceal,
-            |d: &mut KeyDict_set_extmark| &mut d.conceal,
+            |d: &KeyDictSetExtmark| &d.conceal,
+            |d: &mut KeyDictSetExtmark| &mut d.conceal,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
@@ -3728,8 +3702,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"hl_mode"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.hl_mode,
-            |d: &mut KeyDict_set_extmark| &mut d.hl_mode,
+            |d: &KeyDictSetExtmark| &d.hl_mode,
+            |d: &mut KeyDictSetExtmark| &mut d.hl_mode,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 9,
@@ -3738,8 +3712,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"end_row"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.end_row,
-            |d: &mut KeyDict_set_extmark| &mut d.end_row,
+            |d: &KeyDictSetExtmark| &d.end_row,
+            |d: &mut KeyDictSetExtmark| &mut d.end_row,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 10,
@@ -3748,8 +3722,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"end_line"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.end_line,
-            |d: &mut KeyDict_set_extmark| &mut d.end_line,
+            |d: &KeyDictSetExtmark| &d.end_line,
+            |d: &mut KeyDictSetExtmark| &mut d.end_line,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 11,
@@ -3758,8 +3732,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"hl_group"),
         field: KeyField::Object(
-            |d: &KeyDict_set_extmark| &d.hl_group,
-            |d: &mut KeyDict_set_extmark| &mut d.hl_group,
+            |d: &KeyDictSetExtmark| &d.hl_group,
+            |d: &mut KeyDictSetExtmark| &mut d.hl_group,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 12,
@@ -3768,8 +3742,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"priority"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.priority,
-            |d: &mut KeyDict_set_extmark| &mut d.priority,
+            |d: &KeyDictSetExtmark| &d.priority,
+            |d: &mut KeyDictSetExtmark| &mut d.priority,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 13,
@@ -3778,8 +3752,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"ephemeral"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.ephemeral,
-            |d: &mut KeyDict_set_extmark| &mut d.ephemeral,
+            |d: &KeyDictSetExtmark| &d.ephemeral,
+            |d: &mut KeyDictSetExtmark| &mut d.ephemeral,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 14,
@@ -3788,8 +3762,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"sign_text"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.sign_text,
-            |d: &mut KeyDict_set_extmark| &mut d.sign_text,
+            |d: &KeyDictSetExtmark| &d.sign_text,
+            |d: &mut KeyDictSetExtmark| &mut d.sign_text,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 15,
@@ -3798,8 +3772,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_text"),
         field: KeyField::Array(
-            |d: &KeyDict_set_extmark| &d.virt_text,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_text,
+            |d: &KeyDictSetExtmark| &d.virt_text,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_text,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 16,
@@ -3808,8 +3782,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"invalidate"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.invalidate,
-            |d: &mut KeyDict_set_extmark| &mut d.invalidate,
+            |d: &KeyDictSetExtmark| &d.invalidate,
+            |d: &mut KeyDictSetExtmark| &mut d.invalidate,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
@@ -3818,8 +3792,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"ui_watched"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.ui_watched,
-            |d: &mut KeyDict_set_extmark| &mut d.ui_watched,
+            |d: &KeyDictSetExtmark| &d.ui_watched,
+            |d: &mut KeyDictSetExtmark| &mut d.ui_watched,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 18,
@@ -3828,8 +3802,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_lines"),
         field: KeyField::Array(
-            |d: &KeyDict_set_extmark| &d.virt_lines,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_lines,
+            |d: &KeyDictSetExtmark| &d.virt_lines,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_lines,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 19,
@@ -3838,8 +3812,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"_subpriority"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d._subpriority,
-            |d: &mut KeyDict_set_extmark| &mut d._subpriority,
+            |d: &KeyDictSetExtmark| &d._subpriority,
+            |d: &mut KeyDictSetExtmark| &mut d._subpriority,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 20,
@@ -3848,8 +3822,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"undo_restore"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.undo_restore,
-            |d: &mut KeyDict_set_extmark| &mut d.undo_restore,
+            |d: &KeyDictSetExtmark| &d.undo_restore,
+            |d: &mut KeyDictSetExtmark| &mut d.undo_restore,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 21,
@@ -3858,8 +3832,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"conceal_lines"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.conceal_lines,
-            |d: &mut KeyDict_set_extmark| &mut d.conceal_lines,
+            |d: &KeyDictSetExtmark| &d.conceal_lines,
+            |d: &mut KeyDictSetExtmark| &mut d.conceal_lines,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 22,
@@ -3868,8 +3842,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"line_hl_group"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.line_hl_group,
-            |d: &mut KeyDict_set_extmark| &mut d.line_hl_group,
+            |d: &KeyDictSetExtmark| &d.line_hl_group,
+            |d: &mut KeyDictSetExtmark| &mut d.line_hl_group,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 23,
@@ -3878,8 +3852,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"right_gravity"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.right_gravity,
-            |d: &mut KeyDict_set_extmark| &mut d.right_gravity,
+            |d: &KeyDictSetExtmark| &d.right_gravity,
+            |d: &mut KeyDictSetExtmark| &mut d.right_gravity,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 24,
@@ -3888,8 +3862,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"sign_hl_group"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.sign_hl_group,
-            |d: &mut KeyDict_set_extmark| &mut d.sign_hl_group,
+            |d: &KeyDictSetExtmark| &d.sign_hl_group,
+            |d: &mut KeyDictSetExtmark| &mut d.sign_hl_group,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 25,
@@ -3898,8 +3872,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_text_pos"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.virt_text_pos,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_text_pos,
+            |d: &KeyDictSetExtmark| &d.virt_text_pos,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_text_pos,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 26,
@@ -3908,8 +3882,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_text_hide"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.virt_text_hide,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_text_hide,
+            |d: &KeyDictSetExtmark| &d.virt_text_hide,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_text_hide,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 27,
@@ -3918,8 +3892,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"number_hl_group"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.number_hl_group,
-            |d: &mut KeyDict_set_extmark| &mut d.number_hl_group,
+            |d: &KeyDictSetExtmark| &d.number_hl_group,
+            |d: &mut KeyDictSetExtmark| &mut d.number_hl_group,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 28,
@@ -3928,8 +3902,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_lines_above"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.virt_lines_above,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_lines_above,
+            |d: &KeyDictSetExtmark| &d.virt_lines_above,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_lines_above,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 29,
@@ -3938,8 +3912,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"end_right_gravity"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.end_right_gravity,
-            |d: &mut KeyDict_set_extmark| &mut d.end_right_gravity,
+            |d: &KeyDictSetExtmark| &d.end_right_gravity,
+            |d: &mut KeyDictSetExtmark| &mut d.end_right_gravity,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 30,
@@ -3948,8 +3922,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_text_win_col"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.virt_text_win_col,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_text_win_col,
+            |d: &KeyDictSetExtmark| &d.virt_text_win_col,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_text_win_col,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 31,
@@ -3958,8 +3932,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_lines_leftcol"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.virt_lines_leftcol,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_lines_leftcol,
+            |d: &KeyDictSetExtmark| &d.virt_lines_leftcol,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_lines_leftcol,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 32,
@@ -3968,8 +3942,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"cursorline_hl_group"),
         field: KeyField::Integer(
-            |d: &KeyDict_set_extmark| &d.cursorline_hl_group,
-            |d: &mut KeyDict_set_extmark| &mut d.cursorline_hl_group,
+            |d: &KeyDictSetExtmark| &d.cursorline_hl_group,
+            |d: &mut KeyDictSetExtmark| &mut d.cursorline_hl_group,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 33,
@@ -3978,8 +3952,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_lines_overflow"),
         field: KeyField::String(
-            |d: &KeyDict_set_extmark| &d.virt_lines_overflow,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_lines_overflow,
+            |d: &KeyDictSetExtmark| &d.virt_lines_overflow,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_lines_overflow,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 34,
@@ -3988,8 +3962,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"virt_text_repeat_linebreak"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d.virt_text_repeat_linebreak,
-            |d: &mut KeyDict_set_extmark| &mut d.virt_text_repeat_linebreak,
+            |d: &KeyDictSetExtmark| &d.virt_text_repeat_linebreak,
+            |d: &mut KeyDictSetExtmark| &mut d.virt_text_repeat_linebreak,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 35,
@@ -3998,8 +3972,8 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDict_set_extmark>; 37] = [
     KeySetLink {
         str: Some(c"_conceal_continuation"),
         field: KeyField::Boolean(
-            |d: &KeyDict_set_extmark| &d._conceal_continuation,
-            |d: &mut KeyDict_set_extmark| &mut d._conceal_continuation,
+            |d: &KeyDictSetExtmark| &d._conceal_continuation,
+            |d: &mut KeyDictSetExtmark| &mut d._conceal_continuation,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 36,
@@ -4058,17 +4032,17 @@ pub fn set_extmark_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_set_extmark_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_set_extmark>> {
+) -> Option<&'static KeySetLink<KeyDictSetExtmark>> {
     let hash = set_extmark_hash(key);
     (hash >= 0).then(|| &SET_EXTMARK_TABLE[hash as usize])
 }
 
-pub static TABPAGE_CONFIG_TABLE: [KeySetLink<KeyDict_tabpage_config>; 2] = [
+pub static TABPAGE_CONFIG_TABLE: [KeySetLink<KeyDictTabpageConfig>; 2] = [
     KeySetLink {
         str: Some(c"after"),
         field: KeyField::Integer(
-            |d: &KeyDict_tabpage_config| &d.after,
-            |d: &mut KeyDict_tabpage_config| &mut d.after,
+            |d: &KeyDictTabpageConfig| &d.after,
+            |d: &mut KeyDictTabpageConfig| &mut d.after,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -4092,17 +4066,17 @@ pub fn tabpage_config_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_tabpage_config_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_tabpage_config>> {
+) -> Option<&'static KeySetLink<KeyDictTabpageConfig>> {
     let hash = tabpage_config_hash(key);
     (hash >= 0).then(|| &TABPAGE_CONFIG_TABLE[hash as usize])
 }
 
-pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
+pub static USER_COMMAND_TABLE: [KeySetLink<KeyDictUserCommand>; 13] = [
     KeySetLink {
         str: Some(c"bar"),
         field: KeyField::Boolean(
-            |d: &KeyDict_user_command| &d.bar,
-            |d: &mut KeyDict_user_command| &mut d.bar,
+            |d: &KeyDictUserCommand| &d.bar,
+            |d: &mut KeyDictUserCommand| &mut d.bar,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
@@ -4111,8 +4085,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"addr"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.addr,
-            |d: &mut KeyDict_user_command| &mut d.addr,
+            |d: &KeyDictUserCommand| &d.addr,
+            |d: &mut KeyDictUserCommand| &mut d.addr,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 2,
@@ -4121,8 +4095,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"bang"),
         field: KeyField::Boolean(
-            |d: &KeyDict_user_command| &d.bang,
-            |d: &mut KeyDict_user_command| &mut d.bang,
+            |d: &KeyDictUserCommand| &d.bang,
+            |d: &mut KeyDictUserCommand| &mut d.bang,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 3,
@@ -4131,8 +4105,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"desc"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.desc,
-            |d: &mut KeyDict_user_command| &mut d.desc,
+            |d: &KeyDictUserCommand| &d.desc,
+            |d: &mut KeyDictUserCommand| &mut d.desc,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
@@ -4141,8 +4115,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"count"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.count,
-            |d: &mut KeyDict_user_command| &mut d.count,
+            |d: &KeyDictUserCommand| &d.count,
+            |d: &mut KeyDictUserCommand| &mut d.count,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 5,
@@ -4151,8 +4125,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"force"),
         field: KeyField::Boolean(
-            |d: &KeyDict_user_command| &d.force,
-            |d: &mut KeyDict_user_command| &mut d.force,
+            |d: &KeyDictUserCommand| &d.force,
+            |d: &mut KeyDictUserCommand| &mut d.force,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 6,
@@ -4161,8 +4135,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"nargs"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.nargs,
-            |d: &mut KeyDict_user_command| &mut d.nargs,
+            |d: &KeyDictUserCommand| &d.nargs,
+            |d: &mut KeyDictUserCommand| &mut d.nargs,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 7,
@@ -4171,8 +4145,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"range"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.range,
-            |d: &mut KeyDict_user_command| &mut d.range,
+            |d: &KeyDictUserCommand| &d.range,
+            |d: &mut KeyDictUserCommand| &mut d.range,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 8,
@@ -4181,8 +4155,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"preview"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.preview,
-            |d: &mut KeyDict_user_command| &mut d.preview,
+            |d: &KeyDictUserCommand| &d.preview,
+            |d: &mut KeyDictUserCommand| &mut d.preview,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 9,
@@ -4191,8 +4165,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"complete"),
         field: KeyField::Object(
-            |d: &KeyDict_user_command| &d.complete,
-            |d: &mut KeyDict_user_command| &mut d.complete,
+            |d: &KeyDictUserCommand| &d.complete,
+            |d: &mut KeyDictUserCommand| &mut d.complete,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 10,
@@ -4201,8 +4175,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"register"),
         field: KeyField::Boolean(
-            |d: &KeyDict_user_command| &d.register_,
-            |d: &mut KeyDict_user_command| &mut d.register_,
+            |d: &KeyDictUserCommand| &d.register_,
+            |d: &mut KeyDictUserCommand| &mut d.register_,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
@@ -4211,8 +4185,8 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDict_user_command>; 13] = [
     KeySetLink {
         str: Some(c"keepscript"),
         field: KeyField::Boolean(
-            |d: &KeyDict_user_command| &d.keepscript,
-            |d: &mut KeyDict_user_command| &mut d.keepscript,
+            |d: &KeyDictUserCommand| &d.keepscript,
+            |d: &mut KeyDictUserCommand| &mut d.keepscript,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
@@ -4247,17 +4221,17 @@ pub fn user_command_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_user_command_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_user_command>> {
+) -> Option<&'static KeySetLink<KeyDictUserCommand>> {
     let hash = user_command_hash(key);
     (hash >= 0).then(|| &USER_COMMAND_TABLE[hash as usize])
 }
 
-pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
+pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDictWinConfig>; 25] = [
     KeySetLink {
         str: Some(c"col"),
         field: KeyField::Float(
-            |d: &KeyDict_win_config| &d.col,
-            |d: &mut KeyDict_win_config| &mut d.col,
+            |d: &KeyDictWinConfig| &d.col,
+            |d: &mut KeyDictWinConfig| &mut d.col,
         ),
         key_type: ObjectType::ObjectTypeFloat as i32,
         opt_index: 1,
@@ -4266,8 +4240,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"row"),
         field: KeyField::Float(
-            |d: &KeyDict_win_config| &d.row,
-            |d: &mut KeyDict_win_config| &mut d.row,
+            |d: &KeyDictWinConfig| &d.row,
+            |d: &mut KeyDictWinConfig| &mut d.row,
         ),
         key_type: ObjectType::ObjectTypeFloat as i32,
         opt_index: 2,
@@ -4276,8 +4250,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"win"),
         field: KeyField::I32(
-            |d: &KeyDict_win_config| &d.win,
-            |d: &mut KeyDict_win_config| &mut d.win,
+            |d: &KeyDictWinConfig| &d.win,
+            |d: &mut KeyDictWinConfig| &mut d.win,
         ),
         key_type: ObjectType::ObjectTypeWindow as i32,
         opt_index: 3,
@@ -4286,8 +4260,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"hide"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.hide,
-            |d: &mut KeyDict_win_config| &mut d.hide,
+            |d: &KeyDictWinConfig| &d.hide,
+            |d: &mut KeyDictWinConfig| &mut d.hide,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 4,
@@ -4296,8 +4270,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"width"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_config| &d.width,
-            |d: &mut KeyDict_win_config| &mut d.width,
+            |d: &KeyDictWinConfig| &d.width,
+            |d: &mut KeyDictWinConfig| &mut d.width,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
@@ -4306,8 +4280,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"split"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.split,
-            |d: &mut KeyDict_win_config| &mut d.split,
+            |d: &KeyDictWinConfig| &d.split,
+            |d: &mut KeyDictWinConfig| &mut d.split,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 6,
@@ -4316,8 +4290,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"title"),
         field: KeyField::Object(
-            |d: &KeyDict_win_config| &d.title,
-            |d: &mut KeyDict_win_config| &mut d.title,
+            |d: &KeyDictWinConfig| &d.title,
+            |d: &mut KeyDictWinConfig| &mut d.title,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 7,
@@ -4326,8 +4300,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"mouse"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.mouse,
-            |d: &mut KeyDict_win_config| &mut d.mouse,
+            |d: &KeyDictWinConfig| &d.mouse,
+            |d: &mut KeyDictWinConfig| &mut d.mouse,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
@@ -4336,8 +4310,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"fixed"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.fixed,
-            |d: &mut KeyDict_win_config| &mut d.fixed,
+            |d: &KeyDictWinConfig| &d.fixed,
+            |d: &mut KeyDictWinConfig| &mut d.fixed,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -4346,8 +4320,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"style"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.style,
-            |d: &mut KeyDict_win_config| &mut d.style,
+            |d: &KeyDictWinConfig| &d.style,
+            |d: &mut KeyDictWinConfig| &mut d.style,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 10,
@@ -4356,8 +4330,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"anchor"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.anchor,
-            |d: &mut KeyDict_win_config| &mut d.anchor,
+            |d: &KeyDictWinConfig| &d.anchor,
+            |d: &mut KeyDictWinConfig| &mut d.anchor,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 11,
@@ -4366,8 +4340,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"bufpos"),
         field: KeyField::Array(
-            |d: &KeyDict_win_config| &d.bufpos,
-            |d: &mut KeyDict_win_config| &mut d.bufpos,
+            |d: &KeyDictWinConfig| &d.bufpos,
+            |d: &mut KeyDictWinConfig| &mut d.bufpos,
         ),
         key_type: ObjectType::ObjectTypeArray as i32,
         opt_index: 12,
@@ -4376,8 +4350,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"height"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_config| &d.height,
-            |d: &mut KeyDict_win_config| &mut d.height,
+            |d: &KeyDictWinConfig| &d.height,
+            |d: &mut KeyDictWinConfig| &mut d.height,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 13,
@@ -4386,8 +4360,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"zindex"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_config| &d.zindex,
-            |d: &mut KeyDict_win_config| &mut d.zindex,
+            |d: &KeyDictWinConfig| &d.zindex,
+            |d: &mut KeyDictWinConfig| &mut d.zindex,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 14,
@@ -4396,8 +4370,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"footer"),
         field: KeyField::Object(
-            |d: &KeyDict_win_config| &d.footer,
-            |d: &mut KeyDict_win_config| &mut d.footer,
+            |d: &KeyDictWinConfig| &d.footer,
+            |d: &mut KeyDictWinConfig| &mut d.footer,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 15,
@@ -4406,8 +4380,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"border"),
         field: KeyField::Object(
-            |d: &KeyDict_win_config| &d.border,
-            |d: &mut KeyDict_win_config| &mut d.border,
+            |d: &KeyDictWinConfig| &d.border,
+            |d: &mut KeyDictWinConfig| &mut d.border,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 16,
@@ -4416,8 +4390,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"external"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.external,
-            |d: &mut KeyDict_win_config| &mut d.external,
+            |d: &KeyDictWinConfig| &d.external,
+            |d: &mut KeyDictWinConfig| &mut d.external,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 17,
@@ -4426,8 +4400,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"relative"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.relative,
-            |d: &mut KeyDict_win_config| &mut d.relative,
+            |d: &KeyDictWinConfig| &d.relative,
+            |d: &mut KeyDictWinConfig| &mut d.relative,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 18,
@@ -4436,8 +4410,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"vertical"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.vertical,
-            |d: &mut KeyDict_win_config| &mut d.vertical,
+            |d: &KeyDictWinConfig| &d.vertical,
+            |d: &mut KeyDictWinConfig| &mut d.vertical,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 19,
@@ -4446,8 +4420,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"focusable"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.focusable,
-            |d: &mut KeyDict_win_config| &mut d.focusable,
+            |d: &KeyDictWinConfig| &d.focusable,
+            |d: &mut KeyDictWinConfig| &mut d.focusable,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 20,
@@ -4456,8 +4430,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"noautocmd"),
         field: KeyField::Boolean(
-            |d: &KeyDict_win_config| &d.noautocmd,
-            |d: &mut KeyDict_win_config| &mut d.noautocmd,
+            |d: &KeyDictWinConfig| &d.noautocmd,
+            |d: &mut KeyDictWinConfig| &mut d.noautocmd,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 21,
@@ -4466,8 +4440,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"title_pos"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.title_pos,
-            |d: &mut KeyDict_win_config| &mut d.title_pos,
+            |d: &KeyDictWinConfig| &d.title_pos,
+            |d: &mut KeyDictWinConfig| &mut d.title_pos,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 22,
@@ -4476,8 +4450,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"footer_pos"),
         field: KeyField::String(
-            |d: &KeyDict_win_config| &d.footer_pos,
-            |d: &mut KeyDict_win_config| &mut d.footer_pos,
+            |d: &KeyDictWinConfig| &d.footer_pos,
+            |d: &mut KeyDictWinConfig| &mut d.footer_pos,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 23,
@@ -4486,8 +4460,8 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDict_win_config>; 25] = [
     KeySetLink {
         str: Some(c"_cmdline_offset"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_config| &d._cmdline_offset,
-            |d: &mut KeyDict_win_config| &mut d._cmdline_offset,
+            |d: &KeyDictWinConfig| &d._cmdline_offset,
+            |d: &mut KeyDictWinConfig| &mut d._cmdline_offset,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 24,
@@ -4532,19 +4506,17 @@ pub fn win_config_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_win_config_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_win_config>> {
+pub fn key_dict_win_config_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictWinConfig>> {
     let hash = win_config_hash(key);
     (hash >= 0).then(|| &WIN_CONFIG_TABLE[hash as usize])
 }
 
-pub static WIN_RESIZE_TABLE: [KeySetLink<KeyDict_win_resize>; 2] = [
+pub static WIN_RESIZE_TABLE: [KeySetLink<KeyDictWinResize>; 2] = [
     KeySetLink {
         str: Some(c"anchor"),
         field: KeyField::String(
-            |d: &KeyDict_win_resize| &d.anchor,
-            |d: &mut KeyDict_win_resize| &mut d.anchor,
+            |d: &KeyDictWinResize| &d.anchor,
+            |d: &mut KeyDictWinResize| &mut d.anchor,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 1,
@@ -4566,19 +4538,17 @@ pub fn win_resize_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_win_resize_get_field(
-    key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_win_resize>> {
+pub fn key_dict_win_resize_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictWinResize>> {
     let hash = win_resize_hash(key);
     (hash >= 0).then(|| &WIN_RESIZE_TABLE[hash as usize])
 }
 
-pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDict_win_text_height>; 6] = [
+pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDictWinTextHeight>; 6] = [
     KeySetLink {
         str: Some(c"end_row"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_text_height| &d.end_row,
-            |d: &mut KeyDict_win_text_height| &mut d.end_row,
+            |d: &KeyDictWinTextHeight| &d.end_row,
+            |d: &mut KeyDictWinTextHeight| &mut d.end_row,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -4587,8 +4557,8 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDict_win_text_height>; 6] = [
     KeySetLink {
         str: Some(c"end_vcol"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_text_height| &d.end_vcol,
-            |d: &mut KeyDict_win_text_height| &mut d.end_vcol,
+            |d: &KeyDictWinTextHeight| &d.end_vcol,
+            |d: &mut KeyDictWinTextHeight| &mut d.end_vcol,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 2,
@@ -4597,8 +4567,8 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDict_win_text_height>; 6] = [
     KeySetLink {
         str: Some(c"start_row"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_text_height| &d.start_row,
-            |d: &mut KeyDict_win_text_height| &mut d.start_row,
+            |d: &KeyDictWinTextHeight| &d.start_row,
+            |d: &mut KeyDictWinTextHeight| &mut d.start_row,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 3,
@@ -4607,8 +4577,8 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDict_win_text_height>; 6] = [
     KeySetLink {
         str: Some(c"max_height"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_text_height| &d.max_height,
-            |d: &mut KeyDict_win_text_height| &mut d.max_height,
+            |d: &KeyDictWinTextHeight| &d.max_height,
+            |d: &mut KeyDictWinTextHeight| &mut d.max_height,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 4,
@@ -4617,8 +4587,8 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDict_win_text_height>; 6] = [
     KeySetLink {
         str: Some(c"start_vcol"),
         field: KeyField::Integer(
-            |d: &KeyDict_win_text_height| &d.start_vcol,
-            |d: &mut KeyDict_win_text_height| &mut d.start_vcol,
+            |d: &KeyDictWinTextHeight| &d.start_vcol,
+            |d: &mut KeyDictWinTextHeight| &mut d.start_vcol,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 5,
@@ -4646,17 +4616,17 @@ pub fn win_text_height_hash(key: &[u8]) -> i32 {
 
 pub fn key_dict_win_text_height_get_field(
     key: &[u8],
-) -> Option<&'static KeySetLink<KeyDict_win_text_height>> {
+) -> Option<&'static KeySetLink<KeyDictWinTextHeight>> {
     let hash = win_text_height_hash(key);
     (hash >= 0).then(|| &WIN_TEXT_HEIGHT_TABLE[hash as usize])
 }
 
-pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
+pub static XDL_DIFF_TABLE: [KeySetLink<KeyDictXdlDiff>; 13] = [
     KeySetLink {
         str: Some(c"ctxlen"),
         field: KeyField::Integer(
-            |d: &KeyDict_xdl_diff| &d.ctxlen,
-            |d: &mut KeyDict_xdl_diff| &mut d.ctxlen,
+            |d: &KeyDictXdlDiff| &d.ctxlen,
+            |d: &mut KeyDictXdlDiff| &mut d.ctxlen,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 1,
@@ -4665,8 +4635,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"on_hunk"),
         field: KeyField::I32(
-            |d: &KeyDict_xdl_diff| &d.on_hunk,
-            |d: &mut KeyDict_xdl_diff| &mut d.on_hunk,
+            |d: &KeyDictXdlDiff| &d.on_hunk,
+            |d: &mut KeyDictXdlDiff| &mut d.on_hunk,
         ),
         key_type: ObjectType::ObjectTypeLuaRef as i32,
         opt_index: 2,
@@ -4675,8 +4645,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"algorithm"),
         field: KeyField::String(
-            |d: &KeyDict_xdl_diff| &d.algorithm,
-            |d: &mut KeyDict_xdl_diff| &mut d.algorithm,
+            |d: &KeyDictXdlDiff| &d.algorithm,
+            |d: &mut KeyDictXdlDiff| &mut d.algorithm,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 3,
@@ -4685,8 +4655,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"linematch"),
         field: KeyField::Object(
-            |d: &KeyDict_xdl_diff| &d.linematch,
-            |d: &mut KeyDict_xdl_diff| &mut d.linematch,
+            |d: &KeyDictXdlDiff| &d.linematch,
+            |d: &mut KeyDictXdlDiff| &mut d.linematch,
         ),
         key_type: ObjectType::ObjectTypeNil as i32,
         opt_index: 4,
@@ -4695,8 +4665,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"result_type"),
         field: KeyField::String(
-            |d: &KeyDict_xdl_diff| &d.result_type,
-            |d: &mut KeyDict_xdl_diff| &mut d.result_type,
+            |d: &KeyDictXdlDiff| &d.result_type,
+            |d: &mut KeyDictXdlDiff| &mut d.result_type,
         ),
         key_type: ObjectType::ObjectTypeString as i32,
         opt_index: 5,
@@ -4705,8 +4675,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"interhunkctxlen"),
         field: KeyField::Integer(
-            |d: &KeyDict_xdl_diff| &d.interhunkctxlen,
-            |d: &mut KeyDict_xdl_diff| &mut d.interhunkctxlen,
+            |d: &KeyDictXdlDiff| &d.interhunkctxlen,
+            |d: &mut KeyDictXdlDiff| &mut d.interhunkctxlen,
         ),
         key_type: ObjectType::ObjectTypeInteger as i32,
         opt_index: 6,
@@ -4715,8 +4685,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"ignore_cr_at_eol"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.ignore_cr_at_eol,
-            |d: &mut KeyDict_xdl_diff| &mut d.ignore_cr_at_eol,
+            |d: &KeyDictXdlDiff| &d.ignore_cr_at_eol,
+            |d: &mut KeyDictXdlDiff| &mut d.ignore_cr_at_eol,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 7,
@@ -4725,8 +4695,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"indent_heuristic"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.indent_heuristic,
-            |d: &mut KeyDict_xdl_diff| &mut d.indent_heuristic,
+            |d: &KeyDictXdlDiff| &d.indent_heuristic,
+            |d: &mut KeyDictXdlDiff| &mut d.indent_heuristic,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 8,
@@ -4735,8 +4705,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"ignore_whitespace"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.ignore_whitespace,
-            |d: &mut KeyDict_xdl_diff| &mut d.ignore_whitespace,
+            |d: &KeyDictXdlDiff| &d.ignore_whitespace,
+            |d: &mut KeyDictXdlDiff| &mut d.ignore_whitespace,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 9,
@@ -4745,8 +4715,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"ignore_blank_lines"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.ignore_blank_lines,
-            |d: &mut KeyDict_xdl_diff| &mut d.ignore_blank_lines,
+            |d: &KeyDictXdlDiff| &d.ignore_blank_lines,
+            |d: &mut KeyDictXdlDiff| &mut d.ignore_blank_lines,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 10,
@@ -4755,8 +4725,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"ignore_whitespace_change"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.ignore_whitespace_change,
-            |d: &mut KeyDict_xdl_diff| &mut d.ignore_whitespace_change,
+            |d: &KeyDictXdlDiff| &d.ignore_whitespace_change,
+            |d: &mut KeyDictXdlDiff| &mut d.ignore_whitespace_change,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 11,
@@ -4765,8 +4735,8 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDict_xdl_diff>; 13] = [
     KeySetLink {
         str: Some(c"ignore_whitespace_change_at_eol"),
         field: KeyField::Boolean(
-            |d: &KeyDict_xdl_diff| &d.ignore_whitespace_change_at_eol,
-            |d: &mut KeyDict_xdl_diff| &mut d.ignore_whitespace_change_at_eol,
+            |d: &KeyDictXdlDiff| &d.ignore_whitespace_change_at_eol,
+            |d: &mut KeyDictXdlDiff| &mut d.ignore_whitespace_change_at_eol,
         ),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 12,
@@ -4799,7 +4769,7 @@ pub fn xdl_diff_hash(key: &[u8]) -> i32 {
     }
 }
 
-pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDict_xdl_diff>> {
+pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictXdlDiff>> {
     let hash = xdl_diff_hash(key);
     (hash >= 0).then(|| &XDL_DIFF_TABLE[hash as usize])
 }
@@ -4811,7 +4781,7 @@ pub fn handle_nvim_get_autocmds(channel_id: u64, args: Array, error: &mut Error)
         c"API: vim -> nvim_get_autocmds",
     );
     let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_get_autocmds = Default::default();
+    let mut arg_1: KeyDictGetAutocmds = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -4840,7 +4810,7 @@ pub fn handle_nvim_create_autocmd(channel_id: u64, args: Array, error: &mut Erro
         c"API: vim -> nvim_create_autocmd",
     );
     let mut ret = OBJECT_NIL;
-    let mut arg_2: KeyDict_create_autocmd = Default::default();
+    let mut arg_2: KeyDictCreateAutocmd = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -4902,7 +4872,7 @@ pub fn handle_nvim_clear_autocmds(channel_id: u64, args: Array, error: &mut Erro
         c"API: vim -> nvim_clear_autocmds",
     );
     let ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_clear_autocmds = Default::default();
+    let mut arg_1: KeyDictClearAutocmds = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -4931,7 +4901,7 @@ pub fn handle_nvim_create_augroup(channel_id: u64, args: Array, error: &mut Erro
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_create_augroup = Default::default();
+    let mut arg_2: KeyDictCreateAugroup = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -5032,7 +5002,7 @@ pub fn handle_nvim_exec_autocmds(channel_id: u64, args: Array, error: &mut Error
         c"API: vim -> nvim_exec_autocmds",
     );
     let ret = OBJECT_NIL;
-    let mut arg_2: KeyDict_exec_autocmds = Default::default();
+    let mut arg_2: KeyDictExecAutocmds = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -5097,7 +5067,7 @@ pub fn handle_nvim_buf_attach(channel_id: u64, args: Array, error: &mut Error) -
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDict_buf_attach = Default::default();
+    let mut arg_3: KeyDictBufAttach = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -5413,7 +5383,7 @@ pub fn handle_nvim_buf_get_text(channel_id: u64, args: Array, error: &mut Error)
     let mut arg_3: Integer = Default::default();
     let mut arg_4: Integer = Default::default();
     let mut arg_5: Integer = Default::default();
-    let mut arg_6: KeyDict_empty = Default::default();
+    let mut arg_6: KeyDictEmpty = Default::default();
     if args.size < 5 || args.size > 6 {
         api_set_error!(
             error,
@@ -5667,7 +5637,7 @@ pub fn handle_nvim_buf_set_keymap(channel_id: u64, args: Array, error: &mut Erro
     let mut arg_2: NvimString = Default::default();
     let mut arg_3: NvimString = Default::default();
     let mut arg_4: NvimString = Default::default();
-    let mut arg_5: KeyDict_keymap = Default::default();
+    let mut arg_5: KeyDictKeymap = Default::default();
     if args.size < 4 || args.size > 5 {
         api_set_error!(
             error,
@@ -5738,7 +5708,7 @@ pub fn handle_nvim_buf_del_keymap(channel_id: u64, args: Array, error: &mut Erro
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: NvimString = Default::default();
     let mut arg_3: NvimString = Default::default();
-    let mut arg_4: KeyDict_keymap_del = Default::default();
+    let mut arg_4: KeyDictKeymapDel = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -5984,7 +5954,7 @@ pub fn handle_nvim_buf_delete(channel_id: u64, args: Array, error: &mut Error) -
     );
     let ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
-    let mut arg_2: KeyDict_buf_delete = Default::default();
+    let mut arg_2: KeyDictBufDelete = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -6110,7 +6080,7 @@ pub fn handle_nvim_buf_set_mark(channel_id: u64, args: Array, error: &mut Error)
     let mut arg_2: NvimString = Default::default();
     let mut arg_3: Integer = Default::default();
     let mut arg_4: Integer = Default::default();
-    let mut arg_5: KeyDict_empty = Default::default();
+    let mut arg_5: KeyDictEmpty = Default::default();
     if args.size < 4 || args.size > 5 {
         api_set_error!(
             error,
@@ -6257,7 +6227,7 @@ pub fn handle_nvim_parse_cmd(channel_id: u64, args: Array, error: &mut Error) ->
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_empty = Default::default();
+    let mut arg_2: KeyDictEmpty = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -6297,8 +6267,8 @@ pub fn handle_nvim_parse_cmd(channel_id: u64, args: Array, error: &mut Error) ->
 pub fn handle_nvim_cmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
     dlog_internal_call(channel_id, c"handle_nvim_cmd", c"API: vim -> nvim_cmd");
     let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_cmd = Default::default();
-    let mut arg_2: KeyDict_cmd_opts = Default::default();
+    let mut arg_1: KeyDictCmd = Default::default();
+    let mut arg_2: KeyDictCmdOpts = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -6344,7 +6314,7 @@ pub fn handle_nvim_create_user_command(channel_id: u64, args: Array, error: &mut
     );
     let ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_3: KeyDict_user_command = Default::default();
+    let mut arg_3: KeyDictUserCommand = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -6419,7 +6389,7 @@ pub fn handle_nvim_buf_create_user_command(
     let ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: NvimString = Default::default();
-    let mut arg_4: KeyDict_user_command = Default::default();
+    let mut arg_4: KeyDictUserCommand = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -6507,7 +6477,7 @@ pub fn handle_nvim_get_commands(channel_id: u64, args: Array, error: &mut Error)
         c"API: vim -> nvim_get_commands",
     );
     let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_get_commands = Default::default();
+    let mut arg_1: KeyDictGetCommands = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -6537,7 +6507,7 @@ pub fn handle_nvim_buf_get_commands(channel_id: u64, args: Array, error: &mut Er
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
-    let mut arg_2: KeyDict_get_commands = Default::default();
+    let mut arg_2: KeyDictGetCommands = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -6865,7 +6835,7 @@ pub fn handle_nvim_buf_set_virtual_text(channel_id: u64, args: Array, error: &mu
     let mut arg_2: Integer = Default::default();
     let mut arg_3: Integer = Default::default();
     let mut arg_4: Array = Default::default();
-    let mut arg_5: KeyDict_empty = Default::default();
+    let mut arg_5: KeyDictEmpty = Default::default();
     if args.size < 4 || args.size > 5 {
         api_set_error!(
             error,
@@ -8387,7 +8357,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: Integer = Default::default();
     let mut arg_3: Integer = Default::default();
-    let mut arg_4: KeyDict_get_extmark = Default::default();
+    let mut arg_4: KeyDictGetExtmark = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -8443,7 +8413,7 @@ pub fn handle_nvim_buf_get_extmarks(channel_id: u64, args: Array, error: &mut Er
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: Integer = Default::default();
-    let mut arg_5: KeyDict_get_extmarks = Default::default();
+    let mut arg_5: KeyDictGetExtmarks = Default::default();
     if args.size < 4 || args.size > 5 {
         api_set_error!(
             error,
@@ -8495,7 +8465,7 @@ pub fn handle_nvim_buf_set_extmark(channel_id: u64, args: Array, error: &mut Err
     let mut arg_2: Integer = Default::default();
     let mut arg_3: Integer = Default::default();
     let mut arg_4: Integer = Default::default();
-    let mut arg_5: KeyDict_set_extmark = Default::default();
+    let mut arg_5: KeyDictSetExtmark = Default::default();
     if args.size < 4 || args.size > 5 {
         api_set_error!(
             error,
@@ -8722,7 +8692,7 @@ pub fn handle_nvim_ns_set(channel_id: u64, args: Array, error: &mut Error) -> Ob
     );
     let ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
-    let mut arg_2: KeyDict_ns_opts = Default::default();
+    let mut arg_2: KeyDictNsOpts = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -8803,7 +8773,7 @@ pub fn handle_nvim_get_option_value(channel_id: u64, args: Array, error: &mut Er
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_option = Default::default();
+    let mut arg_2: KeyDictOption = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -8841,7 +8811,7 @@ pub fn handle_nvim_set_option_value(channel_id: u64, args: Array, error: &mut Er
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_3: KeyDict_option = Default::default();
+    let mut arg_3: KeyDictOption = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -8904,7 +8874,7 @@ pub fn handle_nvim_get_option_info2(channel_id: u64, args: Array, error: &mut Er
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_option = Default::default();
+    let mut arg_2: KeyDictOption = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -9247,7 +9217,7 @@ pub fn handle_nvim_open_tabpage(channel_id: u64, args: Array, error: &mut Error)
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDict_tabpage_config = Default::default();
+    let mut arg_3: KeyDictTabpageConfig = Default::default();
     if args.size != 3 {
         api_set_error!(
             error,
@@ -9728,7 +9698,7 @@ pub fn handle_nvim_get_hl(channel_id: u64, args: Array, error: &mut Error) -> Ob
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
-    let mut arg_2: KeyDict_get_highlight = Default::default();
+    let mut arg_2: KeyDictGetHighlight = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -9774,7 +9744,7 @@ pub fn handle_nvim_set_hl(channel_id: u64, args: Array, error: &mut Error) -> Ob
     let ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
     let mut arg_2: NvimString = Default::default();
-    let mut arg_3: KeyDict_highlight = Default::default();
+    let mut arg_3: KeyDictHighlight = Default::default();
     if args.size != 3 {
         api_set_error!(
             error,
@@ -9823,7 +9793,7 @@ pub fn handle_nvim_get_hl_ns(channel_id: u64, args: Array, error: &mut Error) ->
         c"API: vim -> nvim_get_hl_ns",
     );
     let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_get_ns = Default::default();
+    let mut arg_1: KeyDictGetNs = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -10357,7 +10327,7 @@ pub fn handle_nvim_get_runtime(channel_id: u64, args: Array, error: &mut Error) 
     let mut ret = OBJECT_NIL;
     let mut arg_1: Array = Default::default();
     let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDict_runtime = Default::default();
+    let mut arg_3: KeyDictRuntime = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -10690,7 +10660,7 @@ pub fn handle_nvim_echo(channel_id: u64, args: Array, error: &mut Error) -> Obje
     let mut ret = OBJECT_NIL;
     let mut arg_1: Array = Default::default();
     let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDict_echo_opts = Default::default();
+    let mut arg_3: KeyDictEchoOpts = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -10938,7 +10908,7 @@ pub fn handle_nvim_open_term(channel_id: u64, args: Array, error: &mut Error) ->
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
-    let mut arg_2: KeyDict_open_term = Default::default();
+    let mut arg_2: KeyDictOpenTerm = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -11268,7 +11238,7 @@ pub fn handle_nvim_get_context(channel_id: u64, args: Array, error: &mut Error) 
         c"API: vim -> nvim_get_context",
     );
     let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_context = Default::default();
+    let mut arg_1: KeyDictContext = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -11391,7 +11361,7 @@ pub fn handle_nvim_set_keymap(channel_id: u64, args: Array, error: &mut Error) -
     let mut arg_1: NvimString = Default::default();
     let mut arg_2: NvimString = Default::default();
     let mut arg_3: NvimString = Default::default();
-    let mut arg_4: KeyDict_keymap = Default::default();
+    let mut arg_4: KeyDictKeymap = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -11452,7 +11422,7 @@ pub fn handle_nvim_del_keymap(channel_id: u64, args: Array, error: &mut Error) -
     let ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
     let mut arg_2: NvimString = Default::default();
-    let mut arg_3: KeyDict_keymap_del = Default::default();
+    let mut arg_3: KeyDictKeymapDel = Default::default();
     if args.size < 2 || args.size > 3 {
         api_set_error!(
             error,
@@ -11593,7 +11563,7 @@ pub fn handle_nvim_chan_set(channel_id: u64, args: Array, error: &mut Error) -> 
     );
     let ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
-    let mut arg_2: KeyDict_chan_set = Default::default();
+    let mut arg_2: KeyDictChanSet = Default::default();
     if args.size != 2 {
         api_set_error!(
             error,
@@ -11953,7 +11923,7 @@ pub fn handle_nvim_select_popupmenu_item(
     let mut arg_1: Integer = Default::default();
     let mut arg_2: Boolean = Default::default();
     let mut arg_3: Boolean = Default::default();
-    let mut arg_4: KeyDict_empty = Default::default();
+    let mut arg_4: KeyDictEmpty = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -12176,7 +12146,7 @@ pub fn handle_nvim_get_mark(channel_id: u64, args: Array, error: &mut Error) -> 
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_empty = Default::default();
+    let mut arg_2: KeyDictEmpty = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -12221,7 +12191,7 @@ pub fn handle_nvim_eval_statusline(channel_id: u64, args: Array, error: &mut Err
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_eval_statusline = Default::default();
+    let mut arg_2: KeyDictEvalStatusline = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -12259,7 +12229,7 @@ pub fn handle_nvim_complete_set(channel_id: u64, args: Array, error: &mut Error)
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: Integer = Default::default();
-    let mut arg_2: KeyDict_complete_set = Default::default();
+    let mut arg_2: KeyDictCompleteSet = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -12296,7 +12266,7 @@ pub fn handle_nvim_redraw(channel_id: u64, args: Array, error: &mut Error) -> Ob
         c"API: vim -> nvim__redraw",
     );
     let ret = OBJECT_NIL;
-    let mut arg_1: KeyDict_redraw = Default::default();
+    let mut arg_1: KeyDictRedraw = Default::default();
     if args.size > 1 {
         api_set_error!(
             error,
@@ -12366,7 +12336,7 @@ pub fn handle_nvim_exec2(channel_id: u64, args: Array, error: &mut Error) -> Obj
     dlog_internal_call(channel_id, c"handle_nvim_exec2", c"API: vim -> nvim_exec2");
     let mut ret = OBJECT_NIL;
     let mut arg_1: NvimString = Default::default();
-    let mut arg_2: KeyDict_exec_opts = Default::default();
+    let mut arg_2: KeyDictExecOpts = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -12609,7 +12579,7 @@ pub fn handle_nvim_open_win(channel_id: u64, args: Array, error: &mut Error) -> 
     let mut ret = OBJECT_NIL;
     let mut arg_1: Buffer = Default::default();
     let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDict_win_config = Default::default();
+    let mut arg_3: KeyDictWinConfig = Default::default();
     if args.size != 3 {
         api_set_error!(
             error,
@@ -12665,7 +12635,7 @@ pub fn handle_nvim_win_set_config(channel_id: u64, args: Array, error: &mut Erro
     );
     let ret = OBJECT_NIL;
     let mut arg_1: Window = Default::default();
-    let mut arg_2: KeyDict_win_config = Default::default();
+    let mut arg_2: KeyDictWinConfig = Default::default();
     if args.size != 2 {
         api_set_error!(
             error,
@@ -13352,7 +13322,7 @@ pub fn handle_nvim_win_text_height(channel_id: u64, args: Array, error: &mut Err
     );
     let mut ret = OBJECT_NIL;
     let mut arg_1: Window = Default::default();
-    let mut arg_2: KeyDict_win_text_height = Default::default();
+    let mut arg_2: KeyDictWinTextHeight = Default::default();
     if args.size < 1 || args.size > 2 {
         api_set_error!(
             error,
@@ -13393,7 +13363,7 @@ pub fn handle_nvim_win_resize(channel_id: u64, args: Array, error: &mut Error) -
     let mut arg_1: Window = Default::default();
     let mut arg_2: Integer = Default::default();
     let mut arg_3: Integer = Default::default();
-    let mut arg_4: KeyDict_win_resize = Default::default();
+    let mut arg_4: KeyDictWinResize = Default::default();
     if args.size < 3 || args.size > 4 {
         api_set_error!(
             error,
@@ -15482,7 +15452,7 @@ const K_NLUA_PUSH_FREE_REFS_CONST: i32 = 0x02;
 extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_get_autocmds = Default::default();
+    let mut arg1: KeyDictGetAutocmds = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -15526,7 +15496,7 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_create_autocmd = Default::default();
+    let mut arg2: KeyDictCreateAutocmd = Default::default();
     let arg1: Object;
     'exit_0: {
         'exit_1: {
@@ -15603,7 +15573,7 @@ extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_clear_autocmds = Default::default();
+    let mut arg1: KeyDictClearAutocmds = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -15642,7 +15612,7 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
 extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_create_augroup = Default::default();
+    let mut arg2: KeyDictCreateAugroup = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -15750,7 +15720,7 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -
 extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_exec_autocmds = Default::default();
+    let mut arg2: KeyDictExecAutocmds = Default::default();
     let arg1: Object;
     'exit_0: {
         'exit_1: {
@@ -15830,7 +15800,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32
 extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_buf_attach = Default::default();
+    let mut arg3: KeyDictBufAttach = Default::default();
     let arg2: Boolean;
     let arg1: Buffer;
     'exit_0: {
@@ -16118,7 +16088,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg6: KeyDict_empty = Default::default();
+    let mut arg6: KeyDictEmpty = Default::default();
     let arg5: Integer;
     let arg4: Integer;
     let arg3: Integer;
@@ -16371,7 +16341,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32
 extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg5: KeyDict_keymap = Default::default();
+    let mut arg5: KeyDictKeymap = Default::default();
     let arg4: NvimString;
     let arg3: NvimString;
     let arg2: NvimString;
@@ -16448,7 +16418,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
 extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_keymap_del = Default::default();
+    let mut arg4: KeyDictKeymapDel = Default::default();
     let arg3: NvimString;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -16697,7 +16667,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 
 extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_buf_delete = Default::default();
+    let mut arg2: KeyDictBufDelete = Default::default();
     let arg1: Buffer;
     'exit_0: {
         'exit_1: {
@@ -16826,7 +16796,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg5: KeyDict_empty = Default::default();
+    let mut arg5: KeyDictEmpty = Default::default();
     let arg4: Integer;
     let arg3: Integer;
     let arg2: NvimString;
@@ -17015,7 +16985,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_empty = Default::default();
+    let mut arg2: KeyDictEmpty = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -17058,8 +17028,8 @@ extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_cmd_opts = Default::default();
-    let mut arg1: KeyDict_cmd = Default::default();
+    let mut arg2: KeyDictCmdOpts = Default::default();
+    let mut arg1: KeyDictCmd = Default::default();
     'exit_0: {
         'exit_1: {
             'exit_2: {
@@ -17116,7 +17086,7 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_user_command = Default::default();
+    let mut arg3: KeyDictUserCommand = Default::default();
     let arg2: Object;
     let arg1: NvimString;
     'exit_0: {
@@ -17205,7 +17175,7 @@ extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_user_command = Default::default();
+    let mut arg4: KeyDictUserCommand = Default::default();
     let arg3: Object;
     let arg2: NvimString;
     let arg1: Buffer;
@@ -17314,7 +17284,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) 
 extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_get_commands = Default::default();
+    let mut arg1: KeyDictGetCommands = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -17358,7 +17328,7 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_get_commands = Default::default();
+    let mut arg2: KeyDictGetCommands = Default::default();
     let arg1: Buffer;
     'exit_0: {
         'exit_1: {
@@ -17652,7 +17622,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
 extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg5: KeyDict_empty = Default::default();
+    let mut arg5: KeyDictEmpty = Default::default();
     let arg4: Array;
     let arg3: Integer;
     let arg2: Integer;
@@ -18372,7 +18342,7 @@ extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_get_extmark = Default::default();
+    let mut arg4: KeyDictGetExtmark = Default::default();
     let arg3: Integer;
     let arg2: Integer;
     let arg1: Buffer;
@@ -18438,7 +18408,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg5: KeyDict_get_extmarks = Default::default();
+    let mut arg5: KeyDictGetExtmarks = Default::default();
     let arg4: Object;
     let arg3: Object;
     let arg2: Integer;
@@ -18521,7 +18491,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg5: KeyDict_set_extmark = Default::default();
+    let mut arg5: KeyDictSetExtmark = Default::default();
     let arg4: Integer;
     let arg3: Integer;
     let arg2: Integer;
@@ -18698,7 +18668,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -
 extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_set_decoration_provider = Default::default();
+    let mut arg2: KeyDictSetDecorationProvider = Default::default();
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
@@ -18829,7 +18799,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) ->
 extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_ns_opts = Default::default();
+    let mut arg2: KeyDictNsOpts = Default::default();
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
@@ -18943,7 +18913,7 @@ extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_option = Default::default();
+    let mut arg2: KeyDictOption = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -18994,7 +18964,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_option = Default::default();
+    let mut arg3: KeyDictOption = Default::default();
     let arg2: Object;
     let arg1: NvimString;
     'exit_0: {
@@ -19087,7 +19057,7 @@ extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) 
 extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_option = Default::default();
+    let mut arg2: KeyDictOption = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -19431,7 +19401,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_tabpage_config = Default::default();
+    let mut arg3: KeyDictTabpageConfig = Default::default();
     let arg2: Boolean;
     let arg1: Buffer;
     'exit_0: {
@@ -19554,7 +19524,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> 
 extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_get_highlight = Default::default();
+    let mut arg2: KeyDictGetHighlight = Default::default();
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
@@ -19600,7 +19570,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_highlight = Default::default();
+    let mut arg3: KeyDictHighlight = Default::default();
     let arg2: NvimString;
     let arg1: Integer;
     'exit_0: {
@@ -19651,7 +19621,7 @@ extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_get_ns = Default::default();
+    let mut arg1: KeyDictGetNs = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -20102,7 +20072,7 @@ extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_runtime = Default::default();
+    let mut arg3: KeyDictRuntime = Default::default();
     let arg2: Boolean;
     let arg1: Array;
     'exit_0: {
@@ -20455,7 +20425,7 @@ extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_echo_opts = Default::default();
+    let mut arg3: KeyDictEchoOpts = Default::default();
     let arg2: Boolean;
     let arg1: Array;
     'exit_0: {
@@ -20741,7 +20711,7 @@ extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_open_term = Default::default();
+    let mut arg2: KeyDictOpenTerm = Default::default();
     let arg1: Buffer;
     'exit_0: {
         'exit_1: {
@@ -21110,7 +21080,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 
 extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_context = Default::default();
+    let mut arg1: KeyDictContext = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -21247,7 +21217,7 @@ extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_keymap = Default::default();
+    let mut arg4: KeyDictKeymap = Default::default();
     let arg3: NvimString;
     let arg2: NvimString;
     let arg1: NvimString;
@@ -21308,7 +21278,7 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_keymap_del = Default::default();
+    let mut arg3: KeyDictKeymapDel = Default::default();
     let arg2: NvimString;
     let arg1: NvimString;
     'exit_0: {
@@ -21361,7 +21331,7 @@ extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_chan_set = Default::default();
+    let mut arg2: KeyDictChanSet = Default::default();
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
@@ -21761,7 +21731,7 @@ extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_empty = Default::default();
+    let mut arg4: KeyDictEmpty = Default::default();
     let arg3: Boolean;
     let arg2: Boolean;
     let arg1: Integer;
@@ -21986,7 +21956,7 @@ extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_empty = Default::default();
+    let mut arg2: KeyDictEmpty = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -22036,7 +22006,7 @@ extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_eval_statusline = Default::default();
+    let mut arg2: KeyDictEvalStatusline = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -22083,7 +22053,7 @@ extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i3
 extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_complete_set = Default::default();
+    let mut arg2: KeyDictCompleteSet = Default::default();
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
@@ -22133,7 +22103,7 @@ extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg1: KeyDict_redraw = Default::default();
+    let mut arg1: KeyDictRedraw = Default::default();
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
@@ -22209,7 +22179,7 @@ extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) 
 extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_exec_opts = Default::default();
+    let mut arg2: KeyDictExecOpts = Default::default();
     let arg1: NvimString;
     'exit_0: {
         'exit_1: {
@@ -22460,7 +22430,7 @@ extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i
 extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg3: KeyDict_win_config = Default::default();
+    let mut arg3: KeyDictWinConfig = Default::default();
     let arg2: Boolean;
     let arg1: Buffer;
     'exit_0: {
@@ -22524,7 +22494,7 @@ extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_win_config = Default::default();
+    let mut arg2: KeyDictWinConfig = Default::default();
     let arg1: Window;
     'exit_0: {
         'exit_1: {
@@ -23234,7 +23204,7 @@ extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 
 extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg2: KeyDict_win_text_height = Default::default();
+    let mut arg2: KeyDictWinTextHeight = Default::default();
     let arg1: Window;
     'exit_0: {
         'exit_1: {
@@ -23280,7 +23250,7 @@ extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i3
 extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
-    let mut arg4: KeyDict_win_resize = Default::default();
+    let mut arg4: KeyDictWinResize = Default::default();
     let arg3: Integer;
     let arg2: Integer;
     let arg1: Window;

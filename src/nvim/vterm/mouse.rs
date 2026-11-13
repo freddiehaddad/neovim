@@ -19,14 +19,12 @@ pub(crate) const MOUSE_UTF8: i32 = 1;
 pub(crate) const MOUSE_SGR: i32 = 2;
 pub(crate) const MOUSE_RXVT: i32 = 3;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermPos {
     pub row: i32,
     pub col: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParserCsi {
     pub leaderlen: i32,
@@ -52,7 +50,6 @@ impl Default for VTermParserCsi {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermParserOsc {
     pub command: i32,
@@ -64,7 +61,6 @@ impl VTermParserOsc {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParserDcs {
     pub commandlen: i32,
@@ -86,7 +82,6 @@ impl Default for VTermParserDcs {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct VTermParser {
     pub state: i32,
@@ -152,7 +147,6 @@ impl VTermOut for std::cell::Cell<VTermOutput> {
     }
 }
 
-#[repr(C)]
 pub struct VTerm {
     pub rows: i32,
     pub cols: i32,

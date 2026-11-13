@@ -79,21 +79,18 @@ pub const K_TERM_KEY_UNDO: usize = 13;
 pub const K_TERM_KEY_LEFT: usize = 14;
 pub const K_TERM_KEY_RIGHT: usize = 15;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct TPVAR {
     pub num: i64,
     pub string: Option<[u8; 8]>,
 }
 
-#[repr(C)]
 struct TPSTACK {
     nums: [i64; 20],
     strings: [Option<[u8; 8]>; 20],
     offset: usize,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UnibiBoolean {
     UnibiBooleanBeginMarker = 0,
@@ -144,7 +141,6 @@ pub enum UnibiBoolean {
     UnibiBooleanEndMarker,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UnibiNumeric {
     UnibiNumericBeginMarker = UnibiBoolean::UnibiBooleanEndMarker as isize,
@@ -190,7 +186,6 @@ pub enum UnibiNumeric {
     UnibiNumericEndMarker,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UnibiString {
     UnibiStringBeginMarker = UnibiNumeric::UnibiNumericEndMarker as isize,

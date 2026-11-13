@@ -42,7 +42,6 @@ pub(crate) const HLF_L: usize = 8;
 pub(crate) const HLF_LC: usize = 9;
 pub(crate) const K_CPO_SEARCH: i32 = b'c' as i32;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct SynMatch {
     pub rm: Regmmatch,
@@ -82,7 +81,6 @@ impl Default for SynMatch {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Llpos {
     pub lnum: Linenr,
@@ -90,7 +88,6 @@ pub struct Llpos {
     pub len: i32,
 }
 
-#[repr(C)]
 pub struct Matchitem {
     pub mit_id: i32,
     pub mit_priority: i32,
@@ -111,7 +108,6 @@ impl Drop for Matchitem {
     }
 }
 
-#[repr(C)]
 pub struct SearchState {
     pub hl_match: std::cell::Cell<bool>,
     pub match_lines: std::cell::Cell<Linenr>,

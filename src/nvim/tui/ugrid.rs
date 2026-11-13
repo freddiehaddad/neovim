@@ -3,7 +3,6 @@
 
 use crate::grid::{Sattr, Schar, schar_from_ascii};
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UCell {
     pub data: Schar,

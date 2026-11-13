@@ -59,7 +59,6 @@ const K_CLIENT_TYPE_MSGPACK_RPC: ClientType = 5;
 
 use crate::api::private::helpers::ensure_nul_string;
 
-#[repr(C)]
 pub struct RemoteUI {
     pub rgb: bool,
     pub r#override: bool,
@@ -87,7 +86,6 @@ pub struct RemoteUI {
     pub wildmenu_active: bool,
 }
 
-#[repr(C)]
 pub struct ChannelCallFrame {
     pub request_id: u32,
     pub returned: std::cell::Cell<bool>,
@@ -95,7 +93,6 @@ pub struct ChannelCallFrame {
     pub result: crate::api::private::validate::CloneCell<Object>,
 }
 
-#[repr(C)]
 pub struct RequestEvent {
     pub r#type: MessageType,
     pub chan_id: u64,
@@ -112,7 +109,6 @@ impl Drop for RequestEvent {
     }
 }
 
-#[repr(C)]
 pub struct RpcState {
     pub closed: VolatileBool,
     pub unpacker: Option<Box<Unpacker>>,
@@ -143,7 +139,6 @@ impl Drop for RpcState {
     }
 }
 
-#[repr(C)]
 pub struct Channel {
     pub id: u64,
     pub refcount: usize,

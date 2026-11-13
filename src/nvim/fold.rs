@@ -70,7 +70,6 @@ enum LevelGetterKind {
     Indent,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct FoldEntry {
     fd_top: Linenr,

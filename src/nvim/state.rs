@@ -58,7 +58,6 @@ use crate::cursor::K_OPT_VE_FLAG_ALL;
 use crate::extmark::K_NONE;
 use crate::regexp::CTRL_V_CONST;
 
-#[repr(C)]
 pub struct SaveVEvent {
     pub sve_did_save: bool,
     pub sve_hashtab: Hashtab,

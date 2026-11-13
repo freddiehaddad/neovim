@@ -83,7 +83,6 @@ use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
 use std::ffi::CStr;
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MotionType {
     MtUnknown = -1,
@@ -141,7 +140,6 @@ const K_CPO_REGAPPEND: i32 = b'>' as i32;
 const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =
     c"E883: Register '%c' cannot contain multiple lines";
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct BlockDef {
     pub startspaces: i32,

@@ -277,7 +277,6 @@ use crate::mbyte::utf_byte2len;
 use crate::path::vim_ispathsep;
 
 /// Structure used to store one match for insert completion (`Compl`).
-#[repr(C)]
 struct Compl {
     cp_str: NvimString,
     cp_text: [Option<std::ffi::CString>; CPT_COUNT],
@@ -429,7 +428,6 @@ impl Default for InsComplNextState {
 }
 
 /// Structure for completion source (in `'cpt'` option) information (`CptSource`).
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct CptSource {
     cs_refresh_always: bool,
@@ -2029,7 +2027,6 @@ fn ins_compl_build_pum() -> i32 {
                             .clone()
                             .or_else(|| comp.cp_fname.clone()),
                         pum_info: comp.cp_text[CPT_INFO].clone(),
-                        pum_cpt_source_idx: comp.cp_cpt_source_idx,
                         pum_user_abbr_hlattr: -1,
                         pum_user_kind_hlattr: -1,
                         pum_comp_idx: Some(comp_idx),

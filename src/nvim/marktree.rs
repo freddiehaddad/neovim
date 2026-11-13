@@ -69,14 +69,12 @@ const META_MAP: [u32; K_MTMETA_COUNT] = [
     MT_FLAG_DECOR_CONCEAL_LINES,
 ];
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MTPos {
     pub row: i32,
     pub col: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DecorHighlightInline {
     pub flags: u16,
@@ -92,7 +90,6 @@ pub const DECOR_HIGHLIGHT_INLINE_INIT: DecorHighlightInline = DecorHighlightInli
     conceal_char: 0,
 };
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DecorExt {
     pub sh_idx: u32,
@@ -134,7 +131,6 @@ impl DecorInlineData {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct MTKey {
     pub pos: MTPos,
@@ -152,7 +148,6 @@ pub const MT_INVALID_KEY: MTKey = MTKey {
     decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct MTPair {
     pub start: MTKey,
@@ -186,14 +181,12 @@ impl Default for MTPair {
 
 pub type Intersection = Vec<u64>;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct MtnodeInner {
     pub i_ptr: [Option<usize>; 2 * MT_BRANCH_FACTOR],
     pub i_meta: [[u32; K_MTMETA_COUNT]; 2 * MT_BRANCH_FACTOR],
 }
 
-#[repr(C)]
 pub struct MTNode {
     pub n: i32,
     pub level: i16,
@@ -204,14 +197,12 @@ pub struct MTNode {
     pub inner: Option<Box<MtnodeInner>>,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct MarkTreeIterState {
     pub oldcol: i32,
     pub i: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct MarkTreeIter {
     pub pos: MTPos,
@@ -247,7 +238,6 @@ impl Default for MarkTreeIter {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MTDamage {
     pub old: Option<usize>,
@@ -256,7 +246,6 @@ pub struct MTDamage {
     pub new_i: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MTDamagePair {
     pub start: MTDamage,
@@ -268,7 +257,6 @@ pub type PMapUint64 = crate::memory::FxHashMap<u64, usize>;
 pub type PMapPtr = std::collections::BTreeMap<usize, Vec<u64>>;
 pub type MTDamageMap = crate::memory::FxHashMap<u64, MTDamagePair>;
 
-#[repr(C)]
 pub struct MarkTree {
     pub root: Option<usize>,
     pub meta_root: [u32; K_MTMETA_COUNT],

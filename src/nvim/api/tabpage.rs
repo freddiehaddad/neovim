@@ -21,9 +21,8 @@ pub type Tabpage = ObjHandle;
 
 const KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER: u64 = 1;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_tabpage_config {
+pub struct KeyDictTabpageConfig {
     pub is_set_tabpage_config: OptionalKeys,
     pub after: Integer,
 }
@@ -201,7 +200,7 @@ pub fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
 pub fn nvim_open_tabpage(
     buf: Buffer,
     enter: Boolean,
-    config: &mut KeyDict_tabpage_config,
+    config: &mut KeyDictTabpageConfig,
     err: &mut Error,
 ) -> Tabpage {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {

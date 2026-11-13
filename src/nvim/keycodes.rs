@@ -378,7 +378,6 @@ pub const FSK_SIMPLIFY: i32 = 0x08;
 
 const K_CPO_BSLASH: i32 = b'B' as i32;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ModMaskTable {
     pub mod_mask: u16,

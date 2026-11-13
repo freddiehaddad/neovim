@@ -135,7 +135,6 @@ pub const K_EXPR_FLAGS_MULTI: i32 = 1 << 0;
 pub const K_EXPR_FLAGS_DISALLOW_EOC: i32 = 1 << 1;
 pub const K_EXPR_FLAGS_PARSE_LET: i32 = 1 << 2;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenCmp {
     pub r#type: ExprComparisonType,
@@ -153,7 +152,6 @@ impl LexExprTokenCmp {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenMul {
     pub r#type: LexExprMulType,
@@ -165,7 +163,6 @@ impl LexExprTokenMul {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenBrc {
     pub closing: bool,
@@ -177,7 +174,6 @@ impl LexExprTokenBrc {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenReg {
     pub name: i32,
@@ -189,7 +185,6 @@ impl LexExprTokenReg {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenStr {
     pub closed: bool,
@@ -201,7 +196,6 @@ impl LexExprTokenStr {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LexExprTokenOpt {
     pub name_off: usize,
@@ -225,7 +219,6 @@ impl Default for LexExprTokenOpt {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenVar {
     pub scope: ExprVarScope,
@@ -241,7 +234,6 @@ impl LexExprTokenVar {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LexExprTokenErr {
     pub r#type: LexExprTokenType,
@@ -297,7 +289,6 @@ impl LexExprTokenNumVal {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenNum {
     pub val: LexExprTokenNumVal,
@@ -315,7 +306,6 @@ impl LexExprTokenNum {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprTokenAss {
     pub r#type: ExprAssignmentType,
@@ -547,7 +537,6 @@ impl LexExprTokenData {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct LexExprToken {
     pub start: ParserPosition,
@@ -567,7 +556,6 @@ impl LexExprToken {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeReg {
     pub name: i32,
@@ -579,7 +567,6 @@ impl ExprASTNodeReg {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFigTypeGuesses {
     pub allow_dict: bool,
@@ -587,7 +574,6 @@ pub struct ExprASTNodeFigTypeGuesses {
     pub allow_ident: bool,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFig {
     pub type_guesses: ExprASTNodeFigTypeGuesses,
@@ -607,7 +593,6 @@ impl ExprASTNodeFig {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTNodeVar {
     pub scope: ExprVarScope,
@@ -628,7 +613,6 @@ impl ExprASTNodeVar {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeTer {
     pub got_colon: bool,
@@ -640,7 +624,6 @@ impl ExprASTNodeTer {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeCmp {
     pub r#type: ExprComparisonType,
@@ -658,7 +641,6 @@ impl ExprASTNodeCmp {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeNum {
     pub value: Uvarnumber,
@@ -670,7 +652,6 @@ impl ExprASTNodeNum {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFlt {
     pub value: TvFloat,
@@ -682,7 +663,6 @@ impl ExprASTNodeFlt {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTNodeStr {
     pub value: Vec<u8>,
@@ -703,7 +683,6 @@ impl ExprASTNodeStr {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTNodeOpt {
     pub ident: Vec<u8>,
@@ -724,7 +703,6 @@ impl ExprASTNodeOpt {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTNodeEnv {
     pub ident: Vec<u8>,
@@ -741,7 +719,6 @@ impl ExprASTNodeEnv {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeAss {
     pub r#type: ExprAssignmentType,
@@ -994,7 +971,6 @@ impl ExprASTNodeData {
     }
 }
 
-#[repr(C)]
 pub struct ExprASTNode {
     pub r#type: ExprASTNodeType,
     pub children: Option<Box<ExprASTNode>>,
@@ -1017,7 +993,6 @@ impl ExprASTNode {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ExprASTError {
     pub msg: Option<&'static std::ffi::CStr>,
@@ -1031,7 +1006,6 @@ impl ExprASTError {
     }
 }
 
-#[repr(C)]
 pub struct ExprAST {
     pub err: ExprASTError,
     pub root: Option<Box<ExprASTNode>>,
@@ -1913,12 +1887,10 @@ const fn pt_is_assignment(pt: ExprASTParseType) -> bool {
     )
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct StringShift {
     start: usize,
     orig_len: usize,
-    act_len: usize,
     escape_not_known: bool,
 }
 
@@ -1961,7 +1933,6 @@ fn parse_quoted_string(
                 shifts.push(StringShift {
                     start: token.start.col + 1 + chunk_e,
                     orig_len: 2,
-                    act_len: 1,
                     escape_not_known: false,
                 });
             }
@@ -2072,7 +2043,6 @@ fn parse_quoted_string(
                     break;
                 }
                 let mut is_unknown = false;
-                let out_pos_start = out_pos;
                 match body[i] {
                     b'b' => {
                         buf[out_pos] = BS;
@@ -2186,7 +2156,6 @@ fn parse_quoted_string(
                     shifts.push(StringShift {
                         start: token.start.col + 1 + chunk_e,
                         orig_len: i - chunk_e,
-                        act_len: out_pos - out_pos_start,
                         escape_not_known: is_unknown,
                     });
                 }

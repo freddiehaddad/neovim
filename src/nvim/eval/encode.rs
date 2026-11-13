@@ -46,7 +46,6 @@ std::thread_local! {
 }
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
-#[repr(C)]
 #[derive(Clone)]
 pub struct ListReaderState {
     pub li: crate::eval::typval::ListitemId,

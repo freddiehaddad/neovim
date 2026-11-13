@@ -121,7 +121,6 @@ pub(crate) const K_STL_CLICK_TAB_SWITCH: i32 = 1;
 pub(crate) const K_STL_CLICK_TAB_CLOSE: i32 = 2;
 pub(crate) const K_STL_CLICK_FUNC_RUN: i32 = 3;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct StlClickDefinition {
     pub type_: i32,

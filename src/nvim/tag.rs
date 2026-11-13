@@ -66,7 +66,6 @@ use crate::window::{
 };
 use std::ffi::CStr;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Taggy {
     pub tagname: Option<std::ffi::CString>,
@@ -127,7 +126,6 @@ const MT_NAMES: [&CStr; MT_COUNT / 2] = [
 ];
 
 /// Structure used for `get_tagfname()`.
-#[repr(C)]
 pub struct Tagname {
     pub tn_tags: Option<std::ffi::CString>,
     pub tn_np_off: usize,
@@ -183,7 +181,6 @@ struct Tagptrs<'a> {
     tagline: Linenr,
 }
 
-#[repr(C)]
 struct Pat {
     pat: std::ffi::CString,
     len: i32,

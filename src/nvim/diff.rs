@@ -44,7 +44,7 @@ use crate::r#move::{
 use crate::normal::check_scrollbind;
 use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, OptKeyDict_dip, opt_keyset};
+use crate::optionstr::{OptIndex, OptKeyDictDip, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{CFile, FileInfo, os_fileinfo, os_fileinfo_size, os_remove};
 use crate::os::shell::call_shell;
@@ -107,7 +107,6 @@ const KEYSET_OPTIDX_DIP_CONTEXT: u64 = 7;
 const KEYSET_OPTIDX_DIP_LINEMATCH: u64 = 11;
 const KEYSET_OPTIDX_DIP_ALGORITHM: u64 = 13;
 const KEYSET_OPTIDX_DIP_FOLDCOLUMN: u64 = 16;
-#[repr(C)]
 pub struct DiffBlock {
     pub df_id: u64,
     pub df_lnum: [Linenr; DB_COUNT],
@@ -116,7 +115,6 @@ pub struct DiffBlock {
     pub has_changes: bool,
     pub df_changes: Vec<DifflineChange>,
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DifflineChange {
     pub dc_start: [Colnr; DB_COUNT],
@@ -124,7 +122,6 @@ pub struct DifflineChange {
     pub dc_start_lnum_off: [i32; DB_COUNT],
     pub dc_end_lnum_off: [i32; DB_COUNT],
 }
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct Diffline {
     pub changes: Vec<DifflineChange>,
@@ -132,17 +129,14 @@ pub struct Diffline {
     pub bufidx: i32,
     pub lineoff: i32,
 }
-#[repr(C)]
 struct Diffin {
     din_fname: Option<CString>,
     din_buf: Vec<u8>,
 }
-#[repr(C)]
 pub(crate) struct Diffout {
     dout_fname: Option<CString>,
     dout_ga: Vec<Diffhunk>,
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct Diffhunk {
     lnum_orig: Linenr,
@@ -150,7 +144,6 @@ struct Diffhunk {
     lnum_new: Linenr,
     count_new: i32,
 }
-#[repr(C)]
 struct Diffio {
     dio_orig: Diffin,
     dio_new: Diffin,
@@ -163,7 +156,6 @@ enum Diffstyle {
     DiffUnified,
     DiffNone,
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct LinemapEntry {
     byte_start: Colnr,
@@ -246,7 +238,7 @@ fn diff_flags() -> i32 {
 }
 
 #[inline]
-const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
+const fn has_dip_key(v: &OptKeyDictDip, idx: u64) -> bool {
     (v.is_set_dip & (1u64 << idx)) != 0
 }
 fn diff_scan_start(tp: &TabPageInfo, idx: i32, lnum: Linenr) -> usize {
@@ -2338,7 +2330,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v: &OptKeyDict_dip = &opt_keyset(&opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
+    let v: &OptKeyDictDip = &opt_keyset(&opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })
         | (if v.iblank { DIFF_IBLANK } else { 0 })

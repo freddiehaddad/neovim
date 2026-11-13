@@ -84,7 +84,6 @@ pub type Etype = i32;
 pub type EstackArg = i32;
 pub(crate) const SID_NONE: Scid = -6;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sctx {
     pub sc_sid: i32,
@@ -199,7 +198,6 @@ const HLF_W: usize = 26;
 #[cfg(windows)]
 const O_NOINHERIT: i32 = 0x0080;
 
-#[repr(C)]
 pub struct Scriptvar {
     pub sv_var: crate::eval::typval::DictitemId,
     pub sv_dict: crate::eval::typval::DictId,
@@ -277,7 +275,6 @@ impl SourceCookie {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct SearchPathItem {
     path: std::ffi::CString,

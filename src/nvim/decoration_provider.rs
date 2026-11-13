@@ -26,7 +26,6 @@ const K_DECOR_PROVIDER_WIN_DISABLED: i32 = 2;
 const K_DECOR_PROVIDER_REDRAW_DISABLED: i32 = 3;
 const K_DECOR_PROVIDER_DISABLED: i32 = 4;
 
-#[repr(C)]
 pub struct DecorProvider {
     pub ns_id: NS,
     pub state: i32,

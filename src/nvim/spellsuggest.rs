@@ -100,7 +100,6 @@ pub struct Fromto {
     pub ft_from: std::ffi::CString,
     pub ft_to: std::ffi::CString,
 }
-#[repr(C)]
 pub struct Salitem {
     pub sm_leadlen: i32,
     pub sm_rules: std::ffi::CString,
@@ -146,7 +145,6 @@ impl Drop for Slang {
         crate::spell::slang_clear(self);
     }
 }
-#[repr(C)]
 pub struct Slang {
     pub sl_name: Option<std::ffi::CString>,
     pub sl_fname: Option<std::ffi::CString>,
@@ -205,7 +203,6 @@ impl Slang {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Langp {
     pub lp_slang: SlangId,
@@ -235,7 +232,6 @@ impl Default for Langp {
         Self::new()
     }
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Spelltab {
     pub st_isw: [bool; 256],
@@ -260,7 +256,6 @@ impl Default for Spelltab {
         Self::new()
     }
 }
-#[repr(C)]
 struct Suginfo {
     su_ga: Vec<Suggest>,
     su_maxcount: i32,
@@ -296,7 +291,6 @@ impl Default for Suginfo {
         }
     }
 }
-#[repr(C)]
 struct Suggest {
     st_word: std::ffi::CString,
     st_wordlen: i32,
@@ -307,7 +301,6 @@ struct Suggest {
     st_had_bonus: bool,
     st_slang: SlangId,
 }
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SugState {
     StateStart = 0,
@@ -329,7 +322,6 @@ enum SugState {
     StateRepUndo,
     StateFinal,
 }
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct Trystate {
     ts_state: SugState,
@@ -379,7 +371,6 @@ impl Default for Trystate {
         }
     }
 }
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct Limitscore {
     badi: i32,

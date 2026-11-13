@@ -37,7 +37,6 @@ pub(crate) const MAXPATHL: usize = 4096;
 
 #[cfg(windows)]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct FileID {
@@ -82,7 +81,6 @@ pub struct uv_stat_t {
     pub st_ctim: uv_timespec_t,
     pub st_birthtim: uv_timespec_t,
 }
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct FileInfo {
@@ -134,7 +132,6 @@ impl FileInfo {
         }
     }
 }
-
 #[repr(C)]
 pub struct Directory {
     pub _opaque: [u64; 88],
@@ -274,7 +271,6 @@ const EPERM: i32 = 1;
 const ERANGE: i32 = 34;
 #[cfg(target_os = "linux")]
 const ENOTSUP: i32 = 95;
-
 #[repr(C)]
 pub struct NvimStats {
     pub fsync: std::cell::Cell<i64>,

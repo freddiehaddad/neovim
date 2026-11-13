@@ -115,7 +115,6 @@ struct BuiltinModule {
 
 include!(concat!(env!("OUT_DIR"), "/builtin_modules.rs"));
 
-#[repr(C)]
 pub struct ExDocmdCookie {
     getline: LuaRef,
     got_line: std::cell::Cell<bool>,

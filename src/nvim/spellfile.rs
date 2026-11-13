@@ -184,7 +184,6 @@ fn spellfile_st<R>(f: impl FnOnce(&SpellfileModuleState) -> R) -> R {
     SPELLFILE_STATE.with(f)
 }
 
-#[repr(C)]
 struct Afffile {
     af_enc: Option<std::ffi::CString>,
     af_flagtype: i32,
@@ -205,7 +204,6 @@ struct Afffile {
     af_comp: crate::memory::FxHashMap<Vec<u8>, Compitem>,
 }
 
-#[repr(C)]
 struct Affentry {
     ae_chop: Option<std::ffi::CString>,
     ae_add: Option<std::ffi::CString>,
@@ -238,7 +236,6 @@ impl Affentry {
     }
 }
 
-#[repr(C)]
 struct Affheader {
     ah_key: [u8; AH_KEY_LEN],
     ah_flag: u32,
@@ -248,10 +245,8 @@ struct Affheader {
     ah_entries: Vec<Affentry>,
 }
 
-#[repr(C)]
 struct Compitem {
     ci_key: [u8; AH_KEY_LEN],
-    ci_flag: u32,
     ci_new_id: i32,
 }
 
@@ -2640,7 +2635,6 @@ fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: &[u8]) 
                 } else {
                     let mut ci = Compitem {
                         ci_key: [0; AH_KEY_LEN],
-                        ci_flag: flag,
                         ci_new_id: 0,
                     };
                     ci.ci_key[..key_len].copy_from_slice(key_bytes);

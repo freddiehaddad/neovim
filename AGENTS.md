@@ -33,25 +33,28 @@ cargo xtask oldtest --release test_<name>
 cargo xtask benchmark --release
 ```
 
-## Critical Rust Soundness & FFI Invariants
+## Critical Rust Soundness & Architecture Invariants
 
-The Neovim core interacts heavily with global editor state (`curwin`, `curbuf`, `firstwin`, `firstbuf`, `g_st()`), Lua/Vimscript callbacks, `libuv` C callbacks, and arena/pool allocators. Violating Rust's aliasing rules (`&mut T` carries LLVM `noalias` in `--release` builds) causes miscompilations that only manifest under `opt-level = 3`.
+The Neovim core uses `#![forbid(unsafe_code)]` / `#![deny(unsafe_code)]` across non-FFI modules, modeling editor graph objects (`WinPtr`, `BufPtr`, `TabpagePtr`, `FramePtr`) with `Rc<T>` and interior mutability (`Cell`, `CloneCell`, `RefCell`). Only genuine C-ABI boundaries (`src/nvim/lua/`, `src/nvim/event/`, `src/nvim/os/`, and exported LuaJIT `ffi.C` shims) use `unsafe` FFI and `#[repr(C)]`.
 
 Follow these rules strictly when modifying `src/nvim/`:
 
-1. **Never hold `&mut T` across callbacks, `uv_run`, autocmds, or deallocators**:
-   - Functions that trigger autocommands (`apply_autocmds*`), Lua callbacks (`nlua_call*`), Vimscript evaluation (`eval*`, `do_cmdline*`), window/buffer switches, or `libuv` event loop ticks (`uv_run`, `Loop::poll_events`) can mutate or free windows (`WinInfoInfo`), buffers (`FileBuf`), tabpages (`Tabpage`), and processes (`Proc`).
-   - Keep raw pointers (`*mut WinInfoInfo`, `*mut FileBuf`, `*mut Proc`, `*mut Terminal`) across those boundaries and re-borrow locally only for the duration of a synchronous, non-reentrant access.
-2. **Never hold `&mut T` while polling fields mutated asynchronously by `libuv`**:
-   - In `src/nvim/event/`, `libuv` callbacks mutate `Proc`, `Stream`, and `MultiQueue` fields through raw C pointers (`handle.data`). Polling loops (such as `proc_wait` or `loop_uv_run`) must take `*mut Proc` and read shared state via `std::ptr::read_volatile`, never `&mut Proc` (which allows LLVM to constant-fold loop conditions under `noalias`).
-3. **Never create overlapping `&mut` references to parent and child structs**:
-   - Do not hold `&mut Stream` (`RStream`) while passing `&mut RStream` (`stream.data`) into a callback (`read_event`), or hold `&mut PackerBuffer` while mutating the owning `RemoteUI` via `packer.anydata` (`ui_flush_callback`). Re-derive child pointers from the raw parent pointer as needed.
-4. **Never narrow `unsafe { &mut *ptr }` into `&mut unsafe { *ptr }` on `Copy` structs**:
-   - `&mut unsafe { *ptr }` copies `*ptr` by value into a stack temporary and takes a mutable reference to the temporary, silently discarding mutations. Always write `unsafe { &mut *ptr }`.
+1. **Never hold `RefCell` (`Ref` / `RefMut`) guards across reentrant boundaries**:
+   - Functions that trigger autocommands (`apply_autocmds*`), Lua callbacks (`nlua_call*`), Vimscript evaluation (`eval*`, `do_cmdline*`), UI prompts (`msg_putchar`, `do_more_prompt`, `ui_refresh`), regex execution (`vim_regexec*`), or `libuv` event loop ticks (`uv_run`, `Loop::poll_events`) can re-enter any editor subsystem.
+   - Scope `RefCell::borrow()` and `RefCell::borrow_mut()` guards to pure synchronous data access; clone `Rc` handles, copy small values, or step by index before invoking callbacks or UI output, and never take `borrow_mut()` for read-only queries.
+2. **Use shared handles (`WinPtr`, `BufPtr`, `TabpagePtr`, `FramePtr`) and `Deref`**:
+   - Access current editor state via `curwin()`, `curbuf()`, `curtab()`, `firstwin()`, `lastwin()`, `topframe()`, and `first_tabpage()`.
+   - `WinPtr`, `BufPtr`, `TabpagePtr`, and `FramePtr` implement `Deref` for non-null access and `.opt()` for `Option<&T>`. Reserve `.borrow()` and `.borrow_mut()` for `RefCell` fields so interior mutability borrows remain explicit and auditable.
+3. **Use local stack buffers or owned values instead of global scratch buffers**:
+   - Format transient messages and paths into local stack arrays (`[0u8; IOSIZE]`, `[0u8; MAXPATHL]`) or owned `Vec<u8>` / `CString` values rather than shared mutable state in `EditorState`.
+4. **Restrict `#[repr(C)]` and raw pointers to true C-ABI / FFI boundaries**:
+   - Keep `#[repr(C)]` only on types that cross C FFI (`lua/ffi.rs`, `event/ffi.rs`, `os/`, swapfile/undo binary headers, and `#[unsafe(no_mangle)]` / `#[unsafe(export_name = ...)]` LuaJIT `ffi.C` shims).
+   - Note that LuaJIT's `ffi.C` tests declare several types (such as `Error`) as 0-byte `typedef struct {}`; exported `extern "C"` shims must not write larger Rust structs through such pointers.
+   - In `src/nvim/event/`, `libuv` callbacks mutate `Proc` and `Stream` fields through raw C pointers (`handle.data`). Polling loops must take `*mut Proc` and read shared state via `VolatileCell` / `std::ptr::read_volatile`, never holding `&mut Proc` across `uv_run`.
 5. **Preserve NUL-termination invariants on C-string buffers**:
-   - Functions expecting NUL-terminated `*const c_char` / `*mut c_char` (such as `msg_multiline`, `ml_get`, and regex/parser cursors) must never be passed `Vec::as_ptr()` on an empty or non-NUL-terminated `Vec<c_char>` (`Vec::new().as_ptr()` is a dangling `0x1` pointer).
+   - Use `CStrSlice`, `OwnedSlice`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
 6. **Always validate nontrivial core changes in `--release` mode**:
-   - Debug builds (`opt-level = 0`) do not exploit LLVM `noalias` optimizations. When modifying pointer/reference signatures or event/buffer/window lifetimes, test with `cargo xtask functionaltest --release`.
+   - Test core changes with `cargo xtask functionaltest --release` to validate both optimized codegen and runtime `RefCell` invariants.
 
 ## Syncing Upstream `neovim/neovim` Commits
 

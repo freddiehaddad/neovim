@@ -113,9 +113,8 @@ const KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET: u64 = 24;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_win_config {
+pub struct KeyDictWinConfig {
     pub is_set_win_config: OptionalKeys,
     pub external: Boolean,
     pub fixed: Boolean,
@@ -329,7 +328,7 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
 pub fn nvim_open_win(
     buf: Buffer,
     enter: Boolean,
-    config: &mut KeyDict_win_config,
+    config: &mut KeyDictWinConfig,
     err: &mut Error,
 ) -> Window {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
@@ -624,7 +623,7 @@ fn win_find_altwin(win: &WinInfoInfo, tp: &TabPageInfo) -> Option<crate::globals
 
 fn win_config_split(
     win: &WinInfoInfo,
-    config: &KeyDict_win_config,
+    config: &KeyDictWinConfig,
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
@@ -904,7 +903,7 @@ fn win_config_split(
 
 fn win_config_float_tp(
     win: &WinInfoInfo,
-    config: &KeyDict_win_config,
+    config: &KeyDictWinConfig,
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
@@ -1030,7 +1029,7 @@ fn win_config_float_tp(
 /// @param[out] err     Error details, if any
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
-pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &mut Error) {
+pub fn nvim_win_set_config(win: Window, config: &mut KeyDictWinConfig, err: &mut Error) {
     let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return;
     };
@@ -1079,7 +1078,7 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
 }
 
 fn config_put_bordertext(
-    config: &mut KeyDict_win_config,
+    config: &mut KeyDictWinConfig,
     fconfig: &WinConfig,
     bordertext_type: BorderTextType,
 ) {
@@ -1124,7 +1123,7 @@ fn config_put_bordertext(
 /// @return     Map defining the window configuration, see |nvim_open_win()|
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
-pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDict_win_config {
+pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDictWinConfig {
     const FLOAT_RELATIVE_STR: [&CStr; 6] = [
         c"editor",
         c"win",
@@ -1136,7 +1135,7 @@ pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDict_win_config {
     const WIN_SPLIT_STR: [&CStr; 4] = [c"left", c"right", c"above", c"below"];
     const WIN_STYLE_STR: [&CStr; 2] = [c"", c"minimal"];
 
-    let mut rv = KeyDict_win_config::default();
+    let mut rv = KeyDictWinConfig::default();
 
     let Some(wp) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
         return rv;
@@ -1577,7 +1576,7 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>, opt_bytes: &[u8], err: &
 
 fn parse_win_config(
     wp: Option<&WinInfoInfo>,
-    config: &mut KeyDict_win_config,
+    config: &mut KeyDictWinConfig,
     fconfig: &mut WinConfig,
     reconf: bool,
     will_float: bool,

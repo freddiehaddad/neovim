@@ -26,7 +26,6 @@ use crate::window::WinInfoInfo;
 pub type Colnr = i32;
 pub type Linenr = i32;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct CursorPos {
     pub lnum: i32,
@@ -122,7 +121,6 @@ impl CursorPosCellExt for std::cell::Cell<CursorPos> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Lpos {
     pub lnum: i32,

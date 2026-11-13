@@ -31,7 +31,6 @@ pub struct AdditionalData {
 pub type AdditionalDataBuilder = Option<AdditionalData>;
 pub type StringArray = Vec<NvimString>;
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageType {
     MessageTypeRequest = 0,
@@ -53,7 +52,6 @@ impl MessageType {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct GridLineEvent {
     pub args: [i32; 3],
@@ -65,7 +63,6 @@ pub struct GridLineEvent {
     pub wrap: bool,
 }
 
-#[repr(C)]
 pub struct Unpacker {
     pub parser: MpackParser,
     pub reader: MpackTokbuf,

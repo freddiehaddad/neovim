@@ -368,7 +368,6 @@ impl crate::globals::CloneCell<CallbackData> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Callback {
     pub data: crate::globals::CloneCell<CallbackData>,
@@ -411,7 +410,6 @@ impl Default for Callback {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VarType {
     VarUnknown = 0,
@@ -720,7 +718,6 @@ impl TypvalVval {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct TypVal {
     pub v_type: VarType,
@@ -919,7 +916,6 @@ impl std::ops::Deref for ListitemId {
     }
 }
 
-#[repr(C)]
 pub struct Listitem {
     pub self_weak: std::rc::Weak<Self>,
     pub li_next: crate::api::private::validate::CloneCell<ListitemId>,
@@ -1156,7 +1152,6 @@ impl std::ops::Deref for ListId {
     }
 }
 
-#[repr(C)]
 pub struct TvList {
     pub self_weak: std::rc::Weak<Self>,
     pub lv_first: crate::api::private::validate::CloneCell<ListitemId>,
@@ -1396,7 +1391,6 @@ impl std::ops::Deref for DictitemId {
     }
 }
 
-#[repr(C)]
 pub struct Dictitem {
     pub self_weak: std::cell::RefCell<std::rc::Weak<Self>>,
     pub di_tv: std::cell::RefCell<TypVal>,
@@ -1623,7 +1617,6 @@ impl std::ops::Deref for DictId {
     }
 }
 
-#[repr(C)]
 pub struct TvDict {
     pub self_weak: std::rc::Weak<Self>,
     pub dv_lock: std::cell::Cell<i32>,
@@ -1703,12 +1696,10 @@ enum DictListType {
     Items,
 }
 
-#[repr(C)]
 pub struct Listwatch {
     pub lw_item: crate::api::private::validate::CloneCell<ListitemId>,
 }
 
-#[repr(C)]
 pub struct DictWatcher {
     pub callback: Callback,
     pub key_pattern: std::ffi::CString,
@@ -1783,7 +1774,6 @@ impl ListSortKey {
     }
 }
 
-#[repr(C)]
 struct ListSortItem {
     item: ListitemId,
     idx: i32,

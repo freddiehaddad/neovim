@@ -117,7 +117,6 @@ const STL_TABPAGENR: u8 = b'T';
 const STL_TABCLOSENR: u8 = b'X';
 const STL_CLICK_FUNC: u8 = b'@';
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StlPadding {
     PaddingNone = 0,
@@ -125,7 +124,6 @@ enum StlPadding {
     PaddingRight = 2,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NumberBase {
     NumBaseDecimal = 10,
@@ -178,7 +176,6 @@ impl Default for StlHlrec {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum StlItemType {
     Disabled = 0,
@@ -197,7 +194,6 @@ pub enum StlItemType {
     ClickFunc = 13,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct StlItem {
     pub start_off: usize,

@@ -109,9 +109,8 @@ pub const HLATTRS_INIT: HlAttrs = HlAttrs {
     font: -1,
 };
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_highlight {
+pub struct KeyDictHighlight {
     pub is_set_highlight: OptionalKeys,
     pub altfont: Boolean,
     pub blink: Boolean,
@@ -151,9 +150,8 @@ pub struct KeyDict_highlight {
     pub font: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_highlight_cterm {
+pub struct KeyDictHighlightCterm {
     pub bold: Boolean,
     pub standout: Boolean,
     pub strikethrough: Boolean,
@@ -172,7 +170,6 @@ pub struct KeyDict_highlight_cterm {
     pub nocombine: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HlAttrs {
     pub rgb_ae_attr: i32,
@@ -187,7 +184,6 @@ pub struct HlAttrs {
     pub font: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HlEntry {
     pub attr: HlAttrs,
@@ -197,14 +193,12 @@ pub struct HlEntry {
     pub winid: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorKey {
     pub ns_id: i32,
     pub syn_id: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ColorItem {
     pub attr_id: i32,
@@ -414,7 +408,7 @@ pub fn ns_hl_def(
     hl_id: i32,
     attrs: HlAttrs,
     link_id: i32,
-    dict: Option<&KeyDict_highlight>,
+    dict: Option<&KeyDictHighlight>,
 ) {
     if ns_id == 0 {
         let dict = dict.expect("ns_hl_def with ns_id == 0 requires dict");
@@ -500,7 +494,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         let mut attrs = HLATTRS_INIT;
         if ret.obj_type == ObjectType::ObjectTypeDict {
             fallback = false;
-            let mut dict = KeyDict_highlight::default();
+            let mut dict = KeyDictHighlight::default();
             if api_dict_to_keydict(
                 &mut dict,
                 Some(key_dict_highlight_get_field),
@@ -1384,7 +1378,7 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 }
 
 pub fn dict2hlattrs(
-    dict: &mut KeyDict_highlight,
+    dict: &mut KeyDictHighlight,
     use_rgb: bool,
     mut link_id: Option<&mut i32>,
     base: Option<&HlAttrs>,
@@ -1638,7 +1632,7 @@ pub fn dict2hlattrs(
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERM) {
-        let mut cterm = KeyDict_highlight_cterm::default();
+        let mut cterm = KeyDictHighlightCterm::default();
         if !api_dict_to_keydict(
             &mut cterm,
             Some(key_dict_highlight_cterm_get_field),

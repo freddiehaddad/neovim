@@ -5697,7 +5697,6 @@ fn set_option<'a>(
         os_prep: crate::optionstr::OptSetPrep::None,
         os_value_checked: false,
         os_value_changed: false,
-        os_restore_chartab: false,
         os_errbuf: errbuf,
         os_win: crate::globals::curwin_ptr(),
         os_buf: g_st().curbuf.get(),

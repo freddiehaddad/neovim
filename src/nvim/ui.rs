@@ -88,7 +88,6 @@ use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_INSERT, MODE_SETWSIZE,
 };
 
-#[repr(C)]
 struct UIEventCallback {
     cb: LuaRef,
     errors: u8,

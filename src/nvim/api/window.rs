@@ -43,9 +43,8 @@ const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_VCOL: u64 = 5;
 
 const KEYSET_OPTIDX_WIN_RESIZE_ANCHOR: u64 = 1;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_win_text_height {
+pub struct KeyDictWinTextHeight {
     pub is_set_win_text_height: OptionalKeys,
     pub start_row: Integer,
     pub end_row: Integer,
@@ -54,9 +53,8 @@ pub struct KeyDict_win_text_height {
     pub max_height: Integer,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_win_resize {
+pub struct KeyDictWinResize {
     pub is_set_win_resize: OptionalKeys,
     pub anchor: NvimString,
 }
@@ -470,11 +468,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 // DLLEXPORT DictAs(win_text_height_ret) nvim_win_text_height(Window win, Dict(win_text_height) *opts,
 //                                                            Arena *arena, Error *err)
 //   FUNC_API_SINCE(12);
-pub fn nvim_win_text_height(
-    win: Window,
-    opts: &mut KeyDict_win_text_height,
-    err: &mut Error,
-) -> Dict {
+pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight, err: &mut Error) -> Dict {
     let mut rv = Dict::with_capacity(4);
 
     let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
@@ -618,7 +612,7 @@ pub fn nvim_win_resize(
     win: Window,
     width: Integer,
     height: Integer,
-    opts: &mut KeyDict_win_resize,
+    opts: &mut KeyDictWinResize,
     err: &mut Error,
 ) {
     let w = find_window_by_handle(win, err);

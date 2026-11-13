@@ -58,7 +58,6 @@ pub(crate) const ML_EMPTY: i32 = 0x01;
 
 const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout changed unexpectedly";
 
-#[repr(C)]
 pub struct Alist {
     pub al_ga: std::cell::RefCell<Vec<Aentry>>,
     pub id: std::cell::Cell<i32>,
@@ -73,7 +72,6 @@ impl Alist {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Aentry {
     pub ae_fname: Option<std::ffi::CString>,

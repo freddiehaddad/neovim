@@ -60,9 +60,8 @@ const KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER: u64 = 4;
 const KEYSET_OPTIDX_EXEC_AUTOCMDS_PATTERN: u64 = 5;
 const KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE: u64 = 6;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_get_autocmds {
+pub struct KeyDictGetAutocmds {
     pub is_set_get_autocmds: OptionalKeys,
     pub event: Object,
     pub group: Object,
@@ -72,9 +71,8 @@ pub struct KeyDict_get_autocmds {
     pub id: Integer,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_create_autocmd {
+pub struct KeyDictCreateAutocmd {
     pub is_set_create_autocmd: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
@@ -87,9 +85,8 @@ pub struct KeyDict_create_autocmd {
     pub pattern: Object,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_clear_autocmds {
+pub struct KeyDictClearAutocmds {
     pub is_set_clear_autocmds: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
@@ -98,16 +95,14 @@ pub struct KeyDict_clear_autocmds {
     pub pattern: Object,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_create_augroup {
+pub struct KeyDictCreateAugroup {
     pub is_set_create_augroup: OptionalKeys,
     pub clear: bool,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_exec_autocmds {
+pub struct KeyDictExecAutocmds {
     pub is_set_exec_autocmds: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
@@ -308,7 +303,7 @@ fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut 
 // DLLEXPORT ArrayOf(DictAs(get_autocmds__ret)) nvim_get_autocmds(Dict(get_autocmds) *opts,
 //                                                                Arena *arena,
 //                                                                Error *err) FUNC_API_SINCE(9);
-pub fn nvim_get_autocmds(opts: &mut KeyDict_get_autocmds, err: &mut Error) -> Array {
+pub fn nvim_get_autocmds(opts: &mut KeyDictGetAutocmds, err: &mut Error) -> Array {
     let mut autocmd_list = ArrayBuilder::new();
     let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
     let mut buffers = Array::new();
@@ -729,7 +724,7 @@ pub fn nvim_get_autocmds(opts: &mut KeyDict_get_autocmds, err: &mut Error) -> Ar
 pub fn nvim_create_autocmd(
     channel_id: u64,
     event: Object,
-    opts: &mut KeyDict_create_autocmd,
+    opts: &mut KeyDictCreateAutocmd,
     err: &mut Error,
 ) -> Integer {
     let mut autocmd_id: i64 = -1;
@@ -910,7 +905,7 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 ///
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
-pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, err: &mut Error) {
+pub fn nvim_clear_autocmds(opts: &mut KeyDictClearAutocmds, err: &mut Error) {
     let event_array = unpack_string_or_array(opts.event.clone(), c"event", false, err);
     if error_set(err) {
         return;
@@ -985,7 +980,7 @@ pub fn nvim_clear_autocmds(opts: &mut KeyDict_clear_autocmds, err: &mut Error) {
 pub fn nvim_create_augroup(
     channel_id: u64,
     name: NvimString,
-    opts: &mut KeyDict_create_augroup,
+    opts: &mut KeyDictCreateAugroup,
     err: &mut Error,
 ) -> Integer {
     let augroup_name = name;
@@ -1060,7 +1055,7 @@ pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
 /// @see |:doautocmd|
 // DLLEXPORT void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(9);
-pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDict_exec_autocmds, err: &mut Error) {
+pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &mut Error) {
     let mut au_group = AUGROUP_ALL;
     let mut b = g_st().curbuf.get();
 

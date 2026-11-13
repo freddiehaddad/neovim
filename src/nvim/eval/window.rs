@@ -42,7 +42,6 @@ use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, K_LIST_LEN_UNKNOWN_CONST};
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Viewstate {
     pub vs_curswant: Colnr,

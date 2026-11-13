@@ -38,7 +38,6 @@ impl PackerData {
     }
 }
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct PackerBuffer {
     pub pos: usize,

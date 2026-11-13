@@ -2,7 +2,7 @@
 
 //! Buffer API functions (`src/nvim/api/buffer.c`).
 
-use crate::api::deprecated::KeyDict_empty;
+use crate::api::deprecated::KeyDictEmpty;
 use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, boolean_obj, buf_get_text,
     cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, has_key,
@@ -56,9 +56,8 @@ const KEYSET_OPTIDX_BUF_ATTACH_ON_DETACH: u64 = 5;
 const KEYSET_OPTIDX_BUF_ATTACH_ON_RELOAD: u64 = 6;
 const KEYSET_OPTIDX_BUF_ATTACH_ON_CHANGEDTICK: u64 = 7;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_buf_attach {
+pub struct KeyDictBufAttach {
     pub is_set_buf_attach: OptionalKeys,
     pub on_lines: LuaRef,
     pub on_bytes: LuaRef,
@@ -69,9 +68,8 @@ pub struct KeyDict_buf_attach {
     pub preview: Boolean,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_keymap {
+pub struct KeyDictKeymap {
     pub is_set_keymap: OptionalKeys,
     pub noremap: Boolean,
     pub nowait: Boolean,
@@ -84,16 +82,14 @@ pub struct KeyDict_keymap {
     pub replace_keycodes: Boolean,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_keymap_del {
+pub struct KeyDictKeymapDel {
     pub is_set_keymap_del: OptionalKeys,
     pub lhs: Boolean,
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_buf_delete {
+pub struct KeyDictBufDelete {
     pub is_set_buf_delete: OptionalKeys,
     pub force: Boolean,
     pub unload: Boolean,
@@ -226,7 +222,7 @@ pub fn nvim_buf_attach(
     channel_id: u64,
     buf: Buffer,
     send_buffer: Boolean,
-    opts: &mut KeyDict_buf_attach,
+    opts: &mut KeyDictBufAttach,
     err: &mut Error,
 ) -> Boolean {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
@@ -998,7 +994,7 @@ pub fn nvim_buf_get_text(
     start_col: Integer,
     mut end_row: Integer,
     end_col: Integer,
-    _opts: &mut KeyDict_empty,
+    _opts: &mut KeyDictEmpty,
     lstate: *mut lua_State,
     err: &mut Error,
 ) -> Array {
@@ -1193,7 +1189,7 @@ pub fn nvim_buf_set_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: &mut KeyDict_keymap,
+    opts: &mut KeyDictKeymap,
     err: &mut Error,
 ) {
     modify_keymap(
@@ -1225,7 +1221,7 @@ pub fn nvim_buf_del_keymap(
     buf: Buffer,
     mode: NvimString,
     lhs: NvimString,
-    opts: &mut KeyDict_keymap_del,
+    opts: &mut KeyDictKeymapDel,
     err: &mut Error,
 ) {
     let rhs = NvimString::from_bytes(b"");
@@ -1365,7 +1361,7 @@ pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
 // DLLEXPORT void nvim_buf_delete(Buffer buf, Dict(buf_delete) *opts, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Error) {
+pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDictBufDelete, err: &mut Error) {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
         return;
     };
@@ -1475,7 +1471,7 @@ pub fn nvim_buf_set_mark(
     name: NvimString,
     line: Integer,
     col: Integer,
-    _opts: &mut KeyDict_empty,
+    _opts: &mut KeyDictEmpty,
     err: &mut Error,
 ) -> Boolean {
     let Some(b) = api_buf_ensure_loaded(buf, err) else {

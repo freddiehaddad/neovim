@@ -113,7 +113,6 @@ impl GridTarget {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct ScreenGrid {
     pub handle: std::cell::Cell<ObjHandle>,
@@ -190,7 +189,6 @@ impl ScreenGrid {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct GridView {
     pub target: std::cell::Cell<GridTarget>,
@@ -198,14 +196,12 @@ pub struct GridView {
     pub col_offset: std::cell::Cell<i32>,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CharBoundsOff {
     pub begin_off: i8,
     pub end_off: i8,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Wline {
     pub wl_lnum: Linenr,

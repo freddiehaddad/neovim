@@ -73,7 +73,6 @@ use std::ptr;
 pub type AuEvent = i32;
 pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 
-#[repr(C)]
 pub struct AutoPat {
     pub pat: CString,
     pub reg_prog: Option<Box<crate::regexp::Regprog>>,
@@ -97,7 +96,6 @@ impl AutoCmdHandler {
     }
 }
 
-#[repr(C)]
 pub struct AutoCmd {
     pub pat: Option<std::rc::Rc<AutoPat>>,
     pub id: i64,
@@ -311,7 +309,6 @@ pub const NUM_EVENTS: usize = 150;
 
 const E_AUTOCOMMAND_NESTING_TOO_DEEP: &CStr = c"E218: Autocommand nesting too deep";
 
-#[repr(C)]
 pub struct AutoPatCmd {
     pub lastpat: Option<std::rc::Rc<AutoPat>>,
     pub auidx: usize,
@@ -326,7 +323,6 @@ pub struct AutoPatCmd {
     pub data: Option<Object>,
 }
 
-#[repr(C)]
 pub struct AutoCmdEvent {
     pub event: AuEvent,
     pub fname: Option<std::ffi::CString>,

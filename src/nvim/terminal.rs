@@ -215,7 +215,6 @@ impl TermId {
     }
 }
 
-#[repr(C)]
 struct TerminalState {
     term: TermId,
     save_rd: i32,
@@ -268,7 +267,6 @@ impl Default for TerminalState {
     }
 }
 
-#[repr(C)]
 #[derive(Default)]
 struct TermCursor {
     row: i32,
@@ -290,7 +288,6 @@ impl TermCursor {
     }
 }
 
-#[repr(C)]
 struct TermPending {
     resize: bool,
     cursor: bool,
@@ -315,7 +312,6 @@ impl Default for TermPending {
     }
 }
 
-#[repr(C)]
 pub struct Terminal {
     opts: TerminalOptions,
     textbuf: [u8; TEXTBUF_SIZE],

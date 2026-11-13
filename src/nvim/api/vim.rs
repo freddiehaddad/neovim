@@ -2,10 +2,9 @@
 #![forbid(unsafe_code)]
 
 use crate::api::buffer::{
-    INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded,
-    nvim_buf_del_keymap,
+    INTERNAL_CALL_MASK, KeyDictKeymap, KeyDictKeymapDel, api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
-use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, buffer_set_line};
+use crate::api::deprecated::{KeyDictEmpty, buffer_del_line, buffer_get_line, buffer_set_line};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
@@ -59,11 +58,11 @@ use crate::grid::{
 };
 use crate::highlight::HlAttrs;
 use crate::highlight::{
-    KeyDict_highlight, OptionalKeys, dict2hlattrs, highlight_use_hlstate, hl_check_ns,
+    KeyDictHighlight, OptionalKeys, dict2hlattrs, highlight_use_hlstate, hl_check_ns,
     hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def, win_check_ns_hl,
 };
 use crate::highlight_group::{
-    COLOR_NAME_TABLE, KeyDict_get_highlight, name_to_color, ns_get_hl_defs, syn_check_group,
+    COLOR_NAME_TABLE, KeyDictGetHighlight, name_to_color, ns_get_hl_defs, syn_check_group,
     syn_id2name,
 };
 use crate::input::{ins_typebuf, paste_store};
@@ -167,23 +166,20 @@ const KEYSET_OPTIDX_REDRAW_FLUSH: u32 = 3;
 const KEYSET_OPTIDX_REDRAW_RANGE: u32 = 4;
 const KEYSET_OPTIDX_REDRAW_VALID: u32 = 5;
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_get_ns {
+pub struct KeyDictGetNs {
     pub is_set_get_ns: OptionalKeys,
     pub winid: Window,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_runtime {
+pub struct KeyDictRuntime {
     pub is_lua: Boolean,
     pub do_source: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_echo_opts {
+pub struct KeyDictEchoOpts {
     pub is_set_echo_opts: OptionalKeys,
     pub err: Boolean,
     pub verbose: Boolean,
@@ -197,33 +193,29 @@ pub struct KeyDict_echo_opts {
     pub data: Dict,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct KeyDict_open_term {
+pub struct KeyDictOpenTerm {
     pub is_set_open_term: OptionalKeys,
     pub on_input: LuaRef,
     pub force_crlf: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_context {
+pub struct KeyDictContext {
     pub is_set_context: OptionalKeys,
     pub types: Array,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_chan_set {
+pub struct KeyDictChanSet {
     pub is_set_chan_set: OptionalKeys,
     pub addr: NvimString,
     pub detach: Boolean,
     pub trust: Boolean,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_eval_statusline {
+pub struct KeyDictEvalStatusline {
     pub is_set_eval_statusline: OptionalKeys,
     pub winid: Window,
     pub maxwidth: Integer,
@@ -234,16 +226,14 @@ pub struct KeyDict_eval_statusline {
     pub use_statuscol_lnum: Integer,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_complete_set {
+pub struct KeyDictCompleteSet {
     pub is_set_complete_set: OptionalKeys,
     pub info: NvimString,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
-pub struct KeyDict_redraw {
+pub struct KeyDictRedraw {
     pub is_set_redraw: OptionalKeys,
     pub flush: Boolean,
     pub cursor: Boolean,
@@ -260,7 +250,6 @@ pub struct KeyDict_redraw {
 pub type HlMessage = Vec<HlMessageChunk>;
 use crate::api::ui::MAX_SCHAR_SIZE;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct MessageData {
     pub source: NvimString,
@@ -375,7 +364,7 @@ pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
 ///                   or only a single highlight definition map if requested by name or id.
 // DLLEXPORT DictAs(get_hl_info) nvim_get_hl(Integer ns_id, Dict(get_highlight) *opts, Arena *arena,
 //                                           Error *err) FUNC_API_SINCE(11);
-pub fn nvim_get_hl(ns_id: Integer, opts: &mut KeyDict_get_highlight, err: &mut Error) -> Dict {
+pub fn nvim_get_hl(ns_id: Integer, opts: &mut KeyDictGetHighlight, err: &mut Error) -> Dict {
     ns_get_hl_defs(ns_id as NS, &mut *opts, err)
 }
 
@@ -436,7 +425,7 @@ pub fn nvim_set_hl(
     channel_id: u64,
     ns_id: Integer,
     name: NvimString,
-    val: &mut KeyDict_highlight,
+    val: &mut KeyDictHighlight,
     err: &mut Error,
 ) {
     let mut tstate = TryState::new();
@@ -482,7 +471,7 @@ pub fn nvim_set_hl(
 /// @param[out] err Error details, if any
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
+pub fn nvim_get_hl_ns(opts: &mut KeyDictGetNs, err: &mut Error) -> Integer {
     if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
         let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(opts.winid, err)
         else {
@@ -922,7 +911,7 @@ pub fn nvim_get_lib_dir() -> NvimString {
 pub fn nvim_get_runtime(
     pat: Array,
     all: Boolean,
-    opts: &mut KeyDict_runtime,
+    opts: &mut KeyDictRuntime,
     err: &mut Error,
 ) -> Array {
     if opts.do_source && !nlua_is_deferred_safe() {
@@ -1122,7 +1111,7 @@ pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
 pub fn nvim_echo(
     chunks: Array,
     history: Boolean,
-    opts: &mut KeyDict_echo_opts,
+    opts: &mut KeyDictEchoOpts,
     err: &mut Error,
 ) -> Object {
     let mut id = integer_obj(-1);
@@ -1470,7 +1459,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 /// @return Channel id, or 0 on error
 // DLLEXPORT Integer nvim_open_term(Buffer buf, Dict(open_term) *opts,
 //                                  Error *err) FUNC_API_SINCE(7) FUNC_API_TEXTLOCK;
-pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error) -> Integer {
+pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm, err: &mut Error) -> Integer {
     let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return 0;
     };
@@ -1831,7 +1820,7 @@ pub fn nvim_get_color_map() -> Dict {
 ///
 /// @return Editor state as a msgpack-encoded map.
 // DLLEXPORT Dict nvim_get_context(Dict(context) *opts, Arena *arena, Error *err) FUNC_API_SINCE(6);
-pub fn nvim_get_context(opts: &mut KeyDict_context, err: &mut Error) -> Dict {
+pub fn nvim_get_context(opts: &mut KeyDictContext, err: &mut Error) -> Dict {
     let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
         opts.types.clone()
     } else {
@@ -1956,7 +1945,7 @@ pub fn nvim_set_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: &mut KeyDict_keymap,
+    opts: &mut KeyDictKeymap,
     err: &mut Error,
 ) {
     modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, Some(opts), err);
@@ -1978,7 +1967,7 @@ pub fn nvim_del_keymap(
     channel_id: u64,
     mode: NvimString,
     lhs: NvimString,
-    opts: &mut KeyDict_keymap_del,
+    opts: &mut KeyDictKeymapDel,
     err: &mut Error,
 ) {
     nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts, err);
@@ -2107,7 +2096,7 @@ pub fn nvim_set_client_info(
 pub fn nvim_chan_set(
     channel_id: u64,
     mut chan: Integer,
-    config: &mut KeyDict_chan_set,
+    config: &mut KeyDictChanSet,
     err: &mut Error,
 ) {
     if chan == 0 && !is_internal_call(channel_id) {
@@ -2420,7 +2409,7 @@ pub fn nvim_select_popupmenu_item(
     item: Integer,
     mut insert: Boolean,
     finish: Boolean,
-    _opts: &mut KeyDict_empty,
+    _opts: &mut KeyDictEmpty,
     _err: &mut Error,
 ) {
     if finish {
@@ -2544,7 +2533,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
 // DLLEXPORT Tuple(Integer, Integer, Buffer, String) nvim_get_mark(String name, Dict(empty) *opts,
 //                                                                 Arena *arena,
 //                                                                 Error *err) FUNC_API_SINCE(8);
-pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDict_empty, err: &mut Error) -> Array {
+pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty, err: &mut Error) -> Array {
     let mut rv = Array::new();
     if !validate_s(
         name.size == 1,
@@ -2637,7 +2626,7 @@ pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDict_empty, err: &mut Erro
 //   FUNC_API_FAST;
 pub fn nvim_eval_statusline(
     str_: NvimString,
-    opts: &mut KeyDict_eval_statusline,
+    opts: &mut KeyDictEvalStatusline,
     err: &mut Error,
 ) -> Dict {
     let mut result = Dict::new();
@@ -2893,7 +2882,7 @@ pub fn nvim_eval_statusline(
 ///       - bufnr: (integer) buffer id in floating window
 // DLLEXPORT DictOf(Integer) nvim__complete_set(Integer index, Dict(complete_set) *opts, Arena *arena,
 //                                              Error *err);
-pub fn nvim_complete_set(index: Integer, opts: &mut KeyDict_complete_set, err: &mut Error) -> Dict {
+pub fn nvim_complete_set(index: Integer, opts: &mut KeyDictCompleteSet, err: &mut Error) -> Dict {
     let mut rv = Dict::with_capacity(2);
     if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
         api_set_error!(
@@ -2912,7 +2901,7 @@ pub fn nvim_complete_set(index: Integer, opts: &mut KeyDict_complete_set, err: &
     rv
 }
 
-fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDict_redraw) {
+fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDictRedraw) {
     if opts.statuscolumn && !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_nrwidth_line_count.set(0);
         changed_window_setting(wp);
@@ -2963,7 +2952,7 @@ fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDict_redraw) {
 ///               - win: Target a specific |window-ID| as described below.
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
+pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
     let mut win = crate::globals::WinPtr::NULL;
     let mut buf = crate::globals::BufPtr::NULL;
 

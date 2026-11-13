@@ -89,7 +89,6 @@ use crate::change::MB_MAXCHAR;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::regexp::NUMBUFLEN;
 
-#[repr(C)]
 pub struct Evalarg {
     pub eval_flags: i32,
 }
@@ -152,7 +151,6 @@ impl LvalTv {
     }
 }
 
-#[repr(C)]
 pub struct Lval {
     pub ll_name: Option<std::ffi::CString>,
     pub ll_name_off: usize,

@@ -9,7 +9,6 @@ pub type HashVal = usize;
 pub const HT_INIT_SIZE: usize = 16;
 const PERTURB_SHIFT: usize = 5;
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct Hashitem {
     pub hi_hash: HashVal,
@@ -43,7 +42,6 @@ impl Hashitem {
     }
 }
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct Hashtab {
     pub ht_mask: std::cell::Cell<HashVal>,

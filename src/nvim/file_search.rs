@@ -77,7 +77,6 @@ use crate::buffer::{K_CD_CAUSE_AUTO, K_CD_CAUSE_BUFFER};
 use crate::eval::fs::{K_CD_SCOPE_BUFFER, K_CD_SCOPE_TABPAGE, K_CD_SCOPE_WINDOW};
 use crate::ex_session::K_CD_CAUSE_OTHER;
 
-#[repr(C)]
 pub struct FfStack {
     pub ffs_fix_path: NvimString,
     pub ffs_wc_path: NvimString,
@@ -95,7 +94,6 @@ impl Drop for FfStack {
     }
 }
 
-#[repr(C)]
 pub struct FfVisited {
     pub ffv_wc_path: Option<std::ffi::CString>,
     pub file_id_valid: bool,
@@ -103,13 +101,11 @@ pub struct FfVisited {
     pub ffv_fname: Vec<u8>,
 }
 
-#[repr(C)]
 pub struct FfVisitedListHdr {
     pub ffvl_filename: std::ffi::CString,
     pub ffvl_visited_list: Vec<FfVisited>,
 }
 
-#[repr(C)]
 pub struct FfSearchCtx {
     pub ffsc_stack: Vec<FfStack>,
     pub ffsc_visited_list: Option<usize>,

@@ -98,7 +98,6 @@ const E_UNDO_LINE_MISSING: &CStr = c"E440: Undo line missing";
 const E_WRITE_ERROR_IN_UNDO_FILE_STR: &CStr = c"E829: Write error in undo file: %s";
 const E_NOT_OPEN: &CStr = c"E828: Cannot open undo file for writing: %s";
 
-#[repr(C)]
 pub struct UEntry {
     pub ue_top: Linenr,
     pub ue_bot: Linenr,
@@ -113,7 +112,6 @@ impl UEntry {
     }
 }
 
-#[repr(C)]
 pub struct UHeader {
     pub uh_next: Option<usize>,
     pub uh_prev: Option<usize>,

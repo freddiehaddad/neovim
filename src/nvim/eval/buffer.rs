@@ -41,7 +41,6 @@ use crate::undo::{buf_is_changed_fn, u_clearallandblockfree, u_save, u_savesub, 
 
 pub(crate) const SEA_READONLY: i32 = 4;
 
-#[repr(C)]
 struct Cob {
     cob_curwin_save: crate::globals::WinPtr,
     cob_aco: CtxSwitch,

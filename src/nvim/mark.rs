@@ -55,7 +55,6 @@ pub type MarkAdjustMode = i32;
 pub(crate) const K_MARK_ADJUST_API: MarkAdjustMode = 1;
 pub(crate) const K_MARK_ALL_NO_RESOLVE: MarkGet = 2;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Fmarkv {
     pub topline_offset: i32,
@@ -132,7 +131,6 @@ use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::regexp::{K_MARK_BUF_LOCAL, MAXCOL};
 use crate::search::{BACKWARD, FORWARD};
 
-#[repr(C)]
 pub struct WinInfo {
     pub wi_win: crate::globals::WinPtr,
     pub wi_mark: Fmark,

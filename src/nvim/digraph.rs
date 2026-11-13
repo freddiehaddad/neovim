@@ -34,7 +34,6 @@ use crate::cmdexpand::LineGetter;
 use crate::regexp::{CTRL_H_CONST, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DigraphEntry {
     pub char1: u8,

@@ -123,7 +123,6 @@ const E_CMD_MAPPING_MUST_END_WITH_CR_BEFORE_SECOND_CMD: &CStr =
 const E_LUA_MAPPING_GONE: &CStr = c"E5117: Lua mapping no longer exists";
 
 /// Readahead ("stuff") buffer.
-#[repr(C)]
 #[derive(Clone)]
 pub struct StuffBuf {
     pub keys: Vec<u8>,
@@ -142,7 +141,6 @@ impl StuffBuf {
 }
 
 /// Dot-repeat state: the pending change and the previous one.
-#[repr(C)]
 #[derive(Clone)]
 pub struct RedoState {
     pub cur: CmdSpec,
@@ -165,7 +163,6 @@ impl Default for RedoState {
 }
 
 /// Char put back by `vungetc()`.
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct UngotKey {
     pub c: i32,
@@ -177,7 +174,6 @@ pub struct UngotKey {
 }
 
 /// Struct to hold the saved typeahead for `save_typeahead()`.
-#[repr(C)]
 #[derive(Clone)]
 pub struct Tasave {
     pub save_typebuf: Typebuf,

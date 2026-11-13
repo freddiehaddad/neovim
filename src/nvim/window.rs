@@ -130,7 +130,6 @@ pub(crate) const VALID_BOTLINE_AP: i32 = 0x40;
 
 pub(crate) const K_WIN_OPT_COUNT: usize = 53;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct PosSave {
     pub w_topline_save: std::cell::Cell<i32>,
@@ -139,7 +138,6 @@ pub struct PosSave {
     pub w_cursor_corr: std::cell::Cell<CursorPos>,
 }
 
-#[repr(C)]
 #[derive(Clone, Default)]
 pub struct LcsChars {
     pub eol: u32,
@@ -183,7 +181,6 @@ impl LcsChars {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct FcsChars {
     pub stl: u32,
@@ -211,7 +208,6 @@ pub struct FcsChars {
 
 pub use crate::option_vars::Winopt;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct WinConfig {
     pub window: crate::api::tabpage::Window,
@@ -247,7 +243,6 @@ pub struct WinConfig {
     pub _cmdline_offset: i32,
 }
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct Frame {
     pub self_weak: std::rc::Weak<Self>,
@@ -308,7 +303,6 @@ impl Frame {
     }
 }
 
-#[repr(C)]
 pub struct WinInfoInfo {
     pub self_weak: std::rc::Weak<Self>,
     pub handle: ObjHandle,
@@ -741,7 +735,6 @@ pub struct SnapshotFrame {
     pub fr_win: crate::globals::WinPtr,
 }
 
-#[repr(C)]
 pub struct TabPageInfo {
     pub self_weak: std::rc::Weak<Self>,
     pub handle: ObjHandle,

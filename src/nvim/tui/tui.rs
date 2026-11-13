@@ -106,7 +106,6 @@ const XTERM_SETAB_256: &CStr =
 const XTERM_SETAF_16: &CStr = c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e39%;m";
 const XTERM_SETAB_16: &CStr = c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e39%;m";
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Rect {
     pub top: i32,
@@ -115,7 +114,6 @@ pub struct Rect {
     pub right: i32,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct TerminfoExt {
     pub enable_focus_reporting: Option<&'static [u8]>,
@@ -124,14 +122,12 @@ pub struct TerminfoExt {
     pub enter_altfont_mode: Option<&'static [u8]>,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FlushBufFinish {
     FlushBufPartial = 0,
     FlushBufFinal = 1,
 }
 
-#[repr(C)]
 pub struct TUIData {
     pub buf: [u8; OUTBUF_SIZE],
     pub bufpos: usize,
@@ -159,6 +155,7 @@ pub struct TUIData {
     pub bce: bool,
     pub mouse_enabled: bool,
     pub mouse_move_enabled: bool,
+    #[cfg_attr(not(unix), expect(dead_code))]
     pub mouse_enabled_save: bool,
     pub title_enabled: bool,
     pub sync_output: bool,

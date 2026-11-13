@@ -301,7 +301,6 @@ enum SomeMatchType {
     SomeMatchStrPos,
 }
 
-#[repr(C)]
 pub struct GetListLineCookie {
     li: crate::globals::CloneCell<crate::eval::typval::ListitemId>,
 }

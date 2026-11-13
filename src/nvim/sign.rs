@@ -65,7 +65,6 @@ const EXP_UNPLACE: i32 = 4;
 const EXP_SIGN_NAMES: i32 = 5;
 const EXP_SIGN_GROUPS: i32 = 6;
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct Sign {
     pub sn_name: std::ffi::CString,

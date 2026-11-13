@@ -215,7 +215,6 @@ enum SubIgnoreType {
 }
 
 /// Flags kept between calls to `:substitute`.
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct Subflags {
     do_all: bool,
@@ -229,7 +228,6 @@ struct Subflags {
 }
 
 /// Partial result of a substitution during `:substitute`.
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct SubResult {
     start: Lpos,
@@ -262,7 +260,6 @@ struct Sorti {
     st_u: SortKey,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct LineData {
     start_col: i32,

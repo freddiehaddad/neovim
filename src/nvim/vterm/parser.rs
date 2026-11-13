@@ -84,7 +84,6 @@ pub type VTermDcsFn<T> =
 pub type VTermFragFn<T> = fn(frag: VTermStringFragment<'_>, user: Option<&mut T>) -> i32;
 pub type VTermResizeFn<T> = fn(rows: i32, cols: i32, user: Option<&mut T>) -> i32;
 
-#[repr(C)]
 pub struct VTermParserCallbacks {
     pub text: Option<VTermBytesFn<VTermStateFull>>,
     pub control: Option<fn(control: u8, user: Option<&mut VTermStateFull>) -> i32>,

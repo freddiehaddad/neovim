@@ -60,7 +60,6 @@ use std::ffi::CStr;
 
 pub type ChannelStdinMode = i32;
 
-#[repr(C)]
 pub struct CallbackReader {
     pub cb: Callback,
     pub self_dict: crate::eval::typval::DictId,
@@ -138,14 +137,12 @@ fn chan_st<R>(f: impl FnOnce(&ChannelModuleState) -> R) -> R {
     CHAN_STATE.with(f)
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InternalState {
     pub cb: LuaRef,
     pub closed: bool,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TerminalOptions {
     pub chan_id: u64,

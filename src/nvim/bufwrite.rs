@@ -97,14 +97,12 @@ const UV_FS_COPYFILE_FICLONE: i32 = 0x0002;
 
 use crate::os::fs::UV_ENOTSUP;
 
-#[repr(C)]
 struct BwError {
     num: Option<&'static CStr>,
     msg: Option<std::ffi::CString>,
     arg: i32,
 }
 
-#[repr(C)]
 struct BwInfo {
     bw_fd: i32,
     bw_buf: Vec<u8>,

@@ -5,7 +5,6 @@ use crate::mbyte::{Vimconv, string_convert_slice};
 
 pub const CONV_NONE: i32 = 0;
 
-#[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct ParserLine {
     pub data: Option<Vec<u8>>,
@@ -40,7 +39,6 @@ impl ParserLine {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ParserPosition {
     pub line: usize,
@@ -76,7 +74,6 @@ impl<'a> ParserInputReader<'a> {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ParserHighlightChunk {
     pub start: ParserPosition,

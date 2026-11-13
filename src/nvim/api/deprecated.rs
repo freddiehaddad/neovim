@@ -15,7 +15,7 @@ use crate::api::private::validate::{
     api_err_range,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
-use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
+use crate::api::vimscript::{KeyDictExecOpts, exec_impl};
 use crate::cursor::Colnr;
 use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, K_HL_MODE_UNKNOWN,
@@ -41,9 +41,8 @@ use crate::window::{win_setheight_win, win_setwidth_win};
 
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
 
-#[repr(C)]
 #[derive(Default)]
-pub struct KeyDict_empty {
+pub struct KeyDictEmpty {
     pub is_set_empty: OptionalKeys,
 }
 
@@ -71,7 +70,7 @@ std::thread_local! {
 //   FUNC_API_SINCE(7) FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_exec(channel_id: u64, src: NvimString, output: Boolean, err: &mut Error) -> NvimString {
-    let mut opts = KeyDict_exec_opts { output };
+    let mut opts = KeyDictExecOpts { output };
     exec_impl(channel_id, src, &mut opts, err)
 }
 
@@ -81,7 +80,7 @@ pub fn nvim_exec(channel_id: u64, src: NvimString, output: Boolean, err: &mut Er
 //   FUNC_API_SINCE(1) FUNC_API_DEPRECATED_SINCE(7)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_command_output(channel_id: u64, command: NvimString, err: &mut Error) -> NvimString {
-    let mut opts = KeyDict_exec_opts { output: true };
+    let mut opts = KeyDictExecOpts { output: true };
     exec_impl(channel_id, command, &mut opts, err)
 }
 
@@ -254,7 +253,7 @@ pub fn nvim_buf_set_virtual_text(
     mut src_id: Integer,
     line: Integer,
     chunks: Array,
-    _opts: &mut KeyDict_empty,
+    _opts: &mut KeyDictEmpty,
     err: &mut Error,
 ) -> Integer {
     let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {

@@ -2,7 +2,7 @@
 
 //! Code for mappings and abbreviations (`src/nvim/mapping.c`).
 
-use crate::api::buffer::KeyDict_keymap;
+use crate::api::buffer::KeyDictKeymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
     ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, dict_obj, has_key,
@@ -85,7 +85,6 @@ pub struct MapAltLink {
     pub keys: [std::cell::Cell<Option<CString>>; 2],
 }
 
-#[repr(C)]
 pub struct Mapblock {
     pub m_alt: Option<std::rc::Rc<MapAltLink>>,
     pub m_keys: CString,
@@ -235,7 +234,6 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL,
 };
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 struct LangmapEntry {
     from: i32,
@@ -2913,7 +2911,7 @@ pub fn modify_keymap(
     mode: NvimString,
     lhs: NvimString,
     rhs: NvimString,
-    opts: Option<&mut KeyDict_keymap>,
+    opts: Option<&mut KeyDictKeymap>,
     err: &mut Error,
 ) {
     let mut lua_funcref: LuaRef = LUA_NOREF;
