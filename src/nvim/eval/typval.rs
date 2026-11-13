@@ -3502,11 +3502,17 @@ fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
 
         let len = tv_list_len_inline(l.opt());
         if len > 1 && parse_sort_uniq_args(argvars, &mut info) {
+            // A user-supplied compare function could otherwise add, remove or
+            // reorder items while do_sort() or do_uniq() still hold pointers into
+            // the list, causing them to use an already freed list item.
+            let prev_lock = tv_list_locked_inline(l.opt());
+            tv_list_set_lock_inline(l.opt(), VAR_FIXED);
             if sort {
                 do_sort(l.borrow(), &mut info);
             } else {
                 do_uniq(l.opt(), &mut info);
             }
+            tv_list_set_lock_inline(l.opt(), prev_lock);
         }
     }
 }
