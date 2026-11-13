@@ -1079,10 +1079,10 @@ fn handle_breakindent(wp: &WinInfoInfo, wlv: &mut Winlinevars, gap_decor_attr: i
             attr = hl_combine_attr(attr, win_hl_attr(wp, wlv.diff_hlf));
         }
         let mut num = if wlv.breakindent < 0 {
-            wlv.breakindent = get_breakindent_win(
-                wp,
-                &crate::memline::ml_get_buf_slice(&wp.buf_mut(), wlv.lnum),
-            );
+            let buf = wp.buf_mut();
+            wlv.breakindent = crate::memline::with_ml_buf_line(&buf, wlv.lnum, |line| {
+                get_breakindent_win(wp, line)
+            });
             wlv.breakindent
         } else {
             wlv.breakindent
@@ -1914,41 +1914,42 @@ pub fn win_line(
         spv.spv_checked_lnum = 0;
 
         nextline[SPWORDLEN] = 0;
-        if lnum < wp.buf_mut().b_ml.ml_line_count.get() {
-            let line = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum + 1);
-            spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], &line);
+        if lnum < buf.b_ml.ml_line_count.get() {
+            crate::memline::with_ml_buf_line(&buf, lnum + 1, |line| {
+                spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], line);
+            });
         }
-        let line_slice = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
-        let rem_sw = crate::charset::skipwhite_slice(&line_slice);
-        if rem_sw.is_empty() {
-            spv.spv_cap_col = 0;
-            spv.spv_capcol_lnum = lnum + 1;
-        } else if spv.spv_cap_col == 0 {
-            spv.spv_cap_col = (line_slice.len() - rem_sw.len()) as i32;
-        }
-
-        if nextline[SPWORDLEN] == 0 {
-            nextlinecol = MAXCOL;
-            nextline_idx = 0;
-        } else {
-            let line_slice = crate::memline::ml_get_buf_slice(&wp.buf_mut(), lnum);
-            let line_len = line_slice.len() as i32;
-            if (line_len as usize) < SPWORDLEN {
-                nextlinecol = 0;
-                nextline[..line_len as usize].copy_from_slice(&line_slice);
-                let tail_len = crate::memory::bytes_as_cstr(&nextline[SPWORDLEN..])
-                    .to_bytes()
-                    .len();
-                nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
-                nextline_idx = line_len + 1;
-            } else {
-                nextlinecol = line_len - SPWORDLEN as i32;
-                nextline[..SPWORDLEN].copy_from_slice(
-                    &line_slice[nextlinecol as usize..nextlinecol as usize + SPWORDLEN],
-                );
-                nextline_idx = SPWORDLEN as i32 + 1;
+        crate::memline::with_ml_buf_line(&buf, lnum, |line_slice| {
+            let rem_sw = crate::charset::skipwhite_slice(line_slice);
+            if rem_sw.is_empty() {
+                spv.spv_cap_col = 0;
+                spv.spv_capcol_lnum = lnum + 1;
+            } else if spv.spv_cap_col == 0 {
+                spv.spv_cap_col = (line_slice.len() - rem_sw.len()) as i32;
             }
-        }
+
+            if nextline[SPWORDLEN] == 0 {
+                nextlinecol = MAXCOL;
+                nextline_idx = 0;
+            } else {
+                let line_len = line_slice.len() as i32;
+                if (line_len as usize) < SPWORDLEN {
+                    nextlinecol = 0;
+                    nextline[..line_len as usize].copy_from_slice(line_slice);
+                    let tail_len = crate::memory::bytes_as_cstr(&nextline[SPWORDLEN..])
+                        .to_bytes()
+                        .len();
+                    nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
+                    nextline_idx = line_len + 1;
+                } else {
+                    nextlinecol = line_len - SPWORDLEN as i32;
+                    nextline[..SPWORDLEN].copy_from_slice(
+                        &line_slice[nextlinecol as usize..nextlinecol as usize + SPWORDLEN],
+                    );
+                    nextline_idx = SPWORDLEN as i32 + 1;
+                }
+            }
+        });
     }
 
     let mut line_cstr: crate::option_vars::RcCStr = if draw_text {
@@ -2039,10 +2040,6 @@ pub fn win_line(
             &mut in_multispace,
             &mut multispace_pos,
         );
-        if draw_text {
-            line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-            line = line_cstr.as_ptr().cast_mut();
-        }
         ptr = line.wrapping_add(skip_off);
         if spv.spv_has_spell {
             let linecol = ((ptr as isize) - (line as isize)) as Colnr;
@@ -2052,9 +2049,6 @@ pub fn win_line(
             wp.w_cursor.set_lnum(lnum);
             wp.w_cursor.set_col(linecol);
             let len = spell_move_to(wp, FORWARD, SMT_ALL, true, Some(&mut spell_hlf));
-
-            line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-            line = line_cstr.as_ptr().cast_mut();
             ptr = line.wrapping_add(linecol as usize);
 
             if len == 0 || wp.w_cursor.get().col > linecol {
@@ -2110,11 +2104,6 @@ pub fn win_line(
             &mut search_attr_from_match,
         );
         area_highlighting |= has_search_hl;
-        if buf.b_ml.ml_line_lnum.get() != lnum {
-            line_cstr = ml_get_buf(&buf, lnum);
-            line = line_cstr.as_ptr().cast_mut();
-            ptr = line.wrapping_add(v as usize);
-        }
     }
 
     let has_ins_compl = (g_st().state_global.get() & MODE_INSERT) != 0
@@ -2422,8 +2411,6 @@ pub fn win_line(
                             &mut on_last_col,
                             &mut search_attr_from_match,
                         );
-                        line_cstr = ml_get_buf(&buf, lnum);
-                        line = line_cstr.as_ptr().cast_mut();
                         ptr = line.wrapping_add(v as usize);
 
                         if ptr_byte!(ptr) == 0 {
@@ -2620,7 +2607,7 @@ pub fn win_line(
             } else if has_foldtext || (has_fold && wlv.col >= view_width) {
                 mb_schar = 0;
             } else {
-                let mut prev_ptr = ptr;
+                let prev_ptr = ptr;
 
                 if ptr_byte!(ptr) == 0 {
                     wlv.skip_cells = 0;
@@ -2728,7 +2715,6 @@ pub fn win_line(
                     let mut can_spell = !no_plain_buffer;
 
                     let v = ((ptr as isize) - (line as isize)) as i32;
-                    let prev_v = (prev_ptr as isize) - (line as isize);
                     if has_syntax && v > 0 {
                         let save_did_emsg = g_st().did_emsg.get();
                         g_st().did_emsg.set(0);
@@ -2748,13 +2734,6 @@ pub fn win_line(
 
                         if w_s.b_syn_slow.get() {
                             has_syntax = false;
-                        }
-
-                        if buf.b_ml.ml_line_lnum.get() != lnum {
-                            line_cstr = ml_get_buf(&buf, lnum);
-                            line = line_cstr.as_ptr().cast_mut();
-                            ptr = line.wrapping_add(v as usize);
-                            prev_ptr = line.wrapping_offset(prev_v);
                         }
 
                         syntax_flags = if mb_schar == 0 {
@@ -3764,11 +3743,7 @@ pub fn win_line(
                     decor_need_recheck = true;
                     if conceal_enabled && g_st().decor_state.borrow().conceal_slot_i >= 0 {
                         if disp_len < 0 {
-                            let col = (ptr as isize) - (line as isize);
                             disp_len = linetabsize_disp_eol(wp, lnum);
-                            line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-                            line = line_cstr.as_ptr().cast_mut();
-                            ptr = line.wrapping_offset(col);
                         }
                         if wlv.vcol >= disp_len {
                             ptr = ptr.wrapping_add(ptr_cstr!(ptr).to_bytes().len());
@@ -4022,14 +3997,21 @@ fn decor_providers_setup(
 }
 
 fn invoke_range_next(wp: &WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_off: Colnr) -> i32 {
-    let line_cstr = ml_get_buf(&wp.buf_mut(), lnum);
-    let line_bytes = line_cstr.to_bytes();
-    let line_len = ml_get_buf_len(&wp.buf_mut(), lnum);
+    let buf = wp.buf_mut();
     col_off = col_off.max(1);
 
-    if col_off <= line_len - begin_col {
-        let mut end_col = begin_col + col_off;
-        end_col += crate::mbyte::mb_off_next(line_bytes, end_col as usize);
+    let end_col_opt = crate::memline::with_ml_buf_line(&buf, lnum, |line_bytes| {
+        let line_len = line_bytes.len() as Colnr;
+        if col_off <= line_len - begin_col {
+            let mut end_col = begin_col + col_off;
+            end_col += crate::mbyte::mb_off_next(line_bytes, end_col as usize);
+            Some(end_col)
+        } else {
+            None
+        }
+    });
+
+    if let Some(end_col) = end_col_opt {
         decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum - 1, end_col);
         validate_virtcol(wp);
         end_col

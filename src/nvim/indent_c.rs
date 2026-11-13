@@ -102,12 +102,16 @@ fn ind_find_start_comment() -> Option<CursorPos> {
 pub fn find_start_comment(ind_maxcomment: i32) -> Option<CursorPos> {
     let mut pos: Option<CursorPos>;
     let mut cur_maxcomment = ind_maxcomment as i64;
+    let curbuf = curbuf_mut();
     loop {
         pos = findmatchlimit(None, b'*' as i32, FM_BACKWARD, cur_maxcomment);
         let Some(pos_ref) = pos else {
             break;
         };
-        if is_pos_in_string_slice(&crate::memline::ml_get_slice(pos_ref.lnum), pos_ref.col) == 0 {
+        let in_str = crate::memline::with_ml_buf_line(&curbuf, pos_ref.lnum, |line| {
+            is_pos_in_string_slice(line, pos_ref.col) != 0
+        });
+        if !in_str {
             break;
         }
         cur_maxcomment = (curwin_mut().w_cursor.get().lnum - pos_ref.lnum - 1) as i64;
@@ -134,12 +138,16 @@ fn ind_find_start_cors(is_raw: Option<&mut Linenr>) -> Option<CursorPos> {
 fn find_start_rawstring(ind_maxcomment: i32) -> Option<CursorPos> {
     let mut pos: Option<CursorPos>;
     let mut cur_maxcomment = ind_maxcomment;
+    let curbuf = curbuf_mut();
     loop {
         pos = findmatchlimit(None, b'R' as i32, FM_BACKWARD, cur_maxcomment as i64);
         let Some(pos_ref) = pos else {
             break;
         };
-        if is_pos_in_string_slice(&crate::memline::ml_get_slice(pos_ref.lnum), pos_ref.col) == 0 {
+        let in_str = crate::memline::with_ml_buf_line(&curbuf, pos_ref.lnum, |line| {
+            is_pos_in_string_slice(line, pos_ref.col) != 0
+        });
+        if !in_str {
             break;
         }
         cur_maxcomment = curwin_mut().w_cursor.get().lnum - pos_ref.lnum - 1;
@@ -572,13 +580,15 @@ fn after_label_slice(mut l: &[u8]) -> Option<&[u8]> {
     Some(l)
 }
 fn get_indent_nolabel(lnum: Linenr) -> i32 {
-    let l = crate::memline::ml_get_slice(lnum);
-    let Some(p) = after_label_slice(&l) else {
+    let col_opt = crate::memline::with_ml_buf_line(&curbuf_mut(), lnum, |l| {
+        after_label_slice(l).map(|p| (l.len() - p.len()) as Colnr)
+    });
+    let Some(fp_col) = col_opt else {
         return 0;
     };
     let mut fp = CursorPos {
         lnum,
-        col: (l.len() - p.len()) as Colnr,
+        col: fp_col,
         coladd: 0,
     };
     let mut col: Colnr = 0;

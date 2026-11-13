@@ -2460,7 +2460,13 @@ fn ml_get_buf_impl(buf: &FileBuf, lnum: Linenr, will_change: bool) -> crate::opt
     }
 
     let cstr = buf.b_ml.with_current_line_slice(|s| {
-        crate::option_vars::RcCStr::from_cstr(crate::memory::bytes_as_cstr(s))
+        let cs = if (buf.b_ml.ml_flags.get() & ML_LINE_INPLACE) != 0 {
+            crate::memory::bytes_as_cstr(s)
+        } else {
+            std::ffi::CStr::from_bytes_with_nul(s)
+                .unwrap_or_else(|_| crate::memory::bytes_as_cstr(s))
+        };
+        crate::option_vars::RcCStr::from_cstr(cs)
     });
     if !will_change {
         buf.b_ml.ml_line_cstr.set(Some(cstr.clone()));
