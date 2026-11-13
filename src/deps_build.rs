@@ -284,7 +284,7 @@ fn download_and_extract(
     if need_download {
         eprintln!("[deps] Downloading {name} from {url}");
         let mut cmd = Command::new("curl");
-        cmd.args(["-sfL", "--retry", "3", url, "-o"])
+        cmd.args(["-sfL", "--retry", "3", "--retry-all-errors", url, "-o"])
             .arg(&archive_path);
         run_cmd(&mut cmd, &format!("curl download {name}"));
         if !ignore_sha {

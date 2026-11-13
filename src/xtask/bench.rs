@@ -736,7 +736,7 @@ pub fn generate_readme_perf_section(
 Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upstream [`neovim/neovim@{sha}`](https://github.com/neovim/neovim/commit/{sha}) (`v0.13.0-dev`) on identical hardware across **Linux** (GCC `Release` vs. `rustc --release`) and **Windows** (MSVC `Release` vs. `rustc --release`) using 3 interleaved runs via `cargo xtask benchmark --compare`:
 
 <p align="center">
-  <img src=".github/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
+  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
 </p>
 
 <details>
@@ -831,8 +831,8 @@ pub fn run_compare_benchmarks(
 
     if update_readme {
         let svg = generate_svg(&sha, &linux_c, &linux_rust, &win_c, &win_rust);
-        let svg_path = root.join(".github").join("benchmarks.svg");
-        fs::write(&svg_path, svg).expect("failed to write .github/benchmarks.svg");
+        let svg_path = root.join("contrib").join("benchmarks.svg");
+        fs::write(&svg_path, svg).expect("failed to write contrib/benchmarks.svg");
 
         let readme_path = root.join("README.md");
         let readme = fs::read_to_string(&readme_path).expect("failed to read README.md");

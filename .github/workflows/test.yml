@@ -76,9 +76,9 @@ jobs:
               *.md|LICENSE.txt|*/LICENSE|*/LICENSE-*|*/COPYING|*/README|*/README.txt|\
               .editorconfig|.emmyrc.json|.git-blame-ignore-revs|.gitattributes|\
               .gitignore|.luarc.json|.mailmap|src/.valgrind.supp|\
-              .github/ISSUE_TEMPLATE/*|.github/dependabot.yml|.github/benchmarks.svg|\
+              .github/ISSUE_TEMPLATE/*|.github/dependabot.yml|\
               .github/zizmor.yml|.github/workflows/zizmor.yml|.github/workflows/release.yml|\
-              contrib/nvim.bash|contrib/zsh-completion.zsh)
+              contrib/benchmarks.svg|contrib/nvim.bash|contrib/zsh-completion.zsh)
                 ;;
               .stylua.toml|.stylua2.toml|.styluaignore|contrib/*.lua)
                 run_lua=true
