@@ -28,7 +28,7 @@ use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
 use crate::mbyte::{utf_cluster_info, utf_ptr2_char_info, utf_ptr2_str_char_info, utfc_ptr2len};
-use crate::memline::{ml_get, ml_get_len, ml_get_pos_slice, ml_replace};
+use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
@@ -378,27 +378,26 @@ pub fn get_sts_value() -> i32 {
 
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
 pub fn get_indent() -> i32 {
-    indent_size_ts(
-        &crate::cursor::get_cursor_line_slice(),
-        curbuf_mut().b_p_ts.get(),
-        &curbuf_mut().b_p_vts_array.borrow(),
-    )
+    let curbuf = curbuf_mut();
+    let lnum = curwin_mut().w_cursor.get().lnum;
+    crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
+        indent_size_ts(line, curbuf.b_p_ts.get(), &curbuf.b_p_vts_array.borrow())
+    })
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
 pub fn get_indent_lnum(lnum: Linenr) -> i32 {
-    indent_size_ts(
-        &crate::memline::ml_get_slice(lnum),
-        curbuf_mut().b_p_ts.get(),
-        &curbuf_mut().b_p_vts_array.borrow(),
-    )
+    let curbuf = curbuf_mut();
+    crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
+        indent_size_ts(line, curbuf.b_p_ts.get(), &curbuf.b_p_vts_array.borrow())
+    })
 }
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub fn get_indent_buf(buf: &FileBuf, lnum: Linenr) -> i32 {
-    let p_ts = buf.b_p_ts.get();
-    let vts = buf.b_p_vts_array.borrow().clone();
-    indent_size_ts(&crate::memline::ml_get_buf_slice(buf, lnum), p_ts, &vts)
+    crate::memline::with_ml_buf_line(buf, lnum, |line| {
+        indent_size_ts(line, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
+    })
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
@@ -746,7 +745,10 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     let mut lead_len: i32 = 0;
 
     if (g_st().state_global.get() & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
-        lead_len = get_leader_len(&crate::memline::ml_get_slice(lnum), None, false, true);
+        let curbuf = curbuf_mut();
+        lead_len = crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
+            get_leader_len(line, None, false, true)
+        });
     }
 
     let mut regmatch = Regmatch::new();
@@ -767,7 +769,13 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         regmatch.free_prog();
     }
 
-    if pos.lnum == 0 || ml_get_pos_slice(&pos).is_empty() {
+    if pos.lnum == 0
+        || crate::memline::with_ml_buf_line(&curbuf_mut(), pos.lnum, |line| {
+            line.get(pos.col.max(0) as usize..)
+                .unwrap_or(&[])
+                .is_empty()
+        })
+    {
         return -1;
     }
     let mut col: Colnr = 0;

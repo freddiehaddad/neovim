@@ -2484,16 +2484,15 @@ fn fold_merge(gap: &mut Vec<FoldEntry>, idx1: usize) {
 
 fn foldlevel_indent(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
-    let buf = flp.wp_mut().buf_mut();
-    let line = crate::memline::ml_get_buf_slice(&buf, lnum);
-    let s_rem = crate::charset::skipwhite_slice(&line);
+    let wp = flp.wp_mut();
+    let buf = wp.buf_mut();
+    let fdi = wp.w_onebuf_opt.wo_fdi.as_cstr();
+    let is_empty_or_ignored = crate::memline::with_ml_buf_line(&buf, lnum, |line| {
+        let s_rem = crate::charset::skipwhite_slice(line);
+        s_rem.is_empty() || crate::strings::vim_haschr(&fdi, i32::from(s_rem[0]))
+    });
 
-    if s_rem.is_empty()
-        || crate::strings::vim_haschr(
-            &flp.wp_mut().w_onebuf_opt.wo_fdi.as_cstr(),
-            i32::from(s_rem[0]),
-        )
-    {
+    if is_empty_or_ignored {
         flp.lvl = if lnum == 1 || lnum == buf.b_ml.ml_line_count.get() {
             0
         } else {
@@ -2502,9 +2501,7 @@ fn foldlevel_indent(flp: &mut Fline) {
     } else {
         flp.lvl = get_indent_buf(&buf, lnum) / get_sw_value(&buf);
     }
-    flp.lvl = flp
-        .lvl
-        .min(flp.wp_mut().w_onebuf_opt.wo_fdn.get().max(0) as i32);
+    flp.lvl = flp.lvl.min(wp.w_onebuf_opt.wo_fdn.get().max(0) as i32);
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
@@ -2603,7 +2600,9 @@ fn parse_marker(wp: &WinInfoInfo) {
 
 fn foldlevel_marker(flp: &mut Fline) {
     let start_lvl = flp.lvl;
-    let startmarker_full = flp.wp_mut().w_onebuf_opt.wo_fmr.as_bytes();
+    let wp = flp.wp_mut();
+    let buf = wp.buf_mut();
+    let startmarker_full = wp.w_onebuf_opt.wo_fmr.as_bytes();
     let cstart = startmarker_full.first().copied().unwrap_or(0);
     let (start_len, end_len) =
         FOLD_STATE.with(|st| (st.foldstartmarkerlen.get(), st.foldendmarkerlen.get()));
@@ -2617,38 +2616,38 @@ fn foldlevel_marker(flp: &mut Fline) {
     flp.start = 0;
     flp.lvl_next = flp.lvl;
 
-    let rem_rc = crate::memline::ml_get_buf_slice(&flp.wp_mut().buf_mut(), flp.lnum + flp.off);
-    let mut rem = rem_rc.as_slice();
-    while let Some((&s_b, rem_bytes)) = rem.split_first() {
-        if s_b == cstart && rem_bytes.starts_with(start_rest) {
-            rem = &rem[start_len..];
-            if rem.first().is_some_and(u8::is_ascii_digit) {
-                let n = crate::charset::parse_i64_prefix(rem) as i32;
-                if n > 0 {
-                    flp.lvl = n;
-                    flp.lvl_next = n;
-                    flp.start = (n - start_lvl).max(1);
+    crate::memline::with_ml_buf_line(&buf, flp.lnum + flp.off, |mut rem| {
+        while let Some((&s_b, rem_bytes)) = rem.split_first() {
+            if s_b == cstart && rem_bytes.starts_with(start_rest) {
+                rem = &rem[start_len..];
+                if rem.first().is_some_and(u8::is_ascii_digit) {
+                    let n = crate::charset::parse_i64_prefix(rem) as i32;
+                    if n > 0 {
+                        flp.lvl = n;
+                        flp.lvl_next = n;
+                        flp.start = (n - start_lvl).max(1);
+                    }
+                } else {
+                    flp.lvl += 1;
+                    flp.lvl_next += 1;
+                    flp.start += 1;
+                }
+            } else if s_b == cend && rem_bytes.starts_with(end_rest) {
+                rem = &rem[end_len..];
+                if rem.first().is_some_and(u8::is_ascii_digit) {
+                    let n = crate::charset::parse_i64_prefix(rem) as i32;
+                    if n > 0 {
+                        flp.lvl = n;
+                        flp.lvl_next = (n - 1).min(start_lvl);
+                    }
+                } else {
+                    flp.lvl_next -= 1;
                 }
             } else {
-                flp.lvl += 1;
-                flp.lvl_next += 1;
-                flp.start += 1;
+                rem = &rem[crate::mbyte::utfc_slice2len(rem)..];
             }
-        } else if s_b == cend && rem_bytes.starts_with(end_rest) {
-            rem = &rem[end_len..];
-            if rem.first().is_some_and(u8::is_ascii_digit) {
-                let n = crate::charset::parse_i64_prefix(rem) as i32;
-                if n > 0 {
-                    flp.lvl = n;
-                    flp.lvl_next = (n - 1).min(start_lvl);
-                }
-            } else {
-                flp.lvl_next -= 1;
-            }
-        } else {
-            rem = &rem[crate::mbyte::utfc_slice2len(rem)..];
         }
-    }
+    });
 
     flp.lvl_next = flp.lvl_next.max(0);
 }

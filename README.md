@@ -38,20 +38,20 @@ Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upst
 
 | Workload | Suite | Linux C | Linux Rust | Speedup | Windows C | Windows Rust | Speedup |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Cold startup (`--clean --headless +q`, 25-run median) | Startup | 4.29 ms | 8.27 ms | 0.52x | 43.52 ms | 34.91 ms | 1.25x |
-| Screen layout & wrapping (24 tests) | screenpos | 24.18 s | 16.00 s | 1.51x | 29.33 s | 17.01 s | 1.72x |
-| Long ASCII line layout (median) | screenpos | 3.61 µs | 1.36 µs | 2.65x | 70.00 µs | 1.50 µs | 46.67x |
-| Long UTF-8 line layout (median) | screenpos | 93.92 µs | 72.48 µs | 1.30x | 107.00 µs | 75.90 µs | 1.41x |
-| Regex search (backtracking) | regexp | 2.35 ms | 5.41 ms | 0.43x | 4.57 ms | 5.62 ms | 0.81x |
-| Regex search (auto engine) | regexp | 3.29 ms | 7.34 ms | 0.45x | 6.24 ms | 9.17 ms | 0.68x |
-| Cursor motion over 2k virtual lines | extmark | 59.32 µs | 47.01 µs | 1.26x | 68.20 µs | 54.00 µs | 1.26x |
-| Treesitter fold navigation (100 macros) | treesitter | 14.33 ms | 18.84 ms | 0.76x | 63.34 ms | 48.00 ms | 1.32x |
-| Treesitter redraw suite (8 tests) | treesitter | 1153 ms | 1097 ms | 1.05x | 1638 ms | 1341 ms | 1.22x |
-| Autocmd lifecycle suite (10k events) | autocmd | 129.6 ms | 136.8 ms | 0.95x | 444.9 ms | 336.3 ms | 1.32x |
-| Delete 10k autocmds (unique patterns) | autocmd | 21.85 ms | 1.10 ms | 19.81x | 25.82 ms | 2.09 ms | 12.38x |
-| Extmark & virtual line suite | extmark | 111.7 ms | 134.3 ms | 0.83x | 201.9 ms | 215.8 ms | 0.94x |
-| Option updates (140k calls) | option | 225.1 ms | 234.6 ms | 0.96x | 560.9 ms | 431.1 ms | 1.30x |
-| Full-screen Treesitter redraw (100x50) | decor | 14.00 ms | 15.50 ms | 0.90x | 15.60 ms | 16.10 ms | 0.97x |
+| Cold startup (`--clean --headless +q`, 25-run median) | Startup | 4.74 ms | 8.97 ms | 0.53x | 47.38 ms | 37.80 ms | 1.25x |
+| Screen layout & wrapping (24 tests) | screenpos | 24.18 s | 15.87 s | 1.52x | 30.47 s | 17.96 s | 1.70x |
+| Long ASCII line layout (median) | screenpos | 3.62 µs | 1.36 µs | 2.66x | 70.60 µs | 1.60 µs | 44.12x |
+| Long UTF-8 line layout (median) | screenpos | 93.57 µs | 69.34 µs | 1.35x | 107.90 µs | 73.20 µs | 1.47x |
+| Regex search (backtracking) | regexp | 2.38 ms | 2.01 ms | 1.18x | 4.71 ms | 2.61 ms | 1.80x |
+| Regex search (auto engine) | regexp | 3.35 ms | 3.81 ms | 0.88x | 6.52 ms | 5.69 ms | 1.15x |
+| Cursor motion over 2k virtual lines | extmark | 61.75 µs | 45.43 µs | 1.36x | 71.60 µs | 56.10 µs | 1.28x |
+| Treesitter fold navigation (100 macros) | treesitter | 14.16 ms | 19.38 ms | 0.73x | 68.34 ms | 50.80 ms | 1.35x |
+| Treesitter redraw suite (8 tests) | treesitter | 1084 ms | 953 ms | 1.14x | 1902 ms | 1750 ms | 1.09x |
+| Autocmd lifecycle suite (10k events) | autocmd | 136.4 ms | 134.4 ms | 1.01x | 482.9 ms | 359.1 ms | 1.34x |
+| Delete 10k autocmds (unique patterns) | autocmd | 21.91 ms | 1.00 ms | 21.84x | 26.23 ms | 2.41 ms | 10.90x |
+| Extmark & virtual line suite | extmark | 111.8 ms | 134.9 ms | 0.83x | 253.7 ms | 258.0 ms | 0.98x |
+| Option updates (140k calls) | option | 227.0 ms | 231.4 ms | 0.98x | 591.7 ms | 455.6 ms | 1.30x |
+| Full-screen Treesitter redraw (100x50) | decor | 14.70 ms | 15.50 ms | 0.95x | 16.00 ms | 16.80 ms | 0.95x |
 
 **Methodology**:
 - **Speedup**: Relative speedup of the Rust port compared to upstream C (`C time ÷ Rust time`; values `> 1.00x` mean Rust is faster, and `< 1.00x` mean C is faster).

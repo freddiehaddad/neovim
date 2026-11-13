@@ -1799,37 +1799,39 @@ pub fn search_for_exact_line(
             if start == 0 {
                 start = pos.lnum;
             }
-            let line_cstr = crate::memline::ml_get_buf(buf, pos.lnum);
-            let line_slice = line_cstr.to_bytes();
-            let p_slice = crate::charset::skipwhite_slice(line_slice);
-            let skip_len = line_slice.len() - p_slice.len();
-            pos.col = skip_len as Colnr;
+            let matched =
+                crate::memline::with_ml_buf_bytes_with_nul(buf, pos.lnum, |line_with_nul| {
+                    let line_slice = &line_with_nul[..line_with_nul.len().saturating_sub(1)];
+                    let p_slice = crate::charset::skipwhite_slice(line_slice);
+                    let skip_len = line_slice.len() - p_slice.len();
+                    pos.col = skip_len as Colnr;
 
-            if compl_status_adding() && !compl_status_sol() {
-                if mb_strcmp_ic(
-                    opt_vars().p_ic.get(),
-                    crate::memory::CStrSubslice::advance(&line_cstr, skip_len),
-                    pat,
-                ) == 0
-                {
-                    return true;
-                }
-            } else if !p_slice.is_empty() {
-                debug_assert!(compl_len >= 0);
-                let eq = if opt_vars().p_ic.get() {
-                    mb_strnicmp(
-                        crate::memory::bytes_until_nul(p_slice),
-                        pat.to_bytes(),
-                        compl_len as usize,
-                    ) == 0
-                } else {
-                    let pat_b = pat.to_bytes();
-                    p_slice[..p_slice.len().min(compl_len as usize)]
-                        == pat_b[..(compl_len as usize).min(pat_b.len())]
-                };
-                if eq {
-                    return true;
-                }
+                    if compl_status_adding() && !compl_status_sol() {
+                        let sub_cstr =
+                            std::ffi::CStr::from_bytes_with_nul(&line_with_nul[skip_len..])
+                                .unwrap_or_else(|_| {
+                                    crate::memory::bytes_as_cstr(&line_with_nul[skip_len..])
+                                });
+                        mb_strcmp_ic(opt_vars().p_ic.get(), sub_cstr, pat) == 0
+                    } else if !p_slice.is_empty() {
+                        debug_assert!(compl_len >= 0);
+                        if opt_vars().p_ic.get() {
+                            mb_strnicmp(
+                                crate::memory::bytes_until_nul(p_slice),
+                                pat.to_bytes(),
+                                compl_len as usize,
+                            ) == 0
+                        } else {
+                            let pat_b = pat.to_bytes();
+                            p_slice[..p_slice.len().min(compl_len as usize)]
+                                == pat_b[..(compl_len as usize).min(pat_b.len())]
+                        }
+                    } else {
+                        false
+                    }
+                });
+            if matched {
+                return true;
             }
         }
         false
@@ -1951,26 +1953,32 @@ fn find_rawstring_end(line: &[u8], startpos: &CursorPos, endpos: &CursorPos) -> 
         .position(|&b| b == b'(')
         .unwrap_or(line.len() - start_off);
     let delim_copy = line[start_off..start_off + delim_len].to_vec();
+    let curbuf = curbuf_mut();
     for lnum in startpos.lnum..=endpos.lnum {
-        let cur_line = crate::memline::ml_get_slice(lnum);
-        let mut idx = if lnum == startpos.lnum {
-            ((startpos.col + 1) as usize).min(cur_line.len())
-        } else {
-            0
-        };
-        let limit = if lnum == endpos.lnum {
-            (endpos.col.max(0) as usize).min(cur_line.len())
-        } else {
-            cur_line.len()
-        };
-        while idx < limit {
-            if cur_line[idx] == b')'
-                && cur_line.get(idx + 1..idx + 1 + delim_len) == Some(delim_copy.as_slice())
-                && cur_line.get(idx + 1 + delim_len) == Some(&b'"')
-            {
-                return true;
+        let found = crate::memline::with_ml_buf_line(&curbuf, lnum, |cur_line| {
+            let mut idx = if lnum == startpos.lnum {
+                ((startpos.col + 1) as usize).min(cur_line.len())
+            } else {
+                0
+            };
+            let limit = if lnum == endpos.lnum {
+                (endpos.col.max(0) as usize).min(cur_line.len())
+            } else {
+                cur_line.len()
+            };
+            while idx < limit {
+                if cur_line[idx] == b')'
+                    && cur_line.get(idx + 1..idx + 1 + delim_len) == Some(delim_copy.as_slice())
+                    && cur_line.get(idx + 1 + delim_len) == Some(&b'"')
+                {
+                    return true;
+                }
+                idx += 1;
             }
-            idx += 1;
+            false
+        });
+        if found {
+            return true;
         }
     }
     false
@@ -2909,7 +2917,10 @@ fn is_zero_width(
 }
 
 pub fn linewhite(lnum: Linenr) -> bool {
-    crate::charset::skipwhite_slice(&crate::memline::ml_get_slice(lnum)).is_empty()
+    let curbuf = curbuf_mut();
+    crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
+        crate::charset::skipwhite_slice(line).is_empty()
+    })
 }
 
 fn cmdline_search_stat(
@@ -3253,10 +3264,12 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 fn get_line_and_copy(lnum: Linenr, buf: &mut [u8]) {
-    let line = crate::memline::ml_get_slice(lnum);
-    let copy_len = line.len().min(buf.len().saturating_sub(1));
-    buf[..copy_len].copy_from_slice(&line[..copy_len]);
-    buf[copy_len] = 0;
+    let curbuf = curbuf_mut();
+    crate::memline::with_ml_buf_line(&curbuf, lnum, |line| {
+        let copy_len = line.len().min(buf.len().saturating_sub(1));
+        buf[..copy_len].copy_from_slice(&line[..copy_len]);
+        buf[copy_len] = 0;
+    });
 }
 
 pub fn find_pattern_in_path(
