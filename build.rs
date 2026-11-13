@@ -5,6 +5,256 @@ use std::process::Command;
 #[path = "src/deps_build.rs"]
 mod deps_build;
 
+const BUILTIN_LUA_MODULES: [(&str, &str, &str); 35] = [
+    (
+        "vim._init_packages",
+        "@vim/_init_packages",
+        "runtime/lua/vim/_init_packages.lua",
+    ),
+    ("vim.inspect", "@vim/inspect", "runtime/lua/vim/inspect.lua"),
+    (
+        "vim.filetype",
+        "@vim/filetype",
+        "runtime/lua/vim/filetype.lua",
+    ),
+    ("vim.fs", "@vim/fs", "runtime/lua/vim/fs.lua"),
+    ("vim.F", "@vim/F", "runtime/lua/vim/F.lua"),
+    ("vim.keymap", "vim/keymap", "runtime/lua/vim/keymap.lua"),
+    ("vim.loader", "@vim/loader", "runtime/lua/vim/loader.lua"),
+    ("vim.text", "@vim/text", "runtime/lua/vim/text.lua"),
+    ("vim.tty", "@vim/tty", "runtime/lua/vim/tty.lua"),
+    ("vim.uri", "@vim/uri", "runtime/lua/vim/uri.lua"),
+    (
+        "vim._core.cmdwin",
+        "@vim/_core/cmdwin",
+        "runtime/lua/vim/_core/cmdwin.lua",
+    ),
+    (
+        "vim._core.defaults",
+        "@vim/_core/defaults",
+        "runtime/lua/vim/_core/defaults.lua",
+    ),
+    (
+        "vim._core.editor",
+        "vim/_core/editor",
+        "runtime/lua/vim/_core/editor.lua",
+    ),
+    (
+        "vim._core.ex_cmd",
+        "@vim/_core/ex_cmd",
+        "runtime/lua/vim/_core/ex_cmd.lua",
+    ),
+    (
+        "vim._core.exmode",
+        "@vim/_core/exmode",
+        "runtime/lua/vim/_core/exmode.lua",
+    ),
+    (
+        "vim._core.exrc",
+        "@vim/_core/exrc",
+        "runtime/lua/vim/_core/exrc.lua",
+    ),
+    (
+        "vim._core.help",
+        "@vim/_core/help",
+        "runtime/lua/vim/_core/help.lua",
+    ),
+    (
+        "vim._core.log",
+        "@vim/_core/log",
+        "runtime/lua/vim/_core/log.lua",
+    ),
+    (
+        "vim._core.marks",
+        "@vim/_core/marks",
+        "runtime/lua/vim/_core/marks.lua",
+    ),
+    (
+        "vim._core.mcursor",
+        "@vim/_core/mcursor",
+        "runtime/lua/vim/_core/mcursor.lua",
+    ),
+    (
+        "vim._core.options",
+        "vim/_core/options",
+        "runtime/lua/vim/_core/options.lua",
+    ),
+    (
+        "vim._core.proc",
+        "@vim/_core/proc",
+        "runtime/lua/vim/_core/proc.lua",
+    ),
+    (
+        "vim._core.server",
+        "@vim/_core/server",
+        "runtime/lua/vim/_core/server.lua",
+    ),
+    (
+        "vim._core.shared",
+        "@vim/_core/shared",
+        "runtime/lua/vim/_core/shared.lua",
+    ),
+    (
+        "vim._core.spell",
+        "@vim/_core/spell",
+        "runtime/lua/vim/_core/spell.lua",
+    ),
+    (
+        "vim._core.stringbuffer",
+        "@vim/_core/stringbuffer",
+        "runtime/lua/vim/_core/stringbuffer.lua",
+    ),
+    (
+        "vim._core.swapfile",
+        "@vim/_core/swapfile",
+        "runtime/lua/vim/_core/swapfile.lua",
+    ),
+    (
+        "vim._core.system",
+        "@vim/_core/system",
+        "runtime/lua/vim/_core/system.lua",
+    ),
+    (
+        "vim._core.table",
+        "@vim/_core/table",
+        "runtime/lua/vim/_core/table.lua",
+    ),
+    (
+        "vim._core.tag",
+        "@vim/_core/tag",
+        "runtime/lua/vim/_core/tag.lua",
+    ),
+    (
+        "vim._core.time",
+        "@vim/_core/time",
+        "runtime/lua/vim/_core/time.lua",
+    ),
+    (
+        "vim._core.ui",
+        "@vim/_core/ui",
+        "runtime/lua/vim/_core/ui.lua",
+    ),
+    (
+        "vim._core.ui2",
+        "@vim/_core/ui2",
+        "runtime/lua/vim/_core/ui2.lua",
+    ),
+    (
+        "vim._core.util",
+        "@vim/_core/util",
+        "runtime/lua/vim/_core/util.lua",
+    ),
+    (
+        "vim._core.vimfn",
+        "@vim/_core/vimfn",
+        "runtime/lua/vim/_core/vimfn.lua",
+    ),
+];
+
+fn generate_builtin_lua_modules(
+    manifest_dir: &std::path::Path,
+    deps_prefix: &std::path::Path,
+    target_os: &str,
+    prefer_lua: bool,
+) {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
+    let blob_dir = out_dir.join("lua_blobs");
+    std::fs::create_dir_all(&blob_dir).expect("failed to create lua_blobs dir");
+
+    let mut normalized_sources = Vec::with_capacity(BUILTIN_LUA_MODULES.len());
+    for (idx, (_, _, rel_path)) in BUILTIN_LUA_MODULES.iter().enumerate() {
+        println!("cargo:rerun-if-changed={rel_path}");
+        let src_path = manifest_dir.join(rel_path);
+        let raw = std::fs::read(&src_path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", src_path.display()));
+        let mut norm = Vec::with_capacity(raw.len());
+        for i in 0..raw.len() {
+            if raw[i] == b'\r' && raw.get(i + 1) == Some(&b'\n') {
+                continue;
+            }
+            norm.push(raw[i]);
+        }
+        let norm_path = blob_dir.join(format!("mod_{idx}.src.lua"));
+        std::fs::write(&norm_path, &norm)
+            .unwrap_or_else(|e| panic!("failed to write {}: {e}", norm_path.display()));
+        normalized_sources.push((norm_path, norm));
+    }
+
+    let luajit_bin = deps_prefix.join("bin").join(if target_os == "windows" {
+        "luajit.exe"
+    } else {
+        "luajit"
+    });
+    let compile_bytecode = !prefer_lua && luajit_bin.is_file();
+
+    if compile_bytecode {
+        let lua_script = concat!(
+            "for i = 1, #arg, 3 do ",
+            "local src_path, chunk_name, dst_path = arg[i], arg[i + 1], arg[i + 2]; ",
+            "local f = assert(io.open(src_path, 'rb')); ",
+            "local src = f:read('*a'); ",
+            "f:close(); ",
+            "local fn = assert((loadstring or load)(src, chunk_name)); ",
+            "local bc = string.dump(fn, false); ",
+            "local out = assert(io.open(dst_path, 'wb')); ",
+            "out:write(bc); ",
+            "out:close(); ",
+            "end"
+        );
+        let compile_script_path = blob_dir.join("compile.lua");
+        std::fs::write(&compile_script_path, lua_script)
+            .unwrap_or_else(|e| panic!("failed to write {}: {e}", compile_script_path.display()));
+        let mut cmd = Command::new(&luajit_bin);
+        cmd.arg(&compile_script_path);
+        for (idx, (_, chunk_name, _)) in BUILTIN_LUA_MODULES.iter().enumerate() {
+            let (ref norm_path, _) = normalized_sources[idx];
+            let dst_path = blob_dir.join(format!("mod_{idx}.bin"));
+            cmd.arg(norm_path).arg(chunk_name).arg(dst_path);
+        }
+        let status = cmd
+            .status()
+            .unwrap_or_else(|e| panic!("failed to run {}: {e}", luajit_bin.display()));
+        assert!(
+            status.success(),
+            "luajit bytecode precompilation failed: {status}"
+        );
+
+        for idx in 0..BUILTIN_LUA_MODULES.len() {
+            let dst_path = blob_dir.join(format!("mod_{idx}.bin"));
+            let bc = std::fs::read(&dst_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {e}", dst_path.display()));
+            assert!(
+                bc.starts_with(b"\x1bLJ"),
+                "expected LuaJIT bytecode header in {}",
+                dst_path.display()
+            );
+        }
+    } else {
+        for (idx, (_, norm)) in normalized_sources.iter().enumerate() {
+            let dst_path = blob_dir.join(format!("mod_{idx}.bin"));
+            std::fs::write(&dst_path, norm)
+                .unwrap_or_else(|e| panic!("failed to write {}: {e}", dst_path.display()));
+        }
+    }
+
+    let mut rs = String::from(
+        "// NB: vim._init_packages and vim.inspect must be first and second respectively,\n\
+         // otherwise --luamod-dev won't work properly.\n\
+         const BUILTIN_MODULES: [BuiltinModule; 35] = [\n",
+    );
+    for (idx, (name, chunk_name, _)) in BUILTIN_LUA_MODULES.iter().enumerate() {
+        use std::fmt::Write;
+        let _ = writeln!(
+            rs,
+            "    BuiltinModule {{\n        name: c\"{name}\",\n        chunk_name: c\"{chunk_name}\",\n        data: include_bytes!(concat!(env!(\"OUT_DIR\"), \"/lua_blobs/mod_{idx}.bin\")),\n    }},"
+        );
+    }
+    rs.push_str("];\n");
+    let rs_path = out_dir.join("builtin_modules.rs");
+    std::fs::write(&rs_path, rs)
+        .unwrap_or_else(|e| panic!("failed to write {}: {e}", rs_path.display()));
+}
+
 fn parse_nvim_metadata(cargo_toml: &str, key: &str) -> Option<String> {
     let mut in_meta = false;
     for line in cargo_toml.lines() {
@@ -187,6 +437,7 @@ fn main() {
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    generate_builtin_lua_modules(&manifest_dir, &deps_prefix, &target_os, prefer_lua);
 
     if target_os == "windows" && target_env == "msvc" {
         println!("cargo:rustc-link-search=native={}", deps_lib.display());

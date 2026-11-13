@@ -114,185 +114,7 @@ struct BuiltinModule {
     data: &'static [u8],
 }
 
-// NB: vim._init_packages and vim.inspect must be first and second respectively,
-// otherwise --luamod-dev won't work properly.
-const BUILTIN_MODULES: [BuiltinModule; 35] = [
-    BuiltinModule {
-        name: c"vim._init_packages",
-        chunk_name: c"@vim/_init_packages",
-        data: include_bytes!("../../../runtime/lua/vim/_init_packages.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.inspect",
-        chunk_name: c"@vim/inspect",
-        data: include_bytes!("../../../runtime/lua/vim/inspect.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.filetype",
-        chunk_name: c"@vim/filetype",
-        data: include_bytes!("../../../runtime/lua/vim/filetype.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.fs",
-        chunk_name: c"@vim/fs",
-        data: include_bytes!("../../../runtime/lua/vim/fs.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.F",
-        chunk_name: c"@vim/F",
-        data: include_bytes!("../../../runtime/lua/vim/F.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.keymap",
-        chunk_name: c"vim/keymap",
-        data: include_bytes!("../../../runtime/lua/vim/keymap.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.loader",
-        chunk_name: c"@vim/loader",
-        data: include_bytes!("../../../runtime/lua/vim/loader.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.text",
-        chunk_name: c"@vim/text",
-        data: include_bytes!("../../../runtime/lua/vim/text.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.tty",
-        chunk_name: c"@vim/tty",
-        data: include_bytes!("../../../runtime/lua/vim/tty.lua"),
-    },
-    BuiltinModule {
-        name: c"vim.uri",
-        chunk_name: c"@vim/uri",
-        data: include_bytes!("../../../runtime/lua/vim/uri.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.cmdwin",
-        chunk_name: c"@vim/_core/cmdwin",
-        data: include_bytes!("../../../runtime/lua/vim/_core/cmdwin.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.defaults",
-        chunk_name: c"@vim/_core/defaults",
-        data: include_bytes!("../../../runtime/lua/vim/_core/defaults.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.editor",
-        chunk_name: c"vim/_core/editor",
-        data: include_bytes!("../../../runtime/lua/vim/_core/editor.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.ex_cmd",
-        chunk_name: c"@vim/_core/ex_cmd",
-        data: include_bytes!("../../../runtime/lua/vim/_core/ex_cmd.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.exmode",
-        chunk_name: c"@vim/_core/exmode",
-        data: include_bytes!("../../../runtime/lua/vim/_core/exmode.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.exrc",
-        chunk_name: c"@vim/_core/exrc",
-        data: include_bytes!("../../../runtime/lua/vim/_core/exrc.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.help",
-        chunk_name: c"@vim/_core/help",
-        data: include_bytes!("../../../runtime/lua/vim/_core/help.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.log",
-        chunk_name: c"@vim/_core/log",
-        data: include_bytes!("../../../runtime/lua/vim/_core/log.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.marks",
-        chunk_name: c"@vim/_core/marks",
-        data: include_bytes!("../../../runtime/lua/vim/_core/marks.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.mcursor",
-        chunk_name: c"@vim/_core/mcursor",
-        data: include_bytes!("../../../runtime/lua/vim/_core/mcursor.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.options",
-        chunk_name: c"vim/_core/options",
-        data: include_bytes!("../../../runtime/lua/vim/_core/options.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.proc",
-        chunk_name: c"@vim/_core/proc",
-        data: include_bytes!("../../../runtime/lua/vim/_core/proc.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.server",
-        chunk_name: c"@vim/_core/server",
-        data: include_bytes!("../../../runtime/lua/vim/_core/server.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.shared",
-        chunk_name: c"@vim/_core/shared",
-        data: include_bytes!("../../../runtime/lua/vim/_core/shared.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.spell",
-        chunk_name: c"@vim/_core/spell",
-        data: include_bytes!("../../../runtime/lua/vim/_core/spell.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.stringbuffer",
-        chunk_name: c"@vim/_core/stringbuffer",
-        data: include_bytes!("../../../runtime/lua/vim/_core/stringbuffer.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.swapfile",
-        chunk_name: c"@vim/_core/swapfile",
-        data: include_bytes!("../../../runtime/lua/vim/_core/swapfile.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.system",
-        chunk_name: c"@vim/_core/system",
-        data: include_bytes!("../../../runtime/lua/vim/_core/system.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.table",
-        chunk_name: c"@vim/_core/table",
-        data: include_bytes!("../../../runtime/lua/vim/_core/table.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.tag",
-        chunk_name: c"@vim/_core/tag",
-        data: include_bytes!("../../../runtime/lua/vim/_core/tag.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.time",
-        chunk_name: c"@vim/_core/time",
-        data: include_bytes!("../../../runtime/lua/vim/_core/time.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.ui",
-        chunk_name: c"@vim/_core/ui",
-        data: include_bytes!("../../../runtime/lua/vim/_core/ui.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.ui2",
-        chunk_name: c"@vim/_core/ui2",
-        data: include_bytes!("../../../runtime/lua/vim/_core/ui2.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.util",
-        chunk_name: c"@vim/_core/util",
-        data: include_bytes!("../../../runtime/lua/vim/_core/util.lua"),
-    },
-    BuiltinModule {
-        name: c"vim._core.vimfn",
-        chunk_name: c"@vim/_core/vimfn",
-        data: include_bytes!("../../../runtime/lua/vim/_core/vimfn.lua"),
-    },
-];
+include!(concat!(env!("OUT_DIR"), "/builtin_modules.rs"));
 
 #[repr(C)]
 pub struct ExDocmdCookie {
@@ -2537,10 +2359,24 @@ mod tests {
         assert_eq!(api_new_luaref(LUA_NOREF), LUA_NOREF);
         assert_eq!(BUILTIN_MODULES[0].name, c"vim._init_packages");
         assert_eq!(BUILTIN_MODULES[1].name, c"vim.inspect");
+        let lstate = luaL_newstate_safe();
+        assert!(!lstate.is_null());
         for m in &BUILTIN_MODULES {
             assert!(!m.chunk_name.to_bytes().is_empty());
             assert!(!m.data.is_empty());
-            assert!(std::str::from_utf8(m.data).is_ok());
+            assert!(
+                m.data.starts_with(b"\x1bLJ") || std::str::from_utf8(m.data).is_ok(),
+                "unexpected module payload for {:?}",
+                m.name
+            );
+            assert_eq!(
+                luaL_loadbuffer(lstate, m.data, m.chunk_name),
+                0,
+                "failed to load builtin module {:?}",
+                m.name
+            );
+            lua_pop(lstate, 1);
         }
+        lua_close_safe(lstate);
     }
 }
