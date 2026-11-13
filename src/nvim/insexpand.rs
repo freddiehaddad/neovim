@@ -1983,6 +1983,7 @@ fn ins_compl_build_pum() -> i32 {
     let _ = get_leader_for_startcol(None, true);
 
     let mut items: Vec<Pumitem> = Vec::new();
+    let mut item_hl_ids: Vec<(i32, i32)> = Vec::new();
     COMPL_LIST.with(|c| {
         for (comp_idx, comp) in c.borrow_mut().iter_mut().enumerate() {
             comp.cp_in_match_array = false;
@@ -2015,6 +2016,7 @@ fn ins_compl_build_pum() -> i32 {
 
                 if !match_limit_exceeded {
                     comp.cp_in_match_array = true;
+                    item_hl_ids.push((comp.cp_user_abbr_hl_id, comp.cp_user_kind_hl_id));
                     items.push(Pumitem {
                         pum_text: comp.cp_text[CPT_ABBR].clone().or_else(|| {
                             if comp.cp_str.data.is_null() {
@@ -2029,8 +2031,8 @@ fn ins_compl_build_pum() -> i32 {
                             .or_else(|| comp.cp_fname.clone()),
                         pum_info: comp.cp_text[CPT_INFO].clone(),
                         pum_cpt_source_idx: comp.cp_cpt_source_idx,
-                        pum_user_abbr_hlattr: get_user_highlight_attr(comp.cp_user_abbr_hl_id),
-                        pum_user_kind_hlattr: get_user_highlight_attr(comp.cp_user_kind_hl_id),
+                        pum_user_abbr_hlattr: -1,
+                        pum_user_kind_hlattr: -1,
                         pum_comp_idx: Some(comp_idx),
                     });
 
@@ -2084,6 +2086,10 @@ fn ins_compl_build_pum() -> i32 {
     });
     if items.is_empty() {
         return -1;
+    }
+    for (item, (abbr_hl_id, kind_hl_id)) in items.iter_mut().zip(item_hl_ids) {
+        item.pum_user_abbr_hlattr = get_user_highlight_attr(abbr_hl_id);
+        item.pum_user_kind_hlattr = get_user_highlight_attr(kind_hl_id);
     }
     if cot_fuzzy() && !compl_no_select && !shown_match_ok {
         INSEXPAND.with(|s| s.compl_shown_idx.set(shown_compl));
@@ -3876,7 +3882,7 @@ fn ins_compl_update_sequence_numbers() {
     }
 }
 
-fn fill_complete_info_dict(di: &TvDict, match_: &mut Compl, add_match: bool) {
+fn fill_complete_info_dict(di: &TvDict, match_: &Compl, add_match: bool) {
     tv_dict_add_str_len(
         di,
         c"word",
@@ -3911,7 +3917,7 @@ fn fill_complete_info_dict(di: &TvDict, match_: &mut Compl, add_match: bool) {
     if match_.cp_user_data.v_type == VAR_UNKNOWN {
         tv_dict_add_str_len(di, c"user_data", Some(b""));
     } else {
-        tv_dict_add_tv(di, b"user_data", &mut match_.cp_user_data);
+        tv_dict_add_tv(di, b"user_data", &mut match_.cp_user_data.clone());
     }
 }
 
@@ -4013,7 +4019,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &TvDict) {
         if ret && !compl_list_is_empty() {
             let mut list_idx: i32 = 0;
             COMPL_LIST.with(|c| {
-                for match_ in c.borrow_mut().iter_mut() {
+                for match_ in c.borrow().iter() {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
@@ -4048,7 +4054,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &TvDict) {
         {
             let di = tv_dict_alloc();
             COMPL_LIST.with(|c| {
-                if let Some(curr) = c.borrow_mut().get_mut(curr_idx) {
+                if let Some(curr) = c.borrow().get(curr_idx) {
                     fill_complete_info_dict(&di, curr, false);
                 }
             });
