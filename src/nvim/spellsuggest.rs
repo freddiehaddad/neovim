@@ -160,7 +160,7 @@ pub struct Slang {
     pub sl_info: Option<std::ffi::CString>,
     pub sl_regions: [u8; MAXREGIONS * 2 + 1],
     pub sl_midword: Option<std::ffi::CString>,
-    pub sl_wordcount: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, u16>>,
+    pub sl_wordcount: std::cell::RefCell<crate::memory::FxHashMap<Vec<u8>, u16>>,
     pub sl_compmax: i32,
     pub sl_compminlen: i32,
     pub sl_compsylmax: i32,
@@ -193,9 +193,9 @@ pub struct Slang {
     pub sl_sugbuf: std::cell::RefCell<Option<std::rc::Rc<FileBuf>>>,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
-    pub sl_map_hash: std::collections::BTreeMap<i32, i32>,
+    pub sl_map_hash: crate::memory::FxHashMap<i32, i32>,
     pub sl_map_array: [i32; 256],
-    pub sl_sounddone: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, i16>>,
+    pub sl_sounddone: std::cell::RefCell<crate::memory::FxHashMap<Vec<u8>, i16>>,
 }
 
 impl Slang {

@@ -229,7 +229,7 @@ pub struct Wline {
 struct GridModuleState {
     linebuf_scratch: std::cell::RefCell<Vec<Sscratch>>,
     glyph_cache_keys: std::cell::RefCell<Vec<u8>>,
-    glyph_cache_offsets: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, u32>>,
+    glyph_cache_offsets: std::cell::RefCell<crate::memory::FxHashMap<Vec<u8>, u32>>,
     grid_line_grid: std::cell::Cell<GridTarget>,
     grid_line_row: std::cell::Cell<i32>,
     grid_line_coloff: std::cell::Cell<i32>,
@@ -248,7 +248,7 @@ impl GridModuleState {
         Self {
             linebuf_scratch: std::cell::RefCell::new(Vec::new()),
             glyph_cache_keys: std::cell::RefCell::new(Vec::new()),
-            glyph_cache_offsets: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            glyph_cache_offsets: std::cell::RefCell::new(crate::memory::fx_hashmap()),
             grid_line_grid: std::cell::Cell::new(GridTarget::None),
             grid_line_row: std::cell::Cell::new(-1),
             grid_line_coloff: std::cell::Cell::new(0),
@@ -1258,7 +1258,7 @@ pub fn grid_free_all_mem() {
     grid_st(|st| {
         *st.linebuf_scratch.borrow_mut() = Vec::new();
         *st.glyph_cache_keys.borrow_mut() = Vec::new();
-        *st.glyph_cache_offsets.borrow_mut() = std::collections::BTreeMap::new();
+        *st.glyph_cache_offsets.borrow_mut() = crate::memory::fx_hashmap();
     });
 }
 

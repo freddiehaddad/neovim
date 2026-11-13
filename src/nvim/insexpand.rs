@@ -585,8 +585,8 @@ thread_local! {
     static COMPL_MATCH_ARRAY: std::cell::RefCell<std::rc::Rc<[Pumitem]>> = {
         std::cell::RefCell::new(std::rc::Rc::from([]))
     };
-    static COMPL_STRINGS_HT: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, i32>> = const {
-        std::cell::RefCell::new(std::collections::BTreeMap::new())
+    static COMPL_STRINGS_HT: std::cell::RefCell<crate::memory::FxHashMap<Vec<u8>, i32>> = const {
+        std::cell::RefCell::new(crate::memory::fx_hashmap())
     };
 }
 

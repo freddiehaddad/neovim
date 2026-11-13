@@ -174,16 +174,18 @@ pub struct KeyDict_ns_opts {
 
 #[inline]
 pub fn ns_in_win(ns_id: u32, wp: &WinInfoInfo) -> bool {
-    if !g_st().namespace_localscope.borrow().contains(&ns_id) {
+    let localscope = g_st().namespace_localscope.borrow();
+    if localscope.is_empty() || !localscope.contains(&ns_id) {
         return true;
     }
+    drop(localscope);
     wp.w_ns_set.borrow().contains(&ns_id)
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub fn api_extmark_free_all_mem() {
     *g_st().namespace_ids.borrow_mut() = Vec::new();
-    *g_st().namespace_localscope.borrow_mut() = std::collections::BTreeSet::new();
+    *g_st().namespace_localscope.borrow_mut() = crate::memory::fx_hashset();
 }
 
 /// Creates a new namespace or gets an existing one. [namespace]()

@@ -263,10 +263,10 @@ pub struct MTDamagePair {
     pub end: MTDamage,
 }
 
-pub type PMapUint64 = std::collections::BTreeMap<u64, usize>;
+pub type PMapUint64 = crate::memory::FxHashMap<u64, usize>;
 #[cfg(test)]
 pub type PMapPtr = std::collections::BTreeMap<usize, Vec<u64>>;
-pub type MTDamageMap = std::collections::BTreeMap<u64, MTDamagePair>;
+pub type MTDamageMap = crate::memory::FxHashMap<u64, MTDamagePair>;
 
 #[repr(C)]
 pub struct MarkTree {
@@ -286,7 +286,7 @@ impl MarkTree {
             meta_root: [0; K_MTMETA_COUNT],
             n_keys: 0,
             n_nodes: 0,
-            id2node: std::collections::BTreeMap::new(),
+            id2node: crate::memory::fx_hashmap(),
             nodes: Vec::new(),
             free_nodes: Vec::new(),
         }
@@ -2321,7 +2321,7 @@ pub fn marktree_splice(
 
     let mut past_right = false;
     let mut moved = false;
-    let mut damage: MTDamageMap = MTDamageMap::new();
+    let mut damage: MTDamageMap = crate::memory::fx_hashmap();
 
     if may_delete {
         'outer1: while itr.x.is_some() && !past_right {

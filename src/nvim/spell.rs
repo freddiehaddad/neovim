@@ -1407,7 +1407,7 @@ pub fn slang_alloc(lang: Option<&std::ffi::CStr>) -> Box<Slang> {
         sl_info: None,
         sl_regions: [0; MAXREGIONS * 2 + 1],
         sl_midword: None,
-        sl_wordcount: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+        sl_wordcount: std::cell::RefCell::new(crate::memory::fx_hashmap()),
         sl_compmax: MAXWLEN as i32,
         sl_compminlen: 0,
         sl_compsylmax: MAXWLEN as i32,
@@ -1440,9 +1440,9 @@ pub fn slang_alloc(lang: Option<&std::ffi::CStr>) -> Box<Slang> {
         sl_sugbuf: std::cell::RefCell::new(None),
         sl_sugloaded: false,
         sl_has_map: false,
-        sl_map_hash: std::collections::BTreeMap::new(),
+        sl_map_hash: crate::memory::fx_hashmap(),
         sl_map_array: [0; 256],
-        sl_sounddone: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+        sl_sounddone: std::cell::RefCell::new(crate::memory::fx_hashmap()),
     })
 }
 pub fn slang_clear(lp: &mut Slang) {

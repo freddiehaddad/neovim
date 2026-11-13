@@ -174,7 +174,7 @@ pub struct KeyDict_highlight_cterm {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HlAttrs {
     pub rgb_ae_attr: i32,
     pub cterm_ae_attr: i32,
@@ -189,7 +189,7 @@ pub struct HlAttrs {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HlEntry {
     pub attr: HlAttrs,
     pub kind: i32,
@@ -199,7 +199,7 @@ pub struct HlEntry {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorKey {
     pub ns_id: i32,
     pub syn_id: i32,
@@ -222,14 +222,14 @@ use crate::api::private::helpers::has_key;
 struct HighlightModuleState {
     hlstate_active: std::cell::Cell<bool>,
     attr_entries: std::cell::RefCell<Vec<HlEntry>>,
-    attr_entry_ids: std::cell::RefCell<std::collections::BTreeMap<HlEntry, u32>>,
-    combine_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
-    blend_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
-    blendthrough_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
+    attr_entry_ids: std::cell::RefCell<crate::memory::FxHashMap<HlEntry, u32>>,
+    combine_attr_entries: std::cell::RefCell<crate::memory::FxHashMap<u64, i32>>,
+    blend_attr_entries: std::cell::RefCell<crate::memory::FxHashMap<u64, i32>>,
+    blendthrough_attr_entries: std::cell::RefCell<crate::memory::FxHashMap<u64, i32>>,
     urls: std::cell::RefCell<Vec<std::ffi::CString>>,
     fonts: std::cell::RefCell<Vec<std::ffi::CString>>,
-    ns_hls: std::cell::RefCell<std::collections::BTreeMap<ColorKey, ColorItem>>,
-    ns_hl_attr: std::cell::RefCell<std::collections::BTreeMap<i32, std::rc::Rc<NSHlAttr>>>,
+    ns_hls: std::cell::RefCell<crate::memory::FxHashMap<ColorKey, ColorItem>>,
+    ns_hl_attr: std::cell::RefCell<crate::memory::FxHashMap<i32, std::rc::Rc<NSHlAttr>>>,
     get_attr_entry_recursive: std::cell::Cell<bool>,
     ns_get_hl_recursive: std::cell::Cell<i32>,
 }
@@ -239,14 +239,14 @@ impl HighlightModuleState {
         Self {
             hlstate_active: std::cell::Cell::new(false),
             attr_entries: std::cell::RefCell::new(Vec::new()),
-            attr_entry_ids: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            combine_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            blend_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            blendthrough_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            attr_entry_ids: std::cell::RefCell::new(crate::memory::fx_hashmap()),
+            combine_attr_entries: std::cell::RefCell::new(crate::memory::fx_hashmap()),
+            blend_attr_entries: std::cell::RefCell::new(crate::memory::fx_hashmap()),
+            blendthrough_attr_entries: std::cell::RefCell::new(crate::memory::fx_hashmap()),
             urls: std::cell::RefCell::new(Vec::new()),
             fonts: std::cell::RefCell::new(Vec::new()),
-            ns_hls: std::cell::RefCell::new(std::collections::BTreeMap::new()),
-            ns_hl_attr: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            ns_hls: std::cell::RefCell::new(crate::memory::fx_hashmap()),
+            ns_hl_attr: std::cell::RefCell::new(crate::memory::fx_hashmap()),
             get_attr_entry_recursive: std::cell::Cell::new(false),
             ns_get_hl_recursive: std::cell::Cell::new(0),
         }
@@ -880,12 +880,12 @@ pub fn clear_hl_tables(reinit: bool) {
     } else {
         hl_st(|st| {
             *st.attr_entries.borrow_mut() = Vec::new();
-            *st.attr_entry_ids.borrow_mut() = std::collections::BTreeMap::new();
-            *st.combine_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
-            *st.blend_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
-            *st.blendthrough_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
-            *st.ns_hls.borrow_mut() = std::collections::BTreeMap::new();
-            *st.ns_hl_attr.borrow_mut() = std::collections::BTreeMap::new();
+            *st.attr_entry_ids.borrow_mut() = crate::memory::fx_hashmap();
+            *st.combine_attr_entries.borrow_mut() = crate::memory::fx_hashmap();
+            *st.blend_attr_entries.borrow_mut() = crate::memory::fx_hashmap();
+            *st.blendthrough_attr_entries.borrow_mut() = crate::memory::fx_hashmap();
+            *st.ns_hls.borrow_mut() = crate::memory::fx_hashmap();
+            *st.ns_hl_attr.borrow_mut() = crate::memory::fx_hashmap();
             *st.urls.borrow_mut() = Vec::new();
             *st.fonts.borrow_mut() = Vec::new();
         });

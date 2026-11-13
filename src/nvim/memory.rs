@@ -361,9 +361,9 @@ pub fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        *g_st().buffer_handles.borrow_mut() = std::collections::BTreeMap::new();
-        *g_st().window_handles.borrow_mut() = std::collections::BTreeMap::new();
-        *g_st().tabpage_handles.borrow_mut() = std::collections::BTreeMap::new();
+        *g_st().buffer_handles.borrow_mut() = fx_hashmap();
+        *g_st().window_handles.borrow_mut() = fx_hashmap();
+        *g_st().tabpage_handles.borrow_mut() = fx_hashmap();
 
         grid_free_all_mem();
         stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
@@ -389,6 +389,110 @@ pub fn free_all_mem() {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl FxHasher {
+    const K: u64 = 0x517c_c1b7_2722_0a95;
+
+    #[inline(always)]
+    fn add(&mut self, word: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ word).wrapping_mul(Self::K);
+    }
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline(always)]
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+
+    #[inline(always)]
+    fn write(&mut self, mut bytes: &[u8]) {
+        while let Some((&chunk, rest)) = bytes.split_first_chunk::<8>() {
+            self.add(u64::from_ne_bytes(chunk));
+            bytes = rest;
+        }
+        if let Some((&chunk, rest)) = bytes.split_first_chunk::<4>() {
+            self.add(u32::from_ne_bytes(chunk) as u64);
+            bytes = rest;
+        }
+        if let Some((&chunk, rest)) = bytes.split_first_chunk::<2>() {
+            self.add(u16::from_ne_bytes(chunk) as u64);
+            bytes = rest;
+        }
+        if let Some(&b) = bytes.first() {
+            self.add(b as u64);
+        }
+    }
+
+    #[inline(always)]
+    fn write_u8(&mut self, i: u8) {
+        self.add(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u16(&mut self, i: u16) {
+        self.add(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u32(&mut self, i: u32) {
+        self.add(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u64(&mut self, i: u64) {
+        self.add(i);
+    }
+
+    #[inline(always)]
+    fn write_usize(&mut self, i: usize) {
+        self.add(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_i8(&mut self, i: i8) {
+        self.add(i as u8 as u64);
+    }
+
+    #[inline(always)]
+    fn write_i16(&mut self, i: i16) {
+        self.add(i as u16 as u64);
+    }
+
+    #[inline(always)]
+    fn write_i32(&mut self, i: i32) {
+        self.add(i as u32 as u64);
+    }
+
+    #[inline(always)]
+    fn write_i64(&mut self, i: i64) {
+        self.add(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_isize(&mut self, i: isize) {
+        self.add(i as usize as u64);
+    }
+}
+
+pub type FxBuildHasher = std::hash::BuildHasherDefault<FxHasher>;
+pub type FxHashMap<K, V> = std::collections::HashMap<K, V, FxBuildHasher>;
+pub type FxHashSet<T> = std::collections::HashSet<T, FxBuildHasher>;
+
+#[inline(always)]
+pub const fn fx_hashmap<K, V>() -> FxHashMap<K, V> {
+    std::collections::HashMap::with_hasher(std::hash::BuildHasherDefault::new())
+}
+
+#[inline(always)]
+pub const fn fx_hashset<T>() -> FxHashSet<T> {
+    std::collections::HashSet::with_hasher(std::hash::BuildHasherDefault::new())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,5 +503,19 @@ mod tests {
         let mem = arena_finish(&mut arena);
         arena_mem_free(mem);
         arena_free_reuse_blks();
+    }
+
+    #[test]
+    fn fx_hash_collections_work() {
+        let mut map: FxHashMap<u64, usize> = fx_hashmap();
+        let mut set: FxHashSet<Vec<u8>> = fx_hashset();
+        for i in 0..128u64 {
+            map.insert(i * 17, i as usize);
+            set.insert(format!("key_{i}_long_suffix").into_bytes());
+        }
+        for i in 0..128u64 {
+            assert_eq!(map.get(&(i * 17)), Some(&(i as usize)));
+            assert!(set.contains(format!("key_{i}_long_suffix").as_bytes()));
+        }
     }
 }

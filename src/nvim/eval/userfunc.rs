@@ -394,7 +394,7 @@ impl Drop for DeferCall {
     }
 }
 
-pub type FuncHashtab = std::collections::BTreeMap<Vec<u8>, UfuncId>;
+pub type FuncHashtab = crate::memory::FxHashMap<Vec<u8>, UfuncId>;
 
 struct UserfuncState {
     func_hashtab_changed: std::cell::Cell<i32>,
@@ -437,7 +437,7 @@ thread_local! {
         std::cell::RefCell::new(Vec::new())
     };
     static FUNC_HASHTAB: std::cell::RefCell<FuncHashtab> = const {
-        std::cell::RefCell::new(std::collections::BTreeMap::new())
+        std::cell::RefCell::new(crate::memory::fx_hashmap())
     };
     static FUNCARGS: std::cell::RefCell<Vec<TypVal>> = const {
         std::cell::RefCell::new(Vec::new())
@@ -509,12 +509,20 @@ fn funcarg(fp: &UserFunc, j: i32) -> std::ffi::CString {
 
 /// Return the keys of the function hash table.
 pub fn func_tbl_keys() -> Vec<Vec<u8>> {
-    FUNC_HASHTAB.with(|c| c.borrow().keys().cloned().collect())
+    let mut keys: Vec<Vec<u8>> = FUNC_HASHTAB.with(|c| c.borrow().keys().cloned().collect());
+    keys.sort_unstable();
+    keys
 }
 
 /// Return the values of the function hash table.
 pub fn func_tbl_values() -> Vec<UfuncId> {
-    FUNC_HASHTAB.with(|c| c.borrow().values().copied().collect())
+    FUNC_HASHTAB.with(|c| {
+        let map = c.borrow();
+        let mut pairs: Vec<(&[u8], UfuncId)> =
+            map.iter().map(|(k, &id)| (k.as_slice(), id)).collect();
+        pairs.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        pairs.into_iter().map(|(_, id)| id).collect()
+    })
 }
 
 /// Get one function argument.

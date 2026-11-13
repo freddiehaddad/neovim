@@ -200,9 +200,9 @@ struct Afffile {
     af_nosuggest: u32,
     af_pfxpostpone: i32,
     af_ignoreextra: bool,
-    af_pref: std::collections::BTreeMap<Vec<u8>, Affheader>,
-    af_suff: std::collections::BTreeMap<Vec<u8>, Affheader>,
-    af_comp: std::collections::BTreeMap<Vec<u8>, Compitem>,
+    af_pref: crate::memory::FxHashMap<Vec<u8>, Affheader>,
+    af_suff: crate::memory::FxHashMap<Vec<u8>, Affheader>,
+    af_comp: crate::memory::FxHashMap<Vec<u8>, Compitem>,
 }
 
 #[repr(C)]
@@ -1718,9 +1718,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         af_nosuggest: 0,
         af_pfxpostpone: 0,
         af_ignoreextra: false,
-        af_pref: std::collections::BTreeMap::new(),
-        af_suff: std::collections::BTreeMap::new(),
-        af_comp: std::collections::BTreeMap::new(),
+        af_pref: crate::memory::fx_hashmap(),
+        af_suff: crate::memory::fx_hashmap(),
+        af_comp: crate::memory::fx_hashmap(),
     };
 
     while !vim_fgets(&mut rline, &fd) && !g_st().got_int.get() {
@@ -3087,8 +3087,8 @@ fn store_aff_word(
     word_in: &[u8],
     afflist_in: &[u8],
     affile: &Afffile,
-    ht: &std::collections::BTreeMap<Vec<u8>, Affheader>,
-    xht: Option<&std::collections::BTreeMap<Vec<u8>, Affheader>>,
+    ht: &crate::memory::FxHashMap<Vec<u8>, Affheader>,
+    xht: Option<&crate::memory::FxHashMap<Vec<u8>, Affheader>>,
     condit: i32,
     flags: i32,
     pfxlist_in: &[u8],
