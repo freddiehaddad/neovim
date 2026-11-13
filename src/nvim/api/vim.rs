@@ -1056,8 +1056,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
         );
         return nil_obj();
     };
-    let mut di_tv = di.tv().clone();
-    vim_to_object(&mut di_tv, Some(arena), true)
+    vim_to_object(&di.tv(), Some(arena), true)
 }
 
 /// Sets a global (g:) variable.

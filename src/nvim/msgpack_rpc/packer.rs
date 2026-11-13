@@ -224,9 +224,9 @@ pub fn mpack_float8(packer: &mut PackerBuffer, i: f64) {
     mpack_w8(packer, i.to_bits());
 }
 
-/// Pack a msgpack string into `packer` (`mpack_str`).
-pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
-    let len = str_val.size;
+/// Pack a msgpack string slice into `packer`.
+pub fn mpack_str_bytes(slice: &[u8], packer: &mut PackerBuffer) {
+    let len = slice.len();
     if len < 32 {
         mpack_w(packer, 0xa0 | (len as u8));
     } else if len < 0xff {
@@ -241,8 +241,12 @@ pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    let slice = str_val.slice(len);
     mpack_raw(slice, packer);
+}
+
+/// Pack a msgpack string into `packer` (`mpack_str`).
+pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
+    mpack_str_bytes(str_val.slice(str_val.size), packer);
 }
 
 /// Pack a msgpack binary blob into `packer` (`mpack_bin`).
@@ -356,7 +360,7 @@ pub fn mpack_object(cur: &mut Object, packer: &mut PackerBuffer) {
             mpack_float8(packer, cur.data.floating());
         }
         ObjectType::ObjectTypeString => {
-            mpack_str(cur.data.string(), packer);
+            mpack_str_bytes(cur.data.as_bytes(), packer);
         }
         ObjectType::ObjectTypeBuffer
         | ObjectType::ObjectTypeWindow
@@ -364,18 +368,18 @@ pub fn mpack_object(cur: &mut Object, packer: &mut PackerBuffer) {
             mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
         }
         ObjectType::ObjectTypeArray => {
-            let mut arr = cur.data.array();
+            let arr = cur.data.array_mut();
             mpack_array(packer, arr.size as u32);
             for item in arr.as_mut_slice() {
                 mpack_object(item, packer);
             }
         }
         ObjectType::ObjectTypeDict => {
-            let mut dict = cur.data.dict();
+            let dict = cur.data.dict_mut();
             mpack_map(packer, dict.size as u32);
             for it in dict.as_mut_slice() {
                 mpack_check_buffer(packer);
-                mpack_str(it.key.clone(), packer);
+                mpack_str_bytes(it.key.as_bytes(), packer);
                 mpack_object(&mut it.value, packer);
             }
         }

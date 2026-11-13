@@ -999,7 +999,7 @@ pub fn eval_foldtext(wp: &WinInfoInfo) -> Object {
         };
     } else {
         if tv.v_type == VarType::VarList {
-            retval = vim_to_object(&mut tv, None, false);
+            retval = vim_to_object(&tv, None, false);
         } else {
             retval = Object {
                 obj_type: ObjectType::ObjectTypeString,

@@ -64,11 +64,14 @@ impl<T: Default> CloneCell<T> {
     }
 }
 
+const NVIM_STRING_INLINE_CAP: usize = 22;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum NvimStringData {
     #[default]
     Null,
     Static(&'static [u8]),
+    Inline([u8; NVIM_STRING_INLINE_CAP + 1]),
     Owned(Rc<Vec<u8>>),
 }
 
@@ -134,9 +137,16 @@ impl NvimString {
 
     #[inline]
     pub fn zeroed(size: usize) -> Self {
-        Self {
-            data: NvimStringData::Owned(Rc::new(vec![0u8; size + 1])),
-            size,
+        if size <= NVIM_STRING_INLINE_CAP {
+            Self {
+                data: NvimStringData::Inline([0u8; NVIM_STRING_INLINE_CAP + 1]),
+                size,
+            }
+        } else {
+            Self {
+                data: NvimStringData::Owned(Rc::new(vec![0u8; size + 1])),
+                size,
+            }
         }
     }
 
@@ -146,11 +156,20 @@ impl NvimString {
             return Self::empty_cstr();
         }
         let copy_len = size.min(bytes.len());
-        let mut v = vec![0u8; size + 1];
-        v[..copy_len].copy_from_slice(&bytes[..copy_len]);
-        Self {
-            data: NvimStringData::Owned(Rc::new(v)),
-            size,
+        if size <= NVIM_STRING_INLINE_CAP {
+            let mut buf = [0u8; NVIM_STRING_INLINE_CAP + 1];
+            buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
+            Self {
+                data: NvimStringData::Inline(buf),
+                size,
+            }
+        } else {
+            let mut v = vec![0u8; size + 1];
+            v[..copy_len].copy_from_slice(&bytes[..copy_len]);
+            Self {
+                data: NvimStringData::Owned(Rc::new(v)),
+                size,
+            }
         }
     }
 
@@ -174,6 +193,7 @@ impl NvimString {
         match &self.data {
             NvimStringData::Null => false,
             NvimStringData::Static(s) => s.get(self.size) == Some(&0),
+            NvimStringData::Inline(b) => b.get(self.size) == Some(&0),
             NvimStringData::Owned(v) => v.get(self.size) == Some(&0),
         }
     }
@@ -188,6 +208,7 @@ impl NvimString {
         match &self.data {
             NvimStringData::Null => b"",
             NvimStringData::Static(s) => &s[..self.size.min(s.len())],
+            NvimStringData::Inline(b) => &b[..self.size.min(b.len())],
             NvimStringData::Owned(v) => &v[..self.size.min(v.len())],
         }
     }
@@ -204,11 +225,25 @@ impl NvimString {
             return &mut [];
         }
         if let NvimStringData::Static(s) = self.data {
-            let mut v = vec![0u8; (self.size + 1).max(s.len())];
-            v[..s.len()].copy_from_slice(s);
+            if self.size <= NVIM_STRING_INLINE_CAP && s.len() <= NVIM_STRING_INLINE_CAP + 1 {
+                let mut buf = [0u8; NVIM_STRING_INLINE_CAP + 1];
+                buf[..s.len()].copy_from_slice(s);
+                self.data = NvimStringData::Inline(buf);
+            } else {
+                let mut v = vec![0u8; (self.size + 1).max(s.len())];
+                v[..s.len()].copy_from_slice(s);
+                self.data = NvimStringData::Owned(Rc::new(v));
+            }
+        }
+        if let NvimStringData::Inline(b) = &self.data
+            && self.size > NVIM_STRING_INLINE_CAP
+        {
+            let mut v = vec![0u8; self.size + 1];
+            v[..b.len()].copy_from_slice(b);
             self.data = NvimStringData::Owned(Rc::new(v));
         }
         match &mut self.data {
+            NvimStringData::Inline(b) => &mut b[..self.size + 1],
             NvimStringData::Owned(rc) => {
                 let v = Rc::make_mut(rc);
                 if v.len() < self.size + 1 {
@@ -255,7 +290,8 @@ impl NvimString {
         let raw: &[u8] = match &self.data {
             NvimStringData::Null => return None,
             NvimStringData::Static(s) => s,
-            NvimStringData::Owned(v) => v.as_slice(),
+            NvimStringData::Inline(b) => &b[..(self.size + 1).min(b.len())],
+            NvimStringData::Owned(v) => &v[..(self.size + 1).min(v.len())],
         };
         Some(crate::memory::bytes_as_cstr(raw))
     }
@@ -353,12 +389,43 @@ impl ObjectType {
     }
 }
 
+const ARRAY_VEC_POOL_CAP: usize = 1024;
+const DICT_VEC_POOL_CAP: usize = 1024;
+
+thread_local! {
+    static ARRAY_VEC_POOL: std::cell::RefCell<Vec<Rc<Vec<Object>>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static DICT_VEC_POOL: std::cell::RefCell<Vec<Rc<Vec<KeyValuePair>>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
 #[repr(C)]
 #[derive(Clone, Debug, Default)]
 pub struct Array {
     pub size: usize,
     pub capacity: usize,
     pub items: Option<Rc<Vec<Object>>>,
+}
+
+impl Drop for Array {
+    #[inline]
+    fn drop(&mut self) {
+        if let Some(mut rc) = self.items.take()
+            && let Some(v) = Rc::get_mut(&mut rc)
+            && v.capacity() <= 256
+        {
+            v.clear();
+            let _ = ARRAY_VEC_POOL.try_with(|pool| {
+                if let Ok(mut p) = pool.try_borrow_mut()
+                    && p.len() < ARRAY_VEC_POOL_CAP
+                {
+                    p.push(rc);
+                }
+            });
+        }
+    }
 }
 
 impl Array {
@@ -373,14 +440,24 @@ impl Array {
 
     #[inline(always)]
     pub fn with_capacity(max_size: usize) -> Self {
+        let items = if max_size == 0 {
+            None
+        } else if max_size <= 256
+            && let Some(mut rc) = ARRAY_VEC_POOL
+                .try_with(|pool| pool.borrow_mut().pop())
+                .ok()
+                .flatten()
+            && let Some(v) = Rc::get_mut(&mut rc)
+        {
+            v.resize(max_size, Object::new());
+            Some(rc)
+        } else {
+            Some(Rc::new(vec![Object::new(); max_size]))
+        };
         Self {
             size: 0,
             capacity: max_size,
-            items: if max_size == 0 {
-                None
-            } else {
-                Some(Rc::new(vec![Object::new(); max_size]))
-            },
+            items,
         }
     }
 
@@ -486,6 +563,25 @@ pub struct Dict {
     pub items: Option<Rc<Vec<KeyValuePair>>>,
 }
 
+impl Drop for Dict {
+    #[inline]
+    fn drop(&mut self) {
+        if let Some(mut rc) = self.items.take()
+            && let Some(v) = Rc::get_mut(&mut rc)
+            && v.capacity() <= 64
+        {
+            v.clear();
+            let _ = DICT_VEC_POOL.try_with(|pool| {
+                if let Ok(mut p) = pool.try_borrow_mut()
+                    && p.len() < DICT_VEC_POOL_CAP
+                {
+                    p.push(rc);
+                }
+            });
+        }
+    }
+}
+
 impl Dict {
     #[inline(always)]
     pub const fn new() -> Self {
@@ -498,14 +594,24 @@ impl Dict {
 
     #[inline(always)]
     pub fn with_capacity(max_size: usize) -> Self {
+        let items = if max_size == 0 {
+            None
+        } else if max_size <= 64
+            && let Some(mut rc) = DICT_VEC_POOL
+                .try_with(|pool| pool.borrow_mut().pop())
+                .ok()
+                .flatten()
+            && let Some(v) = Rc::get_mut(&mut rc)
+        {
+            v.resize(max_size, KeyValuePair::new());
+            Some(rc)
+        } else {
+            Some(Rc::new(vec![KeyValuePair::new(); max_size]))
+        };
         Self {
             size: 0,
             capacity: max_size,
-            items: if max_size == 0 {
-                None
-            } else {
-                Some(Rc::new(vec![KeyValuePair::new(); max_size]))
-            },
+            items,
         }
     }
 
@@ -1112,5 +1218,23 @@ mod tests {
             "Conflict: 'row' not allowed with 'win'"
         );
         api_clear_error(&mut err);
+    }
+
+    #[test]
+    fn nvim_string_inline_and_heap_boundaries() {
+        let s22 = NvimString::from_bytes(b"1234567890123456789012");
+        assert!(matches!(s22.data, NvimStringData::Inline(_)));
+        assert_eq!(s22.as_bytes(), b"1234567890123456789012");
+        assert_eq!(s22.as_cstr().to_bytes(), b"1234567890123456789012");
+
+        let s23 = NvimString::from_bytes(b"12345678901234567890123");
+        assert!(matches!(s23.data, NvimStringData::Owned(_)));
+        assert_eq!(s23.as_bytes(), b"12345678901234567890123");
+
+        let mut z = NvimString::zeroed(5);
+        assert!(matches!(z.data, NvimStringData::Inline(_)));
+        z.as_bytes_with_nul_mut()[..5].copy_from_slice(b"ab\0cd");
+        assert_eq!(z.as_bytes(), b"ab\0cd");
+        assert_eq!(z.cstr_bytes(), b"ab");
     }
 }

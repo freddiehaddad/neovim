@@ -516,14 +516,14 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
             frame.errored.set(errored);
 
             if errored {
-                frame.result.set(p.error.clone());
+                frame.result.set(std::mem::take(&mut p.error));
             } else {
-                frame.result.set(p.result.clone());
+                frame.result.set(std::mem::take(&mut p.result));
             }
 
             frame.result_mem.set(arena_finish(&mut p.arena));
         } else {
-            let res = channel.unpacker_mut().result.clone();
+            let mut res = std::mem::take(&mut channel.unpacker_mut().result);
             if res.obj_type != ObjectType::ObjectTypeArray {
                 chan_close_on_err(
                     channel,
@@ -532,7 +532,7 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
                 );
                 return;
             }
-            handle_request(channel, res.data.array());
+            handle_request(channel, std::mem::take(res.data.array_mut()));
         }
     }
 
@@ -644,7 +644,8 @@ pub fn request_event(mut e: RequestEvent) {
     let is_open = find_channel_opt(e.chan_id).is_some_and(|c| !c.rpc.closed.get());
     if is_open {
         let fn_call = handler.r#fn.unwrap();
-        let mut result = fn_call(e.chan_id, e.args.clone(), &mut e.used_mem, &mut error);
+        let args = std::mem::take(&mut e.args);
+        let mut result = fn_call(e.chan_id, args, &mut e.used_mem, &mut error);
         if (e.r#type == MessageType::MessageTypeRequest
             || error.err_type != ErrorType::ErrorTypeNone)
             && let Some(channel) = find_channel_opt(e.chan_id)

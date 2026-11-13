@@ -1028,19 +1028,34 @@ pub fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
         nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
         let _ = lua_setmetatable_safe(lstate, -2);
     }
-    for item in dict.as_mut_slice() {
-        nlua_push_string(lstate, item.key.clone(), flags);
-        nlua_push_object(lstate, &mut item.value, flags);
-        lua_rawset_safe(lstate, -3);
+    if (flags & K_NLUA_PUSH_FREE_REFS) != 0 {
+        for item in dict.as_mut_slice() {
+            lua_push_bytes(lstate, item.key.as_bytes());
+            nlua_push_object(lstate, &mut item.value, flags);
+            lua_rawset_safe(lstate, -3);
+        }
+    } else {
+        for item in dict.as_slice() {
+            lua_push_bytes(lstate, item.key.as_bytes());
+            nlua_push_object_ref(lstate, &item.value, flags);
+            lua_rawset_safe(lstate, -3);
+        }
     }
 }
 
 /// Convert given `Array` to Lua table (`nlua_push_Array`).
 pub fn nlua_push_array(lstate: *mut lua_State, mut array: Array, flags: i32) {
     lua_createtable_safe(lstate, array.size as i32, 0);
-    for (i, item) in array.as_mut_slice().iter_mut().enumerate() {
-        nlua_push_object(lstate, item, flags);
-        lua_rawseti_safe(lstate, -2, (i as i32) + 1);
+    if (flags & K_NLUA_PUSH_FREE_REFS) != 0 {
+        for (i, item) in array.as_mut_slice().iter_mut().enumerate() {
+            nlua_push_object(lstate, item, flags);
+            lua_rawseti_safe(lstate, -2, (i as i32) + 1);
+        }
+    } else {
+        for (i, item) in array.as_slice().iter().enumerate() {
+            nlua_push_object_ref(lstate, item, flags);
+            lua_rawseti_safe(lstate, -2, (i as i32) + 1);
+        }
     }
 }
 
@@ -1049,8 +1064,57 @@ pub fn nlua_push_handle(lstate: *mut lua_State, item: ObjHandle, _flags: i32) {
     lua_pushnumber_safe(lstate, item as lua_Number);
 }
 
+fn nlua_push_object_ref(lstate: *mut lua_State, obj: &Object, flags: i32) {
+    match obj.obj_type {
+        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+            if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
+                lua_pushnil_safe(lstate);
+            } else {
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
+            }
+        }
+        ObjectType::ObjectTypeLuaRef => {
+            nlua_pushref(lstate, obj.data.luaref());
+        }
+        ObjectType::ObjectTypeBoolean => nlua_push_boolean(lstate, obj.data.boolean(), flags),
+        ObjectType::ObjectTypeInteger => nlua_push_integer(lstate, obj.data.integer(), flags),
+        ObjectType::ObjectTypeFloat => nlua_push_float(lstate, obj.data.floating(), flags),
+        ObjectType::ObjectTypeString => lua_push_bytes(lstate, obj.data.as_bytes()),
+        ObjectType::ObjectTypeArray => {
+            let slice = obj.data.array_slice();
+            lua_createtable_safe(lstate, slice.len() as i32, 0);
+            for (i, item) in slice.iter().enumerate() {
+                nlua_push_object_ref(lstate, item, flags);
+                lua_rawseti_safe(lstate, -2, (i as i32) + 1);
+            }
+        }
+        ObjectType::ObjectTypeDict => {
+            let slice = obj.data.dict_slice();
+            lua_createtable_safe(lstate, 0, slice.len() as i32);
+            if slice.is_empty() {
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
+                let _ = lua_setmetatable_safe(lstate, -2);
+            }
+            for item in slice {
+                lua_push_bytes(lstate, item.key.as_bytes());
+                nlua_push_object_ref(lstate, &item.value, flags);
+                lua_rawset_safe(lstate, -3);
+            }
+        }
+        ObjectType::ObjectTypeBuffer
+        | ObjectType::ObjectTypeWindow
+        | ObjectType::ObjectTypeTabpage => {
+            nlua_push_handle(lstate, obj.data.integer() as ObjHandle, flags);
+        }
+    }
+}
+
 /// Convert given `Object` to Lua value (`nlua_push_Object`).
 pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
+    if (flags & K_NLUA_PUSH_FREE_REFS) == 0 {
+        nlua_push_object_ref(lstate, obj, flags);
+        return;
+    }
     match obj.obj_type {
         ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
             if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
@@ -1069,9 +1133,28 @@ pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
         ObjectType::ObjectTypeBoolean => nlua_push_boolean(lstate, obj.data.boolean(), flags),
         ObjectType::ObjectTypeInteger => nlua_push_integer(lstate, obj.data.integer(), flags),
         ObjectType::ObjectTypeFloat => nlua_push_float(lstate, obj.data.floating(), flags),
-        ObjectType::ObjectTypeString => nlua_push_string(lstate, obj.data.string(), flags),
-        ObjectType::ObjectTypeArray => nlua_push_array(lstate, obj.data.array(), flags),
-        ObjectType::ObjectTypeDict => nlua_push_dict(lstate, obj.data.dict(), flags),
+        ObjectType::ObjectTypeString => lua_push_bytes(lstate, obj.data.as_bytes()),
+        ObjectType::ObjectTypeArray => {
+            let arr = obj.data.array_mut();
+            lua_createtable_safe(lstate, arr.size as i32, 0);
+            for (i, item) in arr.as_mut_slice().iter_mut().enumerate() {
+                nlua_push_object(lstate, item, flags);
+                lua_rawseti_safe(lstate, -2, (i as i32) + 1);
+            }
+        }
+        ObjectType::ObjectTypeDict => {
+            let dict = obj.data.dict_mut();
+            lua_createtable_safe(lstate, 0, dict.size as i32);
+            if dict.size == 0 {
+                nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
+                let _ = lua_setmetatable_safe(lstate, -2);
+            }
+            for item in dict.as_mut_slice() {
+                lua_push_bytes(lstate, item.key.as_bytes());
+                nlua_push_object(lstate, &mut item.value, flags);
+                lua_rawset_safe(lstate, -3);
+            }
+        }
         ObjectType::ObjectTypeBuffer
         | ObjectType::ObjectTypeWindow
         | ObjectType::ObjectTypeTabpage => {
@@ -1342,15 +1425,18 @@ pub fn nlua_pop_object(
 fn attach_popped_object(stack: &mut [ObjPopStackItem], ret: &mut Object, val: Object) {
     if let Some(parent) = stack.last_mut() {
         if parent.obj.obj_type == ObjectType::ObjectTypeDict {
-            let idx = parent.obj.data.dict().size;
-            parent.obj.data.dict_mut().size += 1;
-            let item = &mut parent.obj.data.dict_mut()[idx];
-            item.key = parent.next_key.take().unwrap();
+            let key = parent.next_key.take().unwrap();
+            let d = parent.obj.data.dict_mut();
+            let idx = d.size;
+            d.size += 1;
+            let item = &mut d[idx];
+            item.key = key;
             item.value = val;
         } else {
-            let idx = parent.obj.data.array().size;
-            parent.obj.data.array_mut().size += 1;
-            parent.obj.data.array_mut()[idx] = val;
+            let a = parent.obj.data.array_mut();
+            let idx = a.size;
+            a.size += 1;
+            a[idx] = val;
         }
     } else {
         *ret = val;
@@ -1380,7 +1466,11 @@ pub fn nlua_pop_object_opt(
             }
             let cur = stack.last_mut().unwrap();
             if cur.obj.obj_type == ObjectType::ObjectTypeDict {
-                if cur.obj.data.dict().size == cur.obj.data.dict().capacity {
+                let d_full = {
+                    let d = cur.obj.data.dict_mut();
+                    d.size == d.capacity
+                };
+                if d_full {
                     lua_pop(lstate, 2);
                     let finished = stack.pop().unwrap().obj;
                     attach_popped_object(&mut stack, &mut ret, finished);
@@ -1404,13 +1494,16 @@ pub fn nlua_pop_object_opt(
                     continue;
                 }
             } else {
-                if cur.obj.data.array().size == cur.obj.data.array().capacity {
+                let (a_full, idx) = {
+                    let a = cur.obj.data.array_mut();
+                    (a.size == a.capacity, a.size)
+                };
+                if a_full {
                     lua_pop(lstate, 1);
                     let finished = stack.pop().unwrap().obj;
                     attach_popped_object(&mut stack, &mut ret, finished);
                     continue;
                 }
-                let idx = cur.obj.data.array().size;
                 lua_rawgeti_safe(lstate, -1, (idx as i32) + 1);
             }
         }

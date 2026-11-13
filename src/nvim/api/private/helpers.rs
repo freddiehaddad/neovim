@@ -429,8 +429,7 @@ pub fn dict_get_value(
         );
         return OBJECT_NIL;
     };
-    let mut di_tv = di.tv().clone();
-    vim_to_object(&mut di_tv, arena, true)
+    vim_to_object(&di.tv(), arena, true)
 }
 
 pub fn dict_check_writable(
@@ -501,8 +500,7 @@ pub fn dict_set_var(
             tv_dict_watcher_notify(dict, key.as_opt_cstr().unwrap_or(c""), None, Some(&old_tv));
         }
         if retval {
-            let mut di_tv = di.tv().clone();
-            rv = vim_to_object(&mut di_tv, arena, false);
+            rv = vim_to_object(&di.tv(), arena, false);
         }
 
         tv_dict_item_remove(dict, &di);
@@ -513,8 +511,7 @@ pub fn dict_set_var(
 
         let di: crate::eval::typval::DictitemId = if let Some(di) = di_opt {
             if retval {
-                let mut di_tv = di.tv().clone();
-                rv = vim_to_object(&mut di_tv, arena, false);
+                rv = vim_to_object(&di.tv(), arena, false);
             }
             let mut type_error = false;
             if ptr::eq(dict, &*get_vimvar_dict())

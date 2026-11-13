@@ -217,7 +217,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
                 expr,
             );
         } else {
-            rv = vim_to_object(&mut rettv, Some(arena), false);
+            rv = vim_to_object(&rettv, Some(arena), false);
         }
     }
 
@@ -291,7 +291,7 @@ fn call_function_impl(
     try_leave(&tstate, err);
 
     if !error_set(err) {
-        rv = vim_to_object(&mut rettv, Some(arena), false);
+        rv = vim_to_object(&rettv, Some(arena), false);
     }
 
     tv_clear(&mut rettv);
