@@ -216,11 +216,11 @@ pub fn changed_lines_invalidate_win(
     mut lnume: Linenr,
     xtra: Linenr,
 ) {
-    if wp.w_cursor.get().lnum <= lnum {
-        let i = find_wl_entry(wp, lnum);
-        if i >= 0 && wp.w_cursor.get().lnum > (&wp.w_lines.borrow())[i as usize].wl_lnum {
-            changed_line_abv_curs_win(wp);
-        }
+    if wp.w_cursor.get().lnum <= lnum
+        && let Some(i) = find_wl_entry(wp, lnum)
+        && wp.w_cursor.get().lnum > (&wp.w_lines.borrow())[i].wl_lnum
+    {
+        changed_line_abv_curs_win(wp);
     }
 
     if wp.w_cursor.get().lnum > lnum {

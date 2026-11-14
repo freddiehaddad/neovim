@@ -998,32 +998,32 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub fn ui_client_handler_hash(bytes: &[u8]) -> i32 {
-    let low: isize = match bytes.len() {
+pub fn ui_client_handler_hash(bytes: &[u8]) -> Option<usize> {
+    let low: usize = match bytes.len() {
         4 => 0,
         5 => match bytes[0] {
             b'c' => 1,
             b'f' => 2,
-            _ => -1,
+            _ => return None,
         },
         7 => match bytes[0] {
             b'c' => 3,
             b'r' => 4,
             b's' => 5,
             b'u' => 6,
-            _ => -1,
+            _ => return None,
         },
         8 => match bytes[0] {
             b'm' => 7,
             b's' => 8,
-            _ => -1,
+            _ => return None,
         },
         9 => match bytes[0] {
             b'b' => 9,
             b'g' => 10,
             b'm' => 11,
             b's' => 12,
-            _ => -1,
+            _ => return None,
         },
         10 => match bytes[0] {
             b'b' => 13,
@@ -1031,7 +1031,7 @@ pub fn ui_client_handler_hash(bytes: &[u8]) -> i32 {
             b'g' => 15,
             b'o' => 16,
             b's' => 17,
-            _ => -1,
+            _ => return None,
         },
         11 => match bytes[5] {
             b'c' => 18,
@@ -1039,31 +1039,24 @@ pub fn ui_client_handler_hash(bytes: &[u8]) -> i32 {
             b'l' => 20,
             b'r' => 21,
             b's' => 22,
-            _ => -1,
+            _ => return None,
         },
         13 => 23,
         14 => 24,
         16 => 25,
         18 => 26,
         26 => 27,
-        _ => -1,
+        _ => return None,
     };
-    if low < 0 {
-        return -1;
-    }
-    if bytes != EVENT_HANDLERS[low as usize].name.to_bytes() {
-        return -1;
-    }
-    low as i32
+    (bytes == EVENT_HANDLERS[low].name.to_bytes()).then_some(low)
 }
 
 pub fn ui_client_get_redraw_handler(name: &[u8]) -> UIClientHandler {
-    let hash = ui_client_handler_hash(name);
-    if hash < 0 {
-        return UIClientHandler {
+    ui_client_handler_hash(name).map_or(
+        UIClientHandler {
             name: c"",
             r#fn: None,
-        };
-    }
-    EVENT_HANDLERS[hash as usize]
+        },
+        |hash| EVENT_HANDLERS[hash],
+    )
 }

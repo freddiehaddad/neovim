@@ -2416,11 +2416,10 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
             sounddone.insert(goodword_bytes.to_vec(), score as i16);
         }
     }
-    let sfwordnr = soundfold_find(&slang, goodword_bytes);
-    if sfwordnr < 0 {
+    let Some(sfwordnr) = soundfold_find(&slang, goodword_bytes) else {
         internal_error(c"add_sound_suggest()");
         return;
-    }
+    };
     let nrline_vec = {
         let sugbuf_borrow = slang.sl_sugbuf.borrow();
         let sugbuf = sugbuf_borrow.as_deref().unwrap();
@@ -2544,7 +2543,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
         }
     }
 }
-fn soundfold_find(slang: &Slang, word: &[u8]) -> i32 {
+fn soundfold_find(slang: &Slang, word: &[u8]) -> Option<i32> {
     let word_bytes = crate::memory::bytes_until_nul(word);
     let mut arridx: Idx = 0;
     let mut wlen: usize = 0;
@@ -2564,12 +2563,12 @@ fn soundfold_find(slang: &Slang, word: &[u8]) -> i32 {
                 len -= 1;
             }
             if len == 0 {
-                return -1;
+                return None;
             }
             wordnr += 1;
         }
         if c == 0 {
-            return -1;
+            return None;
         }
         if c == TAB {
             c = b' ';
@@ -2579,11 +2578,11 @@ fn soundfold_find(slang: &Slang, word: &[u8]) -> i32 {
             arridx += 1;
             len -= 1;
             if len == 0 {
-                return -1;
+                return None;
             }
         }
         if byts[arridx as usize] != c {
-            return -1;
+            return None;
         }
         arridx = idxs[arridx as usize];
         wlen += 1;
@@ -2593,7 +2592,7 @@ fn soundfold_find(slang: &Slang, word: &[u8]) -> i32 {
             }
         }
     }
-    wordnr
+    Some(wordnr)
 }
 fn similar_chars(slang: &Slang, c1: i32, c2: i32) -> bool {
     let m1 = if c1 >= 256 {

@@ -271,11 +271,10 @@ pub extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> i32 {
         use_utf16 = lua_toboolean_safe(lstate, 3);
     }
 
-    let byteidx = mb_utf_index_to_bytes(s1_bytes, idx as usize, use_utf16);
-    if byteidx == -1 {
+    let Some(byteidx) = mb_utf_index_to_bytes(s1_bytes, idx as usize, use_utf16) else {
         lua_pushnil_safe(lstate);
         return 1;
-    }
+    };
 
     lua_pushinteger_safe(lstate, byteidx as lua_Integer);
     1

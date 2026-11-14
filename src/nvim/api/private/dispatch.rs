@@ -395,20 +395,19 @@ pub static _SHADA_BUFLIST_ITEM_TABLE: [KeySetLink<KeyDictShadaBuflistItem>; 4] =
     },
 ];
 
-pub fn _shada_buflist_item_hash(key: &[u8]) -> i32 {
+pub fn _shada_buflist_item_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"c" => 0,
-        b"f" => 1,
-        b"l" => 2,
-        _ => -1,
+        b"c" => Some(0),
+        b"f" => Some(1),
+        b"l" => Some(2),
+        _ => None,
     }
 }
 
 pub fn key_dict_shada_buflist_item_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictShadaBuflistItem>> {
-    let hash = _shada_buflist_item_hash(key);
-    (hash >= 0).then(|| &_SHADA_BUFLIST_ITEM_TABLE[hash as usize])
+    _shada_buflist_item_hash(key).map(|h| &_SHADA_BUFLIST_ITEM_TABLE[h])
 }
 
 pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDictShadaMark>; 5] = [
@@ -461,19 +460,18 @@ pub static _SHADA_MARK_TABLE: [KeySetLink<KeyDictShadaMark>; 5] = [
     },
 ];
 
-pub fn _shada_mark_hash(key: &[u8]) -> i32 {
+pub fn _shada_mark_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"c" => 0,
-        b"f" => 1,
-        b"l" => 2,
-        b"n" => 3,
-        _ => -1,
+        b"c" => Some(0),
+        b"f" => Some(1),
+        b"l" => Some(2),
+        b"n" => Some(3),
+        _ => None,
     }
 }
 
 pub fn key_dict_shada_mark_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictShadaMark>> {
-    let hash = _shada_mark_hash(key);
-    (hash >= 0).then(|| &_SHADA_MARK_TABLE[hash as usize])
+    _shada_mark_hash(key).map(|h| &_SHADA_MARK_TABLE[h])
 }
 
 pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDictShadaRegister>; 6] = [
@@ -536,22 +534,21 @@ pub static _SHADA_REGISTER_TABLE: [KeySetLink<KeyDictShadaRegister>; 6] = [
     },
 ];
 
-pub fn _shada_register_hash(key: &[u8]) -> i32 {
+pub fn _shada_register_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"n" => 0,
-        b"rc" => 1,
-        b"rt" => 2,
-        b"ru" => 3,
-        b"rw" => 4,
-        _ => -1,
+        b"n" => Some(0),
+        b"rc" => Some(1),
+        b"rt" => Some(2),
+        b"ru" => Some(3),
+        b"rw" => Some(4),
+        _ => None,
     }
 }
 
 pub fn key_dict_shada_register_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictShadaRegister>> {
-    let hash = _shada_register_hash(key);
-    (hash >= 0).then(|| &_SHADA_REGISTER_TABLE[hash as usize])
+    _shada_register_hash(key).map(|h| &_SHADA_REGISTER_TABLE[h])
 }
 
 pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDictShadaSearchPat>; 11] = [
@@ -664,27 +661,26 @@ pub static _SHADA_SEARCH_PAT_TABLE: [KeySetLink<KeyDictShadaSearchPat>; 11] = [
     },
 ];
 
-pub fn _shada_search_pat_hash(key: &[u8]) -> i32 {
+pub fn _shada_search_pat_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"sb" => 0,
-        b"sc" => 1,
-        b"se" => 2,
-        b"sh" => 3,
-        b"sl" => 4,
-        b"sm" => 5,
-        b"so" => 6,
-        b"sp" => 7,
-        b"ss" => 8,
-        b"su" => 9,
-        _ => -1,
+        b"sb" => Some(0),
+        b"sc" => Some(1),
+        b"se" => Some(2),
+        b"sh" => Some(3),
+        b"sl" => Some(4),
+        b"sm" => Some(5),
+        b"so" => Some(6),
+        b"sp" => Some(7),
+        b"ss" => Some(8),
+        b"su" => Some(9),
+        _ => None,
     }
 }
 
 pub fn key_dict_shada_search_pat_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictShadaSearchPat>> {
-    let hash = _shada_search_pat_hash(key);
-    (hash >= 0).then(|| &_SHADA_SEARCH_PAT_TABLE[hash as usize])
+    _shada_search_pat_hash(key).map(|h| &_SHADA_SEARCH_PAT_TABLE[h])
 }
 
 pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDictBufAttach>; 8] = [
@@ -767,22 +763,21 @@ pub static BUF_ATTACH_TABLE: [KeySetLink<KeyDictBufAttach>; 8] = [
     },
 ];
 
-pub fn buf_attach_hash(key: &[u8]) -> i32 {
+pub fn buf_attach_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"preview" => 0,
-        b"on_bytes" => 1,
-        b"on_lines" => 2,
-        b"utf_sizes" => 3,
-        b"on_detach" => 4,
-        b"on_reload" => 5,
-        b"on_changedtick" => 6,
-        _ => -1,
+        b"preview" => Some(0),
+        b"on_bytes" => Some(1),
+        b"on_lines" => Some(2),
+        b"utf_sizes" => Some(3),
+        b"on_detach" => Some(4),
+        b"on_reload" => Some(5),
+        b"on_changedtick" => Some(6),
+        _ => None,
     }
 }
 
 pub fn key_dict_buf_attach_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictBufAttach>> {
-    let hash = buf_attach_hash(key);
-    (hash >= 0).then(|| &BUF_ATTACH_TABLE[hash as usize])
+    buf_attach_hash(key).map(|h| &BUF_ATTACH_TABLE[h])
 }
 
 pub static BUF_DELETE_TABLE: [KeySetLink<KeyDictBufDelete>; 3] = [
@@ -815,17 +810,16 @@ pub static BUF_DELETE_TABLE: [KeySetLink<KeyDictBufDelete>; 3] = [
     },
 ];
 
-pub fn buf_delete_hash(key: &[u8]) -> i32 {
+pub fn buf_delete_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"force" => 0,
-        b"unload" => 1,
-        _ => -1,
+        b"force" => Some(0),
+        b"unload" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictBufDelete>> {
-    let hash = buf_delete_hash(key);
-    (hash >= 0).then(|| &BUF_DELETE_TABLE[hash as usize])
+    buf_delete_hash(key).map(|h| &BUF_DELETE_TABLE[h])
 }
 
 pub static CHAN_SET_TABLE: [KeySetLink<KeyDictChanSet>; 4] = [
@@ -868,18 +862,17 @@ pub static CHAN_SET_TABLE: [KeySetLink<KeyDictChanSet>; 4] = [
     },
 ];
 
-pub fn chan_set_hash(key: &[u8]) -> i32 {
+pub fn chan_set_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"addr" => 0,
-        b"detach" => 1,
-        b"trust" => 2,
-        _ => -1,
+        b"addr" => Some(0),
+        b"detach" => Some(1),
+        b"trust" => Some(2),
+        _ => None,
     }
 }
 
 pub fn key_dict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictChanSet>> {
-    let hash = chan_set_hash(key);
-    (hash >= 0).then(|| &CHAN_SET_TABLE[hash as usize])
+    chan_set_hash(key).map(|h| &CHAN_SET_TABLE[h])
 }
 
 pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDictClearAutocmds>; 6] = [
@@ -942,22 +935,21 @@ pub static CLEAR_AUTOCMDS_TABLE: [KeySetLink<KeyDictClearAutocmds>; 6] = [
     },
 ];
 
-pub fn clear_autocmds_hash(key: &[u8]) -> i32 {
+pub fn clear_autocmds_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"buf" => 0,
-        b"event" => 1,
-        b"group" => 2,
-        b"buffer" => 3,
-        b"pattern" => 4,
-        _ => -1,
+        b"buf" => Some(0),
+        b"event" => Some(1),
+        b"group" => Some(2),
+        b"buffer" => Some(3),
+        b"pattern" => Some(4),
+        _ => None,
     }
 }
 
 pub fn key_dict_clear_autocmds_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictClearAutocmds>> {
-    let hash = clear_autocmds_hash(key);
-    (hash >= 0).then(|| &CLEAR_AUTOCMDS_TABLE[hash as usize])
+    clear_autocmds_hash(key).map(|h| &CLEAR_AUTOCMDS_TABLE[h])
 }
 
 pub static CMD_TABLE: [KeySetLink<KeyDictCmd>; 12] = [
@@ -1050,26 +1042,25 @@ pub static CMD_TABLE: [KeySetLink<KeyDictCmd>; 12] = [
     },
 ];
 
-pub fn cmd_hash(key: &[u8]) -> i32 {
+pub fn cmd_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"cmd" => 0,
-        b"reg" => 1,
-        b"bang" => 2,
-        b"addr" => 3,
-        b"mods" => 4,
-        b"args" => 5,
-        b"count" => 6,
-        b"magic" => 7,
-        b"nargs" => 8,
-        b"range" => 9,
-        b"nextcmd" => 10,
-        _ => -1,
+        b"cmd" => Some(0),
+        b"reg" => Some(1),
+        b"bang" => Some(2),
+        b"addr" => Some(3),
+        b"mods" => Some(4),
+        b"args" => Some(5),
+        b"count" => Some(6),
+        b"magic" => Some(7),
+        b"nargs" => Some(8),
+        b"range" => Some(9),
+        b"nextcmd" => Some(10),
+        _ => None,
     }
 }
 
 pub fn key_dict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmd>> {
-    let hash = cmd_hash(key);
-    (hash >= 0).then(|| &CMD_TABLE[hash as usize])
+    cmd_hash(key).map(|h| &CMD_TABLE[h])
 }
 
 pub static CMD_MAGIC_TABLE: [KeySetLink<KeyDictCmdMagic>; 3] = [
@@ -1102,17 +1093,16 @@ pub static CMD_MAGIC_TABLE: [KeySetLink<KeyDictCmdMagic>; 3] = [
     },
 ];
 
-pub fn cmd_magic_hash(key: &[u8]) -> i32 {
+pub fn cmd_magic_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"bar" => 0,
-        b"file" => 1,
-        _ => -1,
+        b"bar" => Some(0),
+        b"file" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdMagic>> {
-    let hash = cmd_magic_hash(key);
-    (hash >= 0).then(|| &CMD_MAGIC_TABLE[hash as usize])
+    cmd_magic_hash(key).map(|h| &CMD_MAGIC_TABLE[h])
 }
 
 pub static CMD_MODS_TABLE: [KeySetLink<KeyDictCmdMods>; 21] = [
@@ -1325,35 +1315,34 @@ pub static CMD_MODS_TABLE: [KeySetLink<KeyDictCmdMods>; 21] = [
     },
 ];
 
-pub fn cmd_mods_hash(key: &[u8]) -> i32 {
+pub fn cmd_mods_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"tab" => 0,
-        b"hide" => 1,
-        b"split" => 2,
-        b"browse" => 3,
-        b"filter" => 4,
-        b"silent" => 5,
-        b"confirm" => 6,
-        b"keepalt" => 7,
-        b"sandbox" => 8,
-        b"verbose" => 9,
-        b"unsilent" => 10,
-        b"vertical" => 11,
-        b"keepjumps" => 12,
-        b"keepmarks" => 13,
-        b"lockmarks" => 14,
-        b"noautocmd" => 15,
-        b"horizontal" => 16,
-        b"noswapfile" => 17,
-        b"emsg_silent" => 18,
-        b"keeppatterns" => 19,
-        _ => -1,
+        b"tab" => Some(0),
+        b"hide" => Some(1),
+        b"split" => Some(2),
+        b"browse" => Some(3),
+        b"filter" => Some(4),
+        b"silent" => Some(5),
+        b"confirm" => Some(6),
+        b"keepalt" => Some(7),
+        b"sandbox" => Some(8),
+        b"verbose" => Some(9),
+        b"unsilent" => Some(10),
+        b"vertical" => Some(11),
+        b"keepjumps" => Some(12),
+        b"keepmarks" => Some(13),
+        b"lockmarks" => Some(14),
+        b"noautocmd" => Some(15),
+        b"horizontal" => Some(16),
+        b"noswapfile" => Some(17),
+        b"emsg_silent" => Some(18),
+        b"keeppatterns" => Some(19),
+        _ => None,
     }
 }
 
 pub fn key_dict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdMods>> {
-    let hash = cmd_mods_hash(key);
-    (hash >= 0).then(|| &CMD_MODS_TABLE[hash as usize])
+    cmd_mods_hash(key).map(|h| &CMD_MODS_TABLE[h])
 }
 
 pub static CMD_MODS_FILTER_TABLE: [KeySetLink<KeyDictCmdModsFilter>; 3] = [
@@ -1386,19 +1375,18 @@ pub static CMD_MODS_FILTER_TABLE: [KeySetLink<KeyDictCmdModsFilter>; 3] = [
     },
 ];
 
-pub fn cmd_mods_filter_hash(key: &[u8]) -> i32 {
+pub fn cmd_mods_filter_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"force" => 0,
-        b"pattern" => 1,
-        _ => -1,
+        b"force" => Some(0),
+        b"pattern" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_cmd_mods_filter_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictCmdModsFilter>> {
-    let hash = cmd_mods_filter_hash(key);
-    (hash >= 0).then(|| &CMD_MODS_FILTER_TABLE[hash as usize])
+    cmd_mods_filter_hash(key).map(|h| &CMD_MODS_FILTER_TABLE[h])
 }
 
 pub static CMD_OPTS_TABLE: [KeySetLink<KeyDictCmdOpts>; 2] = [
@@ -1421,16 +1409,15 @@ pub static CMD_OPTS_TABLE: [KeySetLink<KeyDictCmdOpts>; 2] = [
     },
 ];
 
-pub fn cmd_opts_hash(key: &[u8]) -> i32 {
+pub fn cmd_opts_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"output" => 0,
-        _ => -1,
+        b"output" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictCmdOpts>> {
-    let hash = cmd_opts_hash(key);
-    (hash >= 0).then(|| &CMD_OPTS_TABLE[hash as usize])
+    cmd_opts_hash(key).map(|h| &CMD_OPTS_TABLE[h])
 }
 
 pub static COMPLETE_SET_TABLE: [KeySetLink<KeyDictCompleteSet>; 2] = [
@@ -1453,18 +1440,17 @@ pub static COMPLETE_SET_TABLE: [KeySetLink<KeyDictCompleteSet>; 2] = [
     },
 ];
 
-pub fn complete_set_hash(key: &[u8]) -> i32 {
+pub fn complete_set_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"info" => 0,
-        _ => -1,
+        b"info" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_complete_set_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictCompleteSet>> {
-    let hash = complete_set_hash(key);
-    (hash >= 0).then(|| &COMPLETE_SET_TABLE[hash as usize])
+    complete_set_hash(key).map(|h| &COMPLETE_SET_TABLE[h])
 }
 
 pub static CONTEXT_TABLE: [KeySetLink<KeyDictContext>; 2] = [
@@ -1487,16 +1473,15 @@ pub static CONTEXT_TABLE: [KeySetLink<KeyDictContext>; 2] = [
     },
 ];
 
-pub fn context_hash(key: &[u8]) -> i32 {
+pub fn context_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"types" => 0,
-        _ => -1,
+        b"types" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictContext>> {
-    let hash = context_hash(key);
-    (hash >= 0).then(|| &CONTEXT_TABLE[hash as usize])
+    context_hash(key).map(|h| &CONTEXT_TABLE[h])
 }
 
 pub static CREATE_AUGROUP_TABLE: [KeySetLink<KeyDictCreateAugroup>; 2] = [
@@ -1519,18 +1504,17 @@ pub static CREATE_AUGROUP_TABLE: [KeySetLink<KeyDictCreateAugroup>; 2] = [
     },
 ];
 
-pub fn create_augroup_hash(key: &[u8]) -> i32 {
+pub fn create_augroup_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"clear" => 0,
-        _ => -1,
+        b"clear" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_create_augroup_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictCreateAugroup>> {
-    let hash = create_augroup_hash(key);
-    (hash >= 0).then(|| &CREATE_AUGROUP_TABLE[hash as usize])
+    create_augroup_hash(key).map(|h| &CREATE_AUGROUP_TABLE[h])
 }
 
 pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDictCreateAutocmd>; 10] = [
@@ -1633,26 +1617,25 @@ pub static CREATE_AUTOCMD_TABLE: [KeySetLink<KeyDictCreateAutocmd>; 10] = [
     },
 ];
 
-pub fn create_autocmd_hash(key: &[u8]) -> i32 {
+pub fn create_autocmd_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"buf" => 0,
-        b"desc" => 1,
-        b"once" => 2,
-        b"group" => 3,
-        b"buffer" => 4,
-        b"nested" => 5,
-        b"command" => 6,
-        b"pattern" => 7,
-        b"callback" => 8,
-        _ => -1,
+        b"buf" => Some(0),
+        b"desc" => Some(1),
+        b"once" => Some(2),
+        b"group" => Some(3),
+        b"buffer" => Some(4),
+        b"nested" => Some(5),
+        b"command" => Some(6),
+        b"pattern" => Some(7),
+        b"callback" => Some(8),
+        _ => None,
     }
 }
 
 pub fn key_dict_create_autocmd_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictCreateAutocmd>> {
-    let hash = create_autocmd_hash(key);
-    (hash >= 0).then(|| &CREATE_AUTOCMD_TABLE[hash as usize])
+    create_autocmd_hash(key).map(|h| &CREATE_AUTOCMD_TABLE[h])
 }
 
 pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDictEchoOpts>; 11] = [
@@ -1765,25 +1748,24 @@ pub static ECHO_OPTS_TABLE: [KeySetLink<KeyDictEchoOpts>; 11] = [
     },
 ];
 
-pub fn echo_opts_hash(key: &[u8]) -> i32 {
+pub fn echo_opts_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"id" => 0,
-        b"err" => 1,
-        b"data" => 2,
-        b"kind" => 3,
-        b"title" => 4,
-        b"source" => 5,
-        b"status" => 6,
-        b"percent" => 7,
-        b"verbose" => 8,
-        b"_truncate" => 9,
-        _ => -1,
+        b"id" => Some(0),
+        b"err" => Some(1),
+        b"data" => Some(2),
+        b"kind" => Some(3),
+        b"title" => Some(4),
+        b"source" => Some(5),
+        b"status" => Some(6),
+        b"percent" => Some(7),
+        b"verbose" => Some(8),
+        b"_truncate" => Some(9),
+        _ => None,
     }
 }
 
 pub fn key_dict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictEchoOpts>> {
-    let hash = echo_opts_hash(key);
-    (hash >= 0).then(|| &ECHO_OPTS_TABLE[hash as usize])
+    echo_opts_hash(key).map(|h| &ECHO_OPTS_TABLE[h])
 }
 
 pub static EMPTY_TABLE: [KeySetLink<KeyDictEmpty>; 1] = [KeySetLink {
@@ -1794,14 +1776,13 @@ pub static EMPTY_TABLE: [KeySetLink<KeyDictEmpty>; 1] = [KeySetLink {
     is_hlgroup: false,
 }];
 
-pub fn empty_hash(key: &[u8]) -> i32 {
+pub fn empty_hash(key: &[u8]) -> Option<usize> {
     let _ = key;
-    -1
+    None
 }
 
 pub fn key_dict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictEmpty>> {
-    let hash = empty_hash(key);
-    (hash >= 0).then(|| &EMPTY_TABLE[hash as usize])
+    empty_hash(key).map(|h| &EMPTY_TABLE[h])
 }
 
 pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDictEvalStatusline>; 8] = [
@@ -1884,24 +1865,23 @@ pub static EVAL_STATUSLINE_TABLE: [KeySetLink<KeyDictEvalStatusline>; 8] = [
     },
 ];
 
-pub fn eval_statusline_hash(key: &[u8]) -> i32 {
+pub fn eval_statusline_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"winid" => 0,
-        b"fillchar" => 1,
-        b"maxwidth" => 2,
-        b"highlights" => 3,
-        b"use_winbar" => 4,
-        b"use_tabline" => 5,
-        b"use_statuscol_lnum" => 6,
-        _ => -1,
+        b"winid" => Some(0),
+        b"fillchar" => Some(1),
+        b"maxwidth" => Some(2),
+        b"highlights" => Some(3),
+        b"use_winbar" => Some(4),
+        b"use_tabline" => Some(5),
+        b"use_statuscol_lnum" => Some(6),
+        _ => None,
     }
 }
 
 pub fn key_dict_eval_statusline_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictEvalStatusline>> {
-    let hash = eval_statusline_hash(key);
-    (hash >= 0).then(|| &EVAL_STATUSLINE_TABLE[hash as usize])
+    eval_statusline_hash(key).map(|h| &EVAL_STATUSLINE_TABLE[h])
 }
 
 pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDictExecAutocmds>; 7] = [
@@ -1974,23 +1954,22 @@ pub static EXEC_AUTOCMDS_TABLE: [KeySetLink<KeyDictExecAutocmds>; 7] = [
     },
 ];
 
-pub fn exec_autocmds_hash(key: &[u8]) -> i32 {
+pub fn exec_autocmds_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"buf" => 0,
-        b"data" => 1,
-        b"group" => 2,
-        b"buffer" => 3,
-        b"pattern" => 4,
-        b"modeline" => 5,
-        _ => -1,
+        b"buf" => Some(0),
+        b"data" => Some(1),
+        b"group" => Some(2),
+        b"buffer" => Some(3),
+        b"pattern" => Some(4),
+        b"modeline" => Some(5),
+        _ => None,
     }
 }
 
 pub fn key_dict_exec_autocmds_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictExecAutocmds>> {
-    let hash = exec_autocmds_hash(key);
-    (hash >= 0).then(|| &EXEC_AUTOCMDS_TABLE[hash as usize])
+    exec_autocmds_hash(key).map(|h| &EXEC_AUTOCMDS_TABLE[h])
 }
 
 pub static EXEC_OPTS_TABLE: [KeySetLink<KeyDictExecOpts>; 2] = [
@@ -2013,16 +1992,15 @@ pub static EXEC_OPTS_TABLE: [KeySetLink<KeyDictExecOpts>; 2] = [
     },
 ];
 
-pub fn exec_opts_hash(key: &[u8]) -> i32 {
+pub fn exec_opts_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"output" => 0,
-        _ => -1,
+        b"output" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictExecOpts>> {
-    let hash = exec_opts_hash(key);
-    (hash >= 0).then(|| &EXEC_OPTS_TABLE[hash as usize])
+    exec_opts_hash(key).map(|h| &EXEC_OPTS_TABLE[h])
 }
 
 pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDictGetAutocmds>; 7] = [
@@ -2095,23 +2073,22 @@ pub static GET_AUTOCMDS_TABLE: [KeySetLink<KeyDictGetAutocmds>; 7] = [
     },
 ];
 
-pub fn get_autocmds_hash(key: &[u8]) -> i32 {
+pub fn get_autocmds_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"id" => 0,
-        b"buf" => 1,
-        b"event" => 2,
-        b"group" => 3,
-        b"buffer" => 4,
-        b"pattern" => 5,
-        _ => -1,
+        b"id" => Some(0),
+        b"buf" => Some(1),
+        b"event" => Some(2),
+        b"group" => Some(3),
+        b"buffer" => Some(4),
+        b"pattern" => Some(5),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_autocmds_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictGetAutocmds>> {
-    let hash = get_autocmds_hash(key);
-    (hash >= 0).then(|| &GET_AUTOCMDS_TABLE[hash as usize])
+    get_autocmds_hash(key).map(|h| &GET_AUTOCMDS_TABLE[h])
 }
 
 pub static GET_COMMANDS_TABLE: [KeySetLink<KeyDictGetCommands>; 2] = [
@@ -2134,18 +2111,17 @@ pub static GET_COMMANDS_TABLE: [KeySetLink<KeyDictGetCommands>; 2] = [
     },
 ];
 
-pub fn get_commands_hash(key: &[u8]) -> i32 {
+pub fn get_commands_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"builtin" => 0,
-        _ => -1,
+        b"builtin" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_commands_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictGetCommands>> {
-    let hash = get_commands_hash(key);
-    (hash >= 0).then(|| &GET_COMMANDS_TABLE[hash as usize])
+    get_commands_hash(key).map(|h| &GET_COMMANDS_TABLE[h])
 }
 
 pub static GET_EXTMARK_TABLE: [KeySetLink<KeyDictGetExtmark>; 3] = [
@@ -2178,19 +2154,18 @@ pub static GET_EXTMARK_TABLE: [KeySetLink<KeyDictGetExtmark>; 3] = [
     },
 ];
 
-pub fn get_extmark_hash(key: &[u8]) -> i32 {
+pub fn get_extmark_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"details" => 0,
-        b"hl_name" => 1,
-        _ => -1,
+        b"details" => Some(0),
+        b"hl_name" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_extmark_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictGetExtmark>> {
-    let hash = get_extmark_hash(key);
-    (hash >= 0).then(|| &GET_EXTMARK_TABLE[hash as usize])
+    get_extmark_hash(key).map(|h| &GET_EXTMARK_TABLE[h])
 }
 
 pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDictGetExtmarks>; 6] = [
@@ -2253,22 +2228,21 @@ pub static GET_EXTMARKS_TABLE: [KeySetLink<KeyDictGetExtmarks>; 6] = [
     },
 ];
 
-pub fn get_extmarks_hash(key: &[u8]) -> i32 {
+pub fn get_extmarks_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"type" => 0,
-        b"limit" => 1,
-        b"details" => 2,
-        b"hl_name" => 3,
-        b"overlap" => 4,
-        _ => -1,
+        b"type" => Some(0),
+        b"limit" => Some(1),
+        b"details" => Some(2),
+        b"hl_name" => Some(3),
+        b"overlap" => Some(4),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_extmarks_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictGetExtmarks>> {
-    let hash = get_extmarks_hash(key);
-    (hash >= 0).then(|| &GET_EXTMARKS_TABLE[hash as usize])
+    get_extmarks_hash(key).map(|h| &GET_EXTMARKS_TABLE[h])
 }
 
 pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDictGetHighlight>; 5] = [
@@ -2321,21 +2295,20 @@ pub static GET_HIGHLIGHT_TABLE: [KeySetLink<KeyDictGetHighlight>; 5] = [
     },
 ];
 
-pub fn get_highlight_hash(key: &[u8]) -> i32 {
+pub fn get_highlight_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"id" => 0,
-        b"link" => 1,
-        b"name" => 2,
-        b"create" => 3,
-        _ => -1,
+        b"id" => Some(0),
+        b"link" => Some(1),
+        b"name" => Some(2),
+        b"create" => Some(3),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_highlight_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictGetHighlight>> {
-    let hash = get_highlight_hash(key);
-    (hash >= 0).then(|| &GET_HIGHLIGHT_TABLE[hash as usize])
+    get_highlight_hash(key).map(|h| &GET_HIGHLIGHT_TABLE[h])
 }
 
 pub static GET_NS_TABLE: [KeySetLink<KeyDictGetNs>; 2] = [
@@ -2358,16 +2331,15 @@ pub static GET_NS_TABLE: [KeySetLink<KeyDictGetNs>; 2] = [
     },
 ];
 
-pub fn get_ns_hash(key: &[u8]) -> i32 {
+pub fn get_ns_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"winid" => 0,
-        _ => -1,
+        b"winid" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictGetNs>> {
-    let hash = get_ns_hash(key);
-    (hash >= 0).then(|| &GET_NS_TABLE[hash as usize])
+    get_ns_hash(key).map(|h| &GET_NS_TABLE[h])
 }
 
 pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDictHighlight>; 37] = [
@@ -2740,51 +2712,50 @@ pub static HIGHLIGHT_TABLE: [KeySetLink<KeyDictHighlight>; 37] = [
     },
 ];
 
-pub fn highlight_hash(key: &[u8]) -> i32 {
+pub fn highlight_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"bg" => 0,
-        b"fg" => 1,
-        b"sp" => 2,
-        b"dim" => 3,
-        b"url" => 4,
-        b"bold" => 5,
-        b"font" => 6,
-        b"link" => 7,
-        b"blend" => 8,
-        b"force" => 9,
-        b"blink" => 10,
-        b"cterm" => 11,
-        b"italic" => 12,
-        b"update" => 13,
-        b"reverse" => 14,
-        b"default" => 15,
-        b"altfont" => 16,
-        b"conceal" => 17,
-        b"special" => 18,
-        b"ctermfg" => 19,
-        b"ctermbg" => 20,
-        b"fallback" => 21,
-        b"overline" => 22,
-        b"standout" => 23,
-        b"nocombine" => 24,
-        b"undercurl" => 25,
-        b"underline" => 26,
-        b"background" => 27,
-        b"bg_indexed" => 28,
-        b"foreground" => 29,
-        b"fg_indexed" => 30,
-        b"link_global" => 31,
-        b"underdashed" => 32,
-        b"underdotted" => 33,
-        b"underdouble" => 34,
-        b"strikethrough" => 35,
-        _ => -1,
+        b"bg" => Some(0),
+        b"fg" => Some(1),
+        b"sp" => Some(2),
+        b"dim" => Some(3),
+        b"url" => Some(4),
+        b"bold" => Some(5),
+        b"font" => Some(6),
+        b"link" => Some(7),
+        b"blend" => Some(8),
+        b"force" => Some(9),
+        b"blink" => Some(10),
+        b"cterm" => Some(11),
+        b"italic" => Some(12),
+        b"update" => Some(13),
+        b"reverse" => Some(14),
+        b"default" => Some(15),
+        b"altfont" => Some(16),
+        b"conceal" => Some(17),
+        b"special" => Some(18),
+        b"ctermfg" => Some(19),
+        b"ctermbg" => Some(20),
+        b"fallback" => Some(21),
+        b"overline" => Some(22),
+        b"standout" => Some(23),
+        b"nocombine" => Some(24),
+        b"undercurl" => Some(25),
+        b"underline" => Some(26),
+        b"background" => Some(27),
+        b"bg_indexed" => Some(28),
+        b"foreground" => Some(29),
+        b"fg_indexed" => Some(30),
+        b"link_global" => Some(31),
+        b"underdashed" => Some(32),
+        b"underdotted" => Some(33),
+        b"underdouble" => Some(34),
+        b"strikethrough" => Some(35),
+        _ => None,
     }
 }
 
 pub fn key_dict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictHighlight>> {
-    let hash = highlight_hash(key);
-    (hash >= 0).then(|| &HIGHLIGHT_TABLE[hash as usize])
+    highlight_hash(key).map(|h| &HIGHLIGHT_TABLE[h])
 }
 
 pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDictHighlightCterm>; 17] = [
@@ -2957,33 +2928,32 @@ pub static HIGHLIGHT_CTERM_TABLE: [KeySetLink<KeyDictHighlightCterm>; 17] = [
     },
 ];
 
-pub fn highlight_cterm_hash(key: &[u8]) -> i32 {
+pub fn highlight_cterm_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"dim" => 0,
-        b"bold" => 1,
-        b"blink" => 2,
-        b"italic" => 3,
-        b"altfont" => 4,
-        b"conceal" => 5,
-        b"reverse" => 6,
-        b"overline" => 7,
-        b"standout" => 8,
-        b"nocombine" => 9,
-        b"undercurl" => 10,
-        b"underline" => 11,
-        b"underdashed" => 12,
-        b"underdotted" => 13,
-        b"underdouble" => 14,
-        b"strikethrough" => 15,
-        _ => -1,
+        b"dim" => Some(0),
+        b"bold" => Some(1),
+        b"blink" => Some(2),
+        b"italic" => Some(3),
+        b"altfont" => Some(4),
+        b"conceal" => Some(5),
+        b"reverse" => Some(6),
+        b"overline" => Some(7),
+        b"standout" => Some(8),
+        b"nocombine" => Some(9),
+        b"undercurl" => Some(10),
+        b"underline" => Some(11),
+        b"underdashed" => Some(12),
+        b"underdotted" => Some(13),
+        b"underdouble" => Some(14),
+        b"strikethrough" => Some(15),
+        _ => None,
     }
 }
 
 pub fn key_dict_highlight_cterm_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictHighlightCterm>> {
-    let hash = highlight_cterm_hash(key);
-    (hash >= 0).then(|| &HIGHLIGHT_CTERM_TABLE[hash as usize])
+    highlight_cterm_hash(key).map(|h| &HIGHLIGHT_CTERM_TABLE[h])
 }
 
 pub static KEYMAP_TABLE: [KeySetLink<KeyDictKeymap>; 10] = [
@@ -3086,24 +3056,23 @@ pub static KEYMAP_TABLE: [KeySetLink<KeyDictKeymap>; 10] = [
     },
 ];
 
-pub fn keymap_hash(key: &[u8]) -> i32 {
+pub fn keymap_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"desc" => 0,
-        b"expr" => 1,
-        b"script" => 2,
-        b"silent" => 3,
-        b"unique" => 4,
-        b"nowait" => 5,
-        b"noremap" => 6,
-        b"callback" => 7,
-        b"replace_keycodes" => 8,
-        _ => -1,
+        b"desc" => Some(0),
+        b"expr" => Some(1),
+        b"script" => Some(2),
+        b"silent" => Some(3),
+        b"unique" => Some(4),
+        b"nowait" => Some(5),
+        b"noremap" => Some(6),
+        b"callback" => Some(7),
+        b"replace_keycodes" => Some(8),
+        _ => None,
     }
 }
 
 pub fn key_dict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictKeymap>> {
-    let hash = keymap_hash(key);
-    (hash >= 0).then(|| &KEYMAP_TABLE[hash as usize])
+    keymap_hash(key).map(|h| &KEYMAP_TABLE[h])
 }
 
 pub static KEYMAP_DEL_TABLE: [KeySetLink<KeyDictKeymapDel>; 2] = [
@@ -3126,16 +3095,15 @@ pub static KEYMAP_DEL_TABLE: [KeySetLink<KeyDictKeymapDel>; 2] = [
     },
 ];
 
-pub fn keymap_del_hash(key: &[u8]) -> i32 {
+pub fn keymap_del_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"lhs" => 0,
-        _ => -1,
+        b"lhs" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_keymap_del_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictKeymapDel>> {
-    let hash = keymap_del_hash(key);
-    (hash >= 0).then(|| &KEYMAP_DEL_TABLE[hash as usize])
+    keymap_del_hash(key).map(|h| &KEYMAP_DEL_TABLE[h])
 }
 
 pub static NS_OPTS_TABLE: [KeySetLink<KeyDictNsOpts>; 2] = [
@@ -3158,16 +3126,15 @@ pub static NS_OPTS_TABLE: [KeySetLink<KeyDictNsOpts>; 2] = [
     },
 ];
 
-pub fn ns_opts_hash(key: &[u8]) -> i32 {
+pub fn ns_opts_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"wins" => 0,
-        _ => -1,
+        b"wins" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictNsOpts>> {
-    let hash = ns_opts_hash(key);
-    (hash >= 0).then(|| &NS_OPTS_TABLE[hash as usize])
+    ns_opts_hash(key).map(|h| &NS_OPTS_TABLE[h])
 }
 
 pub static OPEN_TERM_TABLE: [KeySetLink<KeyDictOpenTerm>; 3] = [
@@ -3200,17 +3167,16 @@ pub static OPEN_TERM_TABLE: [KeySetLink<KeyDictOpenTerm>; 3] = [
     },
 ];
 
-pub fn open_term_hash(key: &[u8]) -> i32 {
+pub fn open_term_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"on_input" => 0,
-        b"force_crlf" => 1,
-        _ => -1,
+        b"on_input" => Some(0),
+        b"force_crlf" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictOpenTerm>> {
-    let hash = open_term_hash(key);
-    (hash >= 0).then(|| &OPEN_TERM_TABLE[hash as usize])
+    open_term_hash(key).map(|h| &OPEN_TERM_TABLE[h])
 }
 
 pub static OPTION_TABLE: [KeySetLink<KeyDictOption>; 8] = [
@@ -3293,22 +3259,21 @@ pub static OPTION_TABLE: [KeySetLink<KeyDictOption>; 8] = [
     },
 ];
 
-pub fn option_hash(key: &[u8]) -> i32 {
+pub fn option_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"buf" => 0,
-        b"tab" => 1,
-        b"win" => 2,
-        b"scope" => 3,
-        b"dry_run" => 4,
-        b"filetype" => 5,
-        b"operation" => 6,
-        _ => -1,
+        b"buf" => Some(0),
+        b"tab" => Some(1),
+        b"win" => Some(2),
+        b"scope" => Some(3),
+        b"dry_run" => Some(4),
+        b"filetype" => Some(5),
+        b"operation" => Some(6),
+        _ => None,
     }
 }
 
 pub fn key_dict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictOption>> {
-    let hash = option_hash(key);
-    (hash >= 0).then(|| &OPTION_TABLE[hash as usize])
+    option_hash(key).map(|h| &OPTION_TABLE[h])
 }
 
 pub static REDRAW_TABLE: [KeySetLink<KeyDictRedraw>; 11] = [
@@ -3421,25 +3386,24 @@ pub static REDRAW_TABLE: [KeySetLink<KeyDictRedraw>; 11] = [
     },
 ];
 
-pub fn redraw_hash(key: &[u8]) -> i32 {
+pub fn redraw_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"buf" => 0,
-        b"win" => 1,
-        b"flush" => 2,
-        b"range" => 3,
-        b"valid" => 4,
-        b"cursor" => 5,
-        b"winbar" => 6,
-        b"tabline" => 7,
-        b"statusline" => 8,
-        b"statuscolumn" => 9,
-        _ => -1,
+        b"buf" => Some(0),
+        b"win" => Some(1),
+        b"flush" => Some(2),
+        b"range" => Some(3),
+        b"valid" => Some(4),
+        b"cursor" => Some(5),
+        b"winbar" => Some(6),
+        b"tabline" => Some(7),
+        b"statusline" => Some(8),
+        b"statuscolumn" => Some(9),
+        _ => None,
     }
 }
 
 pub fn key_dict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictRedraw>> {
-    let hash = redraw_hash(key);
-    (hash >= 0).then(|| &REDRAW_TABLE[hash as usize])
+    redraw_hash(key).map(|h| &REDRAW_TABLE[h])
 }
 
 pub static RUNTIME_TABLE: [KeySetLink<KeyDictRuntime>; 3] = [
@@ -3472,17 +3436,16 @@ pub static RUNTIME_TABLE: [KeySetLink<KeyDictRuntime>; 3] = [
     },
 ];
 
-pub fn runtime_hash(key: &[u8]) -> i32 {
+pub fn runtime_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"is_lua" => 0,
-        b"do_source" => 1,
-        _ => -1,
+        b"is_lua" => Some(0),
+        b"do_source" => Some(1),
+        _ => None,
     }
 }
 
 pub fn key_dict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictRuntime>> {
-    let hash = runtime_hash(key);
-    (hash >= 0).then(|| &RUNTIME_TABLE[hash as usize])
+    runtime_hash(key).map(|h| &RUNTIME_TABLE[h])
 }
 
 pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDictSetDecorationProvider>; 11] = [
@@ -3595,27 +3558,26 @@ pub static SET_DECORATION_PROVIDER_TABLE: [KeySetLink<KeyDictSetDecorationProvid
     },
 ];
 
-pub fn set_decoration_provider_hash(key: &[u8]) -> i32 {
+pub fn set_decoration_provider_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"on_buf" => 0,
-        b"on_end" => 1,
-        b"on_win" => 2,
-        b"on_line" => 3,
-        b"on_range" => 4,
-        b"on_start" => 5,
-        b"_on_hl_def" => 6,
-        b"_on_spell_nav" => 7,
-        b"_on_conceal_line" => 8,
-        b"_on_conceal" => 9,
-        _ => -1,
+        b"on_buf" => Some(0),
+        b"on_end" => Some(1),
+        b"on_win" => Some(2),
+        b"on_line" => Some(3),
+        b"on_range" => Some(4),
+        b"on_start" => Some(5),
+        b"_on_hl_def" => Some(6),
+        b"_on_spell_nav" => Some(7),
+        b"_on_conceal_line" => Some(8),
+        b"_on_conceal" => Some(9),
+        _ => None,
     }
 }
 
 pub fn key_dict_set_decoration_provider_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictSetDecorationProvider>> {
-    let hash = set_decoration_provider_hash(key);
-    (hash >= 0).then(|| &SET_DECORATION_PROVIDER_TABLE[hash as usize])
+    set_decoration_provider_hash(key).map(|h| &SET_DECORATION_PROVIDER_TABLE[h])
 }
 
 pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDictSetExtmark>; 37] = [
@@ -3988,53 +3950,52 @@ pub static SET_EXTMARK_TABLE: [KeySetLink<KeyDictSetExtmark>; 37] = [
     },
 ];
 
-pub fn set_extmark_hash(key: &[u8]) -> i32 {
+pub fn set_extmark_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"id" => 0,
-        b"url" => 1,
-        b"spell" => 2,
-        b"scoped" => 3,
-        b"hl_eol" => 4,
-        b"strict" => 5,
-        b"end_col" => 6,
-        b"conceal" => 7,
-        b"hl_mode" => 8,
-        b"end_row" => 9,
-        b"end_line" => 10,
-        b"hl_group" => 11,
-        b"priority" => 12,
-        b"ephemeral" => 13,
-        b"sign_text" => 14,
-        b"virt_text" => 15,
-        b"invalidate" => 16,
-        b"ui_watched" => 17,
-        b"virt_lines" => 18,
-        b"_subpriority" => 19,
-        b"undo_restore" => 20,
-        b"conceal_lines" => 21,
-        b"line_hl_group" => 22,
-        b"right_gravity" => 23,
-        b"sign_hl_group" => 24,
-        b"virt_text_pos" => 25,
-        b"virt_text_hide" => 26,
-        b"number_hl_group" => 27,
-        b"virt_lines_above" => 28,
-        b"end_right_gravity" => 29,
-        b"virt_text_win_col" => 30,
-        b"virt_lines_leftcol" => 31,
-        b"cursorline_hl_group" => 32,
-        b"virt_lines_overflow" => 33,
-        b"virt_text_repeat_linebreak" => 34,
-        b"_conceal_continuation" => 35,
-        _ => -1,
+        b"id" => Some(0),
+        b"url" => Some(1),
+        b"spell" => Some(2),
+        b"scoped" => Some(3),
+        b"hl_eol" => Some(4),
+        b"strict" => Some(5),
+        b"end_col" => Some(6),
+        b"conceal" => Some(7),
+        b"hl_mode" => Some(8),
+        b"end_row" => Some(9),
+        b"end_line" => Some(10),
+        b"hl_group" => Some(11),
+        b"priority" => Some(12),
+        b"ephemeral" => Some(13),
+        b"sign_text" => Some(14),
+        b"virt_text" => Some(15),
+        b"invalidate" => Some(16),
+        b"ui_watched" => Some(17),
+        b"virt_lines" => Some(18),
+        b"_subpriority" => Some(19),
+        b"undo_restore" => Some(20),
+        b"conceal_lines" => Some(21),
+        b"line_hl_group" => Some(22),
+        b"right_gravity" => Some(23),
+        b"sign_hl_group" => Some(24),
+        b"virt_text_pos" => Some(25),
+        b"virt_text_hide" => Some(26),
+        b"number_hl_group" => Some(27),
+        b"virt_lines_above" => Some(28),
+        b"end_right_gravity" => Some(29),
+        b"virt_text_win_col" => Some(30),
+        b"virt_lines_leftcol" => Some(31),
+        b"cursorline_hl_group" => Some(32),
+        b"virt_lines_overflow" => Some(33),
+        b"virt_text_repeat_linebreak" => Some(34),
+        b"_conceal_continuation" => Some(35),
+        _ => None,
     }
 }
 
 pub fn key_dict_set_extmark_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictSetExtmark>> {
-    let hash = set_extmark_hash(key);
-    (hash >= 0).then(|| &SET_EXTMARK_TABLE[hash as usize])
+    set_extmark_hash(key).map(|h| &SET_EXTMARK_TABLE[h])
 }
 
 pub static TABPAGE_CONFIG_TABLE: [KeySetLink<KeyDictTabpageConfig>; 2] = [
@@ -4057,18 +4018,17 @@ pub static TABPAGE_CONFIG_TABLE: [KeySetLink<KeyDictTabpageConfig>; 2] = [
     },
 ];
 
-pub fn tabpage_config_hash(key: &[u8]) -> i32 {
+pub fn tabpage_config_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"after" => 0,
-        _ => -1,
+        b"after" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_tabpage_config_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictTabpageConfig>> {
-    let hash = tabpage_config_hash(key);
-    (hash >= 0).then(|| &TABPAGE_CONFIG_TABLE[hash as usize])
+    tabpage_config_hash(key).map(|h| &TABPAGE_CONFIG_TABLE[h])
 }
 
 pub static USER_COMMAND_TABLE: [KeySetLink<KeyDictUserCommand>; 13] = [
@@ -4201,29 +4161,28 @@ pub static USER_COMMAND_TABLE: [KeySetLink<KeyDictUserCommand>; 13] = [
     },
 ];
 
-pub fn user_command_hash(key: &[u8]) -> i32 {
+pub fn user_command_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"bar" => 0,
-        b"addr" => 1,
-        b"bang" => 2,
-        b"desc" => 3,
-        b"count" => 4,
-        b"force" => 5,
-        b"nargs" => 6,
-        b"range" => 7,
-        b"preview" => 8,
-        b"complete" => 9,
-        b"register" => 10,
-        b"keepscript" => 11,
-        _ => -1,
+        b"bar" => Some(0),
+        b"addr" => Some(1),
+        b"bang" => Some(2),
+        b"desc" => Some(3),
+        b"count" => Some(4),
+        b"force" => Some(5),
+        b"nargs" => Some(6),
+        b"range" => Some(7),
+        b"preview" => Some(8),
+        b"complete" => Some(9),
+        b"register" => Some(10),
+        b"keepscript" => Some(11),
+        _ => None,
     }
 }
 
 pub fn key_dict_user_command_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictUserCommand>> {
-    let hash = user_command_hash(key);
-    (hash >= 0).then(|| &USER_COMMAND_TABLE[hash as usize])
+    user_command_hash(key).map(|h| &USER_COMMAND_TABLE[h])
 }
 
 pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDictWinConfig>; 25] = [
@@ -4476,39 +4435,38 @@ pub static WIN_CONFIG_TABLE: [KeySetLink<KeyDictWinConfig>; 25] = [
     },
 ];
 
-pub fn win_config_hash(key: &[u8]) -> i32 {
+pub fn win_config_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"col" => 0,
-        b"row" => 1,
-        b"win" => 2,
-        b"hide" => 3,
-        b"width" => 4,
-        b"split" => 5,
-        b"title" => 6,
-        b"mouse" => 7,
-        b"fixed" => 8,
-        b"style" => 9,
-        b"anchor" => 10,
-        b"bufpos" => 11,
-        b"height" => 12,
-        b"zindex" => 13,
-        b"footer" => 14,
-        b"border" => 15,
-        b"external" => 16,
-        b"relative" => 17,
-        b"vertical" => 18,
-        b"focusable" => 19,
-        b"noautocmd" => 20,
-        b"title_pos" => 21,
-        b"footer_pos" => 22,
-        b"_cmdline_offset" => 23,
-        _ => -1,
+        b"col" => Some(0),
+        b"row" => Some(1),
+        b"win" => Some(2),
+        b"hide" => Some(3),
+        b"width" => Some(4),
+        b"split" => Some(5),
+        b"title" => Some(6),
+        b"mouse" => Some(7),
+        b"fixed" => Some(8),
+        b"style" => Some(9),
+        b"anchor" => Some(10),
+        b"bufpos" => Some(11),
+        b"height" => Some(12),
+        b"zindex" => Some(13),
+        b"footer" => Some(14),
+        b"border" => Some(15),
+        b"external" => Some(16),
+        b"relative" => Some(17),
+        b"vertical" => Some(18),
+        b"focusable" => Some(19),
+        b"noautocmd" => Some(20),
+        b"title_pos" => Some(21),
+        b"footer_pos" => Some(22),
+        b"_cmdline_offset" => Some(23),
+        _ => None,
     }
 }
 
 pub fn key_dict_win_config_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictWinConfig>> {
-    let hash = win_config_hash(key);
-    (hash >= 0).then(|| &WIN_CONFIG_TABLE[hash as usize])
+    win_config_hash(key).map(|h| &WIN_CONFIG_TABLE[h])
 }
 
 pub static WIN_RESIZE_TABLE: [KeySetLink<KeyDictWinResize>; 2] = [
@@ -4531,16 +4489,15 @@ pub static WIN_RESIZE_TABLE: [KeySetLink<KeyDictWinResize>; 2] = [
     },
 ];
 
-pub fn win_resize_hash(key: &[u8]) -> i32 {
+pub fn win_resize_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"anchor" => 0,
-        _ => -1,
+        b"anchor" => Some(0),
+        _ => None,
     }
 }
 
 pub fn key_dict_win_resize_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictWinResize>> {
-    let hash = win_resize_hash(key);
-    (hash >= 0).then(|| &WIN_RESIZE_TABLE[hash as usize])
+    win_resize_hash(key).map(|h| &WIN_RESIZE_TABLE[h])
 }
 
 pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDictWinTextHeight>; 6] = [
@@ -4603,22 +4560,21 @@ pub static WIN_TEXT_HEIGHT_TABLE: [KeySetLink<KeyDictWinTextHeight>; 6] = [
     },
 ];
 
-pub fn win_text_height_hash(key: &[u8]) -> i32 {
+pub fn win_text_height_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"end_row" => 0,
-        b"end_vcol" => 1,
-        b"start_row" => 2,
-        b"max_height" => 3,
-        b"start_vcol" => 4,
-        _ => -1,
+        b"end_row" => Some(0),
+        b"end_vcol" => Some(1),
+        b"start_row" => Some(2),
+        b"max_height" => Some(3),
+        b"start_vcol" => Some(4),
+        _ => None,
     }
 }
 
 pub fn key_dict_win_text_height_get_field(
     key: &[u8],
 ) -> Option<&'static KeySetLink<KeyDictWinTextHeight>> {
-    let hash = win_text_height_hash(key);
-    (hash >= 0).then(|| &WIN_TEXT_HEIGHT_TABLE[hash as usize])
+    win_text_height_hash(key).map(|h| &WIN_TEXT_HEIGHT_TABLE[h])
 }
 
 pub static XDL_DIFF_TABLE: [KeySetLink<KeyDictXdlDiff>; 13] = [
@@ -4751,27 +4707,26 @@ pub static XDL_DIFF_TABLE: [KeySetLink<KeyDictXdlDiff>; 13] = [
     },
 ];
 
-pub fn xdl_diff_hash(key: &[u8]) -> i32 {
+pub fn xdl_diff_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"ctxlen" => 0,
-        b"on_hunk" => 1,
-        b"algorithm" => 2,
-        b"linematch" => 3,
-        b"result_type" => 4,
-        b"interhunkctxlen" => 5,
-        b"ignore_cr_at_eol" => 6,
-        b"indent_heuristic" => 7,
-        b"ignore_whitespace" => 8,
-        b"ignore_blank_lines" => 9,
-        b"ignore_whitespace_change" => 10,
-        b"ignore_whitespace_change_at_eol" => 11,
-        _ => -1,
+        b"ctxlen" => Some(0),
+        b"on_hunk" => Some(1),
+        b"algorithm" => Some(2),
+        b"linematch" => Some(3),
+        b"result_type" => Some(4),
+        b"interhunkctxlen" => Some(5),
+        b"ignore_cr_at_eol" => Some(6),
+        b"indent_heuristic" => Some(7),
+        b"ignore_whitespace" => Some(8),
+        b"ignore_blank_lines" => Some(9),
+        b"ignore_whitespace_change" => Some(10),
+        b"ignore_whitespace_change_at_eol" => Some(11),
+        _ => None,
     }
 }
 
 pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink<KeyDictXdlDiff>> {
-    let hash = xdl_diff_hash(key);
-    (hash >= 0).then(|| &XDL_DIFF_TABLE[hash as usize])
+    xdl_diff_hash(key).map(|h| &XDL_DIFF_TABLE[h])
 }
 
 pub fn handle_nvim_get_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
@@ -15121,305 +15076,304 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
 ];
 
-pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> i32 {
+pub fn msgpack_rpc_get_handler_for_hash(key: &[u8]) -> Option<usize> {
     match key {
-        b"redraw" => 0,
-        b"nvim__id" => 1,
-        b"nvim_cmd" => 2,
-        b"nvim_put" => 3,
-        b"vim_eval" => 4,
-        b"ui_attach" => 5,
-        b"ui_detach" => 6,
-        b"nvim_echo" => 7,
-        b"vim_input" => 8,
-        b"nvim_eval" => 9,
-        b"nvim_exec" => 10,
-        b"nvim_exec2" => 11,
-        b"nvim_input" => 12,
-        b"nvim_paste" => 13,
-        b"nvim_get_hl" => 14,
-        b"nvim_set_hl" => 15,
-        b"vim_del_var" => 16,
-        b"vim_command" => 17,
-        b"nvim_notify" => 18,
-        b"nvim__stats" => 19,
-        b"vim_get_var" => 20,
-        b"vim_set_var" => 21,
-        b"nvim_ui_send" => 22,
-        b"vim_get_vvar" => 23,
-        b"vim_feedkeys" => 24,
-        b"nvim__redraw" => 25,
-        b"nvim_del_var" => 26,
-        b"nvim_command" => 27,
-        b"nvim__unpack" => 28,
-        b"nvim__ns_get" => 29,
-        b"nvim__ns_set" => 30,
-        b"nvim_get_var" => 31,
-        b"nvim_set_var" => 32,
-        b"vim_strwidth" => 33,
-        b"nvim_get_vvar" => 34,
-        b"nvim_set_vvar" => 35,
-        b"vim_subscribe" => 36,
-        b"nvim__id_dict" => 37,
-        b"nvim_get_mode" => 38,
-        b"nvim_win_hide" => 39,
-        b"nvim_chan_set" => 40,
-        b"nvim_list_uis" => 41,
-        b"nvim_open_win" => 42,
-        b"nvim_get_proc" => 43,
-        b"buffer_insert" => 44,
-        b"nvim_del_mark" => 45,
-        b"nvim_get_mark" => 46,
-        b"nvim_strwidth" => 47,
-        b"vim_err_write" => 48,
-        b"vim_out_write" => 49,
-        b"nvim_exec_lua" => 50,
-        b"nvim_feedkeys" => 51,
-        b"ui_try_resize" => 52,
-        b"nvim__id_array" => 53,
-        b"nvim__id_float" => 54,
-        b"nvim_chan_send" => 55,
-        b"nvim_err_write" => 56,
-        b"vim_get_option" => 57,
-        b"vim_set_option" => 58,
-        b"nvim_get_hl_ns" => 59,
-        b"nvim_list_bufs" => 60,
-        b"nvim_list_wins" => 61,
-        b"nvim_open_term" => 62,
-        b"nvim_out_write" => 63,
-        b"nvim_parse_cmd" => 64,
-        b"buffer_del_var" => 65,
-        b"buffer_get_var" => 66,
-        b"buffer_set_var" => 67,
-        b"nvim_set_hl_ns" => 68,
-        b"nvim_subscribe" => 69,
-        b"nvim_ui_attach" => 70,
-        b"nvim_ui_detach" => 71,
-        b"nvim_win_close" => 72,
-        b"window_del_var" => 73,
-        b"window_get_var" => 74,
-        b"window_set_var" => 75,
-        b"tabpage_del_var" => 76,
-        b"tabpage_get_var" => 77,
-        b"tabpage_set_var" => 78,
-        b"vim_get_buffers" => 79,
-        b"vim_get_windows" => 80,
-        b"buffer_del_line" => 81,
-        b"nvim_create_buf" => 82,
-        b"nvim_buf_attach" => 83,
-        b"nvim_buf_delete" => 84,
-        b"nvim_buf_detach" => 85,
-        b"buffer_get_line" => 86,
-        b"buffer_get_mark" => 87,
-        b"buffer_get_name" => 88,
-        b"buffer_is_valid" => 89,
-        b"window_is_valid" => 90,
-        b"nvim_del_keymap" => 91,
-        b"nvim_win_resize" => 92,
-        b"buffer_set_line" => 93,
-        b"buffer_set_name" => 94,
-        b"nvim_list_chans" => 95,
-        b"nvim_get_keymap" => 96,
-        b"nvim_get_option" => 97,
-        b"nvim_set_keymap" => 98,
-        b"nvim_set_option" => 99,
-        b"nvim__buf_stats" => 100,
-        b"vim_unsubscribe" => 101,
-        b"buffer_get_lines" => 102,
-        b"buffer_set_lines" => 103,
-        b"window_get_width" => 104,
-        b"window_set_width" => 105,
-        b"nvim_call_atomic" => 106,
-        b"nvim__cmdwin_set" => 107,
-        b"nvim_del_autocmd" => 108,
-        b"nvim_get_context" => 109,
-        b"tabpage_is_valid" => 110,
-        b"nvim_win_del_var" => 111,
-        b"nvim_win_get_buf" => 112,
-        b"nvim_win_get_var" => 113,
-        b"nvim_win_set_buf" => 114,
-        b"nvim_win_set_var" => 115,
-        b"nvim_input_mouse" => 116,
-        b"nvim_unsubscribe" => 117,
-        b"vim_report_error" => 118,
-        b"nvim_err_writeln" => 119,
-        b"nvim_error_event" => 120,
-        b"nvim__screenshot" => 121,
-        b"vim_get_api_info" => 122,
-        b"vim_get_tabpages" => 123,
-        b"nvim_buf_del_var" => 124,
-        b"nvim_buf_get_var" => 125,
-        b"nvim_buf_set_var" => 126,
-        b"nvim_execute_lua" => 127,
-        b"nvim_get_hl_by_id" => 128,
-        b"nvim_buf_del_mark" => 129,
-        b"nvim_buf_get_mark" => 130,
-        b"nvim_buf_get_name" => 131,
-        b"nvim_buf_set_mark" => 132,
-        b"nvim_buf_set_name" => 133,
-        b"nvim_open_tabpage" => 134,
-        b"buffer_get_number" => 135,
-        b"nvim_ui_set_focus" => 136,
-        b"nvim__get_lib_dir" => 137,
-        b"nvim_buf_get_text" => 138,
-        b"nvim_buf_set_text" => 139,
-        b"nvim_load_context" => 140,
-        b"window_get_buffer" => 141,
-        b"window_get_height" => 142,
-        b"window_set_height" => 143,
-        b"buffer_get_option" => 144,
-        b"buffer_set_option" => 145,
-        b"nvim__get_runtime" => 146,
-        b"vim_call_function" => 147,
-        b"window_get_option" => 148,
-        b"window_set_option" => 149,
-        b"nvim_buf_is_valid" => 150,
-        b"nvim_win_is_valid" => 151,
-        b"vim_name_to_color" => 152,
-        b"nvim_get_autocmds" => 153,
-        b"vim_get_color_map" => 154,
-        b"nvim_get_api_info" => 155,
-        b"nvim_get_commands" => 156,
-        b"window_get_cursor" => 157,
-        b"window_set_cursor" => 158,
-        b"buffer_line_count" => 159,
-        b"nvim_call_function" => 160,
-        b"nvim_exec_autocmds" => 161,
-        b"nvim_list_tabpages" => 162,
-        b"nvim_get_chan_info" => 163,
-        b"nvim_get_color_map" => 164,
-        b"nvim_ui_set_option" => 165,
-        b"nvim_ui_term_event" => 166,
-        b"tabpage_get_window" => 167,
-        b"nvim_buf_get_lines" => 168,
-        b"nvim_win_get_width" => 169,
-        b"nvim_buf_is_loaded" => 170,
-        b"vim_command_output" => 171,
-        b"nvim__complete_set" => 172,
-        b"nvim__inspect_cell" => 173,
-        b"nvim_ui_try_resize" => 174,
-        b"nvim_buf_set_lines" => 175,
-        b"nvim_win_set_hl_ns" => 176,
-        b"nvim_win_set_width" => 177,
-        b"window_get_tabpage" => 178,
-        b"nvim__exec_lua_fast" => 179,
-        b"nvim_get_hl_by_name" => 180,
-        b"nvim_set_hl_ns_fast" => 181,
-        b"nvim_buf_line_count" => 182,
-        b"nvim_buf_del_keymap" => 183,
-        b"nvim_buf_get_keymap" => 184,
-        b"nvim_buf_set_keymap" => 185,
-        b"nvim_win_get_height" => 186,
-        b"nvim_win_set_height" => 187,
-        b"nvim_buf_get_offset" => 188,
-        b"nvim_create_augroup" => 189,
-        b"window_get_position" => 190,
-        b"tabpage_get_windows" => 191,
-        b"nvim_clear_autocmds" => 192,
-        b"nvim_win_get_config" => 193,
-        b"nvim_win_set_config" => 194,
-        b"nvim_buf_get_option" => 195,
-        b"nvim_buf_set_option" => 196,
-        b"nvim_get_namespaces" => 197,
-        b"nvim_win_get_option" => 198,
-        b"nvim_win_set_option" => 199,
-        b"nvim_create_autocmd" => 200,
-        b"nvim_buf_get_number" => 201,
-        b"nvim_command_output" => 202,
-        b"nvim_win_get_cursor" => 203,
-        b"nvim_win_get_number" => 204,
-        b"nvim_win_set_cursor" => 205,
-        b"nvim_buf_del_extmark" => 206,
-        b"nvim_buf_set_extmark" => 207,
-        b"nvim_win_get_tabpage" => 208,
-        b"nvim_get_current_buf" => 209,
-        b"nvim_set_current_buf" => 210,
-        b"nvim_set_current_dir" => 211,
-        b"buffer_add_highlight" => 212,
-        b"nvim_win_text_height" => 213,
-        b"nvim_eval_statusline" => 214,
-        b"vim_del_current_line" => 215,
-        b"vim_get_current_line" => 216,
-        b"vim_set_current_line" => 217,
-        b"nvim_get_option_info" => 218,
-        b"nvim_set_client_info" => 219,
-        b"vim_change_directory" => 220,
-        b"nvim_tabpage_del_var" => 221,
-        b"nvim_tabpage_get_var" => 222,
-        b"nvim_tabpage_set_var" => 223,
-        b"nvim_get_current_win" => 224,
-        b"nvim_set_current_win" => 225,
-        b"nvim_tabpage_get_win" => 226,
-        b"nvim_tabpage_set_win" => 227,
-        b"nvim__runtime_inspect" => 228,
-        b"nvim_buf_get_commands" => 229,
-        b"nvim_buf_get_extmarks" => 230,
-        b"nvim_create_namespace" => 231,
-        b"nvim_del_current_line" => 232,
-        b"nvim_del_user_command" => 233,
-        b"vim_replace_termcodes" => 234,
-        b"nvim_get_current_line" => 235,
-        b"nvim_get_option_info2" => 236,
-        b"nvim_get_option_value" => 237,
-        b"nvim_get_runtime_file" => 238,
-        b"nvim_parse_expression" => 239,
-        b"buffer_get_line_slice" => 240,
-        b"buffer_set_line_slice" => 241,
-        b"nvim_set_current_line" => 242,
-        b"nvim_set_option_value" => 243,
-        b"nvim_tabpage_is_valid" => 244,
-        b"nvim_win_get_position" => 245,
-        b"nvim_del_augroup_by_id" => 246,
-        b"vim_list_runtime_paths" => 247,
-        b"nvim_ui_pum_set_bounds" => 248,
-        b"vim_get_current_buffer" => 249,
-        b"vim_set_current_buffer" => 250,
-        b"buffer_clear_highlight" => 251,
-        b"nvim_buf_add_highlight" => 252,
-        b"nvim_ui_pum_set_height" => 253,
-        b"nvim_get_proc_children" => 254,
-        b"nvim_replace_termcodes" => 255,
-        b"nvim_tabpage_list_wins" => 256,
-        b"vim_get_current_window" => 257,
-        b"vim_set_current_window" => 258,
-        b"nvim_get_color_by_name" => 259,
-        b"nvim_get_hl_id_by_name" => 260,
-        b"nvim_call_dict_function" => 261,
-        b"vim_get_current_tabpage" => 262,
-        b"vim_set_current_tabpage" => 263,
-        b"nvim_list_runtime_paths" => 264,
-        b"nvim_tabpage_get_number" => 265,
-        b"nvim_ui_try_resize_grid" => 266,
-        b"nvim_buf_get_changedtick" => 267,
-        b"nvim_get_current_tabpage" => 268,
-        b"nvim_set_current_tabpage" => 269,
-        b"nvim_del_augroup_by_name" => 270,
-        b"nvim_buf_clear_highlight" => 271,
-        b"nvim_buf_clear_namespace" => 272,
-        b"nvim_create_user_command" => 273,
-        b"nvim__buf_debug_extmarks" => 274,
-        b"nvim_get_all_options_info" => 275,
-        b"nvim_buf_del_user_command" => 276,
-        b"nvim_buf_set_virtual_text" => 277,
-        b"nvim__set_restart_on_crash" => 278,
-        b"nvim_buf_get_extmark_by_id" => 279,
-        b"nvim_select_popupmenu_item" => 280,
-        b"nvim__invalidate_glyph_cache" => 281,
-        b"nvim_buf_create_user_command" => 282,
-        _ => -1,
+        b"redraw" => Some(0),
+        b"nvim__id" => Some(1),
+        b"nvim_cmd" => Some(2),
+        b"nvim_put" => Some(3),
+        b"vim_eval" => Some(4),
+        b"ui_attach" => Some(5),
+        b"ui_detach" => Some(6),
+        b"nvim_echo" => Some(7),
+        b"vim_input" => Some(8),
+        b"nvim_eval" => Some(9),
+        b"nvim_exec" => Some(10),
+        b"nvim_exec2" => Some(11),
+        b"nvim_input" => Some(12),
+        b"nvim_paste" => Some(13),
+        b"nvim_get_hl" => Some(14),
+        b"nvim_set_hl" => Some(15),
+        b"vim_del_var" => Some(16),
+        b"vim_command" => Some(17),
+        b"nvim_notify" => Some(18),
+        b"nvim__stats" => Some(19),
+        b"vim_get_var" => Some(20),
+        b"vim_set_var" => Some(21),
+        b"nvim_ui_send" => Some(22),
+        b"vim_get_vvar" => Some(23),
+        b"vim_feedkeys" => Some(24),
+        b"nvim__redraw" => Some(25),
+        b"nvim_del_var" => Some(26),
+        b"nvim_command" => Some(27),
+        b"nvim__unpack" => Some(28),
+        b"nvim__ns_get" => Some(29),
+        b"nvim__ns_set" => Some(30),
+        b"nvim_get_var" => Some(31),
+        b"nvim_set_var" => Some(32),
+        b"vim_strwidth" => Some(33),
+        b"nvim_get_vvar" => Some(34),
+        b"nvim_set_vvar" => Some(35),
+        b"vim_subscribe" => Some(36),
+        b"nvim__id_dict" => Some(37),
+        b"nvim_get_mode" => Some(38),
+        b"nvim_win_hide" => Some(39),
+        b"nvim_chan_set" => Some(40),
+        b"nvim_list_uis" => Some(41),
+        b"nvim_open_win" => Some(42),
+        b"nvim_get_proc" => Some(43),
+        b"buffer_insert" => Some(44),
+        b"nvim_del_mark" => Some(45),
+        b"nvim_get_mark" => Some(46),
+        b"nvim_strwidth" => Some(47),
+        b"vim_err_write" => Some(48),
+        b"vim_out_write" => Some(49),
+        b"nvim_exec_lua" => Some(50),
+        b"nvim_feedkeys" => Some(51),
+        b"ui_try_resize" => Some(52),
+        b"nvim__id_array" => Some(53),
+        b"nvim__id_float" => Some(54),
+        b"nvim_chan_send" => Some(55),
+        b"nvim_err_write" => Some(56),
+        b"vim_get_option" => Some(57),
+        b"vim_set_option" => Some(58),
+        b"nvim_get_hl_ns" => Some(59),
+        b"nvim_list_bufs" => Some(60),
+        b"nvim_list_wins" => Some(61),
+        b"nvim_open_term" => Some(62),
+        b"nvim_out_write" => Some(63),
+        b"nvim_parse_cmd" => Some(64),
+        b"buffer_del_var" => Some(65),
+        b"buffer_get_var" => Some(66),
+        b"buffer_set_var" => Some(67),
+        b"nvim_set_hl_ns" => Some(68),
+        b"nvim_subscribe" => Some(69),
+        b"nvim_ui_attach" => Some(70),
+        b"nvim_ui_detach" => Some(71),
+        b"nvim_win_close" => Some(72),
+        b"window_del_var" => Some(73),
+        b"window_get_var" => Some(74),
+        b"window_set_var" => Some(75),
+        b"tabpage_del_var" => Some(76),
+        b"tabpage_get_var" => Some(77),
+        b"tabpage_set_var" => Some(78),
+        b"vim_get_buffers" => Some(79),
+        b"vim_get_windows" => Some(80),
+        b"buffer_del_line" => Some(81),
+        b"nvim_create_buf" => Some(82),
+        b"nvim_buf_attach" => Some(83),
+        b"nvim_buf_delete" => Some(84),
+        b"nvim_buf_detach" => Some(85),
+        b"buffer_get_line" => Some(86),
+        b"buffer_get_mark" => Some(87),
+        b"buffer_get_name" => Some(88),
+        b"buffer_is_valid" => Some(89),
+        b"window_is_valid" => Some(90),
+        b"nvim_del_keymap" => Some(91),
+        b"nvim_win_resize" => Some(92),
+        b"buffer_set_line" => Some(93),
+        b"buffer_set_name" => Some(94),
+        b"nvim_list_chans" => Some(95),
+        b"nvim_get_keymap" => Some(96),
+        b"nvim_get_option" => Some(97),
+        b"nvim_set_keymap" => Some(98),
+        b"nvim_set_option" => Some(99),
+        b"nvim__buf_stats" => Some(100),
+        b"vim_unsubscribe" => Some(101),
+        b"buffer_get_lines" => Some(102),
+        b"buffer_set_lines" => Some(103),
+        b"window_get_width" => Some(104),
+        b"window_set_width" => Some(105),
+        b"nvim_call_atomic" => Some(106),
+        b"nvim__cmdwin_set" => Some(107),
+        b"nvim_del_autocmd" => Some(108),
+        b"nvim_get_context" => Some(109),
+        b"tabpage_is_valid" => Some(110),
+        b"nvim_win_del_var" => Some(111),
+        b"nvim_win_get_buf" => Some(112),
+        b"nvim_win_get_var" => Some(113),
+        b"nvim_win_set_buf" => Some(114),
+        b"nvim_win_set_var" => Some(115),
+        b"nvim_input_mouse" => Some(116),
+        b"nvim_unsubscribe" => Some(117),
+        b"vim_report_error" => Some(118),
+        b"nvim_err_writeln" => Some(119),
+        b"nvim_error_event" => Some(120),
+        b"nvim__screenshot" => Some(121),
+        b"vim_get_api_info" => Some(122),
+        b"vim_get_tabpages" => Some(123),
+        b"nvim_buf_del_var" => Some(124),
+        b"nvim_buf_get_var" => Some(125),
+        b"nvim_buf_set_var" => Some(126),
+        b"nvim_execute_lua" => Some(127),
+        b"nvim_get_hl_by_id" => Some(128),
+        b"nvim_buf_del_mark" => Some(129),
+        b"nvim_buf_get_mark" => Some(130),
+        b"nvim_buf_get_name" => Some(131),
+        b"nvim_buf_set_mark" => Some(132),
+        b"nvim_buf_set_name" => Some(133),
+        b"nvim_open_tabpage" => Some(134),
+        b"buffer_get_number" => Some(135),
+        b"nvim_ui_set_focus" => Some(136),
+        b"nvim__get_lib_dir" => Some(137),
+        b"nvim_buf_get_text" => Some(138),
+        b"nvim_buf_set_text" => Some(139),
+        b"nvim_load_context" => Some(140),
+        b"window_get_buffer" => Some(141),
+        b"window_get_height" => Some(142),
+        b"window_set_height" => Some(143),
+        b"buffer_get_option" => Some(144),
+        b"buffer_set_option" => Some(145),
+        b"nvim__get_runtime" => Some(146),
+        b"vim_call_function" => Some(147),
+        b"window_get_option" => Some(148),
+        b"window_set_option" => Some(149),
+        b"nvim_buf_is_valid" => Some(150),
+        b"nvim_win_is_valid" => Some(151),
+        b"vim_name_to_color" => Some(152),
+        b"nvim_get_autocmds" => Some(153),
+        b"vim_get_color_map" => Some(154),
+        b"nvim_get_api_info" => Some(155),
+        b"nvim_get_commands" => Some(156),
+        b"window_get_cursor" => Some(157),
+        b"window_set_cursor" => Some(158),
+        b"buffer_line_count" => Some(159),
+        b"nvim_call_function" => Some(160),
+        b"nvim_exec_autocmds" => Some(161),
+        b"nvim_list_tabpages" => Some(162),
+        b"nvim_get_chan_info" => Some(163),
+        b"nvim_get_color_map" => Some(164),
+        b"nvim_ui_set_option" => Some(165),
+        b"nvim_ui_term_event" => Some(166),
+        b"tabpage_get_window" => Some(167),
+        b"nvim_buf_get_lines" => Some(168),
+        b"nvim_win_get_width" => Some(169),
+        b"nvim_buf_is_loaded" => Some(170),
+        b"vim_command_output" => Some(171),
+        b"nvim__complete_set" => Some(172),
+        b"nvim__inspect_cell" => Some(173),
+        b"nvim_ui_try_resize" => Some(174),
+        b"nvim_buf_set_lines" => Some(175),
+        b"nvim_win_set_hl_ns" => Some(176),
+        b"nvim_win_set_width" => Some(177),
+        b"window_get_tabpage" => Some(178),
+        b"nvim__exec_lua_fast" => Some(179),
+        b"nvim_get_hl_by_name" => Some(180),
+        b"nvim_set_hl_ns_fast" => Some(181),
+        b"nvim_buf_line_count" => Some(182),
+        b"nvim_buf_del_keymap" => Some(183),
+        b"nvim_buf_get_keymap" => Some(184),
+        b"nvim_buf_set_keymap" => Some(185),
+        b"nvim_win_get_height" => Some(186),
+        b"nvim_win_set_height" => Some(187),
+        b"nvim_buf_get_offset" => Some(188),
+        b"nvim_create_augroup" => Some(189),
+        b"window_get_position" => Some(190),
+        b"tabpage_get_windows" => Some(191),
+        b"nvim_clear_autocmds" => Some(192),
+        b"nvim_win_get_config" => Some(193),
+        b"nvim_win_set_config" => Some(194),
+        b"nvim_buf_get_option" => Some(195),
+        b"nvim_buf_set_option" => Some(196),
+        b"nvim_get_namespaces" => Some(197),
+        b"nvim_win_get_option" => Some(198),
+        b"nvim_win_set_option" => Some(199),
+        b"nvim_create_autocmd" => Some(200),
+        b"nvim_buf_get_number" => Some(201),
+        b"nvim_command_output" => Some(202),
+        b"nvim_win_get_cursor" => Some(203),
+        b"nvim_win_get_number" => Some(204),
+        b"nvim_win_set_cursor" => Some(205),
+        b"nvim_buf_del_extmark" => Some(206),
+        b"nvim_buf_set_extmark" => Some(207),
+        b"nvim_win_get_tabpage" => Some(208),
+        b"nvim_get_current_buf" => Some(209),
+        b"nvim_set_current_buf" => Some(210),
+        b"nvim_set_current_dir" => Some(211),
+        b"buffer_add_highlight" => Some(212),
+        b"nvim_win_text_height" => Some(213),
+        b"nvim_eval_statusline" => Some(214),
+        b"vim_del_current_line" => Some(215),
+        b"vim_get_current_line" => Some(216),
+        b"vim_set_current_line" => Some(217),
+        b"nvim_get_option_info" => Some(218),
+        b"nvim_set_client_info" => Some(219),
+        b"vim_change_directory" => Some(220),
+        b"nvim_tabpage_del_var" => Some(221),
+        b"nvim_tabpage_get_var" => Some(222),
+        b"nvim_tabpage_set_var" => Some(223),
+        b"nvim_get_current_win" => Some(224),
+        b"nvim_set_current_win" => Some(225),
+        b"nvim_tabpage_get_win" => Some(226),
+        b"nvim_tabpage_set_win" => Some(227),
+        b"nvim__runtime_inspect" => Some(228),
+        b"nvim_buf_get_commands" => Some(229),
+        b"nvim_buf_get_extmarks" => Some(230),
+        b"nvim_create_namespace" => Some(231),
+        b"nvim_del_current_line" => Some(232),
+        b"nvim_del_user_command" => Some(233),
+        b"vim_replace_termcodes" => Some(234),
+        b"nvim_get_current_line" => Some(235),
+        b"nvim_get_option_info2" => Some(236),
+        b"nvim_get_option_value" => Some(237),
+        b"nvim_get_runtime_file" => Some(238),
+        b"nvim_parse_expression" => Some(239),
+        b"buffer_get_line_slice" => Some(240),
+        b"buffer_set_line_slice" => Some(241),
+        b"nvim_set_current_line" => Some(242),
+        b"nvim_set_option_value" => Some(243),
+        b"nvim_tabpage_is_valid" => Some(244),
+        b"nvim_win_get_position" => Some(245),
+        b"nvim_del_augroup_by_id" => Some(246),
+        b"vim_list_runtime_paths" => Some(247),
+        b"nvim_ui_pum_set_bounds" => Some(248),
+        b"vim_get_current_buffer" => Some(249),
+        b"vim_set_current_buffer" => Some(250),
+        b"buffer_clear_highlight" => Some(251),
+        b"nvim_buf_add_highlight" => Some(252),
+        b"nvim_ui_pum_set_height" => Some(253),
+        b"nvim_get_proc_children" => Some(254),
+        b"nvim_replace_termcodes" => Some(255),
+        b"nvim_tabpage_list_wins" => Some(256),
+        b"vim_get_current_window" => Some(257),
+        b"vim_set_current_window" => Some(258),
+        b"nvim_get_color_by_name" => Some(259),
+        b"nvim_get_hl_id_by_name" => Some(260),
+        b"nvim_call_dict_function" => Some(261),
+        b"vim_get_current_tabpage" => Some(262),
+        b"vim_set_current_tabpage" => Some(263),
+        b"nvim_list_runtime_paths" => Some(264),
+        b"nvim_tabpage_get_number" => Some(265),
+        b"nvim_ui_try_resize_grid" => Some(266),
+        b"nvim_buf_get_changedtick" => Some(267),
+        b"nvim_get_current_tabpage" => Some(268),
+        b"nvim_set_current_tabpage" => Some(269),
+        b"nvim_del_augroup_by_name" => Some(270),
+        b"nvim_buf_clear_highlight" => Some(271),
+        b"nvim_buf_clear_namespace" => Some(272),
+        b"nvim_create_user_command" => Some(273),
+        b"nvim__buf_debug_extmarks" => Some(274),
+        b"nvim_get_all_options_info" => Some(275),
+        b"nvim_buf_del_user_command" => Some(276),
+        b"nvim_buf_set_virtual_text" => Some(277),
+        b"nvim__set_restart_on_crash" => Some(278),
+        b"nvim_buf_get_extmark_by_id" => Some(279),
+        b"nvim_select_popupmenu_item" => Some(280),
+        b"nvim__invalidate_glyph_cache" => Some(281),
+        b"nvim_buf_create_user_command" => Some(282),
+        _ => None,
     }
 }
 
-pub fn msgpack_rpc_get_handler_at(hash: i32) -> MsgpackRpcRequestHandler {
-    METHOD_HANDLERS[hash as usize]
+pub fn msgpack_rpc_get_handler_at(hash: usize) -> MsgpackRpcRequestHandler {
+    METHOD_HANDLERS[hash]
 }
 
 pub fn msgpack_rpc_get_handler_for(
     key_bytes: &[u8],
     error: &mut Error,
 ) -> MsgpackRpcRequestHandler {
-    let hash = msgpack_rpc_get_handler_for_hash(key_bytes);
-    if hash < 0 {
+    let Some(hash) = msgpack_rpc_get_handler_for_hash(key_bytes) else {
         let mut msg = b"Invalid method: ".to_vec();
         if key_bytes.is_empty() {
             msg.extend_from_slice(b"<empty>");
@@ -15434,7 +15388,7 @@ pub fn msgpack_rpc_get_handler_for(
             fast: false,
             ret_alloc: false,
         };
-    }
+    };
     msgpack_rpc_get_handler_at(hash)
 }
 
@@ -23564,14 +23518,14 @@ mod tests {
     fn rpc_handler_lookup_resolves_all_methods() {
         for (idx, handler) in METHOD_HANDLERS.iter().enumerate() {
             let name = handler.name.to_bytes();
-            assert_eq!(msgpack_rpc_get_handler_for_hash(name), idx as i32);
-            let got = msgpack_rpc_get_handler_at(idx as i32);
+            assert_eq!(msgpack_rpc_get_handler_for_hash(name), Some(idx));
+            let got = msgpack_rpc_get_handler_at(idx);
             assert_eq!(got.name, handler.name);
             assert_eq!(got.fast, handler.fast);
             assert_eq!(got.ret_alloc, handler.ret_alloc);
         }
-        assert_eq!(msgpack_rpc_get_handler_for_hash(b"not_a_method"), -1);
-        assert_eq!(msgpack_rpc_get_handler_for_hash(b""), -1);
+        assert_eq!(msgpack_rpc_get_handler_for_hash(b"not_a_method"), None);
+        assert_eq!(msgpack_rpc_get_handler_for_hash(b""), None);
     }
 
     #[test]

@@ -2675,16 +2675,15 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         let idx = s.last_idx as usize;
         (s.spats[idx].pat.clone(), s.spats[idx].patlen())
     });
-    let zero_width = is_zero_width(
+    let Some(zero_width) = is_zero_width(
         last_pat.as_deref(),
         last_patlen,
         true,
         curwin().w_cursor.get(),
         FORWARD,
-    );
-    if zero_width == -1 {
+    ) else {
         return false;
-    }
+    };
 
     let mut end_pos = pos;
     let mut result: i32;
@@ -2700,7 +2699,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         };
 
         let mut flags = 0;
-        if !dir && zero_width == 0 {
+        if !dir && !zero_width {
             flags = SEARCH_END;
         }
         end_pos = pos;
@@ -2792,10 +2791,10 @@ fn is_zero_width(
     move_to_start: bool,
     cur: CursorPos,
     direction: Direction,
-) -> i32 {
+) -> Option<bool> {
     {
         let mut regmatch: Regmmatch = Regmmatch::new();
-        let mut result: i32 = -1;
+        let mut result: Option<bool> = None;
         let mut pos = CursorPos {
             lnum: 0,
             col: 0,
@@ -2823,7 +2822,7 @@ fn is_zero_width(
             opt_vars().p_magic.get(),
             &mut regmatch,
         ) {
-            return -1;
+            return None;
         }
 
         regmatch.startpos[0].col = -1;
@@ -2876,7 +2875,7 @@ fn is_zero_width(
             }
 
             if g_st().called_emsg.get() == called_emsg_before {
-                result = i32::from(
+                result = Some(
                     nmatched != 0
                         && regmatch.startpos[0].lnum == regmatch.endpos[0].lnum
                         && regmatch.startpos[0].col == regmatch.endpos[0].col,

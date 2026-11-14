@@ -327,7 +327,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 } else if li.is_null() {
                     tv_list_len(list.opt()) - 1
                 } else {
-                    tv_list_idx_of_item(list.opt(), li.li_prev.get().opt())
+                    tv_list_idx_of_item(list.opt(), li.li_prev.get().opt()).unwrap_or(-1)
                 };
                 let prev_li = if li.is_null() {
                     crate::eval::typval::ListitemId::from(tv_list_last(list.opt()))

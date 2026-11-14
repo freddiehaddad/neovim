@@ -5849,7 +5849,7 @@ pub fn char_from_string(s: &[u8], index: Varnumber) -> Option<std::ffi::CString>
     Some(bytes_to_cstring(&s[nbyte..nbyte + clen]))
 }
 
-fn char_idx2byte(s: &[u8], idx: Varnumber) -> isize {
+fn char_idx2byte(s: &[u8], idx: Varnumber) -> Option<usize> {
     let str_len = s.len();
     let mut nchar = idx;
     let mut nbyte: usize = 0;
@@ -5868,10 +5868,10 @@ fn char_idx2byte(s: &[u8], idx: Varnumber) -> isize {
             nchar += 1;
         }
         if nchar < 0 {
-            return -1;
+            return None;
         }
     }
-    nbyte as isize
+    Some(nbyte)
 }
 
 /// Return the slice "str[first : last]" using character indexes.
@@ -5882,26 +5882,21 @@ pub fn string_slice(
     exclusive: bool,
 ) -> Option<std::ffi::CString> {
     let slen = s.len();
-    let mut start_byte = char_idx2byte(s, first);
-    if start_byte < 0 {
-        start_byte = 0;
-    }
-    let mut end_byte: isize;
-    if (last == -1 && !exclusive) || last == VARNUMBER_MAX {
-        end_byte = slen as isize;
+    let start_byte = char_idx2byte(s, first).unwrap_or(0);
+    let end_byte = if (last == -1 && !exclusive) || last == VARNUMBER_MAX {
+        slen
     } else {
-        end_byte = char_idx2byte(s, last);
-        if !exclusive && end_byte >= 0 && (end_byte as usize) < slen {
-            end_byte += crate::mbyte::utfc_slice2len(&s[end_byte as usize..]) as isize;
+        let mut eb = char_idx2byte(s, last)?;
+        if !exclusive && eb < slen {
+            eb += crate::mbyte::utfc_slice2len(&s[eb..]);
         }
-    }
+        eb
+    };
 
-    if start_byte >= (slen as isize) || end_byte <= start_byte {
+    if start_byte >= slen || end_byte <= start_byte {
         return None;
     }
-    Some(bytes_to_cstring(
-        &s[start_byte as usize..(end_byte as usize).min(slen)],
-    ))
+    Some(bytes_to_cstring(&s[start_byte..end_byte.min(slen)]))
 }
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.

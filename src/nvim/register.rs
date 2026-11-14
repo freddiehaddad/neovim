@@ -231,21 +231,21 @@ pub const fn is_literal_register(regname: i32) -> bool {
 }
 
 #[inline]
-pub const fn op_reg_index(regname: i32) -> i32 {
+pub const fn op_reg_index(regname: i32) -> Option<usize> {
     if regname >= b'0' as i32 && regname <= b'9' as i32 {
-        regname - b'0' as i32
+        Some((regname - b'0' as i32) as usize)
     } else if regname >= b'a' as i32 && regname <= b'z' as i32 {
-        regname - b'a' as i32 + 10
+        Some((regname - b'a' as i32 + 10) as usize)
     } else if regname >= b'A' as i32 && regname <= b'Z' as i32 {
-        regname - b'A' as i32 + 10
+        Some((regname - b'A' as i32 + 10) as usize)
     } else if regname == b'-' as i32 {
-        DELETION_REGISTER
+        Some(DELETION_REGISTER as usize)
     } else if regname == b'*' as i32 {
-        STAR_REGISTER
+        Some(STAR_REGISTER as usize)
     } else if regname == b'+' as i32 {
-        PLUS_REGISTER
+        Some(PLUS_REGISTER as usize)
     } else {
-        -1
+        None
     }
 }
 
@@ -474,18 +474,16 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
         }
     }
     if clipboard {
-        max_ts = max_ts.max(get_y_register(op_reg_index(i32::from(b'*'))).with(|r| r.timestamp));
-        max_ts = max_ts.max(get_y_register(op_reg_index(i32::from(b'+'))).with(|r| r.timestamp));
+        max_ts = max_ts.max(get_y_register(STAR_REGISTER).with(|r| r.timestamp));
+        max_ts = max_ts.max(get_y_register(PLUS_REGISTER).with(|r| r.timestamp));
     }
     max_ts
 }
 
 pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
-    let i = op_reg_index(i32::from(name));
-    if i == -1 {
+    let Some(idx) = op_reg_index(i32::from(name)) else {
         return false;
-    }
-    let idx = i as usize;
+    };
     Y_REGS.with(|cell| cell.borrow_mut()[idx] = reg);
 
     if is_unnamed {
@@ -495,19 +493,14 @@ pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
 }
 
 pub fn op_reg_get(name: u8) -> Option<RegIdx> {
-    let i = op_reg_index(i32::from(name));
-    if i == -1 {
-        return None;
-    }
-    Some(RegIdx(i as usize))
+    op_reg_index(i32::from(name)).map(RegIdx)
 }
 
 pub fn op_reg_set_previous(name: u8) -> bool {
-    let i = op_reg_index(i32::from(name));
-    if i == -1 {
+    let Some(idx) = op_reg_index(i32::from(name)) else {
         return false;
-    }
-    REG_STATE.with(|s| s.y_previous.set(Some(i as usize)));
+    };
+    REG_STATE.with(|s| s.y_previous.set(Some(idx)));
     true
 }
 
@@ -543,11 +536,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> RegIdx {
         return RegIdx(prev_idx);
     }
 
-    let mut i = op_reg_index(regname);
-    if i == -1 {
-        i = 0;
-    }
-    let idx = i as usize;
+    let idx = op_reg_index(regname).unwrap_or(0);
     if mode == YankRegMode::Yank {
         REG_STATE.with(|s| s.y_previous.set(Some(idx)));
     }
@@ -3022,21 +3011,24 @@ mod tests {
 
     #[test]
     fn register_index_and_name_roundtrip() {
-        assert_eq!(op_reg_index(i32::from(b'0')), 0);
-        assert_eq!(op_reg_index(i32::from(b'9')), 9);
-        assert_eq!(op_reg_index(i32::from(b'a')), 10);
-        assert_eq!(op_reg_index(i32::from(b'z')), 35);
-        assert_eq!(op_reg_index(i32::from(b'A')), 10);
-        assert_eq!(op_reg_index(i32::from(b'Z')), 35);
-        assert_eq!(op_reg_index(i32::from(b'-')), DELETION_REGISTER);
-        assert_eq!(op_reg_index(i32::from(b'*')), STAR_REGISTER);
-        assert_eq!(op_reg_index(i32::from(b'+')), PLUS_REGISTER);
-        assert_eq!(op_reg_index(i32::from(b'%')), -1);
+        assert_eq!(op_reg_index(i32::from(b'0')), Some(0));
+        assert_eq!(op_reg_index(i32::from(b'9')), Some(9));
+        assert_eq!(op_reg_index(i32::from(b'a')), Some(10));
+        assert_eq!(op_reg_index(i32::from(b'z')), Some(35));
+        assert_eq!(op_reg_index(i32::from(b'A')), Some(10));
+        assert_eq!(op_reg_index(i32::from(b'Z')), Some(35));
+        assert_eq!(
+            op_reg_index(i32::from(b'-')),
+            Some(DELETION_REGISTER as usize)
+        );
+        assert_eq!(op_reg_index(i32::from(b'*')), Some(STAR_REGISTER as usize));
+        assert_eq!(op_reg_index(i32::from(b'+')), Some(PLUS_REGISTER as usize));
+        assert_eq!(op_reg_index(i32::from(b'%')), None);
 
         assert_eq!(get_register_name(-1), i32::from(b'"'));
-        for idx in 0..(NUM_REGISTERS as i32) {
-            let name = get_register_name(idx);
-            assert_eq!(op_reg_index(name), idx);
+        for idx in 0..NUM_REGISTERS {
+            let name = get_register_name(idx as i32);
+            assert_eq!(op_reg_index(name), Some(idx));
         }
     }
 }

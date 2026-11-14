@@ -705,7 +705,7 @@ pub fn vim_strsave_shellescape(
             continue;
         }
         let mut l: usize = 0;
-        if do_special && find_cmdline_var(&bytes[i..], &mut l) >= 0 {
+        if do_special && find_cmdline_var(&bytes[i..], &mut l).is_some() {
             escaped.push(b'\\');
             escaped.extend_from_slice(&bytes[i..i + l]);
             i += l;

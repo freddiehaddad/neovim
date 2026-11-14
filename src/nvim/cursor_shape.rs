@@ -462,12 +462,12 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
-pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
+pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> Option<usize> {
     let mode_bytes = mode.to_bytes();
     let tbl = SHAPE_TABLE.with(std::cell::Cell::get);
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
-            return mode_idx as i32;
+            return Some(mode_idx);
         }
     }
     logmsg!(
@@ -479,7 +479,7 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
         c"Unknown mode %s",
         mode,
     );
-    -1
+    None
 }
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
@@ -535,8 +535,8 @@ mod tests {
 
     #[test]
     fn cursor_mode_str2int_finds_modes() {
-        assert_eq!(cursor_mode_str2int(c"normal"), SHAPE_IDX_N as i32);
-        assert_eq!(cursor_mode_str2int(c"terminal"), SHAPE_IDX_TERM as i32);
-        assert_eq!(cursor_mode_str2int(c"nonexistent"), -1);
+        assert_eq!(cursor_mode_str2int(c"normal"), Some(SHAPE_IDX_N));
+        assert_eq!(cursor_mode_str2int(c"terminal"), Some(SHAPE_IDX_TERM));
+        assert_eq!(cursor_mode_str2int(c"nonexistent"), None);
     }
 }

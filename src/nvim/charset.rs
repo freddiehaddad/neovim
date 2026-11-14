@@ -1226,11 +1226,11 @@ pub fn hex2nr<C: AsciiInt>(c: C) -> i32 {
     }
 }
 
-pub fn hexhex2nr(bytes: &[u8]) -> i32 {
+pub fn hexhex2nr(bytes: &[u8]) -> Option<i32> {
     if bytes.len() < 2 || !bytes[0].is_ascii_hexdigit() || !bytes[1].is_ascii_hexdigit() {
-        return -1;
+        return None;
     }
-    (hex2nr(bytes[0]) << 4) + hex2nr(bytes[1])
+    Some((hex2nr(bytes[0]) << 4) + hex2nr(bytes[1]))
 }
 
 pub fn rem_backslash(bytes: &[u8]) -> bool {

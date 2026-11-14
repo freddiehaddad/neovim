@@ -1900,7 +1900,7 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 
 use crate::charset::{ascii_isident, toupper_asc};
 
-fn get_special_key_code_hash(name: &[u8]) -> isize {
+fn get_special_key_code_hash(name: &[u8]) -> Option<usize> {
     let (low, high): (usize, usize) = match name.len() {
         2 => match name[1] {
             b'0' => (0, 1),
@@ -2036,10 +2036,10 @@ fn get_special_key_code_hash(name: &[u8]) -> isize {
     };
     for (i, entry) in KEY_NAMES_TABLE[low..high].iter().enumerate() {
         if entry.name.to_bytes().eq_ignore_ascii_case(name) {
-            return (low + i) as isize;
+            return Some(low + i);
         }
     }
-    -1
+    None
 }
 
 /// Return the modifier mask bit (`MOD_MASK_*`) corresponding to mod name (`name_to_mod_mask`).
@@ -2188,7 +2188,7 @@ pub fn get_special_key(
 
     // When not a known special key, and not a printable character, try to
     // extract modifiers.
-    if c > 0 && utf_char2len(c) == 1 && table_idx < 0 && !vim_isprintc(c) && c < b' ' as i32 {
+    if c > 0 && utf_char2len(c) == 1 && table_idx.is_none() && !vim_isprintc(c) && c < b' ' as i32 {
         c += b'@' as i32;
         modifiers |= i32::from(MOD_MASK_CTRL);
         is_ascii_ctrl = true;
@@ -2216,7 +2216,29 @@ pub fn get_special_key(
         i += 1;
     }
 
-    if table_idx < 0 {
+    if let Some(table_idx) = table_idx {
+        // use name of special key
+        let entry = &KEY_NAMES_TABLE[table_idx];
+        let s_bytes = entry.name.to_bytes();
+
+        if let Some(ref mut d) = data {
+            if (0..=0x7f).contains(&c) {
+                d.key.clear();
+                d.key.push(c as u8);
+                d.key_alt.clear();
+                d.key_alt.extend_from_slice(s_bytes);
+            } else {
+                d.key.clear();
+                d.key.extend_from_slice(s_bytes);
+                d.key_alt.clear();
+            }
+        }
+
+        if s_bytes.len() + idx + 2 <= MAX_KEY_NAME_LEN {
+            string_buf.0[idx..idx + s_bytes.len()].copy_from_slice(s_bytes);
+            idx += s_bytes.len();
+        }
+    } else {
         // unknown special key, may output t_xx
         if is_special(c) {
             let termcap = [b't', b'_', key2termcap0(c) as u8, key2termcap1(c) as u8];
@@ -2270,28 +2292,6 @@ pub fn get_special_key(
                 }
                 idx += tc_bytes.len();
             }
-        }
-    } else {
-        // use name of special key
-        let entry = &KEY_NAMES_TABLE[table_idx as usize];
-        let s_bytes = entry.name.to_bytes();
-
-        if let Some(ref mut d) = data {
-            if (0..=0x7f).contains(&c) {
-                d.key.clear();
-                d.key.push(c as u8);
-                d.key_alt.clear();
-                d.key_alt.extend_from_slice(s_bytes);
-            } else {
-                d.key.clear();
-                d.key.extend_from_slice(s_bytes);
-                d.key_alt.clear();
-            }
-        }
-
-        if s_bytes.len() + idx + 2 <= MAX_KEY_NAME_LEN {
-            string_buf.0[idx..idx + s_bytes.len()].copy_from_slice(s_bytes);
-            idx += s_bytes.len();
         }
     }
     string_buf.0[idx] = b'>';
@@ -2612,18 +2612,18 @@ const KEY_CODES_SORTED: [(i32, i32); KEY_NAMES_TABLE.len()] = {
 };
 
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
-pub fn find_special_key_in_table(c: i32) -> i32 {
+pub fn find_special_key_in_table(c: i32) -> Option<usize> {
     if c == i32::MAX {
-        return -1;
+        return None;
     }
     match KEY_CODES_SORTED.binary_search_by_key(&c, |&(k, _)| k) {
         Ok(mut idx) => {
             while idx > 0 && KEY_CODES_SORTED[idx - 1].0 == c {
                 idx -= 1;
             }
-            KEY_CODES_SORTED[idx].1
+            Some(KEY_CODES_SORTED[idx].1 as usize)
         }
-        Err(_) => -1,
+        Err(_) => None,
     }
 }
 
@@ -2643,12 +2643,7 @@ pub fn get_special_key_code(name_bytes: &[u8]) -> i32 {
         .count();
 
     let slice = &name_bytes[..len];
-    let idx = get_special_key_code_hash(slice);
-    if idx >= 0 {
-        KEY_NAMES_TABLE[idx as usize].key
-    } else {
-        0
-    }
+    get_special_key_code_hash(slice).map_or(0, |idx| KEY_NAMES_TABLE[idx].key)
 }
 
 /// Look up the given mouse code to return the relevant information (`get_mouse_button`).
@@ -2920,14 +2915,11 @@ mod tests {
                 let first_idx = KEY_NAMES_TABLE
                     .iter()
                     .position(|e| !e.is_alt && e.key == entry.key)
-                    .unwrap() as i32;
-                assert_eq!(
-                    find_special_key_in_table(entry.key),
-                    first_idx.min(i as i32)
-                );
+                    .unwrap();
+                assert_eq!(find_special_key_in_table(entry.key), Some(first_idx.min(i)));
             }
         }
-        assert_eq!(find_special_key_in_table(0), -1);
+        assert_eq!(find_special_key_in_table(0), None);
         assert_eq!(get_special_key_code(b"CR"), CAR);
         assert_eq!(get_special_key_code(b"Esc"), ESC);
         assert_eq!(get_special_key_code(b"NotAKey"), 0);

@@ -1400,7 +1400,7 @@ fn map_put_id_to_name(key: i32, name: &CStr) {
     });
 }
 
-fn event_name2nr_hash(s: &[u8]) -> isize {
+fn event_name2nr_hash(s: &[u8]) -> Option<usize> {
     let len = s.len();
     let (low, high): (usize, usize) = match len {
         4 => (0, 1),
@@ -1535,10 +1535,10 @@ fn event_name2nr_hash(s: &[u8]) -> isize {
     for (i, &ev_raw) in EVENT_HASH.iter().enumerate().take(high).skip(low) {
         let ev = ev_raw as usize;
         if s.eq_ignore_ascii_case(EVENT_NAMES[ev].name.to_bytes()) {
-            return i as isize;
+            return Some(i);
         }
     }
-    -1
+    None
 }
 
 pub fn autocmd_init() {
@@ -2044,19 +2044,18 @@ pub fn event_name2nr(s: &mut &[u8]) -> AuEvent {
         len
     };
     *s = &bytes[next..];
-    if hash_idx < 0 {
+    let Some(hash_idx) = hash_idx else {
         return NUM_EVENTS as AuEvent;
-    }
-    let ev = EVENT_HASH[hash_idx as usize] as usize;
+    };
+    let ev = EVENT_HASH[hash_idx] as usize;
     EVENT_NAMES[ev].event.abs() as AuEvent
 }
 
 pub fn event_name2nr_str(str_: NvimString) -> AuEvent {
-    let hash_idx = event_name2nr_hash(str_.as_bytes());
-    if hash_idx < 0 {
+    let Some(hash_idx) = event_name2nr_hash(str_.as_bytes()) else {
         return NUM_EVENTS as AuEvent;
-    }
-    let ev = EVENT_HASH[hash_idx as usize] as usize;
+    };
+    let ev = EVENT_HASH[hash_idx] as usize;
     EVENT_NAMES[ev].event.abs() as AuEvent
 }
 

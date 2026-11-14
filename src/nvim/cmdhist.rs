@@ -351,26 +351,28 @@ pub fn add_to_history(histype: i32, new_entry: &[u8], in_map: bool, sep: i32) {
     });
 }
 
-fn get_history_idx(histype: i32) -> i32 {
+fn get_history_idx(histype: i32) -> Option<i32> {
     let hislen = hist_st(|st| st.hislen.get());
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
-        return -1;
+        return None;
     }
     let idx = hist_st(|st| st.hisidx.get()[histype as usize]);
     if idx < 0 {
-        return -1;
+        return None;
     }
-    hist_st(|st| st.history.borrow()[histype as usize][idx as usize].hisnum)
+    Some(hist_st(|st| {
+        st.history.borrow()[histype as usize][idx as usize].hisnum
+    }))
 }
 
-fn calc_hist_idx(histype: i32, num: i32) -> i32 {
+fn calc_hist_idx(histype: i32, num: i32) -> Option<usize> {
     let hislen = hist_st(|st| st.hislen.get());
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
-        return -1;
+        return None;
     }
     let mut i = hist_st(|st| st.hisidx.get()[histype as usize]);
     if i < 0 {
-        return -1;
+        return None;
     }
 
     hist_st(|st| {
@@ -389,7 +391,7 @@ fn calc_hist_idx(histype: i32, num: i32) -> i32 {
                 }
             }
             if i >= 0 && hist[i as usize].hisnum == num && hist[i as usize].hisstr.is_some() {
-                return i;
+                return Some(i as usize);
             }
         } else if -num <= hislen {
             i += num + 1;
@@ -397,10 +399,10 @@ fn calc_hist_idx(histype: i32, num: i32) -> i32 {
                 i += hislen;
             }
             if hist[i as usize].hisstr.is_some() {
-                return i;
+                return Some(i as usize);
             }
         }
-        -1
+        None
     })
 }
 
@@ -489,10 +491,10 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> bool {
 }
 
 fn del_history_idx(histype: i32, idx_arg: i32) -> bool {
-    let mut i = calc_hist_idx(histype, idx_arg);
-    if i < 0 {
+    let Some(i_usize) = calc_hist_idx(histype, idx_arg) else {
         return false;
-    }
+    };
+    let mut i = i_usize as i32;
     let htype = histype as usize;
     let maptick = g_st().maptick.get();
     hist_st(|st| {
@@ -578,21 +580,16 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let htype = get_histtype(str_ptr.to_bytes(), false);
     let arg1 = &argvars[1];
     let req_idx = if arg1.v_type == VarType::VarUnknown {
-        get_history_idx(htype)
+        get_history_idx(htype).unwrap_or(-1)
     } else {
         tv_get_number_chk(arg1, None) as i32
     };
-    let idx = calc_hist_idx(htype, req_idx);
-    if idx < 0 {
+    let Some(idx) = calc_hist_idx(htype, req_idx) else {
         tv_set_string(rettv, Some(c""));
-    } else {
-        let hisstr = hist_st(|st| {
-            st.history.borrow()[htype as usize][idx as usize]
-                .hisstr
-                .clone()
-        });
-        tv_set_string(rettv, hisstr.as_deref());
-    }
+        return;
+    };
+    let hisstr = hist_st(|st| st.history.borrow()[htype as usize][idx].hisstr.clone());
+    tv_set_string(rettv, hisstr.as_deref());
 }
 
 /// `"histnr()"` function (`f_histnr`).
@@ -603,7 +600,7 @@ pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         HIST_INVALID
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
-        get_history_idx(htype) as i64
+        i64::from(get_history_idx(htype).unwrap_or(-1))
     } else {
         HIST_INVALID as i64
     });

@@ -740,17 +740,17 @@ fn file_fd(fp: &FileDescriptor) -> i32 {
 use crate::os::fileio::file_space;
 
 #[inline]
-const fn mark_local_index(name: u8) -> i32 {
+const fn mark_local_index(name: u8) -> Option<usize> {
     if name.is_ascii_lowercase() {
-        (name - b'a') as i32
+        Some((name - b'a') as usize)
     } else if name == b'"' {
-        NMARKS as i32
+        Some(NMARKS)
     } else if name == b'^' {
-        (NMARKS + 1) as i32
+        Some(NMARKS + 1)
     } else if name == b'.' {
-        (NMARKS + 2) as i32
+        Some(NMARKS + 2)
     } else {
-        -1
+        None
     }
 }
 
@@ -2079,13 +2079,11 @@ fn shada_read_when_writing(
             }
             ShadaEntryType::SDItemRegister => {
                 let reg_name = entry.data.reg().name;
-                let idx = op_reg_index(i32::from(reg_name));
-                if idx < 0 {
+                let Some(u_idx) = op_reg_index(i32::from(reg_name)) else {
                     ret = shada_pack_entry(packer, &entry, 0);
                     shada_free_shada_entry(&mut entry);
                     continue;
-                }
-                let u_idx = idx as usize;
+                };
                 if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing
                     && let Some(reg) = op_reg_get(reg_name)
                     && reg.with(|r| reg_empty(r) && r.timestamp / NS_PER_SEC >= entry.timestamp)
@@ -2144,13 +2142,11 @@ fn shada_read_when_writing(
                         replace_numbered_mark(wms, 0, e);
                     }
                 } else {
-                    let idx = mark_global_index(name);
-                    if idx < 0 {
+                    let Some(u_idx) = mark_global_index(name) else {
                         ret = shada_pack_entry(packer, &entry, 0);
                         shada_free_shada_entry(&mut entry);
                         continue;
-                    }
-                    let u_idx = idx as usize;
+                    };
                     let mark = if u_idx < 26 {
                         &mut wms.global_marks[u_idx]
                     } else {
@@ -2188,12 +2184,13 @@ fn shada_read_when_writing(
                     filemarks.greatest_timestamp = entry.timestamp;
                 }
                 if entry.entry_type == ShadaEntryType::SDItemLocalMark {
-                    let idx = mark_local_index(fm_name);
-                    if idx < 0 {
+                    let Some(idx) = mark_local_index(fm_name) else {
                         let e = std::mem::replace(&mut entry, MISSING_ENTRY);
                         filemarks.additional_marks.push(e);
-                    } else {
-                        let wms_entry = &mut filemarks.marks[idx as usize];
+                        continue;
+                    };
+                    {
+                        let wms_entry = &mut filemarks.marks[idx];
                         let mut set_wms = true;
                         if wms_entry.entry_type != ShadaEntryType::SDItemMissing {
                             if wms_entry.timestamp >= entry.timestamp {
@@ -2387,7 +2384,7 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
             if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
                 return;
             }
-            let idx = op_reg_index(i32::from(name)) as usize;
+            let idx = op_reg_index(i32::from(name)).unwrap();
             wms.registers[idx] = ShadaEntry {
                 can_free_entry: false,
                 entry_type: ShadaEntryType::SDItemRegister,
@@ -2782,7 +2779,7 @@ fn shada_write(
                     replace_numbered_mark(&mut wms, digit_mark_idx, entry);
                     digit_mark_idx += 1;
                 } else {
-                    wms.global_marks[mark_global_index(name) as usize] = entry;
+                    wms.global_marks[mark_global_index(name).unwrap()] = entry;
                 }
                 if global_mark_iter.is_none() {
                     break;
@@ -2812,7 +2809,7 @@ fn shada_write(
                         if name == 0 {
                             break;
                         }
-                        filemarks.marks[mark_local_index(name) as usize] = ShadaEntry {
+                        filemarks.marks[mark_local_index(name).unwrap()] = ShadaEntry {
                             can_free_entry: false,
                             entry_type: ShadaEntryType::SDItemLocalMark,
                             timestamp: fm.timestamp,
@@ -4210,18 +4207,18 @@ mod tests {
 
     #[test]
     fn mark_indices_and_hist_type2char_map_correctly() {
-        assert_eq!(mark_global_index(b'A'), 0);
-        assert_eq!(mark_global_index(b'Z'), 25);
-        assert_eq!(mark_global_index(b'0'), 26);
-        assert_eq!(mark_global_index(b'9'), 35);
-        assert_eq!(mark_global_index(b'a'), -1);
+        assert_eq!(mark_global_index(b'A'), Some(0));
+        assert_eq!(mark_global_index(b'Z'), Some(25));
+        assert_eq!(mark_global_index(b'0'), Some(26));
+        assert_eq!(mark_global_index(b'9'), Some(35));
+        assert_eq!(mark_global_index(b'a'), None);
 
-        assert_eq!(mark_local_index(b'a'), 0);
-        assert_eq!(mark_local_index(b'z'), 25);
-        assert_eq!(mark_local_index(b'"'), 26);
-        assert_eq!(mark_local_index(b'^'), 27);
-        assert_eq!(mark_local_index(b'.'), 28);
-        assert_eq!(mark_local_index(b'A'), -1);
+        assert_eq!(mark_local_index(b'a'), Some(0));
+        assert_eq!(mark_local_index(b'z'), Some(25));
+        assert_eq!(mark_local_index(b'"'), Some(26));
+        assert_eq!(mark_local_index(b'^'), Some(27));
+        assert_eq!(mark_local_index(b'.'), Some(28));
+        assert_eq!(mark_local_index(b'A'), None);
 
         assert_eq!(hist_type2char(HIST_CMD), b':' as i32);
         assert_eq!(hist_type2char(HIST_SEARCH), b'/' as i32);

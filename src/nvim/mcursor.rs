@@ -1032,7 +1032,7 @@ fn mc_reg_gather() {
         let idx = if r == b'"' as i32 {
             get_unname_register()
         } else {
-            op_reg_index(r)
+            op_reg_index(r).map_or(-1, |idx| idx as i32)
         };
         if idx >= 0 && get_y_register(idx).with(|r| r.timestamp >= start_time) {
             gather[i] = true;

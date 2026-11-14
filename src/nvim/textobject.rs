@@ -1458,25 +1458,28 @@ pub fn current_par(oap: &mut Oparg, count: i32, include: bool, type_: i32) -> bo
 }
 
 /// Search quote char from string `line[col]` (`find_next_quote`).
-fn find_next_quote(line_bytes: &[u8], mut col: i32, quotechar: i32, escape: Option<&[u8]>) -> i32 {
+fn find_next_quote(
+    line_bytes: &[u8],
+    mut col: i32,
+    quotechar: i32,
+    escape: Option<&[u8]>,
+) -> Option<i32> {
     loop {
-        let Some(&b) = line_bytes.get(col as usize) else {
-            return -1;
-        };
+        let &b = line_bytes.get(col as usize)?;
         let c = i32::from(b);
         if c == 0 {
-            return -1;
+            return None;
         } else if escape.is_some_and(|esc| esc.contains(&b)) {
             col += 1;
             if line_bytes.get(col as usize).copied().unwrap_or(0) == 0 {
-                return -1;
+                return None;
             }
         } else if c == quotechar {
             break;
         }
         col += utfc_slice2len(&line_bytes[col as usize..]) as i32;
     }
-    col
+    Some(col)
 }
 
 /// Search backwards in `line` from column `col_start` to find `quotechar` (`find_prev_quote`).
@@ -1606,12 +1609,13 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     let qe_bytes = Some(qe_rc.as_slice());
     if !vis_empty && byte_at(col_start) == quotechar {
         if vis_bef_curs {
-            col_start = find_next_quote(&line_bytes, col_start + 1, quotechar, None);
-            if col_start < 0 {
+            let Some(cs) = find_next_quote(&line_bytes, col_start + 1, quotechar, None) else {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
-            }
-            col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
-            if col_end < 0 {
+            };
+            col_start = cs;
+            if let Some(ce) = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes) {
+                col_end = ce;
+            } else {
                 col_end = col_start;
                 col_start = curwin().w_cursor.get().col;
             }
@@ -1631,21 +1635,24 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
 
         if !vis_empty {
             if vis_bef_curs {
-                first_col = find_next_quote(&line_bytes, col_start, quotechar, None);
+                first_col = find_next_quote(&line_bytes, col_start, quotechar, None).unwrap_or(-1);
             } else {
                 first_col = find_prev_quote(&line_bytes, col_start, quotechar, None);
             }
         }
         col_start = 0;
         loop {
-            col_start = find_next_quote(&line_bytes, col_start, quotechar, None);
-            if col_start < 0 || col_start > first_col {
+            let Some(cs) = find_next_quote(&line_bytes, col_start, quotechar, None) else {
+                return abort_search(did_exclusive_adj, restore_vis_bef);
+            };
+            col_start = cs;
+            if col_start > first_col {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
-            col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
-            if col_end < 0 {
+            let Some(ce) = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes) else {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
-            }
+            };
+            col_end = ce;
             if col_start <= first_col && first_col <= col_end {
                 break;
             }
@@ -1654,16 +1661,16 @@ pub fn current_quote(oap: &mut Oparg, count: i32, include: bool, quotechar: i32)
     } else {
         col_start = find_prev_quote(&line_bytes, col_start, quotechar, qe_bytes);
         if byte_at(col_start) != quotechar {
-            col_start = find_next_quote(&line_bytes, col_start, quotechar, None);
-            if col_start < 0 {
+            let Some(cs) = find_next_quote(&line_bytes, col_start, quotechar, None) else {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
-            }
+            };
+            col_start = cs;
         }
 
-        col_end = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes);
-        if col_end < 0 {
+        let Some(ce) = find_next_quote(&line_bytes, col_start + 1, quotechar, qe_bytes) else {
             return abort_search(did_exclusive_adj, restore_vis_bef);
-        }
+        };
+        col_end = ce;
     }
 
     if include {

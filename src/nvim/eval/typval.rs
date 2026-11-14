@@ -2024,12 +2024,12 @@ fn tv_list_len_inline(l: Option<&TvList>) -> i32 {
 }
 
 #[inline]
-fn tv_list_uidx_inline(l: Option<&TvList>, mut n: i32) -> i32 {
+fn tv_list_uidx_inline(l: Option<&TvList>, mut n: i32) -> Option<i32> {
     let len = tv_list_len_inline(l);
     if n < 0 {
         n += len;
     }
-    if n < 0 || n >= len { -1 } else { n }
+    (n >= 0 && n < len).then_some(n)
 }
 
 #[inline]
@@ -2624,11 +2624,11 @@ pub fn tv_list_check_range_index_two(
             }
             return false;
         };
-        *n2 = tv_list_idx_of_item(l, Some(&ni));
+        *n2 = tv_list_idx_of_item(l, Some(&ni)).unwrap_or(-1);
     }
 
     if *n1 < 0 {
-        *n1 = tv_list_idx_of_item(l, li1);
+        *n1 = tv_list_idx_of_item(l, li1).unwrap_or(-1);
     }
     if *n2 < *n1 {
         if !quiet {
@@ -3547,11 +3547,7 @@ pub fn tv_list_reverse(l: &TvList) {
 /// Locate item with a given index in a list and return it.
 pub fn tv_list_find(l: Option<&TvList>, mut n: i32) -> Option<ListitemId> {
     let l = l?;
-
-    n = tv_list_uidx_inline(Some(l), n);
-    if n == -1 {
-        return None;
-    }
+    n = tv_list_uidx_inline(Some(l), n)?;
 
     let mut idx: i32;
     let mut item: ListitemId;
@@ -3637,17 +3633,15 @@ fn tv_list_find_index(l: Option<&TvList>, idx: &mut i32) -> Option<ListitemId> {
 }
 
 /// Locate item in a list and return its index.
-pub fn tv_list_idx_of_item(l: Option<&TvList>, item: Option<&Listitem>) -> i32 {
-    let (Some(l), Some(item_ref)) = (l, item) else {
-        return -1;
-    };
+pub fn tv_list_idx_of_item(l: Option<&TvList>, item: Option<&Listitem>) -> Option<i32> {
+    let (l, item_ref) = (l?, item?);
     let item_id = ListitemId::from(item_ref);
     for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
         if li == item_id {
-            return idx;
+            return Some(idx);
         }
     }
-    -1
+    None
 }
 
 /// Add watcher to a dictionary.
@@ -6084,8 +6078,8 @@ mod tests {
 
             let item1 = tv_list_find(Some(&l), 1).unwrap();
             assert_eq!(item1.tv().vval.v_number(), 20);
-            assert_eq!(tv_list_idx_of_item(Some(&l), Some(&item1)), 1);
-            assert_eq!(tv_list_idx_of_item(Some(&l), None), -1);
+            assert_eq!(tv_list_idx_of_item(Some(&l), Some(&item1)), Some(1));
+            assert_eq!(tv_list_idx_of_item(Some(&l), None), None);
 
             let mut err = false;
             assert_eq!(tv_list_find_nr(Some(&l), 0, Some(&mut err)), 10);

@@ -2602,11 +2602,9 @@ pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: &mut [u8; 8]) -> Option<&CSt
     }
 }
 
-pub fn name_to_ctermcolor(name: &CStr) -> i32 {
+pub fn name_to_ctermcolor(name: &CStr) -> Option<i32> {
     let name_bytes = name.to_bytes();
-    let Some(&first) = name_bytes.first() else {
-        return -1;
-    };
+    let &first = name_bytes.first()?;
     let off = first.to_ascii_uppercase();
     let mut i = COLOR_NAMES.len() as isize - 1;
     while i >= 0 {
@@ -2619,10 +2617,11 @@ pub fn name_to_ctermcolor(name: &CStr) -> i32 {
         i -= 1;
     }
     if i < 0 {
-        return -1;
+        return None;
     }
     let mut bold = K_NONE;
-    lookup_color(i as i32, false, &mut bold)
+    let c = lookup_color(i as i32, false, &mut bold);
+    (c >= 0).then_some(c)
 }
 
 macro_rules! cname {

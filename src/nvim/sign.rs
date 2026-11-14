@@ -712,11 +712,11 @@ fn sign_unplace(buf: Option<&FileBuf>, id: i32, group: Option<&CStr>, atlnum: Li
     }
 }
 
-fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
+fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Option<Linenr> {
     let lnum = buf_findsign(buf, id, group);
     if lnum <= 0 {
         semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
-        return -1;
+        return None;
     }
 
     if buf_jump_open_win(buf).is_some() {
@@ -728,7 +728,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
             emsg(gettext(
                 c"E934: Cannot jump to a buffer that does not have a name",
             ));
-            return -1;
+            return None;
         }
         setpcmark();
         if !do_ecmd(
@@ -740,12 +740,12 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &FileBuf) -> Linenr {
             if buf_hide(&curbuf()) { ECMD_HIDE } else { 0 },
             Some(&curwin()),
         ) {
-            return -1;
+            return None;
         }
     }
 
     fold_open_cursor();
-    lnum
+    Some(lnum)
 }
 
 fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
@@ -1539,11 +1539,9 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     };
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(
-        id,
-        group_owned.as_deref(),
-        &buf_ref,
-    )));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(
+        sign_jump(id, group_owned.as_deref(), &buf_ref).unwrap_or(-1),
+    ));
 }
 
 fn sign_place_from_dict(

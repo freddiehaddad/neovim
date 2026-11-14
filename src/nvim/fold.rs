@@ -196,14 +196,11 @@ pub fn has_folding_win(
     let mut first: Linenr = 0;
     let mut last: Linenr = 0;
 
-    if cache {
-        let x = find_wl_entry(win, lnum);
-        if x >= 0 {
-            let wl = win.w_lines.borrow()[x as usize];
-            first = wl.wl_lnum;
-            last = wl.wl_foldend;
-            had_folded = wl.wl_folded;
-        }
+    if cache && let Some(x) = find_wl_entry(win, lnum) {
+        let wl = win.w_lines.borrow()[x];
+        first = wl.wl_lnum;
+        last = wl.wl_foldend;
+        had_folded = wl.wl_folded;
     }
 
     let mut lnum_rel = lnum;
@@ -870,19 +867,19 @@ pub fn fold_init_win(new_win: &WinInfoInfo) {
 }
 
 /// Find an entry in the win->w_lines[] array for buffer line "lnum".
-pub fn find_wl_entry(win: &WinInfoInfo, lnum: Linenr) -> i32 {
+pub fn find_wl_entry(win: &WinInfoInfo, lnum: Linenr) -> Option<usize> {
     let valid_len = win.w_lines_valid.get().max(0) as usize;
     for (i, wl) in (&win.w_lines.borrow())[..valid_len].iter().enumerate() {
         if wl.wl_valid {
             if lnum < wl.wl_lnum {
-                return -1;
+                return None;
             }
             if lnum <= wl.wl_foldend {
-                return i as i32;
+                return Some(i);
             }
         }
     }
-    -1
+    None
 }
 
 /// Adjust the Visual area to include any fold at the start or end completely.

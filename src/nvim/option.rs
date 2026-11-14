@@ -8049,7 +8049,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) -> std::ffi::CString {
 fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> bool {
     if varp.ptr_eq(&opt_vars().p_wc) || varp.ptr_eq(&opt_vars().p_wcm) {
         *wcp = varp.int_val();
-        if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
+        if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32).is_some() {
             return true;
         }
     }

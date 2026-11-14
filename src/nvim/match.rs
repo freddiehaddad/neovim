@@ -217,7 +217,7 @@ fn match_add(
                 let Some(subli1) = sub_iter.next() else {
                     semsg!(
                         gettext(c"E5030: Empty list at position %d"),
-                        tv_list_idx_of_item(pos_list, Some(&li)),
+                        tv_list_idx_of_item(pos_list, Some(&li)).unwrap_or(-1),
                     );
                     failed = true;
                     break;
@@ -263,7 +263,7 @@ fn match_add(
             } else {
                 semsg!(
                     gettext(c"E5031: List or number required at position %d"),
-                    tv_list_idx_of_item(pos_list, Some(&li)),
+                    tv_list_idx_of_item(pos_list, Some(&li)).unwrap_or(-1),
                 );
                 failed = true;
                 break;

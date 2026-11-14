@@ -198,13 +198,13 @@ const INIT_XFMARK: Xfmark = Xfmark {
 };
 
 #[inline]
-pub const fn mark_global_index(name: u8) -> i32 {
+pub const fn mark_global_index(name: u8) -> Option<usize> {
     if name.is_ascii_uppercase() {
-        (name - b'A') as i32
+        Some((name - b'A') as usize)
     } else if name.is_ascii_digit() {
-        (NMARKS as i32) + ((name - b'0') as i32)
+        Some(NMARKS + ((name - b'0') as usize))
     } else {
-        -1
+        None
     }
 }
 
@@ -1934,11 +1934,10 @@ pub fn mark_buffer_iter(
 
 /// Set global mark (`mark_set_global`).
 pub fn mark_set_global(name: u8, fm: Xfmark, update: bool) -> bool {
-    let idx = mark_global_index(name);
-    if idx == -1 {
+    let Some(idx) = mark_global_index(name) else {
         return false;
-    }
-    let fm_tgt = &mut g_st().namedfm.borrow_mut()[idx as usize];
+    };
+    let fm_tgt = &mut g_st().namedfm.borrow_mut()[idx];
     if update && fm.fmark.timestamp <= fm_tgt.fmark.timestamp {
         return false;
     }
@@ -2125,7 +2124,7 @@ pub fn get_buf_local_marks(buf: &FileBuf, l: &TvList) {
 /// Get a global mark (`get_raw_global_mark`).
 #[cfg(test)]
 pub fn get_raw_global_mark(name: u8) -> Xfmark {
-    g_st().namedfm.borrow()[mark_global_index(name) as usize].clone()
+    g_st().namedfm.borrow()[mark_global_index(name).unwrap()].clone()
 }
 
 /// Get information about global marks (`get_global_marks`).
@@ -2173,11 +2172,11 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        assert_eq!(mark_global_index(b'A'), 0);
-        assert_eq!(mark_global_index(b'Z'), 25);
-        assert_eq!(mark_global_index(b'0'), 26);
-        assert_eq!(mark_global_index(b'9'), 35);
-        assert_eq!(mark_global_index(b'a'), -1);
+        assert_eq!(mark_global_index(b'A'), Some(0));
+        assert_eq!(mark_global_index(b'Z'), Some(25));
+        assert_eq!(mark_global_index(b'0'), Some(26));
+        assert_eq!(mark_global_index(b'9'), Some(35));
+        assert_eq!(mark_global_index(b'a'), None);
 
         let mut xfm = INIT_XFMARK;
         xfm.fmark.mark = CursorPos {

@@ -2596,7 +2596,7 @@ fn do_source_ext(
         let mut sid = if str_opt.is_some() {
             SID_STR
         } else {
-            find_script_by_name(&fname_exp_owned)
+            find_script_by_name(&fname_exp_owned).unwrap_or(-1)
         };
         if sid > 0
             && let Some(ref mut ret_sid_ref) = ret_sid
@@ -2962,7 +2962,7 @@ pub fn script_is_lua(sid: Scid) -> bool {
 }
 
 /// Find an already loaded script "name".
-pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
+pub fn find_script_by_name(name: &std::ffi::CStr) -> Option<i32> {
     let mut sid = script_items_len();
     while sid > 0 {
         let matched = with_script_item(sid, |si| {
@@ -2971,11 +2971,11 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
                 .is_some_and(|sn| path_equal(sn, name, K_PATH_CMP_LITERAL))
         });
         if matched {
-            return sid;
+            return Some(sid);
         }
         sid -= 1;
     }
-    -1
+    None
 }
 
 /// ":scriptnames"

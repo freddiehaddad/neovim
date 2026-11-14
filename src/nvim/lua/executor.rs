@@ -2164,11 +2164,12 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         && let Some(src_cstr) = info.file_source_cstr()
         && let Some(source_path) = fix_fname(Some(src_cstr))
     {
-        let mut sid = find_script_by_name(source_path.as_c_str());
-        if sid <= 0 {
+        let sid = find_script_by_name(source_path.as_c_str()).unwrap_or_else(|| {
+            let mut sid = 0;
             new_script_item(Some(source_path), &mut sid);
             crate::runtime::with_script_item_mut(sid, |si| si.sn_lua = true);
-        }
+            sid
+        });
         current.sc_sid = sid;
         current.sc_seq = -1;
         current.sc_lnum = info.currentline;

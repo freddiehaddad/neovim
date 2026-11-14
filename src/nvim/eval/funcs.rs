@@ -401,11 +401,12 @@ use crate::mpack::object::mpack_parser_init;
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 
 #[inline]
-fn tv_list_uidx(l: Option<&TvList>, mut n: i32) -> i32 {
+fn tv_list_uidx(l: Option<&TvList>, mut n: i32) -> Option<i32> {
+    let len = tv_list_len(l);
     if n < 0 {
-        n += tv_list_len(l);
+        n += len;
     }
-    if n < 0 || n >= tv_list_len(l) { -1 } else { n }
+    (n >= 0 && n < len).then_some(n)
 }
 
 #[inline]
@@ -1126,21 +1127,16 @@ const INTERNAL_FUNC_NAME_MAP: &[(&[u8], i32)] = &[
 ];
 
 #[inline]
-pub fn find_internal_func_hash(slice: &[u8]) -> i32 {
-    match INTERNAL_FUNC_NAME_MAP.binary_search_by_key(&slice, |&(k, _)| k) {
-        Ok(i) => INTERNAL_FUNC_NAME_MAP[i].1,
-        Err(_) => -1,
-    }
+pub fn find_internal_func_hash(slice: &[u8]) -> Option<i32> {
+    INTERNAL_FUNC_NAME_MAP
+        .binary_search_by_key(&slice, |&(k, _)| k)
+        .ok()
+        .map(|i| INTERNAL_FUNC_NAME_MAP[i].1)
 }
 
 /// Gets a builtin (aka "vimfn", "eval") function from the generated hash table.
 pub fn find_internal_func(name: &CStr) -> Option<&'static EvalFuncDef> {
-    let index = find_internal_func_hash(name.to_bytes());
-    if index >= 0 {
-        Some(eval_func_def_at(index))
-    } else {
-        None
-    }
+    find_internal_func_hash(name.to_bytes()).map(eval_func_def_at)
 }
 
 /// Gets the Lua name of a Lua-implemented "vimfn" function, or NULL if not found.
@@ -3818,15 +3814,13 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut item = l.lv_first.get();
     if argvars[2].v_type != VarType::VarUnknown {
         let mut error = false;
-        idx = tv_list_uidx(
-            Some(l),
-            tv_get_number_chk(&argvars[2], Some(&mut error)) as i32,
-        );
-        if error || idx == -1 {
-            item = crate::eval::typval::ListitemId::NULL;
-        } else {
+        let req_idx = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
+        if let Some(u_idx) = (!error).then(|| tv_list_uidx(Some(l), req_idx)).flatten() {
+            idx = u_idx;
             item = crate::eval::typval::ListitemId::from(tv_list_find(Some(l), idx));
             debug_assert!(!item.is_null());
+        } else {
+            item = crate::eval::typval::ListitemId::NULL;
         }
         if argvars[3].v_type != VarType::VarUnknown {
             ic = tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0;
@@ -3903,14 +3897,12 @@ fn indexof_list(l: Option<&TvList>, startidx: Varnumber, expr: &mut TypVal) -> V
     let mut idx: Varnumber = 0;
     if startidx == 0 {
         item = tv_list_first(l);
+    } else if let Some(u_idx) = tv_list_uidx(l, startidx as i32) {
+        idx = Varnumber::from(u_idx);
+        item = tv_list_find(l, u_idx);
+        debug_assert!(item.is_some());
     } else {
-        idx = Varnumber::from(tv_list_uidx(l, startidx as i32));
-        if idx == -1 {
-            item = None;
-        } else {
-            item = tv_list_find(l, idx as i32);
-            debug_assert!(item.is_some());
-        }
+        item = None;
     }
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
@@ -4996,12 +4988,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 break 'theend;
             }
             if !l.is_null() {
-                idx = tv_list_uidx(l.opt(), start as i32);
-
-                if idx == -1 {
+                let Some(u_idx) = tv_list_uidx(l.opt(), start as i32) else {
                     break 'theend;
-                }
-
+                };
+                idx = u_idx;
                 li = crate::eval::typval::ListitemId::from(tv_list_find(l.opt(), idx));
             } else {
                 if start < 0 {
@@ -14401,7 +14391,7 @@ mod tests {
         for (idx, fdef) in FUNCTIONS[..FUNCTIONS.len() - 1].iter().enumerate() {
             let fdef_name = fdef.name.unwrap();
             let name = fdef_name.to_bytes();
-            assert_eq!(find_internal_func_hash(name), idx as i32);
+            assert_eq!(find_internal_func_hash(name), Some(idx as i32));
             assert!(ptr::eq(
                 find_internal_func(fdef_name).unwrap(),
                 eval_func_def_at(idx as i32)
@@ -14412,7 +14402,7 @@ mod tests {
                 .name
                 .is_none()
         );
-        assert_eq!(find_internal_func_hash(b"not_a_builtin_fn"), -1);
+        assert_eq!(find_internal_func_hash(b"not_a_builtin_fn"), None);
         assert!(find_internal_func(c"not_a_builtin_fn").is_none());
         assert!(eval_has_static_feature(b"nvim"));
         assert!(eval_has_static_feature(b"AUTOCMD"));

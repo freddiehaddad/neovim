@@ -3278,11 +3278,10 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         let mut cur = s;
         while bytes > 0 {
             cur = crate::memory::CStrSubslice::advance(cur, 2);
-            let n = hexhex2nr(cur.to_bytes());
-            if n < 0 {
+            let Some(n) = hexhex2nr(cur.to_bytes()) else {
                 *p = cur;
                 return 0;
-            }
+            };
             num = num * 256 + i64::from(n);
             bytes -= 1;
         }

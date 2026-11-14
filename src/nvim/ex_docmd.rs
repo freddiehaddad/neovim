@@ -12028,7 +12028,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-pub fn find_cmdline_var(src_bytes: &[u8], usedlen: &mut usize) -> isize {
+pub fn find_cmdline_var(src_bytes: &[u8], usedlen: &mut usize) -> Option<isize> {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -12051,10 +12051,10 @@ pub fn find_cmdline_var(src_bytes: &[u8], usedlen: &mut usize) -> isize {
         let s_bytes = s.to_bytes();
         if src_bytes.starts_with(s_bytes) {
             *usedlen = s_bytes.len();
-            return i as isize;
+            return Some(i as isize);
         }
     }
-    -1
+    None
 }
 
 pub fn eval_vars(
@@ -12080,14 +12080,13 @@ pub fn eval_vars(
         *escaped = false;
     }
 
-    let spec_idx = find_cmdline_var(
+    let Some(spec_idx) = find_cmdline_var(
         crate::memory::bytes_until_nul(&src_buf[src_off..]),
         &mut *usedlen,
-    );
-    if spec_idx < 0 {
+    ) else {
         *usedlen = 1;
         return None;
-    }
+    };
 
     if src_off > 0 && src_buf[src_off - 1] == b'\\' {
         *usedlen = 0;
@@ -12913,10 +12912,10 @@ mod tests {
     #[test]
     fn find_cmdline_var_matches_special_variables() {
         let mut usedlen = 0usize;
-        assert_eq!(find_cmdline_var(b"<cword>", &mut usedlen), SPEC_CWORD);
+        assert_eq!(find_cmdline_var(b"<cword>", &mut usedlen), Some(SPEC_CWORD));
         assert_eq!(usedlen, 7);
-        assert_eq!(find_cmdline_var(b"%:p", &mut usedlen), SPEC_PERC);
+        assert_eq!(find_cmdline_var(b"%:p", &mut usedlen), Some(SPEC_PERC));
         assert_eq!(usedlen, 1);
-        assert_eq!(find_cmdline_var(b"foo", &mut usedlen), -1);
+        assert_eq!(find_cmdline_var(b"foo", &mut usedlen), None);
     }
 }

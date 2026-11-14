@@ -1728,7 +1728,7 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
             let mut dummy: i32 = 0;
             name_to_color(str_.as_cstr(), &mut dummy)
         } else {
-            name_to_ctermcolor(str_.as_cstr())
+            name_to_ctermcolor(str_.as_cstr()).unwrap_or(-1)
         };
         if color < 0 {
             api_err_invalid(err, c"highlight color", str_.as_opt_cstr(), 0, true);

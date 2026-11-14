@@ -1292,19 +1292,15 @@ pub fn utf_cluster_info_len<'a>(cur: StrCharInfo<'a>, size: &mut i32) -> Cluster
     utf_cluster_info_impl(cur, size)
 }
 
-fn enc_canon_search(bytes: &[u8]) -> i32 {
-    for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
-        if bytes == entry.name.to_bytes() {
-            return i as i32;
-        }
-    }
-    -1
+fn enc_canon_search(bytes: &[u8]) -> Option<usize> {
+    ENC_CANON_TABLE
+        .iter()
+        .position(|entry| bytes == entry.name.to_bytes())
 }
 
 pub fn enc_canon_props(bytes: &[u8]) -> i32 {
-    let i = enc_canon_search(bytes);
-    if i >= 0 {
-        return ENC_CANON_TABLE[i as usize].prop;
+    if let Some(i) = enc_canon_search(bytes) {
+        return ENC_CANON_TABLE[i].prop;
     }
     if bytes.starts_with(b"2byte-") {
         ENC_DBCS
@@ -2423,9 +2419,9 @@ pub fn mb_utflen(bytes: &[u8], len: usize, codepoints: &mut usize, codeunits: &m
     *codeunits += count + extra;
 }
 
-pub fn mb_utf_index_to_bytes(bytes: &[u8], index: usize, use_utf16_units: bool) -> isize {
+pub fn mb_utf_index_to_bytes(bytes: &[u8], index: usize, use_utf16_units: bool) -> Option<usize> {
     if index == 0 {
-        return 0;
+        return Some(0);
     }
     let len = bytes.len();
     let mut count = 0usize;
@@ -2443,11 +2439,11 @@ pub fn mb_utf_index_to_bytes(bytes: &[u8], index: usize, use_utf16_units: bool) 
             count += 1;
         }
         if count >= index {
-            return (i + clen).min(len) as isize;
+            return Some((i + clen).min(len));
         }
         i += clen;
     }
-    -1
+    None
 }
 
 pub fn mb_strnicmp(s1: &[u8], s2: &[u8], nn: usize) -> i32 {
@@ -3051,13 +3047,13 @@ pub fn enc_skip(p: &CStr) -> &CStr {
     CStr::from_bytes_with_nul(skipped).unwrap_or(c"")
 }
 
-fn enc_alias_search(bytes: &[u8]) -> i32 {
+fn enc_alias_search(bytes: &[u8]) -> Option<usize> {
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
-            return entry.canon as i32;
+            return Some(entry.canon);
         }
     }
-    -1
+    None
 }
 
 pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
@@ -3100,12 +3096,11 @@ pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
     }
 
     let r_cstr = crate::memory::bytes_to_cstring(&r_vec);
-    if enc_canon_search(r_cstr.as_bytes()) >= 0 {
+    if enc_canon_search(r_cstr.as_bytes()).is_some() {
         return r_cstr;
     }
-    let i = enc_alias_search(r_cstr.as_bytes());
-    if i >= 0 {
-        return ENC_CANON_TABLE[i as usize].name.to_owned();
+    if let Some(i) = enc_alias_search(r_cstr.as_bytes()) {
+        return ENC_CANON_TABLE[i].name.to_owned();
     }
     r_cstr
 }
