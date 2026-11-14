@@ -465,10 +465,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
             return;
         }
 
-        if win_valid(g_st().prevwin.get().opt())
-            && !crate::globals::prevwin().w_onebuf_opt.wo_wfb.get()
+        if let Some(pw) = prevwin_opt()
+            && win_valid(Some(&pw))
+            && !pw.w_onebuf_opt.wo_wfb.get()
         {
-            win_goto(&crate::globals::prevwin());
+            win_goto(&pw);
         }
         if curwin().w_onebuf_opt.wo_wfb.get() {
             win_split(0, 0);
@@ -591,7 +592,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
                 if execute {
                     win_goto(wp.borrow());
-                    if curwin_ptr() != wp {
+                    if curwin() != wp {
                         break;
                     }
                 }

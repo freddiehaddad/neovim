@@ -1714,7 +1714,7 @@ fn fix_cursor_cols(
     new_rows: Linenr,
     new_cols_at_end_row: Colnr,
 ) {
-    let mode_col_adj = if win == curwin_ptr() && (g_st().state_global.get() & MODE_INSERT) != 0 {
+    let mode_col_adj = if win == curwin() && (g_st().state_global.get() & MODE_INSERT) != 0 {
         0
     } else {
         1

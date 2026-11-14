@@ -1148,7 +1148,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
 
 /// Print the jumplist (`ex_jumps`).
 pub fn ex_jumps(_eap: &mut Exarg) {
-    cleanup_jumplist(crate::globals::curwin_handle(), true);
+    cleanup_jumplist(crate::globals::curwin(), true);
     msg_ext_set_kind(c"list_cmd");
     msg_puts_title(gettext(c"\n jump line  col file/text"));
     let mut i: i32 = 0;
@@ -1526,7 +1526,7 @@ pub fn mark_adjust_buf(
                     || (if by_term {
                         win.w_cursor.get().lnum < buf.b_ml.ml_line_count.get()
                     } else {
-                        win != curwin_ptr()
+                        win != curwin()
                     })
                 {
                     if win.w_topline.get() >= line1 && win.w_topline.get() <= line2 {
@@ -1549,7 +1549,7 @@ pub fn mark_adjust_buf(
                     && (if by_term {
                         win.w_cursor.get().lnum < buf.b_ml.ml_line_count.get()
                     } else {
-                        win != curwin_ptr()
+                        win != curwin()
                     })
                 {
                     win.w_cursor.update_mut(|c| {
@@ -1748,7 +1748,7 @@ pub fn mark_col_adjust(
                 }
             }
 
-            if win != curwin_ptr() {
+            if win != curwin() {
                 win.w_cursor.update_mut(|c| {
                     col_adjust(c, lnum, mincol, lnum_amount, col_amount, spaces_removed);
                 });

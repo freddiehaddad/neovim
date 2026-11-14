@@ -2385,7 +2385,7 @@ pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
 
 pub fn free_tag_stuff() {
     tag_st(|st| *st.tag_fnames.borrow_mut() = Vec::new());
-    if !(curwin_ptr()).is_null() {
+    if !(curwin()).is_null() {
         do_tag(None, c"", DT_FREE, 0, false, false);
     }
     tag_freematch();
@@ -2700,7 +2700,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if l_g_do_tagpreview != 0 {
             g_st().postponed_split.set(0);
-            curwin_save = curwin_ptr();
+            curwin_save = curwin();
 
             if !curwin().w_onebuf_opt.wo_pvw.get() {
                 full_fname = FullName_save(fname_opt_ref, false);
@@ -2929,8 +2929,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 }
             }
 
-            if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save.opt())
-            {
+            if l_g_do_tagpreview != 0 && curwin() != curwin_save && win_valid(curwin_save.opt()) {
                 validate_cursor(&curwin());
                 redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
                 win_enter(curwin_save.borrow(), true);

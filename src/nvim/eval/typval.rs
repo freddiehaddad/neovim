@@ -335,10 +335,10 @@ impl CallbackData {
     }
 
     #[inline]
-    pub fn as_partial(&self) -> PartialId {
+    pub fn as_partial(&self) -> Option<PartialId> {
         match self {
-            Self::Partial(p) => p.clone(),
-            _ => PartialId::NULL,
+            Self::Partial(p) if !p.is_null() => Some(p.clone()),
+            _ => None,
         }
     }
 
@@ -358,7 +358,7 @@ impl crate::globals::CloneCell<CallbackData> {
     }
 
     #[inline]
-    pub fn as_partial(&self) -> PartialId {
+    pub fn as_partial(&self) -> Option<PartialId> {
         self.get().as_partial()
     }
 
@@ -3686,7 +3686,7 @@ pub fn callback_free(callback: &Callback) {
             func_unref(callback.data.as_funcref().as_deref());
         }
         K_CALLBACK_PARTIAL => {
-            partial_unref(callback.data.as_partial().opt());
+            partial_unref(callback.data.as_partial().as_deref());
         }
         K_CALLBACK_LUA => {
             let mut luaref = callback.data.as_luaref();
@@ -3701,7 +3701,7 @@ pub fn callback_free(callback: &Callback) {
 pub fn callback_put(cb: &Callback, tv: &mut TypVal) {
     match cb.cb_type() {
         K_CALLBACK_PARTIAL => {
-            let pt = cb.data.as_partial();
+            let pt = cb.data.as_partial().unwrap();
             pt.pt_refcount.set(pt.pt_refcount.get() + 1);
             tv.v_type = VarType::VarPartial;
             tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
@@ -3723,7 +3723,7 @@ pub fn callback_put(cb: &Callback, tv: &mut TypVal) {
 pub fn callback_copy(dest: &Callback, src: &Callback) {
     match src.cb_type() {
         K_CALLBACK_PARTIAL => {
-            let pt = src.data.as_partial();
+            let pt = src.data.as_partial().unwrap();
             pt.pt_refcount.set(pt.pt_refcount.get() + 1);
             dest.data.set(CallbackData::partial(pt));
         }
@@ -3772,7 +3772,10 @@ pub fn callback_to_string(cb: &Callback) -> std::ffi::CString {
         }
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
-            let s = pt.name_cstr().map_or(&[][..], CStr::to_bytes);
+            let s = pt
+                .as_ref()
+                .and_then(|p| p.name_cstr())
+                .map_or(&[][..], CStr::to_bytes);
             let prefix = b"<vim partial: ";
             let suffix = b">";
             let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());

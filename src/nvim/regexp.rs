@@ -3143,11 +3143,7 @@ pub(super) fn reg_prev_class() -> i32 {
 
 pub(super) fn reg_match_visual() -> bool {
     let reg_win = RE_STATE.with(|s| s.rex.reg_win.get());
-    let wp = if reg_win.is_null() {
-        curwin_ptr()
-    } else {
-        reg_win
-    };
+    let wp = if reg_win.is_null() { curwin() } else { reg_win };
     if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf.get()
         || g_st().visual_global.borrow().start.lnum == 0
         || !reg_multi()

@@ -3257,7 +3257,7 @@ fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> crate::globals::BufPtr {
     let mut buf = crate::globals::BufPtr::from(buf_arg);
     if flag == b'w' as i32 {
         if g_st().curbuf.get() == buf || !win_valid(INSEXPAND.with(|s| s.next_buf_wp.get()).opt()) {
-            INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::curwin_ptr()));
+            INSEXPAND.with(|s| s.next_buf_wp.set(crate::globals::curwin()));
         }
 
         debug_assert!(!INSEXPAND.with(|s| s.next_buf_wp.get()).is_null());
@@ -3269,7 +3269,7 @@ fn ins_compl_next_buf(buf_arg: &FileBuf, flag: i32) -> crate::globals::BufPtr {
                 g_st().firstwin.get()
             };
             INSEXPAND.with(|s| s.next_buf_wp.set(next_wp.clone()));
-            if next_wp == curwin_ptr()
+            if next_wp == curwin()
                 || (!next_wp.buf().b_scanned.get() && next_wp.w_config.borrow().focusable)
             {
                 break;
@@ -6853,7 +6853,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
         return false;
     }
 
-    INSEXPAND.with(|s| s.compl_curr_win.set(crate::globals::curwin_ptr()));
+    INSEXPAND.with(|s| s.compl_curr_win.set(crate::globals::curwin()));
     INSEXPAND.with(|s| s.compl_curr_buf.set(curwin().w_buffer.get()));
     INSEXPAND.with(|s| {
         s.compl_shown_idx

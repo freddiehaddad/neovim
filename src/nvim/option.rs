@@ -3031,7 +3031,7 @@ pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         return None;
     }
     let win = &args.os_win;
-    let tab = if win == curwin_ptr() {
+    let tab = if win == curwin() {
         g_st().curtab.get().clone()
     } else {
         crate::globals::TabpagePtr::from(win_find_tabpage(win.borrow()))
@@ -5698,7 +5698,7 @@ fn set_option<'a>(
         os_value_checked: false,
         os_value_changed: false,
         os_errbuf: errbuf,
-        os_win: crate::globals::curwin_ptr(),
+        os_win: crate::globals::curwin(),
         os_buf: g_st().curbuf.get(),
     };
 
@@ -5835,7 +5835,7 @@ fn set_option<'a>(
     args.os_oldval = old_value;
     args.os_newval = value.clone();
     args.os_buf = g_st().curbuf.get();
-    args.os_win = crate::globals::curwin_ptr();
+    args.os_win = crate::globals::curwin();
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
     args.os_prep = crate::optionstr::OptSetPrep::None;
 
@@ -5897,7 +5897,7 @@ pub fn set_option_direct_for(
     target: OptTarget,
 ) {
     let save_curbuf = g_st().curbuf.get();
-    let save_curwin = curwin_ptr();
+    let save_curwin = curwin();
 
     match target {
         OptTarget::Global => {}
@@ -5986,7 +5986,7 @@ fn switch_option_context(
             let OptTarget::Win(win) = from else {
                 return false;
             };
-            if win == curwin_ptr() {
+            if win == curwin() {
                 return false;
             }
             let mut cs = CtxSwitch::new();

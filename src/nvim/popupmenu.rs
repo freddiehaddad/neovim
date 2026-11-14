@@ -499,7 +499,7 @@ pub fn pum_display(
         let target_win = if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
             g_st().cmdline_win.get()
         } else {
-            curwin_ptr()
+            curwin()
         };
         PUM.with(|s| s.win_row_offset.set(0));
         PUM.with(|s| s.win_col_offset.set(0));
@@ -1463,7 +1463,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0
                 && !g_st().cmdwin_buf.get().is_null())
         {
-            let curwin_save = curwin_ptr();
+            let curwin_save = curwin();
             let curtab_save = g_st().curtab.get().clone();
 
             if use_float {
@@ -1563,7 +1563,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         win_enter(curwin_save.borrow(), false);
                     }
 
-                    if (curwin_ptr() != curwin_save && win_valid(curwin_save.opt()))
+                    if (curwin() != curwin_save && win_valid(curwin_save.opt()))
                         || (g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()))
                     {
                         if g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()) {

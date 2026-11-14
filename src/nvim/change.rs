@@ -429,7 +429,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
             }
         }
 
-        if wp == curwin_ptr() && xtra != 0 && g_st().search_hl_has_cursor_lnum.get() >= lnum {
+        if wp == curwin() && xtra != 0 && g_st().search_hl_has_cursor_lnum.get() >= lnum {
             g_st()
                 .search_hl_has_cursor_lnum
                 .set(g_st().search_hl_has_cursor_lnum.get() + (xtra));
@@ -438,7 +438,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
 
     set_must_redraw(UPD_VALID);
 
-    if g_st().last_cursormoved_win.get() == curwin_ptr()
+    if g_st().last_cursormoved_win.get() == curwin()
         && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
         && lnum <= curwin().w_cursor.get().lnum
         && lnume + xtra.abs() > curwin().w_cursor.get().lnum
@@ -465,7 +465,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 
     if curwin().w_onebuf_opt.wo_diff.get() {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
+            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin() {
                 redraw_later(Some(&wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &wp);
                 if wlnum > 0 {
@@ -573,7 +573,7 @@ pub fn changed_lines(
         && !diff_internal()
     {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
+            if wp.w_onebuf_opt.wo_diff.get() && wp != curwin() {
                 redraw_later(Some(&wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &wp);
                 if wlnum > 0 {

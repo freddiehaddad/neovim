@@ -481,7 +481,7 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
 
 fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
-        win: crate::globals::curwin_ptr(),
+        win: crate::globals::curwin(),
         pos: curwin().w_cursor.get(),
         tick: buf_get_changedtick(&curbuf()),
         maptick: g_st().maptick.get(),
@@ -1846,7 +1846,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, is_root: bool) -> bool {
     let opaque = (keycls & K_KEY_OPAQUE) != 0;
     let synthetic = (keycls & K_KEY_SYNTHETIC) != 0;
     let unchanged = old_origin.buf.br_buf == g_st().curbuf.get()
-        && old_origin.win == curwin_ptr()
+        && old_origin.win == curwin()
         && !atom_origin_moved(old_origin.clone().clone().clone().clone().clone())
         && !atom_origin_changed(old_origin.clone().clone().clone().clone())
         && g_st().visual_global.borrow().active == old_visual.active

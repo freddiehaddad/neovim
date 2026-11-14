@@ -473,8 +473,7 @@ pub fn nvim_set_hl(
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDictGetNs, err: &mut Error) -> Integer {
     if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
-        let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(opts.winid, err)
-        else {
+        let Some(win) = crate::api::private::helpers::find_window_by_handle(opts.winid, err) else {
             return 0;
         };
         Integer::from(win.w_ns_hl.get())
@@ -1325,7 +1324,7 @@ pub fn nvim_get_current_win() -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_win(win: Window, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     let mut tstate = TryState::new();
@@ -1651,8 +1650,8 @@ pub fn nvim_paste(
     }
     if phase == -1 || phase == 1 {
         PASTE_CANCELLED.set(false);
-        if !curbuf().terminal.get().is_null() {
-            terminal_set_streamed_paste(curbuf().terminal(), true);
+        if let Some(term) = curbuf().terminal_opt() {
+            terminal_set_streamed_paste(term, true);
         }
     } else if PASTE_CANCELLED.get() {
         let retval = !PASTE_CANCELLED.get();
@@ -1675,8 +1674,10 @@ pub fn nvim_paste(
     if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
         PASTE_CANCELLED.set(true);
     }
-    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get()) && !curbuf().terminal.get().is_null() {
-        terminal_set_streamed_paste(curbuf().terminal(), false);
+    if (phase == -1 || phase == 3 || PASTE_CANCELLED.get())
+        && let Some(term) = curbuf().terminal_opt()
+    {
+        terminal_set_streamed_paste(term, false);
     }
     let null_str = NvimString::new();
     if !PASTE_CANCELLED.get() && (phase == -1 || phase == 1) {
@@ -2657,13 +2658,12 @@ pub fn nvim_eval_statusline(
     let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
 
     let wp = if opts.use_tabline {
-        curwin_ptr()
+        curwin()
+    } else if let Some(wp) = find_window_by_handle(window, err) {
+        wp
     } else {
-        find_window_by_handle(window, err)
-    };
-    if wp.is_null() {
         return result;
-    }
+    };
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
         != 0
@@ -2957,7 +2957,7 @@ pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
     let mut buf = crate::globals::BufPtr::NULL;
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
-        win = find_window_by_handle(opts.win, err);
+        win = crate::globals::WinPtr::from(find_window_by_handle(opts.win, err));
         if error_set(err) {
             return;
         }
@@ -3075,7 +3075,7 @@ pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
         flush_ui = true;
     }
 
-    let cwin = if !win.is_null() { win } else { curwin_ptr() };
+    let cwin = if !win.is_null() { win } else { curwin() };
     if opts.cursor
         && cwin
             .w_grid

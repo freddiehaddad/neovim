@@ -2202,7 +2202,7 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     }
 
     let old_curbuf = g_st().curbuf.get();
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin();
 
     g_st().curbuf.set(wp.w_buffer.get());
     set_curwin(wp);

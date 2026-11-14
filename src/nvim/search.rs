@@ -3855,7 +3855,7 @@ pub fn find_pattern_in_path(
                                 did_show = true;
                             } else {
                                 if l_g_do_tagpreview != 0 {
-                                    curwin_save = curwin_ptr();
+                                    curwin_save = curwin();
                                     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
                                 }
                                 if action == ACTION_SPLIT {
@@ -3908,7 +3908,7 @@ pub fn find_pattern_in_path(
                                 }
 
                                 if l_g_do_tagpreview != 0
-                                    && curwin_ptr() != curwin_save
+                                    && curwin() != curwin_save
                                     && win_valid(curwin_save.opt())
                                 {
                                     validate_cursor(&curwin());

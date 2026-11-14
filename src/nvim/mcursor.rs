@@ -601,7 +601,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
         }
         let dup = dedupe
             && ctx.mark != 0
-            && ((!(curwin_ptr()).is_null()
+            && ((!(curwin()).is_null()
                 && g_st().curbuf.get() == buf
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)

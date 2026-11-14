@@ -109,7 +109,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &FileBuf) {
 
     cob.cob_save_visual_active = g_st().visual_global.borrow().active;
     g_st().visual_global.borrow_mut().active = false;
-    cob.cob_curwin_save = crate::globals::curwin_ptr();
+    cob.cob_curwin_save = crate::globals::curwin();
     g_st().curbuf.set(buf_ptr.clone());
     find_win_for_curbuf();
 
@@ -235,7 +235,7 @@ fn set_buffer_lines(
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab(&tp)) {
                 if wp.w_buffer.get() == buf_ptr
-                    && (wp.w_buffer.get() != g_st().curbuf.get() || wp == curwin_ptr())
+                    && (wp.w_buffer.get() != g_st().curbuf.get() || wp == curwin())
                     && wp.w_cursor.get().lnum > append_lnum
                 {
                     wp.w_cursor.add_lnum(added as Linenr);

@@ -9200,7 +9200,7 @@ fn ex_quit(eap: &mut Exarg) {
             wp = wp.borrow().w_next.get();
         }
     } else {
-        wp = crate::globals::curwin_handle();
+        wp = crate::globals::curwin();
     }
 
     if curbuf_locked() {
@@ -9835,7 +9835,7 @@ fn ex_only(eap: &mut Exarg) {
             };
             wp = next;
         }
-        if wp != curwin_ptr() {
+        if wp != curwin() {
             win_goto(&wp);
         }
     }
@@ -9848,7 +9848,7 @@ fn ex_hide(eap: &mut Exarg) {
     }
 
     let win = if eap.addr_count == 0 {
-        curwin_ptr()
+        curwin()
     } else {
         win_find_nr(eap.line2, Some(&curtab()))
             .map_or(g_st().lastwin.get(), crate::globals::WinPtr::from)
@@ -10066,7 +10066,7 @@ fn set_browse_edit_arg(eap: &mut Exarg) {
 
 pub fn ex_splitview(eap: &mut Exarg) {
     set_browse_edit_arg(eap);
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin();
     let mut fname: Option<std::ffi::CString> = None;
     let use_tab = eap.cmdidx == Cmdidx::CmdTabedit
         || eap.cmdidx == Cmdidx::CmdTabfind
@@ -10125,7 +10125,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
                     curbuf_opt().as_deref(),
                 );
 
-                if curwin_ptr() != old_curwin
+                if curwin() != old_curwin
                     && win_valid(old_curwin.opt())
                     && old_curwin.w_buffer.get() != g_st().curbuf.get()
                     && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
@@ -10241,7 +10241,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             }
 
             msg_putchar(b'\n' as i32);
-            msg_putchar(if wp == curwin_ptr() {
+            msg_putchar(if wp == curwin() {
                 b'>' as i32
             } else if wp == lastused_win {
                 b'#' as i32
@@ -10672,7 +10672,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
 
     if !old_curwin.is_null()
         && !eap.arg.is_empty()
-        && old_curwin != curwin_ptr()
+        && old_curwin != curwin()
         && win_valid(old_curwin.opt())
         && old_curwin.w_buffer.get() != g_st().curbuf.get()
         && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
@@ -11937,14 +11937,14 @@ fn ex_ptag(eap: &mut Exarg) {
 }
 
 fn ex_pedit(eap: &mut Exarg) {
-    let curwin_save = curwin_ptr();
+    let curwin_save = curwin();
     prepare_preview_window();
     do_exedit(eap, None);
     back_to_current_window(curwin_save.opt());
 }
 
 fn ex_pbuffer(eap: &mut Exarg) {
-    let curwin_save = curwin_ptr();
+    let curwin_save = curwin();
     prepare_preview_window();
     do_exbuffer(eap);
     back_to_current_window(curwin_save.opt());
@@ -11957,7 +11957,7 @@ fn prepare_preview_window() {
 
 fn back_to_current_window(curwin_save: Option<&WinInfoInfo>) {
     let curwin_save = crate::globals::WinPtr::from(curwin_save);
-    if curwin_ptr() != curwin_save && win_valid(curwin_save.opt()) {
+    if curwin() != curwin_save && win_valid(curwin_save.opt()) {
         validate_cursor(&curwin());
         redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
         win_enter(curwin_save.borrow(), true);

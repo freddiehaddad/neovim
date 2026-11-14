@@ -1960,7 +1960,7 @@ fn create_windows(parmp: &mut Mparm) {
         g_st()
             .autocmd_no_leave
             .set(g_st().autocmd_no_leave.get() + (1));
-        let startup_curwin = curwin_ptr();
+        let startup_curwin = curwin();
         let mut dorewind = true;
         while done < 1000 {
             done += 1;
@@ -2132,7 +2132,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     let mut win = if parmp.window_count > 1 {
         g_st().firstwin.get()
     } else {
-        curwin_ptr()
+        curwin()
     };
     while win.w_onebuf_opt.wo_pvw.get() {
         win = win.w_next.get();

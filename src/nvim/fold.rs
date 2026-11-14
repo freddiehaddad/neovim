@@ -94,7 +94,7 @@ struct Fline {
 
 impl Fline {
     #[inline]
-    fn wp_mut(&self) -> crate::globals::WinPtr {
+    fn wp(&self) -> crate::globals::WinPtr {
         self.wp.clone()
     }
 }
@@ -423,7 +423,7 @@ pub fn new_fold_level() {
 
     if foldmethod_is_diff(&curwin()) && curwin().w_onebuf_opt.wo_scb.get() {
         for wp in for_all_windows_ptr() {
-            if wp != curwin_ptr() && foldmethod_is_diff(&wp) && wp.w_onebuf_opt.wo_scb.get() {
+            if wp != curwin() && foldmethod_is_diff(&wp) && wp.w_onebuf_opt.wo_scb.get() {
                 wp.w_onebuf_opt
                     .wo_fdl
                     .set(curwin().w_onebuf_opt.wo_fdl.get());
@@ -991,7 +991,7 @@ fn set_manual_fold(
 ) -> Linenr {
     if foldmethod_is_diff(&curwin()) && curwin().w_onebuf_opt.wo_scb.get() {
         for wp in for_all_windows_ptr() {
-            if wp != curwin_ptr() && foldmethod_is_diff(&wp) && wp.w_onebuf_opt.wo_scb.get() {
+            if wp != curwin() && foldmethod_is_diff(&wp) && wp.w_onebuf_opt.wo_scb.get() {
                 let dlnum = diff_lnum_win(curwin().w_cursor.get().lnum, &wp);
                 if dlnum != 0 {
                     set_manual_fold_win(&wp, dlnum, opening, recurse, None);
@@ -1112,7 +1112,7 @@ fn set_manual_fold_win(
             changed_window_setting(wp);
         }
         done |= DONE_FOLD;
-    } else if donep.is_none() && wp == curwin_ptr() {
+    } else if donep.is_none() && wp == curwin() {
         emsg(gettext(E_NOFOLD));
     }
 
@@ -1516,7 +1516,7 @@ pub fn get_foldtext(
         set_vim_var_nr(VV_FOLDLEVEL, Varnumber::from(level));
 
         if !got_fdt_error {
-            let save_curwin = curwin_ptr();
+            let save_curwin = curwin();
             let saved_sctx = g_st().current_sctx.get();
 
             set_curwin(wp);
@@ -1934,7 +1934,7 @@ fn fold_update_iemsrecurse(
     let mut startlnum2 = startlnum;
     let firstlnum = flp.lnum;
     let mut finish = false;
-    let linecount = flp.wp_mut().buf().b_ml.ml_line_count.get() - flp.off;
+    let linecount = flp.wp().buf().b_ml.ml_line_count.get() - flp.off;
 
     flp.lnum_save = flp.lnum;
     while !g_st().got_int.get() {
@@ -2084,12 +2084,12 @@ fn fold_update_iemsrecurse(
                     fp.fd_top = firstlnum;
                     fp.fd_len = bot - firstlnum + 1;
                     if topflags == FD_OPEN {
-                        flp.wp_mut().w_fold_manual.set(true);
+                        flp.wp().w_fold_manual.set(true);
                         fp.fd_flags = FD_OPEN;
                     } else if i == 0 {
                         fp.fd_flags = topflags;
                         if topflags != FD_LEVEL {
-                            flp.wp_mut().w_fold_manual.set(true);
+                            flp.wp().w_fold_manual.set(true);
                         }
                     } else {
                         fp.fd_flags = prev_flags;
@@ -2468,7 +2468,7 @@ fn fold_merge(gap: &mut Vec<FoldEntry>, idx1: usize) {
 
 fn foldlevel_indent(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
-    let wp = flp.wp_mut();
+    let wp = flp.wp();
     let buf = wp.buf();
     let fdi = wp.w_onebuf_opt.wo_fdi.as_cstr();
     let is_empty_or_ignored = crate::memline::with_ml_buf_line(&buf, lnum, |line| {
@@ -2489,19 +2489,15 @@ fn foldlevel_indent(flp: &mut Fline) {
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
-    flp.lvl = i32::from(diff_infold(
-        &flp.wp_mut(),
-        flp.tp.clone(),
-        flp.lnum + flp.off,
-    ));
+    flp.lvl = i32::from(diff_infold(&flp.wp(), flp.tp.clone(), flp.lnum + flp.off));
 }
 
 fn foldlevel_expr(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
 
-    let win = curwin_ptr();
+    let win = curwin();
     set_curwin(flp.wp.clone());
-    g_st().curbuf.set(flp.wp_mut().w_buffer.get());
+    g_st().curbuf.set(flp.wp().w_buffer.get());
     set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 
     flp.start = 0;
@@ -2513,7 +2509,7 @@ fn foldlevel_expr(flp: &mut Fline) {
 
     let save_keytyped = g_st().key_typed.get();
     let mut c: i32 = 0;
-    let n = eval_foldexpr(&flp.wp_mut(), &mut c);
+    let n = eval_foldexpr(&flp.wp(), &mut c);
     g_st().key_typed.set(save_keytyped);
 
     match c as u8 {
@@ -2584,7 +2580,7 @@ fn parse_marker(wp: &WinInfoInfo) {
 
 fn foldlevel_marker(flp: &mut Fline) {
     let start_lvl = flp.lvl;
-    let wp = flp.wp_mut();
+    let wp = flp.wp();
     let buf = wp.buf();
     let startmarker_full = wp.w_onebuf_opt.wo_fmr.as_bytes();
     let cstart = startmarker_full.first().copied().unwrap_or(0);
@@ -2639,10 +2635,10 @@ fn foldlevel_marker(flp: &mut Fline) {
 fn foldlevel_syntax(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
 
-    flp.lvl = syn_get_foldlevel(&flp.wp_mut(), lnum);
+    flp.lvl = syn_get_foldlevel(&flp.wp(), lnum);
     flp.start = 0;
-    if lnum < flp.wp_mut().buf().b_ml.ml_line_count.get() {
-        let n = syn_get_foldlevel(&flp.wp_mut(), lnum + 1);
+    if lnum < flp.wp().buf().b_ml.ml_line_count.get() {
+        let n = syn_get_foldlevel(&flp.wp(), lnum + 1);
         if n > flp.lvl {
             flp.start = n - flp.lvl;
             flp.lvl = n;

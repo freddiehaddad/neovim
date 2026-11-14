@@ -3031,13 +3031,13 @@ fn cmdpreview_open_buf() -> Option<crate::globals::BufPtr> {
 
 /// Open command preview window if it's not already open.
 fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<crate::globals::WinPtr> {
-    let save_curwin = curwin_ptr();
+    let save_curwin = curwin();
 
     if !win_split(opt_vars().p_cwh.get() as i32, WSP_BOT) {
         return None;
     }
 
-    let preview_win = curwin_ptr();
+    let preview_win = curwin();
     let mut err = error_init();
 
     let mut tstate = TryState::new();

@@ -71,7 +71,7 @@ impl Viewstate {
 
 pub fn win_has_winnr(wp: &WinInfoInfo, tp: &TabPageInfo) -> bool {
     let cur = if g_st().curtab.get() == tp {
-        curwin_ptr().as_ptr()
+        curwin().as_ptr()
     } else {
         tp.tp_curwin.get().as_ptr()
     };
@@ -296,7 +296,7 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut nr: i32 = 1;
 
     let mut twin = if g_st().curtab.get() == tp {
-        curwin_ptr()
+        curwin()
     } else {
         tp.tp_curwin.get()
     };
@@ -696,7 +696,7 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = crate::globals::WinPtr::from(find_win_by_nr_or_id(&argvars[0]));
     let targetwin = crate::globals::WinPtr::from(find_win_by_nr_or_id(&argvars[1]));
-    let oldwin = curwin_ptr();
+    let oldwin = curwin();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -737,11 +737,11 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    if curwin_ptr() != targetwin {
+    if curwin() != targetwin {
         win_goto(targetwin.borrow());
     }
 
-    if curwin_ptr() == targetwin && win_valid(wp.opt()) {
+    if curwin() == targetwin && win_valid(wp.opt()) {
         if win_splitmove(wp.borrow(), size, flags) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
@@ -749,7 +749,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         emsg(gettext(E_AUABORT));
     }
 
-    if oldwin != curwin_ptr() && win_valid(oldwin.opt()) {
+    if oldwin != curwin() && win_valid(oldwin.opt()) {
         win_goto(oldwin.borrow());
     }
 }

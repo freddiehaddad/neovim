@@ -459,11 +459,6 @@ pub struct FileBuf {
 
 impl FileBuf {
     #[inline]
-    pub fn terminal(&self) -> TermId {
-        self.terminal.get()
-    }
-
-    #[inline]
     pub fn terminal_opt(&self) -> Option<TermId> {
         self.terminal.get().opt()
     }
@@ -1088,7 +1083,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
     if !ml_open(&curbuf()) {
         close_buffer(
-            curwin_ptr().opt(),
+            curwin().opt(),
             g_st().curbuf.get().opt(),
             0,
             false,
@@ -1376,9 +1371,9 @@ fn can_unload_buffer(buf: &FileBuf) -> bool {
 }
 
 pub fn buf_close_terminal(buf: &FileBuf) {
-    debug_assert!(!buf.terminal.get().is_null());
+    let term = buf.terminal_opt().expect("buffer has no terminal");
     buf.b_locked.set(buf.b_locked.get() + (1));
-    terminal_close(buf.terminal(), -1);
+    terminal_close(term, -1);
     buf.b_locked.set(buf.b_locked.get() - (1));
 }
 
@@ -1397,10 +1392,10 @@ pub fn close_buffer(
     let mut del_buf = action == DOBUF_DEL || action == DOBUF_WIPE;
     let mut wipe_buf = action == DOBUF_WIPE;
 
-    let is_curwin = !(curwin_ptr()).is_null()
-        && win == crate::globals::curwin_handle()
+    let is_curwin = !(curwin()).is_null()
+        && win == crate::globals::curwin()
         && curwin().w_buffer.get() == buf.as_ptr();
-    let the_curtab = crate::globals::curtab_handle();
+    let the_curtab = crate::globals::curtab();
 
     if buf.borrow().terminal.get().is_null() {
         let bh0 = buf.borrow().b_p_bh.first_byte();
@@ -1498,7 +1493,7 @@ pub fn close_buffer(
         win_valid = win_valid && win_valid_any_tab(win.opt());
     }
 
-    if is_curwin && win != curwin_handle() && win_valid {
+    if is_curwin && win != curwin() && win_valid {
         block_autocmds();
         goto_tabpage_win(the_curtab.borrow(), win.borrow());
         unblock_autocmds();
@@ -1587,7 +1582,7 @@ pub fn close_buffer(
         }
     }
 
-    debug_assert!(!win_valid || !is_curwin || win == curwin_handle());
+    debug_assert!(!win_valid || !is_curwin || win == curwin());
     true
 }
 
@@ -1619,9 +1614,9 @@ pub fn buf_clear() {
 /// Free all things allocated for a buffer that are related to the file.
 pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
     let is_curbuf = g_st().curbuf.get() == buf;
-    let is_curwin = !(curwin_ptr()).is_null()
-        && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut());
-    let the_curwin = curwin_ptr();
+    let is_curwin =
+        !(curwin()).is_null() && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut());
+    let the_curwin = curwin();
     let the_curtab = g_st().curtab.get().clone();
 
     buf.b_locked.set(buf.b_locked.get() + (1));
@@ -1681,7 +1676,7 @@ pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
         .b_locked_split
         .set(buf_ptr.b_locked_split.get() - (1));
 
-    if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
+    if is_curwin && curwin() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
         block_autocmds();
         goto_tabpage_win(the_curtab.borrow(), the_curwin.borrow());
         unblock_autocmds();
@@ -1704,8 +1699,7 @@ pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
     }
 
     diff_buf_delete(buf);
-    if !(curwin_ptr()).is_null() && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
-    {
+    if !(curwin()).is_null() && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
         reset_synblock(&curwin());
     }
 
@@ -2011,7 +2005,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
         g_st().swap_exists_action.set(SEA_NONE);
         g_st().swap_exists_did_quit.set(true);
         close_buffer(
-            curwin_ptr().opt(),
+            curwin().opt(),
             g_st().curbuf.get().opt(),
             DOBUF_UNLOAD,
             false,
@@ -2675,7 +2669,7 @@ pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
                 u_sync(false);
             }
             close_buffer(
-                curwin_ptr().opt(),
+                curwin().opt(),
                 prevbuf.opt(),
                 if unload {
                     action
@@ -2880,7 +2874,7 @@ pub fn buflist_new(
     {
         drop(expanded);
         if lnum != 0 {
-            let cw = curwin_ptr();
+            let cw = curwin();
             buflist_setfpos(
                 buf_ptr.borrow(),
                 if (flags & BLN_NOCURWIN) != 0 {
@@ -2984,7 +2978,7 @@ pub fn buflist_new(
         let curwin_info = &mut wininfo[0];
         curwin_info.wi_mark = INIT_FMARK;
         curwin_info.wi_mark.mark.lnum = lnum;
-        curwin_info.wi_win = crate::globals::curwin_ptr();
+        curwin_info.wi_win = crate::globals::curwin();
     }
 
     buf_ref.b_fname.set(BufFname::Short);
@@ -3649,7 +3643,7 @@ fn find_wininfo(
         .borrow()
         .iter()
         .position(|wip| {
-            wip.wi_win == curwin_ptr()
+            wip.wi_win == curwin()
                 && (!skip_diff_buffer || !wininfo_other_tab_diff(wip))
                 && (!need_options || wip.wi_optset)
         })
@@ -3678,7 +3672,7 @@ pub fn get_winopts(buf: &FileBuf) {
 
     let mut wip = find_wininfo(buf, true, true);
     if let Some(wip) = wip.as_deref()
-        && wip.wi_win != curwin_ptr()
+        && wip.wi_win != curwin()
         && let Some(wp) = wip.win_opt()
         && wp.w_buffer.get() == buf_ptr
         && wp.w_config.borrow().style != K_WIN_STYLE_MINIMAL
@@ -3691,7 +3685,7 @@ pub fn get_winopts(buf: &FileBuf) {
     } else if let Some(wip) = wip.as_deref_mut()
         && wip.wi_optset
         && (wip.wi_win.is_null()
-            || wip.wi_win == curwin_ptr()
+            || wip.wi_win == curwin()
             || wip
                 .win_opt()
                 .is_some_and(|w| w.w_config.borrow().style != K_WIN_STYLE_MINIMAL))
@@ -4261,7 +4255,7 @@ pub fn maketitle() {
             if (g_st().stl_syntax.get() & STL_IN_TITLE) != 0 {
                 let titlestr = opt_vars().p_titlestring.as_cstr().to_owned();
                 build_stl_str_hl_slice(
-                    curwin_ptr(),
+                    curwin(),
                     &mut buf,
                     Some(&titlestr),
                     K_OPT_TITLESTRING,
@@ -4293,7 +4287,7 @@ pub fn maketitle() {
             }
             let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim";
             build_stl_str_hl_slice(
-                curwin_ptr(),
+                curwin(),
                 &mut buf,
                 Some(default_titlestring),
                 K_OPT_TITLESTRING,
@@ -4319,7 +4313,7 @@ pub fn maketitle() {
             if (g_st().stl_syntax.get() & STL_IN_ICON) != 0 {
                 let iconstr = opt_vars().p_iconstring.as_cstr().to_owned();
                 build_stl_str_hl_slice(
-                    curwin_ptr(),
+                    curwin(),
                     &mut buf,
                     Some(&iconstr),
                     K_OPT_ICONSTRING,

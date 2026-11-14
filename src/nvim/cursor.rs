@@ -228,7 +228,7 @@ fn coladvance2(
     finetune: bool,
     wcol_arg: Colnr,
 ) -> bool {
-    debug_assert!(wp == curwin_ptr() || !addspaces);
+    debug_assert!(wp == curwin() || !addspaces);
     let mut wcol = wcol_arg;
     let mut idx: i32;
     let mut col: Colnr;

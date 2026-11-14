@@ -1693,10 +1693,9 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
             std::collections::HashSet::new();
         for i in 0..opts.wins.size {
             let win = opts.wins[i].data.integer();
-            let wp = find_window_by_handle(win as Window, err);
-            if wp.is_null() {
+            let Some(wp) = find_window_by_handle(win as Window, err) else {
                 return;
-            }
+            };
             windows.insert(wp.as_ptr());
         }
 

@@ -126,7 +126,7 @@ fn validate_option_value_args<'a>(
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
             *scope = K_OPT_SCOPE_WIN;
-            *from = OptTarget::Win(find_window_by_handle(opts.win, err));
+            *from = OptTarget::Win(find_window_by_handle(opts.win, err).into());
             if error_set(err) {
                 return false;
             }
@@ -600,7 +600,7 @@ pub fn nvim_set_option_value(
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &to) {
         w
     } else {
-        &crate::globals::curwin_handle()
+        &crate::globals::curwin()
     };
     let varp = get_varp_from(option, buf.borrow(), win.opt());
 
@@ -859,7 +859,7 @@ pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption, err: &m
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &from) {
         w
     } else {
-        &crate::globals::curwin_handle()
+        &crate::globals::curwin()
     };
 
     get_option_info(name, opt_flags, buf.borrow(), win.borrow(), err)

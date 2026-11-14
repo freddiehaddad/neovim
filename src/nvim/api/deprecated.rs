@@ -541,7 +541,7 @@ pub fn buffer_del_var(buffer: Buffer, name: NvimString, err: &mut Error) -> Obje
 // DLLEXPORT Object window_set_var(Window window, String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn window_set_var(window: Window, name: NvimString, value: Object, err: &mut Error) -> Object {
-    let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(window, err) else {
+    let Some(win) = crate::api::private::helpers::find_window_by_handle(window, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&win.w_vars(), name, value, false, true, err)
@@ -558,7 +558,7 @@ pub fn window_set_var(window: Window, name: NvimString, value: Object, err: &mut
 // DLLEXPORT Object window_del_var(Window window, String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn window_del_var(window: Window, name: NvimString, err: &mut Error) -> Object {
-    let Some(win) = crate::api::private::helpers::find_window_by_handle_opt(window, err) else {
+    let Some(win) = crate::api::private::helpers::find_window_by_handle(window, err) else {
         return OBJECT_NIL;
     };
     dict_set_var(&win.w_vars(), name, OBJECT_NIL, true, true, err)
@@ -739,10 +739,9 @@ pub fn nvim_buf_set_option(
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_win_get_option(window: Window, name: NvimString, err: &mut Error) -> Object {
-    let win = find_window_by_handle(window, err);
-    if win.is_null() {
+    let Some(win) = find_window_by_handle(window, err) else {
         return OBJECT_NIL;
-    }
+    };
     get_option_from(OptTarget::Win(win), K_OPT_SCOPE_WIN, name, err)
 }
 
@@ -766,10 +765,9 @@ pub fn nvim_win_set_option(
     value: Object,
     err: &mut Error,
 ) {
-    let win = find_window_by_handle(window, err);
-    if win.is_null() {
+    let Some(win) = find_window_by_handle(window, err) else {
         return;
-    }
+    };
     set_option_to(
         channel_id,
         OptTarget::Win(win),
@@ -1098,7 +1096,7 @@ pub fn nvim_notify(msg_str: NvimString, log_level: Integer, opts: Dict, err: &mu
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     try_wrap(err, || {
@@ -1120,7 +1118,7 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     try_wrap(err, || {

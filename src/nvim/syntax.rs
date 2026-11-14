@@ -452,7 +452,7 @@ struct SyntaxState {
 
 impl SyntaxState {
     #[inline]
-    fn syn_buf_mut(&self) -> crate::globals::BufPtr {
+    fn syn_buf(&self) -> crate::globals::BufPtr {
         self.syn_buf.get()
     }
 
@@ -536,7 +536,7 @@ fn syn_block_mut() -> std::rc::Rc<Synblock> {
     if SYN_STATE.with(|s| s.syn_win_owned.get()) {
         win_s(SYN_STATE.with(|s| s.syn_win.get()).borrow())
     } else {
-        SYN_STATE.with(SyntaxState::syn_buf_mut).b_s.clone()
+        SYN_STATE.with(SyntaxState::syn_buf).b_s.clone()
     }
 }
 
@@ -607,7 +607,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
     if SYN_STATE.with(|s| s.syn_block_addr.get()) != wp_block_addr
         || SYN_STATE.with(|s| s.syn_buf.get()) != wp.w_buffer.get()
         || SYN_STATE.with(|s| s.changedtick_last.get())
-            != buf_get_changedtick(&SYN_STATE.with(SyntaxState::syn_buf_mut))
+            != buf_get_changedtick(&SYN_STATE.with(SyntaxState::syn_buf))
     {
         invalidate_current_state();
         SYN_STATE.with(|s| {
@@ -617,9 +617,8 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
         });
     }
     SYN_STATE.with(|s| {
-        s.changedtick_last.set(buf_get_changedtick(
-            &SYN_STATE.with(SyntaxState::syn_buf_mut),
-        ))
+        s.changedtick_last
+            .set(buf_get_changedtick(&SYN_STATE.with(SyntaxState::syn_buf)))
     });
     SYN_STATE.with(|s| s.syn_win.set(crate::globals::WinPtr::from(wp)));
 
@@ -633,7 +632,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
         && SYN_STATE.with(|s| s.current_lnum.get()) < lnum
         && SYN_STATE.with(|s| s.current_lnum.get())
             < SYN_STATE
-                .with(SyntaxState::syn_buf_mut)
+                .with(SyntaxState::syn_buf)
                 .b_ml
                 .ml_line_count
                 .get()
@@ -686,7 +685,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
         999999
     } else {
         SYN_STATE
-            .with(SyntaxState::syn_buf_mut)
+            .with(SyntaxState::syn_buf)
             .b_ml
             .ml_line_count
             .get()
@@ -788,7 +787,7 @@ fn syn_sync(wp: &WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synsta
     SYN_STATE.with(|s| s.current_lnum.set(start_lnum));
 
     if (syn_block_mut().b_syn_sync_flags.get() & SF_CCOMMENT) != 0 {
-        let curwin_save = curwin_ptr();
+        let curwin_save = curwin();
         set_curwin(wp);
         let curbuf_save = g_st().curbuf.get();
         g_st().curbuf.set(SYN_STATE.with(|s| s.syn_buf.get()));
@@ -1098,7 +1097,7 @@ pub fn syn_stack_free_all(block: &Synblock) {
 
 fn syn_stack_alloc() {
     let mut len = (SYN_STATE
-        .with(SyntaxState::syn_buf_mut)
+        .with(SyntaxState::syn_buf)
         .b_ml
         .ml_line_count
         .get()
@@ -1108,7 +1107,7 @@ fn syn_stack_alloc() {
     let cur_len = syn_block_mut().b_sst_max.get();
     if cur_len > len * 2 || cur_len < len {
         len = SYN_STATE
-            .with(SyntaxState::syn_buf_mut)
+            .with(SyntaxState::syn_buf)
             .b_ml
             .ml_line_count
             .get();
@@ -1191,7 +1190,7 @@ fn syn_stack_cleanup() -> bool {
         999999
     } else {
         SYN_STATE
-            .with(SyntaxState::syn_buf_mut)
+            .with(SyntaxState::syn_buf)
             .b_ml
             .ml_line_count
             .get()

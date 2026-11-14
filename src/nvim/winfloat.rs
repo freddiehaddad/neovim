@@ -104,10 +104,7 @@ pub fn win_new_float(
         };
         if fconfig.window != 0 {
             debug_assert!(!last);
-            let parent_wp = find_window_by_handle(fconfig.window, err);
-            if parent_wp.is_null() {
-                return None;
-            }
+            let parent_wp = find_window_by_handle(fconfig.window, err)?;
             let tp = win_find_tabpage(parent_wp.borrow())?;
             tp_last = lastwin_nofloating(if tp == g_st().curtab.get() {
                 None
@@ -284,7 +281,7 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
         let mut col = wp.w_config.borrow().col as i32;
         let mut dummy = error_init();
         let parent = find_window_by_handle(wp.w_config.borrow().window, &mut dummy);
-        if let Some(parent) = parent.opt() {
+        if let Some(parent) = parent.as_deref() {
             row += parent.w_winrow.get();
             col += parent.w_wincol.get();
             let _ = crate::grid::grid_adjust_opt(&parent.w_grid, &mut row, &mut col);

@@ -2820,7 +2820,7 @@ fn qf_goto_win_with_ll_file(use_win: Option<&WinInfoInfo>, qf_fnum: i32, ll_ref:
             }
         }
         if win.is_null() {
-            win = curwin_ptr();
+            win = curwin();
             loop {
                 if bt_normal(win.w_buffer.get().opt()) {
                     break;
@@ -2830,7 +2830,7 @@ fn qf_goto_win_with_ll_file(use_win: Option<&WinInfoInfo>, qf_fnum: i32, ll_ref:
                 } else {
                     win = win.w_prev.get();
                 }
-                if win == curwin_ptr() {
+                if win == curwin() {
                     break;
                 }
             }
@@ -2846,7 +2846,7 @@ fn qf_goto_win_with_ll_file(use_win: Option<&WinInfoInfo>, qf_fnum: i32, ll_ref:
 }
 
 fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
-    let mut win = curwin_ptr();
+    let mut win = curwin();
     let mut altwin = crate::globals::WinPtr::NULL;
     loop {
         if win.buf().b_fnum.get() == qf_fnum {
@@ -2860,10 +2860,11 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
 
         if is_qf_window(win.borrow()) {
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_USELAST) != 0
-                && win_valid(g_st().prevwin.get().opt())
-                && !crate::globals::prevwin().w_onebuf_opt.wo_wfb.get()
+                && let Some(pw) = prevwin_opt()
+                && win_valid(Some(&pw))
+                && !pw.w_onebuf_opt.wo_wfb.get()
             {
-                win = g_st().prevwin.get();
+                win = pw;
             } else if !altwin.is_null() {
                 win = altwin;
             } else if !curwin().w_prev.get().is_null() {
@@ -2977,11 +2978,12 @@ fn qf_jump_edit_buffer(
                 return QfStatus::Fail;
             }
 
-            if win_valid(g_st().prevwin.get().opt())
-                && !crate::globals::prevwin().w_onebuf_opt.wo_wfb.get()
-                && !bt_quickfix(crate::globals::prevwin().buf_opt().as_deref())
+            if let Some(pw) = prevwin_opt()
+                && win_valid(Some(&pw))
+                && !pw.w_onebuf_opt.wo_wfb.get()
+                && !bt_quickfix(pw.buf_opt().as_deref())
             {
-                win_goto(&crate::globals::prevwin());
+                win_goto(&pw);
             }
             if curwin().w_onebuf_opt.wo_wfb.get() {
                 if win_split(0, 0) {
@@ -3837,12 +3839,12 @@ fn qf_set_cwindow_options() {
 }
 
 fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
-    let mut oldwin = curwin_ptr();
+    let mut oldwin = curwin();
     let prevtab = g_st().curtab.get().clone();
     let mut flags: i32 = 0;
 
     let qf_buf_fnum = qf_find_buf(qi).map(|b| b.b_fnum.get());
-    let win = curwin_ptr();
+    let win = curwin();
 
     if g_st().cmdmod.borrow().cmod_split == 0 {
         flags = if is_qf_stack(qi) { WSP_BOT } else { WSP_BELOW };
@@ -3863,7 +3865,7 @@ fn qf_open_new_cwindow(qi: &QfInfo, height: i32) -> bool {
         qi.qf_refcount.set(qi.qf_refcount.get() + (1));
     }
 
-    if oldwin != curwin_ptr() {
+    if oldwin != curwin() {
         oldwin = crate::globals::WinPtr::NULL;
     }
     if let Some(fnum) = qf_buf_fnum {
@@ -3959,7 +3961,7 @@ pub fn ex_copen(eap: &mut Exarg) {
 }
 
 fn qf_win_goto(win: &WinInfoInfo, lnum: Linenr) {
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin();
 
     set_curwin(win);
     g_st().curbuf.set(win.w_buffer.get());
@@ -4052,7 +4054,7 @@ fn qf_find_buf(qi: &QfInfo) -> Option<crate::globals::BufPtr> {
 fn qf_update_win_titlevar(qi: &QfInfo) {
     let qfl_rc = qf_get_curlist(qi);
     let qfl = qfl_rc.borrow();
-    let save_curwin = curwin_ptr();
+    let save_curwin = curwin();
 
     for tp in for_all_tabpages_ptr() {
         for win in win_iter_ptr(tab_firstwin(&tp)) {
@@ -4540,7 +4542,7 @@ pub fn ex_make(eap: &mut Exarg) {
 
     let mut wp = crate::globals::WinPtr::NULL;
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr();
+        wp = curwin();
     }
 
     autowrite_all();
@@ -5141,7 +5143,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     };
 
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr();
+        wp = curwin();
     }
 
     incr_quickfix_busy();

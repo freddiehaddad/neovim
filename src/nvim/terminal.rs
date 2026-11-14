@@ -352,7 +352,7 @@ impl Terminal {
     }
 
     #[inline]
-    fn pending_events_mut(&self) -> MultiQueue {
+    fn pending_events(&self) -> MultiQueue {
         self.pending.events
     }
 }
@@ -470,12 +470,12 @@ const fn vterm_key_function(n: i32) -> VTermKey {
 }
 
 #[inline]
-fn refresh_timer_events_mut() -> MultiQueue {
+fn refresh_timer_events() -> MultiQueue {
     REFRESH_TIMER.with(|cell| cell.borrow().events)
 }
 
 #[inline]
-fn main_loop_events_mut() -> MultiQueue {
+fn main_loop_events() -> MultiQueue {
     loop_queues(crate::event::r#loop::main_loop_ptr()).events
 }
 
@@ -507,7 +507,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
 
     let (sb_pending, cur_sb_deleted) = with_term(term_id, |t| (t.sb_pending, t.sb_deleted));
     if sb_pending > 0 {
-        let events = with_term(term_id, |t| t.pending_events_mut());
+        let events = with_term(term_id, |t| t.pending_events());
         multiqueue_put_event(events, Event::TermRequest(req));
         return;
     }
@@ -611,7 +611,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         terminator: term.termrequest_terminator,
     });
 
-    multiqueue_put_event(main_loop_events_mut(), Event::TermRequest(req));
+    multiqueue_put_event(main_loop_events(), Event::TermRequest(req));
 }
 
 fn parse_osc8(str_: &[u8], attr: &mut i32) -> bool {
@@ -1098,7 +1098,7 @@ pub fn terminal_set_state(term_id: TermId, suspended: bool) {
     with_term_mut(term_id, |term| {
         if term.suspended != suspended {
             multiqueue_put_event(
-                refresh_timer_events_mut(),
+                refresh_timer_events(),
                 Event::TermStateChange(term.buf_handle),
             );
         }
@@ -1723,7 +1723,7 @@ pub fn terminal_receive(term_id: TermId, data_bytes: &[u8]) {
             term.invalid_end = height;
             term.buf_handle
         });
-        multiqueue_put_event(main_loop_events_mut(), Event::TermSyncFlush(buf_handle));
+        multiqueue_put_event(main_loop_events(), Event::TermSyncFlush(buf_handle));
     }
 }
 
@@ -2157,10 +2157,7 @@ fn term_selection_set(
             let bytes = &term.selection;
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
-            multiqueue_put_event(
-                main_loop_events_mut(),
-                Event::TermClipboardSet { mask, data },
-            );
+            multiqueue_put_event(main_loop_events(), Event::TermClipboardSet { mask, data });
         }
     });
 
@@ -2351,7 +2348,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
         }
 
         if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
-            let save_curwin = curwin_ptr();
+            let save_curwin = curwin();
             set_curwin(&mouse_win);
             g_st().curbuf.set(curwin().w_buffer.get());
 
@@ -2372,7 +2369,7 @@ fn send_mouse_event(term_id: TermId, mut c: i32) -> bool {
             g_st().curbuf.set(curwin().w_buffer.get());
             redraw_later(Some(&mouse_win), UPD_NOT_VALID);
             with_term_mut(term_id, |term| invalidate_terminal(term_id, term, -1, -1));
-            return mouse_win == curwin_ptr();
+            return mouse_win == curwin();
         }
     }
 
@@ -2457,7 +2454,7 @@ fn invalidate_terminal(term_id: TermId, term: &mut Terminal, start_row: i32, end
 }
 
 pub fn terminal_check_refresh() {
-    multiqueue_process_events(refresh_timer_events_mut());
+    multiqueue_process_events(refresh_timer_events());
 }
 
 fn refresh_terminal(term_id: TermId) {
@@ -2488,8 +2485,8 @@ fn refresh_terminal(term_id: TermId) {
         }
     }
 
-    let pending_events = with_term(term_id, |t| t.pending_events_mut());
-    multiqueue_move_events(main_loop_events_mut(), pending_events);
+    let pending_events = with_term(term_id, |t| t.pending_events());
+    multiqueue_move_events(main_loop_events(), pending_events);
 }
 
 fn refresh_cursor(term_id: TermId, cursor_visible: &mut bool) {
@@ -2724,7 +2721,7 @@ fn adjust_topline_cursor(term_id: TermId, buf: &FileBuf, added: i32) {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
             if wp.w_buffer.get() == buf {
-                if wp == curwin_ptr() && is_focused(term_id) {
+                if wp == curwin() && is_focused(term_id) {
                     terminal_check_cursor();
                     continue;
                 }

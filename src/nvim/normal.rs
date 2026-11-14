@@ -2374,7 +2374,7 @@ fn normal_check_window_scrolled(_s: &mut NormalState) {
 fn normal_check_cursor_moved(_s: &mut NormalState) {
     if !g_st().finish_op.get()
         && has_event(EVENT_CURSORMOVED)
-        && (g_st().last_cursormoved_win.get() != curwin_ptr()
+        && (g_st().last_cursormoved_win.get() != curwin()
             || !equalpos(g_st().last_cursormoved.get(), curwin().w_cursor.get()))
     {
         apply_autocmds(
@@ -2384,9 +2384,7 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
             false,
             curbuf_opt().as_deref(),
         );
-        g_st()
-            .last_cursormoved_win
-            .set(crate::globals::curwin_ptr());
+        g_st().last_cursormoved_win.set(crate::globals::curwin());
         g_st().last_cursormoved.set(curwin().w_cursor.get());
     }
 }
@@ -3139,7 +3137,7 @@ pub fn do_check_scrollbind(check: bool) {
         });
         if g_st().did_syncbind.get() {
             g_st().did_syncbind.set(false);
-        } else if old_curwin == curwin_ptr() {
+        } else if old_curwin == curwin() {
             if (old_buf == curwin().w_buffer.get() || curwin().w_onebuf_opt.wo_diff.get())
                 && (vtopline != old_vtopline || curwin().w_leftcol.get() != old_leftcol)
             {
@@ -3154,7 +3152,7 @@ pub fn do_check_scrollbind(check: bool) {
         curwin().w_scbind_pos.set(vtopline);
     }
 
-    let cwin = crate::globals::curwin_ptr();
+    let cwin = crate::globals::curwin();
     let cbuf = curwin().w_buffer.get();
     let lcol = curwin().w_leftcol.get();
     norm_st(|st| {
@@ -3183,7 +3181,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf.set(curwin().w_buffer.get());
-        if curwin_ptr() != old_curwin && curwin().w_onebuf_opt.wo_scb.get() {
+        if curwin() != old_curwin && curwin().w_onebuf_opt.wo_scb.get() {
             if want_ver {
                 if old_curwin.w_onebuf_opt.wo_diff.get() && curwin().w_onebuf_opt.wo_diff.get() {
                     diff_set_topline(&old_curwin, &curwin());
@@ -6001,7 +5999,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         get_changelist(&curbuf(), &curwin(), cap.count1)
     } else {
         flags |= KMARK_NO_CONTEXT | K_MARK_JUMP_LIST;
-        get_jumplist(crate::globals::curwin_handle(), cap.count1)
+        get_jumplist(crate::globals::curwin(), cap.count1)
     };
 
     if let Some(ref fm) = fm {

@@ -2434,9 +2434,7 @@ pub fn autocmd_register(
         if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
             || (event == EVENT_CURSORMOVEDI && !has_event(EVENT_CURSORMOVEDI))
         {
-            g_st()
-                .last_cursormoved_win
-                .set(crate::globals::curwin_ptr());
+            g_st().last_cursormoved_win.set(crate::globals::curwin());
             g_st().last_cursormoved.set(curwin().w_cursor.get());
         }
 
@@ -2687,7 +2685,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         }
         tv_dict_set_keys_readonly(&v_event);
 
-        let win = curwin_ptr();
+        let win = curwin();
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(&buf), 0);
 
@@ -3064,7 +3062,7 @@ pub fn apply_autocmds_group(
             AU_STATE.with(|s| {
                 s.autocmd_winid.set(if let Some(win) = win {
                     win.handle
-                } else if !(curwin_ptr()).is_null() {
+                } else if !(curwin()).is_null() {
                     curwin().handle
                 } else {
                     0

@@ -4293,7 +4293,7 @@ fn nfa_regmatch_ctx(
                     if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                         let mut matched = false;
                         let wp_mut = if re_s.rex.reg_win.get().is_null() {
-                            crate::globals::curwin_ptr()
+                            crate::globals::curwin()
                         } else {
                             re_s.rex.reg_win.get()
                         };

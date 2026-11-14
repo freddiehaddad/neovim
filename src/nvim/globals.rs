@@ -853,11 +853,6 @@ pub fn curwin() -> WinPtr {
 }
 
 #[inline(always)]
-pub fn curwin_ptr() -> WinPtr {
-    g_st().curwin_rc.get()
-}
-
-#[inline(always)]
 pub fn set_curwin(wp: impl Into<WinPtr>) {
     let wp = wp.into();
     CURWIN_FFI.store(wp.as_ptr(), std::sync::atomic::Ordering::Relaxed);
@@ -1487,16 +1482,6 @@ impl std::ops::Deref for FramePtr {
     }
 }
 
-#[inline(always)]
-pub fn curwin_handle() -> WinPtr {
-    curwin_ptr()
-}
-
-#[inline(always)]
-pub fn curtab_handle() -> TabpagePtr {
-    g_st().curtab.get().clone()
-}
-
 pub struct BufPtrIter(BufPtr);
 
 impl Iterator for BufPtrIter {
@@ -1801,11 +1786,6 @@ pub fn topframe() -> FramePtr {
 #[inline(always)]
 pub fn first_tabpage() -> TabpagePtr {
     g_st().first_tabpage.get().clone()
-}
-
-#[inline(always)]
-pub fn prevwin() -> WinPtr {
-    g_st().prevwin.get()
 }
 
 #[inline(always)]

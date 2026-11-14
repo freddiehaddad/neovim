@@ -136,10 +136,9 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     let Some(tp) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
         return;
     };
-    let wp = find_window_by_handle(win, err);
-    if wp.is_null() {
+    let Some(wp) = find_window_by_handle(win, err) else {
         return;
-    }
+    };
     if !tabpage_win_valid(Some(&tp), wp.opt()) {
         api_set_error!(
             err,
@@ -249,7 +248,7 @@ pub fn nvim_open_tabpage(
     }
 
     if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer.get() != b {
-        let au_no_enter_leave = curwin_ptr() != wp;
+        let au_no_enter_leave = curwin() != wp;
         if au_no_enter_leave {
             g_st()
                 .autocmd_no_enter

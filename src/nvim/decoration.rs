@@ -1497,7 +1497,7 @@ pub fn decor_conceal_line(wp: &WinInfoInfo, row: i32, check_cursor: bool) -> boo
         || wp.w_onebuf_opt.wo_cole.get() < 2
         || row >= wp.with_buf(|buf| buf.b_ml.ml_line_count.get())
         || (!check_cursor
-            && wp == curwin_ptr()
+            && wp == curwin()
             && row + 1 == wp.w_cursor.get().lnum
             && !conceal_cursor_line(wp))
     {

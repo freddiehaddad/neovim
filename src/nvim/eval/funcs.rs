@@ -1639,7 +1639,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         return;
     }
 
-    let mut wp = curwin_ptr();
+    let mut wp = curwin();
     if argvars[1].v_type != VarType::VarUnknown {
         let mut tp: Option<crate::globals::TabpagePtr> = None;
         let Some(wp_ref) = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, Some(&mut tp)) else {
@@ -2783,7 +2783,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     } else {
         let mut idx = buf_ref.b_changelistlen.get();
         for wip in &*buf_ref.b_wininfo.borrow() {
-            if wip.wi_win == curwin_ptr() {
+            if wip.wi_win == curwin() {
                 idx = wip.wi_changelistidx;
                 break;
             }
@@ -2821,7 +2821,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, charcol: bool) {
     let mut fp: Option<CursorPos> = None;
-    let mut wp = curwin_ptr();
+    let mut wp = curwin();
     let mut fnum: i32 = -1;
 
     if getcurpos {
@@ -2865,7 +2865,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         let save_curswant = curwin().w_curswant.get();
         let save_virtcol = curwin().w_virtcol.get();
 
-        if wp == curwin_ptr() {
+        if wp == curwin() {
             update_curswant();
         }
         tv_list_append_number(
@@ -2879,7 +2879,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             },
         );
 
-        if wp == curwin_ptr() && save_set_curswant {
+        if wp == curwin() && save_set_curswant {
             curwin().w_set_curswant.set(save_set_curswant);
             curwin().w_curswant.set(save_curswant);
             curwin().w_virtcol.set(save_virtcol);
@@ -8378,7 +8378,7 @@ pub fn f_type(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut vcol_start: Colnr = 0;
     let mut vcol_end: Colnr = 0;
-    let mut wp = curwin_ptr();
+    let mut wp = curwin();
 
     'theend: {
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {

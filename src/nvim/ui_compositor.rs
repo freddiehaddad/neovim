@@ -236,7 +236,7 @@ pub fn ui_comp_put_grid(
             insert_at -= 1;
         }
 
-        if !(curwin_ptr()).is_null()
+        if !(curwin()).is_null()
             && with_comp(|c| {
                 c.layers.borrow()[insert_at - 1] == curwin().w_grid_alloc.target_kind.get()
             })

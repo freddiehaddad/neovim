@@ -344,7 +344,7 @@ pub fn win_redr_status(wp: &WinInfoInfo) {
     with_stl_state(|st| st.redr_status_busy.set(true));
     wp.w_redr_status.set(false);
 
-    let stl_curwin = ctx_saved_curwin().map_or_else(curwin_ptr, crate::globals::WinPtr::from);
+    let stl_curwin = ctx_saved_curwin().map_or_else(curwin, crate::globals::WinPtr::from);
     let is_stl_curwin = stl_curwin == wp;
 
     if wp.w_status_height.get() == 0 && !(is_stl_global && is_stl_curwin) {
@@ -519,7 +519,7 @@ fn win_redr_stl_expr(
 
     let save_curwin = ctx_saved_curwin();
     let restore_curwin = if save_curwin.is_some() {
-        curwin_ptr()
+        curwin()
     } else {
         crate::globals::WinPtr::NULL
     };
@@ -573,11 +573,7 @@ fn win_redr_stl_expr(
         }
 
         fillchar = wp_ref.w_p_fcs_chars.get().wbr;
-        group = if wp == curwin_ptr() {
-            HLF_WBR
-        } else {
-            HLF_WBRNC
-        };
+        group = if wp == curwin() { HLF_WBR } else { HLF_WBRNC };
         attr = win_hl_attr(wp_ref, group);
         maxwidth = wp_ref.w_view_width.get();
         stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs.borrow_mut());
@@ -674,11 +670,7 @@ fn win_redr_stl_expr(
     }
 
     if maxwidth > 0 {
-        let ewp = if wp.is_null() {
-            curwin_ptr()
-        } else {
-            wp.clone()
-        };
+        let ewp = if wp.is_null() { curwin() } else { wp.clone() };
         let p_crb_save = ewp.w_onebuf_opt.wo_crb.get();
         ewp.w_onebuf_opt.wo_crb.set(false);
 
@@ -798,8 +790,7 @@ fn win_redr_stl_expr(
 
                 curgroup = -sp_ref.userhl;
             } else {
-                let userhl = if !wp.is_null() && wp != curwin_ptr() && wp.w_status_height.get() != 0
-                {
+                let userhl = if !wp.is_null() && wp != curwin() && wp.w_status_height.get() != 0 {
                     &g_st().highlight_stlnc
                 } else {
                     &g_st().highlight_user
@@ -887,7 +878,7 @@ pub fn redraw_ruler() {
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
 pub fn fillchar_status(group: &mut Hlf, wp: &WinInfoInfo) -> Schar {
-    if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr() {
+    if (std::ptr::from_ref(wp).cast_mut()) == curwin() {
         *group = HLF_S;
         wp.w_p_fcs_chars.get().stl
     } else {
@@ -919,7 +910,7 @@ fn ui_ext_tabline_update() {
         );
 
         let cwp = if g_st().curtab.get() == tp {
-            curwin_ptr()
+            curwin()
         } else {
             tp.tp_curwin.get()
         };
@@ -1058,7 +1049,7 @@ pub fn draw_tabline() {
 
             let mut scol = col;
             let (cwp, mut wp) = if g_st().curtab.get() == tp {
-                (curwin_ptr(), g_st().firstwin.get())
+                (curwin(), g_st().firstwin.get())
             } else {
                 (tp.tp_curwin.get(), tp.tp_firstwin.get())
             };
@@ -2067,12 +2058,12 @@ pub fn build_stl_str_hl_slice(
                     );
 
                     let save_curbuf = g_st().curbuf.get();
-                    let save_curwin = curwin_ptr();
+                    let save_curwin = curwin();
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.borrow().active;
                     set_curwin(&wp);
                     g_st().curbuf.set(wp.w_buffer.get());
-                    if curwin_ptr() != save_curwin {
+                    if curwin() != save_curwin {
                         g_st().visual_global.borrow_mut().active = false;
                     }
 
@@ -2788,7 +2779,7 @@ mod tests {
                 let mut out_buf = [b' '; 120];
                 let pat_c = CString::new(pat).unwrap();
                 let cells = build_stl_str_hl_slice(
-                    curwin_ptr(),
+                    curwin(),
                     &mut out_buf,
                     Some(&pat_c),
                     K_OPT_INVALID,

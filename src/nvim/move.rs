@@ -190,7 +190,7 @@ fn redraw_for_cursorline(wp: &WinInfoInfo) {
 
 /// Redraw when `'concealcursor'` is active, or when `w_virtcol` changes.
 fn redraw_for_cursorcolumn(wp: &WinInfoInfo) {
-    if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr()
+    if (std::ptr::from_ref(wp).cast_mut()) == curwin()
         && wp.w_onebuf_opt.wo_cole.get() > 0
         && conceal_cursor_line(wp)
     {
@@ -558,7 +558,7 @@ pub fn set_topline_valid(wp: &WinInfoInfo) {
 
 /// Check if the cursor has moved. Set the `w_valid` flag accordingly.
 pub fn check_cursor_moved(wp: &WinInfoInfo) {
-    if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr() {
+    if (std::ptr::from_ref(wp).cast_mut()) == curwin() {
         conceal_check_visual();
     }
     if wp.w_cursor.get().lnum != wp.w_valid_cursor.get().lnum {
@@ -567,7 +567,7 @@ pub fn check_cursor_moved(wp: &WinInfoInfo) {
                 & (!(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CHEIGHT | VALID_CROW)),
         );
 
-        if (std::ptr::from_ref(wp).cast_mut()) == curwin_ptr()
+        if (std::ptr::from_ref(wp).cast_mut()) == curwin()
             && wp.w_valid_cursor.get().lnum > 0
             && wp.w_onebuf_opt.wo_cole.get() >= 1
             && !conceal_cursor_line(wp)
@@ -2712,9 +2712,9 @@ pub fn do_check_cursorbind() {
             const { crate::globals::CloneCell::new(MoveCursorbindState::new()) };
     }
 
-    debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.get().is_null());
+    debug_assert!(!(curwin()).is_null() && !g_st().curbuf.get().is_null());
     let prev = MOVE_CB_STATE.with(|s| s.get());
-    if prev.prev_curwin == curwin_ptr()
+    if prev.prev_curwin == curwin()
         && prev.prev_curbuf == g_st().curbuf.get()
         && buf_get_changedtick(&curbuf()) == prev.prev_changedtick
         && equalpos(curwin().w_cursor.get(), prev.prev_cursor)
@@ -2723,7 +2723,7 @@ pub fn do_check_cursorbind() {
     }
     MOVE_CB_STATE.with(|s| {
         s.set(MoveCursorbindState {
-            prev_curwin: crate::globals::curwin_ptr(),
+            prev_curwin: crate::globals::curwin(),
             prev_curbuf: g_st().curbuf.get(),
             prev_changedtick: buf_get_changedtick(&curbuf()),
             prev_cursor: curwin().w_cursor.get(),
@@ -2735,7 +2735,7 @@ pub fn do_check_cursorbind() {
     let coladd = curwin().w_cursor.get().coladd;
     let curswant = curwin().w_curswant.get();
     let set_curswant = curwin().w_set_curswant.get();
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin();
     let old_curbuf = g_st().curbuf.get();
     let old_visual_select = g_st().visual_global.borrow().select;
     let old_visual_active = g_st().visual_global.borrow().active;
@@ -2745,7 +2745,7 @@ pub fn do_check_cursorbind() {
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf.set(curwin().w_buffer.get());
-        if curwin_ptr() != old_curwin && curwin().w_onebuf_opt.wo_crb.get() {
+        if curwin() != old_curwin && curwin().w_onebuf_opt.wo_crb.get() {
             if curwin().w_onebuf_opt.wo_diff.get() {
                 curwin()
                     .w_cursor

@@ -351,17 +351,18 @@ pub fn nvim_open_win(
     'cleanup: {
         let mut wp = crate::globals::WinPtr::NULL;
         let mut tp = g_st().curtab.get().clone();
-        assert!(!(curwin_ptr()).is_null());
+        assert!(!(curwin()).is_null());
         let mut parent = if config.win == 0 {
-            curwin_ptr()
+            curwin()
         } else {
             crate::globals::WinPtr::NULL
         };
         if config.win > 0 {
-            parent = find_window_by_handle(fconfig.window, err);
-            if parent.is_null() {
+            let Some(p) = find_window_by_handle(fconfig.window, err) else {
                 break 'cleanup;
-            } else if is_split && parent.w_floating.get() {
+            };
+            parent = p;
+            if is_split && parent.w_floating.get() {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -375,7 +376,7 @@ pub fn nvim_open_win(
             let check_win = if !parent.is_null() {
                 parent.clone()
             } else {
-                curwin_ptr()
+                curwin()
             };
             if !check_split_disallowed_err(check_win.opt(), err) {
                 break 'cleanup;
@@ -406,7 +407,7 @@ pub fn nvim_open_win(
             };
 
             try_wrap(err, || {
-                if parent.is_null() || parent == curwin_ptr() {
+                if parent.is_null() || parent == curwin() {
                     wp = crate::globals::WinPtr::from(win_split_ins(size, flags, None, 0, None));
                 } else {
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -485,7 +486,7 @@ pub fn nvim_open_win(
             tp = crate::globals::TabpagePtr::from(win_find_tabpage(wp.borrow()));
         }
         if !tp.is_null() && bufref_valid(Some(&bufref)) && b != wp.w_buffer.get() {
-            let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
+            let au_no_enter_leave = curwin() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
                 g_st()
                     .autocmd_no_enter
@@ -660,13 +661,13 @@ fn win_config_split(
         let mut parent = crate::globals::WinPtr::NULL;
         let mut parent_tp = crate::globals::TabpagePtr::NULL;
         if config.win == 0 {
-            parent = curwin_ptr();
+            parent = curwin();
             parent_tp = g_st().curtab.get().clone();
         } else if config.win > 0 {
-            parent = find_window_by_handle(fconfig.window, err);
-            if parent.is_null() {
+            let Some(p) = find_window_by_handle(fconfig.window, err) else {
                 return false;
-            }
+            };
+            parent = p;
             parent_tp = crate::globals::TabpagePtr::from(win_find_tabpage(parent.borrow()));
         }
 
@@ -690,7 +691,7 @@ fn win_config_split(
         }
 
         let mut to_split_ok = false;
-        let curwin_moving_tp = (std::ptr::from_ref(win).cast_mut()) == curwin_ptr()
+        let curwin_moving_tp = (std::ptr::from_ref(win).cast_mut()) == curwin()
             && !parent.is_null()
             && win_tp != parent_tp;
 
@@ -700,7 +701,7 @@ fn win_config_split(
                 assert!(!altwin.is_null());
                 win_goto(altwin.borrow());
 
-                if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
+                if curwin() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -831,7 +832,7 @@ fn win_config_split(
 
             let win_ptr = crate::globals::WinPtr::from(win);
             try_wrap(err, || {
-                let need_switch = !parent.is_null() && parent != curwin_ptr();
+                let need_switch = !parent.is_null() && parent != curwin();
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
                 if need_switch {
                     let result = ctx_switch(
@@ -911,10 +912,10 @@ fn win_config_float_tp(
     let mut parent = crate::globals::WinPtr::from(win);
     let mut parent_tp = win_tp.clone();
     if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-        parent = find_window_by_handle(fconfig.window, err);
-        if parent.is_null() {
+        let Some(p) = find_window_by_handle(fconfig.window, err) else {
             return false;
-        }
+        };
+        parent = p;
         parent_tp = win_find_tabpage(parent.borrow()).into();
     }
 
@@ -929,11 +930,11 @@ fn win_config_float_tp(
             altwin = crate::globals::WinPtr::from(win_find_altwin(win, win_tp.borrow()));
             assert!(!altwin.is_null());
 
-            if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
+            if curwin() == (std::ptr::from_ref(win).cast_mut()) {
                 curwin_moving_tp = true;
                 win_goto(altwin.borrow());
 
-                if curwin_ptr() == (std::ptr::from_ref(win).cast_mut()) {
+                if curwin() == (std::ptr::from_ref(win).cast_mut()) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -1030,7 +1031,7 @@ fn win_config_float_tp(
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_set_config(win: Window, config: &mut KeyDictWinConfig, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
 
@@ -1137,7 +1138,7 @@ pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDictWinConfig {
 
     let mut rv = KeyDictWinConfig::default();
 
-    let Some(wp) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(wp) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return rv;
     };
 
@@ -1740,7 +1741,7 @@ fn parse_win_config(
                 && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
         {
             let Some(target_win) =
-                crate::api::private::helpers::find_window_by_handle_opt(config.win, err)
+                crate::api::private::helpers::find_window_by_handle(config.win, err)
             else {
                 break 'fail;
             };

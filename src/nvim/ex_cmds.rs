@@ -2762,7 +2762,7 @@ pub fn do_ecmd(
                         },
                 ));
                 if !oldwin.is_null() {
-                    oldwin = crate::globals::curwin_handle();
+                    oldwin = crate::globals::curwin();
                 }
                 set_bufref(&mut old_curbuf, g_st().curbuf.get().opt());
             }
@@ -2818,7 +2818,7 @@ pub fn do_ecmd(
                 if buf == g_st().curbuf.get().as_ptr() {
                     auto_buf = true;
                 } else {
-                    let the_curwin = curwin_ptr();
+                    let the_curwin = curwin();
 
                     the_curwin.w_locked.set(the_curwin.w_locked.get() + (1));
                     buf.b_locked.set(buf.b_locked.get() + (1));
@@ -2832,7 +2832,7 @@ pub fn do_ecmd(
 
                     u_sync(false);
                     close_buffer(
-                        curwin_ptr().opt(),
+                        curwin().opt(),
                         g_st().curbuf.get().opt(),
                         if (flags & ECMD_HIDE) != 0
                             || (!curbuf().terminal.get().is_null()
@@ -3168,9 +3168,9 @@ pub fn do_ecmd(
         terminal_check_size(old_curbuf.br_buf.terminal.get());
     }
     if (!bufref_valid(Some(&old_curbuf)) || old_curbuf.br_buf != g_st().curbuf.get())
-        && !curbuf().terminal.get().is_null()
+        && let Some(term) = curbuf().terminal_opt()
     {
-        terminal_check_size(curbuf().terminal());
+        terminal_check_size(term);
     }
 
     if did_inc_redrawing_disabled {

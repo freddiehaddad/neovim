@@ -3250,8 +3250,7 @@ fn get_var_from(
         && !win.is_null()
         && (htname != b'b' as i32 || !buf.is_null())
     {
-        let need_switch_win =
-            !(tp == g_st().curtab.get() && win == curwin_ptr()) && !do_change_curbuf;
+        let need_switch_win = !(tp == g_st().curtab.get() && win == curwin()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3508,7 +3507,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         return;
     };
 
-    let need_switch_win = !(g_st().curtab.get() == tp && win == curwin_ptr());
+    let need_switch_win = !(g_st().curtab.get() == tp && win == curwin());
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if !need_switch_win
         || ctx_switch(

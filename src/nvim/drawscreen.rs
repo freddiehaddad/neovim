@@ -574,7 +574,7 @@ pub fn update_screen() -> bool {
 
     let save_curwin = ctx_saved_curwin();
     let restore_curwin = if save_curwin.is_some() {
-        curwin_ptr()
+        curwin()
     } else {
         crate::globals::WinPtr::NULL
     };
@@ -760,7 +760,7 @@ pub fn update_screen() -> bool {
 
     for wp in for_all_windows_ptr() {
         if wp.w_config.borrow().hide && !wp.w_grid_alloc.chars.borrow().is_empty() {
-            if wp == curwin_ptr() && global_stl_height() > 0 {
+            if wp == curwin() && global_stl_height() > 0 {
                 win_redr_status(&wp);
             }
             wp.w_redr_type.set(0);
@@ -2014,7 +2014,7 @@ fn win_update(wp: &WinInfoInfo) {
 
     let mut cursorline_fi = Foldinfo::new();
     win_update_cursorline(wp, &mut cursorline_fi);
-    if wp == curwin_ptr() {
+    if wp == curwin() {
         let used = conceal_cursor_line(&curwin());
         ds_st(|st| st.conceal_cursor_used.set(used));
     }
@@ -2136,7 +2136,7 @@ fn win_update(wp: &WinInfoInfo) {
                         let mut l = lnum;
                         while l < mod_bot {
                             if g_st().dollar_vcol.get() >= 0
-                                && wp == curwin_ptr()
+                                && wp == curwin()
                                 && old_cline_height > 0
                                 && l == wp.w_cursor.get().lnum
                             {
@@ -2298,7 +2298,7 @@ fn win_update(wp: &WinInfoInfo) {
                 w_lines_at(wp, idx as usize).wl_lnum = lnum;
                 w_lines_at(wp, idx as usize).wl_valid = true;
 
-                let is_curline = wp == curwin_ptr() && lnum == wp.w_cursor.get().lnum;
+                let is_curline = wp == curwin() && lnum == wp.w_cursor.get().lnum;
 
                 if row > wp.w_view_height.get() {
                     if g_st().dollar_vcol.get() == -1 || !is_curline {
@@ -2455,7 +2455,7 @@ fn win_update(wp: &WinInfoInfo) {
                         continue 'statuscol_retry;
                     }
                 }
-            } else if g_st().dollar_vcol.get() == -1 || wp != curwin_ptr() {
+            } else if g_st().dollar_vcol.get() == -1 || wp != curwin() {
                 wp.w_botline.set(lnum);
             }
 
@@ -2500,10 +2500,10 @@ fn win_update(wp: &WinInfoInfo) {
             );
         }
 
-        if g_st().dollar_vcol.get() == -1 || wp != curwin_ptr() {
+        if g_st().dollar_vcol.get() == -1 || wp != curwin() {
             wp.w_valid.set(wp.w_valid.get() | (VALID_BOTLINE));
             wp.w_viewport_invalid.set(true);
-            if wp == curwin_ptr()
+            if wp == curwin()
                 && wp.w_botline.get() != old_botline
                 && !ds_st(|st| st.win_update_recursive.replace(true))
             {
@@ -2640,7 +2640,7 @@ pub fn win_draw_end(
 
 pub fn compute_foldcolumn(wp: &WinInfoInfo, col: i32) -> i32 {
     let fdc = win_fdccol_count(wp);
-    let wmw = if wp == curwin_ptr() && opt_vars().p_wmw.get() == 0 {
+    let wmw = if wp == curwin() && opt_vars().p_wmw.get() == 0 {
         1
     } else {
         opt_vars().p_wmw.get() as i32
@@ -2777,7 +2777,7 @@ pub fn redraw_buf_status_later(buf: &FileBuf) {
     for wp in for_all_windows_ptr() {
         if wp.w_buffer.get() == buf
             && (wp.w_status_height.get() != 0
-                || (wp == curwin_ptr() && global_stl_height() != 0)
+                || (wp == curwin() && global_stl_height() != 0)
                 || wp.w_winbar_height.get() != 0)
         {
             wp.w_redr_status.set(true);
@@ -2798,7 +2798,7 @@ pub fn status_redraw_all() {
 
     for wp in for_all_windows_ptr() {
         if (!is_stl_global && wp.w_status_height.get() != 0)
-            || wp == curwin_ptr()
+            || wp == curwin()
             || wp.w_winbar_height.get() != 0
         {
             wp.w_redr_status.set(true);
@@ -2817,7 +2817,7 @@ pub fn status_redraw_buf(buf: &FileBuf) {
     for wp in for_all_windows_ptr() {
         if wp.w_buffer.get() == buf
             && ((!is_stl_global && wp.w_status_height.get() != 0)
-                || (is_stl_global && wp == curwin_ptr())
+                || (is_stl_global && wp == curwin())
                 || wp.w_winbar_height.get() != 0)
         {
             wp.w_redr_status.set(true);
@@ -2901,7 +2901,7 @@ pub fn conceal_reveal_changed(wp: &WinInfoInfo, line1: Linenr, line2: Linenr) {
 /// listed modes, and every line of the Visual area unless "v" is listed. Drawing and height
 /// calculations must ask this the same way, or they disagree about how tall a concealed line is.
 pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
-    if wp == curwin_ptr() && lnum == wp.w_cursor.get().lnum && !conceal_cursor_line(wp) {
+    if wp == curwin() && lnum == wp.w_cursor.get().lnum && !conceal_cursor_line(wp) {
         return true;
     }
     g_st().visual_global.borrow().active
@@ -2925,7 +2925,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
     wp.w_onebuf_opt.wo_cul.get()
-        || (wp == curwin_ptr() && wp.w_onebuf_opt.wo_cole.get() > 0 && !conceal_cursor_line(wp))
+        || (wp == curwin() && wp.w_onebuf_opt.wo_cole.get() > 0 && !conceal_cursor_line(wp))
 }
 
 pub fn win_update_cursorline(wp: &WinInfoInfo, foldinfo: &mut Foldinfo) {

@@ -205,7 +205,7 @@ fn alist_set(al: &std::rc::Rc<Alist>, files: Vec<CString>, use_curbuf: i32) {
 
 /// Add file `fname` to argument list `al` (`alist_add`).
 pub fn alist_add(al: &Alist, ae_fname: CString, set_fnum: i32) {
-    let wp = curwin_ptr();
+    let wp = curwin();
     if !check_arglist_locked() {
         return;
     }
@@ -303,7 +303,7 @@ fn alist_check_arg_idx() {
 fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
-        let wp = curwin_ptr();
+        let wp = curwin();
         let al = win_alist_rc(wp.borrow());
         after = after.clamp(0, old_argcount);
         ARGLIST_LOCKED.set(true);
@@ -831,7 +831,7 @@ pub fn alist_name(aep: &Aentry) -> Option<crate::option_vars::RcCStr> {
 
 /// Close all the windows containing files which are not in the argument list (`arg_all_close_unused_windows`).
 fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin();
     let old_curtab = g_st().curtab.get().clone();
 
     if aall.had_tab > 0 {
@@ -1035,7 +1035,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
             curwin().w_arg_idx.set(i);
             if i == 0 {
-                aall.new_curwin = crate::globals::curwin_ptr();
+                aall.new_curwin = crate::globals::curwin();
                 aall.new_curtab = g_st().curtab.get().clone();
             }
             let entry = aall.alist.al_ga.borrow()[i as usize].clone();
@@ -1115,7 +1115,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     g_st()
         .autocmd_no_leave
         .set(g_st().autocmd_no_leave.get() + (1));
-    let last_curwin = curwin_ptr();
+    let last_curwin = curwin();
     let last_curtab = g_st().curtab.get().clone();
     win_enter(&lastwin_nofloating(None), false);
 

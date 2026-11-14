@@ -1398,7 +1398,7 @@ pub fn ins_redraw(ready: bool) {
 
     if ready
         && has_event(EVENT_CURSORMOVEDI)
-        && (g_st().last_cursormoved_win.get() != curwin_ptr()
+        && (g_st().last_cursormoved_win.get() != curwin()
             || !equalpos(g_st().last_cursormoved.get(), curwin().w_cursor.get()))
         && !pum_visible()
     {
@@ -1407,9 +1407,7 @@ pub fn ins_redraw(ready: bool) {
         }
         update_curswant();
         ins_apply_autocmds(EVENT_CURSORMOVEDI);
-        g_st()
-            .last_cursormoved_win
-            .set(crate::globals::curwin_ptr());
+        g_st().last_cursormoved_win.set(crate::globals::curwin());
         g_st().last_cursormoved.set(curwin().w_cursor.get());
     }
 

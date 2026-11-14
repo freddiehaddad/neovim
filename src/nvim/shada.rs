@@ -1548,7 +1548,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         };
                         let lnum = buf.b_last_cursor.borrow().mark.lnum;
                         let col = buf.b_last_cursor.borrow().mark.col;
-                        buflist_setfpos(&buf, curwin_ptr().opt(), lnum, col, false);
+                        buflist_setfpos(&buf, curwin().opt(), lnum, col, false);
                         *buf.additional_data.borrow_mut() = item.additional_data.take();
                     }
                 }
@@ -3992,7 +3992,7 @@ fn shada_init_jumps(
     let mut jumps_size = 0usize;
     let mut jump_iter: Option<usize> = None;
     setpcmark();
-    cleanup_jumplist(crate::globals::curwin_handle(), false);
+    cleanup_jumplist(crate::globals::curwin(), false);
     loop {
         let mut fm = Xfmark::new();
         jump_iter = mark_jumplist_iter(jump_iter, &curwin(), &mut fm);

@@ -4917,7 +4917,7 @@ pub fn callback_call(
             }
         }
         K_CALLBACK_PARTIAL => {
-            partial = callback.data.as_partial();
+            partial = callback.data.as_partial().unwrap_or_default();
             name = partial_name(partial.opt());
         }
         K_CALLBACK_LUA => {
@@ -4982,11 +4982,13 @@ pub fn set_ref_in_callback(
     ht_stack: Option<&mut HtStack>,
     list_stack: Option<&mut ListStack>,
 ) -> bool {
-    if callback.cb_type() == K_CALLBACK_PARTIAL {
+    if callback.cb_type() == K_CALLBACK_PARTIAL
+        && let Some(pt) = callback.data.as_partial()
+    {
         let mut tv = TypVal {
             v_type: VarType::VarPartial,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Partial(callback.data.as_partial()),
+            vval: TypvalVval::Partial(pt),
         };
         return set_ref_in_item(&mut tv, copy_id, ht_stack, list_stack);
     }
@@ -5373,7 +5375,7 @@ pub fn var2fpos(
             coladd: wp.w_cursor.get().coladd,
         };
     } else if name_bytes == b"v" {
-        if g_st().visual_global.borrow().active && wp == curwin_ptr() {
+        if g_st().visual_global.borrow().active && wp == curwin() {
             pos = CursorPos {
                 lnum: g_st().visual_global.borrow().start.lnum,
                 col: g_st().visual_global.borrow().start.col,

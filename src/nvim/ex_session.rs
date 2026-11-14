@@ -383,7 +383,7 @@ fn put_view(
         return false;
     }
 
-    let save_curwin = curwin_ptr();
+    let save_curwin = curwin();
     set_curwin(wp);
     g_st().curbuf.set(curwin().w_buffer.get());
     let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
@@ -788,7 +788,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 } else if !wp_ref.w_floating.get() {
                     restore_size = false;
                 }
-                if curwin_ptr() == wp {
+                if curwin() == wp {
                     cnr = nr;
                 }
                 wp = wp_ref.w_next.get();

@@ -67,7 +67,7 @@ pub struct KeyDictWinResize {
 // DLLEXPORT Buffer nvim_win_get_buf(Window win, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return 0;
     };
     w.buf().b_fnum.get()
@@ -83,7 +83,7 @@ pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
 //   FUNC_API_SINCE(5)
 //   FUNC_API_TEXTLOCK;
 pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
@@ -105,7 +105,7 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_cursor(win: Window, err: &mut Error) -> Array {
     let mut rv = Array::new();
-    if let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) {
+    if let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) {
         rv = Array::with_capacity(2);
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().lnum)));
         add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().col)));
@@ -122,7 +122,7 @@ pub fn nvim_win_get_cursor(win: Window, err: &mut Error) -> Array {
 // DLLEXPORT void nvim_win_set_cursor(Window win, ArrayOf(Integer, 2) pos, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
 
@@ -179,7 +179,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
 // DLLEXPORT Integer nvim_win_get_height(Window win, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return 0;
     };
     i64::from(w.w_height.get())
@@ -193,7 +193,7 @@ pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
 // DLLEXPORT Integer nvim_win_get_width(Window win, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return 0;
     };
     i64::from(w.w_width.get())
@@ -208,7 +208,7 @@ pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
 // DLLEXPORT Object nvim_win_get_var(Window win, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_var(win: Window, name: NvimString, err: &mut Error) -> Object {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return OBJECT_NIL;
     };
     dict_get_value(Some(&*w.w_vars()), name, err)
@@ -223,7 +223,7 @@ pub fn nvim_win_get_var(win: Window, name: NvimString, err: &mut Error) -> Objec
 // DLLEXPORT void nvim_win_set_var(Window win, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     dict_set_var(&w.w_vars(), name, value, false, false, err);
@@ -237,7 +237,7 @@ pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut 
 // DLLEXPORT void nvim_win_del_var(Window win, String name, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
     dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false, err);
@@ -252,7 +252,7 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_position(win: Window, err: &mut Error) -> Array {
     let mut rv = Array::new();
-    if let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) {
+    if let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) {
         rv = Array::with_capacity(2);
         add_c(&mut rv, integer_obj(i64::from(w.w_winrow.get())));
         add_c(&mut rv, integer_obj(i64::from(w.w_wincol.get())));
@@ -269,8 +269,7 @@ pub fn nvim_win_get_position(win: Window, err: &mut Error) -> Array {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
     let mut rv: Tabpage = 0;
-    let w = find_window_by_handle(win, err);
-    if !w.is_null() {
+    if let Some(w) = find_window_by_handle(win, err) {
         rv = win_find_tabpage(w.borrow()).unwrap().handle;
     }
     rv
@@ -285,7 +284,7 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
     let mut rv: i32 = 0;
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = find_window_by_handle(win, err) else {
         return i64::from(rv);
     };
     let mut tabnr: i32 = 0;
@@ -301,7 +300,7 @@ pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_is_valid(win: Window) -> Boolean {
     let mut stub = Error::new();
-    let ret = !find_window_by_handle(win, &mut stub).is_null();
+    let ret = find_window_by_handle(win, &mut stub).is_some();
     api_clear_error(&mut stub);
     ret
 }
@@ -317,10 +316,9 @@ pub fn nvim_win_is_valid(win: Window) -> Boolean {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
 pub fn nvim_win_hide(win: Window, err: &mut Error) {
-    let w = find_window_by_handle(win, err);
-    if w.is_null() {
+    let Some(w) = find_window_by_handle(win, err) else {
         return;
-    }
+    };
 
     let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
     try_wrap(err, || {
@@ -345,7 +343,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
 //   FUNC_API_SINCE(6)
 //   FUNC_API_TEXTLOCK;
 pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
 
@@ -377,10 +375,9 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
 pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
-    let w = find_window_by_handle(win, err);
-    if w.is_null() {
+    let Some(w) = find_window_by_handle(win, err) else {
         return OBJECT_NIL;
-    }
+    };
     let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
 
     try_wrap_err(err, |err| {
@@ -412,7 +409,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
 // DLLEXPORT void nvim_win_set_hl_ns(Window win, Integer ns_id, Error *err)
 //   FUNC_API_SINCE(10);
 pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return;
     };
 
@@ -471,7 +468,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight, err: &mut Error) -> Dict {
     let mut rv = Dict::with_capacity(4);
 
-    let Some(w) = crate::api::private::helpers::find_window_by_handle_opt(win, err) else {
+    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
         return rv;
     };
     let buf = w.buf();
@@ -615,10 +612,9 @@ pub fn nvim_win_resize(
     opts: &mut KeyDictWinResize,
     err: &mut Error,
 ) {
-    let w = find_window_by_handle(win, err);
-    if w.is_null() {
+    let Some(w) = find_window_by_handle(win, err) else {
         return;
-    }
+    };
 
     if !(height >= 0 || height == -1) {
         api_err_exp(err, c"height", c"non-negative number or -1", None);

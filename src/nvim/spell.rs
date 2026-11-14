@@ -1139,7 +1139,7 @@ pub fn spell_move_to(
             }
             if capcol == 0 {
                 capcol = getwhitecols(line_cstr.to_bytes()) as Colnr;
-            } else if curline && wp == curwin_ptr() {
+            } else if curline && wp == curwin() {
                 let col = getwhitecols(line_cstr.to_bytes()) as Colnr;
                 if check_need_cap(&curwin(), lnum, col) {
                     capcol = col;

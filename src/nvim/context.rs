@@ -642,7 +642,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &WinInfoInfo, tp: &TabPageInfo, buf: Op
         cs.cs_tp_localdir = tp.tp_localdir.get();
     }
 
-    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != wp {
+    if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin() != wp {
         cs.cs_cwd = os_dirname_cstr();
     }
 
@@ -744,7 +744,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> crate::globals::WinPtr {
         .clone();
 
     block_autocmds();
-    if curwin_ptr() != cwp {
+    if curwin() != cwp {
         'win_found: {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&tp) {
@@ -807,12 +807,12 @@ pub fn ctx_switch(
     cs.cs_ctxwin_idx = -1;
     cs.cs_did_chdir = CTX_STATE.with(|st| st.ctx_did_chdir.replace(false));
     if cs.cs_mode == K_CTX_SWITCH_DIRS {
-        wp = curwin_ptr();
+        wp = curwin();
     }
 
     if !buf.is_null() {
         if buf == g_st().curbuf.get().as_ptr() {
-            wp = curwin_ptr();
+            wp = curwin();
         } else {
             for wp2 in for_all_windows_ptr() {
                 if wp2.w_buffer.get() == buf {
@@ -833,13 +833,9 @@ pub fn ctx_switch(
     }
 
     cs.cs_curwin = curwin().handle;
-    cs.cs_curwin_xtab = !win_valid(curwin_ptr().opt());
-    cs.cs_prevwin = if g_st().prevwin.get().is_null() {
-        0
-    } else {
-        crate::globals::prevwin().handle
-    };
-    cs.cs_same_win = wp == curwin_ptr();
+    cs.cs_curwin_xtab = !win_valid(curwin().opt());
+    cs.cs_prevwin = prevwin_opt().map_or(0, |w| w.handle);
+    cs.cs_same_win = wp == curwin();
     if bt_prompt(Some(&crate::globals::curbuf())) {
         cs.cs_prompt_insert = curbuf().b_prompt_insert.get();
     }
@@ -866,9 +862,9 @@ pub fn ctx_switch(
             wp = ctx_win_prep(cs, buf_ref);
             leaving_window(&curwin());
             buf_copy_options(buf_ref, BCO_ENTER | BCO_NOHELP);
-            g_st().prevwin.set(curwin_ptr());
+            g_st().prevwin.set(curwin());
         }
-        assert!(wp == curwin_ptr() || win_valid(wp.opt()));
+        assert!(wp == curwin() || win_valid(wp.opt()));
     } else if !win_valid(wp.opt()) {
         return false;
     }

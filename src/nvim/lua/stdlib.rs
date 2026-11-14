@@ -331,8 +331,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<crate::eval::typval::Dic
             }
         }
         b"w" => {
-            let win = find_window_by_handle(handle, &mut err);
-            if !win.is_null() {
+            if let Some(win) = find_window_by_handle(handle, &mut err) {
                 dict = win.w_vars();
             }
         }

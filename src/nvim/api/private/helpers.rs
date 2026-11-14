@@ -561,9 +561,10 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<crate::g
     Some(rv)
 }
 
-pub fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
+pub fn find_window_by_handle(window: Window, err: &mut Error) -> Option<WinPtr> {
     if window == 0 {
-        return curwin_ptr();
+        let w = curwin();
+        return (!w.is_null()).then_some(w);
     }
     let rv = g_st()
         .window_handles
@@ -578,9 +579,9 @@ pub fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
             c"Invalid window id: %lld",
             i64::from(window),
         );
-        return WinPtr::NULL;
+        return None;
     }
-    rv
+    Some(rv)
 }
 
 #[allow(unsafe_code)]
@@ -590,7 +591,7 @@ pub extern "C" fn find_window_by_handle_ffi(
     _err: *mut std::ffi::c_void,
 ) -> *mut WinInfoInfo {
     let mut err = Error::new();
-    find_window_by_handle(window, &mut err).as_ptr()
+    find_window_by_handle(window, &mut err).map_or(std::ptr::null_mut(), |w| w.as_ptr())
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
@@ -613,12 +614,6 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
         return None;
     }
     Some(rv)
-}
-
-#[inline]
-pub fn find_window_by_handle_opt(window: Window, err: &mut Error) -> Option<WinPtr> {
-    let w = find_window_by_handle(window, err);
-    (!w.is_null()).then_some(w)
 }
 
 pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
@@ -1329,7 +1324,7 @@ pub fn get_default_stl_hl(
     let Some(wp) = wp else {
         return c"TabLineFill".to_owned();
     };
-    let is_curwin = wp == curwin_ptr();
+    let is_curwin = wp == curwin();
     if use_winbar {
         if is_curwin {
             c"WinBar".to_owned()

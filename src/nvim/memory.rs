@@ -280,7 +280,7 @@ pub fn free_all_mem() {
         free_quickfix();
         close_all_scripts();
 
-        if !(curwin_ptr()).is_null() {
+        if !(curwin()).is_null() {
             win_free_all();
         }
 
