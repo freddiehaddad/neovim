@@ -111,21 +111,21 @@ fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut Pa
 }
 
 /// Get the currently parsed line shifted to `pstate.pos.col` (`viml_parser_get_remaining_line`).
-pub fn viml_parser_get_remaining_line(
-    pstate: &mut ParserState<'_>,
-    ret_pline: &mut ParserLine,
-) -> bool {
+pub fn viml_parser_get_remaining_line(pstate: &mut ParserState<'_>) -> Option<ParserLine> {
     let num_lines = pstate.reader.lines.len();
+    let mut ret_pline = ParserLine::NONE;
     if pstate.pos.line == num_lines {
-        viml_preader_get_line(&mut pstate.reader, ret_pline);
+        viml_preader_get_line(&mut pstate.reader, &mut ret_pline);
     } else {
-        *ret_pline = pstate.reader.lines.last().unwrap().clone();
+        ret_pline = pstate.reader.lines.last().unwrap().clone();
     }
     assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
     if ret_pline.data.is_some() {
         ret_pline.offset += pstate.pos.col;
+        Some(ret_pline)
+    } else {
+        None
     }
-    ret_pline.data.is_some()
 }
 
 #[cfg(test)]

@@ -3672,8 +3672,7 @@ fn shada_read_next_item(
                             );
                         break 'parse_item false;
                     }
-                    let mut hist_type: Integer = 0;
-                    if !unpack_integer(&mut read_buf, &mut hist_type) {
+                    let Some(hist_type) = unpack_integer(&mut read_buf) else {
                         semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu has wrong history type type",
@@ -3681,7 +3680,7 @@ fn shada_read_next_item(
                                 initial_fpos,
                             );
                         break 'parse_item false;
-                    }
+                    };
                     let item = unpack_string(&mut read_buf);
                     if item.data.is_null() {
                         semsg!(
@@ -3715,8 +3714,7 @@ fn shada_read_next_item(
                                 );
                             break 'parse_item false;
                         }
-                        let mut sep_type: Integer = 0;
-                        if !unpack_integer(&mut read_buf, &mut sep_type) {
+                        let Some(sep_type) = unpack_integer(&mut read_buf) else {
                             semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: search history entry at position %llu has wrong history separator type",
@@ -3724,7 +3722,7 @@ fn shada_read_next_item(
                                     initial_fpos,
                                 );
                             break 'parse_item false;
-                        }
+                        };
                         hi.sep = sep_type as u8;
                     }
                     hi.string = Some(std::ffi::CString::new(item.as_bytes()).unwrap_or_default());
@@ -3757,9 +3755,7 @@ fn shada_read_next_item(
                     let mut is_blob = false;
                     if !binval.data.is_null() {
                         if len > 2 {
-                            let mut vtype: Integer = 0;
-                            if !unpack_integer(&mut read_buf, &mut vtype) || vtype != VAR_TYPE_BLOB
-                            {
+                            if unpack_integer(&mut read_buf) != Some(VAR_TYPE_BLOB) {
                                 semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: variable entry at position %llu has wrong variable type",

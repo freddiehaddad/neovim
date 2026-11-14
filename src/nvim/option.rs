@@ -2208,9 +2208,7 @@ fn didset_options() {
 
     didset_string_options();
 
-    let mut sps_flags: i32 = 0;
-    let mut sps_limit: i32 = 0;
-    if spell_check_sps(&opt_vars().p_sps.as_cstr(), &mut sps_flags, &mut sps_limit) {
+    if let Some((sps_flags, sps_limit)) = spell_check_sps(&opt_vars().p_sps.as_cstr()) {
         spell_apply_sps(sps_flags, sps_limit);
     }
     let ws = curwin().w_s_ptr();

@@ -1241,68 +1241,66 @@ pub fn nvim_win_get_config(win: Window, err: &mut Error) -> KeyDictWinConfig {
     rv
 }
 
-fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
+fn parse_float_anchor(anchor: NvimString) -> Option<FloatAnchor> {
     let bytes = anchor.cstr_bytes();
     if bytes.eq_ignore_ascii_case(b"NW") {
-        *out = 0;
+        Some(0)
     } else if bytes.eq_ignore_ascii_case(b"NE") {
-        *out = K_FLOAT_ANCHOR_EAST;
+        Some(K_FLOAT_ANCHOR_EAST)
     } else if bytes.eq_ignore_ascii_case(b"SW") {
-        *out = K_FLOAT_ANCHOR_SOUTH;
+        Some(K_FLOAT_ANCHOR_SOUTH)
     } else if bytes.eq_ignore_ascii_case(b"SE") {
-        *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
+        Some(K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST)
     } else {
-        return false;
+        None
     }
-    true
 }
 
-fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
+fn parse_float_relative(relative: NvimString) -> Option<FloatRelative> {
     let bytes = relative.cstr_bytes();
     if bytes.eq_ignore_ascii_case(b"editor") {
-        *out = K_FLOAT_RELATIVE_EDITOR;
+        Some(K_FLOAT_RELATIVE_EDITOR)
     } else if bytes.eq_ignore_ascii_case(b"win") {
-        *out = K_FLOAT_RELATIVE_WINDOW;
+        Some(K_FLOAT_RELATIVE_WINDOW)
     } else if bytes.eq_ignore_ascii_case(b"cursor") {
-        *out = K_FLOAT_RELATIVE_CURSOR;
+        Some(K_FLOAT_RELATIVE_CURSOR)
     } else if bytes.eq_ignore_ascii_case(b"mouse") {
-        *out = K_FLOAT_RELATIVE_MOUSE;
+        Some(K_FLOAT_RELATIVE_MOUSE)
     } else if bytes.eq_ignore_ascii_case(b"tabline") {
-        *out = K_FLOAT_RELATIVE_TABLINE;
+        Some(K_FLOAT_RELATIVE_TABLINE)
     } else if bytes.eq_ignore_ascii_case(b"laststatus") {
-        *out = K_FLOAT_RELATIVE_LASTSTATUS;
+        Some(K_FLOAT_RELATIVE_LASTSTATUS)
     } else {
-        return false;
+        None
     }
-    true
 }
 
-fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
+fn parse_config_split(split: NvimString) -> Option<WinSplit> {
     let bytes = split.cstr_bytes();
     if bytes.eq_ignore_ascii_case(b"left") {
-        *out = K_WIN_SPLIT_LEFT;
+        Some(K_WIN_SPLIT_LEFT)
     } else if bytes.eq_ignore_ascii_case(b"right") {
-        *out = K_WIN_SPLIT_RIGHT;
+        Some(K_WIN_SPLIT_RIGHT)
     } else if bytes.eq_ignore_ascii_case(b"above") {
-        *out = K_WIN_SPLIT_ABOVE;
+        Some(K_WIN_SPLIT_ABOVE)
     } else if bytes.eq_ignore_ascii_case(b"below") {
-        *out = K_WIN_SPLIT_BELOW;
+        Some(K_WIN_SPLIT_BELOW)
     } else {
-        return false;
+        None
     }
-    true
 }
 
-fn parse_float_bufpos(bufpos: Array, out: &mut Lpos) -> bool {
+fn parse_float_bufpos(bufpos: Array) -> Option<Lpos> {
     if bufpos.size != 2
         || bufpos[0].obj_type != ObjectType::ObjectTypeInteger
         || bufpos[1].obj_type != ObjectType::ObjectTypeInteger
     {
-        return false;
+        return None;
     }
-    out.lnum = bufpos[0].data.integer() as i32;
-    out.col = bufpos[1].data.integer() as i32;
-    true
+    Some(Lpos {
+        lnum: bufpos[0].data.integer() as i32,
+        col: bufpos[1].data.integer() as i32,
+    })
 }
 
 // DLLEXPORT void parse_bordertext(Object bordertext, BorderTextType bordertext_type,
@@ -1590,10 +1588,11 @@ fn parse_win_config(
 
     'fail: {
         if config.relative.size > 0 {
-            if !parse_float_relative(config.relative.clone(), &mut fconfig.relative) {
+            let Some(rel) = parse_float_relative(config.relative.clone()) else {
                 api_err_invalid(err, c"relative", config.relative.as_opt_cstr(), 0, true);
                 break 'fail;
-            }
+            };
+            fconfig.relative = rel;
 
             if !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW)
                 && has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL))
@@ -1636,17 +1635,19 @@ fn parse_win_config(
                 api_err_conflict(err, c"split", c"floating windows");
                 break 'fail;
             }
-            if !parse_config_split(config.split.clone(), &mut fconfig.split) {
+            let Some(split) = parse_config_split(config.split.clone()) else {
                 api_err_invalid(err, c"split", config.split.as_opt_cstr(), 0, true);
                 break 'fail;
-            }
+            };
+            fconfig.split = split;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
-            && !parse_float_anchor(config.anchor.clone(), &mut fconfig.anchor)
-        {
-            api_err_invalid(err, c"anchor", config.anchor.as_opt_cstr(), 0, true);
-            break 'fail;
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR) {
+            let Some(anchor) = parse_float_anchor(config.anchor.clone()) else {
+                api_err_invalid(err, c"anchor", config.anchor.as_opt_cstr(), 0, true);
+                break 'fail;
+            };
+            fconfig.anchor = anchor;
         }
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
@@ -1673,10 +1674,11 @@ fn parse_win_config(
 
                 break 'fail;
             } else {
-                if !parse_float_bufpos(config.bufpos.clone(), &mut fconfig.bufpos) {
+                let Some(bufpos) = parse_float_bufpos(config.bufpos.clone()) else {
                     api_err_exp(err, c"bufpos", c"[row, col] array", None);
                     break 'fail;
-                }
+                };
+                fconfig.bufpos = bufpos;
 
                 if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
                     fconfig.row = if (fconfig.anchor & K_FLOAT_ANCHOR_SOUTH) != 0 {

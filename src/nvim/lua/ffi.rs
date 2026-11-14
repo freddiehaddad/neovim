@@ -2177,15 +2177,6 @@ pub fn ts_tree_changed_ranges_owned(
 
 impl TSNode {
     #[inline]
-    pub const fn empty() -> Self {
-        Self {
-            context: [0; 4],
-            id: std::ptr::null(),
-            tree: std::ptr::null(),
-        }
-    }
-
-    #[inline]
     pub fn is_null(self) -> bool {
         unsafe { ts_node_is_null(self) }
     }

@@ -397,8 +397,14 @@ impl UvSyncOutput {
         unsafe { uv_is_closing(self.handle_ptr()) != 0 }
     }
 
-    pub fn get_winsize(&mut self, width: &mut i32, height: &mut i32) -> bool {
-        unsafe { crate::event::r#loop::uv_tty_get_winsize(self.handle_ptr(), width, height) == 0 }
+    pub fn get_winsize(&mut self) -> Option<(i32, i32)> {
+        let mut width: i32 = 0;
+        let mut height: i32 = 0;
+        let ok = unsafe {
+            crate::event::r#loop::uv_tty_get_winsize(self.handle_ptr(), &mut width, &mut height)
+                == 0
+        };
+        ok.then_some((width, height))
     }
 
     pub fn write_bufs(&mut self, bufs: &[crate::event::wstream::uv_buf_t]) -> i32 {

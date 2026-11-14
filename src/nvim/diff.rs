@@ -1567,17 +1567,19 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
             if !ascii_isdigit(i32::from(line[0])) {
                 continue;
             }
-            if !parse_diff_ed(crate::memory::bytes_until_nul(&line), hunk) {
+            let Some(parsed) = parse_diff_ed(crate::memory::bytes_until_nul(&line)) else {
                 continue;
-            }
+            };
+            *hunk = parsed;
         } else {
             debug_assert!(*diffstyle == Diffstyle::DiffUnified);
             if !line.starts_with(b"@@ ") {
                 continue;
             }
-            if !parse_diff_unified(crate::memory::bytes_until_nul(&line), hunk) {
+            let Some(parsed) = parse_diff_unified(crate::memory::bytes_until_nul(&line)) else {
                 continue;
-            }
+            };
+            *hunk = parsed;
         }
         return false;
     }
@@ -3592,7 +3594,7 @@ pub fn diff_lnum_win(lnum: Linenr, wp: &WinInfoInfo) -> Linenr {
     let n = lnum + (dp_lnum[u_i] - dp_lnum[u_idx]);
     n.min(dp_lnum[u_i] + dp_count[u_i])
 }
-fn parse_diff_ed(line: &[u8], hunk: &mut Diffhunk) -> bool {
+fn parse_diff_ed(line: &[u8]) -> Option<Diffhunk> {
     let mut p = line;
     let f1 = getdigits_int32(&mut p, true, 0);
     let l1 = if let Some(after_comma) = p.strip_prefix(b",") {
@@ -3601,8 +3603,8 @@ fn parse_diff_ed(line: &[u8], hunk: &mut Diffhunk) -> bool {
     } else {
         f1
     };
-    let Some(&difftype @ (b'a' | b'c' | b'd')) = p.first() else {
-        return false;
+    let &difftype @ (b'a' | b'c' | b'd') = p.first()? else {
+        return None;
     };
     p = &p[1..];
     let f2 = getdigits_int(&mut p, true, 0);
@@ -3613,28 +3615,27 @@ fn parse_diff_ed(line: &[u8], hunk: &mut Diffhunk) -> bool {
         f2
     };
     if l1 < f1 || l2 < f2 {
-        return false;
+        return None;
     }
-    if difftype == b'a' {
-        hunk.lnum_orig = f1 + 1;
-        hunk.count_orig = 0;
+    let (lnum_orig, count_orig) = if difftype == b'a' {
+        (f1 + 1, 0)
     } else {
-        hunk.lnum_orig = f1;
-        hunk.count_orig = l1 - f1 + 1;
-    }
-    if difftype == b'd' {
-        hunk.lnum_new = f2 + 1;
-        hunk.count_new = 0;
-    } else {
-        hunk.lnum_new = f2;
-        hunk.count_new = l2 - f2 + 1;
-    }
-    true
-}
-fn parse_diff_unified(line: &[u8], hunk: &mut Diffhunk) -> bool {
-    let Some(mut p) = line.strip_prefix(b"@@ -") else {
-        return false;
+        (f1, l1 - f1 + 1)
     };
+    let (lnum_new, count_new) = if difftype == b'd' {
+        (f2 + 1, 0)
+    } else {
+        (f2, l2 - f2 + 1)
+    };
+    Some(Diffhunk {
+        lnum_orig,
+        count_orig,
+        lnum_new,
+        count_new,
+    })
+}
+fn parse_diff_unified(line: &[u8]) -> Option<Diffhunk> {
+    let mut p = line.strip_prefix(b"@@ -")?;
     let mut oldline = getdigits_int32(&mut p, true, 0);
     let oldcount = if let Some(after_comma) = p.strip_prefix(b",") {
         p = after_comma;
@@ -3642,9 +3643,7 @@ fn parse_diff_unified(line: &[u8], hunk: &mut Diffhunk) -> bool {
     } else {
         1
     };
-    let Some(mut p) = p.strip_prefix(b" +") else {
-        return false;
-    };
+    let mut p = p.strip_prefix(b" +")?;
     let mut newline = getdigits_int(&mut p, true, 0);
     let newcount = if let Some(after_comma) = p.strip_prefix(b",") {
         p = after_comma;
@@ -3661,11 +3660,12 @@ fn parse_diff_unified(line: &[u8], hunk: &mut Diffhunk) -> bool {
     if newline == 0 {
         newline = 1;
     }
-    hunk.lnum_orig = oldline;
-    hunk.count_orig = oldcount;
-    hunk.lnum_new = newline;
-    hunk.count_new = newcount;
-    true
+    Some(Diffhunk {
+        lnum_orig: oldline,
+        count_orig: oldcount,
+        lnum_new: newline,
+        count_new: newcount,
+    })
 }
 pub(crate) fn xdiff_out(
     start_a: i32,
@@ -3786,18 +3786,12 @@ mod tests {
     use super::*;
     #[test]
     fn parse_diff_ed_and_unified_work() {
-        let mut hunk = Diffhunk {
-            lnum_orig: 0,
-            count_orig: 0,
-            lnum_new: 0,
-            count_new: 0,
-        };
-        assert!(parse_diff_ed(b"2,4c5,6\n", &mut hunk));
+        let hunk = parse_diff_ed(b"2,4c5,6\n").unwrap();
         assert_eq!(hunk.lnum_orig, 2);
         assert_eq!(hunk.count_orig, 3);
         assert_eq!(hunk.lnum_new, 5);
         assert_eq!(hunk.count_new, 2);
-        assert!(parse_diff_unified(b"@@ -10,3 +12,4 @@\n", &mut hunk));
+        let hunk = parse_diff_unified(b"@@ -10,3 +12,4 @@\n").unwrap();
         assert_eq!(hunk.lnum_orig, 10);
         assert_eq!(hunk.count_orig, 3);
         assert_eq!(hunk.lnum_new, 12);

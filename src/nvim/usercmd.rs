@@ -817,7 +817,7 @@ fn uc_list(name_prefix: &[u8]) {
 }
 
 /// Parse address type argument (`parse_addr_type_arg`).
-pub fn parse_addr_type_arg(val_slice: &[u8], addr_type_arg: &mut CmdAddr) -> bool {
+pub fn parse_addr_type_arg(val_slice: &[u8]) -> Option<CmdAddr> {
     let val_slice = crate::memory::bytes_until_nul(val_slice);
     for entry in &ADDR_TYPE_COMPLETE {
         if entry.expand == ADDR_NONE {
@@ -826,8 +826,7 @@ pub fn parse_addr_type_arg(val_slice: &[u8], addr_type_arg: &mut CmdAddr) -> boo
         if let Some(name) = entry.name
             && name.to_bytes() == val_slice
         {
-            *addr_type_arg = entry.expand;
-            return true;
+            return Some(entry.expand);
         }
     }
 
@@ -838,7 +837,7 @@ pub fn parse_addr_type_arg(val_slice: &[u8], addr_type_arg: &mut CmdAddr) -> boo
     let err_cstr = CString::new(&val_slice[..i]).unwrap_or_default();
 
     semsg!(gettext(c"E180: Invalid address type value: %s"), &err_cstr);
-    false
+    None
 }
 
 /// Parse a completion argument `value[vallen]` (`parse_compl_arg`).
@@ -1013,9 +1012,10 @@ fn uc_scan_attr(
                 semsg!(gettext(E_ARGUMENT_REQUIRED_FOR_STR), c"-addr",);
                 return false;
             };
-            if !parse_addr_type_arg(val, addr_type_arg) {
+            let Some(addr) = parse_addr_type_arg(val) else {
                 return false;
-            }
+            };
+            *addr_type_arg = addr;
             if *addr_type_arg != ADDR_LINES {
                 *argt |= EX_ZEROR;
             }

@@ -2778,12 +2778,10 @@ pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'spellsuggest' option.
 pub fn validate_spellsuggest<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let mut sps: [i32; 2] = [0, 0];
-    let [s0, s1] = &mut sps;
-    if !spell_check_sps(args.os_newval.data.string().as_cstr(), s0, s1) {
+    let Some((s0, s1)) = spell_check_sps(args.os_newval.data.string().as_cstr()) else {
         return Some(E_INVARG);
-    }
-    args.os_prep = OptSetPrep::Spellsuggest(sps);
+    };
+    args.os_prep = OptSetPrep::Spellsuggest([s0, s1]);
     None
 }
 

@@ -887,18 +887,16 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword(list: &TvList, ret_word: &mut Option<std::borrow::Cow<'static, CStr>>) -> i32 {
+pub fn get_spellword(list: &TvList) -> Option<(i32, std::borrow::Cow<'static, CStr>)> {
     if tv_list_len(Some(list)) != 2 {
         emsg(gettext(
             c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
         ));
-        return -1;
+        return None;
     }
-    *ret_word = tv_list_find_str(Some(list), 0);
-    if ret_word.is_none() {
-        return -1;
-    }
-    tv_list_find_nr(Some(list), -1, None) as i32
+    let word = tv_list_find_str(Some(list), 0)?;
+    let score = tv_list_find_nr(Some(list), -1, None) as i32;
+    Some((score, word))
 }
 
 /// Prepare v: variable "idx" to be used.

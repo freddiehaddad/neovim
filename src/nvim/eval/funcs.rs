@@ -410,17 +410,15 @@ fn tv_list_uidx(l: Option<&TvList>, mut n: i32) -> Option<i32> {
 }
 
 #[inline]
-fn tv_get_float_chk(tv: &TypVal, ret_f: &mut TvFloat) -> bool {
+fn tv_get_float_chk(tv: &TypVal) -> Option<TvFloat> {
     if tv.v_type == VarType::VarFloat {
-        *ret_f = tv.vval.v_float();
-        return true;
+        return Some(tv.vval.v_float());
     }
     if tv.v_type == VarType::VarNumber {
-        *ret_f = tv.vval.v_number() as TvFloat;
-        return true;
+        return Some(tv.vval.v_number() as TvFloat);
     }
     semsg!(c"%s", gettext(c"E808: Number or Float required"),);
-    false
+    None
 }
 
 #[inline]
@@ -1247,9 +1245,8 @@ fn non_zero_arg(argvars: &TypVal) -> bool {
 
 /// Apply a floating point C function on a typval with one `TvFloat`.
 pub fn float_op_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    let mut f: TvFloat = 0.0;
     rettv.v_type = VarType::VarFloat;
-    if tv_get_float_chk(&argvars[0], &mut f)
+    if let Some(f) = tv_get_float_chk(&argvars[0])
         && let EvalFuncData::FloatOp(func_float) = fptr
     {
         rettv.vval = crate::eval::typval::TypvalVval::Float(func_float(f));
@@ -1345,9 +1342,8 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 /// "abs(expr)" function
 pub fn f_abs(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if argvars[0].v_type == VarType::VarFloat {
-        let mut f: TvFloat = 0.0;
         rettv.v_type = VarType::VarFloat;
-        if tv_get_float_chk(&argvars[0], &mut f) {
+        if let Some(f) = tv_get_float_chk(&argvars[0]) {
             rettv.vval = crate::eval::typval::TypvalVval::Float(f.abs());
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -1383,10 +1379,8 @@ pub fn f_api_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "atan2()" function
 pub fn f_atan2(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut fx: TvFloat = 0.0;
-    let mut fy: TvFloat = 0.0;
     rettv.v_type = VarType::VarFloat;
-    if tv_get_float_chk(&argvars[0], &mut fx) && tv_get_float_chk(&argvars[1], &mut fy) {
+    if let (Some(fx), Some(fy)) = (tv_get_float_chk(&argvars[0]), tv_get_float_chk(&argvars[1])) {
         rettv.vval = crate::eval::typval::TypvalVval::Float(fx.atan2(fy));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -2395,10 +2389,9 @@ pub fn f_feedkeys(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "float2nr({float})" function
 pub fn f_float2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut f: TvFloat = 0.0;
-    if !tv_get_float_chk(&argvars[0], &mut f) {
+    let Some(f) = tv_get_float_chk(&argvars[0]) else {
         return;
-    }
+    };
     if f <= (-VARNUMBER_MAX as TvFloat) + f64::EPSILON {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-VARNUMBER_MAX);
     } else if f >= (VARNUMBER_MAX as TvFloat) - f64::EPSILON {
@@ -2410,10 +2403,8 @@ pub fn f_float2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "fmod()" function
 pub fn f_fmod(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut fx: TvFloat = 0.0;
-    let mut fy: TvFloat = 0.0;
     rettv.v_type = VarType::VarFloat;
-    if tv_get_float_chk(&argvars[0], &mut fx) && tv_get_float_chk(&argvars[1], &mut fy) {
+    if let (Some(fx), Some(fy)) = (tv_get_float_chk(&argvars[0]), tv_get_float_chk(&argvars[1])) {
         rettv.vval = crate::eval::typval::TypvalVval::Float(fx % fy);
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -5702,10 +5693,8 @@ pub fn f_or(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "pow()" function
 pub fn f_pow(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut fx: TvFloat = 0.0;
-    let mut fy: TvFloat = 0.0;
     rettv.v_type = VarType::VarFloat;
-    if tv_get_float_chk(&argvars[0], &mut fx) && tv_get_float_chk(&argvars[1], &mut fy) {
+    if let (Some(fx), Some(fy)) = (tv_get_float_chk(&argvars[0]), tv_get_float_chk(&argvars[1])) {
         rettv.vval = crate::eval::typval::TypvalVval::Float(fx.powf(fy));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -6043,41 +6032,39 @@ pub fn f_reg_recorded(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     return_register(g_st().reg_recorded.get(), rettv);
 }
 
-fn list2proftime(arg: &mut TypVal, tm: &mut Proftime) -> bool {
+fn list2proftime(arg: &mut TypVal) -> Option<Proftime> {
     if arg.v_type != VarType::VarList || tv_list_len(arg.vval.v_list_opt()) != 2 {
-        return false;
+        return None;
     }
     let mut error = false;
     let n1 = tv_list_find_nr(arg.vval.v_list_opt(), 0, Some(&mut error));
     let n2 = tv_list_find_nr(arg.vval.v_list_opt(), 1, Some(&mut error));
     if error {
-        return false;
+        return None;
     }
     let high = (n1 as i32) as u32 as u64;
     let low = (n2 as i32) as u32 as u64;
-    *tm = (high << 32) | low;
-    true
+    Some((high << 32) | low)
 }
 
 /// "reltime()" function
 pub fn f_reltime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut res: Proftime = 0;
-    let mut start: Proftime = 0;
-
-    if argvars[0].v_type == VarType::VarUnknown {
-        res = profile_start();
+    let res = if argvars[0].v_type == VarType::VarUnknown {
+        profile_start()
     } else if argvars[1].v_type == VarType::VarUnknown {
-        if !list2proftime(&mut argvars[0], &mut res) {
+        let Some(t) = list2proftime(&mut argvars[0]) else {
             return;
-        }
-        res = profile_end(res);
+        };
+        profile_end(t)
     } else {
-        if !list2proftime(&mut argvars[0], &mut start) || !list2proftime(&mut argvars[1], &mut res)
-        {
+        let (Some(start), Some(end)) = (
+            list2proftime(&mut argvars[0]),
+            list2proftime(&mut argvars[1]),
+        ) else {
             return;
-        }
-        res = profile_sub(res, start);
-    }
+        };
+        profile_sub(end, start)
+    };
 
     let high = (res >> 32) as i32;
     let low = (res & 0xffff_ffff) as i32;
@@ -6089,10 +6076,9 @@ pub fn f_reltime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "reltimestr()" function
 pub fn f_reltimestr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tm: Proftime = 0;
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-    if list2proftime(&mut argvars[0], &mut tm) {
+    if let Some(tm) = list2proftime(&mut argvars[0]) {
         crate::eval::typval::tv_set_string(rettv, Some(&profile_msg(tm)));
     }
 }
@@ -7537,10 +7523,9 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "reltimefloat()" function
 pub fn f_reltimefloat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tm: Proftime = 0;
     rettv.v_type = VarType::VarFloat;
     rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
-    if list2proftime(&mut argvars[0], &mut tm) {
+    if let Some(tm) = list2proftime(&mut argvars[0]) {
         rettv.vval = crate::eval::typval::TypvalVval::Float(
             (profile_signed(tm) as TvFloat) / (NS_PER_SEC as TvFloat),
         );
@@ -7882,8 +7867,6 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut fmt_buf = [0u8; NUMBUFLEN];
     let mut str_buf = [0u8; NUMBUFLEN];
 
-    let mut tmval = Tm { _fields: [0; 16] };
-    tmval._fields[8] = -1; // tm_isdst = -1
     let fmt_in = tv_get_string_buf(&argvars[0], &mut fmt_buf);
     let str_ = tv_get_string_buf(&argvars[1], &mut str_buf);
 
@@ -7901,12 +7884,12 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     } else {
         Some(fmt_in)
     };
-    if fmt_cstr.is_none_or(|f| !os_strptime(str_, f, &mut tmval)) {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    } else {
+    if let Some(mut tmval) = fmt_cstr.and_then(|f| os_strptime(str_, f)) {
         let t = os_mktime(&mut tmval);
         rettv.vval =
             crate::eval::typval::TypvalVval::Number(if t == -1 { 0 } else { t as Varnumber });
+    } else {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
     drop(fmt_owned);
 }

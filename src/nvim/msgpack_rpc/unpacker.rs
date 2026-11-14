@@ -767,25 +767,22 @@ pub fn unpack_array(buf: &mut &[u8]) -> isize {
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
-pub fn unpack_integer(buf: &mut &[u8], res: &mut Integer) -> bool {
+pub fn unpack_integer(buf: &mut &[u8]) -> Option<Integer> {
     let mut tok = MpackToken::new();
-    let result = mpack_rtoken(buf, &mut tok);
-    if result != 0 {
-        return false;
+    if mpack_rtoken(buf, &mut tok) != 0 {
+        return None;
     }
-    unpack_uint_or_sint(tok, res)
+    unpack_uint_or_sint(tok)
 }
 
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
-pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
+pub fn unpack_uint_or_sint(tok: MpackToken) -> Option<Integer> {
     if tok.r#type == MpackTokenType::MpackTokenUint {
-        *res = mpack_unpack_uint(&tok) as Integer;
-        true
+        Some(mpack_unpack_uint(&tok) as Integer)
     } else if tok.r#type == MpackTokenType::MpackTokenSint {
-        *res = mpack_unpack_sint(&tok) as Integer;
-        true
+        Some(mpack_unpack_sint(&tok) as Integer)
     } else {
-        false
+        None
     }
 }
 
@@ -878,10 +875,11 @@ pub fn unpack_keydict<T: crate::api::private::validate::KeyDict>(
 
             *buf = &buf[1..];
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            if !unpack_integer(buf, field.field_mut::<Integer>(retval)) {
+            let Some(int_val) = unpack_integer(buf) else {
                 *error = alloc_key_error(key, b" key value which is not an integer");
                 return false;
-            }
+            };
+            *field.field_mut::<Integer>(retval) = int_val;
         } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
             let val = unpack_string(buf);
             if val.data.is_null() {

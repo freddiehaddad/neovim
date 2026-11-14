@@ -7,7 +7,7 @@ use crate::charset::{
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special_slice};
 use crate::mbyte::{mb_copy_slice_char, utf_char2len, utf_char2slice, utfc_slice2len};
 use crate::viml::parser::parser::{
-    ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
+    ParserHighlightChunk, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
 
 use crate::eval::STR2NR_ALL;
@@ -1327,11 +1327,10 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
     ret.r#type = K_EXPR_LEX_INVALID;
     ret.start = pstate.pos;
 
-    let mut pline = ParserLine::NONE;
-    if !viml_parser_get_remaining_line(pstate, &mut pline) {
+    let Some(pline) = viml_parser_get_remaining_line(pstate) else {
         ret.r#type = K_EXPR_LEX_EOC;
         return ret;
-    }
+    };
     if pline.size() == 0 {
         ret.len = 0;
         ret.r#type = K_EXPR_LEX_EOC;
@@ -4179,7 +4178,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::viml::parser::parser::{ParserHighlight, ParserInputReader};
+    use crate::viml::parser::parser::{ParserHighlight, ParserInputReader, ParserLine};
 
     fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState<'_>) -> R) -> R {
         let lines = [ParserLine::from_slice(input), ParserLine::NONE];

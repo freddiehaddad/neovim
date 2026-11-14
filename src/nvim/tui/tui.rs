@@ -2271,16 +2271,14 @@ pub fn tui_set_size(tui: &mut TUIData, width: i32, height: i32) {
     ui_client_set_size(width, height);
 }
 
-fn parse_sscanf_int(bytes: Option<&[u8]>, out: &mut i32) -> bool {
-    let Some(bytes) = bytes else {
-        return false;
-    };
+fn parse_sscanf_int(bytes: Option<&[u8]>) -> Option<i32> {
+    let bytes = bytes?;
     let mut idx = 0;
     while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
         idx += 1;
     }
     if idx >= bytes.len() {
-        return false;
+        return None;
     }
     let start = idx;
     if bytes[idx] == b'+' || bytes[idx] == b'-' {
@@ -2291,15 +2289,12 @@ fn parse_sscanf_int(bytes: Option<&[u8]>, out: &mut i32) -> bool {
         idx += 1;
     }
     if idx == digit_start {
-        return false;
+        return None;
     }
-    if let Ok(s) = std::str::from_utf8(&bytes[start..idx])
-        && let Ok(v) = s.parse::<i32>()
-    {
-        *out = v;
-        return true;
-    }
-    false
+    std::str::from_utf8(&bytes[start..idx])
+        .ok()?
+        .parse::<i32>()
+        .ok()
 }
 
 pub fn tui_guess_size(tui: &mut TUIData) {
@@ -2307,16 +2302,23 @@ pub fn tui_guess_size(tui: &mut TUIData) {
     let mut height: i32 = 0;
 
     let mut got_size = false;
-    if tui.out_isatty && tui.sync_out.get_winsize(&mut width, &mut height) {
+    if tui.out_isatty
+        && let Some((w, h)) = tui.sync_out.get_winsize()
+    {
+        width = w;
+        height = h;
         got_size = true;
     }
 
     if !got_size {
         let lines = os_getenv_cstr(c"LINES");
         let columns = os_getenv_cstr(c"COLUMNS");
-        if parse_sscanf_int(lines.as_deref().map(CStr::to_bytes), &mut height)
-            && parse_sscanf_int(columns.as_deref().map(CStr::to_bytes), &mut width)
-        {
+        if let (Some(h), Some(w)) = (
+            parse_sscanf_int(lines.as_deref().map(CStr::to_bytes)),
+            parse_sscanf_int(columns.as_deref().map(CStr::to_bytes)),
+        ) {
+            height = h;
+            width = w;
             got_size = true;
         }
     }
@@ -2942,9 +2944,7 @@ mod tests {
         ));
         assert!(lookup_termdef_field(b"key_f64").is_none());
 
-        let mut v = 0;
-        assert!(parse_sscanf_int(Some(b"  120cols"), &mut v));
-        assert_eq!(v, 120);
-        assert!(!parse_sscanf_int(Some(b"abc"), &mut v));
+        assert_eq!(parse_sscanf_int(Some(b"  120cols")), Some(120));
+        assert_eq!(parse_sscanf_int(Some(b"abc")), None);
     }
 }

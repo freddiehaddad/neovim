@@ -567,8 +567,6 @@ fn lua_checkuint32(lstate: *mut lua_State, index: i32) -> u32 {
 }
 
 fn range_from_lua(lstate: *mut lua_State, range: &mut TSRange) {
-    let mut node = TSNode::empty();
-
     if lua_istable(lstate, -1) {
         if lua_objlen_safe(lstate, -1) != 6 {
             range_err(lstate);
@@ -610,7 +608,7 @@ fn range_from_lua(lstate: *mut lua_State, range: &mut TSRange) {
             start_byte,
             end_byte,
         };
-    } else if node_check_opt(lstate, -1, &mut node) {
+    } else if let Some(node) = node_check_opt(lstate, -1) {
         *range = TSRange {
             start_point: node.start_point(),
             end_point: node.end_point(),
@@ -788,12 +786,8 @@ fn push_node(lstate: *mut lua_State, node: TSNode, uindex: i32) {
     let _ = lua_setfenv_safe(lstate, -2);
 }
 
-fn node_check_opt(lstate: *mut lua_State, index: i32, res: &mut TSNode) -> bool {
-    if let Some(ud) = luaL_checkudata_opt_typed::<TSNode>(lstate, index, TS_META_NODE) {
-        *res = *ud;
-        return true;
-    }
-    false
+fn node_check_opt(lstate: *mut lua_State, index: i32) -> Option<TSNode> {
+    luaL_checkudata_opt_typed::<TSNode>(lstate, index, TS_META_NODE).copied()
 }
 
 fn node_check(lstate: *mut lua_State, index: i32) -> TSNode {

@@ -225,15 +225,20 @@ pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -
 }
 
 /// Portable wrapper for POSIX `strptime()` (`os_strptime`).
-pub fn os_strptime(str_ptr: &CStr, format: &CStr, tm: &mut Tm) -> bool {
+pub fn os_strptime(str_ptr: &CStr, format: &CStr) -> Option<Tm> {
     #[cfg(unix)]
-    unsafe {
-        !strptime(str_ptr.as_ptr().cast(), format.as_ptr().cast(), tm).is_null()
+    {
+        let mut tm = Tm { _fields: [0; 16] };
+        tm._fields[8] = -1; // tm_isdst = -1
+        let ok = unsafe {
+            !strptime(str_ptr.as_ptr().cast(), format.as_ptr().cast(), &mut tm).is_null()
+        };
+        ok.then_some(tm)
     }
     #[cfg(not(unix))]
     {
-        let _ = (str_ptr, format, tm);
-        false
+        let _ = (str_ptr, format);
+        None
     }
 }
 

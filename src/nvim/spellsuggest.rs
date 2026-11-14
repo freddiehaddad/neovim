@@ -532,7 +532,7 @@ fn bytes2offset(pp: &mut &[u8]) -> i32 {
     nr
 }
 /// Parse 'spellsuggest' without changing suggestion state.
-pub fn spell_check_sps(value: &CStr, ret_flags: &mut i32, ret_limit: &mut i32) -> bool {
+pub fn spell_check_sps(value: &CStr) -> Option<(i32, i32)> {
     let mut flags: i32 = 0;
     let mut limit: i32 = 9999;
     let mut p = value.to_bytes();
@@ -565,7 +565,7 @@ pub fn spell_check_sps(value: &CStr, ret_flags: &mut i32, ret_limit: &mut i32) -
             f = -1;
         }
         if f == -1 || (flags != 0 && f != 0) {
-            return false;
+            return None;
         }
         if f != 0 {
             flags = f;
@@ -574,9 +574,7 @@ pub fn spell_check_sps(value: &CStr, ret_flags: &mut i32, ret_limit: &mut i32) -
     if flags == 0 {
         flags = SPS_BEST;
     }
-    *ret_flags = flags;
-    *ret_limit = limit;
-    true
+    Some((flags, limit))
 }
 /// Apply validated 'spellsuggest' flags and suggestion limit.
 pub fn spell_apply_sps(flags: i32, limit: i32) {
@@ -939,28 +937,27 @@ fn spell_find_suggest(
     }
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
-    let mut p: Option<std::borrow::Cow<'_, CStr>> = None;
     let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
         for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             let li_tv = li.tv();
             if li_tv.v_type == VarType::VarList
                 && let Some(sublist) = li_tv.vval.v_list_opt()
+                && let Some((score, p)) = get_spellword(sublist)
+                && score >= 0
+                && score <= su.su_maxscore
             {
-                let score = get_spellword(sublist, &mut p);
-                if score >= 0 && score <= su.su_maxscore {
-                    add_suggestion(
-                        su,
-                        false,
-                        p.as_deref().map_or(&[][..], CStr::to_bytes),
-                        su.su_badlen,
-                        score,
-                        0,
-                        true,
-                        su.su_sallang,
-                        false,
-                    );
-                }
+                add_suggestion(
+                    su,
+                    false,
+                    p.to_bytes(),
+                    su.su_badlen,
+                    score,
+                    0,
+                    true,
+                    su.su_sallang,
+                    false,
+                );
             }
         }
         tv_list_unref(Some(&list));

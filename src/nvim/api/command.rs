@@ -1495,10 +1495,11 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            if !parse_addr_type_arg(opts.addr.data.string().as_bytes(), &mut addr_type_arg) {
+            let Some(addr) = parse_addr_type_arg(opts.addr.data.string().as_bytes()) else {
                 api_err_invalid(err, c"addr", opts.addr.data.string().as_opt_cstr(), 0, true);
                 break 'err;
-            }
+            };
+            addr_type_arg = addr;
             argt |= EX_RANGE;
             if addr_type_arg != ADDR_LINES {
                 argt |= EX_ZEROR;

@@ -614,24 +614,18 @@ fn schedule_termrequest(term: &mut Terminal) {
     multiqueue_put_event(main_loop_events(), Event::TermRequest(req));
 }
 
-fn parse_osc8(str_: &[u8], attr: &mut i32) -> bool {
+fn parse_osc8(str_: &[u8]) -> Option<i32> {
     let str_len = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
     let slice = &str_[..str_len];
-    let Some(semi_idx) = slice.iter().position(|&b| b == b';') else {
-        return false;
-    };
+    let semi_idx = slice.iter().position(|&b| b == b';')?;
 
     let url_start = semi_idx + 1;
     if url_start >= slice.len() {
-        *attr = 0;
-        return true;
+        return Some(0);
     }
 
-    let Ok(url_cstr) = CStr::from_bytes_until_nul(&str_[url_start..]) else {
-        return false;
-    };
-    *attr = hl_add_url(0, url_cstr);
-    true
+    let url_cstr = CStr::from_bytes_until_nul(&str_[url_start..]).ok()?;
+    Some(hl_add_url(0, url_cstr))
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, term_id: Option<&mut TermId>) -> i32 {
@@ -662,9 +656,8 @@ fn on_osc(command: i32, frag: VTermStringFragment, term_id: Option<&mut TermId>)
             if command == 8 {
                 term.termrequest_buffer.push(0);
                 let off = b"\x1b]8;".len();
-                let mut attr: i32 = 0;
                 if let Some(osc_tail) = term.termrequest_buffer.get(off..)
-                    && parse_osc8(osc_tail, &mut attr)
+                    && let Some(attr) = parse_osc8(osc_tail)
                 {
                     term.pending_uri_attr = Some(attr);
                 }
